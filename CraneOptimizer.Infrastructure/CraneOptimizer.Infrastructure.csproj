@@ -1,0 +1,45 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<Platforms>AnyCPU;x64</Platforms>
+		<UseWPF>true</UseWPF>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Remove="Data\**" />
+		<EmbeddedResource Remove="Data\**" />
+		<None Remove="Data\**" />
+	</ItemGroup>
+	<Target Name="CopyXbimEngine" AfterTargets="Build">
+		<ItemGroup>
+			<XbimDll Include="$(NuGetPackageRoot)xbim.geometry\**\x64\Xbim.Geometry.Engine64.dll" />
+		</ItemGroup>
+		<Copy SourceFiles="@(XbimDll)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+	</Target>
+
+	<ItemGroup>
+		<None Remove="crane.db" />
+		<None Remove="Repositories\crane.db" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.14" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.14">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Xbim.Essentials" Version="6.0.565" />
+		<PackageReference Include="Xbim.Geometry" Version="5.1.820" />
+		<PackageReference Include="Xbim.Geometry.Engine.Interop" Version="5.1.820" />
+		<PackageReference Include="Xbim.ModelGeometry.Scene" Version="5.1.820" />
+		<PackageReference Include="Xbim.WindowsUI" Version="5.1.228" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\CraneOptimizer.Domain\CraneOptimizer.Domain.csproj" />
+	</ItemGroup>
+
+</Project>

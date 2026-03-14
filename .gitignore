@@ -1,0 +1,22 @@
+# SQLite Database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# Build outputs
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# NuGet
+packages/
+
+# OS
+Thumbs.db
+.DS_Store
