@@ -5,6 +5,9 @@
 *.db-shm
 *.db-wal
 
+# Database backups
+*.db.bak
+
 # Build outputs
 bin/
 obj/
@@ -13,10 +16,13 @@ obj/
 .vs/
 *.user
 *.suo
+*.userosscache
+*.sln.docview
 
 # NuGet
 packages/
+*.nupkg
 
 # OS
-Thumbs.db
 .DS_Store
+Thumbs.db
