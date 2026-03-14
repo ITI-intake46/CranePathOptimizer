@@ -42,14 +42,7 @@
             x:Name="MainViewport"
             Grid.Row="1"
             ZoomExtentsWhenLoaded="True">
-
-            <h:SunLight />
-            <h:GridLinesVisual3D
-                Width="200"
-                Length="200"
-                MajorDistance="10"
-                MinorDistance="1"
-                Thickness="0.02" />
+            <!--  Nothing here, scene is built in code-behind  -->
         </h:HelixViewport3D>
 
     </Grid>

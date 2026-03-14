@@ -17,28 +17,39 @@ namespace CraneOptimizer.UI
     {
         private readonly IIfcReader _ifcReader;
 
-        #region CreateGreenArea and save it to list
+        #region Green Area Drawing
+
         private List<Point3D> polygonPoints = new();
         private LinesVisual3D previewLines = new LinesVisual3D();
         private bool isDrawing = false;
-        // save the zones in list to use it later in optimization process
-        private List<CranePlacementZone> zones = new(); 
+        private List<CranePlacementZone> zones = new();
+
         #endregion
+
+        #region Track IFC visuals separately so we never touch grid/lights
+
+        private readonly List<Visual3D> _ifcVisuals = new(); 
+
+        #endregion
+
         public MainWindow(IIfcReader ifcReader)
         {
             InitializeComponent();
-
             _ifcReader = ifcReader;
 
             Loaded += MainWindow_Loaded;
             MainViewport.MouseDown += Viewport_MouseDown;
             MainViewport.MouseUp += Viewport_MouseUp;
         }
+
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            // ✅ SetupScene called ONCE here only
             SetupScene();
+
             MainViewport.Children.Add(previewLines);
 
+            // Optional: auto-load sample IFC on startup
             var path = System.IO.Path.Combine(
                 AppDomain.CurrentDomain.BaseDirectory,
                 "sample.ifc"
@@ -51,137 +62,39 @@ namespace CraneOptimizer.UI
             }
         }
 
-        #region DrawPolygon events
-        private void Viewport_MouseDown(object sender, MouseButtonEventArgs e)
+        #region Scene Setup
+
+        private void SetupScene()
         {
-            if (!isDrawing) return;
-            var pos = e.GetPosition(MainViewport);
+            // ✅ Clear everything once cleanly on first load
+            MainViewport.Children.Clear();
 
-            var point = GetGroundPoint(pos);
+            // Light
+            MainViewport.Children.Add(new SunLight());
 
-            if (point == null)
-                return;
-
-            if (e.RightButton == MouseButtonState.Pressed)
+            // Ground Grid — slightly below Z=0 so it's not hidden by floor slabs
+            var grid = new GridLinesVisual3D
             {
-                CreatePolygonSurface();
-                return;
-            }
-
-            if (e.LeftButton == MouseButtonState.Pressed)
-            {
-                polygonPoints.Add(point.Value);
-                UpdatePreview();
-            }
-        }
-        private void Viewport_MouseUp(object sender, MouseButtonEventArgs e)
-        {
-            if (!isDrawing) return;
-
-            var pos = e.GetPosition(MainViewport);
-            var point = GetGroundPoint(pos);
-            if (point == null) return;
-
-            if (e.ChangedButton == MouseButton.Right && e.RightButton == MouseButtonState.Released)
-            {
-                CreatePolygonSurface();
-                e.Handled = true;           // مهم جدًا عشان تمنع الـ context menu
-            }
-        }
-        private Point3D? GetGroundPoint(Point mouse)
-        {
-            var ray = Viewport3DHelper.Point2DtoRay3D(MainViewport.Viewport, mouse);
-
-            var origin = ray.Origin;
-            var dir = ray.Direction;
-
-            if (Math.Abs(dir.Z) < 0.0001)
-                return null;
-
-            double t = -origin.Z / dir.Z;
-
-            if (t < 0)
-                return null;
-
-            return new Point3D(
-                origin.X + dir.X * t,
-                origin.Y + dir.Y * t,
-                0);
-        }
-        private void UpdatePreview()
-        {
-            previewLines.Points.Clear();
-
-            for (int i = 0; i < polygonPoints.Count - 1; i++)
-            {
-                previewLines.Points.Add(polygonPoints[i]);
-                previewLines.Points.Add(polygonPoints[i + 1]);
-            }
-        }
-        private void CreatePolygonSurface()
-        {
-            if (polygonPoints.Count < 3)
-                return;
-
-            var builder = new MeshBuilder(false, false);
-
-            // ✅ Error 1: حوّل Point3D → Vector3
-            var vectors = polygonPoints
-                .Select(p => new System.Numerics.Vector3((float)p.X, (float)p.Y, (float)p.Z))
-                .ToList();
-
-            builder.AddPolygon(vectors);
-
-            // ✅ Error 2 & 3: ToMesh() من غير arguments، وحوّل الـ mesh يدوياً
-            var helixMesh = builder.ToMesh();
-
-            var mesh = new System.Windows.Media.Media3D.MeshGeometry3D
-            {
-                Positions = new Point3DCollection(
-                    helixMesh.Positions.Select(p => new Point3D(p.X, p.Y, p.Z))),
-
-                TriangleIndices = new Int32Collection(helixMesh.TriangleIndices)
+                Width = 200,
+                Length = 200,
+                MajorDistance = 10,
+                MinorDistance = 2,
+                Thickness = 0.1,
+                Center = new Point3D(0, 0, -0.05)
             };
+            MainViewport.Children.Add(grid);
 
-            if (helixMesh.Normals != null)
+            // Coordinate axes
+            var axis = new CoordinateSystemVisual3D
             {
-                mesh.Normals = new Vector3DCollection(
-                    helixMesh.Normals.Select(n => new Vector3D(n.X, n.Y, n.Z)));
-            }
-
-            var material = new DiffuseMaterial(new SolidColorBrush(Color.FromArgb(120, 0, 255, 0)));
-
-            var model = new GeometryModel3D
-            {
-                Geometry = mesh,
-                Material = material,
-                BackMaterial = material
+                ArrowLengths = 5
             };
-
-            var visual = new ModelVisual3D { Content = model };
-            MainViewport.Children.Add(visual);
-
-            // save area to class here *************
-            var zone = new CranePlacementZone
-            {
-                Vertices = polygonPoints
-                    .Select(p => new CrC.Point3D(p.X, p.Y, p.Z))
-                    .ToList()
-            };
-            zones.Add(zone);
-            //////////////////////
-            ///
-            polygonPoints.Clear();
-            previewLines.Points.Clear();
-            isDrawing = false;
+            MainViewport.Children.Add(axis);
         }
-        private void BtnDrawGreenArea_Click(object sender, RoutedEventArgs e)
-        {
-            isDrawing = true;
-        }
+
         #endregion
 
-        #region insert and create render for IFC
+        #region IFC Loading and Rendering
 
         private void BtnLoadIfc_Click(object sender, RoutedEventArgs e)
         {
@@ -197,52 +110,208 @@ namespace CraneOptimizer.UI
             }
         }
 
-        private void SetupScene()
-        {
-            MainViewport.Children.Clear();
-
-            // Light
-            MainViewport.Children.Add(new SunLight());
-
-            // Ground Grid
-            var grid = new GridLinesVisual3D
-            {
-                Width = 200,
-                Length = 200,
-                MajorDistance = 10,
-                MinorDistance = 2,
-                Thickness = 0.1
-            };
-
-            MainViewport.Children.Add(grid);
-            // Coordinate system
-            var axis = new CoordinateSystemVisual3D
-            {
-                ArrowLengths = 5
-            };
-
-            MainViewport.Children.Add(axis);
-        }
-
         private void RenderElements(IEnumerable<PrecastElement> elements)
         {
-            SetupScene();
+            foreach (var visual in _ifcVisuals)
+                MainViewport.Children.Remove(visual);
+            _ifcVisuals.Clear();
+
+            var elementList = elements.ToList(); // ✅ avoid multiple enumeration
 
             var builder = new HelixElementBuilder();
 
-            foreach (var element in elements)
+            foreach (var element in elementList)
             {
                 var visual = builder.BuildElement(element);
-
                 if (visual != null)
                 {
                     MainViewport.Children.Add(visual);
+                    _ifcVisuals.Add(visual);
                 }
             }
 
+            // ✅ Resize grid to match IFC model scale and position
+            ResizeGridToModel(elementList);
+
             MainViewport.ZoomExtents();
         }
+        private void ResizeGridToModel(List<PrecastElement> elements)
+        {
+            var oldGrid = MainViewport.Children.OfType<GridLinesVisual3D>().FirstOrDefault();
+            if (oldGrid != null)
+                MainViewport.Children.Remove(oldGrid);
+
+            if (!elements.Any()) return;
+
+            double minX = elements.Min(e => e.ElementCOG.X);
+            double maxX = elements.Max(e => e.ElementCOG.X);
+            double minY = elements.Min(e => e.ElementCOG.Y);
+            double maxY = elements.Max(e => e.ElementCOG.Y);
+
+            // find lowest element COG in model
+            double lowestCogZ = elements.Min(e => e.ElementCOG.Z);
+
+            // place grid slightly below model floor
+            double gridOffset = 2;
+
+            // if model already near ground level keep grid at Z=0
+            double minZ = lowestCogZ > 1 ? 0 : lowestCogZ - gridOffset;
+
+            double centerX = (minX + maxX) / 2;
+            double centerY = (minY + maxY) / 2;
+
+            double width = Math.Max(maxX - minX, 50) * 1.5;
+            double length = Math.Max(maxY - minY, 50) * 1.5;
+
+            double majorDistance = Math.Max(Math.Round(width / 10), 1);
+            double minorDistance = Math.Max(Math.Round(majorDistance / 5), 1);
+
+            var grid = new GridLinesVisual3D
+            {
+                Width = width,
+                Length = length,
+                Center = new Point3D(centerX, centerY, minZ), // below model
+                MajorDistance = majorDistance,
+                MinorDistance = minorDistance,
+                Thickness = width / 2000
+            };
+
+            MainViewport.Children.Add(grid);
+        }
+
         #endregion
 
+        #region Green Area Drawing
+
+        private void BtnDrawGreenArea_Click(object sender, RoutedEventArgs e)
+        {
+            isDrawing = true;
+        }
+
+        private void Viewport_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!isDrawing) return;
+
+            var pos = e.GetPosition(MainViewport);
+            var point = GetGroundPoint(pos);
+
+            if (point == null) return;
+
+            if (e.RightButton == MouseButtonState.Pressed)
+            {
+                CreatePolygonSurface();
+                return;
+            }
+
+            if (e.LeftButton == MouseButtonState.Pressed)
+            {
+                polygonPoints.Add(point.Value);
+                UpdatePreview();
+            }
+        }
+
+        private void Viewport_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (!isDrawing) return;
+
+            var pos = e.GetPosition(MainViewport);
+            var point = GetGroundPoint(pos);
+            if (point == null) return;
+
+            if (e.ChangedButton == MouseButton.Right &&
+                e.RightButton == MouseButtonState.Released)
+            {
+                CreatePolygonSurface();
+                e.Handled = true;
+            }
+        }
+
+        private Point3D? GetGroundPoint(Point mouse)
+        {
+            var ray = Viewport3DHelper.Point2DtoRay3D(MainViewport.Viewport, mouse);
+
+            var origin = ray.Origin;
+            var dir = ray.Direction;
+
+            if (Math.Abs(dir.Z) < 0.0001)
+                return null;
+
+            double t = -origin.Z / dir.Z;
+
+            if (t < 0) return null;
+
+            return new Point3D(
+                origin.X + dir.X * t,
+                origin.Y + dir.Y * t,
+                0);
+        }
+
+        private void UpdatePreview()
+        {
+            previewLines.Points.Clear();
+
+            for (int i = 0; i < polygonPoints.Count - 1; i++)
+            {
+                previewLines.Points.Add(polygonPoints[i]);
+                previewLines.Points.Add(polygonPoints[i + 1]);
+            }
+        }
+
+        private void CreatePolygonSurface()
+        {
+            if (polygonPoints.Count < 3) return;
+
+            var builder = new MeshBuilder(false, false);
+
+            var vectors = polygonPoints
+                .Select(p => new System.Numerics.Vector3(
+                    (float)p.X, (float)p.Y, (float)p.Z))
+                .ToList();
+
+            builder.AddPolygon(vectors);
+
+            var helixMesh = builder.ToMesh();
+
+            var mesh = new System.Windows.Media.Media3D.MeshGeometry3D
+            {
+                Positions = new Point3DCollection(
+                    helixMesh.Positions.Select(p => new Point3D(p.X, p.Y, p.Z))),
+                TriangleIndices = new Int32Collection(helixMesh.TriangleIndices)
+            };
+
+            if (helixMesh.Normals != null)
+            {
+                mesh.Normals = new Vector3DCollection(
+                    helixMesh.Normals.Select(n => new Vector3D(n.X, n.Y, n.Z)));
+            }
+
+            var material = new DiffuseMaterial(
+                new SolidColorBrush(Color.FromArgb(120, 0, 255, 0)));
+
+            var model = new GeometryModel3D
+            {
+                Geometry = mesh,
+                Material = material,
+                BackMaterial = material
+            };
+
+            var visual = new ModelVisual3D { Content = model };
+            MainViewport.Children.Add(visual);
+
+            // Save zone to list
+            var zone = new CranePlacementZone
+            {
+                Vertices = polygonPoints
+                    .Select(p => new CrC.Point3D(p.X, p.Y, p.Z))
+                    .ToList()
+            };
+            zones.Add(zone);
+
+            polygonPoints.Clear();
+            previewLines.Points.Clear();
+            isDrawing = false;
+        }
+
+        #endregion
     }
 }
