@@ -3,18 +3,19 @@
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithm.Models
 {
     /// <summary>
-    /// Represents a population of solutions in a single generation.
+    /// Represents a population in the genetic algorithm.
+    /// A population contains multiple crane placement solutions.
     /// </summary>
     public class Population
     {
         /// <summary>
-        /// List of candidate crane positions.
+        /// List of individuals in the current generation.
         /// </summary>
         public List<CraneSolution> Individuals { get; set; } = new();
 
         /// <summary>
         /// Current generation index.
         /// </summary>
-        public int GenerationNumber { get; set; }
+        public int Generation { get; set; }
     }
 }
