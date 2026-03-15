@@ -1,5 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithm.Models;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.GreenAreaEntities;

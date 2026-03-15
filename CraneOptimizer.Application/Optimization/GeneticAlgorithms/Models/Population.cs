@@ -1,6 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
-
-namespace CraneOptimizer.Application.Optimization.GeneticAlgorithm.Models
+﻿namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
 {
     /// <summary>
     /// Represents a population in the genetic algorithm.
