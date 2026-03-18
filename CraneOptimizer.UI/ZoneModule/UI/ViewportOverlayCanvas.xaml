@@ -1,0 +1,24 @@
+﻿<UserControl x:Class="WPF_IFC_test1.ZoneModule.UI.ViewportOverlayCanvas"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             IsHitTestVisible="False"
+             Background="Transparent"
+             Focusable="False">
+    <!--
+        ViewportOverlayCanvas — transparent layer that floats on top of the
+        HelixViewport3D (or any 3D/2D viewport).
+
+        IsHitTestVisible="False" means ALL mouse clicks pass straight through
+        to the viewport underneath. Only the draw tools flip this on temporarily
+        when they need to capture clicks (handled in code-behind).
+
+        This canvas is the ONLY place where temporary geometry is drawn:
+          • Measure dashed line + distance label
+          • Shape preview ghost outlines + dimension labels
+          • Grid coordinate labels
+          • Cursor pick-strip (Session 4)
+
+        Nothing on this canvas is permanent — it is cleared when tools exit.
+    -->
+    <Canvas x:Name="RootCanvas" ClipToBounds="True"/>
+</UserControl>

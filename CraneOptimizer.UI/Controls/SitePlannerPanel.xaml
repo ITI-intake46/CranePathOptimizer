@@ -1,0 +1,97 @@
+﻿<UserControl x:Class="WPF_IFC_test1.Main_Application_UserControl.SitePlannerPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:uc="clr-namespace:WPF_IFC_test1.Main_Application_UserControl"
+             xmlns:zoneUI="clr-namespace:WPF_IFC_test1.ZoneModule.UI">
+
+    <UserControl.Resources>
+
+        <ControlTemplate x:Key="TabBtnTemplate" TargetType="ToggleButton">
+            <Border x:Name="Bd"
+                    Background="Transparent"
+                    BorderBrush="Transparent"
+                    BorderThickness="0,0,0,3"
+                    Padding="0,8">
+                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Bd" Property="Background" Value="#2A2D2E"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="Bd" Property="BorderBrush" Value="#F39C12"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <Style x:Key="TabBtn" TargetType="ToggleButton">
+            <Setter Property="Foreground"      Value="#888888"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="FontWeight"      Value="Normal"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template"        Value="{StaticResource TabBtnTemplate}"/>
+        </Style>
+
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- TAB BAR -->
+        <Border Grid.Row="0"
+                Background="#2D2D30"
+                BorderBrush="#111111"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <ToggleButton Grid.Column="0"
+                              x:Name="TabCranes"
+                              Style="{StaticResource TabBtn}"
+                              IsChecked="True"
+                              Click="TabCranes_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="CRANES" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </ToggleButton>
+
+                <ToggleButton Grid.Column="1"
+                              x:Name="TabZones"
+                              Style="{StaticResource TabBtn}"
+                              IsChecked="False"
+                              Click="TabZones_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="ZONES" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </ToggleButton>
+            </Grid>
+        </Border>
+
+        <!-- CONTENT AREA -->
+        <Grid Grid.Row="1">
+            <uc:CraneManagerPanel
+                x:Name="CranePanel"
+                Visibility="Visible"
+                AddTowerCraneRequested="CranePanel_AddTowerCraneRequested"
+                AddMobileCraneRequested="CranePanel_AddMobileCraneRequested"
+                RemoveSelectedRequested="CranePanel_RemoveSelectedRequested"
+                RemoveAllRequested="CranePanel_RemoveAllRequested"
+                CloseRequested="CranePanel_CloseRequested"/>
+
+            <zoneUI:ZoneModuleListPanel
+                x:Name="ZonePanel"
+                Visibility="Collapsed"/>
+        </Grid>
+    </Grid>
+</UserControl>

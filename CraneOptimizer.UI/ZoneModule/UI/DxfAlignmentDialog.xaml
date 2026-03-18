@@ -1,0 +1,156 @@
+<Window x:Class="WPF_IFC_test1.ZoneModule.UI.DxfAlignmentDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Align DXF to IFC Model"
+        Width="520" Height="480"
+        Background="#1E1E1E" Foreground="#CCCCCC"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+
+    <Window.Resources>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#555"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="Height" Value="26"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#007ACC"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="DXF Site Layout Alignment" FontSize="15" FontWeight="Bold"
+                       Foreground="White" Margin="0,0,0,4"/>
+            <TextBlock Text="Choose either method — both produce the same result. The transform is saved automatically."
+                       FontSize="11" Foreground="#888" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- Tab Control -->
+        <TabControl Grid.Row="1" Background="#252526" BorderBrush="#444">
+            <TabControl.Resources>
+                <Style TargetType="TabItem">
+                    <Setter Property="Background" Value="#2D2D30"/>
+                    <Setter Property="Foreground" Value="#AAAAAA"/>
+                    <Setter Property="Padding" Value="12,6"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                </Style>
+            </TabControl.Resources>
+
+            <!-- ── Method A: Point Matching ─────────────────────────────── -->
+            <TabItem Header="A — Point Matching">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Click a known point in the DXF, then click the matching point in the IFC 3D view. The system calculates translation and rotation automatically."
+                               TextWrapping="Wrap" Foreground="#888" FontSize="11" Margin="0,0,0,12"/>
+
+                    <TextBlock Grid.Row="1" Text="DXF Reference Point (DXF local coords):" Foreground="#AAA" Margin="0,0,0,4"/>
+                    <Grid Grid.Row="2" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" x:Name="DxfPointX" Text="0.0"/>
+                        <TextBox Grid.Column="2" x:Name="DxfPointY" Text="0.0"/>
+                    </Grid>
+
+                    <TextBlock Grid.Row="3" Text="IFC World Point (IFC world coords, meters):" Foreground="#AAA" Margin="0,0,0,4"/>
+                    <Grid Grid.Row="4" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" x:Name="IfcPointX" Text="0.0"/>
+                        <TextBox Grid.Column="2" x:Name="IfcPointY" Text="0.0"/>
+                    </Grid>
+
+                    <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,4,0,0">
+                        <Button Content="Apply Point Match" Click="ApplyPointMatch_Click" Width="160"/>
+                        <TextBlock x:Name="PointMatchStatus" Foreground="#27AE60" Margin="12,0,0,0"
+                                   VerticalAlignment="Center" Text="" FontSize="11"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ── Method B: Manual Transform ──────────────────────────── -->
+            <TabItem Header="B — Manual Transform">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Enter the translation and rotation to apply to the DXF coordinate system."
+                               TextWrapping="Wrap" Foreground="#888" FontSize="11" Margin="0,0,0,12"/>
+
+                    <TextBlock Grid.Row="1" Text="Translation (meters):" Foreground="#AAA" Margin="0,0,0,4"/>
+                    <Grid Grid.Row="2" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Offset X" Foreground="#777" FontSize="10"/>
+                            <TextBox x:Name="TranslateX" Text="0.0"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Offset Y" Foreground="#777" FontSize="10"/>
+                            <TextBox x:Name="TranslateY" Text="0.0"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Grid.Row="3" Text="Scale:" Foreground="#AAA" Margin="0,0,0,4"/>
+                    <Grid Grid.Row="4" Margin="0,0,0,8" Width="200" HorizontalAlignment="Left">
+                        <TextBox x:Name="Scale" Text="1.0"/>
+                    </Grid>
+
+                    <TextBlock Grid.Row="5" Text="Rotation (degrees, clockwise):" Foreground="#AAA" Margin="0,0,0,4"/>
+                    <Grid Grid.Row="6" Margin="0,0,0,8" Width="200" HorizontalAlignment="Left">
+                        <TextBox x:Name="Rotation" Text="0.0"/>
+                    </Grid>
+
+                    <StackPanel Grid.Row="7" Orientation="Horizontal" Margin="0,4,0,0" Grid.RowSpan="1">
+                        <Button Content="Apply Transform" Click="ApplyManualTransform_Click" Width="140"/>
+                        <TextBlock x:Name="ManualStatus" Foreground="#27AE60" Margin="12,0,0,0"
+                                   VerticalAlignment="Center" Text="" FontSize="11"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- Footer buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Reset Transform" Background="#3E3E42" Click="ResetTransform_Click"
+                    Width="130" Margin="0,0,8,0"/>
+            <Button Content="Close" Click="Close_Click" Width="80"/>
+        </StackPanel>
+    </Grid>
+</Window>

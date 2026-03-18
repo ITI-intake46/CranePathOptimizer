@@ -1,0 +1,405 @@
+﻿<UserControl x:Class="WPF_IFC_test1.Main_Application_UserControl.Ribbon_Tabs.ZoneRibbonTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#252526" Height="92"
+             KeyDown="UserControl_KeyDown"
+             Focusable="True">
+    <UserControl.Resources>
+
+        <!-- Large ribbon button -->
+        <Style x:Key="RLB" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="64"/>
+            <Setter Property="Height" Value="78"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Margin="1">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#094771"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#555"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Large ribbon TOGGLE button - stays highlighted when active (FIX: draw mode buttons now deactivate properly) -->
+        <Style x:Key="RLBToggle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="0,0,0,2"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Width" Value="64"/>
+            <Setter Property="Height" Value="78"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Margin="1"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#0D3B5C"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#007ACC"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Measure toggle - teal accent when active -->
+        <Style x:Key="RLBMeasure" TargetType="ToggleButton" BasedOn="{StaticResource RLBToggle}">
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="BorderBrush" Value="#1ABC9C"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Small ribbon button -->
+        <Style x:Key="RSB" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="Padding" Value="6,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="2" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Shape tool toggle -->
+        <Style x:Key="ShapeBtn" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#094771"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#007ACC"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- OSNAP toggle -->
+        <Style x:Key="OsnapBtn" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Height" Value="18"/>
+            <Setter Property="Padding" Value="5,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="9"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Foreground" Value="#CCCCCC"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1A3A52"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#007ACC"/>
+                                <Setter Property="Foreground" Value="#5BB8F5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="Sep" TargetType="Rectangle">
+            <Setter Property="Width" Value="1"/>
+            <Setter Property="Fill" Value="#3F3F46"/>
+            <Setter Property="Margin" Value="4,6,4,6"/>
+        </Style>
+        <Style x:Key="GL" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#777"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <StackPanel Orientation="Horizontal" Margin="4,0">
+
+            <!-- ── DRAW MODE ──────────────────────────────────────────────────── -->
+            <Border Padding="4,4,0,0">
+                <DockPanel LastChildFill="False" Width="210">
+                    <TextBlock DockPanel.Dock="Bottom" Text="Draw Mode" Style="{StaticResource GL}"/>
+                    <StackPanel Orientation="Horizontal">
+                        <ToggleButton x:Name="BtnSiteBoundary" Style="{StaticResource RLBToggle}"
+                                      Click="BtnSiteBoundary_Click"
+                                      ToolTip="Draw site boundary polygon. Esc to cancel.">
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="&#x2B21;" FontSize="26" HorizontalAlignment="Center" Margin="0,8,0,2" Foreground="#007ACC"/>
+                                <TextBlock Text="Site" HorizontalAlignment="Center" Foreground="#007ACC" FontWeight="SemiBold"/>
+                                <TextBlock Text="Boundary" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </ToggleButton>
+
+                        <ToggleButton x:Name="BtnDrawAllowed" Style="{StaticResource RLBToggle}"
+                                      Click="BtnDrawAllowed_Click"
+                                      ToolTip="Draw allowed zone. Esc to cancel.">
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="&#x2713;" FontSize="26" HorizontalAlignment="Center" Margin="0,8,0,2" Foreground="#27AE60"/>
+                                <TextBlock Text="Allowed" HorizontalAlignment="Center" Foreground="#27AE60" FontWeight="SemiBold"/>
+                                <TextBlock Text="Zone" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </ToggleButton>
+
+                        <ToggleButton x:Name="BtnDrawForbidden" Style="{StaticResource RLBToggle}"
+                                      Click="BtnDrawForbidden_Click"
+                                      ToolTip="Draw forbidden zone. Esc to cancel.">
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="&#x2715;" FontSize="26" HorizontalAlignment="Center" Margin="0,8,0,2" Foreground="#E74C3C"/>
+                                <TextBlock Text="Forbidden" HorizontalAlignment="Center" Foreground="#E74C3C" FontWeight="SemiBold"/>
+                                <TextBlock Text="Zone" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </ToggleButton>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <Rectangle Style="{StaticResource Sep}"/>
+
+            <!-- ── MEASURE ─────────────────────────────────────────────────────
+                 FIX: Added missing Measure tool button.
+                 It's a ToggleButton - active while measuring, deactivates after
+                 second click (result shown as floating label, NOT drawn geometry).
+            -->
+            <Border Padding="4,4,0,0">
+                <DockPanel LastChildFill="False" Width="80">
+                    <TextBlock DockPanel.Dock="Bottom" Text="Measure" Style="{StaticResource GL}"/>
+                    <ToggleButton x:Name="BtnMeasure" Style="{StaticResource RLBMeasure}"
+                                  Width="72" Click="BtnMeasure_Click"
+                                  ToolTip="Measure: click point A then point B. Distance shown as label only (not drawn). Esc or re-click to exit.">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="📏" FontSize="26" HorizontalAlignment="Center" Margin="0,8,0,2"/>
+                            <TextBlock x:Name="MeasureLabel" Text="Measure" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </ToggleButton>
+                </DockPanel>
+            </Border>
+
+            <Rectangle Style="{StaticResource Sep}"/>
+
+            <!-- ── ACTIONS ──────────────────────────────────────────────────── -->
+            <Border Padding="8,8,0,0">
+                <DockPanel LastChildFill="False" Width="160">
+                    <TextBlock DockPanel.Dock="Bottom" Text="Actions" Style="{StaticResource GL}"/>
+                    <StackPanel VerticalAlignment="Top">
+                        <Button Style="{StaticResource RSB}" Width="150" Margin="0,0,0,2" Click="BtnFinishZone_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x2714;" FontSize="12" Foreground="#27AE60" Margin="0,0,6,0"/>
+                                <TextBlock Text="Finish Zone  (C)"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource RSB}" Width="150" Margin="0,0,0,2" Click="BtnUndoVertex_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x21A9;" FontSize="12" Margin="0,0,6,0"/>
+                                <TextBlock Text="Undo Vertex"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource RSB}" Width="150" Click="BtnCancelDraw_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x2715;" FontSize="12" Foreground="#E74C3C" Margin="0,0,6,0"/>
+                                <TextBlock Text="Cancel  (Esc)"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <Rectangle Style="{StaticResource Sep}"/>
+
+            <!-- ── VIEW ──────────────────────────────────────────────────────── -->
+            <Border Padding="4,4,0,0">
+                <DockPanel LastChildFill="False" Width="140">
+                    <TextBlock DockPanel.Dock="Bottom" Text="View" Style="{StaticResource GL}"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Style="{StaticResource RLB}" Click="BtnPlanView_Click">
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="&#x1F5FA;" FontSize="26" HorizontalAlignment="Center" Margin="0,8,0,2"/>
+                                <TextBlock Text="Plan View" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource RLB}" Click="BtnReturn3D_Click">
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="&#x1F3D7;" FontSize="26" HorizontalAlignment="Center" Margin="0,8,0,2"/>
+                                <TextBlock Text="3D View" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <Rectangle Style="{StaticResource Sep}"/>
+
+            <!-- ── MANAGE ZONES ───────────────────────────────────────────────── -->
+            <Border Padding="8,8,0,0">
+                <DockPanel LastChildFill="False" Width="150">
+                    <TextBlock DockPanel.Dock="Bottom" Text="Manage Zones" Style="{StaticResource GL}"/>
+                    <StackPanel VerticalAlignment="Top">
+                        <Button Style="{StaticResource RSB}" Width="140" Margin="0,0,0,2" Click="BtnDeleteZone_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x2716;" FontSize="12" Foreground="#E74C3C" Margin="0,0,6,0"/>
+                                <TextBlock Text="Delete Selected"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource RSB}" Width="140" Margin="0,0,0,2" Click="BtnDeleteAllZones_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F5D1;" FontSize="12" Margin="0,0,6,0"/>
+                                <TextBlock Text="Delete All Zones"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource RSB}" Width="140" Click="BtnExportZones_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F4E4;" FontSize="12" Margin="0,0,6,0"/>
+                                <TextBlock Text="Export (JSON)"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <Rectangle Style="{StaticResource Sep}"/>
+
+            <!-- ── DRAW TOOLS PANEL (shown only during active draw mode) ─────── -->
+            <Border x:Name="DrawToolsPanel" Visibility="Collapsed" Padding="8,4,8,0"
+                    Background="#1E2A1E" BorderBrush="#27AE60" BorderThickness="0,0,0,3">
+                <DockPanel LastChildFill="False">
+                    <!-- FIX: Footer now shows Esc hint clearly -->
+                    <TextBlock DockPanel.Dock="Bottom" Text="Draw Tools  ·  Esc = cancel"
+                               Style="{StaticResource GL}" Foreground="#27AE60"/>
+                    <StackPanel Orientation="Vertical" VerticalAlignment="Center">
+
+                        <!-- Row 1: Shape tools -->
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
+                            <TextBlock Text="Shape:" Foreground="#666" FontSize="9"
+                                       VerticalAlignment="Center" Margin="0,0,6,0" Width="36"/>
+                            <ToggleButton x:Name="BtnPolyline" Style="{StaticResource ShapeBtn}"
+                                          IsChecked="True"
+                                          ToolTip="Polyline — click to place vertices (default)"
+                                          Click="ShapeTool_Click" Tag="Polyline" Margin="0,0,3,0">
+                                <TextBlock Text="/" FontSize="18" FontWeight="Bold"/>
+                            </ToggleButton>
+                            <ToggleButton x:Name="BtnRect" Style="{StaticResource ShapeBtn}"
+                                          ToolTip="Rectangle — two-click drag"
+                                          Click="ShapeTool_Click" Tag="Rectangle" Margin="0,0,3,0">
+                                <TextBlock Text="&#x25A1;" FontSize="16"/>
+                            </ToggleButton>
+                            <ToggleButton x:Name="BtnCircle" Style="{StaticResource ShapeBtn}"
+                                          ToolTip="Circle — center then radius click"
+                                          Click="ShapeTool_Click" Tag="Circle" Margin="0,0,3,0">
+                                <TextBlock Text="&#x25CB;" FontSize="16"/>
+                            </ToggleButton>
+                            <ToggleButton x:Name="BtnPickObjects" Style="{StaticResource ShapeBtn}"
+                                          ToolTip="Pick Objects — click building elements to create zone from their footprint"
+                                          Click="ShapeTool_Click" Tag="PickObjects" Margin="0,0,6,0">
+                                <TextBlock Text="⊞" FontSize="16" FontWeight="Bold"/>
+                            </ToggleButton>
+                        </StackPanel>
+
+                        <!-- Row 2: OSNAP toggles -->
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Snap:" Foreground="#666" FontSize="9"
+                                       VerticalAlignment="Center" Margin="0,0,6,0" Width="36"/>
+                            <ToggleButton x:Name="OsnapEnd" Style="{StaticResource OsnapBtn}"
+                                          IsChecked="True" Content="END" ToolTip="Snap to Endpoint"
+                                          Click="Osnap_Click" Tag="Endpoint" Margin="0,0,3,0"/>
+                            <ToggleButton x:Name="OsnapMid" Style="{StaticResource OsnapBtn}"
+                                          IsChecked="True" Content="MID" ToolTip="Snap to Midpoint"
+                                          Click="Osnap_Click" Tag="Midpoint" Margin="0,0,3,0"/>
+                            <ToggleButton x:Name="OsnapInt" Style="{StaticResource OsnapBtn}"
+                                          IsChecked="False" Content="INT" ToolTip="Snap to Intersection"
+                                          Click="Osnap_Click" Tag="Intersection" Margin="0,0,3,0"/>
+                            <ToggleButton x:Name="OsnapPer" Style="{StaticResource OsnapBtn}"
+                                          IsChecked="False" Content="PER" ToolTip="Snap Perpendicular"
+                                          Click="Osnap_Click" Tag="Perpendicular" Margin="0,0,3,0"/>
+                            <ToggleButton x:Name="OsnapGrid" Style="{StaticResource OsnapBtn}"
+                                          IsChecked="True" Content="GRID" ToolTip="Snap to Grid"
+                                          Click="Osnap_Click" Tag="Grid" Margin="0,0,3,0"/>
+                            <ToggleButton x:Name="OsnapNea" Style="{StaticResource OsnapBtn}"
+                                          IsChecked="False" Content="NEA" ToolTip="Snap to Nearest point on edge"
+                                          Click="Osnap_Click" Tag="Nearest"/>
+                        </StackPanel>
+
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

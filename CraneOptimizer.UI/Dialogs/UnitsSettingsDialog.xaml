@@ -1,0 +1,249 @@
+﻿<Window x:Class="WPF_IFC_test1.Dialogs.UnitsSettingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Units Settings"
+        Width="480" Height="420"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#1E1E1E"
+        Foreground="#CCCCCC"
+        FontFamily="Segoe UI"
+        FontSize="13">
+
+    <Window.Resources>
+
+        <!-- Section label -->
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#007ACC"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize"   Value="11"/>
+            <Setter Property="Margin"     Value="0,16,0,6"/>
+        </Style>
+
+        <!-- Row label -->
+        <Style x:Key="RowLabel" TargetType="TextBlock">
+            <Setter Property="Foreground"          Value="#AAAAAA"/>
+            <Setter Property="VerticalAlignment"   Value="Center"/>
+            <Setter Property="Width"               Value="130"/>
+            <Setter Property="FontSize"            Value="12"/>
+        </Style>
+
+        <!-- ComboBox -->
+        <Style TargetType="ComboBox">
+            <Setter Property="Background"           Value="#2D2D30"/>
+            <Setter Property="Foreground"           Value="#CCCCCC"/>
+            <Setter Property="BorderBrush"          Value="#3F3F46"/>
+            <Setter Property="BorderThickness"      Value="1"/>
+            <Setter Property="Height"               Value="28"/>
+            <Setter Property="Padding"              Value="6,0"/>
+            <Setter Property="FontFamily"           Value="Segoe UI"/>
+            <Setter Property="FontSize"             Value="12"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Background" Value="#2D2D30"/>
+                        <Setter Property="Foreground" Value="#CCCCCC"/>
+                        <Setter Property="Padding"    Value="8,4"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter Property="Background" Value="#094771"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#0D3B5C"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="24"/>
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter Grid.Column="0"
+                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="8,0,0,0"/>
+                                <TextBlock Grid.Column="1" Text="▾" Foreground="#777"
+                                           VerticalAlignment="Center" HorizontalAlignment="Center"
+                                           FontSize="10"/>
+                                <Popup x:Name="PART_Popup"
+                                       IsOpen="{TemplateBinding IsDropDownOpen}"
+                                       Placement="Bottom"
+                                       AllowsTransparency="True">
+                                    <Border Background="#2D2D30" BorderBrush="#3F3F46"
+                                            BorderThickness="1" CornerRadius="0,0,3,3"
+                                            MaxHeight="200">
+                                        <ScrollViewer>
+                                            <ItemsPresenter/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="BorderBrush" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsDropDownOpen" Value="True">
+                                <Setter Property="BorderBrush" Value="#007ACC"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Dialog button -->
+        <Style x:Key="DialogBtn" TargetType="Button">
+            <Setter Property="Background"     Value="#3E3E42"/>
+            <Setter Property="Foreground"     Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Height"         Value="32"/>
+            <Setter Property="Width"          Value="100"/>
+            <Setter Property="Cursor"         Value="Hand"/>
+            <Setter Property="FontFamily"     Value="Segoe UI"/>
+            <Setter Property="FontSize"       Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="3" Padding="0">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#555558"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#094771"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Primary dialog button (Save) -->
+        <Style x:Key="PrimaryBtn" TargetType="Button" BasedOn="{StaticResource DialogBtn}">
+            <Setter Property="Background" Value="#007ACC"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#1A8AD4"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#005A9E"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Separator line -->
+        <Style x:Key="HRule" TargetType="Rectangle">
+            <Setter Property="Height" Value="1"/>
+            <Setter Property="Fill"   Value="#3F3F46"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+        </Style>
+
+    </Window.Resources>
+
+    <Grid Margin="24,20,24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- Title -->
+            <RowDefinition Height="Auto"/>
+            <!-- Subtitle -->
+            <RowDefinition Height="Auto"/>
+            <!-- HR -->
+            <RowDefinition Height="*"/>
+            <!-- Settings -->
+            <RowDefinition Height="Auto"/>
+            <!-- Preview -->
+            <RowDefinition Height="Auto"/>
+            <!-- Buttons -->
+        </Grid.RowDefinitions>
+
+        <!-- ── Title ───────────────────────────────────────────────────────── -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <TextBlock Text="📐" FontSize="20" VerticalAlignment="Center" Margin="0,0,10,0"/>
+            <TextBlock Text="Units Settings" FontSize="18" FontWeight="SemiBold"
+                       Foreground="White" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Margin="0,6,0,0"
+                   Text="Changes apply immediately to all measurements, crane parameters, zone areas, and grid labels."
+                   Foreground="#888" FontSize="11" TextWrapping="Wrap"/>
+
+        <Rectangle Grid.Row="2" Style="{StaticResource HRule}" Margin="0,14,0,0"/>
+
+        <!-- ── Settings grid ───────────────────────────────────────────────── -->
+        <StackPanel Grid.Row="3" Margin="0,4,0,0">
+
+            <!-- Length Unit -->
+            <TextBlock Text="LENGTH" Style="{StaticResource SectionLabel}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBlock Text="Length unit:" Style="{StaticResource RowLabel}"/>
+                <ComboBox x:Name="CboLength" Width="280"
+                          SelectionChanged="CboLength_SelectionChanged"/>
+            </StackPanel>
+
+            <!-- Area Unit -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBlock Text="Area unit:" Style="{StaticResource RowLabel}"/>
+                <ComboBox x:Name="CboArea" Width="280"
+                          SelectionChanged="OnAnyComboChanged"/>
+            </StackPanel>
+
+            <!-- Precision -->
+            <TextBlock Text="DISPLAY" Style="{StaticResource SectionLabel}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBlock Text="Decimal places:" Style="{StaticResource RowLabel}"/>
+                <ComboBox x:Name="CboPrecision" Width="120"
+                          SelectionChanged="OnAnyComboChanged"/>
+            </StackPanel>
+
+            <!-- Display format -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBlock Text="Display format:" Style="{StaticResource RowLabel}"/>
+                <ComboBox x:Name="CboFormat" Width="280"
+                          SelectionChanged="OnAnyComboChanged"/>
+            </StackPanel>
+
+        </StackPanel>
+
+        <!-- ── Live preview ─────────────────────────────────────────────────── -->
+        <Border Grid.Row="4" Background="#252526" BorderBrush="#3F3F46"
+                BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,8,0,16">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Preview: " Foreground="#666" FontSize="12" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtPreview" Foreground="#1ABC9C"
+                           FontFamily="Consolas" FontSize="14" VerticalAlignment="Center"/>
+                <TextBlock Text="   ·   " Foreground="#444" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtPreviewArea" Foreground="#F39C12"
+                           FontFamily="Consolas" FontSize="14" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ── Buttons ──────────────────────────────────────────────────────── -->
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Style="{StaticResource DialogBtn}" Content="Cancel"
+                    Margin="0,0,10,0" Click="BtnCancel_Click"/>
+            <Button x:Name="BtnSave" Style="{StaticResource PrimaryBtn}" Content="Save &amp; Apply"
+                    Width="120" Click="BtnSave_Click"/>
+        </StackPanel>
+
+    </Grid>
+</Window>

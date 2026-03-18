@@ -1,0 +1,97 @@
+﻿<UserControl x:Class="WPF_IFC_test1.ZoneModule.UI.UndoRedoToolbar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Height="36">
+
+    <UserControl.Resources>
+        <Style x:Key="UndoBtn" TargetType="Button">
+            <Setter Property="Height"          Value="26"/>
+            <Setter Property="Padding"         Value="10,3"/>
+            <Setter Property="Background"      Value="#3E3E42"/>
+            <Setter Property="Foreground"      Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#505055"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#444444"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#2D2D30"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="0,0,0,1" Padding="8,0">
+        <DockPanel VerticalAlignment="Center">
+
+            <!-- Right: Clear history -->
+            <Button x:Name="BtnClearHistory"
+                    DockPanel.Dock="Right"
+                    Style="{StaticResource UndoBtn}"
+                    Background="#2D2D30"
+                    IsEnabled="False"
+                    ToolTip="Clear all undo/redo history"
+                    Click="BtnClearHistory_Click"
+                    Margin="0,0,4,0">
+                <TextBlock Text="🗑 Clear History" FontSize="10"/>
+            </Button>
+
+            <Rectangle Width="1" Height="18" Fill="#3F3F46" Margin="6,0" DockPanel.Dock="Right"/>
+
+            <!-- Left: Undo / Redo / step count -->
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+
+                <Button x:Name="BtnUndo"
+                        Style="{StaticResource UndoBtn}"
+                        IsEnabled="False"
+                        ToolTip="Undo last action  (Ctrl+Z)"
+                        Click="BtnUndo_Click"
+                        Margin="0,0,4,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="↩ " FontSize="13"/>
+                        <TextBlock Text="Undo" FontSize="11"/>
+                    </StackPanel>
+                </Button>
+
+                <Button x:Name="BtnRedo"
+                        Style="{StaticResource UndoBtn}"
+                        IsEnabled="False"
+                        ToolTip="Redo  (Ctrl+Y)"
+                        Click="BtnRedo_Click"
+                        Margin="0,0,8,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="↪ " FontSize="13"/>
+                        <TextBlock Text="Redo" FontSize="11"/>
+                    </StackPanel>
+                </Button>
+
+                <Rectangle Width="1" Height="18" Fill="#3F3F46" Margin="0,0,8,0"/>
+
+                <TextBlock x:Name="TxtUndoInfo"
+                           Text="No actions yet"
+                           Foreground="#555555"
+                           FontSize="10"
+                           FontStyle="Italic"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+
+        </DockPanel>
+    </Border>
+</UserControl>

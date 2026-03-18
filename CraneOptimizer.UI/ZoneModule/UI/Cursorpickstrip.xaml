@@ -1,0 +1,36 @@
+﻿<UserControl x:Class="WPF_IFC_test1.ZoneModule.UI.CursorPickStrip"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Visibility="Collapsed"
+             IsHitTestVisible="True">
+    <!--
+        CursorPickStrip — compact floating button strip that appears near
+        the cursor whenever a shape drawing tool becomes active.
+
+        Spec §8: "2–4 small buttons for the available sub-methods.
+                  Dark background #2D2D30, rounded corners, 32×22 px buttons.
+                  Auto-hides after a method is chosen or 3 seconds of inactivity."
+
+        This control is placed on the SAME overlay Canvas as ViewportOverlayCanvas.
+        Its Canvas.Left / Canvas.Top are set from code-behind to track the cursor.
+        It is a sibling of ViewportOverlayCanvas in the overlay layer — see
+        Session 6 XAML integration guide for exact placement.
+
+        Z-order: sits on top of everything (declared last in overlay stack).
+    -->
+    <Border x:Name="StripBorder"
+            Background="#2D2D30"
+            BorderBrush="#555566"
+            BorderThickness="1"
+            CornerRadius="4"
+            Padding="4,3">
+        <Border.Effect>
+            <DropShadowEffect Color="#000000" Opacity="0.5"
+                              BlurRadius="6" ShadowDepth="2" Direction="270"/>
+        </Border.Effect>
+
+        <StackPanel x:Name="ButtonPanel"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Left"/>
+    </Border>
+</UserControl>

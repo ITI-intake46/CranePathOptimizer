@@ -1,0 +1,172 @@
+<Window x:Class="WPF_IFC_test1.Dialogs.CraneCatalogBrowser"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Crane Catalog Browser"
+        Width="900" Height="620"
+        MinWidth="700" MinHeight="450"
+        WindowStartupLocation="CenterOwner"
+        Background="#1A1B2D">
+
+    <Window.Resources>
+        <Style x:Key="Lbl" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#6B6D9A"/>
+            <Setter Property="FontSize"   Value="10"/>
+            <Setter Property="Margin"     Value="0,0,0,2"/>
+        </Style>
+        <Style x:Key="Val" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#C0C4E8"/>
+            <Setter Property="FontSize"   Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin"     Value="0,0,0,6"/>
+        </Style>
+        <Style x:Key="SBtn" TargetType="Button">
+            <Setter Property="Background"      Value="#222340"/>
+            <Setter Property="Foreground"      Value="#8082AC"/>
+            <Setter Property="BorderBrush"     Value="#2E3058"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="14,0"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Height"          Value="32"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#161728" Padding="18,12">
+            <StackPanel>
+                <TextBlock Text="🏗  Crane Catalog" Foreground="#D8DAF2" FontSize="15" FontWeight="Bold"/>
+                <TextBlock Foreground="#383A5E" FontSize="11" Margin="0,2,0,0"
+                           Text="Browse saved cranes and load charts. Select a chart to assign it to the active crane."/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main -->
+        <Grid Grid.Row="1" Margin="16,12,16,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="240"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: catalog list -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Border Grid.Row="0" Background="#14152A" BorderBrush="#2A2B48"
+                        BorderThickness="1" CornerRadius="4" Margin="0,0,0,8">
+                    <TextBox x:Name="TxtSearch" Background="Transparent" Foreground="#C0C4E8"
+                             BorderThickness="0" Padding="8,6" CaretBrush="#C0C4E8"
+                             TextChanged="TxtSearch_TextChanged">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Style.Triggers>
+                                    <Trigger Property="Text" Value="">
+                                        <Setter Property="Background">
+                                            <Setter.Value>
+                                                <VisualBrush AlignmentX="Left" AlignmentY="Center" Stretch="None">
+                                                    <VisualBrush.Visual>
+                                                        <TextBlock Foreground="#30315A" FontSize="10"
+                                                                   FontStyle="Italic" Margin="10,0,0,0"
+                                                                   Text="🔍  Search cranes..."/>
+                                                    </VisualBrush.Visual>
+                                                </VisualBrush>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+                </Border>
+                <Border Grid.Row="1" BorderBrush="#1E2040" BorderThickness="1" CornerRadius="5" Background="#0E0F20">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="CatalogListPanel" Margin="0,4"/>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+
+            <!-- Right: details -->
+            <Grid Grid.Column="2">
+                <Border x:Name="DetailEmpty" BorderBrush="#18193A" BorderThickness="1"
+                        CornerRadius="6" Background="#0E0F20" Visibility="Visible">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="🏗" FontSize="42" HorizontalAlignment="Center" Opacity="0.18"/>
+                        <TextBlock Text="Select a crane from the list" Foreground="#1E2040" FontSize="13"
+                                   HorizontalAlignment="Center" Margin="0,10,0,4"/>
+                    </StackPanel>
+                </Border>
+
+                <ScrollViewer x:Name="DetailScroll" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                    <StackPanel Margin="0,0,4,0">
+                        <!-- Title -->
+                        <Border Background="#0C0D1E" CornerRadius="6" Padding="14,12" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock x:Name="DetailModel" Foreground="#D8DAF2" FontSize="16" FontWeight="Bold"/>
+                                <TextBlock x:Name="DetailMfg" Foreground="#4A4C78" FontSize="11" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Charts for this catalog entry -->
+                        <TextBlock Text="AVAILABLE LOAD CHARTS" Foreground="#222450"
+                                   FontSize="9" FontWeight="Bold" Margin="0,0,0,6"/>
+                        <Border Background="#080A1C" CornerRadius="5" BorderBrush="#1A2040"
+                                BorderThickness="1" Padding="8,6">
+                            <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="ChartListPanel" Margin="0,2"/>
+                            </ScrollViewer>
+                        </Border>
+
+                        <!-- Selected chart mini preview -->
+                        <TextBlock x:Name="TxtSelectedChart" Foreground="#4A4C78" FontSize="10"
+                                   Margin="0,8,0,4" Visibility="Collapsed"/>
+                        <Border x:Name="MiniPreview" Background="#050611" CornerRadius="4"
+                                BorderBrush="#101228" BorderThickness="1" Visibility="Collapsed"
+                                MaxHeight="180">
+                            <DataGrid x:Name="MiniGrid" IsReadOnly="True" AutoGenerateColumns="True"
+                                      CanUserAddRows="False" CanUserDeleteRows="False"
+                                      Background="Transparent" Foreground="#8082AC"
+                                      FontSize="9" RowHeight="18" HeadersVisibility="Column"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Auto"/>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+
+        <!-- Bottom bar -->
+        <Border Grid.Row="2" Background="#0C0D1E" Padding="16,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="TxtStatus" Foreground="#2A3A4A" FontSize="10"
+                           VerticalAlignment="Center" Text="Loading catalog..."/>
+                <Button x:Name="BtnAssign" Grid.Column="1" Content="✓ Assign to Active Crane"
+                        Style="{StaticResource SBtn}" Width="170" IsEnabled="False"
+                        Background="#0A2A1A" Foreground="#27AE60" BorderBrush="#1A4A2A"
+                        Click="BtnAssign_Click"
+                        ToolTip="Assign the selected load chart to the currently selected crane"/>
+                <Button Grid.Column="3" Content="+ Import New Chart"
+                        Style="{StaticResource SBtn}" Width="140"
+                        Click="BtnImport_Click"/>
+                <Button Grid.Column="5" Content="Close"
+                        Style="{StaticResource SBtn}" Width="80"
+                        Click="BtnClose_Click"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

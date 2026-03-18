@@ -1,0 +1,76 @@
+﻿<UserControl x:Class="WPF_IFC_test1.Main_Application_UserControl.MainRibbonControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:tabs="clr-namespace:WPF_IFC_test1.Main_Application_UserControl.Ribbon_Tabs"
+             Background="#252526">
+
+    <UserControl.Resources>
+        <Style x:Key="TabBtnStyle" TargetType="RadioButton">
+            <Setter Property="GroupName"       Value="RibbonTabs"/>
+            <Setter Property="Foreground"      Value="#AAAAAA"/>
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0,0,0,2"/>
+            <Setter Property="BorderBrush"     Value="Transparent"/>
+            <Setter Property="Padding"         Value="16,0"/>
+            <Setter Property="Height"          Value="30"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#007ACC"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#1E1E1E"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="30"/>
+            <RowDefinition Height="92"/>
+            <RowDefinition Height="2"/>
+        </Grid.RowDefinitions>
+
+        <!-- TAB STRIP -->
+        <Border Grid.Row="0" Background="#2D2D30" BorderBrush="#111" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton x:Name="BtnHome"    Content="HOME"      Style="{StaticResource TabBtnStyle}" IsChecked="True" Checked="TabButton_Checked"/>
+                <RadioButton x:Name="BtnIFC"     Content="IFC MODEL" Style="{StaticResource TabBtnStyle}" Checked="TabButton_Checked"/>
+                <RadioButton x:Name="BtnCrane"   Content="CRANES"    Style="{StaticResource TabBtnStyle}" Checked="TabButton_Checked"/>
+                <RadioButton x:Name="BtnZone"    Content="ZONES"     Style="{StaticResource TabBtnStyle}" Checked="TabButton_Checked"/>
+                <RadioButton x:Name="BtnView"    Content="VIEW"      Style="{StaticResource TabBtnStyle}" Checked="TabButton_Checked"/>
+                <RadioButton x:Name="BtnAnalyze" Content="ANALYZE"   Style="{StaticResource TabBtnStyle}" Checked="TabButton_Checked"/>
+            </StackPanel>
+        </Border>
+
+        <!-- TAB PANELS — only one visible at a time -->
+        <tabs:HomeRibbonTab    x:Name="PanelHome"    Grid.Row="1" Visibility="Visible"/>
+        <tabs:IFCRibbonTab     x:Name="PanelIFC"     Grid.Row="1" Visibility="Collapsed"/>
+        <tabs:CraneRibbonTab   x:Name="PanelCrane"   Grid.Row="1" Visibility="Collapsed"/>
+        <tabs:ZoneRibbonTab    x:Name="PanelZone"    Grid.Row="1" Visibility="Collapsed"/>
+        <tabs:ViewRibbonTab    x:Name="PanelView"    Grid.Row="1" Visibility="Collapsed"/>
+        <tabs:AnalyzeRibbonTab x:Name="PanelAnalyze" Grid.Row="1" Visibility="Collapsed"/>
+
+        <!-- Blue accent line -->
+        <Rectangle Grid.Row="2" Fill="#007ACC"/>
+    </Grid>
+</UserControl>

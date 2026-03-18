@@ -1,0 +1,175 @@
+﻿<UserControl x:Class="WPF_IFC_test1.ZoneModule.UI.DrawingOptionsBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Height="48">
+
+    <UserControl.Resources>
+        <Style x:Key="ToolBtn" TargetType="Button">
+            <Setter Property="Height"          Value="30"/>
+            <Setter Property="Padding"         Value="10,4"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#505055"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#005A9E"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#555"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#2A2A2A"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ZoneRadio" TargetType="RadioButton">
+            <Setter Property="GroupName"       Value="ZoneType"/>
+            <Setter Property="Foreground"      Value="#999999"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="8,3"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bd"
+                                Background="Transparent"
+                                BorderBrush="#444444"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1A3A52"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#007ACC"/>
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="0,0,0,1" Padding="10,0">
+        <DockPanel VerticalAlignment="Center">
+
+            <!-- RIGHT: Finish / Cancel -->
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
+                <Button x:Name="BtnFinishZone"
+                        Style="{StaticResource ToolBtn}"
+                        Background="#1A6B3A" Foreground="White"
+                        IsEnabled="False"
+                        ToolTip="Finish zone (double-click or Enter)"
+                        Click="BtnFinishZone_Click"
+                        Margin="0,0,6,0">
+                    <TextBlock Text="✔ Finish Zone"/>
+                </Button>
+                <Button x:Name="BtnCancelZone"
+                        Style="{StaticResource ToolBtn}"
+                        Background="#6B1A1A" Foreground="White"
+                        IsEnabled="False"
+                        ToolTip="Cancel drawing (Escape)"
+                        Click="BtnCancelZone_Click">
+                    <TextBlock Text="✕ Cancel"/>
+                </Button>
+            </StackPanel>
+
+            <Rectangle Width="1" Height="24" Fill="#3F3F46" Margin="10,0" DockPanel.Dock="Right"/>
+
+            <!-- LEFT: Zone type -->
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left"
+                        VerticalAlignment="Center" Margin="0,0,10,0">
+
+                <TextBlock Text="Zone:" Foreground="#888888" FontSize="10"
+                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+
+                <RadioButton x:Name="RbSiteBoundary"
+                             Style="{StaticResource ZoneRadio}"
+                             Checked="ZoneType_Checked"
+                             Margin="0,0,4,0">
+                    <StackPanel Orientation="Horizontal">
+                        <Rectangle Width="8" Height="8" Fill="#007ACC" RadiusX="1" RadiusY="1" Margin="0,0,4,0"/>
+                        <TextBlock Text="Site Boundary"/>
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton x:Name="RbAllowed"
+                             Style="{StaticResource ZoneRadio}"
+                             IsChecked="True"
+                             Checked="ZoneType_Checked"
+                             Margin="0,0,4,0">
+                    <StackPanel Orientation="Horizontal">
+                        <Rectangle Width="8" Height="8" Fill="#27AE60" RadiusX="1" RadiusY="1" Margin="0,0,4,0"/>
+                        <TextBlock Text="Allowed"/>
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton x:Name="RbForbidden"
+                             Style="{StaticResource ZoneRadio}"
+                             Checked="ZoneType_Checked">
+                    <StackPanel Orientation="Horizontal">
+                        <Rectangle Width="8" Height="8" Fill="#E74C3C" RadiusX="1" RadiusY="1" Margin="0,0,4,0"/>
+                        <TextBlock Text="Forbidden"/>
+                    </StackPanel>
+                </RadioButton>
+            </StackPanel>
+
+            <Rectangle Width="1" Height="24" Fill="#3F3F46" Margin="0,0,10,0" DockPanel.Dock="Left"/>
+
+            <!-- MIDDLE: Snap + Opacity -->
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left"
+                        VerticalAlignment="Center" Margin="0,0,10,0">
+
+                <CheckBox x:Name="ChkSnap"
+                          Content="⊞ Snap"
+                          IsChecked="True"
+                          Foreground="#AAAAAA" FontSize="10"
+                          VerticalAlignment="Center"
+                          Margin="0,0,12,0"
+                          Checked="ChkSnap_Changed"
+                          Unchecked="ChkSnap_Changed"/>
+
+                <TextBlock Text="Fill Opacity:" Foreground="#888888" FontSize="10"
+                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <Slider x:Name="SliderOpacity"
+                        Width="70" Minimum="10" Maximum="100" Value="40"
+                        VerticalAlignment="Center"
+                        Foreground="#007ACC"
+                        ValueChanged="SliderOpacity_Changed"/>
+                <TextBlock x:Name="TxtOpacity"
+                           Text="40%"
+                           Foreground="#AAAAAA" FontSize="10"
+                           VerticalAlignment="Center"
+                           Margin="4,0,14,0" Width="28"/>
+            </StackPanel>
+
+            <!-- Status label -->
+            <TextBlock x:Name="TxtDrawStatus"
+                       Text="Click on the canvas to start drawing"
+                       Foreground="#555555" FontSize="10" FontStyle="Italic"
+                       VerticalAlignment="Center" HorizontalAlignment="Center"/>
+
+        </DockPanel>
+    </Border>
+</UserControl>
