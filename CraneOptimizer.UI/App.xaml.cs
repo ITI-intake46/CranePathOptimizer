@@ -2,6 +2,9 @@
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.IFC;
 using CraneOptimizer.Infrastructure.Repositories;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,10 +15,7 @@ namespace CraneOptimizer.UI
     public partial class App : System.Windows.Application
     {
         public static ServiceProvider ServiceProvider { get; private set; } = null!;
-        public static void ConfigureServices(IServiceCollection services)
-        {
-            services.AddScoped<IIfcReader, IfcReader>();
-        }
+
         protected override void OnStartup(StartupEventArgs e)
         {
             var configuration = new ConfigurationBuilder()
@@ -27,17 +27,18 @@ namespace CraneOptimizer.UI
 
             var connectionString = configuration.GetConnectionString("DefaultConnection");
 
-            // Register DbContext
+            // DbContext
             services.AddDbContext<CraneDbContext>(options =>
                 options.UseSqlite(connectionString));
 
-            // Register Repository
+            // Infrastructure
             services.AddScoped<ICraneRepository, CraneRepository>();
+            services.AddScoped<IIfcReader, IfcReader>();
 
-            // ← السطر الناقص
-            ConfigureServices(services);
+            // GA Module
+            RegisterGAServices(services);
 
-            // Register MainWindow
+            // UI
             services.AddTransient<MainWindow>();
 
             ServiceProvider = services.BuildServiceProvider();
@@ -46,6 +47,20 @@ namespace CraneOptimizer.UI
             mainWindow.Show();
 
             base.OnStartup(e);
+        }
+
+        private static void RegisterGAServices(IServiceCollection services)
+        {
+            services.AddScoped<IGeneticAlgorithmEngine, GAEngine>();
+
+            services.AddScoped<IGAInitializer, GAInitializer>();
+            services.AddScoped<IElementAssignmentService, ElementAssignmentService>();
+            services.AddScoped<IFitnessEvaluator, FitnessEvaluator>();
+
+            services.AddScoped<ISelectionStrategy, TournamentSelection>();
+            services.AddScoped<ICrossoverOperator, CrossoverOperator>();
+            services.AddScoped<IMutationOperator, MutationOperator>();
+            services.AddScoped<IReplacementStrategy, ReplacementStrategy>();
         }
     }
 }
