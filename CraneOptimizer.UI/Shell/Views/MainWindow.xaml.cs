@@ -1,6 +1,7 @@
 ﻿using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Shell.ViewModels;
 using HelixToolkit.Wpf;
+using System.Drawing;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
@@ -22,29 +23,37 @@ namespace CraneOptimizer.UI.Shell.Views
         }
         private void Viewport_MouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (!_vm.Drawing.IsDrawing) return;
+            var pos = e.GetPosition(Viewport);
+            var point = GetGroundPoint(pos);
+            if (point == null) return;
 
-            // ✅ RightClick يقفل الزون بغض النظر عن أي نقطة
-            if (e.ChangedButton == MouseButton.Right)
+            // 🟢 Crane Placement 
+            if (_vm.CranePlacement.IsPlacing)
             {
-                _vm.Drawing.Finish();
-                e.Handled = true;
+                _vm.CranePlacement.Place(
+                    new DomainPoint(point.Value.X, point.Value.Y, 0));
                 return;
             }
 
-            // LeftClick يضيف نقطة
-            if (e.ChangedButton == MouseButton.Left)
+            // 🔵 Drawing Zones
+            if (_vm.Drawing.IsDrawing)
             {
-                var pos = e.GetPosition(Viewport);
-                var point = GetGroundPoint(pos);
-                if (point == null) return;
+                if (e.ChangedButton == MouseButton.Right)
+                {
+                    _vm.Drawing.Finish();
+                    e.Handled = true;
+                    return;
+                }
 
-                _vm.Drawing.AddPoint(new DomainPoint(point.Value.X, point.Value.Y, 0));
-                e.Handled = true;
+                if (e.ChangedButton == MouseButton.Left)
+                {
+                    _vm.Drawing.AddPoint(
+                        new DomainPoint(point.Value.X, point.Value.Y, 0));
+                    e.Handled = true;
+                }
             }
         }
 
-        // تحويل الماوس → نقطة على الأرض (Z=0)
         private Point3D? GetGroundPoint(System.Windows.Point mouse)
         {
             var ray = Viewport3DHelper.Point2DtoRay3D(Viewport.Viewport, mouse);

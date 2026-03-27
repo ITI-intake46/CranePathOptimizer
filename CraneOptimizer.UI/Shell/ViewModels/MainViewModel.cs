@@ -7,7 +7,8 @@ using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
-using CraneOptimizer.UI.Features.F7_Zones;
+using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
+using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
@@ -24,7 +25,6 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly IRenderingService _render;
         private readonly ICraneRepository _craneRepo;
         private readonly IDialogService _dialog;
-        private readonly IServiceScopeFactory _scopeFactory;
 
         private Crane? _selectedCrane;
 
@@ -33,7 +33,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         // =========================
         public ObservableCollection<PrecastElement> Elements { get; } = new();
         public ObservableCollection<Crane> Cranes { get; } = new();
-
+        public CranePlacementViewModel CranePlacement { get; }
         public Crane? SelectedCrane
         {
             get => _selectedCrane;
@@ -42,6 +42,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 _selectedCrane = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(SelectedCraneSpec));
+
+                CranePlacement.SelectedCrane = value;
             }
         }
 
@@ -64,6 +66,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         public MainViewModel(
             SceneViewModel scene,
             DrawingViewModel drawing,
+            CranePlacementViewModel cranePlacement,
             IIfcReader ifcReader,
             IGeneticAlgorithmEngine ga,
             IRenderingService render,
@@ -71,7 +74,6 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IServiceScopeFactory scopeFactory,
             IDialogService dialog)
         {
-            _scopeFactory = scopeFactory;
             Scene = scene;
             Drawing = drawing;
             _ifcReader = ifcReader;
@@ -79,6 +81,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _render = render;
             _craneRepo = craneRepo;
             _dialog = dialog;
+            CranePlacement = cranePlacement;
 
             // 🔥 CONNECT SCENE TO RENDERER
             Scene.ElementsChanged += elements => _render.RenderElements(elements);
@@ -97,19 +100,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         private async Task LoadCranesAsync()
         {
-            // ✅ Scope منفصل — آمن تماماً مع async
-            using var scope = _scopeFactory.CreateScope();
-            var repo = scope.ServiceProvider.GetRequiredService<ICraneRepository>();
-
-            var cranes = await repo.GetAllAsync();
-
-            // ✅ UI update على الـ dispatcher
-            App.Current.Dispatcher.Invoke(() =>
-            {
-                Cranes.Clear();
-                foreach (var c in cranes)
-                    Cranes.Add(c);
-            });
+            var cranes = await _craneRepo.GetAllAsync();
+            Cranes.Clear();
+            foreach (var c in cranes) Cranes.Add(c);
         }
 
         private void LoadIfc()

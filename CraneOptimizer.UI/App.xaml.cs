@@ -8,7 +8,8 @@ using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
-using CraneOptimizer.UI.Features.F7_Zones;
+using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
+using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Shell.ViewModels;
 using CraneOptimizer.UI.Shell.Views;
 using Microsoft.EntityFrameworkCore;
@@ -66,9 +67,10 @@ namespace CraneOptimizer.UI
             // ViewModels
             // =========================
             services.AddSingleton<MainViewModel>();
+            services.AddSingleton<DrawingService>();
             services.AddSingleton<SceneViewModel>();
             services.AddSingleton<DrawingViewModel>();
-            services.AddSingleton<DrawingService>();
+            services.AddSingleton<CranePlacementViewModel>();
 
             services.AddSingleton<IRenderingService, HelixRenderingService>();
 

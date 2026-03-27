@@ -41,7 +41,6 @@
     <Folder Include="Features\F3_CraneSetup\" />
     <Folder Include="Features\F4_LoadChart\" />
     <Folder Include="Features\F5_ElementManagement\" />
-    <Folder Include="Features\F6_CranePlacement\" />
     <Folder Include="Features\F8_GAOptimizer\" />
     <Folder Include="Features\F9_Settings\" />
     <Folder Include="Features\F10_Themes\" />

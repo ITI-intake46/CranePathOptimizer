@@ -37,6 +37,11 @@
                 Command="{Binding OptimizeCommand}"
                 Content="Optimize"
                 Style="{StaticResource Toolbar.Button}" />
+
+            <Button
+                Command="{Binding CranePlacement.StartPlacementCommand}"
+                Content="Place Crane"
+                Style="{StaticResource Toolbar.Button}" />
         </StackPanel>
 
         <!--  3D View  -->

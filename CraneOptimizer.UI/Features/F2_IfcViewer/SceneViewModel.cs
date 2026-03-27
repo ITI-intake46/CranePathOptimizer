@@ -1,6 +1,7 @@
 ﻿using CraneOptimizer.Domain.GreenAreaEntities;
 using CraneOptimizer.Domain.IfcEntities;
 using CraneOptimizer.UI.Core.Base;
+using CraneOptimizer.UI.Core.Interfaces;
 using System.Collections.ObjectModel;
 
 namespace CraneOptimizer.UI.Features.F2_IfcViewer
@@ -9,7 +10,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
     /// Holds scene state (elements + zones).
     /// Acts as bridge between UI and Application layer.
     /// </summary>
-    public class SceneViewModel : ViewModelBase
+    public class SceneViewModel : ViewModelBase 
     {
         public ObservableCollection<PrecastElement> Elements { get; } = new();
         public ObservableCollection<CranePlacementZone> Zones { get; } = new();

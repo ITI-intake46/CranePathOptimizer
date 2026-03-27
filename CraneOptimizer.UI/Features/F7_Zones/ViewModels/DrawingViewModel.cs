@@ -6,13 +6,13 @@ using DomainPoint = CraneOptimizer.Domain.Common.Point3D;
 using WpfPoint = System.Windows.Media.Media3D.Point3D;
 
 
-namespace CraneOptimizer.UI.Features.F7_Zones
+namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 {
     /// <summary>
     /// Controls drawing workflow.
     /// Does NOT render directly.
     /// </summary>
-    public class DrawingViewModel
+    public class DrawingViewModel 
     {
         private readonly DrawingService _drawing;
         private readonly SceneViewModel _scene;
