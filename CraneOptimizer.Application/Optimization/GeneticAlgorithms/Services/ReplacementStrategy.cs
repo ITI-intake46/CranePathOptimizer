@@ -10,23 +10,53 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     public class ReplacementStrategy : IReplacementStrategy
     {
         /// <summary>
-        /// Replaces the current population with a new generation.
+        /// Replaces the current population with a new generation. (elites strategy)
         /// </summary>
-        public Population Replace(Population population, List<CraneSolution> children)
+        public Population Replace(Population oldPopulation, List<CraneSolution> children)
         {
             // TODO:
             // 1️⃣ Combine old population with children
 
-            // TODO:
             // 2️⃣ Sort individuals by fitness
 
-            // TODO:
             // 3️⃣ Keep best individuals up to population size
 
-            // TODO:
             // 4️⃣ Create new population object
 
-            return population;
+            int populationSize = oldPopulation.Individuals.Count;
+
+            // 1️⃣ احسب عدد الـ elite (10%)
+            int eliteCount = (int)(populationSize * 0.1);
+
+            // 2️⃣ خد أفضل من القديم
+            var elites = oldPopulation.Individuals
+                .OrderByDescending(i => i.Fitness)
+                .Take(eliteCount)
+                .ToList();
+
+            // 3️⃣ merge (old + children)
+            var merged = oldPopulation.Individuals
+                .Concat(children)
+                .ToList();
+
+            // 4️⃣ sort وخد الأفضل
+            var nextGeneration = merged
+                .OrderByDescending(i => i.Fitness)
+                .Take(populationSize)
+                .ToList();
+
+            // 5️⃣ ضمان إن الـ elites موجودين
+            nextGeneration = nextGeneration
+                .Concat(elites)
+                .OrderByDescending(i => i.Fitness)
+                .Take(populationSize)
+                .ToList();
+
+            return new Population
+            {
+                Individuals = nextGeneration,
+                Generation = oldPopulation.Generation + 1
+            };
         }
     }
 }

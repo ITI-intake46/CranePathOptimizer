@@ -4,6 +4,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.GreenAreaEntities;
 using CraneOptimizer.Domain.IfcEntities;
+using System;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 {
@@ -46,9 +47,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
             CraneSpecification craneSpec,
             GASettings settings)
         {
+            int stagnantGenerations = 0;
+            double bestFitness = double.MinValue;
+            CraneSolution bestSolution = null;
             // 1️⃣ Initialize population
             var population = _initializer.InitializePopulation(
                 zones,
+                elements,
                 settings.PopulationSize,
                 settings.MaxCranePositions);
 
@@ -72,6 +77,25 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 
                     solution.Fitness = fitness.FitnessScore;
                 }
+                // 2️⃣ Track best solution
+                var currentBest = population.Individuals
+                    .OrderByDescending(s => s.Fitness)
+                    .First();
+
+                if (currentBest.Fitness > bestFitness)
+                {
+                    bestFitness = currentBest.Fitness;
+                    bestSolution = currentBest;
+                    stagnantGenerations = 0;
+                }
+                else
+                {
+                    stagnantGenerations++;
+                }
+
+                // 3️⃣ Early stopping
+                if (stagnantGenerations >= settings.EarlyStoppingGenerations)
+                    break;
 
                 // 4️⃣ Selection
                 var parents = _selection.SelectParents(
@@ -90,7 +114,24 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                 // 6️⃣ Mutation
                 foreach (var child in children)
                 {
-                    _mutation.Mutate(child);
+                    if (Random.Shared.NextDouble() < settings.MutationRate)
+                        _mutation.Mutate(child, zones);
+                }
+                foreach (var child in children)
+                {
+                    var evaluation = _assignmentService.EvaluateAssignment(
+                        child,
+                        elements,
+                        assignment,
+                        craneSpec,
+                        settings);
+
+                    var fitness = _fitnessEvaluator.EvaluateFitness(
+                        child,
+                        evaluation,
+                        settings);
+
+                    child.Fitness = fitness.FitnessScore;
                 }
 
                 // 7️⃣ Replacement
@@ -98,9 +139,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
             }
 
             // 8️⃣ Return best solution
-            return population.Individuals
-                .OrderByDescending(s => s.Fitness)
-                .First();
+            return bestSolution;
         }
     }
 }

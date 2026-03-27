@@ -2,57 +2,259 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.GreenAreaEntities;
+using CraneOptimizer.Domain.IfcEntities;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 {
     /// <summary>
     /// Default implementation of the GA population initializer.
-    /// Generates random chromosomes inside crane placement zones.
+    ///
+    /// Initialization Strategy — 70% Random / 30% Heuristic:
+    ///
+    ///   70% → Pure random positions sampled inside crane placement zones.
+    ///          Ensures population diversity and exploration of the search space.
+    ///
+    ///   30% → Heuristic positions guided by precast element centroids.
+    ///          Elements are clustered by spatial proximity.
+    ///          Each crane position is seeded near the centroid of a cluster.
+    ///          This accelerates GA convergence by providing smarter starting points.
     /// </summary>
     public class GAInitializer : IGAInitializer
     {
         private readonly Random _random = new();
 
+        // ══════════════════════════════════════════════════════════════
+        // PUBLIC ENTRY POINT
+        // ══════════════════════════════════════════════════════════════
+
         public Population InitializePopulation(
             List<CranePlacementZone> zones,
+            List<PrecastElement> elements,
             int populationSize,
             int maxCranePositions)
         {
             var population = new Population();
 
-            for (int i = 0; i < populationSize; i++)
+            // ── Split population into random vs heuristic ──────────
+            int heuristicCount = (int)(populationSize * 0.30);
+            int randomCount = populationSize - heuristicCount;
+
+            // ── 70% Pure Random ────────────────────────────────────
+            for (int i = 0; i < randomCount; i++)
             {
-                var chromosome = new CraneChromosome();
+                var solution = CreateRandomSolution(zones, maxCranePositions);
+                population.Individuals.Add(solution);
+            }
 
-                // Variable number of crane setups
-                int craneCount = _random.Next(1, maxCranePositions + 1);
-
-                for (int j = 0; j < craneCount; j++)
-                {
-                    var zone = zones[_random.Next(zones.Count)];
-
-                    var point = GenerateRandomPointInsideZone(zone);
-
-                    chromosome.CranePositions.Add(point);
-                }
-
-                var solution = new CraneSolution
-                {
-                    Chromosome = chromosome,
-                    Fitness = 0,
-                    Penalty = 0,
-                    CoverageRatio = 0
-                };
-
+            // ── 30% Heuristic (element-centroid guided) ────────────
+            for (int i = 0; i < heuristicCount; i++)
+            {
+                var solution = CreateHeuristicSolution(zones, elements, maxCranePositions);
                 population.Individuals.Add(solution);
             }
 
             return population;
         }
 
+        // ══════════════════════════════════════════════════════════════
+        // RANDOM SOLUTION (70%)
+        // ══════════════════════════════════════════════════════════════
+
         /// <summary>
-        /// Generates a random point inside a polygon using
-        /// bounding box sampling and point-in-polygon testing.
+        /// Creates a fully random solution.
+        /// Crane positions are sampled uniformly inside random zones.
+        /// </summary>
+        private CraneSolution CreateRandomSolution(
+            List<CranePlacementZone> zones,
+            int maxCranePositions)
+        {
+            var chromosome = new CraneChromosome();
+
+            // Variable number of crane setups per chromosome
+            int craneCount = _random.Next(1, maxCranePositions + 1);
+
+            for (int j = 0; j < craneCount; j++)
+            {
+                var zone = zones[_random.Next(zones.Count)];
+                var point = GenerateRandomPointInsideZone(zone);
+                chromosome.CranePositions.Add(point);
+            }
+
+            return new CraneSolution
+            {
+                Chromosome = chromosome,
+                Fitness = 0,
+                Penalty = 0,
+                CoverageRatio = 0
+            };
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // HEURISTIC SOLUTION (30%)
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Creates a heuristic solution guided by element spatial distribution.
+        ///
+        /// Steps:
+        ///   1. Decide how many crane positions to use (1 → maxCranePositions)
+        ///   2. Cluster elements into that many groups using K-Means style split
+        ///   3. Compute the centroid of each cluster
+        ///   4. Find the nearest valid point to that centroid inside a zone
+        ///   5. Use that point as the crane position for this cluster
+        /// </summary>
+        private CraneSolution CreateHeuristicSolution(
+            List<CranePlacementZone> zones,
+            List<PrecastElement> elements,
+            int maxCranePositions)
+        {
+            var chromosome = new CraneChromosome();
+
+            int craneCount = _random.Next(1, maxCranePositions + 1);
+
+            // Step 1 — Cluster elements into craneCount groups
+            var clusters = ClusterElements(elements, craneCount);
+
+            foreach (var cluster in clusters)
+            {
+                if (cluster.Count == 0)
+                    continue;
+
+                // Step 2 — Compute spatial centroid of the cluster
+                var centroid = CalculateCentroid(cluster);
+
+                // Step 3 — Find nearest valid crane position inside zones
+                var point = FindNearestValidPoint(centroid, zones);
+
+                chromosome.CranePositions.Add(point);
+            }
+
+            // Fallback: if heuristic failed to produce positions, add one random
+            if (chromosome.CranePositions.Count == 0)
+            {
+                var zone = zones[_random.Next(zones.Count)];
+                var point = GenerateRandomPointInsideZone(zone);
+                chromosome.CranePositions.Add(point);
+            }
+
+            return new CraneSolution
+            {
+                Chromosome = chromosome,
+                Fitness = 0,
+                Penalty = 0,
+                CoverageRatio = 0
+            };
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // CLUSTERING — Split elements into spatial groups
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Splits elements into k clusters based on X-axis spatial ordering.
+        ///
+        /// Simple approach: sort elements by X coordinate, divide evenly.
+        /// This is a fast approximation — not full K-Means — but sufficient
+        /// to produce spatially meaningful cluster centroids for seeding.
+        /// </summary>
+        private List<List<PrecastElement>> ClusterElements(
+            List<PrecastElement> elements,
+            int k)
+        {
+            // Sort by X coordinate for a simple spatial split
+            var sorted = elements
+                .OrderBy(e => e.ElementCOG.X)
+                .ThenBy(e => e.ElementCOG.Y)
+                .ToList();
+
+            var clusters = new List<List<PrecastElement>>();
+
+            // Divide sorted elements evenly into k groups
+            int chunkSize = (int)Math.Ceiling((double)sorted.Count / k);
+
+            for (int i = 0; i < k; i++)
+            {
+                var cluster = sorted
+                    .Skip(i * chunkSize)
+                    .Take(chunkSize)
+                    .ToList();
+
+                clusters.Add(cluster);
+            }
+
+            return clusters;
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // CENTROID — Compute spatial center of a cluster
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Calculates the average X/Y position of all elements in a cluster.
+        /// This centroid represents the ideal crane position for this group.
+        /// </summary>
+        private Point3D CalculateCentroid(List<PrecastElement> elements)
+        {
+            double x = elements.Average(e => e.ElementCOG.X);
+            double y = elements.Average(e => e.ElementCOG.Y);
+
+            return new Point3D(x, y, 0);
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // NEAREST VALID POINT — Map centroid to a zone-valid position
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Finds the nearest valid crane position inside any zone
+        /// relative to the provided centroid.
+        ///
+        /// Strategy:
+        ///   1. If centroid is already inside a zone → use it directly
+        ///   2. Otherwise → find the zone whose centroid is closest
+        ///      and sample a random point inside that zone
+        /// </summary>
+        private Point3D FindNearestValidPoint(
+            Point3D centroid,
+            List<CranePlacementZone> zones)
+        {
+            // Case 1: centroid falls inside one of the zones
+            foreach (var zone in zones)
+            {
+                if (IsPointInsidePolygon(centroid, zone.Vertices))
+                    return centroid;
+            }
+
+            // Case 2: find the closest zone and sample inside it
+            var closestZone = zones
+                .OrderBy(z => DistanceToZoneCentroid(centroid, z))
+                .First();
+
+            return GenerateRandomPointInsideZone(closestZone);
+        }
+
+        /// <summary>
+        /// Computes distance from a point to the centroid of a zone's vertices.
+        /// Used to find the closest zone when the element centroid falls outside all zones.
+        /// </summary>
+        private double DistanceToZoneCentroid(Point3D point, CranePlacementZone zone)
+        {
+            double zx = zone.Vertices.Average(v => v.X);
+            double zy = zone.Vertices.Average(v => v.Y);
+
+            double dx = point.X - zx;
+            double dy = point.Y - zy;
+
+            return Math.Sqrt(dx * dx + dy * dy);
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // GEOMETRY HELPERS
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Generates a random point inside a polygon zone.
+        /// Uses bounding box rejection sampling with ray-casting validation.
         /// </summary>
         private Point3D GenerateRandomPointInsideZone(CranePlacementZone zone)
         {
@@ -71,22 +273,23 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         }
 
         /// <summary>
-        /// Calculates the bounding box of a polygon.
+        /// Calculates the bounding box (min/max X and Y) of a polygon.
         /// </summary>
         private (double minX, double maxX, double minY, double maxY)
             GetBoundingBox(List<Point3D> vertices)
         {
-            double minX = vertices.Min(v => v.X);
-            double maxX = vertices.Max(v => v.X);
-            double minY = vertices.Min(v => v.Y);
-            double maxY = vertices.Max(v => v.Y);
-
-            return (minX, maxX, minY, maxY);
+            return (
+                vertices.Min(v => v.X),
+                vertices.Max(v => v.X),
+                vertices.Min(v => v.Y),
+                vertices.Max(v => v.Y)
+            );
         }
 
         /// <summary>
-        /// Ray-casting algorithm to determine if a point
-        /// is inside a polygon.
+        /// Ray-casting algorithm to determine if a point lies inside a polygon.
+        /// Casts a horizontal ray from the point to the right and counts
+        /// how many polygon edges it crosses — odd = inside, even = outside.
         /// </summary>
         private bool IsPointInsidePolygon(Point3D point, List<Point3D> polygon)
         {

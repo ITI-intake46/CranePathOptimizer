@@ -52,6 +52,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // TODO:
             // randomly select TournamentSize individuals
             // from population.Individuals
+            for (int i = 0; i < TournamentSize; i++)
+            {
+                int index = _random.Next(population.Individuals.Count);
+                candidates.Add(population.Individuals[index]);
+            }
 
             return candidates;
         }
@@ -65,7 +70,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // TODO:
             // return candidate with highest Fitness
 
-            return candidates.First();
+            return candidates.OrderByDescending(c => c.Fitness).First();
         }
     }
 }

@@ -71,5 +71,16 @@
         /// Weight applied when required lifting height is invalid.
         /// </summary>
         public double HeightPenaltyWeight { get; set; } = 5;
+
+        /// <summary>
+        /// Normalisation factor for working radius penalty.
+        /// Converts raw radius values into a [0, 1] scale for consistent fitness evaluation.
+        /// </summary>
+        public double MaxRadiusForNormalisation { get; set; } = 50;
+
+        /// <summary>
+        /// Number of consecutive generations without fitness improvement
+        /// </summary>
+        public int EarlyStoppingGenerations { get; set; } = 20;
     }
 }
