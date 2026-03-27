@@ -1,7 +1,7 @@
 ﻿using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.GreenAreaEntities;
 
-namespace CraneOptimizer.UI.Interfaces
+namespace CraneOptimizer.UI.Core.Interfaces
 {
     public interface IDrawingService
     {

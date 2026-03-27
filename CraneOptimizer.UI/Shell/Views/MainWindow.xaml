@@ -1,0 +1,50 @@
+﻿<Window
+    x:Class="CraneOptimizer.UI.Shell.Views.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:h="http://helix-toolkit.org/wpf"
+    Title="Crane Optimizer"
+    Width="1200"
+    Height="800">
+
+    <Grid>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition />
+        </Grid.RowDefinitions>
+
+        <!--  Toolbar  -->
+        <StackPanel Grid.Row="0" Style="{StaticResource Toolbar.Container}">
+
+            <Button
+                Command="{Binding LoadIfcCommand}"
+                Content="Load IFC"
+                Style="{StaticResource Toolbar.Button}" />
+
+            <Button
+                Command="{Binding StartDrawingCommand}"
+                Content="Draw Area"
+                Style="{StaticResource Toolbar.Button}" />
+
+            <ComboBox
+                Width="200"
+                DisplayMemberPath="Name"
+                ItemsSource="{Binding Cranes}"
+                SelectedItem="{Binding SelectedCrane}" />
+
+            <Button
+                Command="{Binding OptimizeCommand}"
+                Content="Optimize"
+                Style="{StaticResource Toolbar.Button}" />
+        </StackPanel>
+
+        <!--  3D View  -->
+        <h:HelixViewport3D
+            x:Name="Viewport"
+            Grid.Row="1"
+            PreviewMouseDown="Viewport_MouseDown"
+            ZoomExtentsWhenLoaded="True" />
+
+    </Grid>
+</Window>

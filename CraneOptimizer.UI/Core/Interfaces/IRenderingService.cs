@@ -3,7 +3,7 @@ using CraneOptimizer.Domain.IfcEntities;
 using HelixToolkit.Wpf;
 using DomainPoint = CraneOptimizer.Domain.Common.Point3D;
 
-namespace CraneOptimizer.UI.Interfaces
+namespace CraneOptimizer.UI.Core.Interfaces
 {
     /// <summary>
     /// Responsible for ALL 3D rendering (Helix).

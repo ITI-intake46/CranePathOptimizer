@@ -1,6 +1,6 @@
 ﻿using System.Windows.Input;
 
-namespace CraneOptimizer.UI.Commands
+namespace CraneOptimizer.UI.Core.Commands
 {
     /// <summary>
     /// Generic command implementation for MVVM.

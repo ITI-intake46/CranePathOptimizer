@@ -10,6 +10,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Interaction\**" />
+    <Compile Remove="Views\**" />
+    <EmbeddedResource Remove="Interaction\**" />
+    <EmbeddedResource Remove="Views\**" />
+    <None Remove="Interaction\**" />
+    <None Remove="Views\**" />
+    <Page Remove="Interaction\**" />
+    <Page Remove="Views\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="appsettings.json" />
     <None Remove="Data\crane.db" />
   </ItemGroup>
@@ -26,9 +37,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Interaction\" />
-    <Folder Include="ViewModels\" />
-    <Folder Include="Views\" />
+    <Folder Include="Features\F1_ProjectManagement\" />
+    <Folder Include="Features\F3_CraneSetup\" />
+    <Folder Include="Features\F4_LoadChart\" />
+    <Folder Include="Features\F5_ElementManagement\" />
+    <Folder Include="Features\F6_CranePlacement\" />
+    <Folder Include="Features\F8_GAOptimizer\" />
+    <Folder Include="Features\F9_Settings\" />
+    <Folder Include="Features\F10_Themes\" />
+    <Folder Include="Controls\" />
+    <Folder Include="Converters\" />
+    <Folder Include="Shell\ViewModels\" />
   </ItemGroup>
 
   <ItemGroup>

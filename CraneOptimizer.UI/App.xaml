@@ -1,6 +1,24 @@
-﻿<Application x:Class="CraneOptimizer.UI.App"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+﻿<Application
+    x:Class="CraneOptimizer.UI.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+
+                <!--  Core  -->
+                <ResourceDictionary Source="Resources/Colors.xaml" />
+                <ResourceDictionary Source="Resources/Brushes.xaml" />
+                <ResourceDictionary Source="Resources/Styles.xaml" />
+
+                <!--  Controls  -->
+                <ResourceDictionary Source="Resources/ControlStyles/ButtonStyles.xaml" />
+                <ResourceDictionary Source="Resources/ControlStyles/TextBoxStyles.xaml" />
+                <ResourceDictionary Source="Resources/ControlStyles/ComboBoxStyles.xaml" />
+                <ResourceDictionary Source="Resources/ControlStyles/DataGridStyles.xaml" />
+                <ResourceDictionary Source="Resources/ControlStyles/ToolbarStyles.xaml" />
+
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

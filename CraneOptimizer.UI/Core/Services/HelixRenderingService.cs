@@ -1,15 +1,15 @@
 ﻿using CraneOptimizer.Domain.GreenAreaEntities;
 using CraneOptimizer.Domain.IfcEntities;
-using CraneOptimizer.UI.Interfaces;
 using HelixToolkit.Geometry;
 using HelixToolkit.Wpf;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using WpfPoint = System.Windows.Media.Media3D.Point3D;
 using DomainPoint = CraneOptimizer.Domain.Common.Point3D;
+using CraneOptimizer.UI.Core.Interfaces;
 
 
-namespace CraneOptimizer.UI.Services
+namespace CraneOptimizer.UI.Core.Services
 {
     /// <summary>
     /// Concrete Helix implementation of <see cref="IRenderingService"/>.
@@ -36,6 +36,8 @@ namespace CraneOptimizer.UI.Services
         /// <inheritdoc/>
         public void Initialize(HelixViewport3D viewport)
         {
+            if (_viewport != null) return;
+
             _viewport = viewport;
             _viewport.Children.Clear();
 
@@ -86,7 +88,7 @@ namespace CraneOptimizer.UI.Services
 
             _bestPoint = new SphereVisual3D
             {
-                Center = new Point3D(x, y, 0),
+                Center = new WpfPoint(x, y, 0),
                 Radius = 3,
                 Material = new DiffuseMaterial(
                     new SolidColorBrush(Colors.Red))
@@ -173,8 +175,8 @@ namespace CraneOptimizer.UI.Services
 
             for (int i = 0; i < points.Count - 1; i++)
             {
-                _previewLines.Points.Add(new Point3D(points[i].X, points[i].Y, points[i].Z));
-                _previewLines.Points.Add(new Point3D(points[i + 1].X, points[i + 1].Y, points[i + 1].Z));
+                _previewLines.Points.Add(new WpfPoint(points[i].X, points[i].Y, points[i].Z));
+                _previewLines.Points.Add(new WpfPoint(points[i + 1].X, points[i + 1].Y, points[i + 1].Z));
             }
         }
 

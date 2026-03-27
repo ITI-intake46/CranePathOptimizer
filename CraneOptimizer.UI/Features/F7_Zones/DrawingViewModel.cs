@@ -1,10 +1,12 @@
-﻿using CraneOptimizer.UI.Interfaces;
-using CraneOptimizer.UI.Services;
+﻿using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Core.Services;
+using CraneOptimizer.UI.Features.F2_IfcViewer;
+using System.Security.Policy;
 using DomainPoint = CraneOptimizer.Domain.Common.Point3D;
 using WpfPoint = System.Windows.Media.Media3D.Point3D;
 
 
-namespace CraneOptimizer.UI.ViewModels
+namespace CraneOptimizer.UI.Features.F7_Zones
 {
     /// <summary>
     /// Controls drawing workflow.
