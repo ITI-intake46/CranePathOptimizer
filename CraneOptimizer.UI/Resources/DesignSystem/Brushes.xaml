@@ -1,0 +1,17 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        DARK THEME BRUSHES
+        These semantic brushes are swapped at runtime by ThemeService
+        to switch between dark and light themes.
+        Index [2] in App.xaml MergedDictionaries.
+    -->
+
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#1A1A1A" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#222222" />
+    <SolidColorBrush x:Key="SurfaceElevatedBrush" Color="#2C2C2C" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#383838" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F0F0F0" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#9E9E9E" />
+    <SolidColorBrush x:Key="TextDisabledBrush" Color="#555555" />
+
+</ResourceDictionary>

@@ -6,17 +6,48 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
 
-                <!--  Core  -->
-                <ResourceDictionary Source="Resources/Colors.xaml" />
-                <ResourceDictionary Source="Resources/Brushes.xaml" />
-                <ResourceDictionary Source="Resources/Styles.xaml" />
+                <!-- Core -->
+                <ResourceDictionary Source="Resources/DesignSystem/Colors.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Brushes.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Typography.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Spacing.xaml"/>
 
-                <!--  Controls  -->
-                <ResourceDictionary Source="Resources/ControlStyles/ButtonStyles.xaml" />
-                <ResourceDictionary Source="Resources/ControlStyles/TextBoxStyles.xaml" />
-                <ResourceDictionary Source="Resources/ControlStyles/ComboBoxStyles.xaml" />
-                <ResourceDictionary Source="Resources/ControlStyles/DataGridStyles.xaml" />
-                <ResourceDictionary Source="Resources/ControlStyles/ToolbarStyles.xaml" />
+                <!-- Controls -->
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/ButtonStyles.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/TextBoxStyles.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/ComboBoxStyles.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/DataGridStyles.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/ToolbarStyles.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/RibbonStyles.xaml"/>
+                <!--
+                    LOAD ORDER IS CRITICAL.
+                    Each dictionary may only reference keys defined in earlier entries.
+
+                    [0] Brand colour tokens + static brushes  — never swapped
+                    [1] Typography (FontFamily, FontSize*)    — never swapped
+                    [2] Semantic brushes (Background, Surface…) — ThemeService swaps THIS at runtime
+                    [3] Spacing tokens (CornerRadius, ControlPadding, Space*)
+                    [4] All control templates (Button, TextBox, ComboBox, DataGrid…)
+                    [5] Shell chrome (TitleBarButton, ToolbarButton, ElementListItem, CoordLabel…)
+                -->
+
+                <!-- [0] Brand colour tokens -->
+                <ResourceDictionary Source="Resources/DesignSystem/Colors.xaml"/>
+
+                <!-- [1] Typography -->
+                <ResourceDictionary Source="Resources/DesignSystem/Typography.xaml"/>
+
+                <!-- [2] Semantic brushes — dark theme default -->
+                <ResourceDictionary Source="Resources/DesignSystem/Brushes.xaml"/>
+
+                <!-- [3] Spacing -->
+                <ResourceDictionary Source="Resources/DesignSystem/Spacing.xaml"/>
+
+                <!-- [4] Control styles -->
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/ControlStyles.xaml"/>
+
+                <!-- [5] Shell chrome styles -->
+                <ResourceDictionary Source="Resources/Shell/ShellStyles.xaml"/>
 
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>

@@ -1,0 +1,45 @@
+﻿<UserControl x:Class="CraneOptimizer.UI.Shared.Layouts.Sidebar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Border Background="{DynamicResource SurfaceBrush}">
+        <StackPanel>
+
+            <!-- User -->
+            <Border Padding="16" Background="{DynamicResource SurfaceElevatedBrush}">
+                <StackPanel Orientation="Horizontal">
+                    <Rectangle Width="40" Height="40"
+                               Fill="{StaticResource PrimaryBrush}"
+                               RadiusX="4" RadiusY="4"/>
+
+                    <StackPanel Margin="10,0,0,0">
+                        <TextBlock Text="USER NAME"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   FontWeight="Bold"/>
+                        <TextBlock Text="SYSTEM ADMIN"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   FontSize="10"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Navigation -->
+            <StackPanel Margin="0,20,0,0">
+
+                <Button Content="HOME"
+                        Style="{StaticResource NavItem}"/>
+
+                <Button Content="CREATE PROJECT"
+                        Style="{StaticResource NavItem}"/>
+
+                <Button Content="PROJECT LIST"
+                        Style="{StaticResource NavItem}"/>
+
+                <Button Content="RECENT PROJECTS"
+                        Style="{StaticResource NavItem}"/>
+
+            </StackPanel>
+
+        </StackPanel>
+    </Border>
+</UserControl>
