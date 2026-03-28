@@ -3,8 +3,7 @@
 namespace CraneOptimizer.UI.Core.Commands
 {
     /// <summary>
-    /// Generic command implementation for MVVM.
-    /// Keeps UI decoupled from code-behind.
+    /// Non-generic RelayCommand for parameterless actions.
     /// </summary>
     public class RelayCommand : ICommand
     {
@@ -18,9 +17,39 @@ namespace CraneOptimizer.UI.Core.Commands
         }
 
         public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
-
         public void Execute(object? parameter) => _execute();
 
-        public event EventHandler? CanExecuteChanged;
+        public event EventHandler? CanExecuteChanged
+        {
+            add => CommandManager.RequerySuggested += value;
+            remove => CommandManager.RequerySuggested -= value;
+        }
+    }
+
+    /// <summary>
+    /// Generic RelayCommand for commands that receive a typed parameter.
+    /// </summary>
+    public class RelayCommand<T> : ICommand
+    {
+        private readonly Action<T?> _execute;
+        private readonly Func<T?, bool>? _canExecute;
+
+        public RelayCommand(Action<T?> execute, Func<T?, bool>? canExecute = null)
+        {
+            _execute = execute;
+            _canExecute = canExecute;
+        }
+
+        public bool CanExecute(object? parameter)
+            => _canExecute?.Invoke((T?)parameter) ?? true;
+
+        public void Execute(object? parameter)
+            => _execute((T?)parameter);
+
+        public event EventHandler? CanExecuteChanged
+        {
+            add => CommandManager.RequerySuggested += value;
+            remove => CommandManager.RequerySuggested -= value;
+        }
     }
 }
