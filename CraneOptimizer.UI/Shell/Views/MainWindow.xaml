@@ -1,11 +1,8 @@
-<Window x:Class="CraneOptimizer.UI.Shell.Views.MainWindow"
+﻿<Window x:Class="CraneOptimizer.UI.Shell.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:helix="http://helix-toolkit.org/wpf"
-        xmlns:shell="clr-namespace:CraneOptimizer.UI.Shell.Views"
-        xmlns:layouts="clr-namespace:CraneOptimizer.UI.Shared.Layouts"
-        xmlns:components="clr-namespace:CraneOptimizer.UI.Shared.Components"
-        Title="CraneOptimizer"
+        Title="IFC Building Analyzer — Crane Planner Edition"
         Height="800" Width="1600"
         WindowState="Maximized"
         Background="{DynamicResource BackgroundBrush}"
@@ -14,94 +11,24 @@
         ResizeMode="CanResize"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True">
+        <!--xmlns:conv="clr-namespace:CraneOptimizer.UI.Converters"
+        xmlns:ribbon="clr-namespace:CraneOptimizer.UI.Shared.Controls"
+        xmlns:ribbonTabs="clr-namespace:CraneOptimizer.UI.Shared.Controls.RibbonTabs"
+        xmlns:craneSetup="clr-namespace:CraneOptimizer.UI.Features.F3_CraneSetup.Views"
+        xmlns:cranePlacement="clr-namespace:CraneOptimizer.UI.Features.F6_CranePlacement.Views"
+        xmlns:zones="clr-namespace:CraneOptimizer.UI.Features.F7_Zones.Views"-->
 
     <Window.Resources>
-
-        <!-- ── OSnap toggle button ─────────────────────────────────────── -->
-        <Style x:Key="StatusOsnapBtn" TargetType="ToggleButton">
-            <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="{DynamicResource TextSecondaryBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="Height"          Value="16"/>
-            <Setter Property="Padding"         Value="4,0"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="FontFamily"      Value="{StaticResource FontPrimary}"/>
-            <Setter Property="FontSize"        Value="{StaticResource FontSizeXS}"/>
-            <Setter Property="FontWeight"      Value="SemiBold"/>
-            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="Bd"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="2"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
-                                <Setter Property="Foreground"                  Value="{DynamicResource TextPrimaryBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background"  Value="{DynamicResource SurfaceBrush}"/>
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
-                                <Setter Property="Foreground"                   Value="{StaticResource PrimaryBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- ── Section header label (Left panels) ────────────────────── -->
-        <Style x:Key="PanelSectionHeader" TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
-            <Setter Property="FontSize"   Value="{StaticResource FontSizeSM}"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
-        </Style>
-
-        <!-- ── Coordinate display label ──────────────────────────────── -->
-        <Style x:Key="CoordLabel" TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
-            <Setter Property="FontSize"   Value="{StaticResource FontSizeXS}"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-
-        <!-- ── Element list item row ─────────────────────────────────── -->
-        <Style x:Key="ElementListItem" TargetType="Border">
-            <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-            <Setter Property="Padding"         Value="10,6"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- ── Property row ──────────────────────────────────────────── -->
-        <Style x:Key="PropertyRow" TargetType="Border">
-            <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-            <Setter Property="Padding"         Value="10,5"/>
-        </Style>
-
+        <ResourceDictionary>
+            <!--<conv:HexStringToColorConverter x:Key="HexToColorConverter"/>-->
+        </ResourceDictionary>
     </Window.Resources>
 
     <!--
-        ROOT GRID — compensates for WindowStyle=None + AllowsTransparency=True
-        maximized-overflow bug (8px inset when Maximized).
+        ROOT GRID — compensates for WPF WindowStyle=None + AllowsTransparency=True
+        maximized-overflow bug: when maximized, WPF places the window 8 px beyond each
+        screen edge (to hide the resize border). The DataTrigger adds an 8 px inset
+        only in Maximized state so all edges and text remain fully visible.
     -->
     <Grid>
         <Grid.Style>
@@ -119,15 +46,17 @@
 
         <Grid.RowDefinitions>
             <RowDefinition Height="28"/>
-            <!-- Row 0: Title bar + quick-access  -->
+            <!-- Row 0: Title bar + quick-access toolbar -->
             <RowDefinition Height="Auto"/>
-            <!-- Row 1: Main ribbon               -->
+            <!-- Row 1: Drawing options bar (collapsed)  -->
             <RowDefinition Height="Auto"/>
-            <!-- Row 2: Building info bar         -->
+            <!-- Row 2: Main ribbon                      -->
+            <RowDefinition Height="Auto"/>
+            <!-- Row 3: Building info bar                -->
             <RowDefinition Height="*"/>
-            <!-- Row 3: Main content area         -->
+            <!-- Row 4: Main content area                -->
             <RowDefinition Height="22"/>
-            <!-- Row 4: Status bar                -->
+            <!-- Row 5: Status bar                       -->
         </Grid.RowDefinitions>
 
         <!-- ══════════════════════════════════════════════════════════════════
@@ -141,23 +70,29 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="28"/>
-                    <!-- Col 0: App icon           -->
+                    <!-- Col 0:  App icon           -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 1: Save btn           -->
+                    <!-- Col 1:  Home / welcome btn -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 2: Separator          -->
+                    <!-- Col 2:  Separator          -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 3: Undo/Redo          -->
+                    <!-- Col 3:  Save btn           -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 4: Separator          -->
+                    <!-- Col 4:  Separator          -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 5: History breadcrumb -->
+                    <!-- Col 5:  Undo / Redo btns   -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 6: Clear History btn  -->
+                    <!-- Col 6:  Separator          -->
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- Col 7:  History breadcrumb -->
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- Col 8:  Clear history      -->
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- Col 9:  Dimension tool     -->
                     <ColumnDefinition Width="*"/>
-                    <!-- Col 7: Title (centered)   -->
+                    <!-- Col 10: Title (centred)    -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 8: Window chrome      -->
+                    <!-- Col 11: Window chrome      -->
                 </Grid.ColumnDefinitions>
 
                 <!-- Col 0: App icon -->
@@ -168,21 +103,34 @@
                                VerticalAlignment="Center"/>
                 </Border>
 
-                <!-- Col 1: Save -->
+                <!-- Col 1: Home / Back-to-Welcome button -->
                 <Button Grid.Column="1"
-                        ToolTip="Save Project (Ctrl+S)"
+                        ToolTip="Back to Welcome (Home)"
                         Width="26" Height="22" Margin="4,0,0,0"
-                        Click="SaveProject_Click"
+                        Click="BackToWelcome_Click"
                         Style="{StaticResource ToolbarButton}">
-                    <TextBlock Text="💾" FontSize="{StaticResource FontSizeSM}"/>
+                    <TextBlock Text="🏠" FontSize="{StaticResource FontSizeSM}"/>
                 </Button>
 
                 <!-- Col 2: Separator -->
                 <Rectangle Grid.Column="2" Width="1" Height="14"
                            Fill="{DynamicResource BorderBrush}" Margin="6,0"/>
 
-                <!-- Col 3: Undo / Redo -->
-                <StackPanel Grid.Column="3" Orientation="Horizontal"
+                <!-- Col 3: Save -->
+                <Button Grid.Column="3"
+                        ToolTip="Save Project (Ctrl+S)"
+                        Width="26" Height="22"
+                        Click="SaveProject_Click"
+                        Style="{StaticResource ToolbarButton}">
+                    <TextBlock Text="💾" FontSize="{StaticResource FontSizeSM}"/>
+                </Button>
+
+                <!-- Col 4: Separator -->
+                <Rectangle Grid.Column="4" Width="1" Height="14"
+                           Fill="{DynamicResource BorderBrush}" Margin="6,0"/>
+
+                <!-- Col 5: Undo / Redo -->
+                <StackPanel Grid.Column="5" Orientation="Horizontal"
                             VerticalAlignment="Center" Margin="2,0">
                     <Button Width="26" Height="20" Margin="0,0,1,0"
                             ToolTip="Undo (Ctrl+Z)"
@@ -210,12 +158,12 @@
                                VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <!-- Col 4: Separator -->
-                <Rectangle Grid.Column="4" Width="1" Height="14"
+                <!-- Col 6: Separator -->
+                <Rectangle Grid.Column="6" Width="1" Height="14"
                            Fill="{DynamicResource BorderBrush}" Margin="6,0"/>
 
-                <!-- Col 5: History breadcrumb -->
-                <TextBlock Grid.Column="5" x:Name="TxtHistoryBreadcrumb"
+                <!-- Col 7: Last action breadcrumb -->
+                <TextBlock Grid.Column="7" x:Name="TxtHistoryBreadcrumb"
                            Text="No recent action"
                            FontFamily="{StaticResource FontPrimary}"
                            FontSize="{StaticResource FontSizeXS}"
@@ -223,8 +171,8 @@
                            VerticalAlignment="Center"
                            Margin="0,0,8,0"/>
 
-                <!-- Col 6: Clear History -->
-                <Button Grid.Column="6" Content="Clear History"
+                <!-- Col 8: Clear History -->
+                <Button Grid.Column="8" Content="Clear History"
                         Style="{StaticResource ToolbarButton}"
                         FontFamily="{StaticResource FontPrimary}"
                         FontSize="{StaticResource FontSizeXS}"
@@ -232,9 +180,19 @@
                         VerticalAlignment="Center"
                         Click="ClearHistory_Click"/>
 
-                <!-- Col 7: App title (centered) -->
-                <TextBlock Grid.Column="7"
-                           Text="CraneOptimizer — IFC Building Crane Planner"
+                <!-- Col 9: Dimension tool -->
+                <Button x:Name="BtnDimensionTool" Grid.Column="9"
+                        Width="22" Height="22" Margin="4,0,0,0"
+                        VerticalAlignment="Center"
+                        ToolTip="Dimension Tool — measure distances (D)"
+                        Click="BtnDimensionTool_Click"
+                        Style="{StaticResource ToolbarButton}">
+                    <TextBlock Text="📏" FontSize="{StaticResource FontSizeSM}"/>
+                </Button>
+
+                <!-- Col 10: App title (centred) -->
+                <TextBlock Grid.Column="10"
+                           Text="IFC Building Analyzer — Crane Planner Edition"
                            FontFamily="{StaticResource FontPrimary}"
                            FontSize="{StaticResource FontSizeXS}"
                            FontWeight="SemiBold"
@@ -242,8 +200,8 @@
                            VerticalAlignment="Center"
                            HorizontalAlignment="Center"/>
 
-                <!-- Col 8: Window chrome -->
-                <StackPanel Grid.Column="8" Orientation="Horizontal">
+                <!-- Col 11: Window chrome (Minimize / Maximize / Close) -->
+                <StackPanel Grid.Column="11" Orientation="Horizontal">
                     <Button Content="🗕" Width="40" Height="28"
                             Style="{StaticResource TitleBarButton}"
                             Click="MinimizeWindow_Click"/>
@@ -258,15 +216,24 @@
         </Border>
 
         <!-- ══════════════════════════════════════════════════════════════════
-             ROW 1 — MAIN RIBBON (TopNavigation layout component)
+             ROW 1 — DRAWING OPTIONS BAR (collapsed by default)
+             Shown by DrawingService when the user activates a draw mode.
         ══════════════════════════════════════════════════════════════════ -->
-        <layouts:TopNavigation Grid.Row="1"
-                               DataContext="{Binding}"/>
+        <!--<zones:DrawingOptionsBar x:Name="DrawingOptionsBar" Grid.Row="1"
+                                 Visibility="Collapsed"/>
+        <zones:UndoRedoToolbar x:Name="UndoRedoToolbar" Grid.Row="1"
+                               Visibility="Collapsed"
+                               HorizontalAlignment="Left" Margin="8,0"/>-->
 
         <!-- ══════════════════════════════════════════════════════════════════
-             ROW 2 — BUILDING INFO BAR
+             ROW 2 — MAIN RIBBON
         ══════════════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="2"
+        <!--<ribbon:MainRibbonControl x:Name="MainRibbon" Grid.Row="2"/>-->
+
+        <!-- ══════════════════════════════════════════════════════════════════
+             ROW 3 — BUILDING INFO BAR
+        ══════════════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="3"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1"
@@ -289,8 +256,8 @@
                 <TextBlock Grid.Column="0" Text="Storeys:"
                            Style="{StaticResource PropertyLabel}"
                            Margin="0,0,4,0"/>
-                <TextBlock Grid.Column="1"
-                           Text="{Binding Scene.NumberOfStoreys, FallbackValue='0'}"
+                <TextBlock x:Name="txtNumberOfStoreys" Grid.Column="1"
+                           Text="{Binding NumberOfStoreys, FallbackValue='0'}"
                            Style="{StaticResource PropertyValue}"
                            Foreground="{StaticResource PrimaryBrush}"
                            Margin="0,0,20,0"/>
@@ -299,56 +266,81 @@
                 <TextBlock Grid.Column="2" Text="Area:"
                            Style="{StaticResource PropertyLabel}"
                            Margin="0,0,4,0"/>
-                <TextBlock Grid.Column="3"
-                           Text="{Binding Scene.BuildingArea, StringFormat='{}{0:F2} m²', FallbackValue='0.00 m²'}"
-                           Style="{StaticResource PropertyValue}"
-                           Margin="0,0,20,0"/>
+                <TextBlock Grid.Column="3" Style="{StaticResource PropertyValue}"
+                           Margin="0,0,20,0">
+                    <TextBlock.Text>
+                        <MultiBinding StringFormat="{}{0:F2} {1}">
+                            <Binding Path="BuildingArea"  FallbackValue="0.00"/>
+                            <Binding Path="AreaUnit"      FallbackValue="m²"/>
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
 
                 <!-- Height -->
                 <TextBlock Grid.Column="4" Text="Height:"
                            Style="{StaticResource PropertyLabel}"
                            Margin="0,0,4,0"/>
-                <TextBlock Grid.Column="5"
-                           Text="{Binding Scene.BuildingHeight, StringFormat='{}{0:F2} m', FallbackValue='0.00 m'}"
-                           Style="{StaticResource PropertyValue}"
-                           Margin="0,0,20,0"/>
+                <TextBlock Grid.Column="5" Style="{StaticResource PropertyValue}"
+                           Margin="0,0,20,0">
+                    <TextBlock.Text>
+                        <MultiBinding StringFormat="{}{0:F2} {1}">
+                            <Binding Path="BuildingHeight" FallbackValue="0.00"/>
+                            <Binding Path="SelectedUnit"   FallbackValue="m"/>
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
 
-                <!-- Spacer -->
-                <Rectangle Grid.Column="6"/>
-
-                <!-- Separator -->
-                <Rectangle Grid.Column="7" Width="1" Height="14"
-                           Fill="{DynamicResource BorderBrush}" Margin="0,0,12,0"/>
-
-                <!-- Elements count -->
-                <TextBlock Grid.Column="8" Text="Elements:"
+                <!-- Unit selector -->
+                <TextBlock Grid.Column="6" Text="Unit:"
                            Style="{StaticResource PropertyLabel}"
-                           Margin="0,0,4,0"/>
-                <TextBlock Grid.Column="9"
-                           Text="{Binding Elements.Count, FallbackValue='0'}"
-                           Style="{StaticResource PropertyValue}"
-                           Foreground="{StaticResource PrimaryBrush}"/>
+                           Margin="0,0,6,0"/>
+                <ComboBox x:Name="UnitSelector" Grid.Column="7"
+                          Width="60" Height="20"
+                          ItemsSource="{Binding AvailableUnits}"
+                          SelectedItem="{Binding SelectedUnit, Mode=TwoWay}"
+                          Style="{StaticResource DarkComboBox}"
+                          ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                          FontFamily="{StaticResource FontPrimary}"
+                          FontSize="{StaticResource FontSizeSM}"
+                          FontWeight="SemiBold"
+                          Margin="0,0,20,0"/>
+
+                <!-- Building name -->
+                <Rectangle Grid.Column="8" Width="1" Height="14"
+                           Fill="{DynamicResource BorderBrush}" Margin="0,0,12,0"/>
+                <TextBlock x:Name="txtBuildingName" Grid.Column="9"
+                           Text="{Binding BuildingName, FallbackValue='No Building Loaded'}"
+                           FontFamily="{StaticResource FontPrimary}"
+                           FontSize="{StaticResource FontSizeSM}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           VerticalAlignment="Center"/>
             </Grid>
         </Border>
 
         <!-- ══════════════════════════════════════════════════════════════════
-             ROW 3 — MAIN CONTENT AREA (3-column: Elements | Viewport | Cranes)
+             ROW 4 — MAIN CONTENT AREA
+             Col 0: Element list + Properties panel
+             Col 1: Vertical splitter
+             Col 2: 3D Viewport (Helix)
+             Col 3: Vertical splitter
+             Col 4: Site Planner (Cranes + Zones)
         ══════════════════════════════════════════════════════════════════ -->
-        <Grid Grid.Row="3" Background="{DynamicResource BackgroundBrush}">
+        <Grid Grid.Row="4" Background="{DynamicResource BackgroundBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="240" MinWidth="200"/>
-                <!-- Col 0: Elements + Properties -->
+                <!-- Col 0: Elements + Props  -->
                 <ColumnDefinition Width="4"/>
-                <!-- Col 1: Splitter              -->
+                <!-- Col 1: Splitter          -->
                 <ColumnDefinition Width="*"   MinWidth="400"/>
-                <!-- Col 2: 3D Viewport           -->
+                <!-- Col 2: 3D Viewport       -->
                 <ColumnDefinition Width="4"/>
-                <!-- Col 3: Splitter              -->
+                <!-- Col 3: Splitter          -->
                 <ColumnDefinition Width="280" MinWidth="220"/>
-                <!-- Col 4: Crane + Zone panels   -->
+                <!-- Col 4: Crane + Zones     -->
             </Grid.ColumnDefinitions>
 
-            <!-- ── Col 0: Elements list + Properties ──────────────────────── -->
+            <!-- ── Col 0: Elements list + Properties ─────────────────────── -->
             <Border Grid.Column="0"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
@@ -377,17 +369,56 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="BUILDING ELEMENTS"
-                                       Style="{StaticResource PanelSectionHeader}"/>
-                            <Border Grid.Column="1"
-                                    Background="{DynamicResource BackgroundBrush}"
-                                    CornerRadius="3" Padding="6,2"
+
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- Active filter indicator stripe -->
+                                <Border Width="3" Height="12"
+                                        Background="{StaticResource PrimaryBrush}"
+                                        Margin="0,0,7,0" VerticalAlignment="Center">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsFiltered}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                </Border>
+                                <TextBlock Text="BUILDING ELEMENTS"
+                                           Style="{StaticResource PanelSectionHeader}"/>
+                            </StackPanel>
+
+                            <!-- Count badge -->
+                            <Border Grid.Column="1" CornerRadius="3" Padding="6,2"
                                     VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Elements.Count, FallbackValue='0'}"
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{DynamicResource BackgroundBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsFiltered}" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding CountLabel}"
                                            FontFamily="{StaticResource FontPrimary}"
                                            FontSize="{StaticResource FontSizeXS}"
                                            FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                           VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsFiltered}" Value="True">
+                                                    <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </Border>
                         </Grid>
                     </Border>
@@ -396,31 +427,85 @@
                     <ScrollViewer Grid.Row="1"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
-                        <ItemsControl ItemsSource="{Binding Elements}">
+                        <ItemsControl ItemsSource="{Binding FilteredElements}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Style="{StaticResource ElementListItem}">
-                                        <StackPanel>
-                                            <TextBlock FontFamily="{StaticResource FontPrimary}"
-                                                       FontSize="{StaticResource FontSizeSM}"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                                       Text="{Binding Name, FallbackValue='Element'}"/>
-                                            <TextBlock FontFamily="{StaticResource FontPrimary}"
-                                                       FontSize="{StaticResource FontSizeXS}"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                                       Text="{Binding TypeName, FallbackValue='—'}"
-                                                       Margin="0,2,0,0"/>
-                                        </StackPanel>
+                                    <Border x:Name="ElementBorder"
+                                            Style="{StaticResource ElementListItem}"
+                                            Tag="{Binding}"
+                                            MouseLeftButtonDown="ElementItem_Click">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse Grid.Column="0"
+                                                     Width="7" Height="7"
+                                                     Margin="0,0,8,0"
+                                                     VerticalAlignment="Center">
+                                                <!--<Ellipse.Fill>
+                                                    <SolidColorBrush Color="{Binding ElementColor,
+                                                        Converter={StaticResource HexToColorConverter},
+                                                        FallbackValue='#888888'}"/>
+                                                </Ellipse.Fill>-->
+                                            </Ellipse>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock FontFamily="{StaticResource FontPrimary}"
+                                                           FontSize="{StaticResource FontSizeSM}"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}">
+                                                    <Run Text="{Binding DisplayName}"/>
+                                                </TextBlock>
+                                                <TextBlock FontFamily="{StaticResource FontPrimary}"
+                                                           FontSize="{StaticResource FontSizeXS}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           Margin="0,1,0,0">
+                                                    <Run Text="{Binding Type}"/>
+                                                    <Run Text=" | " Foreground="{DynamicResource BorderBrush}"/>
+                                                    <Run Text="{Binding Mark, FallbackValue='—'}"/>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Grid>
                                     </Border>
+                                    <DataTemplate.Triggers>
+                                        <!-- Heavy element selected -->
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding IsSelected}"    Value="True"/>
+                                                <Condition Binding="{Binding ElementColor}"  Value="#E74C3C"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter TargetName="ElementBorder" Property="Background"      Value="{StaticResource HeavySelectedBrush}"/>
+                                            <Setter TargetName="ElementBorder" Property="BorderBrush"     Value="{StaticResource DestructiveBrush}"/>
+                                            <Setter TargetName="ElementBorder" Property="BorderThickness" Value="3,0,0,1"/>
+                                        </MultiDataTrigger>
+                                        <!-- Medium element selected -->
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding IsSelected}"    Value="True"/>
+                                                <Condition Binding="{Binding ElementColor}"  Value="#F39C12"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter TargetName="ElementBorder" Property="Background"      Value="{StaticResource MediumSelectedBrush}"/>
+                                            <Setter TargetName="ElementBorder" Property="BorderBrush"     Value="{StaticResource WarningBrush}"/>
+                                            <Setter TargetName="ElementBorder" Property="BorderThickness" Value="3,0,0,1"/>
+                                        </MultiDataTrigger>
+                                        <!-- Normal element selected -->
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding IsSelected}"    Value="True"/>
+                                                <Condition Binding="{Binding ElementColor}"  Value="#FFFFFF"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter TargetName="ElementBorder" Property="Background"      Value="{StaticResource NormalSelectedBrush}"/>
+                                            <Setter TargetName="ElementBorder" Property="BorderBrush"     Value="{StaticResource PrimaryBrush}"/>
+                                            <Setter TargetName="ElementBorder" Property="BorderThickness" Value="3,0,0,1"/>
+                                        </MultiDataTrigger>
+                                    </DataTemplate.Triggers>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <!-- Horizontal splitter -->
-                    <GridSplitter Grid.Row="2" Height="4"
-                                  HorizontalAlignment="Stretch"
+                    <!-- Horizontal splitter (Elements / Properties) -->
+                    <GridSplitter Grid.Row="2" Height="4" HorizontalAlignment="Stretch"
                                   Background="{DynamicResource BorderBrush}"
                                   ShowsPreview="True" Cursor="SizeNS"/>
 
@@ -432,10 +517,11 @@
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <!-- Header -->
+                            <!-- Properties header -->
                             <Border Grid.Row="0"
                                     Background="{DynamicResource SurfaceElevatedBrush}"
                                     Padding="10,0"
@@ -446,8 +532,34 @@
                                            Style="{StaticResource PanelSectionHeader}"/>
                             </Border>
 
-                            <!-- Properties rows -->
-                            <ScrollViewer Grid.Row="1"
+                            <!-- Selected element display -->
+                            <Border Grid.Row="1"
+                                    Background="{DynamicResource BackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="6,5">
+                                <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                                        BorderBrush="{StaticResource PrimaryBrush}"
+                                        BorderThickness="1" CornerRadius="2"
+                                        Padding="6,4">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="🔍" FontSize="9"
+                                                   Margin="0,0,5,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource PrimaryBrush}"/>
+                                        <TextBlock x:Name="TxtSelectedElementName"
+                                                   Text="No element selected"
+                                                   FontFamily="{StaticResource FontPrimary}"
+                                                   FontSize="{StaticResource FontSizeSM}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource PrimaryBrush}"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                            </Border>
+
+                            <!-- Properties rows (populated from code-behind) -->
+                            <ScrollViewer Grid.Row="2"
                                           VerticalScrollBarVisibility="Auto"
                                           HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel x:Name="PropertiesPanel" Margin="0">
@@ -465,9 +577,8 @@
                 </Grid>
             </Border>
 
-            <!-- ── Col 1: Vertical splitter ───────────────────────────────── -->
-            <GridSplitter Grid.Column="1" Width="4"
-                          HorizontalAlignment="Stretch"
+            <!-- ── Col 1: Vertical splitter ──────────────────────────────── -->
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
                           Background="{DynamicResource BorderBrush}"
                           ShowsPreview="True" Cursor="SizeWE"/>
 
@@ -477,6 +588,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <!-- Viewport header -->
@@ -487,13 +599,15 @@
                             BorderThickness="0,0,0,1"
                             Height="30">
                         <DockPanel LastChildFill="False">
-                            <!-- Left: title + legend -->
-                            <StackPanel Orientation="Horizontal"
-                                        DockPanel.Dock="Left"
+
+                            <!-- Left: title + weight legend -->
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left"
                                         VerticalAlignment="Center">
                                 <TextBlock Text="3D MODEL VIEWER"
                                            Style="{StaticResource PanelSectionHeader}"
                                            Margin="0,0,22,0"/>
+
+                                <!-- Heavy (> 5000 kg) -->
                                 <Ellipse Width="8" Height="8"
                                          Fill="{StaticResource DestructiveBrush}"
                                          VerticalAlignment="Center"/>
@@ -504,6 +618,8 @@
                                            Foreground="{StaticResource DestructiveBrush}"
                                            VerticalAlignment="Center"
                                            Margin="3,0,14,0"/>
+
+                                <!-- Medium (> 3000 kg) -->
                                 <Ellipse Width="8" Height="8"
                                          Fill="{StaticResource WarningBrush}"
                                          VerticalAlignment="Center"/>
@@ -514,6 +630,8 @@
                                            Foreground="{StaticResource WarningBrush}"
                                            VerticalAlignment="Center"
                                            Margin="3,0,14,0"/>
+
+                                <!-- Normal -->
                                 <Ellipse Width="8" Height="8"
                                          Fill="{DynamicResource TextSecondaryBrush}"
                                          VerticalAlignment="Center"/>
@@ -539,7 +657,7 @@
                         </DockPanel>
                     </Border>
 
-                    <!-- Viewport -->
+                    <!-- Viewport stack -->
                     <Grid Grid.Row="1" ClipToBounds="True">
                         <helix:HelixViewport3D x:Name="IfcViewer"
                                Background="{DynamicResource BackgroundBrush}"
@@ -547,12 +665,14 @@
                                ShowCoordinateSystem="True"
                                CameraRotationMode="Turntable"
                                ZoomSensitivity="2"
+                               RotationSensitivity="1"
                                IsZoomEnabled="True"
                                IsPanEnabled="True"
                                IsRotationEnabled="True"
                                ZoomAroundMouseDownPoint="True"
                                RotateAroundMouseDownPoint="True"
-                               InfiniteSpin="False">
+                               InfiniteSpin="False"
+                               PreviewMouseWheel="IfcViewer_PreviewMouseWheel">
                             <ModelVisual3D>
                                 <ModelVisual3D.Content>
                                     <Model3DGroup>
@@ -564,6 +684,24 @@
                                 </ModelVisual3D.Content>
                             </ModelVisual3D>
                         </helix:HelixViewport3D>
+
+                        <!-- OSnap overlay canvas --><!--
+                        <Canvas x:Name="OsnapOverlayCanvas"
+                                IsHitTestVisible="False" Background="Transparent"
+                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+
+                        --><!-- Measure / preview / grid-label overlay --><!--
+                        <zones:ViewportOverlayCanvas x:Name="Overlay"
+                                IsHitTestVisible="False" Background="Transparent"
+                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+
+                        --><!-- Floating cursor-pick strip --><!--
+                        <Canvas x:Name="FloatingToolCanvas"
+                                Background="{x:Null}"
+                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                            <zones:CursorPickStrip x:Name="PickStrip"
+                                    Visibility="Collapsed" Canvas.Left="0" Canvas.Top="0"/>
+                        </Canvas>-->
 
                         <!-- No-model placeholder -->
                         <Border x:Name="NoModelOverlay"
@@ -579,57 +717,46 @@
                                            FontSize="{StaticResource FontSizeXL}"
                                            FontWeight="Bold"
                                            Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                <TextBlock Text="Use the IFC tab in the ribbon to load a file"
+                                <TextBlock Text="Use the IFC MODEL tab to load a file"
                                            FontFamily="{StaticResource FontPrimary}"
                                            HorizontalAlignment="Center"
-                                           FontSize="{StaticResource FontSizeSM}"
                                            Foreground="{DynamicResource TextDisabledBrush}"
                                            Margin="0,6,0,0"/>
+                                           <!--FontSize="{StaticResource FontSizeMD}"-->
                             </StackPanel>
                         </Border>
                     </Grid>
+
+                    <!-- Command line bar -->
+                    <!--<zones:CommandLineBar x:Name="CmdLine" Grid.Row="2"/>-->
                 </Grid>
             </Border>
 
-            <!-- ── Col 3: Vertical splitter ───────────────────────────────── -->
-            <GridSplitter Grid.Column="3" Width="4"
-                          HorizontalAlignment="Stretch"
+            <!-- ── Col 3: Vertical splitter ──────────────────────────────── -->
+            <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch"
                           Background="{DynamicResource BorderBrush}"
                           ShowsPreview="True" Cursor="SizeWE"/>
 
-            <!-- ── Col 4: Cranes + Zones panel ────────────────────────────── -->
-            <Border Grid.Column="4"
+            <!-- ── Col 4: Site Planner (Cranes + Zones tabs) ─────────────── -->
+            <!--<Border Grid.Column="4"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1,0,0,0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- Panel header -->
-                    <Border Grid.Row="0"
-                            Background="{DynamicResource SurfaceElevatedBrush}"
-                            Padding="10,0"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="0,0,0,1"
-                            Height="30">
-                        <TextBlock Text="SITE PLANNER"
-                                   Style="{StaticResource PanelSectionHeader}"/>
-                    </Border>
-
-                    <!-- SitePlannerView: Cranes tab + Zones tab -->
-                    <components:SitePlannerView Grid.Row="1"
-                                                DataContext="{Binding}"/>
-                </Grid>
-            </Border>
+                <cranePlacement:SitePlannerPanel
+                    x:Name="SitePlanner"
+                    AddTowerCraneRequested="AddTowerCrane_Click"
+                    AddMobileCraneRequested="AddMobileCrane_Click"
+                    RemoveSelectedRequested="RemoveSelectedCrane_Click"
+                    RemoveAllRequested="RemoveAllCranes_Click"/>
+            </Border>-->
         </Grid>
 
         <!-- ══════════════════════════════════════════════════════════════════
-             ROW 4 — STATUS BAR
+             ROW 5 — STATUS BAR
+             Left  : Ready dot · Sep · X/Y coordinates
+             Right : Render Quality badge · Sep · OSN button · Sep · Elements · Sep · Command/Logs
         ══════════════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="4"
+        <Border Grid.Row="5"
                 Background="{DynamicResource SurfaceElevatedBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,1,0,0"
@@ -637,31 +764,31 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 0: Status indicator  -->
+                    <!-- Col 0: Ready / crane status  -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 1: Separator         -->
+                    <!-- Col 1: Separator             -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 2: X/Y coordinates   -->
+                    <!-- Col 2: X / Y coordinates     -->
                     <ColumnDefinition Width="*"/>
-                    <!-- Col 3: Spacer            -->
+                    <!-- Col 3: Spacer                -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 4: Render quality    -->
+                    <!-- Col 4: Render Quality btn    -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 5: Separator         -->
+                    <!-- Col 5: Separator             -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 6: OSN toggle        -->
+                    <!-- Col 6: OSnap button          -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 7: Separator         -->
+                    <!-- Col 7: Separator             -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 8: Elements count    -->
+                    <!-- Col 8: Elements count        -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 9: Separator         -->
+                    <!-- Col 9: Separator             -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Col 10: Cranes count     -->
+                    <!-- Col 10: Command / Logs btns  -->
                 </Grid.ColumnDefinitions>
 
                 <!-- Col 0: Ready indicator -->
-                <StackPanel Grid.Column="0"
+                <StackPanel x:Name="StatusIndicatorPanel" Grid.Column="0"
                             Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="6" Height="6"
                              Fill="{StaticResource SuccessBrush}"
@@ -674,94 +801,318 @@
                                VerticalAlignment="Center"/>
                 </StackPanel>
 
+                <!-- Crane status indicator (shown when a crane is active) -->
+                <StackPanel x:Name="CraneStatusIndicator" Grid.Column="0"
+                            Orientation="Horizontal" Visibility="Collapsed">
+                    <TextBlock x:Name="CraneStatusText"
+                               FontFamily="{StaticResource FontPrimary}"
+                               FontSize="{StaticResource FontSizeXS}"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource PrimaryBrush}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
                 <!-- Col 1: Separator -->
                 <Rectangle Grid.Column="1" Width="1" Height="12"
                            Fill="{DynamicResource BorderBrush}" Margin="10,0"/>
 
-                <!-- Col 2: X/Y coordinates -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal"
-                            VerticalAlignment="Center">
+                <!-- Col 2: X / Y coordinates -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="X:" Style="{StaticResource CoordLabel}"
                                Foreground="{DynamicResource TextSecondaryBrush}"
                                Margin="0,0,3,0"/>
-                    <TextBlock x:Name="TxtCoordX" Text="0.00m"
-                               Style="{StaticResource CoordLabel}"
-                               Margin="0,0,12,0"/>
+                    <TextBlock x:Name="TxtCoordX" Text="0.00M"
+                               Style="{StaticResource CoordLabel}" Margin="0,0,12,0"/>
                     <TextBlock Text="Y:" Style="{StaticResource CoordLabel}"
                                Foreground="{DynamicResource TextSecondaryBrush}"
                                Margin="0,0,3,0"/>
-                    <TextBlock x:Name="TxtCoordY" Text="0.00m"
+                    <TextBlock x:Name="TxtCoordY" Text="0.00M"
                                Style="{StaticResource CoordLabel}"/>
                 </StackPanel>
 
-                <!-- Col 4: Render quality badge -->
-                <Border Grid.Column="4"
-                        Background="{DynamicResource SurfaceElevatedBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="3"
-                        Padding="7,1"
-                        Margin="2,0">
-                    <TextBlock Text="● STD"
-                               FontFamily="{StaticResource FontPrimary}"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               FontSize="{StaticResource FontSizeXS}"
-                               VerticalAlignment="Center"/>
-                </Border>
+                <!-- Col 4: Render Quality badge (click → popup) -->
+                <Button Grid.Column="4"
+                        x:Name="RenderQualityDropBtn"
+                        Click="RenderQualityDropBtn_Click"
+                        Style="{StaticResource ToolbarButton}"
+                        Padding="0"
+                        VerticalAlignment="Center"
+                        ToolTip="Click to change Render Quality">
+                    <Border x:Name="RenderQualityBadge"
+                            Background="{DynamicResource SurfaceElevatedBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="3"
+                            Padding="7,1"
+                            Margin="2,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="TxtRenderQuality"
+                                       Text="● STD"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       FontSize="{StaticResource FontSizeXS}"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text=" ▾"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="{StaticResource FontSizeXS}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </Button>
+
+                <!-- Render Quality Popup -->
+                <Popup x:Name="RenderQualityPopup"
+                       PlacementTarget="{Binding ElementName=RenderQualityDropBtn}"
+                       Placement="Top"
+                       VerticalOffset="-4"
+                       StaysOpen="False"
+                       AllowsTransparency="True">
+                    <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            MinWidth="190">
+                        <StackPanel>
+                            <Border Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="10,7"
+                                    CornerRadius="4,4,0,0">
+                                <TextBlock Text="RENDER QUALITY"
+                                           FontFamily="{StaticResource FontPrimary}"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            </Border>
+                            <!-- Standard -->
+                            <Border BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="10,8">
+                                <StackPanel>
+                                    <RadioButton x:Name="rbRenderStandard"
+                                                 Content="Standard"
+                                                 GroupName="RenderQualityGroup"
+                                                 IsChecked="True"
+                                                 Foreground="{DynamicResource TextPrimaryBrush}"
+                                                 FontFamily="{StaticResource FontPrimary}"
+                                                 FontSize="{StaticResource FontSizeSM}"
+                                                 FontWeight="SemiBold"
+                                                 Checked="RenderQuality_Changed"
+                                                 ToolTip="Standard WPF rendering — fast loading, normal smoothness"/>
+                                    <TextBlock Text="Fast loading · normal smoothness"
+                                               Margin="18,3,0,0"
+                                               FontFamily="{StaticResource FontPrimary}"
+                                               FontSize="{StaticResource FontSizeXS}"
+                                               Foreground="{DynamicResource TextDisabledBrush}"/>
+                                </StackPanel>
+                            </Border>
+                            <!-- High Quality -->
+                            <Border Padding="10,8,10,10">
+                                <StackPanel>
+                                    <RadioButton x:Name="rbRenderHigh"
+                                                 Content="⬆ High Quality"
+                                                 GroupName="RenderQualityGroup"
+                                                 Foreground="#4FC3F7"
+                                                 FontFamily="{StaticResource FontPrimary}"
+                                                 FontSize="{StaticResource FontSizeSM}"
+                                                 FontWeight="SemiBold"
+                                                 Checked="RenderQuality_Changed"
+                                                 ToolTip="High Quality — smoother curves and pipes. Model will reload."/>
+                                    <TextBlock Text="Smoother curves &amp; pipes · reloads model"
+                                               Margin="18,3,0,0"
+                                               FontFamily="{StaticResource FontPrimary}"
+                                               FontSize="{StaticResource FontSizeXS}"
+                                               Foreground="{DynamicResource TextDisabledBrush}"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Popup>
 
                 <!-- Col 5: Separator -->
                 <Rectangle Grid.Column="5" Width="1" Height="12"
                            Fill="{DynamicResource BorderBrush}" Margin="8,0"/>
 
-                <!-- Col 6: OSN toggle -->
+                <!-- Col 6: OSnap drop button -->
                 <ToggleButton Grid.Column="6"
-                              x:Name="OsnapToggle"
+                              x:Name="OsnapDropBtn"
+                              Click="OsnapDropBtn_Click"
                               Style="{StaticResource StatusOsnapBtn}"
                               Padding="5,0"
                               Height="16"
                               VerticalAlignment="Center"
-                              ToolTip="Object Snap (F3)">
-                    <TextBlock Text="OSN"
-                               FontFamily="{StaticResource FontPrimary}"
-                               FontSize="{StaticResource FontSizeXS}"
-                               FontWeight="SemiBold"/>
+                              ToolTip="Object Snap settings">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="OSN"
+                                   FontFamily="{StaticResource FontPrimary}"
+                                   FontSize="{StaticResource FontSizeXS}"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock Text=" ▾"
+                                   FontFamily="{StaticResource FontPrimary}"
+                                   FontSize="{StaticResource FontSizeXS}"/>
+                    </StackPanel>
                 </ToggleButton>
+
+                <!-- OSnap Popup -->
+                <Popup x:Name="OsnapPopup"
+                       PlacementTarget="{Binding ElementName=OsnapDropBtn}"
+                       Placement="Top"
+                       VerticalOffset="-4"
+                       StaysOpen="False"
+                       AllowsTransparency="True">
+                    <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            MinWidth="280">
+                        <StackPanel>
+                            <!-- Header: master toggle -->
+                            <Border Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="10,7"
+                                    CornerRadius="4,4,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <ToggleButton x:Name="StatusOsnapMaster"
+                                                  IsChecked="True"
+                                                  Click="StatusOsnapMaster_Click"
+                                                  Style="{StaticResource StatusOsnapBtn}"
+                                                  Height="16" Padding="4,0"
+                                                  ToolTip="Enable / disable all Object Snaps">
+                                        <TextBlock Text="OBJECT SNAP"
+                                                   FontFamily="{StaticResource FontPrimary}"
+                                                   FontSize="{StaticResource FontSizeXS}"
+                                                   FontWeight="Bold"/>
+                                    </ToggleButton>
+                                    <TextBlock Text="  — toggle individual snaps below"
+                                               FontFamily="{StaticResource FontPrimary}"
+                                               FontSize="{StaticResource FontSizeXS}"
+                                               Foreground="{DynamicResource TextDisabledBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Snap items: 2-column grid -->
+                            <UniformGrid Columns="2" Margin="8,8,8,10" Width="264">
+                                <ToggleButton x:Name="StatusOsnapEnd"
+                                              Tag="Endpoint" IsChecked="True"
+                                              Click="StatusOsnap_Click"
+                                              Style="{StaticResource OsnapPopupItem}"
+                                              Margin="0,0,4,4"
+                                              ToolTip="Snap to Endpoint">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Endpoint"  FontFamily="{StaticResource FontPrimary}" FontSize="{StaticResource FontSizeSM}"/>
+                                        <TextBlock Text="  END"     FontFamily="{StaticResource FontPrimary}" FontSize="{StaticResource FontSizeXS}" Foreground="{DynamicResource TextDisabledBrush}" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </ToggleButton>
+                                <ToggleButton x:Name="StatusOsnapMid"
+                                              Tag="Midpoint" IsChecked="True"
+                                              Click="StatusOsnap_Click"
+                                              Style="{StaticResource OsnapPopupItem}"
+                                              Margin="0,0,0,4"
+                                              ToolTip="Snap to Midpoint">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Midpoint"  FontFamily="{StaticResource FontPrimary}" FontSize="{StaticResource FontSizeSM}"/>
+                                        <TextBlock Text="  MID"     FontFamily="{StaticResource FontPrimary}" FontSize="{StaticResource FontSizeXS}" Foreground="{DynamicResource TextDisabledBrush}" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </ToggleButton>
+                                <ToggleButton x:Name="StatusOsnapInt"
+                                              Tag="Intersection" IsChecked="False"
+                                              Click="StatusOsnap_Click"
+                                              Style="{StaticResource OsnapPopupItem}"
+                                              Margin="0,0,4,4"
+                                              ToolTip="Snap to Intersection">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Intersection" FontFamily="{StaticResource FontPrimary}" FontSize="{StaticResource FontSizeSM}"/>
+                                        <TextBlock Text="  INT"        FontFamily="{StaticResource FontPrimary}" FontSize="{StaticResource FontSizeXS}" Foreground="{DynamicResource TextDisabledBrush}" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </ToggleButton>
+                                <ToggleButton x:Name="StatusOsnapPer"
+                                              Tag="Perpendicular" IsChecked="False"
+                                              Click="StatusOsnap_Click"
+                                              Style="{StaticResource OsnapPopupItem}"
+                                              Margin="0,0,0,4"
+                                              ToolTip="Snap Perpendicular">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Perpendicular" FontFamily="{StaticResource FontPrimary}" FontSize="{StaticResource FontSizeSM}"/>
+                                        <TextBlock Text="  PER"         FontFamily="{StaticResource FontPrimary}" FontSize="{StaticResource FontSizeXS}" Foreground="{DynamicResource TextDisabledBrush}" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </ToggleButton>
+                                <ToggleButton x:Name="StatusOsnapGrid"
+                                              Tag="Grid" IsChecked="True"
+                                              Click="StatusOsnap_Click"
+                                              Style="{StaticResource OsnapPopupItem}"
+                                              Margin="0,0,4,0"
+                                              ToolTip="Snap to Grid">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Grid"  FontFamily="{StaticResource FontPrimary}" FontSize="{StaticResource FontSizeSM}"/>
+                                        <TextBlock Text="  GRID" FontFamily="{StaticResource FontPrimary}" FontSize="{StaticResource FontSizeXS}" Foreground="{DynamicResource TextDisabledBrush}" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </ToggleButton>
+                                <ToggleButton x:Name="StatusOsnapNea"
+                                              Tag="Nearest" IsChecked="False"
+                                              Click="StatusOsnap_Click"
+                                              Style="{StaticResource OsnapPopupItem}"
+                                              ToolTip="Snap to Nearest point">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Nearest" FontFamily="{StaticResource FontPrimary}" FontSize="{StaticResource FontSizeSM}"/>
+                                        <TextBlock Text="  NEA"   FontFamily="{StaticResource FontPrimary}" FontSize="{StaticResource FontSizeXS}" Foreground="{DynamicResource TextDisabledBrush}" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </ToggleButton>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+                </Popup>
 
                 <!-- Col 7: Separator -->
                 <Rectangle Grid.Column="7" Width="1" Height="12"
                            Fill="{DynamicResource BorderBrush}" Margin="8,0"/>
 
-                <!-- Col 8: Elements count -->
-                <StackPanel Grid.Column="8" Orientation="Horizontal"
-                            VerticalAlignment="Center">
-                    <TextBlock Text="Elements: "
-                               FontFamily="{StaticResource FontPrimary}"
-                               FontSize="{StaticResource FontSizeXS}"
-                               Foreground="{DynamicResource TextSecondaryBrush}"/>
-                    <TextBlock Text="{Binding Elements.Count, FallbackValue='0'}"
+                <!-- Col 8: Element count -->
+                <StackPanel Grid.Column="8" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="ELEMENTS: "
                                FontFamily="{StaticResource FontPrimary}"
                                FontSize="{StaticResource FontSizeXS}"
                                FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               VerticalAlignment="Center"/>
+                    <TextBlock FontFamily="{StaticResource FontPrimary}"
+                               FontSize="{StaticResource FontSizeXS}"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               VerticalAlignment="Center">
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="{}{0}">
+                                <Binding Path="Elements.Count" FallbackValue="0"/>
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
                 </StackPanel>
 
                 <!-- Col 9: Separator -->
                 <Rectangle Grid.Column="9" Width="1" Height="12"
                            Fill="{DynamicResource BorderBrush}" Margin="8,0"/>
 
-                <!-- Col 10: Cranes count -->
-                <StackPanel Grid.Column="10" Orientation="Horizontal"
-                            VerticalAlignment="Center">
-                    <TextBlock Text="Cranes: "
-                               FontFamily="{StaticResource FontPrimary}"
-                               FontSize="{StaticResource FontSizeXS}"
-                               Foreground="{DynamicResource TextSecondaryBrush}"/>
-                    <TextBlock Text="{Binding Cranes.Count, FallbackValue='0'}"
-                               FontFamily="{StaticResource FontPrimary}"
-                               FontSize="{StaticResource FontSizeXS}"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource PrimaryBrush}"/>
+                <!-- Col 10: Command / Logs buttons -->
+                <StackPanel Grid.Column="10" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Command"
+                            Style="{StaticResource ToolbarButton}"
+                            FontFamily="{StaticResource FontPrimary}"
+                            FontSize="{StaticResource FontSizeXS}"
+                            FontWeight="SemiBold"
+                            Padding="6,2"
+                            Margin="0,0,3,0"
+                            Click="ShowCommandPanel_Click"/>
+                    <Button Content="Logs"
+                            Style="{StaticResource ToolbarButton}"
+                            FontFamily="{StaticResource FontPrimary}"
+                            FontSize="{StaticResource FontSizeXS}"
+                            FontWeight="SemiBold"
+                            Padding="6,2"
+                            Click="ShowLogsPanel_Click"/>
                 </StackPanel>
+
             </Grid>
         </Border>
 
