@@ -1,0 +1,17 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- Font Family -->
+    <FontFamily x:Key="AppFont">Segoe UI</FontFamily>
+    <!-- Alias used throughout Shell and Ribbon -->
+    <FontFamily x:Key="FontPrimary">Segoe UI</FontFamily>
+
+    <!-- Font Sizes -->
+    <sys:Double x:Key="FontSizeXS">10</sys:Double>
+    <sys:Double x:Key="FontSizeSM">12</sys:Double>
+    <sys:Double x:Key="FontSizeBase">14</sys:Double>
+    <sys:Double x:Key="FontSizeLG">18</sys:Double>
+    <sys:Double x:Key="FontSizeXL">24</sys:Double>
+
+</ResourceDictionary>

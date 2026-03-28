@@ -1,0 +1,26 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Brand -->
+    <SolidColorBrush x:Key="PrimaryBrush"           Color="{StaticResource Color.Primary}"/>
+
+    <!-- Background -->
+    <SolidColorBrush x:Key="BackgroundBrush"         Color="{StaticResource Color.Background}"/>
+    <SolidColorBrush x:Key="SurfaceBrush"            Color="{StaticResource Color.Surface}"/>
+    <SolidColorBrush x:Key="SurfaceElevatedBrush"    Color="{StaticResource Color.SurfaceElevated}"/>
+
+    <!-- Text -->
+    <SolidColorBrush x:Key="TextPrimaryBrush"        Color="{StaticResource Color.TextPrimary}"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush"      Color="{StaticResource Color.TextSecondary}"/>
+    <SolidColorBrush x:Key="TextDisabledBrush"       Color="{StaticResource Color.TextDisabled}"/>
+
+    <!-- Border -->
+    <SolidColorBrush x:Key="BorderBrush"             Color="{StaticResource Color.Border}"/>
+
+    <!-- Status -->
+    <SolidColorBrush x:Key="SuccessBrush"            Color="{StaticResource Color.Success}"/>
+    <SolidColorBrush x:Key="WarningBrush"            Color="{StaticResource Color.Warning}"/>
+    <SolidColorBrush x:Key="ErrorBrush"              Color="{StaticResource Color.Error}"/>
+    <SolidColorBrush x:Key="DestructiveBrush"        Color="{StaticResource Color.Destructive}"/>
+
+</ResourceDictionary>
