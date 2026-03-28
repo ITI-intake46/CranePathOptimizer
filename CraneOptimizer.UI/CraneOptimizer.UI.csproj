@@ -10,12 +10,20 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Controls\**" />
+    <Compile Remove="Converters\**" />
     <Compile Remove="Interaction\**" />
     <Compile Remove="Views\**" />
+    <EmbeddedResource Remove="Controls\**" />
+    <EmbeddedResource Remove="Converters\**" />
     <EmbeddedResource Remove="Interaction\**" />
     <EmbeddedResource Remove="Views\**" />
+    <None Remove="Controls\**" />
+    <None Remove="Converters\**" />
     <None Remove="Interaction\**" />
     <None Remove="Views\**" />
+    <Page Remove="Controls\**" />
+    <Page Remove="Converters\**" />
     <Page Remove="Interaction\**" />
     <Page Remove="Views\**" />
   </ItemGroup>
@@ -38,14 +46,11 @@
 
   <ItemGroup>
     <Folder Include="Features\F1_ProjectManagement\" />
-    <Folder Include="Features\F3_CraneSetup\" />
     <Folder Include="Features\F4_LoadChart\" />
     <Folder Include="Features\F5_ElementManagement\" />
     <Folder Include="Features\F8_GAOptimizer\" />
     <Folder Include="Features\F9_Settings\" />
     <Folder Include="Features\F10_Themes\" />
-    <Folder Include="Controls\" />
-    <Folder Include="Converters\" />
     <Folder Include="Shell\ViewModels\" />
   </ItemGroup>
 
