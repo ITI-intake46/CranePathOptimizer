@@ -7,9 +7,9 @@
             <ResourceDictionary.MergedDictionaries>
 
                 <!-- Core -->
-                <ResourceDictionary Source="Resources/DesignSystem/Colors.xaml"/>
-                <ResourceDictionary Source="Resources/DesignSystem/Brushes.xaml"/>
-                <ResourceDictionary Source="Resources/DesignSystem/Typography.xaml"/>
+                <ResourceDictionary Source="Resources/Colors.xaml"/>
+                <ResourceDictionary Source="Resources/Brushes.xaml"/>
+                <ResourceDictionary Source="Resources/Typography.xaml"/>
                 <ResourceDictionary Source="Resources/DesignSystem/Spacing.xaml"/>
 
                 <!-- Controls -->
@@ -19,6 +19,7 @@
                 <ResourceDictionary Source="Resources/DesignSystem/Controls/DataGridStyles.xaml"/>
                 <ResourceDictionary Source="Resources/DesignSystem/Controls/ToolbarStyles.xaml"/>
                 <ResourceDictionary Source="Resources/DesignSystem/Controls/RibbonStyles.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/ControlStyles.xaml"/>
                 <!--
                     LOAD ORDER IS CRITICAL.
                     Each dictionary may only reference keys defined in earlier entries.
@@ -30,15 +31,6 @@
                     [4] All control templates (Button, TextBox, ComboBox, DataGrid…)
                     [5] Shell chrome (TitleBarButton, ToolbarButton, ElementListItem, CoordLabel…)
                 -->
-
-                <!-- [0] Brand colour tokens -->
-                <ResourceDictionary Source="Resources/DesignSystem/Colors.xaml"/>
-
-                <!-- [1] Typography -->
-                <ResourceDictionary Source="Resources/DesignSystem/Typography.xaml"/>
-
-                <!-- [2] Semantic brushes — dark theme default -->
-                <ResourceDictionary Source="Resources/DesignSystem/Brushes.xaml"/>
 
                 <!-- [3] Spacing -->
                 <ResourceDictionary Source="Resources/DesignSystem/Spacing.xaml"/>
