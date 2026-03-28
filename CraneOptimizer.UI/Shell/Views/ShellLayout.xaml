@@ -1,18 +1,50 @@
-<UserControl x:Class="CraneOptimizer.UI.Shell.Views.ShellLayout"
+﻿<UserControl x:Class="CraneOptimizer.UI.Shell.Views.ShellLayout"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:components="clr-namespace:CraneOptimizer.UI.Shared.Components">
-    <!--
-        ShellLayout is kept for compatibility but is no longer the primary shell.
-        The full shell chrome (TitleBar + Ribbon + InfoBar + 3-col + StatusBar)
-        lives directly in MainWindow.xaml.
+             xmlns:layout="clr-namespace:CraneOptimizer.UI.Shared.Layouts">
 
-        This UserControl can be used as an embedded sub-shell
-        when needed (e.g. embedded in a tab or dialog scenario).
-    -->
-    <Border Background="{DynamicResource BackgroundBrush}">
-        <components:SitePlannerView/>
-    </Border>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="56"/>
+            <RowDefinition Height="40"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="28"/>
+        </Grid.RowDefinitions>
+
+        <!-- TopNavigation -->
+        <layout:TopNavigation Grid.Row="0"/>
+
+        <!-- Info Bar -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="16,0">
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="{Binding StatusMessage}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Margin="0,0,20,0"/>
+
+                <TextBlock Text="{Binding SelectedCrane.DisplayInfo}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Content -->
+        <layout:ContentHost Grid.Row="2"/>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="3"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1,1,0,0"
+                Padding="12,0">
+
+            <TextBlock Text="Ready"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       VerticalAlignment="Center"/>
+        </Border>
+
+    </Grid>
 </UserControl>
-    
-    
