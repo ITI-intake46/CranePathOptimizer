@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Domain.Interfaces;
@@ -91,7 +91,8 @@ namespace CraneOptimizer.UI
             ServiceProvider = services.BuildServiceProvider();
 
             var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
-            mainWindow.DataContext = ServiceProvider.GetRequiredService<MainViewModel>();
+            // DataContext is already assigned in MainWindow's constructor via DI.
+            // Assigning it a second time here would toggle bindings unnecessarily.
 
             mainWindow.Show();
 
@@ -100,9 +101,12 @@ namespace CraneOptimizer.UI
 
         protected override void OnExit(ExitEventArgs e)
         {
+            // Shut down the Dispatcher FIRST so no pending render callbacks
+            // can fire against ViewModels that are about to be disposed.
+            Dispatcher.InvokeShutdown();
+
             try
             {
-                // Dispose DI container so singletons can cleanup
                 ServiceProvider?.Dispose();
             }
             catch (Exception ex)

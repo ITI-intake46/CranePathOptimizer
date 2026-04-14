@@ -1,6 +1,7 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
+using CraneOptimizer.Domain.GreenAreaEntities;
 using CraneOptimizer.Domain.IfcEntities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Core.Base;
@@ -15,7 +16,7 @@ using System.Windows.Input;
 
 namespace CraneOptimizer.UI.Shell.ViewModels
 {
-    public class MainViewModel : ViewModelBase
+    public class MainViewModel : ViewModelBase, IDisposable
     {
         // =========================
         // Fields
@@ -27,6 +28,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly IDialogService _dialog;
 
         private Crane? _selectedCrane;
+        private bool _disposed;
 
         // =========================
         // Properties
@@ -83,9 +85,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _dialog = dialog;
             CranePlacement = cranePlacement;
 
-            // 🔥 CONNECT SCENE TO RENDERER
-            Scene.ElementsChanged += elements => _render.RenderElements(elements);
-            Scene.ZoneAdded += zone => _render.RenderZone(zone);
+            // Wire scene events using named handlers so they can be detached on Dispose.
+            Scene.ElementsChanged += OnElementsChanged;
+            Scene.ZoneAdded       += OnZoneAdded;
 
             LoadIfcCommand = new RelayCommand(LoadIfc);
             StartDrawingCommand = new RelayCommand(() => Drawing.Start());
@@ -93,6 +95,31 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
             _ = LoadCranesAsync();
         }
+
+        // =========================
+        // Disposal — detach events to prevent late callbacks during teardown
+        // =========================
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            // Detach event handlers so the Scene cannot invoke rendering callbacks
+            // on a partially-disposed object graph during application shutdown.
+            Scene.ElementsChanged -= OnElementsChanged;
+            Scene.ZoneAdded       -= OnZoneAdded;
+        }
+
+        // =========================
+        // Private event handlers
+        // =========================
+
+        private void OnElementsChanged(List<PrecastElement> elements)
+            => _render.RenderElements(elements);
+
+        private void OnZoneAdded(CranePlacementZone zone)
+            => _render.RenderZone(zone);
 
         // =========================
         // Methods
