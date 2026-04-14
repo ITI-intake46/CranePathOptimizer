@@ -443,11 +443,11 @@
                                                      Width="7" Height="7"
                                                      Margin="0,0,8,0"
                                                      VerticalAlignment="Center">
-                                                <Ellipse.Fill>
+                                                <!--<Ellipse.Fill>
                                                     <SolidColorBrush Color="{Binding ElementColor,
                                                         Converter={StaticResource HexToColorConverter},
                                                         FallbackValue='#888888'}"/>
-                                                </Ellipse.Fill>
+                                                </Ellipse.Fill>-->
                                             </Ellipse>
                                             <StackPanel Grid.Column="1">
                                                 <TextBlock FontFamily="{StaticResource FontPrimary}"
@@ -720,7 +720,7 @@
                                 <TextBlock Text="Use the IFC MODEL tab to load a file"
                                            FontFamily="{StaticResource FontPrimary}"
                                            HorizontalAlignment="Center"
-                                           FontSize="{StaticResource FontSizeMD}"
+                                           FontSize="{StaticResource FontSizeLG}"
                                            Foreground="{DynamicResource TextDisabledBrush}"
                                            Margin="0,6,0,0"/>
                                            <!--FontSize="{StaticResource FontSizeMD}"-->

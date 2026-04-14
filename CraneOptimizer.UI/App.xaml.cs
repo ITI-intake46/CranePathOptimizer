@@ -15,7 +15,11 @@ using CraneOptimizer.UI.Shell.Views;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System;
+using System.Diagnostics;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace CraneOptimizer.UI
 {
@@ -25,6 +29,11 @@ namespace CraneOptimizer.UI
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            // Global exception handlers
+            this.DispatcherUnhandledException += App_DispatcherUnhandledException;
+            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+            TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
+
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("Data/appsettings.json", optional: false)
@@ -88,6 +97,46 @@ namespace CraneOptimizer.UI
 
             base.OnStartup(e);
         }
+
+        protected override void OnExit(ExitEventArgs e)
+        {
+            try
+            {
+                // Dispose DI container so singletons can cleanup
+                ServiceProvider?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error disposing ServiceProvider: {ex}");
+            }
+
+            base.OnExit(e);
+        }
+
+        #region Global exception handlers
+
+        private void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+        {
+            // Log and show — capture stack trace
+            Debug.WriteLine($"DispatcherUnhandledException: {e.Exception}");
+            MessageBox.Show($"Unhandled UI exception:\n{e.Exception}\n\nSee Output window for details.", "Unhandled Exception", MessageBoxButton.OK, MessageBoxImage.Error);
+            // If you want the app to continue, set e.Handled = true; otherwise the app will shut down
+            e.Handled = false;
+        }
+
+        private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            Debug.WriteLine($"CurrentDomain UnhandledException: {e.ExceptionObject}");
+            // Do not attempt UI actions here if not on UI thread
+        }
+
+        private void TaskScheduler_UnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+        {
+            Debug.WriteLine($"UnobservedTaskException: {e.Exception}");
+            e.SetObserved();
+        }
+
+        #endregion
 
         private static void RegisterGAServices(IServiceCollection services)
         {
