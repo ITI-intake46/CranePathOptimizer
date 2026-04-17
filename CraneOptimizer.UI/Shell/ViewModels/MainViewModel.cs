@@ -11,7 +11,7 @@ using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Core.Scene;
+using CraneOptimizer.UI.Core.Services;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,7 +58,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         public CraneSpecification? SelectedCraneSpec =>
             SelectedCrane?.Specifications.FirstOrDefault();
 
-        public SceneViewModel Scene { get; }
+        public SceneService Scene { get; }
         public DrawingViewModel Drawing { get; }
 
         // =========================
@@ -72,7 +72,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         // Constructor
         // =========================
         public MainViewModel(
-            SceneViewModel scene,
+            SceneService scene,
             DrawingViewModel drawing,
             CranePlacementViewModel cranePlacement,
             IIfcReader ifcReader,

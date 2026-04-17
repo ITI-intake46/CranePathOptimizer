@@ -1,14 +1,18 @@
-﻿using HelixToolkit.Geometry;
+﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Domain.IfcEntities;
+using HelixToolkit.Geometry;
 using System.Numerics;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
-using CraneOptimizer.Domain.IfcEntities;
 
 namespace CraneOptimizer.UI.Rendering
 {
-    public class HelixElementBuilder
+    /// <summary>
+    /// Builds visual representation of IFC elements (no viewport logic).
+    /// </summary>
+    public class ElementVisualBuilder
     {
-        public ModelVisual3D BuildElement(PrecastElement element)
+        public ModelVisual3D Build(PrecastElement element, LiftStatus? status = null)
         {
             var meshBuilder = new MeshBuilder(true, true);
 
@@ -36,8 +40,10 @@ namespace CraneOptimizer.UI.Rendering
                     helixMesh.Normals.Select(n => new Vector3D(n.X, n.Y, n.Z)))
             };
 
+            var color = GetColor(status);
+
             var material = new DiffuseMaterial(
-                new SolidColorBrush(Colors.Gray));
+                new SolidColorBrush(color));
 
             var model = new GeometryModel3D
             {
@@ -47,6 +53,25 @@ namespace CraneOptimizer.UI.Rendering
             };
 
             return new ModelVisual3D { Content = model };
+        }
+
+        private Color GetColor(LiftStatus? status)
+        {
+            if (status == null)
+                return Colors.Gray;
+
+            return status switch
+            {
+                LiftStatus.Liftable => Colors.Green,
+
+                LiftStatus.OutOfRadius => Colors.Red,
+                LiftStatus.Overweight => Colors.Red,
+                LiftStatus.HeightFail => Colors.Red,
+
+                LiftStatus.SpecialCase => Colors.Yellow,
+
+                _ => Colors.Gray
+            };
         }
     }
 }

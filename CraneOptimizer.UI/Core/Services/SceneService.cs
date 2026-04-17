@@ -1,16 +1,15 @@
 ﻿using CraneOptimizer.Domain.GreenAreaEntities;
 using CraneOptimizer.Domain.IfcEntities;
-using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Interfaces;
 using System.Collections.ObjectModel;
 
-namespace CraneOptimizer.UI.Core.Scene
+namespace CraneOptimizer.UI.Core.Services
 {
     /// <summary>
     /// Holds scene state (elements + zones).
     /// Acts as bridge between UI and Application layer.
     /// </summary>
-    public class SceneViewModel : ViewModelBase 
+    public class SceneService : ISceneService
     {
         public ObservableCollection<PrecastElement> Elements { get; } = new();
         public ObservableCollection<CranePlacementZone> Zones { get; } = new();
@@ -38,6 +37,14 @@ namespace CraneOptimizer.UI.Core.Scene
             Zones.Add(zone);
             ZoneAdded?.Invoke(zone);
         }
+
+        public List<PrecastElement> GetElements() => Elements.ToList();
+
+        public List<CranePlacementZone> GetZones() => Zones.ToList();
+        
+        public void ClearZones() => Zones.Clear();
+
+        public void ClearElements() => Elements.Clear();
     }
     public static class ObservableCollectionExtensions
     {

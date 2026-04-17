@@ -1,5 +1,4 @@
-﻿using Domian = CraneOptimizer.Domain.Common;
-using CraneOptimizer.Domain.GreenAreaEntities;
+﻿using CraneOptimizer.Domain.GreenAreaEntities;
 using DomainPoint = CraneOptimizer.Domain.Common.DomainPoint3D;
 
 namespace CraneOptimizer.UI.Core.Services
@@ -45,8 +44,7 @@ namespace CraneOptimizer.UI.Core.Services
             return new CranePlacementZone
             {
                 Vertices = _points
-                    .Select(p => new DomainPoint(p.X, p.Y, p.Z)) // ✅ واضح
-                    .ToList()
+                    .Select(p => new DomainPoint(p.X, p.Y, p.Z)).ToList()
             };
         }
         private bool DoLinesIntersect(

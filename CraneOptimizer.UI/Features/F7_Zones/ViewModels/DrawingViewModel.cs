@@ -1,5 +1,4 @@
 ﻿using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Core.Scene;
 using CraneOptimizer.UI.Core.Services;
 using System.Security.Policy;
 using DomainPoint = CraneOptimizer.Domain.Common.DomainPoint3D;
@@ -15,11 +14,11 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
     public class DrawingViewModel 
     {
         private readonly DrawingService _drawing;
-        private readonly SceneViewModel _scene;
+        private readonly SceneService _scene;
         private readonly IRenderingService _render;
         public DrawingViewModel(
                                 DrawingService drawing,
-                                SceneViewModel scene,
+                                SceneService scene,
                                 IRenderingService render)
         {
             _drawing = drawing;

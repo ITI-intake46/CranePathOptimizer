@@ -1,22 +1,51 @@
-﻿using CraneOptimizer.Domain.Common;
+﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.GreenAreaEntities;
 using CraneOptimizer.Domain.IfcEntities;
 using HelixToolkit.Wpf;
 
-public interface IRenderingService
+namespace CraneOptimizer.UI.Core.Interfaces
 {
-    void Initialize(HelixViewport3D viewport);
+    public interface IRenderingService
+    {
+        void Initialize(HelixViewport3D viewport);
 
-    void RenderElements(IEnumerable<PrecastElement> elements);
+        // =========================
+        // Elements
+        // =========================
 
-    void RenderZone(CranePlacementZone zone);
+        // Basic rendering (no GA)
+        void RenderElements(IEnumerable<PrecastElement> elements);
 
-    void RenderCrane(Crane crane);
+        // Advanced rendering (with GA result)
+        void RenderElementsWithStatus(
+            IEnumerable<(PrecastElement element, LiftStatus status)> elements);
 
-    void RenderBestPosition(double x, double y);
+        // =========================
+        // Zones
+        // =========================
+        void RenderZone(CranePlacementZone zone);
 
-    void UpdatePreview(List<DomainPoint3D> points);
+        // =========================
+        // Crane
+        // =========================
+        void RenderCrane(Crane crane);
 
-    void ClearPreview();
+        // =========================
+        // GA Result
+        // =========================
+        void RenderBestPosition(double x, double y);
+
+        // =========================
+        // Drawing
+        // =========================
+        void UpdatePreview(List<DomainPoint3D> points);
+        void ClearPreview();
+
+        // =========================
+        // Scene Control
+        // =========================
+        void ClearScene();
+    }
 }

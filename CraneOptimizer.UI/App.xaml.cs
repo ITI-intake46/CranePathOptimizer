@@ -6,7 +6,6 @@ using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.IFC;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Core.Scene;
 using CraneOptimizer.UI.Core.Services;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
@@ -16,9 +15,7 @@ using CraneOptimizer.UI.Shell.Views;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using System;
 using System.Diagnostics;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -60,13 +57,12 @@ namespace CraneOptimizer.UI
             // UI Services
             // =========================
             services.AddSingleton<IDialogService, DialogService>();
-            services.AddSingleton<IRenderingService, HelixRenderingService>();
 
             // =========================
             // Scene
             // =========================
-            services.AddSingleton<SceneViewModel>();
-            services.AddSingleton<DrawingViewModel>();
+            services.AddSingleton<SceneService>();
+            services.AddSingleton<DrawingService>();
 
             // =========================
             // GA
@@ -76,19 +72,16 @@ namespace CraneOptimizer.UI
             // =========================
             // Rendering and Geometry Builders
             // =========================
-            services.AddSingleton<HelixElementBuilder>();
+            services.AddSingleton<ElementVisualBuilder>();
             services.AddSingleton<IRenderingService, HelixRenderingService>();
+            services.AddSingleton<ISceneService, SceneService>();
 
             // =========================
             // ViewModels
             // =========================
             services.AddSingleton<MainViewModel>();
-            services.AddSingleton<DrawingService>();
-            services.AddSingleton<SceneViewModel>();
             services.AddSingleton<DrawingViewModel>();
             services.AddSingleton<CranePlacementViewModel>();
-
-            services.AddSingleton<IRenderingService, HelixRenderingService>();
 
             // =========================
             // Views
