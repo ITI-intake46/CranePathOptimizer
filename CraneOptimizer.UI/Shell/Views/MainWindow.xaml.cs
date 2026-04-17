@@ -1,4 +1,5 @@
-﻿using CraneOptimizer.UI.Shell.ViewModels;
+using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Shell.ViewModels;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Controls;
@@ -12,10 +13,16 @@ namespace CraneOptimizer.UI.Shell.Views
         // Constructor
         // ─────────────────────────────────────────────────────────────────
 
-        public MainWindow(MainViewModel viewModel)
+        public MainWindow(MainViewModel viewModel, IRenderingService renderingService)
         {
             InitializeComponent();
             DataContext = viewModel;
+
+            // Initialise the Helix rendering service immediately after the visual
+            // tree is built. This populates the scene with the default grid, lights,
+            // and coordinate system so the viewport is usable even before any IFC
+            // file is loaded ("Empty Scene Mode").
+            renderingService.Initialize(IfcViewer);
         }
 
         // ─────────────────────────────────────────────────────────────────
@@ -198,9 +205,15 @@ namespace CraneOptimizer.UI.Shell.Views
             TxtCoordY.Text = $"{y:F2}M";
         }
 
-        /// <summary>Shows / hides the no-model placeholder overlay.</summary>
+        /// <summary>
+        /// Shows / hides the no-model placeholder overlay.
+        /// Called by the IFC loader when a model is successfully parsed (loaded=true)
+        /// or when the scene is explicitly cleared (loaded=false).
+        /// </summary>
         public void SetModelLoaded(bool loaded)
         {
+            // loaded=true  → IFC is in the scene → hide the "no model" notice
+            // loaded=false → scene cleared       → show the notice again
             NoModelOverlay.Visibility = loaded ? Visibility.Collapsed : Visibility.Visible;
         }
 

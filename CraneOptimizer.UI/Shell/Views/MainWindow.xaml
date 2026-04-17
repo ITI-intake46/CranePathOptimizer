@@ -706,10 +706,14 @@
                                     Visibility="Collapsed" Canvas.Left="0" Canvas.Top="0"/>
                         </Canvas>-->
 
-                        <!-- No-model placeholder -->
+                        <!-- No-model placeholder
+                             Collapsed by default so the Helix viewport is immediately
+                             interactive. SetModelLoaded(bool) in code-behind can
+                             restore it when needed (e.g. after clearing an IFC file). -->
                         <Border x:Name="NoModelOverlay"
                                 Background="{DynamicResource SurfaceBrush}"
-                                Visibility="Visible">
+                                Visibility="Collapsed"
+                                IsHitTestVisible="False">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <TextBlock Text="📦" FontSize="52"
                                            HorizontalAlignment="Center"
