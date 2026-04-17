@@ -6,7 +6,7 @@ namespace CraneOptimizer.Domain.GreenAreaEntities
     {
         public Guid ZoneId { get; set; } = Guid.NewGuid();
 
-        public List<Point3D> Vertices { get; set; } = new();
+        public List<DomainPoint3D> Vertices { get; set; } = new();
 
         public double Area { get; set; }
 

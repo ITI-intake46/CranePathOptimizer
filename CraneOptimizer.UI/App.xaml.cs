@@ -6,10 +6,11 @@ using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.IFC;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Core.Scene;
 using CraneOptimizer.UI.Core.Services;
-using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
+using CraneOptimizer.UI.Rendering;
 using CraneOptimizer.UI.Shell.ViewModels;
 using CraneOptimizer.UI.Shell.Views;
 using Microsoft.EntityFrameworkCore;
@@ -71,6 +72,12 @@ namespace CraneOptimizer.UI
             // GA
             // =========================
             RegisterGAServices(services);
+
+            // =========================
+            // Rendering and Geometry Builders
+            // =========================
+            services.AddSingleton<HelixElementBuilder>();
+            services.AddSingleton<IRenderingService, HelixRenderingService>();
 
             // =========================
             // ViewModels

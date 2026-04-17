@@ -44,7 +44,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             double deltaX = (_random.NextDouble() * 10) - 5;
             double deltaY = (_random.NextDouble() * 10) - 5;
 
-            var mutated = new Point3D(
+            var mutated = new DomainPoint3D(
                 p.X + deltaX,
                 p.Y + deltaY,
                 p.Z
@@ -57,11 +57,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             }
             // else: ignore mutation (keep original)
         }
-        private bool IsInsideAnyZone(Point3D point, List<CranePlacementZone> zones)
+        private bool IsInsideAnyZone(DomainPoint3D point, List<CranePlacementZone> zones)
         {
             return zones.Any(z => IsPointInsidePolygon(point, z.Vertices));
         }
-        private bool IsPointInsidePolygon(Point3D point, List<Point3D> polygon)
+        private bool IsPointInsidePolygon(DomainPoint3D point, List<DomainPoint3D> polygon)
         {
             bool inside = false;
 

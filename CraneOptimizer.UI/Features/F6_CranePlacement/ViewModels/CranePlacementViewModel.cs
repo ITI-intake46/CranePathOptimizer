@@ -13,7 +13,7 @@ namespace CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels
         private readonly IRenderingService _render;
 
         private bool _isPlacing;
-        private Point3D? _currentPosition;
+        private DomainPoint3D? _currentPosition;
         private Crane? _selectedCrane;
 
         public bool IsPlacing
@@ -26,7 +26,7 @@ namespace CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels
             }
         }
 
-        public Point3D? CurrentPosition
+        public DomainPoint3D? CurrentPosition
         {
             get => _currentPosition;
             set
@@ -61,7 +61,7 @@ namespace CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels
             IsPlacing = true;
         }
 
-        public void Place(Point3D point)
+        public void Place(DomainPoint3D point)
         {
             if (!IsPlacing || SelectedCrane == null)
                 return;

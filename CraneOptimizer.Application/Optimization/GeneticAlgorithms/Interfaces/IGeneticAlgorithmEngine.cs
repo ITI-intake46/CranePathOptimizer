@@ -1,4 +1,5 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.GreenAreaEntities;
@@ -31,11 +32,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
         /// <param name="settings">
         /// Genetic algorithm configuration parameters.
         /// </param>
-        CraneSolution Run(
-            List<CranePlacementZone> zones,
-            List<PrecastElement> elements,
-            Dictionary<int, List<string>> assignment,
-            CraneSpecification craneSpec,
-            GASettings settings);
+        CraneSolution Run(PlacementInput input);
     }
 }

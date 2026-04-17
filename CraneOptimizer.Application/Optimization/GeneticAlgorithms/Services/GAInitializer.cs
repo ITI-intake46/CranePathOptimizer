@@ -193,12 +193,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// Calculates the average X/Y position of all elements in a cluster.
         /// This centroid represents the ideal crane position for this group.
         /// </summary>
-        private Point3D CalculateCentroid(List<PrecastElement> elements)
+        private DomainPoint3D CalculateCentroid(List<PrecastElement> elements)
         {
             double x = elements.Average(e => e.ElementCOG.X);
             double y = elements.Average(e => e.ElementCOG.Y);
 
-            return new Point3D(x, y, 0);
+            return new DomainPoint3D(x, y, 0);
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -214,8 +214,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         ///   2. Otherwise → find the zone whose centroid is closest
         ///      and sample a random point inside that zone
         /// </summary>
-        private Point3D FindNearestValidPoint(
-            Point3D centroid,
+        private DomainPoint3D FindNearestValidPoint(
+            DomainPoint3D centroid,
             List<CranePlacementZone> zones)
         {
             // Case 1: centroid falls inside one of the zones
@@ -237,7 +237,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// Computes distance from a point to the centroid of a zone's vertices.
         /// Used to find the closest zone when the element centroid falls outside all zones.
         /// </summary>
-        private double DistanceToZoneCentroid(Point3D point, CranePlacementZone zone)
+        private double DistanceToZoneCentroid(DomainPoint3D point, CranePlacementZone zone)
         {
             double zx = zone.Vertices.Average(v => v.X);
             double zy = zone.Vertices.Average(v => v.Y);
@@ -256,7 +256,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// Generates a random point inside a polygon zone.
         /// Uses bounding box rejection sampling with ray-casting validation.
         /// </summary>
-        private Point3D GenerateRandomPointInsideZone(CranePlacementZone zone)
+        private DomainPoint3D GenerateRandomPointInsideZone(CranePlacementZone zone)
         {
             var bbox = GetBoundingBox(zone.Vertices);
 
@@ -265,7 +265,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 double x = bbox.minX + _random.NextDouble() * (bbox.maxX - bbox.minX);
                 double y = bbox.minY + _random.NextDouble() * (bbox.maxY - bbox.minY);
 
-                var point = new Point3D(x, y, 0);
+                var point = new DomainPoint3D(x, y, 0);
 
                 if (IsPointInsidePolygon(point, zone.Vertices))
                     return point;
@@ -276,7 +276,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// Calculates the bounding box (min/max X and Y) of a polygon.
         /// </summary>
         private (double minX, double maxX, double minY, double maxY)
-            GetBoundingBox(List<Point3D> vertices)
+            GetBoundingBox(List<DomainPoint3D> vertices)
         {
             return (
                 vertices.Min(v => v.X),
@@ -291,7 +291,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// Casts a horizontal ray from the point to the right and counts
         /// how many polygon edges it crosses — odd = inside, even = outside.
         /// </summary>
-        private bool IsPointInsidePolygon(Point3D point, List<Point3D> polygon)
+        private bool IsPointInsidePolygon(DomainPoint3D point, List<DomainPoint3D> polygon)
         {
             bool inside = false;
 

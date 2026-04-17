@@ -13,7 +13,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
         /// List of crane setup positions used by this chromosome.
         /// The order represents the sequence of crane relocations.
         /// </summary>
-        public List<Point3D> CranePositions { get; set; } = new();
+        public List<DomainPoint3D> CranePositions { get; set; } = new();
 
         /// <summary>
         /// Number of crane relocations represented by this chromosome.

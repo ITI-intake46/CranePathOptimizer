@@ -1,6 +1,6 @@
 ﻿using Domian = CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.GreenAreaEntities;
-using DomainPoint = CraneOptimizer.Domain.Common.Point3D;
+using DomainPoint = CraneOptimizer.Domain.Common.DomainPoint3D;
 
 namespace CraneOptimizer.UI.Core.Services
 {

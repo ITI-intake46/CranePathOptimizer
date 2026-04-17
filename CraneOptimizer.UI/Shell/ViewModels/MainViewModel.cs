@@ -1,4 +1,8 @@
+using CraneOptimizer.Application.Features.CranePlacement.DTOs;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.GreenAreaEntities;
@@ -7,7 +11,7 @@ using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Features.F2_IfcViewer;
+using CraneOptimizer.UI.Core.Scene;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,7 +39,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         // =========================
         public ObservableCollection<PrecastElement> Elements { get; } = new();
         public ObservableCollection<Crane> Cranes { get; } = new();
+
         public CranePlacementViewModel CranePlacement { get; }
+
         public Crane? SelectedCrane
         {
             get => _selectedCrane;
@@ -85,9 +91,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _dialog = dialog;
             CranePlacement = cranePlacement;
 
-            // Wire scene events using named handlers so they can be detached on Dispose.
             Scene.ElementsChanged += OnElementsChanged;
-            Scene.ZoneAdded       += OnZoneAdded;
+            Scene.ZoneAdded += OnZoneAdded;
 
             LoadIfcCommand = new RelayCommand(LoadIfc);
             StartDrawingCommand = new RelayCommand(() => Drawing.Start());
@@ -97,24 +102,20 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         }
 
         // =========================
-        // Disposal — detach events to prevent late callbacks during teardown
+        // Dispose
         // =========================
-
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
 
-            // Detach event handlers so the Scene cannot invoke rendering callbacks
-            // on a partially-disposed object graph during application shutdown.
             Scene.ElementsChanged -= OnElementsChanged;
-            Scene.ZoneAdded       -= OnZoneAdded;
+            Scene.ZoneAdded -= OnZoneAdded;
         }
 
         // =========================
-        // Private event handlers
+        // Events
         // =========================
-
         private void OnElementsChanged(List<PrecastElement> elements)
             => _render.RenderElements(elements);
 
@@ -122,9 +123,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             => _render.RenderZone(zone);
 
         // =========================
-        // Methods
+        // Load Data
         // =========================
-
         private async Task LoadCranesAsync()
         {
             var cranes = await _craneRepo.GetAllAsync();
@@ -138,11 +138,12 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             if (string.IsNullOrEmpty(path)) return;
 
             var elements = _ifcReader.ReadElements(path);
-
-            // 🔥 ONLY THIS
             Scene.SetElements(elements);
         }
 
+        // =========================
+        // GA Execution (Correct Version)
+        // =========================
         private void RunGA()
         {
             if (SelectedCraneSpec == null)
@@ -157,8 +158,6 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 return;
             }
 
-            var assignment = new Dictionary<int, List<string>>();
-
             var settings = new GASettings
             {
                 PopulationSize = 30,
@@ -168,22 +167,98 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 EarlyStoppingGenerations = 10
             };
 
-            var result = _ga.Run(
-                Scene.Zones.ToList(),
-                Scene.Elements.ToList(),
-                assignment,
-                SelectedCraneSpec,
-                settings);
+            // ✅ استخدام PlacementInput (المهم)
+            var input = new PlacementInput
+            {
+                Zones = Scene.Zones.ToList(),
+                Elements = Scene.Elements.ToList(),
+                Assignment = new Dictionary<int, List<string>>(),
+                CraneSpec = SelectedCraneSpec,
+                Settings = settings
+            };
 
-            var pos = result?.Chromosome?.CranePositions?.FirstOrDefault();
+            var solution = _ga.Run(input);
 
-            if (pos == null)
+            if (solution == null || solution.Chromosome.CranePositions.Count == 0)
             {
                 _dialog.ShowMessage("No valid solution found");
                 return;
             }
 
-            _render.RenderBestPosition(pos.X, pos.Y);
+            var result = BuildResult(solution, input.Elements, input.CraneSpec, input.Settings);
+
+            foreach (var pos in result.Positions)
+            {
+                _render.RenderBestPosition(pos.X, pos.Y);
+            }
+
+            //CranePlacement.Result = result;
+        }
+
+        // =========================
+        // Result Builder
+        // =========================
+        private CranePlacementResult BuildResult(
+            CraneSolution solution,
+            List<PrecastElement> elements,
+            CraneSpecification craneSpec,
+            GASettings settings)
+        {
+            var result = new CranePlacementResult
+            {
+                FitnessScore = solution.Fitness,
+                CoverageRatio = solution.CoverageRatio
+            };
+
+            var stats = new LiftStatistics();
+
+            foreach (var pos in solution.Chromosome.CranePositions)
+            {
+                var posResult = new CranePositionResult
+                {
+                    X = pos.X,
+                    Y = pos.Y
+                };
+
+                foreach (var element in elements)
+                {
+                    double radius = LiftCalculation.CalculateRadius(pos, element);
+                    double height = LiftCalculation.CalculateLiftHeight(element, settings);
+                    double boom = LiftCalculation.CalculateRequiredBoomLength(radius, height);
+
+                    double requiredCapacity = element.ElementWT ?? 0;
+
+                    var status = LiftCalculation.DetermineLiftStatus(
+                        radius,
+                        boom,
+                        requiredCapacity,
+                        craneSpec,
+                        settings);
+
+                    switch (status)
+                    {
+                        case LiftStatus.Liftable: stats.Liftable++; break;
+                        case LiftStatus.OutOfRadius: stats.OutOfRadius++; break;
+                        case LiftStatus.Overweight: stats.Overweight++; break;
+                        case LiftStatus.HeightFail: stats.HeightFail++; break;
+                        case LiftStatus.SpecialCase: stats.SpecialCase++; break;
+                    }
+
+                    posResult.ElementResults.Add(new ElementLiftResult
+                    {
+                        ElementId = element.ElementID,
+                        Status = status,
+                        Radius = radius,
+                        RequiredCapacity = requiredCapacity
+                    });
+                }
+
+                result.Positions.Add(posResult);
+            }
+
+            result.Statistics = stats;
+
+            return result;
         }
     }
 }

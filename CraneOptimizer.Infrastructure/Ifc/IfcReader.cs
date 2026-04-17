@@ -60,8 +60,8 @@ namespace CraneOptimizer.Infrastructure.IFC
                         BBoxHeight = bbox?.H,
 
                         ElementCOG = cog.HasValue
-                                            ? new CraneOptimizer.Domain.Common.Point3D(cog.Value.X, cog.Value.Y, cog.Value.Z)
-                                            : new CraneOptimizer.Domain.Common.Point3D(),
+                                            ? new CraneOptimizer.Domain.Common.DomainPoint3D(cog.Value.X, cog.Value.Y, cog.Value.Z)
+                                            : new CraneOptimizer.Domain.Common.DomainPoint3D(),
                     };
 
                     elements.Add(element);

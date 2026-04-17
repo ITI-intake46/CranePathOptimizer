@@ -20,7 +20,7 @@ namespace CraneOptimizer.Domain.IfcEntities
 
         public double? ElementVolume { get; set; }
 
-        public Point3D ElementCOG { get; set; } = new Point3D();
+        public DomainPoint3D ElementCOG { get; set; } = new DomainPoint3D();
         public double? BBoxLength { get; set; }
         public double? BBoxWidth { get; set; }
         public double? BBoxHeight { get; set; }

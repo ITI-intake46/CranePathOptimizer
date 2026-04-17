@@ -4,7 +4,7 @@ using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Interfaces;
 using System.Collections.ObjectModel;
 
-namespace CraneOptimizer.UI.Features.F2_IfcViewer
+namespace CraneOptimizer.UI.Core.Scene
 {
     /// <summary>
     /// Holds scene state (elements + zones).

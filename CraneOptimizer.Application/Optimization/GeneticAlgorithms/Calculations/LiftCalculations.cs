@@ -35,7 +35,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
         ///       lift height only — see CalculateLiftHeight.
         /// </summary>
         public static double CalculateRadius(
-            Point3D cranePosition,
+            DomainPoint3D cranePosition,
             PrecastElement element)
         {
             double dx = cranePosition.X - element.ElementCOG.X;

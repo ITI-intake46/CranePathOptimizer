@@ -1,8 +1,8 @@
 ﻿using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Core.Scene;
 using CraneOptimizer.UI.Core.Services;
-using CraneOptimizer.UI.Features.F2_IfcViewer;
 using System.Security.Policy;
-using DomainPoint = CraneOptimizer.Domain.Common.Point3D;
+using DomainPoint = CraneOptimizer.Domain.Common.DomainPoint3D;
 using WpfPoint = System.Windows.Media.Media3D.Point3D;
 
 

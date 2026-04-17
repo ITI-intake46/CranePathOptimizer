@@ -6,7 +6,7 @@ namespace CraneOptimizer.UI.Core.Interfaces
     public interface IDrawingService
     {
         void Start();
-        void AddPoint(Point3D point);
+        void AddPoint(DomainPoint3D point);
         CranePlacementZone? BuildZone();
     }
 }

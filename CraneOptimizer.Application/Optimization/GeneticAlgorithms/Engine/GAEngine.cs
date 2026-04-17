@@ -1,4 +1,5 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
@@ -40,40 +41,35 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
             _replacement = replacement;
         }
 
-        public CraneSolution Run(
-            List<CranePlacementZone> zones,
-            List<PrecastElement> elements,
-            Dictionary<int, List<string>> assignment,
-            CraneSpecification craneSpec,
-            GASettings settings)
+        public CraneSolution Run(PlacementInput input)
         {
             int stagnantGenerations = 0;
             double bestFitness = double.MinValue;
             CraneSolution bestSolution = null;
             // 1️⃣ Initialize population
             var population = _initializer.InitializePopulation(
-                zones,
-                elements,
-                settings.PopulationSize,
-                settings.MaxCranePositions);
+                input.Zones,
+                input.Elements,
+                input.Settings.PopulationSize,
+                input.Settings.MaxCranePositions);
 
-            for (int generation = 0; generation < settings.MaxGenerations; generation++)
+            for (int generation = 0; generation < input.Settings.MaxGenerations; generation++)
             {
                 foreach (var solution in population.Individuals)
                 {
                     // 2️⃣ Evaluate assignment
                     var evaluation = _assignmentService.EvaluateAssignment(
                         solution,
-                        elements,
-                        assignment,
-                        craneSpec,
-                        settings);
+                        input.Elements,
+                        input.Assignment,
+                        input.CraneSpec,
+                        input.Settings);
 
                     // 3️⃣ Evaluate fitness
                     var fitness = _fitnessEvaluator.EvaluateFitness(
                         solution,
                         evaluation,
-                        settings);
+                        input.Settings);
 
                     solution.Fitness = fitness.FitnessScore;
                 }
@@ -94,7 +90,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                 }
 
                 // 3️⃣ Early stopping
-                if (stagnantGenerations >= settings.EarlyStoppingGenerations)
+                if (stagnantGenerations >= input.Settings.EarlyStoppingGenerations)
                     break;
 
                 // 4️⃣ Selection
@@ -114,22 +110,22 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                 // 6️⃣ Mutation
                 foreach (var child in children)
                 {
-                    if (Random.Shared.NextDouble() < settings.MutationRate)
-                        _mutation.Mutate(child, zones);
+                    if (Random.Shared.NextDouble() < input.Settings.MutationRate)
+                        _mutation.Mutate(child, input.Zones);
                 }
                 foreach (var child in children)
                 {
                     var evaluation = _assignmentService.EvaluateAssignment(
                         child,
-                        elements,
-                        assignment,
-                        craneSpec,
-                        settings);
+                        input.Elements,
+                        input.Assignment,
+                        input.CraneSpec,
+                        input.Settings);
 
                     var fitness = _fitnessEvaluator.EvaluateFitness(
                         child,
                         evaluation,
-                        settings);
+                        input.Settings);
 
                     child.Fitness = fitness.FitnessScore;
                 }
