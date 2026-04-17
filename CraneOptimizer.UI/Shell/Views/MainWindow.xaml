@@ -1,7 +1,8 @@
-﻿<Window x:Class="CraneOptimizer.UI.Shell.Views.MainWindow"
+<Window x:Class="CraneOptimizer.UI.Shell.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:helix="http://helix-toolkit.org/wpf"
+        xmlns:nav="clr-namespace:CraneOptimizer.UI.Shared.Layouts"
         Title="IFC Building Analyzer — Crane Planner Edition"
         Height="800" Width="1600"
         WindowState="Maximized"
@@ -226,9 +227,11 @@
                                HorizontalAlignment="Left" Margin="8,0"/>-->
 
         <!-- ══════════════════════════════════════════════════════════════════
-             ROW 2 — MAIN RIBBON
+             ROW 2 — MAIN RIBBON (TopNavigation)
+             DataContext is inherited from MainWindow → MainViewModel.
+             All Command bindings inside TopNavigation resolve automatically.
         ══════════════════════════════════════════════════════════════════ -->
-        <!--<ribbon:MainRibbonControl x:Name="MainRibbon" Grid.Row="2"/>-->
+        <nav:TopNavigation Grid.Row="2"/>
 
         <!-- ══════════════════════════════════════════════════════════════════
              ROW 3 — BUILDING INFO BAR
