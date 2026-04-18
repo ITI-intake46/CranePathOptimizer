@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.GreenAreaEntities;
+﻿using CraneOptimizer.Domain.Schemas;
 using DomainPoint = CraneOptimizer.Domain.Common.DomainPoint3D;
 
 namespace CraneOptimizer.UI.Core.Services
@@ -38,10 +38,10 @@ namespace CraneOptimizer.UI.Core.Services
         public List<DomainPoint> GetPoints() => _points;
 
         public void AddPoint(DomainPoint point) => _points.Add(point);
-        public CranePlacementZone? BuildZone()
+        public GreenAreaZone? BuildZone()
         {
             if (_points.Count < 3) return null;
-            return new CranePlacementZone
+            return new GreenAreaZone
             {
                 Vertices = _points
                     .Select(p => new DomainPoint(p.X, p.Y, p.Z)).ToList()

@@ -1,6 +1,5 @@
 ﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
-using CraneOptimizer.Domain.GreenAreaEntities;
-using CraneOptimizer.Domain.IfcEntities;
+using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
 {
@@ -40,7 +39,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
         /// Initialized population ready for GA evaluation.
         /// </returns>
         Population InitializePopulation(
-            List<CranePlacementZone> zones,
+            List<GreenAreaZone> zones,
             List<PrecastElement> elements,
             int populationSize,
             int maxCranePositions);

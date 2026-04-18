@@ -1,5 +1,4 @@
-﻿using CraneOptimizer.Domain.GreenAreaEntities;
-using CraneOptimizer.Domain.IfcEntities;
+﻿using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using System.Collections.ObjectModel;
 
@@ -12,13 +11,13 @@ namespace CraneOptimizer.UI.Core.Services
     public class SceneService : ISceneService
     {
         public ObservableCollection<PrecastElement> Elements { get; } = new();
-        public ObservableCollection<CranePlacementZone> Zones { get; } = new();
+        public ObservableCollection<GreenAreaZone> Zones { get; } = new();
 
         // =========================
         // Events (IMPORTANT)
         // =========================
         public event Action<List<PrecastElement>>? ElementsChanged;
-        public event Action<CranePlacementZone>? ZoneAdded;
+        public event Action<GreenAreaZone>? ZoneAdded;
 
         // =========================
         // Methods
@@ -32,7 +31,7 @@ namespace CraneOptimizer.UI.Core.Services
             ElementsChanged?.Invoke(elements);
         }
 
-        public void AddZone(CranePlacementZone zone)
+        public void AddZone(GreenAreaZone zone)
         {
             Zones.Add(zone);
             ZoneAdded?.Invoke(zone);
@@ -40,7 +39,7 @@ namespace CraneOptimizer.UI.Core.Services
 
         public List<PrecastElement> GetElements() => Elements.ToList();
 
-        public List<CranePlacementZone> GetZones() => Zones.ToList();
+        public List<GreenAreaZone> GetZones() => Zones.ToList();
         
         public void ClearZones() => Zones.Clear();
 

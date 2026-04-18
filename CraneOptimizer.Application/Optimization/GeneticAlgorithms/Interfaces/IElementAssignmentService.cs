@@ -1,7 +1,7 @@
 ﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
-using CraneOptimizer.Domain.IfcEntities;
+using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
 {

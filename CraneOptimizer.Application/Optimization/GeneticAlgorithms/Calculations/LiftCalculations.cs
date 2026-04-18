@@ -2,7 +2,7 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
-using CraneOptimizer.Domain.IfcEntities;
+using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
 {
@@ -141,7 +141,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
         /// Callers must distinguish between 0 (no data) and OutOfRadius —
         /// use DetermineLiftStatus for full status classification.
         /// </summary>
-        public static double LookupCapacity(
+        public static double CraneCapacity(
             CraneSpecification craneSpec,
             double radius,
             double boomLength,
@@ -199,7 +199,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
                 return LiftStatus.HeightFail;
 
             // ── 3. Load chart data availability ───────────────────
-            double available = LookupCapacity(craneSpec, radius, boomLength, settings);
+            double available = CraneCapacity(craneSpec, radius, boomLength, settings);
 
             if (available <= 0)
                 // Radius is within crane range, but no chart entry exists.

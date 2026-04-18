@@ -1,5 +1,5 @@
 ﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
-using CraneOptimizer.Domain.IfcEntities;
+using CraneOptimizer.Domain.Schemas;
 using HelixToolkit.Geometry;
 using System.Numerics;
 using System.Windows.Media;

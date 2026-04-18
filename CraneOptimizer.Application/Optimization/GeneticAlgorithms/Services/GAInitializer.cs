@@ -1,8 +1,7 @@
 ﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Common;
-using CraneOptimizer.Domain.GreenAreaEntities;
-using CraneOptimizer.Domain.IfcEntities;
+using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 {
@@ -28,7 +27,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         // ══════════════════════════════════════════════════════════════
 
         public Population InitializePopulation(
-            List<CranePlacementZone> zones,
+            List<GreenAreaZone> zones,
             List<PrecastElement> elements,
             int populationSize,
             int maxCranePositions)
@@ -65,7 +64,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// Crane positions are sampled uniformly inside random zones.
         /// </summary>
         private CraneSolution CreateRandomSolution(
-            List<CranePlacementZone> zones,
+            List<GreenAreaZone> zones,
             int maxCranePositions)
         {
             var chromosome = new CraneChromosome();
@@ -104,7 +103,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         ///   5. Use that point as the crane position for this cluster
         /// </summary>
         private CraneSolution CreateHeuristicSolution(
-            List<CranePlacementZone> zones,
+            List<GreenAreaZone> zones,
             List<PrecastElement> elements,
             int maxCranePositions)
         {
@@ -216,7 +215,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// </summary>
         private DomainPoint3D FindNearestValidPoint(
             DomainPoint3D centroid,
-            List<CranePlacementZone> zones)
+            List<GreenAreaZone> zones)
         {
             // Case 1: centroid falls inside one of the zones
             foreach (var zone in zones)
@@ -237,7 +236,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// Computes distance from a point to the centroid of a zone's vertices.
         /// Used to find the closest zone when the element centroid falls outside all zones.
         /// </summary>
-        private double DistanceToZoneCentroid(DomainPoint3D point, CranePlacementZone zone)
+        private double DistanceToZoneCentroid(DomainPoint3D point, GreenAreaZone zone)
         {
             double zx = zone.Vertices.Average(v => v.X);
             double zy = zone.Vertices.Average(v => v.Y);
@@ -256,7 +255,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// Generates a random point inside a polygon zone.
         /// Uses bounding box rejection sampling with ray-casting validation.
         /// </summary>
-        private DomainPoint3D GenerateRandomPointInsideZone(CranePlacementZone zone)
+        private DomainPoint3D GenerateRandomPointInsideZone(GreenAreaZone zone)
         {
             var bbox = GetBoundingBox(zone.Vertices);
 

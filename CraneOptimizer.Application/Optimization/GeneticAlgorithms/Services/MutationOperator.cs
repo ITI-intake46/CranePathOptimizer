@@ -1,7 +1,7 @@
 ﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Common;
-using CraneOptimizer.Domain.GreenAreaEntities;
+using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 {
@@ -16,7 +16,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// <summary>
         /// Applies mutation to a solution.
         /// </summary>
-        public void Mutate(CraneSolution solution , List<CranePlacementZone> zones)
+        public void Mutate(CraneSolution solution , List<GreenAreaZone> zones)
         {
             // TODO:
             // 1️⃣ Select random crane position from chromosome
@@ -57,7 +57,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             }
             // else: ignore mutation (keep original)
         }
-        private bool IsInsideAnyZone(DomainPoint3D point, List<CranePlacementZone> zones)
+        private bool IsInsideAnyZone(DomainPoint3D point, List<GreenAreaZone> zones)
         {
             return zones.Any(z => IsPointInsidePolygon(point, z.Vertices));
         }

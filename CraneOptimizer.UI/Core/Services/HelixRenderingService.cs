@@ -1,8 +1,7 @@
 ﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
-using CraneOptimizer.Domain.GreenAreaEntities;
-using CraneOptimizer.Domain.IfcEntities;
+using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Rendering;
 using HelixToolkit.Wpf;
@@ -95,7 +94,7 @@ namespace CraneOptimizer.UI.Core.Services
         // =========================
         // Zones (TEMP)
         // =========================
-        public void RenderZone(CranePlacementZone zone)
+        public void RenderZone(GreenAreaZone zone)
         {
             EnsureInitialized();
 
@@ -191,7 +190,7 @@ namespace CraneOptimizer.UI.Core.Services
         // =========================
         // TEMP Zone Builder
         // =========================
-        private static ModelVisual3D BuildZoneVisual(CranePlacementZone zone)
+        private static ModelVisual3D BuildZoneVisual(GreenAreaZone zone)
         {
             var builder = new HelixToolkit.Geometry.MeshBuilder(false, false);
 

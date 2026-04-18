@@ -1,14 +1,13 @@
-﻿using CraneOptimizer.Domain.GreenAreaEntities;
-using CraneOptimizer.Domain.IfcEntities;
+﻿using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.UI.Core.Interfaces
 {
     public interface ISceneService
     {
         List<PrecastElement> GetElements();
-        List<CranePlacementZone> GetZones();
+        List<GreenAreaZone> GetZones();
         void SetElements(List<PrecastElement> elements);
-        void AddZone(CranePlacementZone zone);
+        void AddZone(GreenAreaZone zone);
         void ClearZones();
         void ClearElements();
     }

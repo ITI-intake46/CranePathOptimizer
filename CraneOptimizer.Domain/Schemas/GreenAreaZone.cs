@@ -1,8 +1,8 @@
 ﻿using CraneOptimizer.Domain.Common;
 
-namespace CraneOptimizer.Domain.GreenAreaEntities
+namespace CraneOptimizer.Domain.Schemas
 {
-    public class CranePlacementZone
+    public class GreenAreaZone
     {
         public Guid ZoneId { get; set; } = Guid.NewGuid();
 

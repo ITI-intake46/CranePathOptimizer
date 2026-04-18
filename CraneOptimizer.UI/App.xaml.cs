@@ -3,7 +3,6 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Infrastructure.Contexts;
-using CraneOptimizer.Infrastructure.IFC;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
@@ -51,7 +50,7 @@ namespace CraneOptimizer.UI
             // Infrastructure
             // =========================
             services.AddScoped<ICraneRepository, CraneRepository>();
-            services.AddScoped<IIfcReader, IfcReader>();
+            services.AddScoped<IIfcReaderRepository, IfcReaderRepository>();
 
             // =========================
             // UI Services

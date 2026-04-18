@@ -2,7 +2,6 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
-using CraneOptimizer.Domain.IfcEntities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
@@ -15,6 +14,7 @@ using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using System.IO;
+using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.UI.Shell.ViewModels
 {
@@ -23,7 +23,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         // =========================
         // Fields
         // =========================
-        private readonly IIfcReader _ifcReader;
+        private readonly IIfcReaderRepository _ifcReader;
         private readonly IGeneticAlgorithmEngine _ga;
         private readonly IRenderingService _render;
         private readonly ICraneRepository _craneRepo;
@@ -132,7 +132,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             SceneService scene,
             DrawingViewModel drawing,
             CranePlacementViewModel cranePlacement,
-            IIfcReader ifcReader,
+            IIfcReaderRepository ifcReader,
             IGeneticAlgorithmEngine ga,
             IRenderingService render,
             ICraneRepository craneRepo,

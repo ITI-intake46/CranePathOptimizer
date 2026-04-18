@@ -1,6 +1,6 @@
 ﻿using CraneOptimizer.Domain.Common;
 
-namespace CraneOptimizer.Domain.IfcEntities
+namespace CraneOptimizer.Domain.Schemas
 {
     public class PrecastElement
     {

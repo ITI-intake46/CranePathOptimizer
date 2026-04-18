@@ -1,6 +1,6 @@
 ﻿using CraneOptimizer.Domain.Common;
-using CraneOptimizer.Domain.IfcEntities;
 using CraneOptimizer.Domain.Interfaces;
+using CraneOptimizer.Domain.Schemas;
 using System.Diagnostics;
 using System.IO;
 using Xbim.Common.Geometry;
@@ -9,9 +9,9 @@ using Xbim.Ifc;
 using Xbim.Ifc4.Interfaces;
 using Xbim.ModelGeometry.Scene;
 
-namespace CraneOptimizer.Infrastructure.IFC
+namespace CraneOptimizer.Infrastructure.Repositories
 {
-    public class IfcReader : IIfcReader
+    public class IfcReaderRepository : IIfcReaderRepository
     {
         private Xbim3DModelContext _geometryContext;
 
@@ -60,8 +60,8 @@ namespace CraneOptimizer.Infrastructure.IFC
                         BBoxHeight = bbox?.H,
 
                         ElementCOG = cog.HasValue
-                                            ? new CraneOptimizer.Domain.Common.DomainPoint3D(cog.Value.X, cog.Value.Y, cog.Value.Z)
-                                            : new CraneOptimizer.Domain.Common.DomainPoint3D(),
+                                            ? new DomainPoint3D(cog.Value.X, cog.Value.Y, cog.Value.Z)
+                                            : new DomainPoint3D(),
                     };
 
                     elements.Add(element);
@@ -181,9 +181,9 @@ namespace CraneOptimizer.Infrastructure.IFC
 
                         var tetraVol = SignedTetrahedronVolume(p0, p1, p2);
 
-                        cx += ((p0.X + p1.X + p2.X) / 4.0) * tetraVol;
-                        cy += ((p0.Y + p1.Y + p2.Y) / 4.0) * tetraVol;
-                        cz += ((p0.Z + p1.Z + p2.Z) / 4.0) * tetraVol;
+                        cx += (p0.X + p1.X + p2.X) / 4.0 * tetraVol;
+                        cy += (p0.Y + p1.Y + p2.Y) / 4.0 * tetraVol;
+                        cz += (p0.Z + p1.Z + p2.Z) / 4.0 * tetraVol;
 
                         totalVolume += tetraVol;
                     }

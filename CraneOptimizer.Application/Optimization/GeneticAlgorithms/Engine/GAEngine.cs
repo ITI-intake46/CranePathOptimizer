@@ -1,11 +1,6 @@
 ﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
-using CraneOptimizer.Domain.Entities;
-using CraneOptimizer.Domain.GreenAreaEntities;
-using CraneOptimizer.Domain.IfcEntities;
-using System;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 {

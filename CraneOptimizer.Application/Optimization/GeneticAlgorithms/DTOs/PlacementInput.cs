@@ -1,13 +1,12 @@
 ﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
-using CraneOptimizer.Domain.GreenAreaEntities;
-using CraneOptimizer.Domain.IfcEntities;
+using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
 {
     public class PlacementInput
     {
-        public List<CranePlacementZone> Zones { get; set; }
+        public List<GreenAreaZone> Zones { get; set; }
         public List<PrecastElement> Elements { get; set; }
         public Dictionary<int, List<string>> Assignment { get; set; }
         public CraneSpecification CraneSpec { get; set; }

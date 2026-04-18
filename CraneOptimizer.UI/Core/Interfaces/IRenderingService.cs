@@ -1,8 +1,7 @@
 ﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
-using CraneOptimizer.Domain.GreenAreaEntities;
-using CraneOptimizer.Domain.IfcEntities;
+using CraneOptimizer.Domain.Schemas;
 using HelixToolkit.Wpf;
 
 namespace CraneOptimizer.UI.Core.Interfaces
@@ -25,7 +24,7 @@ namespace CraneOptimizer.UI.Core.Interfaces
         // =========================
         // Zones
         // =========================
-        void RenderZone(CranePlacementZone zone);
+        void RenderZone(GreenAreaZone zone);
 
         // =========================
         // Crane

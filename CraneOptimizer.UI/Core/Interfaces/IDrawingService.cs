@@ -1,5 +1,5 @@
 ﻿using CraneOptimizer.Domain.Common;
-using CraneOptimizer.Domain.GreenAreaEntities;
+using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.UI.Core.Interfaces
 {
@@ -7,6 +7,6 @@ namespace CraneOptimizer.UI.Core.Interfaces
     {
         void Start();
         void AddPoint(DomainPoint3D point);
-        CranePlacementZone? BuildZone();
+        GreenAreaZone? BuildZone();
     }
 }
