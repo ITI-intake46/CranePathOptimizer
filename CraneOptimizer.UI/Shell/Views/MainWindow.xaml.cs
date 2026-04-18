@@ -137,13 +137,6 @@ namespace CraneOptimizer.UI.Shell.Views
         public void SetCoordinates(double x, double y)
             => VM?.SetCoordinates(x, y);
 
-        public void SetModelLoaded(bool loaded)
-        {
-            // ✅ NoModelOverlay is now driven by IsModelLoaded binding
-            // No need to touch Visibility directly
-            if (VM != null) VM.IsModelLoaded = loaded;
-        }
-
         public void SetLastAction(string description)
         {
             if (VM != null) VM.HistoryBreadcrumb = description;
