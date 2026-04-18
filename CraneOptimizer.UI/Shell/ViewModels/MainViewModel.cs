@@ -12,6 +12,8 @@ using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
+using CraneOptimizer.UI.Features.F2_IfcViewer.Models;  // IfcFilterOptions
+using CraneOptimizer.UI.Features.F2_IfcViewer.Views;   // IFCLoadOptionsDialog
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -134,11 +136,58 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         private void LoadIfc()
         {
+            // 1. File picker
             var path = _dialog.OpenFile("IFC (*.ifc)|*.ifc");
             if (string.IsNullOrEmpty(path)) return;
 
-            var elements = _ifcReader.ReadElements(path);
-            Scene.SetElements(elements);
+            // 2. Show filter dialog (UI-level concern, F2_IfcViewer feature)
+            var optionsDialog = new IFCLoadOptionsDialog(path);
+            if (optionsDialog.ShowDialog() != true) return;   // user cancelled
+
+            // 3. Map dialog checkboxes → local UI model
+            var filter = new IfcFilterOptions
+            {
+                HideGrids           = optionsDialog.HideGrids,
+                HideLevels          = optionsDialog.HideLevels,
+                HideAnnotations     = optionsDialog.HideAnnotations,
+                HideSite            = optionsDialog.HideSite,
+                HideSpaces          = optionsDialog.HideSpaces,
+                HideOpenings        = optionsDialog.HideOpenings,
+                HideVirtualElements = optionsDialog.HideVirtualElements,
+            };
+
+            // 4. Read ALL elements unchanged (IIfcReader not modified)
+            var all = _ifcReader.ReadElements(path);
+
+            // 5. Apply visual filter here in the ViewModel
+            var visible = ApplyFilter(all, filter);
+
+            // 6. Send filtered list to scene → triggers rendering
+            Scene.SetElements(visible);
+        }
+
+        /// <summary>
+        /// Filters <paramref name="elements"/> according to <paramref name="options"/>.
+        /// Matching is case-insensitive on <see cref="PrecastElement.ElementType"/>
+        /// so version-prefixed names (e.g. "Ifc4.IfcGrid") are also excluded.
+        /// </summary>
+        private static List<PrecastElement> ApplyFilter(
+            List<PrecastElement> elements, IfcFilterOptions options)
+        {
+            return elements.Where(e =>
+            {
+                var t = e.ElementType ?? string.Empty;
+
+                if (options.HideGrids           && t.Contains("IfcGrid",            StringComparison.OrdinalIgnoreCase)) return false;
+                if (options.HideLevels          && t.Contains("IfcBuildingStorey",  StringComparison.OrdinalIgnoreCase)) return false;
+                if (options.HideAnnotations     && t.Contains("IfcAnnotation",      StringComparison.OrdinalIgnoreCase)) return false;
+                if (options.HideSite            && t.Contains("IfcSite",            StringComparison.OrdinalIgnoreCase)) return false;
+                if (options.HideSpaces          && t.Contains("IfcSpace",           StringComparison.OrdinalIgnoreCase)) return false;
+                if (options.HideOpenings        && t.Contains("IfcOpeningElement",  StringComparison.OrdinalIgnoreCase)) return false;
+                if (options.HideVirtualElements && t.Contains("IfcVirtualElement",  StringComparison.OrdinalIgnoreCase)) return false;
+
+                return true;
+            }).ToList();
         }
 
         // =========================
