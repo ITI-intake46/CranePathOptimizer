@@ -9,7 +9,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="28"/>
                 <!-- Tab selector strip -->
-                <RowDefinition Height="88"/>
+                <RowDefinition Height="100"/>
                 <!-- Tab content area  -->
             </Grid.RowDefinitions>
 
@@ -111,7 +111,7 @@
                                     <Button Style="{StaticResource RibbonLargeBtn}" ToolTip="Project Settings">
                                         <StackPanel HorizontalAlignment="Center">
                                             <TextBlock Text="⚙️" FontSize="26"
-                                                       HorizontalAlignment="Center" Margin="0,8,0,2"/>
+                                                       HorizontalAlignment="Center" Margin="0,4,0,0"/>
                                             <TextBlock Text="Project" HorizontalAlignment="Center"/>
                                             <TextBlock Text="Settings" HorizontalAlignment="Center"/>
                                         </StackPanel>
@@ -119,7 +119,7 @@
                                     <Button Style="{StaticResource RibbonLargeBtn}" ToolTip="Units">
                                         <StackPanel HorizontalAlignment="Center">
                                             <TextBlock Text="📐" FontSize="26"
-                                                       HorizontalAlignment="Center" Margin="0,8,0,2"/>
+                                                       HorizontalAlignment="Center" Margin="0,0,0,10"/>
                                             <TextBlock Text="Units" HorizontalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
