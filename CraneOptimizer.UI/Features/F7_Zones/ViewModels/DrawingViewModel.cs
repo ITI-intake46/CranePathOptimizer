@@ -1,8 +1,7 @@
-﻿using CraneOptimizer.UI.Core.Interfaces;
+﻿using CraneOptimizer.Domain.Common;
+using CraneOptimizer.UI.Core.Base;
+using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
-using System.Security.Policy;
-using DomainPoint = CraneOptimizer.Domain.Common.DomainPoint3D;
-using WpfPoint = System.Windows.Media.Media3D.Point3D;
 
 
 namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
@@ -11,7 +10,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
     /// Controls drawing workflow.
     /// Does NOT render directly.
     /// </summary>
-    public class DrawingViewModel 
+    public class DrawingViewModel : ViewModelBase
     {
         private readonly DrawingService _drawing;
         private readonly SceneService _scene;
@@ -25,7 +24,17 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             _scene = scene;
             _render = render;
         }
-        public bool IsDrawing { get; private set; }
+        private bool _isDrawing;
+
+        public bool IsDrawing
+        {
+            get => _isDrawing;
+            private set
+            {
+                _isDrawing = value;
+                OnPropertyChanged();
+            }
+        }
 
         public void Start()
         {
@@ -33,7 +42,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             _drawing.Start();
         }
 
-        public void AddPoint(DomainPoint point)
+        public void AddPoint(DomainPoint3D point)
         {
             if (!IsDrawing) return;
 
@@ -50,7 +59,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
                 _scene.AddZone(zone);
 
             _render.ClearPreview();
-
             IsDrawing = false;
         }
     }
