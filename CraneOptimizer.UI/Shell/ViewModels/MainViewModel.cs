@@ -1,24 +1,20 @@
-using CraneOptimizer.Application.Features.CranePlacement.DTOs;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
-using CraneOptimizer.Domain.GreenAreaEntities;
 using CraneOptimizer.Domain.IfcEntities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
-using CraneOptimizer.UI.Features.F2_IfcViewer.Models;  // IfcFilterOptions
-using CraneOptimizer.UI.Features.F2_IfcViewer.Views;   // IFCLoadOptionsDialog
+using CraneOptimizer.UI.Features.F2_IfcViewer.Models;
+using CraneOptimizer.UI.Features.F2_IfcViewer.Views;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
-using Microsoft.Extensions.DependencyInjection;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using System.IO;
 
 namespace CraneOptimizer.UI.Shell.ViewModels
 {
@@ -37,13 +33,74 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private bool _disposed;
 
         // =========================
-        // Properties
+        // Collections
         // =========================
         public ObservableCollection<PrecastElement> Elements { get; } = new();
+        public ObservableCollection<PrecastElement> FilteredElements { get; } = new();
         public ObservableCollection<Crane> Cranes { get; } = new();
 
+        // =========================
+        // ViewModels
+        // =========================
         public CranePlacementViewModel CranePlacement { get; }
+        public SceneService Scene { get; }
+        public DrawingViewModel Drawing { get; }
 
+        // =========================
+        // Status Properties (MVVM UI)
+        // =========================
+        private string _coordX = "0.00M";
+        public string CoordX
+        {
+            get => _coordX;
+            set { _coordX = value; OnPropertyChanged(); }
+        }
+
+        private string _coordY = "0.00M";
+        public string CoordY
+        {
+            get => _coordY;
+            set { _coordY = value; OnPropertyChanged(); }
+        }
+
+        private string _statusText = "Ready";
+        public string StatusText
+        {
+            get => _statusText;
+            set { _statusText = value; OnPropertyChanged(); }
+        }
+
+        private string _historyBreadcrumb = "No recent action";
+        public string HistoryBreadcrumb
+        {
+            get => _historyBreadcrumb;
+            set { _historyBreadcrumb = value; OnPropertyChanged(); }
+        }
+
+        private bool _isModelLoaded;
+        public bool IsModelLoaded
+        {
+            get => _isModelLoaded;
+            set { _isModelLoaded = value; OnPropertyChanged(); }
+        }
+
+        private string _selectedElementName = string.Empty;
+        public string SelectedElementName
+        {
+            get => _selectedElementName;
+            set { _selectedElementName = value; OnPropertyChanged(); }
+        }
+
+        private string _renderQualityLabel = "● STD";
+        public string RenderQualityLabel
+        {
+            get => _renderQualityLabel;
+            set { _renderQualityLabel = value; OnPropertyChanged(); }
+        }
+
+        // =========================
+        // Selected Crane
+        // =========================
         public Crane? SelectedCrane
         {
             get => _selectedCrane;
@@ -54,14 +111,12 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 OnPropertyChanged(nameof(SelectedCraneSpec));
 
                 CranePlacement.SelectedCrane = value;
+                StatusText = $"Crane Selected: {value?.Name}";
             }
         }
 
         public CraneSpecification? SelectedCraneSpec =>
             SelectedCrane?.Specifications.FirstOrDefault();
-
-        public SceneService Scene { get; }
-        public DrawingViewModel Drawing { get; }
 
         // =========================
         // Commands
@@ -81,23 +136,27 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IGeneticAlgorithmEngine ga,
             IRenderingService render,
             ICraneRepository craneRepo,
-            IServiceScopeFactory scopeFactory,
             IDialogService dialog)
         {
             Scene = scene;
             Drawing = drawing;
+            CranePlacement = cranePlacement;
+
             _ifcReader = ifcReader;
             _ga = ga;
             _render = render;
             _craneRepo = craneRepo;
             _dialog = dialog;
-            CranePlacement = cranePlacement;
 
             Scene.ElementsChanged += OnElementsChanged;
-            Scene.ZoneAdded += OnZoneAdded;
 
             LoadIfcCommand = new RelayCommand(LoadIfc);
-            StartDrawingCommand = new RelayCommand(() => Drawing.Start());
+            StartDrawingCommand = new RelayCommand(() =>
+            {
+                Drawing.Start();
+                StatusText = "Drawing started";
+            });
+
             OptimizeCommand = new RelayCommand(RunGA);
 
             _ = LoadCranesAsync();
@@ -112,86 +171,78 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _disposed = true;
 
             Scene.ElementsChanged -= OnElementsChanged;
-            Scene.ZoneAdded -= OnZoneAdded;
         }
 
         // =========================
-        // Events
+        // Scene Sync
         // =========================
         private void OnElementsChanged(List<PrecastElement> elements)
-            => _render.RenderElements(elements);
-
-        private void OnZoneAdded(CranePlacementZone zone)
-            => _render.RenderZone(zone);
-
-        // =========================
-        // Load Data
-        // =========================
-        private async Task LoadCranesAsync()
         {
-            var cranes = await _craneRepo.GetAllAsync();
-            Cranes.Clear();
-            foreach (var c in cranes) Cranes.Add(c);
+            Elements.Clear();
+            FilteredElements.Clear();
+
+            foreach (var e in elements)
+            {
+                Elements.Add(e);
+                FilteredElements.Add(e);
+            }
+
+            _render.RenderElements(elements);
+
+            IsModelLoaded = true;
+            StatusText = $"Model Loaded ({elements.Count} elements)";
         }
 
+        // =========================
+        // Load IFC
+        // =========================
         private void LoadIfc()
         {
-            // 1. File picker
             var path = _dialog.OpenFile("IFC (*.ifc)|*.ifc");
             if (string.IsNullOrEmpty(path)) return;
 
-            // 2. Show filter dialog (UI-level concern, F2_IfcViewer feature)
-            var optionsDialog = new IFCLoadOptionsDialog(path);
-            if (optionsDialog.ShowDialog() != true) return;   // user cancelled
+            var dialog = new IFCLoadOptionsDialog(path);
+            if (dialog.ShowDialog() != true) return;
 
-            // 3. Map dialog checkboxes → local UI model
             var filter = new IfcFilterOptions
             {
-                HideGrids           = optionsDialog.HideGrids,
-                HideLevels          = optionsDialog.HideLevels,
-                HideAnnotations     = optionsDialog.HideAnnotations,
-                HideSite            = optionsDialog.HideSite,
-                HideSpaces          = optionsDialog.HideSpaces,
-                HideOpenings        = optionsDialog.HideOpenings,
-                HideVirtualElements = optionsDialog.HideVirtualElements,
+                HideGrids = dialog.HideGrids,
+                HideLevels = dialog.HideLevels,
+                HideAnnotations = dialog.HideAnnotations,
+                HideSite = dialog.HideSite,
+                HideSpaces = dialog.HideSpaces,
+                HideOpenings = dialog.HideOpenings,
+                HideVirtualElements = dialog.HideVirtualElements
             };
 
-            // 4. Read ALL elements unchanged (IIfcReader not modified)
             var all = _ifcReader.ReadElements(path);
-
-            // 5. Apply visual filter here in the ViewModel
             var visible = ApplyFilter(all, filter);
 
-            // 6. Send filtered list to scene → triggers rendering
             Scene.SetElements(visible);
+
+            HistoryBreadcrumb = $"Loaded IFC: {Path.GetFileName(path)}";
         }
 
-        /// <summary>
-        /// Filters <paramref name="elements"/> according to <paramref name="options"/>.
-        /// Matching is case-insensitive on <see cref="PrecastElement.ElementType"/>
-        /// so version-prefixed names (e.g. "Ifc4.IfcGrid") are also excluded.
-        /// </summary>
-        private static List<PrecastElement> ApplyFilter(
-            List<PrecastElement> elements, IfcFilterOptions options)
+        private static List<PrecastElement> ApplyFilter(List<PrecastElement> elements, IfcFilterOptions options)
         {
             return elements.Where(e =>
             {
-                var t = e.ElementType ?? string.Empty;
+                var t = e.ElementType ?? "";
 
-                if (options.HideGrids           && t.Contains("IfcGrid",            StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideLevels          && t.Contains("IfcBuildingStorey",  StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideAnnotations     && t.Contains("IfcAnnotation",      StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideSite            && t.Contains("IfcSite",            StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideSpaces          && t.Contains("IfcSpace",           StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideOpenings        && t.Contains("IfcOpeningElement",  StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideVirtualElements && t.Contains("IfcVirtualElement",  StringComparison.OrdinalIgnoreCase)) return false;
+                if (options.HideGrids && t.Contains("IfcGrid", StringComparison.OrdinalIgnoreCase)) return false;
+                if (options.HideLevels && t.Contains("IfcBuildingStorey", StringComparison.OrdinalIgnoreCase)) return false;
+                if (options.HideAnnotations && t.Contains("IfcAnnotation", StringComparison.OrdinalIgnoreCase)) return false;
+                if (options.HideSite && t.Contains("IfcSite", StringComparison.OrdinalIgnoreCase)) return false;
+                if (options.HideSpaces && t.Contains("IfcSpace", StringComparison.OrdinalIgnoreCase)) return false;
+                if (options.HideOpenings && t.Contains("IfcOpeningElement", StringComparison.OrdinalIgnoreCase)) return false;
+                if (options.HideVirtualElements && t.Contains("IfcVirtualElement", StringComparison.OrdinalIgnoreCase)) return false;
 
                 return true;
             }).ToList();
         }
 
         // =========================
-        // GA Execution (Correct Version)
+        // GA
         // =========================
         private void RunGA()
         {
@@ -201,113 +252,58 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 return;
             }
 
-            if (!Scene.Zones.Any() || !Scene.Elements.Any())
+            if (!Elements.Any())
             {
-                _dialog.ShowMessage("Missing zones or elements");
+                _dialog.ShowMessage("No elements loaded");
                 return;
             }
+
+            StatusText = "Running Optimization...";
 
             var settings = new GASettings
             {
                 PopulationSize = 30,
                 MaxGenerations = 50,
-                MutationRate = 0.1,
-                MaxCranePositions = 1,
-                EarlyStoppingGenerations = 10
+                MutationRate = 0.1
             };
 
-            // ✅ استخدام PlacementInput (المهم)
             var input = new PlacementInput
             {
-                Zones = Scene.Zones.ToList(),
-                Elements = Scene.Elements.ToList(),
-                Assignment = new Dictionary<int, List<string>>(),
+                Elements = Elements.ToList(),
                 CraneSpec = SelectedCraneSpec,
                 Settings = settings
             };
 
             var solution = _ga.Run(input);
 
-            if (solution == null || solution.Chromosome.CranePositions.Count == 0)
+            if (solution == null)
             {
-                _dialog.ShowMessage("No valid solution found");
+                StatusText = "No solution found";
                 return;
             }
 
-            var result = BuildResult(solution, input.Elements, input.CraneSpec, input.Settings);
-
-            foreach (var pos in result.Positions)
-            {
+            foreach (var pos in solution.Chromosome.CranePositions)
                 _render.RenderBestPosition(pos.X, pos.Y);
-            }
 
-            //CranePlacement.Result = result;
+            StatusText = "Optimization Completed";
+            HistoryBreadcrumb = $"Best Fitness: {solution.Fitness:F2}";
         }
 
         // =========================
-        // Result Builder
+        // Helpers
         // =========================
-        private CranePlacementResult BuildResult(
-            CraneSolution solution,
-            List<PrecastElement> elements,
-            CraneSpecification craneSpec,
-            GASettings settings)
+        public void SetCoordinates(double x, double y)
         {
-            var result = new CranePlacementResult
-            {
-                FitnessScore = solution.Fitness,
-                CoverageRatio = solution.CoverageRatio
-            };
+            CoordX = $"{x:F2}M";
+            CoordY = $"{y:F2}M";
+        }
 
-            var stats = new LiftStatistics();
-
-            foreach (var pos in solution.Chromosome.CranePositions)
-            {
-                var posResult = new CranePositionResult
-                {
-                    X = pos.X,
-                    Y = pos.Y
-                };
-
-                foreach (var element in elements)
-                {
-                    double radius = LiftCalculation.CalculateRadius(pos, element);
-                    double height = LiftCalculation.CalculateLiftHeight(element, settings);
-                    double boom = LiftCalculation.CalculateRequiredBoomLength(radius, height);
-
-                    double requiredCapacity = element.ElementWT ?? 0;
-
-                    var status = LiftCalculation.DetermineLiftStatus(
-                        radius,
-                        boom,
-                        requiredCapacity,
-                        craneSpec,
-                        settings);
-
-                    switch (status)
-                    {
-                        case LiftStatus.Liftable: stats.Liftable++; break;
-                        case LiftStatus.OutOfRadius: stats.OutOfRadius++; break;
-                        case LiftStatus.Overweight: stats.Overweight++; break;
-                        case LiftStatus.HeightFail: stats.HeightFail++; break;
-                        case LiftStatus.SpecialCase: stats.SpecialCase++; break;
-                    }
-
-                    posResult.ElementResults.Add(new ElementLiftResult
-                    {
-                        ElementId = element.ElementID,
-                        Status = status,
-                        Radius = radius,
-                        RequiredCapacity = requiredCapacity
-                    });
-                }
-
-                result.Positions.Add(posResult);
-            }
-
-            result.Statistics = stats;
-
-            return result;
+        private async Task LoadCranesAsync()
+        {
+            var cranes = await _craneRepo.GetAllAsync();
+            Cranes.Clear();
+            foreach (var c in cranes)
+                Cranes.Add(c);
         }
     }
 }
