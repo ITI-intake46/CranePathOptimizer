@@ -14,30 +14,18 @@ namespace CraneOptimizer.UI.Shell.Views
         public MainWindow(MainViewModel vm, IRenderingService renderingService)
         {
             InitializeComponent();
-
             _renderingService = renderingService;
-
-            // ✅ IMPORTANT: attach ViewModel
             DataContext = vm;
-
-            // ✅ Initialize Helix
             _renderingService.Initialize(IfcViewer);
         }
 
-        // =========================
-        // Helpers
-        // =========================
-        private MainViewModel VM => DataContext as MainViewModel;
+        private MainViewModel? VM => DataContext as MainViewModel;
 
-        // =========================
-        // TITLE BAR
-        // =========================
+        // ── TITLE BAR ────────────────────────────────────────────────────
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (e.ClickCount == 2)
-                ToggleMaximize();
-            else
-                DragMove();
+            if (e.ClickCount == 2) ToggleMaximize();
+            else DragMove();
         }
 
         private void MinimizeWindow_Click(object sender, RoutedEventArgs e)
@@ -56,92 +44,114 @@ namespace CraneOptimizer.UI.Shell.Views
                 : WindowState.Maximized;
         }
 
-        // =========================
-        // TOOLBAR
-        // =========================
-        private void ClearHistory_Click(object sender, RoutedEventArgs e)
+        // ── TOOLBAR STUBS ─────────────────────────────────────────────────
+        private void BackToWelcome_Click(object sender, RoutedEventArgs e)
         {
-            if (VM != null)
-                VM.HistoryBreadcrumb = "No recent action";
+            // TODO: navigate back to WelcomePage
         }
 
+        private void SaveProject_Click(object sender, RoutedEventArgs e)
+        {
+            // TODO: delegate to MainViewModel
+        }
+
+        private void UndoBtn_Click(object sender, RoutedEventArgs e)
+        {
+            // TODO: delegate to DrawingViewModel.Undo()
+        }
+
+        private void RedoBtn_Click(object sender, RoutedEventArgs e)
+        {
+            // TODO: delegate to DrawingViewModel.Redo()
+        }
+
+        private void BtnDimensionTool_Click(object sender, RoutedEventArgs e)
+        {
+            // TODO: activate dimension tool
+        }
+
+        private void ClearHistory_Click(object sender, RoutedEventArgs e)
+        {
+            if (VM != null) VM.HistoryBreadcrumb = "No recent action";
+        }
+
+        // ── ELEMENT LIST ──────────────────────────────────────────────────
         private void ElementItem_Click(object sender, MouseButtonEventArgs e)
         {
             if (sender is FrameworkElement fe && fe.Tag is { } element)
-            {
                 if (VM != null)
                     VM.SelectedElementName = element.ToString() ?? string.Empty;
-            }
         }
 
-        // =========================
-        // VIEWPORT
-        // =========================
+        // ── VIEWPORT ─────────────────────────────────────────────────────
         private void ResetCamera_Click(object sender, RoutedEventArgs e)
-        {
-            IfcViewer.ZoomExtents();
-        }
+            => IfcViewer.ZoomExtents();
 
         private void IfcViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            // Keep default Helix behavior
+            // Helix handles zoom natively
         }
 
-        // =========================
-        // RENDER QUALITY
-        // =========================
+        // ── RENDER QUALITY ────────────────────────────────────────────────
         private void RenderQualityDropBtn_Click(object sender, RoutedEventArgs e)
-        {
-            // TODO: wire when Popup is added to XAML
-        }
+            => RenderQualityPopup.IsOpen = !RenderQualityPopup.IsOpen;
+
         private void RenderQuality_Changed(object sender, RoutedEventArgs e)
         {
             if (VM == null) return;
-            VM.RenderQualityLabel = "● STD"; // temporary until Popup restored
+            VM.RenderQualityLabel = rbRenderHigh?.IsChecked == true ? "● HQ" : "● STD";
+            RenderQualityPopup.IsOpen = false;
         }
 
-        // =========================
-        // OSNAP
-        // =========================
+        // ── OSNAP ─────────────────────────────────────────────────────────
         private void OsnapDropBtn_Click(object sender, RoutedEventArgs e)
+            => OsnapPopup.IsOpen = !OsnapPopup.IsOpen;
+
+        private void StatusOsnapMaster_Click(object sender, RoutedEventArgs e)
         {
-            // TODO: wire when OsnapPopup is added to XAML
+            // TODO: enable/disable all snap modes via DrawingViewModel
         }
+
         private void StatusOsnap_Click(object sender, RoutedEventArgs e)
         {
             if (sender is ToggleButton tb)
             {
                 var snapMode = tb.Tag?.ToString();
                 var isEnabled = tb.IsChecked == true;
-
-                // TODO → delegate to DrawingViewModel
+                // TODO: delegate to DrawingViewModel
             }
         }
 
-        // =========================
-        // STATUS HELPERS (MVVM SAFE)
-        // =========================
-        public void SetCoordinates(double x, double y)
+        // ── STATUS BAR PANELS ────────────────────────────────────────────
+        private void ShowCommandPanel_Click(object sender, RoutedEventArgs e)
         {
-            VM?.SetCoordinates(x, y);
+            // TODO: show/collapse command panel
         }
+
+        private void ShowLogsPanel_Click(object sender, RoutedEventArgs e)
+        {
+            // TODO: open logs panel
+        }
+
+        // ── PUBLIC HELPERS (called by services) ──────────────────────────
+        public void SetCoordinates(double x, double y)
+            => VM?.SetCoordinates(x, y);
 
         public void SetModelLoaded(bool loaded)
         {
-            if (VM != null)
-                VM.IsModelLoaded = loaded;
+            // ✅ NoModelOverlay is now driven by IsModelLoaded binding
+            // No need to touch Visibility directly
+            if (VM != null) VM.IsModelLoaded = loaded;
         }
 
         public void SetLastAction(string description)
         {
-            if (VM != null)
-                VM.HistoryBreadcrumb = description;
+            if (VM != null) VM.HistoryBreadcrumb = description;
         }
 
         public void SetStatus(string text)
         {
-            if (VM != null)
-                VM.StatusText = text;
+            if (VM != null) VM.StatusText = text;
         }
     }
 }
