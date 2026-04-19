@@ -137,7 +137,7 @@
                                 <StackPanel VerticalAlignment="Top">
                                     <Button Style="{StaticResource RibbonSmallBtn}"
                                             Width="140" Margin="0,0,0,2"
-                                            Command="{Binding LoadIfcCommand}"
+                                            Command="{Binding IfcViewer.LoadIfcCommand}"
                                             ToolTip="Load IFC Model">
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="📦" FontSize="13" Margin="0,0,6,0"/>
@@ -182,7 +182,7 @@
                                            Style="{StaticResource GroupLabel}"/>
                                 <StackPanel Orientation="Horizontal">
                                     <Button Style="{StaticResource RibbonLargeBtn}"
-                                            Command="{Binding LoadIfcCommand}"
+                                            Command="{Binding IfcViewer.LoadIfcCommand}"
                                             ToolTip="Load IFC file">
                                         <StackPanel HorizontalAlignment="Center">
                                             <TextBlock Text="📦" FontSize="26"

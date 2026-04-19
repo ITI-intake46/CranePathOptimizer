@@ -2,7 +2,6 @@ using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Shell.ViewModels;
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 
 namespace CraneOptimizer.UI.Shell.Views

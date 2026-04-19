@@ -6,6 +6,8 @@ using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
+using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
+using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Rendering;
@@ -74,6 +76,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<ElementVisualBuilder>();
             services.AddSingleton<IRenderingService, HelixRenderingService>();
             services.AddSingleton<ISceneService, SceneService>();
+            services.AddSingleton<IIfcOptionsDialogService, IfcOptionsDialogService>();
 
             // =========================
             // ViewModels
@@ -81,6 +84,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<MainViewModel>();
             services.AddSingleton<DrawingViewModel>();
             services.AddSingleton<CranePlacementViewModel>();
+            services.AddSingleton<IfcViewerViewModel>();
 
             // =========================
             // Views
