@@ -762,6 +762,8 @@
 
                     <!--  Viewport stack  -->
                     <Grid Grid.Row="1" ClipToBounds="True">
+
+                        <!--  3D VIEW  -->
                         <helix:HelixViewport3D
                             x:Name="IfcViewer"
                             Background="{DynamicResource BackgroundBrush}"
@@ -777,6 +779,7 @@
                             ShowViewCube="True"
                             ZoomAroundMouseDownPoint="True"
                             ZoomSensitivity="2">
+
                             <ModelVisual3D>
                                 <ModelVisual3D.Content>
                                     <Model3DGroup>
@@ -788,6 +791,29 @@
                                 </ModelVisual3D.Content>
                             </ModelVisual3D>
                         </helix:HelixViewport3D>
+
+                        <!--  🔥 IFC LOADING OVERLAY  -->
+                        <Border Background="#AA000000" Visibility="{Binding IfcViewer.IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
+
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+
+                                <TextBlock
+                                    Margin="0,0,0,10"
+                                    HorizontalAlignment="Center"
+                                    FontSize="16"
+                                    FontWeight="SemiBold"
+                                    Foreground="White"
+                                    Text="{Binding IfcViewer.Status}" />
+
+                                <ProgressBar
+                                    Width="220"
+                                    Height="8"
+                                    Maximum="100"
+                                    Minimum="0"
+                                    Value="{Binding IfcViewer.Progress}" />
+                            </StackPanel>
+                        </Border>
+
                     </Grid>
                 </Grid>
             </Border>

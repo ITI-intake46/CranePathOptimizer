@@ -84,7 +84,64 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             return elements;
         }
+        public List<PrecastElement> ReadElements(string path, IProgress<double> progress)
+        {
+            var result = new List<PrecastElement>();
 
+            using var model = IfcStore.Open(path);
+
+            _geometryContext = new Xbim3DModelContext(model);
+            _geometryContext.CreateContext();
+
+            var products = model.Instances
+                .OfType<IIfcProduct>()
+                .Where(p => p is IIfcBuildingElement && !string.IsNullOrWhiteSpace(p.Name))
+                .ToList();
+
+            int total = products.Count;
+            int processed = 0;
+
+            foreach (var p in products)
+            {
+                var bbox = GetBoundingBoxSize(p);
+                var cog = GetCOGFromShapeGeometry(p);
+
+                var element = new PrecastElement
+                {
+                    ElementID = p.GlobalId,
+                    ElementType = p.ExpressType?.Name,
+
+                    ElementLength = GetPropertyDouble(p, "length"),
+                    ElementWidth = GetPropertyDouble(p, "width"),
+                    ElementHeight = GetPropertyDouble(p, "height"),
+
+                    ElementVolume = GetQuantity(p, "volume") ??
+                                    GetPropertyDouble(p, "volume"),
+
+                    ElementWT = GetQuantity(p, "weight") ??
+                                GetPropertyDouble(p, "weight"),
+
+                    ElementMaterial = GetMaterial(p),
+
+                    BBoxLength = bbox?.L,
+                    BBoxWidth = bbox?.W,
+                    BBoxHeight = bbox?.H,
+
+                    ElementCOG = cog.HasValue
+                        ? new DomainPoint3D(cog.Value.X, cog.Value.Y, cog.Value.Z)
+                        : new DomainPoint3D(),
+                };
+
+                result.Add(element);
+
+                processed++;
+                progress?.Report((double)processed / total * 100.0);
+            }
+
+            _geometryContext = null;
+
+            return result;
+        }
         private XbimPoint3D? GetCOGFromShapeGeometry(IIfcProduct product)
         {
             try
