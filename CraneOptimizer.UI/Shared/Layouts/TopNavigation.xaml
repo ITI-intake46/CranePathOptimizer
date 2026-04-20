@@ -1,663 +1,89 @@
-<UserControl x:Class="CraneOptimizer.UI.Shared.Layouts.TopNavigation"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<UserControl
+    x:Class="CraneOptimizer.UI.Shared.Layouts.TopNavigation"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:AnalyzeViews="clr-namespace:CraneOptimizer.UI.Features.F8_GAOptimizer.Views"
+    xmlns:CraneViews="clr-namespace:CraneOptimizer.UI.Features.F3_CraneSetup.Views"
+    xmlns:IfcViews="clr-namespace:CraneOptimizer.UI.Features.F2_IfcViewer.Views"
+    xmlns:ZonesViews="clr-namespace:CraneOptimizer.UI.Features.F7_Zones.Views"
+    xmlns:project="clr-namespace:CraneOptimizer.UI.Features.F1_ProjectManagment.Views">
 
-    <Border Background="{DynamicResource SurfaceBrush}"
-            BorderBrush="{DynamicResource BorderBrush}"
-            BorderThickness="0,0,0,1">
+    <Border
+        Background="{DynamicResource SurfaceBrush}"
+        BorderBrush="{DynamicResource BorderBrush}"
+        BorderThickness="0,0,0,1">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="28"/>
-                <!-- Tab selector strip -->
-                <RowDefinition Height="100"/>
-                <!-- Tab content area  -->
+                <RowDefinition Height="28" />
+                <!--  Tab selector strip  -->
+                <RowDefinition Height="100" />
+                <!--  Tab content area  -->
             </Grid.RowDefinitions>
 
-            <!-- ── ROW 0: Tab selector strip ──────────────────────────────── -->
-            <Border Grid.Row="0"
-                    Background="{DynamicResource SurfaceElevatedBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="0,0,0,1">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Stretch">
+            <!--  ── ROW 0: Tab selector strip ────────────────────────────────  -->
+            <Border
+                Grid.Row="0"
+                Background="{DynamicResource SurfaceElevatedBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+                <StackPanel VerticalAlignment="Stretch" Orientation="Horizontal">
 
-                    <RadioButton x:Name="TabHome"
-                                 Content="HOME"
-                                 GroupName="RibbonTabs"
-                                 IsChecked="True"
-                                 Style="{StaticResource RibbonTabBtn}"
-                                 Checked="Tab_Checked"/>
+                    <RadioButton
+                        x:Name="TabHome"
+                        Checked="Tab_Checked"
+                        Content="HOME"
+                        GroupName="RibbonTabs"
+                        IsChecked="True"
+                        Style="{StaticResource RibbonTabBtn}" />
 
-                    <RadioButton x:Name="TabIFC"
-                                 Content="IFC MODEL"
-                                 GroupName="RibbonTabs"
-                                 Style="{StaticResource RibbonTabBtn}"
-                                 Checked="Tab_Checked"/>
+                    <RadioButton
+                        x:Name="TabIFC"
+                        Checked="Tab_Checked"
+                        Content="IFC MODEL"
+                        GroupName="RibbonTabs"
+                        Style="{StaticResource RibbonTabBtn}" />
 
-                    <RadioButton x:Name="TabCranes"
-                                 Content="CRANES"
-                                 GroupName="RibbonTabs"
-                                 Style="{StaticResource RibbonTabBtn}"
-                                 Checked="Tab_Checked"/>
+                    <RadioButton
+                        x:Name="TabCranes"
+                        Checked="Tab_Checked"
+                        Content="CRANES"
+                        GroupName="RibbonTabs"
+                        Style="{StaticResource RibbonTabBtn}" />
 
-                    <RadioButton x:Name="TabZones"
-                                 Content="ZONES"
-                                 GroupName="RibbonTabs"
-                                 Style="{StaticResource RibbonTabBtn}"
-                                 Checked="Tab_Checked"/>
+                    <RadioButton
+                        x:Name="TabZones"
+                        Checked="Tab_Checked"
+                        Content="ZONES"
+                        GroupName="RibbonTabs"
+                        Style="{StaticResource RibbonTabBtn}" />
 
-                    <RadioButton x:Name="TabAnalyze"
-                                 Content="ANALYZE"
-                                 GroupName="RibbonTabs"
-                                 Style="{StaticResource RibbonTabBtn}"
-                                 Checked="Tab_Checked"/>
+                    <RadioButton
+                        x:Name="TabAnalyze"
+                        Checked="Tab_Checked"
+                        Content="ANALYZE"
+                        GroupName="RibbonTabs"
+                        Style="{StaticResource RibbonTabBtn}" />
 
                 </StackPanel>
             </Border>
 
-            <!-- ── ROW 1: Tab content ──────────────────────────────────────── -->
+            <!--  ── ROW 1: Tab content ────────────────────────────────────────  -->
             <Grid Grid.Row="1">
 
-                <!-- ── HOME tab ─────────────────────────────────────────────── -->
-                <ScrollViewer x:Name="PanelHome"
-                              HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Disabled">
-                    <StackPanel Orientation="Horizontal" Margin="4,0">
+                <!--  ── HOME tab ───────────────────────────────────────────────  -->
+                <project:HomeTabView x:Name="PanelHome" Visibility="Visible" />
 
-                        <!-- Project group -->
-                        <Border Padding="4,4,0,0">
-                            <DockPanel LastChildFill="False" Width="210">
-                                <TextBlock DockPanel.Dock="Bottom" Text="PROJECT"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <StackPanel Orientation="Horizontal">
-                                    <Button Style="{StaticResource RibbonLargeBtn}"
-                                            Command="{Binding NewProjectCommand}"
-                                            ToolTip="New Project">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="🆕" FontSize="26"
-                                                       HorizontalAlignment="Center" Margin="0,8,0,2"/>
-                                            <TextBlock Text="New" HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonLargeBtn}"
-                                            Command="{Binding OpenProjectCommand}"
-                                            ToolTip="Open Project">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="📂" FontSize="26"
-                                                       HorizontalAlignment="Center" Margin="0,8,0,2"/>
-                                            <TextBlock Text="Open" HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonLargeBtn}"
-                                            Command="{Binding SaveProjectCommand}"
-                                            ToolTip="Save Project">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="💾" FontSize="26"
-                                                       HorizontalAlignment="Center" Margin="0,8,0,2"/>
-                                            <TextBlock Text="Save" HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
+                <!--  ── IFC MODEL tab ───────────────────────────────────────────  -->
+                <IfcViews:IfcTabView x:Name="PanelIFC" Visibility="Collapsed" />
 
-                        <Rectangle Style="{StaticResource RibbonSep}"/>
+                <!--  ── CRANES tab ──────────────────────────────────────────────  -->
+                <CraneViews:CranesTabView x:Name="PanelCranes" Visibility="Collapsed" />
 
-                        <!-- Settings group -->
-                        <Border Padding="4,4,0,0">
-                            <DockPanel LastChildFill="False" Width="130">
-                                <TextBlock DockPanel.Dock="Bottom" Text="SETTINGS"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <StackPanel Orientation="Horizontal">
-                                    <Button Style="{StaticResource RibbonLargeBtn}" ToolTip="Project Settings">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="⚙️" FontSize="26"
-                                                       HorizontalAlignment="Center" Margin="0,4,0,0"/>
-                                            <TextBlock Text="Project" HorizontalAlignment="Center"/>
-                                            <TextBlock Text="Settings" HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonLargeBtn}" ToolTip="Units">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="📐" FontSize="26"
-                                                       HorizontalAlignment="Center" Margin="0,0,0,10"/>
-                                            <TextBlock Text="Units" HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
+                <!--  ── ZONES tab ───────────────────────────────────────────────  -->
+                <ZonesViews:ZonesTabView x:Name="PanelZones" Visibility="Collapsed" />
 
-                        <Rectangle Style="{StaticResource RibbonSep}"/>
-
-                        <!-- Quick Access group -->
-                        <Border Padding="8,8,8,0">
-                            <DockPanel LastChildFill="False">
-                                <TextBlock DockPanel.Dock="Bottom" Text="QUICK ACCESS"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <StackPanel VerticalAlignment="Top">
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="140" Margin="0,0,0,2"
-                                            Command="{Binding IfcViewer.LoadIfcCommand}"
-                                            ToolTip="Load IFC Model">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="📦" FontSize="13" Margin="0,0,6,0"/>
-                                            <TextBlock Text="Load IFC Model"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="140" Margin="0,0,0,2"
-                                            ToolTip="Add Crane">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="🏗" FontSize="13" Margin="0,0,6,0"/>
-                                            <TextBlock Text="Add Crane"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="140"
-                                            Command="{Binding StartDrawingCommand}"
-                                            ToolTip="Draw Zones">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="🗺" FontSize="13" Margin="0,0,6,0"/>
-                                            <TextBlock Text="Draw Zones"/>
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
-
-                    </StackPanel>
-                </ScrollViewer>
-
-                <!-- ── IFC MODEL tab ─────────────────────────────────────────── -->
-                <ScrollViewer x:Name="PanelIFC"
-                              Visibility="Collapsed"
-                              HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Disabled">
-                    <StackPanel Orientation="Horizontal" Margin="4,0">
-
-                        <!-- Load Model group -->
-                        <Border Padding="4,4,0,0">
-                            <DockPanel LastChildFill="False" Width="210">
-                                <TextBlock DockPanel.Dock="Bottom" Text="LOAD MODEL"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <StackPanel Orientation="Horizontal">
-                                    <Button Style="{StaticResource RibbonLargeBtn}"
-                                            Command="{Binding IfcViewer.LoadIfcCommand}"
-                                            ToolTip="Load IFC file">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="📦" FontSize="26"
-                                                       HorizontalAlignment="Center" Margin="0,8,0,2"/>
-                                            <TextBlock Text="Load IFC" HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonLargeBtn}"
-                                            ToolTip="Merge IFC">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="🔗" FontSize="26"
-                                                       HorizontalAlignment="Center" Margin="0,8,0,2"/>
-                                            <TextBlock Text="Merge IFC" HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonLargeBtn}"
-                                            ToolTip="Clear Model">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="🗑" FontSize="26"
-                                                       HorizontalAlignment="Center" Margin="0,8,0,2"/>
-                                            <TextBlock Text="Clear" HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
-
-                        <Rectangle Style="{StaticResource RibbonSep}"/>
-
-                        <!-- Display group -->
-                        <Border Padding="8,8,0,0">
-                            <DockPanel LastChildFill="False">
-                                <TextBlock DockPanel.Dock="Bottom" Text="DISPLAY"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <StackPanel VerticalAlignment="Top">
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="160" Margin="0,0,0,2"
-                                            ToolTip="Toggle COG Markers">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="⊙" FontSize="13" Margin="0,0,6,0"/>
-                                            <TextBlock Text="Toggle COG Markers"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="160" Margin="0,0,0,2"
-                                            ToolTip="Color by Weight">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="🎨" FontSize="13" Margin="0,0,6,0"/>
-                                            <TextBlock Text="Color by Weight"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="160"
-                                            ToolTip="Export Element List">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="📊" FontSize="13" Margin="0,0,6,0"/>
-                                            <TextBlock Text="Export Element List"/>
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
-
-                        <Rectangle Style="{StaticResource RibbonSep}"/>
-
-                        <!-- Filter group -->
-                        <Border Padding="4,4,4,0">
-                            <DockPanel LastChildFill="False" Width="84">
-                                <TextBlock DockPanel.Dock="Bottom" Text="FILTER"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <Button Style="{StaticResource RibbonLargeBtn}"
-                                        Width="84"
-                                        ToolTip="Filter elements by type, material, weight, height">
-                                    <StackPanel HorizontalAlignment="Center">
-                                        <Viewbox Width="26" Height="26"
-                                                 HorizontalAlignment="Center" Margin="0,8,0,2">
-                                            <Canvas Width="24" Height="24">
-                                                <Polygon Points="2,3 22,3 14,13 14,21 10,21 10,13"
-                                                         Fill="{StaticResource PrimaryBrush}"
-                                                         Opacity="0.9"/>
-                                            </Canvas>
-                                        </Viewbox>
-                                        <TextBlock Text="Filter" HorizontalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-                            </DockPanel>
-                        </Border>
-
-                        <Rectangle Style="{StaticResource RibbonSep}"/>
-
-                        <!-- Site Layout group -->
-                        <Border Padding="4,4,0,0">
-                            <DockPanel LastChildFill="False" Width="140">
-                                <TextBlock DockPanel.Dock="Bottom" Text="SITE LAYOUT"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <StackPanel Orientation="Horizontal">
-                                    <Button Style="{StaticResource RibbonLargeBtn}"
-                                            ToolTip="Upload DXF">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="📐" FontSize="26"
-                                                       HorizontalAlignment="Center" Margin="0,8,0,2"/>
-                                            <TextBlock Text="Upload DXF" HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonLargeBtn}"
-                                            ToolTip="Align DXF">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="🎯" FontSize="26"
-                                                       HorizontalAlignment="Center" Margin="0,8,0,2"/>
-                                            <TextBlock Text="Align DXF" HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
-
-                    </StackPanel>
-                </ScrollViewer>
-
-                <!-- ── CRANES tab ────────────────────────────────────────────── -->
-                <ScrollViewer x:Name="PanelCranes"
-                              Visibility="Collapsed"
-                              HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Disabled">
-                    <StackPanel Orientation="Horizontal" Margin="0,0">
-
-                        <!-- Add Crane group -->
-                        <Border Padding="6,4,6,0">
-                            <DockPanel LastChildFill="False">
-                                <TextBlock DockPanel.Dock="Bottom" Text="ADD CRANE"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Top">
-                                    <Button Style="{StaticResource RibbonLargeBtn}"
-                                            Width="62"
-                                            ToolTip="Place Tower Crane">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="🏗" FontSize="24"
-                                                       HorizontalAlignment="Center" Margin="0,6,0,3"/>
-                                            <TextBlock Text="TOWER" HorizontalAlignment="Center"
-                                                       FontSize="9" FontWeight="Bold"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                            <TextBlock Text="CRANE" HorizontalAlignment="Center"
-                                                       FontSize="9"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonLargeBtn}"
-                                            Width="62" Margin="2,0,0,0"
-                                            ToolTip="Place Mobile Crane">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="🚚" FontSize="24"
-                                                       HorizontalAlignment="Center" Margin="0,6,0,3"
-                                                       Foreground="{StaticResource PrimaryBrush}"/>
-                                            <TextBlock Text="MOBILE" HorizontalAlignment="Center"
-                                                       FontSize="9" FontWeight="Bold"
-                                                       Foreground="{StaticResource PrimaryBrush}"/>
-                                            <TextBlock Text="CRANE" HorizontalAlignment="Center"
-                                                       FontSize="9"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
-
-                        <Rectangle Style="{StaticResource RibbonSep}"/>
-
-                        <!-- Manage group -->
-                        <Border Padding="6,6,6,0">
-                            <DockPanel LastChildFill="False" Width="168">
-                                <TextBlock DockPanel.Dock="Bottom" Text="MANAGE"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <StackPanel VerticalAlignment="Top" Margin="0,2,0,0">
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="160" Margin="0,0,0,1">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="✖" FontSize="10"
-                                                       Foreground="{StaticResource DestructiveBrush}"
-                                                       Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Remove Selected Crane"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="160" Margin="0,0,0,1">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="🗑" FontSize="10"
-                                                       Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Remove All Cranes"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <ToggleButton x:Name="TglSwingRadius"
-                                                  Style="{StaticResource RibbonToggleBtn}"
-                                                  Width="160"
-                                                  HorizontalContentAlignment="Left"
-                                                  Padding="6,0">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Ellipse Width="8" Height="8"
-                                                     Stroke="{StaticResource PrimaryBrush}"
-                                                     StrokeThickness="1.5"
-                                                     Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Show Swing Radius"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </ToggleButton>
-                                    <ToggleButton x:Name="TglCapacityRings"
-                                                  Style="{StaticResource RibbonToggleBtn}"
-                                                  Width="160"
-                                                  HorizontalContentAlignment="Left"
-                                                  Padding="6,0">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Ellipse Width="8" Height="8"
-                                                     Stroke="{StaticResource PrimaryBrush}"
-                                                     StrokeThickness="1.5"
-                                                     Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Show Capacity Rings"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </ToggleButton>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
-
-                        <Rectangle Style="{StaticResource RibbonSep}"/>
-
-                        <!-- Optimize group -->
-                        <Border Padding="6,4,6,0">
-                            <DockPanel LastChildFill="False">
-                                <TextBlock DockPanel.Dock="Bottom" Text="OPTIMIZE"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <Button Style="{StaticResource RibbonLargeBtn}"
-                                        Width="70"
-                                        Command="{Binding OptimizeCommand}"
-                                        ToolTip="Run Crane Optimizer">
-                                    <StackPanel HorizontalAlignment="Center">
-                                        <TextBlock Text="⚡" FontSize="24"
-                                                   HorizontalAlignment="Center" Margin="0,6,0,3"
-                                                   Foreground="{StaticResource PrimaryBrush}"/>
-                                        <TextBlock Text="Run" HorizontalAlignment="Center"
-                                                   FontSize="9" FontWeight="Bold"
-                                                   Foreground="{StaticResource PrimaryBrush}"/>
-                                        <TextBlock Text="Optimizer" HorizontalAlignment="Center"
-                                                   FontSize="9"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                    </StackPanel>
-                                </Button>
-                            </DockPanel>
-                        </Border>
-
-                        <Rectangle Style="{StaticResource RibbonSep}"/>
-
-                        <!-- Load Chart group -->
-                        <Border Padding="6,6,6,0">
-                            <DockPanel LastChildFill="False" Width="168">
-                                <TextBlock DockPanel.Dock="Bottom" Text="LOAD CHART"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <StackPanel VerticalAlignment="Top" Margin="0,2,0,0">
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="160" Margin="0,0,0,1"
-                                            ToolTip="Import a crane load chart from CSV">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="📊" FontSize="10"
-                                                       Foreground="{StaticResource PrimaryBrush}"
-                                                       Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Import Load Chart..." FontWeight="SemiBold"
-                                                       Foreground="{StaticResource PrimaryBrush}"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="160" Margin="0,0,0,1"
-                                            ToolTip="View all saved load charts">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="📋" FontSize="10"
-                                                       Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="View Saved Charts"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="160" Margin="0,0,0,1"
-                                            ToolTip="Open Crane Catalog Browser">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="🗂" FontSize="10"
-                                                       Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Crane Catalog..."
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
-
-                    </StackPanel>
-                </ScrollViewer>
-
-                <!-- ── ZONES tab ─────────────────────────────────────────────── -->
-                <ScrollViewer x:Name="PanelZones"
-                              Visibility="Collapsed"
-                              HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Disabled">
-                    <StackPanel Orientation="Horizontal" Margin="4,0">
-
-                        <!-- Draw group -->
-                        <Border Padding="4,4,0,0">
-                            <DockPanel LastChildFill="False" Width="140">
-                                <TextBlock DockPanel.Dock="Bottom" Text="DRAW"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <StackPanel Orientation="Horizontal">
-                                    <Button Style="{StaticResource RibbonLargeBtn}"
-                                            Command="{Binding StartDrawingCommand}"
-                                            ToolTip="Draw a new zone">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="✏️" FontSize="26"
-                                                       HorizontalAlignment="Center" Margin="0,8,0,2"/>
-                                            <TextBlock Text="Draw Zone" HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonLargeBtn}"
-                                            ToolTip="Select zone">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="↖" FontSize="26"
-                                                       HorizontalAlignment="Center" Margin="0,8,0,2"/>
-                                            <TextBlock Text="Select" HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
-
-                        <Rectangle Style="{StaticResource RibbonSep}"/>
-
-                        <!-- Mode group -->
-                        <Border Padding="8,8,8,0">
-                            <DockPanel LastChildFill="False">
-                                <TextBlock DockPanel.Dock="Bottom" Text="MODE"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <StackPanel VerticalAlignment="Top">
-                                    <RadioButton Content="🖊 Drawing" GroupName="ZoneMode"
-                                                 Style="{StaticResource RibbonModeBtn}"
-                                                 Width="100" Margin="0,0,0,2"
-                                                 IsChecked="True"/>
-                                    <RadioButton Content="↖ Select" GroupName="ZoneMode"
-                                                 Style="{StaticResource RibbonModeBtn}"
-                                                 Width="100" Margin="0,0,0,2"/>
-                                    <RadioButton Content="📏 Dimension" GroupName="ZoneMode"
-                                                 Style="{StaticResource RibbonModeBtn}"
-                                                 Width="100"/>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
-
-                        <Rectangle Style="{StaticResource RibbonSep}"/>
-
-                        <!-- Manage group -->
-                        <Border Padding="8,8,8,0">
-                            <DockPanel LastChildFill="False">
-                                <TextBlock DockPanel.Dock="Bottom" Text="MANAGE"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <StackPanel VerticalAlignment="Top">
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="130" Margin="0,0,0,2">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="✖" FontSize="10"
-                                                       Foreground="{StaticResource DestructiveBrush}"
-                                                       Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Delete Zone"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="130">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="🗑" FontSize="10"
-                                                       Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Clear All Zones"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
-
-                    </StackPanel>
-                </ScrollViewer>
-
-                <!-- ── ANALYZE tab ───────────────────────────────────────────── -->
-                <ScrollViewer x:Name="PanelAnalyze"
-                              Visibility="Collapsed"
-                              HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Disabled">
-                    <StackPanel Orientation="Horizontal" Margin="4,0">
-
-                        <!-- Run Optimizer group -->
-                        <Border Padding="4,4,0,0">
-                            <DockPanel LastChildFill="False" Width="90">
-                                <TextBlock DockPanel.Dock="Bottom" Text="OPTIMIZE"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <Button Style="{StaticResource RibbonLargeBtn}"
-                                        Width="80"
-                                        Command="{Binding OptimizeCommand}"
-                                        ToolTip="Run the crane placement optimiser">
-                                    <StackPanel HorizontalAlignment="Center">
-                                        <TextBlock Text="⚡" FontSize="26"
-                                                   HorizontalAlignment="Center" Margin="0,8,0,2"
-                                                   Foreground="{StaticResource PrimaryBrush}"/>
-                                        <TextBlock Text="Run" HorizontalAlignment="Center"
-                                                   Foreground="{StaticResource PrimaryBrush}"
-                                                   FontWeight="SemiBold"/>
-                                        <TextBlock Text="Optimizer" HorizontalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-                            </DockPanel>
-                        </Border>
-
-                        <Rectangle Style="{StaticResource RibbonSep}"/>
-
-                        <!-- Reports group -->
-                        <Border Padding="8,8,0,0">
-                            <DockPanel LastChildFill="False" Width="160">
-                                <TextBlock DockPanel.Dock="Bottom" Text="REPORTS"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <StackPanel VerticalAlignment="Top">
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="150" Margin="0,0,0,2"
-                                            ToolTip="Export the current analysis results">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="📄" FontSize="12"
-                                                       Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Export Analysis"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="150"
-                                            ToolTip="Export all zone definitions to JSON">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="📤" FontSize="12"
-                                                       Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Export Zones (JSON)"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
-
-                        <Rectangle Style="{StaticResource RibbonSep}"/>
-
-                        <!-- Lift Planning group -->
-                        <Border Padding="8,8,0,0">
-                            <DockPanel LastChildFill="False" Width="160">
-                                <TextBlock DockPanel.Dock="Bottom" Text="LIFT PLANNING"
-                                           Style="{StaticResource GroupLabel}"/>
-                                <StackPanel VerticalAlignment="Top">
-                                    <Button Style="{StaticResource RibbonSmallBtn}"
-                                            Width="150"
-                                            ToolTip="Open the Lift Plan module">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="🏋" FontSize="12"
-                                                       Foreground="{StaticResource DestructiveBrush}"
-                                                       Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Lift Plan..."
-                                                       Foreground="{StaticResource DestructiveBrush}"
-                                                       FontWeight="SemiBold"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
-
-                    </StackPanel>
-                </ScrollViewer>
+                <!--  ── ANALYZE tab ─────────────────────────────────────────────  -->
+                <AnalyzeViews:AnalyzeTabView x:Name="PanelAnalyze" Visibility="Collapsed" />
 
             </Grid>
         </Grid>
