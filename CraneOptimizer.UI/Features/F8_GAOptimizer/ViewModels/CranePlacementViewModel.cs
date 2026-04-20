@@ -4,6 +4,7 @@ using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Interfaces;
 using System.Windows.Input;
 using CraneOptimizer.UI.Core.Commands;
+using CraneOptimizer.UI.Features.F8_GAOptimizer;
 
 namespace CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels
 {

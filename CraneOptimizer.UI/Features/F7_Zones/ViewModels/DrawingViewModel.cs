@@ -1,7 +1,6 @@
 ﻿using CraneOptimizer.Domain.Common;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Core.Rendering;
 using CraneOptimizer.UI.Core.Services;
 
 

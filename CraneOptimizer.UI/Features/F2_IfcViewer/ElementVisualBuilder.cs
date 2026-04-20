@@ -6,7 +6,7 @@ using System.Numerics;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 
-namespace CraneOptimizer.UI.Rendering
+namespace CraneOptimizer.UI.Features.F2_IfcViewer
 {
     /// <summary>
     /// Builds visual representation of IFC elements (no viewport logic).
