@@ -1,49 +1,61 @@
-﻿<UserControl x:Class="CraneOptimizer.UI.Shell.Views.ShellLayout"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:layout="clr-namespace:CraneOptimizer.UI.Shared.Layouts">
+﻿<UserControl
+    x:Class="CraneOptimizer.UI.Shell.Views.ShellLayout"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:layout="clr-namespace:CraneOptimizer.UI.Shared.Layouts">
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="56"/>
-            <RowDefinition Height="40"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="28"/>
+            <RowDefinition Height="150" />
+            <!--  Top Navigation  -->
+            <RowDefinition Height="20" />
+            <!--  Info Bar  -->
+            <RowDefinition Height="*" />
+            <!--  Main Content (inside TopNavigation now)  -->
+            <RowDefinition Height="28" />
+            <!--  Status Bar  -->
         </Grid.RowDefinitions>
 
-        <!-- TopNavigation -->
-        <layout:TopNavigation Grid.Row="0"/>
+        <!--  ── Top Navigation (Tabs + Content) ─────────────────────  -->
+        <layout:TopNavigation Grid.Row="0" />
 
-        <!-- Info Bar -->
-        <Border Grid.Row="1"
-                Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="16,0">
+        <!--  ── Info Bar ───────────────────────────────────────────  -->
+        <Border
+            Grid.Row="1"
+            Padding="16,0"
+            Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="0,0,0,1">
 
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="{Binding StatusMessage}"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
-                           Margin="0,0,20,0"/>
+            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
 
-                <TextBlock Text="{Binding SelectedCrane.DisplayInfo}"
-                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                <!--  Status  -->
+                <TextBlock
+                    Margin="0,0,20,0"
+                    Foreground="{DynamicResource TextSecondaryBrush}"
+                    Text="{Binding StatusMessage}" />
+
+                <!--  Selected Crane Info  -->
+                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedCrane.DisplayInfo}" />
+
             </StackPanel>
         </Border>
 
-        <!-- Content -->
-        <layout:ContentHost Grid.Row="2"/>
+        <!--  ── Spacer (Content handled by TopNavigation) ───────────  -->
+        <Grid Grid.Row="2" />
 
-        <!-- Status Bar -->
-        <Border Grid.Row="3"
-                Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1,1,0,0"
-                Padding="12,0">
+        <!--  ── Status Bar ─────────────────────────────────────────  -->
+        <Border
+            Grid.Row="3"
+            Padding="12,0"
+            Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1,1,0,0">
 
-            <TextBlock Text="Ready"
-                       Foreground="{DynamicResource TextSecondaryBrush}"
-                       VerticalAlignment="Center"/>
+            <TextBlock
+                VerticalAlignment="Center"
+                Foreground="{DynamicResource TextSecondaryBrush}"
+                Text="Ready" />
         </Border>
 
     </Grid>
