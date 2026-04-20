@@ -1,5 +1,6 @@
 ﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.UI.Core.Interfaces;
 using HelixToolkit.Geometry;
 using System.Numerics;
 using System.Windows.Media;
@@ -10,9 +11,14 @@ namespace CraneOptimizer.UI.Rendering
     /// <summary>
     /// Builds visual representation of IFC elements (no viewport logic).
     /// </summary>
-    public class ElementVisualBuilder
+    public class ElementVisualBuilder : IVisualBuilder<(PrecastElement element, LiftStatus? status)>
     {
-        public ModelVisual3D Build(PrecastElement element, LiftStatus? status = null)
+        public Visual3D Build((PrecastElement element, LiftStatus? status) item)
+        {
+            return BuildInternal(item.element, item.status);
+        }
+
+        private ModelVisual3D BuildInternal(PrecastElement element, LiftStatus? status)
         {
             var meshBuilder = new MeshBuilder(true, true);
 

@@ -1,6 +1,7 @@
 ﻿using CraneOptimizer.Domain.Common;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Core.Rendering;
 using CraneOptimizer.UI.Core.Services;
 
 
@@ -48,7 +49,11 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 
             _drawing.AddPoint(point);
 
-            _render.UpdatePreview(_drawing.GetPoints());
+            _render.Render(
+                new[] { _drawing.GetPoints() },
+                new PreviewLinesBuilder(),
+                "Preview"
+            );
         }
 
         public void Finish()
@@ -58,7 +63,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             if (zone != null)
                 _scene.AddZone(zone);
 
-            _render.ClearPreview();
+            _render.ClearLayer("Preview");
+
             IsDrawing = false;
         }
     }

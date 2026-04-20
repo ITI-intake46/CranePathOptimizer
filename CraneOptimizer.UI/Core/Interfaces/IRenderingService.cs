@@ -1,8 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
-using CraneOptimizer.Domain.Common;
-using CraneOptimizer.Domain.Entities;
-using CraneOptimizer.Domain.Schemas;
-using HelixToolkit.Wpf;
+﻿using HelixToolkit.Wpf;
 
 namespace CraneOptimizer.UI.Core.Interfaces
 {
@@ -10,41 +6,10 @@ namespace CraneOptimizer.UI.Core.Interfaces
     {
         void Initialize(HelixViewport3D viewport);
 
-        // =========================
-        // Elements
-        // =========================
+        void Render<T>(IEnumerable<T> items, IVisualBuilder<T> builder, string layerName);
 
-        // Basic rendering (no GA)
-        void RenderElements(IEnumerable<PrecastElement> elements);
+        void Clear();
 
-        // Advanced rendering (with GA result)
-        void RenderElementsWithStatus(
-            IEnumerable<(PrecastElement element, LiftStatus status)> elements);
-
-        // =========================
-        // Zones
-        // =========================
-        void RenderZone(GreenAreaZone zone);
-
-        // =========================
-        // Crane
-        // =========================
-        void RenderCrane(Crane crane);
-
-        // =========================
-        // GA Result
-        // =========================
-        void RenderBestPosition(double x, double y);
-
-        // =========================
-        // Drawing
-        // =========================
-        void UpdatePreview(List<DomainPoint3D> points);
-        void ClearPreview();
-
-        // =========================
-        // Scene Control
-        // =========================
-        void ClearScene();
+        void ClearLayer(string layerKey);
     }
 }

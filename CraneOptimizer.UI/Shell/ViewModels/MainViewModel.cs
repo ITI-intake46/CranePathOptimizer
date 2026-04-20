@@ -1,5 +1,6 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
@@ -8,8 +9,10 @@ using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
+using CraneOptimizer.UI.Features.F6_CranePlacement;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
+using CraneOptimizer.UI.Rendering;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 
@@ -100,7 +103,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         }
 
         public CraneSpecification? SelectedCraneSpec =>
-            SelectedCrane?.Specifications.FirstOrDefault(); 
+            SelectedCrane?.Specifications.FirstOrDefault();
         #endregion
 
         #region GA_Run
@@ -143,7 +146,13 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             }
 
             foreach (var pos in solution.Chromosome.CranePositions)
-                _render.RenderBestPosition(pos.X, pos.Y);
+            {
+                _render.Render(
+                    new[] { (pos.X, pos.Y) },
+                    new BestPointVisualBuilder(),
+                    "GA"
+                );
+            }
 
             StatusText = "Optimization Completed";
             HistoryBreadcrumb = $"Best Fitness: {solution.Fitness:F2}";
@@ -162,11 +171,15 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 FilteredElements.Add(e);
             }
 
-            _render.RenderElements(elements);
+            _render.Render(
+                elements.Select(e => (e, (LiftStatus?)null)),
+                new ElementVisualBuilder(),
+                "Elements"
+            );
 
             IsModelLoaded = true;
             StatusText = $"Model Loaded ({elements.Count} elements)";
-        } 
+        }
         #endregion
 
         #region Dispose

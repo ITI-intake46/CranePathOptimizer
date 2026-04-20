@@ -68,8 +68,11 @@ namespace CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels
 
             CurrentPosition = point;
 
-            // 🔥 render crane position
-            _render.RenderBestPosition(point.X, point.Y);
+            _render.Render(
+                new[] { (point.X, point.Y) },
+                new BestPointVisualBuilder(),
+                "CranePosition"
+            );
 
             IsPlacing = false;
         }
