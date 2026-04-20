@@ -8,11 +8,11 @@ using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
-using CraneOptimizer.UI.Features.F6_CranePlacement;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
-using CraneOptimizer.UI.Rendering;
+using CraneOptimizer.UI.Features.F8_GAOptimizer;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 

@@ -4,7 +4,7 @@ using HelixToolkit.Wpf;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 
-namespace CraneOptimizer.UI.Core.Rendering
+namespace CraneOptimizer.UI.Features.F7_Zones
 {
     public class PreviewLinesBuilder : IVisualBuilder<List<DomainPoint3D>>
     {

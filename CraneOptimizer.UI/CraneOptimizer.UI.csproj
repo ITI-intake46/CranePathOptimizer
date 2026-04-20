@@ -57,6 +57,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Core\Rendering\" />
     <Folder Include="Features\F4_LoadChart\" />
     <Folder Include="Features\F5_ElementManagement\" />
     <Folder Include="Features\F9_Settings\" />
