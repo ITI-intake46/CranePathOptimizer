@@ -1,4 +1,5 @@
 ﻿using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Schemas.Enums;
 
 namespace CraneOptimizer.Domain.Schemas
 {
@@ -11,5 +12,7 @@ namespace CraneOptimizer.Domain.Schemas
         public double Area { get; set; }
 
         public string Name { get; set; }
+
+        public ZoneType Type { get; set; }
     }
 }
