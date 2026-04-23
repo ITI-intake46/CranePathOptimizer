@@ -33,7 +33,9 @@
                         </Button>
 
                         <!--  Allowed  -->
-                        <Button Margin="14,0,0,0" Style="{StaticResource RibbonLargeBtn}">
+                        <Button Margin="14,0,0,0"
+                                Style="{StaticResource RibbonLargeBtn}"
+                                Command="{Binding StartAllowedCommand}">
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock
                                     Margin="0,6,0,4"
@@ -45,7 +47,9 @@
                         </Button>
 
                         <!--  Forbidden  -->
-                        <Button Margin="14,0,0,0" Style="{StaticResource RibbonLargeBtn}">
+                        <Button Margin="14,0,0,0"
+                                Style="{StaticResource RibbonLargeBtn}"
+                                Command="{Binding StartForbiddenCommand}">
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock
                                     Margin="0,6,0,4"
@@ -100,18 +104,22 @@
                         <Button
                             Width="150"
                             Margin="0,0,0,3"
-                            Style="{StaticResource RibbonSmallBtn}">
+                            Style="{StaticResource RibbonSmallBtn}"
+                            Command="{Binding FinishCommand}">
                             <TextBlock Text="Finish Zone" />
                         </Button>
 
                         <Button
                             Width="150"
                             Margin="0,0,0,3"
-                            Style="{StaticResource RibbonSmallBtn}">
+                            Style="{StaticResource RibbonSmallBtn}"
+                            Command="{Binding UndoCommand}">
                             <TextBlock Text="Undo Vertex" />
                         </Button>
 
-                        <Button Width="150" Style="{StaticResource RibbonSmallBtn}">
+                        <Button Width="150"
+                                Style="{StaticResource RibbonSmallBtn}"
+                                Command="{Binding CancelCommand}">
                             <TextBlock Text="Cancel" />
                         </Button>
 

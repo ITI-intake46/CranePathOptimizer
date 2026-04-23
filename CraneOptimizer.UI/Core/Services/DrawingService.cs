@@ -41,11 +41,13 @@ namespace CraneOptimizer.UI.Core.Services
         public GreenAreaZone? BuildZone()
         {
             if (_points.Count < 3) return null;
-            return new GreenAreaZone
+
+            var zone = new GreenAreaZone
             {
-                Vertices = _points
-                    .Select(p => new DomainPoint(p.X, p.Y, p.Z)).ToList()
+                Vertices = _points.Select(p => new DomainPoint(p.X, p.Y, p.Z)).ToList()
             };
+
+            return zone;
         }
         private bool DoLinesIntersect(
                         DomainPoint p1, DomainPoint p2,
