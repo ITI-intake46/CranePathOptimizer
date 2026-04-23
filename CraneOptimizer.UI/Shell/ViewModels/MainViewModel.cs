@@ -1,7 +1,4 @@
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
@@ -13,6 +10,8 @@ using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 
@@ -22,10 +21,10 @@ namespace CraneOptimizer.UI.Shell.ViewModels
     {
         #region Fields
         private readonly IIfcReaderRepository _ifcReader;
-        private readonly IGeneticAlgorithmEngine _ga;
         private readonly IRenderingService _render;
         private readonly ICraneRepository _craneRepo;
         private readonly IDialogService _dialog;
+        private readonly ICranePlacementService _cranePlacementService;
 
         private Crane? _selectedCrane;
         private bool _disposed; 
@@ -39,10 +38,10 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CranePlacementViewModel cranePlacement,
             IfcViewerViewModel ifcViewer,
             IIfcReaderRepository ifcReader,
-            IGeneticAlgorithmEngine ga,
             IRenderingService render,
             ICraneRepository craneRepo,
-            IDialogService dialog)
+            IDialogService dialog,
+            ICranePlacementService cranePlacementService)
         {
             Scene = scene;
             Drawing = drawing;
@@ -50,14 +49,14 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IfcViewer = ifcViewer;
 
             _ifcReader = ifcReader;
-            _ga = ga;
             _render = render;
             _craneRepo = craneRepo;
             _dialog = dialog;
+            _cranePlacementService = cranePlacementService;
 
             Scene.ElementsChanged += OnElementsChanged;
 
-            OptimizeCommand = new RelayCommand(RunGA);
+            OptimizeCommand = new RelayCommand(OpenOptimizerDialog);
 
             _ = LoadCranesAsync();
         }
@@ -107,55 +106,25 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         #endregion
 
         #region GA_Run
-        private void RunGA()
+        private void OpenOptimizerDialog()
         {
-            if (SelectedCraneSpec == null)
+            var dialog = new CraneOptimizerDialog(
+                _cranePlacementService,
+                _render,
+                _dialog,
+                _craneRepo,
+                Scene);
+
+            if (System.Windows.Application.Current?.MainWindow != null)
+                dialog.Owner = System.Windows.Application.Current.MainWindow;
+
+            dialog.ShowDialog();
+
+            if (dialog.LatestResult != null)
             {
-                _dialog.ShowMessage("No Crane Selected");
-                return;
+                StatusText = "Optimization Completed";
+                HistoryBreadcrumb = $"Best Fitness: {dialog.LatestResult.FitnessScore:F2}";
             }
-
-            if (!Elements.Any())
-            {
-                _dialog.ShowMessage("No elements loaded");
-                return;
-            }
-
-            StatusText = "Running Optimization...";
-
-            var settings = new GASettings
-            {
-                PopulationSize = 30,
-                MaxGenerations = 50,
-                MutationRate = 0.1
-            };
-
-            var input = new PlacementInput
-            {
-                Elements = Elements.ToList(),
-                CraneSpec = SelectedCraneSpec,
-                Settings = settings
-            };
-
-            var solution = _ga.Run(input);
-
-            if (solution == null)
-            {
-                StatusText = "No solution found";
-                return;
-            }
-
-            foreach (var pos in solution.Chromosome.CranePositions)
-            {
-                _render.Render(
-                    new[] { (pos.X, pos.Y) },
-                    new BestPointVisualBuilder(),
-                    "GA"
-                );
-            }
-
-            StatusText = "Optimization Completed";
-            HistoryBreadcrumb = $"Best Fitness: {solution.Fitness:F2}";
         }
         #endregion
 
@@ -252,7 +221,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         private async Task LoadCranesAsync()
         {
-            var cranes = await _craneRepo.GetAllAsync();
+            var cranes = await _craneRepo.GetAllWithSpecsAsync();
             Cranes.Clear();
             foreach (var c in cranes)
                 Cranes.Add(c);

@@ -16,6 +16,11 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         public async Task<List<Crane>> GetAllAsync()
         {
+            return await GetAllWithSpecsAsync();
+        }
+
+        public async Task<List<Crane>> GetAllWithSpecsAsync()
+        {
             return await _context.Cranes
                                 .Include(c => c.Specifications)
                                 .ThenInclude(s => s.LoadChart)

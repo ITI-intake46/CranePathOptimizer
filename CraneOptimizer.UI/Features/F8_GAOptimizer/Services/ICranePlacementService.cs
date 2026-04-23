@@ -1,10 +1,10 @@
-﻿using CraneOptimizer.Application.Features.CranePlacement.DTOs;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+using CraneOptimizer.Application.Features.CranePlacement.DTOs;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 
-namespace CraneOptimizer.UI.Features.F6_CranePlacement.Services
+namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 {
-    internal interface ICranePlacementService
+    public interface ICranePlacementService
     {
-        Task<CranePlacementResult> RunOptimizationAsync(PlacementInput input);
+        Task<CranePlacementResult> RunOptimizationAsync(GASettings settings);
     }
 }
