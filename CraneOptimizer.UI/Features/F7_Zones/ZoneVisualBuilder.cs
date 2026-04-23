@@ -2,6 +2,7 @@
 using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Core.Interfaces;
 using HelixToolkit.Wpf;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 
@@ -9,6 +10,13 @@ namespace CraneOptimizer.UI.Features.F7_Zones
 {
     public class ZoneVisualBuilder : IVisualBuilder<GreenAreaZone>
     {
+        private readonly ISceneService _scene;
+
+        public ZoneVisualBuilder(ISceneService scene)
+        {
+            _scene = scene;
+        }
+
         public Visual3D Build(GreenAreaZone zone)
         {
             var meshBuilder = new HelixToolkit.Geometry.MeshBuilder(false, false);
@@ -20,14 +28,18 @@ namespace CraneOptimizer.UI.Features.F7_Zones
             if (points.Count < 3)
                 return new ModelVisual3D();
 
-            var color = zone.Type == ZoneType.Forbidden
+            bool isSelected = _scene.SelectedZone == zone;
+
+            var baseColor = zone.Type == ZoneType.Forbidden
                 ? Colors.Red
                 : Colors.Green;
 
+            var finalColor = isSelected ? Colors.Yellow : baseColor;
+
             var border = new LinesVisual3D
             {
-                Color = color,
-                Thickness = 3
+                Color = finalColor,
+                Thickness = isSelected ? 5 : 3
             };
 
             for (int i = 0; i < points.Count; i++)
@@ -52,16 +64,22 @@ namespace CraneOptimizer.UI.Features.F7_Zones
             };
 
             var material = new DiffuseMaterial(
-                new SolidColorBrush(color) { Opacity = 0.6 });
+                new SolidColorBrush(finalColor)
+                {
+                    Opacity = isSelected ? 0.85 : 0.5
+                });
 
             var model = new GeometryModel3D
             {
-                Geometry = wpfMesh,  
+                Geometry = wpfMesh,
                 Material = material,
                 BackMaterial = material
             };
 
             var container = new ModelVisual3D { Content = model };
+
+            container.SetValue(FrameworkElement.TagProperty, zone);
+
             container.Children.Add(border);
 
             return container;
