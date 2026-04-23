@@ -29,6 +29,7 @@ namespace CraneOptimizer.UI.Core.Interfaces
         void RemoveZone(GreenAreaZone zone);
         void RemoveSelectedZone();
         void ClearZones();
+        void UpdateZone(GreenAreaZone zone);
 
         GreenAreaZone? SelectedZone { get; }
         void SetSelectedZone(GreenAreaZone? zone);
@@ -64,6 +65,27 @@ namespace CraneOptimizer.UI.Core.Interfaces
         event Action<SceneCrane>? CraneRotated;
         event Action<SceneCrane>? CraneUpdated;
         event Action<SceneCrane?>? CraneSelected;
+
+        // =========================
+        // DXF (Drawings / Site Geometry)
+        // =========================
+        List<SceneDxf> GetDxfEntities();
+
+        void AddDxfEntity(SceneDxf entity);
+        void RemoveDxfEntity(SceneDxf entity);
+        void RemoveSelectedDxfEntity();
+        void ClearDxfEntities();
+        void UpdateDxfEntity(SceneDxf entity);
+
+        SceneDxf? SelectedDxfEntity { get; }
+        void SetSelectedDxfEntity(SceneDxf? entity);
+        void ClearDxfSelection();
+
+        event Action<SceneDxf>? DxfEntityAdded;
+        event Action<SceneDxf>? DxfEntityRemoved;
+        event Action<SceneDxf>? DxfEntityUpdated;
+        event Action? DxfEntitiesCleared;
+        event Action<SceneDxf?>? DxfEntitySelected;
 
         // =========================
         // GENERIC SELECTION
