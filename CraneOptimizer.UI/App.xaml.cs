@@ -1,6 +1,7 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.Repositories;
@@ -162,6 +163,7 @@ namespace CraneOptimizer.UI
             services.AddScoped<ICrossoverOperator, CrossoverOperator>();
             services.AddScoped<IMutationOperator, MutationOperator>();
             services.AddScoped<IReplacementStrategy, ReplacementStrategy>();
+            services.AddSingleton<GASettings>();
         }
     }
 }
