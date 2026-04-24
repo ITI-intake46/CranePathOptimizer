@@ -41,6 +41,12 @@
         /// </summary>
         public int MaxCranePositions { get; set; } = 3;
 
+        /// <summary>
+        /// Random seed for deterministic runs (optional).
+        /// if null -> fully random behaviour.
+        /// </summary>
+        public int? RandomSeed { get; set; } = 42;
+
         // ------------------------------
         // Fitness function weights
         // ------------------------------
@@ -82,5 +88,7 @@
         /// Number of consecutive generations without fitness improvement
         /// </summary>
         public int EarlyStoppingGenerations { get; set; } = 20;
+
+        public double DuplicationPenaltyWeight { get; set; } = 8.0;
     }
 }

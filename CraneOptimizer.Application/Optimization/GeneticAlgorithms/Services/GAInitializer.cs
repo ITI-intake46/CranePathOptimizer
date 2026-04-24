@@ -1,5 +1,6 @@
 ﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 
@@ -20,7 +21,15 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     /// </summary>
     public class GAInitializer : IGAInitializer
     {
-        private readonly Random _random = new();
+        private readonly Random _random;
+
+        public GAInitializer(GASettings settings)
+        {
+            // Initialize random seed for reproducibility if provided
+            _random = settings.RandomSeed.HasValue
+                    ? new Random(settings.RandomSeed.Value)
+                    : new Random();
+        }
 
         // ══════════════════════════════════════════════════════════════
         // PUBLIC ENTRY POINT
@@ -30,7 +39,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             List<GreenAreaZone> zones,
             List<PrecastElement> elements,
             int populationSize,
-            int maxCranePositions)
+            int maxCranePositions,
+            GASettings settings)
         {
             var population = new Population();
 

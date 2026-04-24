@@ -46,7 +46,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                 input.Zones,
                 input.Elements,
                 input.Settings.PopulationSize,
-                input.Settings.MaxCranePositions);
+                input.Settings.MaxCranePositions,
+                input.Settings);
 
             for (int generation = 0; generation < input.Settings.MaxGenerations; generation++)
             {
