@@ -12,7 +12,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
     public class GAInputBuilder
     {
         private readonly ISceneService _sceneService;
-        private readonly ICraneRepository _craneRepository;
         private readonly CoordinateService _coordinateService;
 
         public GAInputBuilder(
@@ -21,14 +20,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             CoordinateService coordinateService)
         {
             _sceneService = sceneService;
-            _craneRepository = craneRepository;
             _coordinateService = coordinateService;
         }
 
-        public async Task<PlacementInput> BuildAsync(GASettings settings)
+        public async Task<PlacementInput> BuildAsync(GASettings settings, Crane selectedCrane)
         {
             if (settings == null)
                 throw new ArgumentNullException(nameof(settings));
+
+            if (selectedCrane == null)
+                throw new InvalidOperationException("No crane selected.");
 
             var sceneElements = _sceneService.GetElements();
             if (sceneElements == null || sceneElements.Count == 0)
@@ -61,14 +62,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             if (zones.Count == 0)
                 throw new InvalidOperationException("No allowed zones found in the scene.");
 
-            // ***************************** CODE *****************************
-            var cranes = await _craneRepository.GetAllWithSpecsAsync();
-            if (cranes == null || cranes.Count == 0)
-                throw new InvalidOperationException("No crane found in the database.");
-
-            var selectedCrane = cranes[0];
+            //  FIX: use selected crane from UI
             var craneSpec = SelectCraneSpecification(selectedCrane);
-            // ***************************** CODE *****************************
 
             if (craneSpec == null)
                 throw new InvalidOperationException($"Crane '{selectedCrane.Name}' does not contain a valid specification.");
