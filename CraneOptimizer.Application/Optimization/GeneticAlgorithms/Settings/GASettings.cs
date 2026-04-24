@@ -1,4 +1,4 @@
-﻿namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
+namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
 {
     /// <summary>
     /// Configuration parameters of the Genetic Algorithm.
@@ -89,6 +89,7 @@
         /// </summary>
         public int EarlyStoppingGenerations { get; set; } = 20;
 
-        public double DuplicationPenaltyWeight { get; set; } = 8.0;
+        public double RadiusStdDevPenaltyWeight { get; set; } = 2.0;
+        public double BalancePenaltyWeight { get; set; } = 2.0;
     }
 }

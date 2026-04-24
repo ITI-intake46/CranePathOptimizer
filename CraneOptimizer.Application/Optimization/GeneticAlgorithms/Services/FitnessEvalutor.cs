@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 
@@ -82,30 +82,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // NEW: TRACK UNIQUE COVERAGE + DUPLICATION
             // ══════════════════════════════════════════════════════
 
-            // Counts how many times each element was lifted
-            var duplicateCounter = new Dictionary<string, int>();
-
-            foreach (var r in results)
-            {
-                if (r.Status != LiftStatus.Liftable)
-                    continue;
-
-                if (!duplicateCounter.ContainsKey(r.ElementId))
-                    duplicateCounter[r.ElementId] = 0;
-
-                duplicateCounter[r.ElementId]++;
-            }
-
             // Unique elements lifted (true coverage)
-            int uniqueLiftableCount = duplicateCounter.Count;
-
-            // Total extra lifts (duplicates)
-            int duplicationCount = duplicateCounter.Values.Sum(v => v - 1);
+            int uniqueLiftableCount = results
+                .Where(r => r.Status == LiftStatus.Liftable)
+                .Select(r => r.ElementId)
+                .Distinct()
+                .Count();
 
             double coverageRatio = (double)uniqueLiftableCount / total;
-
-            // Normalised duplication penalty
-            double normDuplication = (double)duplicationCount / total;
 
             // ── Hard constraint: zero coverage → zero fitness ──────
             if (uniqueLiftableCount == 0)
@@ -160,7 +144,24 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             }
 
             // ══════════════════════════════════════════════════════
-            // 5. FINAL FITNESS (WITH DUPLICATION PENALTY)
+            // 5. BALANCE & RADIUS STD-DEV PENALTIES
+            // ══════════════════════════════════════════════════════
+
+            var countsPerCrane = assignment.AssignedElements.Select(kv => kv.Value.Count).ToList();
+            double variance = countsPerCrane.Count > 1 ? 
+                countsPerCrane.Average(c => Math.Pow(c - countsPerCrane.Average(), 2)) : 0;
+            double normalizedVariance = total > 0 ? Math.Min(variance / total, 1.0) : 0;
+            double balancePenalty = settings.BalancePenaltyWeight * normalizedVariance;
+
+            var liftableRadii = results.Where(r => r.Status == LiftStatus.Liftable).Select(r => r.Radius).ToList();
+            double radiusStdDev = liftableRadii.Count > 1 ? 
+                Math.Sqrt(liftableRadii.Average(r => Math.Pow(r - liftableRadii.Average(), 2))) : 0;
+            double normalizedStdDev = settings.MaxRadiusForNormalisation > 0 ? 
+                Math.Min(radiusStdDev / settings.MaxRadiusForNormalisation, 1.0) : 0;
+            double radiusStdDevPenalty = settings.RadiusStdDevPenaltyWeight * normalizedStdDev;
+
+            // ══════════════════════════════════════════════════════
+            // 6. FINAL FITNESS
             // ══════════════════════════════════════════════════════
 
             double fitness =
@@ -170,13 +171,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 - settings.OverweightPenaltyWeight * normOverweight
                 - settings.HeightPenaltyWeight * normHeightFail
                 - SpecialCasePenaltyWeight * normSpecialCase
-                - settings.RadiusPenaltyWeight * radiusQualityPenalty * 0.5
-                - settings.DuplicationPenaltyWeight * normDuplication; // NEW
+                - settings.RadiusPenaltyWeight * radiusQualityPenalty
+                - balancePenalty
+                - radiusStdDevPenalty;
 
             fitness = Math.Max(0, fitness);
 
             // ══════════════════════════════════════════════════════
-            // 6. POPULATE BREAKDOWN
+            // 7. POPULATE BREAKDOWN
             // ══════════════════════════════════════════════════════
 
             breakdown.FitnessScore = fitness;

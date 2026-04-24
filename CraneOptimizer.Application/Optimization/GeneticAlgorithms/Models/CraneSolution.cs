@@ -1,4 +1,4 @@
-﻿namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
+namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
 {
     /// <summary>
     /// Represents a GA individual solution.
@@ -27,5 +27,19 @@
         /// Percentage of building elements that can be successfully lifted.
         /// </summary>
         public double CoverageRatio { get; set; }
+
+        public CraneSolution DeepCopy()
+        {
+            return new CraneSolution
+            {
+                Chromosome = new CraneChromosome
+                {
+                    CranePositions = new System.Collections.Generic.List<Domain.Common.DomainPoint3D>(Chromosome.CranePositions)
+                },
+                Fitness = this.Fitness,
+                Penalty = this.Penalty,
+                CoverageRatio = this.CoverageRatio
+            };
+        }
     }
 }

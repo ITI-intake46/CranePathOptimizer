@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
@@ -184,6 +184,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             var liftable = candidates
                 .Where(c => c.Status == LiftStatus.Liftable)
                 .OrderBy(c => c.Radius)
+                .ThenBy(c => c.AssignedCraneIndex) // Deterministic tie-breaking
                 .FirstOrDefault();
 
             if (liftable != null)
@@ -193,6 +194,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             return candidates
                 .OrderByDescending(c => GetFailureRank(c.Status))
                 .ThenBy(c => c.Radius)
+                .ThenBy(c => c.AssignedCraneIndex) // Deterministic tie-breaking
                 .First();
         }
 

@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
@@ -11,7 +11,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     /// </summary>
     public class MutationOperator : IMutationOperator
     {
-        private readonly Random _random = new();
+        private Random _random => GARandomManager.Instance;
 
         /// <summary>
         /// Applies mutation to a solution.
