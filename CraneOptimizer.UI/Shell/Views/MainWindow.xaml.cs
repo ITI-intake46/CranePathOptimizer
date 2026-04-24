@@ -2,11 +2,10 @@ using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F7_Zones;
+//using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Shell.ViewModels;
 using HelixToolkit.Wpf;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
 
@@ -30,6 +29,12 @@ namespace CraneOptimizer.UI.Shell.Views
             DataContext = vm;
 
             _renderingService.Initialize(IfcViewer);
+
+            #region DXF
+            // Wire the DXF uploader to the same Helix viewport.
+            // Mirrors the IRenderingService pattern — must be done after InitializeComponent.
+            //vm.Dxf.Initialize(IfcViewer);
+            #endregion
 
             #region Zones Interaction
             _sceneService.ZoneAdded += OnZoneAdded;

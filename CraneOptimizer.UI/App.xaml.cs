@@ -91,6 +91,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<DrawingViewModel>();
             services.AddSingleton<CranePlacementViewModel>();
             services.AddSingleton<IfcViewerViewModel>();
+            //services.AddSingleton<DxfTabViewModel>();
 
             // =========================
             // Views
