@@ -70,6 +70,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.13" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.13" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.14" />
+    <PackageReference Include="netDxf" Version="2023.11.10" />
     <PackageReference Include="Xbim.WindowsUI" Version="5.1.228" />
   </ItemGroup>
 
