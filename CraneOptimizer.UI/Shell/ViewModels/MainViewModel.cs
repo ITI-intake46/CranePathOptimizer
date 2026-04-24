@@ -13,6 +13,7 @@ using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer;
+using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 
@@ -38,6 +39,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             DrawingViewModel drawing,
             CranePlacementViewModel cranePlacement,
             IfcViewerViewModel ifcViewer,
+            DxfTabViewModel dxf,
             IIfcReaderRepository ifcReader,
             IGeneticAlgorithmEngine ga,
             IRenderingService render,
@@ -48,6 +50,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             Drawing = drawing;
             CranePlacement = cranePlacement;
             IfcViewer = ifcViewer;
+            Dxf = dxf;
 
             _ifcReader = ifcReader;
             _ga = ga;
@@ -77,6 +80,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         public CranePlacementViewModel CranePlacement { get; }
         public DrawingViewModel Drawing { get; }
         public IfcViewerViewModel IfcViewer { get; }
+        public DxfTabViewModel Dxf { get; }
         #endregion
 
         #region Commands

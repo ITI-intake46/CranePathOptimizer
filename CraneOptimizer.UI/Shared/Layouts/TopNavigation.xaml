@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:AnalyzeViews="clr-namespace:CraneOptimizer.UI.Features.F8_GAOptimizer.Views"
     xmlns:CraneViews="clr-namespace:CraneOptimizer.UI.Features.F3_CraneSetup.Views"
+    xmlns:DxfViews="clr-namespace:CraneOptimizer.UI.Features.F11_DXF.Views"
     xmlns:IfcViews="clr-namespace:CraneOptimizer.UI.Features.F2_IfcViewer.Views"
     xmlns:ZonesViews="clr-namespace:CraneOptimizer.UI.Features.F7_Zones.Views"
     xmlns:project="clr-namespace:CraneOptimizer.UI.Features.F1_ProjectManagment.Views">
@@ -44,6 +45,13 @@
                         Style="{StaticResource RibbonTabBtn}" />
 
                     <RadioButton
+                        x:Name="TabDXF"
+                        Checked="Tab_Checked"
+                        Content="DXF"
+                        GroupName="RibbonTabs"
+                        Style="{StaticResource RibbonTabBtn}" />
+
+                    <RadioButton
                         x:Name="TabCranes"
                         Checked="Tab_Checked"
                         Content="CRANES"
@@ -75,6 +83,9 @@
 
                 <!--  ── IFC MODEL tab ───────────────────────────────────────────  -->
                 <IfcViews:IfcTabView x:Name="PanelIFC" Visibility="Collapsed" />
+
+                <!--  ── DXF tab ─────────────────────────────────────────────────  -->
+                <DxfViews:DXFTabView x:Name="PanelDXF" Visibility="Collapsed" />
 
                 <!--  ── CRANES tab ──────────────────────────────────────────────  -->
                 <CraneViews:CranesTabView x:Name="PanelCranes" Visibility="Collapsed" />
