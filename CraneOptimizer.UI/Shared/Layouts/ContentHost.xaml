@@ -1,0 +1,15 @@
+<UserControl x:Class="CraneOptimizer.UI.Shared.Layouts.ContentHost"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        ContentHost hosts the active Feature view.
+        Binding: MainViewModel.CurrentView (set by navigation commands).
+        Currently used inside the right panel of MainWindow (Col 4) via SitePlannerView.
+        For full-screen feature views, bind directly to this from the 3D viewport column.
+    -->
+    <Border Background="{DynamicResource BackgroundBrush}">
+        <ContentControl Content="{Binding CurrentView}"/>
+    </Border>
+
+</UserControl>

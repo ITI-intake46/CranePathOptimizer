@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Enums;
+﻿using CraneOptimizer.Domain.Entities.Enums;
 
 namespace CraneOptimizer.Domain.Entities
 {

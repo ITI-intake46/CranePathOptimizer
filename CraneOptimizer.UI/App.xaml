@@ -1,6 +1,56 @@
-﻿<Application x:Class="CraneOptimizer.UI.App"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<Application
+    x:Class="CraneOptimizer.UI.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:CraneOptimizer.UI.Core.Converters">
     <Application.Resources>
+        <ResourceDictionary>
+            
+            <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+            <local:LiftStatusToBrushConverter x:Key="LiftStatusToBrushConverter"/>
+            
+            <ResourceDictionary.MergedDictionaries>
+
+                <!--
+                    LOAD ORDER IS CRITICAL.
+                    [0] Color tokens           — raw Color values, never change
+                    [1] Brush tokens           — SolidColorBrush keyed on Color tokens
+                    [2] Typography             — FontFamily / FontSize tokens
+                    [3] Spacing                — CornerRadius, ControlPadding, Space*
+                    [4] Control templates      — reference brush + spacing tokens
+                    [5] Shell chrome           — TitleBarButton, ToolbarButton, ElementListItem…
+                    [6] Window chrome          — WindowStyles (WindowChrome, resize grips)
+                -->
+
+                <!-- [0] Color tokens -->
+                <ResourceDictionary Source="Resources/Colors.xaml"/>
+
+                <!-- [1] Brush tokens — ALL StaticResource brush refs must be defined here -->
+                <ResourceDictionary Source="Resources/Brushes.xaml"/>
+
+                <!-- [2] Typography -->
+                <ResourceDictionary Source="Resources/Typography.xaml"/>
+
+                <!-- [3] Spacing -->
+                <ResourceDictionary Source="Resources/DesignSystem/Spacing.xaml"/>
+
+                <!-- [4] Control styles (single entry — was duplicated, now corrected) -->
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/ButtonStyles.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/TextBoxStyles.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/ComboBoxStyles.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/DataGridStyles.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/ToolbarStyles.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/RibbonStyles.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/NavigationStyles.xaml"/>
+                <ResourceDictionary Source="Resources/DesignSystem/Controls/ControlStyles.xaml"/>
+
+                <!-- [5] Shell chrome -->
+                <ResourceDictionary Source="Resources/Shell/ShellStyles.xaml"/>
+
+                <!-- [6] Window chrome -->
+                <ResourceDictionary Source="Resources/Shell/WindowStyles.xaml"/>
+
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

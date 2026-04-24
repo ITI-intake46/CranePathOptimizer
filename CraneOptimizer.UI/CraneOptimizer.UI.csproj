@@ -10,6 +10,37 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Controls\**" />
+    <Compile Remove="Converters\**" />
+    <Compile Remove="Features\F10_Themes\**" />
+    <Compile Remove="Features\F1_ProjectManagement\**" />
+    <Compile Remove="Features\F6_CranePlacement\**" />
+    <Compile Remove="Interaction\**" />
+    <Compile Remove="Views\**" />
+    <EmbeddedResource Remove="Controls\**" />
+    <EmbeddedResource Remove="Converters\**" />
+    <EmbeddedResource Remove="Features\F10_Themes\**" />
+    <EmbeddedResource Remove="Features\F1_ProjectManagement\**" />
+    <EmbeddedResource Remove="Features\F6_CranePlacement\**" />
+    <EmbeddedResource Remove="Interaction\**" />
+    <EmbeddedResource Remove="Views\**" />
+    <None Remove="Controls\**" />
+    <None Remove="Converters\**" />
+    <None Remove="Features\F10_Themes\**" />
+    <None Remove="Features\F1_ProjectManagement\**" />
+    <None Remove="Features\F6_CranePlacement\**" />
+    <None Remove="Interaction\**" />
+    <None Remove="Views\**" />
+    <Page Remove="Controls\**" />
+    <Page Remove="Converters\**" />
+    <Page Remove="Features\F10_Themes\**" />
+    <Page Remove="Features\F1_ProjectManagement\**" />
+    <Page Remove="Features\F6_CranePlacement\**" />
+    <Page Remove="Interaction\**" />
+    <Page Remove="Views\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="appsettings.json" />
     <None Remove="Data\crane.db" />
   </ItemGroup>
@@ -26,9 +57,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Interaction\" />
-    <Folder Include="ViewModels\" />
-    <Folder Include="Views\" />
+    <Folder Include="Core\Rendering\" />
+    <Folder Include="Features\F4_LoadChart\" />
+    <Folder Include="Features\F5_ElementManagement\" />
+    <Folder Include="Features\F9_Settings\" />
+    <Folder Include="Shell\ViewModels\" />
   </ItemGroup>
 
   <ItemGroup>
@@ -37,6 +70,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.13" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.13" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.14" />
+    <PackageReference Include="netDxf" Version="2023.11.10" />
     <PackageReference Include="Xbim.WindowsUI" Version="5.1.228" />
   </ItemGroup>
 

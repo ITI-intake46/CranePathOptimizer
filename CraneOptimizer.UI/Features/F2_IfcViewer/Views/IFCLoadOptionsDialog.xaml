@@ -1,0 +1,239 @@
+﻿<Window x:Class="CraneOptimizer.UI.Features.F2_IfcViewer.Views.IFCLoadOptionsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="IFC Load Options"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent">
+
+    <Window.Resources>
+        <Style x:Key="OptionCheck" TargetType="CheckBox">
+            <Setter Property="Foreground"               Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="FontSize"                 Value="12"/>
+            <Setter Property="Padding"                  Value="6,0,0,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Margin"                   Value="0,5,0,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border x:Name="CheckBorder"
+                                    Width="16" Height="16"
+                                    Background="{DynamicResource SurfaceElevatedBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1" CornerRadius="2"
+                                    VerticalAlignment="Center">
+                                <Path x:Name="CheckMark"
+                                      Data="M 2,7 L 6,11 L 13,3"
+                                      Stroke="{StaticResource PrimaryBrush}" StrokeThickness="2"
+                                      Visibility="Collapsed"
+                                      VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                            </Border>
+                            <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="CheckMark"   Property="Visibility"  Value="Visible"/>
+                                <Setter TargetName="CheckBorder" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+            <Setter Property="FontSize"   Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin"     Value="0,12,0,4"/>
+        </Style>
+    </Window.Resources>
+
+    <Border Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1" CornerRadius="6">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="56"/>
+            </Grid.RowDefinitions>
+
+            <!-- ── Title bar ─────────────────────────────────────────── -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SurfaceElevatedBrush}"
+                    CornerRadius="6,6,0,0"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid Margin="12,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="⚙" FontSize="14"
+                                   Foreground="{StaticResource PrimaryBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="IFC Load Options" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Button HorizontalAlignment="Right" Width="28" Height="28"
+                            Style="{StaticResource TitleBarButton}"
+                            Click="BtnCancel_Click" Content="✕" FontSize="11"/>
+                </Grid>
+            </Border>
+
+            <!-- ── Options content ───────────────────────────────────── -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16,8,16,8">
+
+                    <!-- File path display -->
+                    <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="4"
+                            Padding="10,8" Margin="0,4,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="File: " FontSize="12"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <TextBlock x:Name="TxtFilePath" Text="—" FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Annotation & Reference -->
+                    <TextBlock Style="{StaticResource SectionHeader}"
+                               Text="ANNOTATION &amp; REFERENCE OBJECTS"/>
+                    <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="4" Padding="12,10">
+                        <StackPanel>
+                            <CheckBox x:Name="ChkHideGrids"
+                                      Style="{StaticResource OptionCheck}"
+                                      IsChecked="True">
+                                <StackPanel>
+                                    <TextBlock Text="Hide Grids  (IfcGrid)" FontSize="12"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Structural reference grid lines" FontSize="10"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox x:Name="ChkHideLevels"
+                                      Style="{StaticResource OptionCheck}"
+                                      IsChecked="True">
+                                <StackPanel>
+                                    <TextBlock Text="Hide Levels / Storeys  (IfcBuildingStorey)" FontSize="12"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Floor level markers and elevation planes" FontSize="10"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox x:Name="ChkHideAnnotations"
+                                      Style="{StaticResource OptionCheck}"
+                                      IsChecked="True">
+                                <StackPanel>
+                                    <TextBlock Text="Hide Annotations  (IfcAnnotation)" FontSize="12"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Text labels, dimension marks, symbols" FontSize="10"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox x:Name="ChkHideSite"
+                                      Style="{StaticResource OptionCheck}"
+                                      IsChecked="False">
+                                <StackPanel>
+                                    <TextBlock Text="Hide Site  (IfcSite)" FontSize="12"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Site terrain and boundary geometry" FontSize="10"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </CheckBox>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Spatial & Volume -->
+                    <TextBlock Style="{StaticResource SectionHeader}"
+                               Text="SPATIAL &amp; VOLUME OBJECTS"/>
+                    <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="4" Padding="12,10">
+                        <StackPanel>
+                            <CheckBox x:Name="ChkHideSpaces"
+                                      Style="{StaticResource OptionCheck}"
+                                      IsChecked="True">
+                                <StackPanel>
+                                    <TextBlock Text="Hide Spaces / Rooms  (IfcSpace)" FontSize="12"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Room and area volume boxes" FontSize="10"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox x:Name="ChkHideOpenings"
+                                      Style="{StaticResource OptionCheck}"
+                                      IsChecked="True">
+                                <StackPanel>
+                                    <TextBlock Text="Hide Opening Elements  (IfcOpeningElement)" FontSize="12"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Door/window cutout voids" FontSize="10"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox x:Name="ChkHideVirtualElements"
+                                      Style="{StaticResource OptionCheck}"
+                                      IsChecked="True">
+                                <StackPanel>
+                                    <TextBlock Text="Hide Virtual Elements  (IfcVirtualElement)" FontSize="12"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Invisible boundary/placeholder elements" FontSize="10"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </CheckBox>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Note -->
+                    <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="4"
+                            Padding="10,8" Margin="0,10,0,4">
+                        <TextBlock Text="These settings only affect 3D rendering. All elements remain available in the element list."
+                                   FontSize="10"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ── Footer buttons ─────────────────────────────────────── -->
+            <Border Grid.Row="2"
+                    Background="{DynamicResource SurfaceElevatedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,1,0,0" CornerRadius="0,0,6,6">
+                <Grid Margin="16,0">
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Left" VerticalAlignment="Center">
+                        <Button Content="Select All" Width="80" Height="28" FontSize="11"
+                                Style="{StaticResource ButtonSecondary}"
+                                Click="BtnSelectAll_Click"/>
+                        <Button Content="Clear All"  Width="80" Height="28" FontSize="11"
+                                Margin="8,0,0,0"
+                                Style="{StaticResource ButtonSecondary}"
+                                Click="BtnClearAll_Click"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button Content="Cancel" Width="80" Height="32" FontSize="12"
+                                Style="{StaticResource ButtonSecondary}"
+                                Click="BtnCancel_Click"/>
+                        <Button Content="Load"   Width="90" Height="32"
+                                FontSize="12" FontWeight="SemiBold" Margin="8,0,0,0"
+                                Style="{StaticResource ButtonPrimary}"
+                                Click="BtnLoad_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>
