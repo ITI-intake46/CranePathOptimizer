@@ -1,6 +1,7 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 {
@@ -41,12 +42,16 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
             int stagnantGenerations = 0;
             double bestFitness = double.MinValue;
             CraneSolution bestSolution = null;
+            // Initialize deterministic random manager
+            GARandomManager.Initialize(input.Settings.RandomSeed);
+
             // 1️⃣ Initialize population
             var population = _initializer.InitializePopulation(
                 input.Zones,
                 input.Elements,
                 input.Settings.PopulationSize,
-                input.Settings.MaxCranePositions);
+                input.Settings.MaxCranePositions,
+                input.Settings);
 
             for (int generation = 0; generation < input.Settings.MaxGenerations; generation++)
             {
@@ -76,7 +81,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                 if (currentBest.Fitness > bestFitness)
                 {
                     bestFitness = currentBest.Fitness;
-                    bestSolution = currentBest;
+                    bestSolution = currentBest.DeepCopy();
                     stagnantGenerations = 0;
                 }
                 else
@@ -98,14 +103,24 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 
                 for (int i = 0; i < parents.Count - 1; i += 2)
                 {
-                    var child = _crossover.Crossover(parents[i], parents[i + 1]);
-                    children.Add(child);
+                    if (GARandomManager.Instance.NextDouble() < input.Settings.CrossoverRate)
+                    {
+                        var child1 = _crossover.Crossover(parents[i], parents[i + 1]);
+                        var child2 = _crossover.Crossover(parents[i + 1], parents[i]);
+                        children.Add(child1);
+                        children.Add(child2);
+                    }
+                    else
+                    {
+                        children.Add(parents[i].DeepCopy());
+                        children.Add(parents[i + 1].DeepCopy());
+                    }
                 }
 
                 // 6️⃣ Mutation
                 foreach (var child in children)
                 {
-                    if (Random.Shared.NextDouble() < input.Settings.MutationRate)
+                    if (GARandomManager.Instance.NextDouble() < input.Settings.MutationRate)
                         _mutation.Mutate(child, input.Zones);
                 }
                 foreach (var child in children)

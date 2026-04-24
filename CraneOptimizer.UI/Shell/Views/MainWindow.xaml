@@ -766,6 +766,8 @@
                         <!--  3D VIEW  -->
                         <helix:HelixViewport3D
                             x:Name="IfcViewer"
+                            MouseDown="IfcViewer_MouseDown"
+                            MouseMove="IfcViewer_MouseMove"
                             Background="{DynamicResource BackgroundBrush}"
                             CameraRotationMode="Turntable"
                             InfiniteSpin="False"

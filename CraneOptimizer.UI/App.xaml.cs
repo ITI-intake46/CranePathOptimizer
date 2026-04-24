@@ -1,16 +1,19 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
+using CraneOptimizer.UI.Features.F0_CoordinateSystem;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Shell.ViewModels;
 using CraneOptimizer.UI.Shell.Views;
 using Microsoft.EntityFrameworkCore;
@@ -64,11 +67,14 @@ namespace CraneOptimizer.UI
             // =========================
             services.AddSingleton<SceneService>();
             services.AddSingleton<DrawingService>();
+            services.AddSingleton<CoordinateService>();
 
             // =========================
             // GA
             // =========================
             RegisterGAServices(services);
+            services.AddScoped<GAInputBuilder>();
+            services.AddScoped<ICranePlacementService, CranePlacementService>();
 
             // =========================
             // Rendering and Geometry Builders
@@ -85,6 +91,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<DrawingViewModel>();
             services.AddSingleton<CranePlacementViewModel>();
             services.AddSingleton<IfcViewerViewModel>();
+            //services.AddSingleton<DxfTabViewModel>();
 
             // =========================
             // Views
@@ -157,6 +164,7 @@ namespace CraneOptimizer.UI
             services.AddScoped<ICrossoverOperator, CrossoverOperator>();
             services.AddScoped<IMutationOperator, MutationOperator>();
             services.AddScoped<IReplacementStrategy, ReplacementStrategy>();
+            services.AddSingleton<GASettings>();
         }
     }
 }

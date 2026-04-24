@@ -18,7 +18,7 @@ namespace CraneOptimizer.UI.Core.Services
             _viewport.Children.Clear();
 
             _viewport.Children.Add(new SunLight());
-            _viewport.Children.Add(new GridLinesVisual3D { Width = 200, Length = 200 });
+            _viewport.Children.Add(new GridLinesVisual3D { Width = 5000, Length = 5000 });
             _viewport.Children.Add(new CoordinateSystemVisual3D());
         }
 

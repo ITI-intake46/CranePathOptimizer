@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
@@ -10,7 +10,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     /// </summary>
     public class TournamentSelection : ISelectionStrategy
     {
-        private readonly Random _random = new();
+        private Random _random => GARandomManager.Instance;
 
         /// <summary>
         /// Number of individuals competing in each tournament.
@@ -49,13 +49,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         {
             var candidates = new List<CraneSolution>();
 
-            // TODO:
-            // randomly select TournamentSize individuals
-            // from population.Individuals
+            var pool = population.Individuals.ToList();
+
             for (int i = 0; i < TournamentSize; i++)
             {
-                int index = _random.Next(population.Individuals.Count);
-                candidates.Add(population.Individuals[index]);
+                if (pool.Count == 0) break;
+                int index = _random.Next(pool.Count);
+                candidates.Add(pool[index]);
+                pool.RemoveAt(index);
             }
 
             return candidates;
@@ -67,10 +68,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// </summary>
         private CraneSolution SelectBestCandidate(List<CraneSolution> candidates)
         {
-            // TODO:
-            // return candidate with highest Fitness
-
-            return candidates.OrderByDescending(c => c.Fitness).First();
+            // Deterministic tie-breaking to avoid random selection of identical fitness
+            return candidates
+                .OrderByDescending(c => c.Fitness)
+                .ThenByDescending(c => c.CoverageRatio)
+                .ThenBy(c => c.Chromosome.CranePositions.Count)
+                .First();
         }
     }
 }

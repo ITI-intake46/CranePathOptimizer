@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 
@@ -40,23 +40,25 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     ///     tournament selection and elitism implementations.
     ///     We clamp the final value at 0.
     ///
+    ///  7. NEW — Duplicate coverage is penalised.
+    ///     If multiple crane positions lift the SAME element,
+    ///     only one counts toward coverage; the rest are penalised.
+    ///     This forces GA to distribute lifting across positions.
+    ///
     /// ── Fitness formula ──────────────────────────────────────────────
     ///
     ///   fitness =
-    ///       CoverageWeight      * coverageRatio                (0–1)
-    ///     - RelocationWeight    * normalisedRelocationPenalty  (0–1)
-    ///     - RadiusPenaltyWeight * normalisedOutOfRadius        (0–1)
-    ///     - OverweightWeight    * normalisedOverweight         (0–1)
-    ///     - HeightPenaltyWeight * normalisedHeightFail         (0–1)
-    ///     - SpecialCaseWeight   * normalisedSpecialCase        (0–1)
-    ///
-    ///   All terms are in the same unit → smooth, comparable surface.
+    ///       CoverageWeight        * coverageRatio
+    ///     - RelocationWeight      * relocationPenalty
+    ///     - RadiusPenaltyWeight   * outOfRadius
+    ///     - OverweightWeight      * overweight
+    ///     - HeightPenaltyWeight   * heightFail
+    ///     - SpecialCaseWeight     * specialCase
+    ///     - DuplicationWeight     * duplicationPenalty   ← NEW
     ///
     /// </summary>
     public class FitnessEvaluator : IFitnessEvaluator
     {
-        // SpecialCase penalty weight is intentionally small.
-        // These are data gaps, not confirmed lift failures.
         private const double SpecialCasePenaltyWeight = 1.0;
 
         public FitnessBreakdown EvaluateFitness(
@@ -77,15 +79,20 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             int total = results.Count;
 
             // ══════════════════════════════════════════════════════
-            // 1. COVERAGE
+            // NEW: TRACK UNIQUE COVERAGE + DUPLICATION
             // ══════════════════════════════════════════════════════
 
-            int liftableCount = results.Count(r => r.Status == LiftStatus.Liftable);
+            // Unique elements lifted (true coverage)
+            int uniqueLiftableCount = results
+                .Where(r => r.Status == LiftStatus.Liftable)
+                .Select(r => r.ElementId)
+                .Distinct()
+                .Count();
 
-            double coverageRatio = (double)liftableCount / total;
+            double coverageRatio = (double)uniqueLiftableCount / total;
 
             // ── Hard constraint: zero coverage → zero fitness ──────
-            if (liftableCount == 0)
+            if (uniqueLiftableCount == 0)
             {
                 breakdown.FitnessScore = 0;
                 breakdown.CoverageRatio = 0;
@@ -95,23 +102,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             }
 
             // ══════════════════════════════════════════════════════
-            // 2. RELOCATION PENALTY  (normalised by MaxCranePositions)
+            // 2. RELOCATION PENALTY
             // ══════════════════════════════════════════════════════
-            // More crane setups = more cost, time, and risk.
-            // Normalised so 1 position → 1/Max, Max positions → 1.
-            // This removes bias from chromosome length variation.
 
             int craneCount = solution.Chromosome.CranePositions.Count;
+
             double normalisedRelocation = settings.MaxCranePositions > 0
                 ? (double)craneCount / settings.MaxCranePositions
                 : 0;
 
             // ══════════════════════════════════════════════════════
-            // 3. FAILURE PENALTIES  (each normalised by total elements)
+            // 3. FAILURE PENALTIES
             // ══════════════════════════════════════════════════════
-            // Normalising by total removes project-size bias.
-            // A project with 200 elements and 20 failures has the same
-            // normalised penalty as one with 20 elements and 2 failures.
 
             int outOfRadiusCount = results.Count(r => r.Status == LiftStatus.OutOfRadius);
             int overweightCount = results.Count(r => r.Status == LiftStatus.Overweight);
@@ -124,12 +126,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             double normSpecialCase = (double)specialCaseCount / total;
 
             // ══════════════════════════════════════════════════════
-            // 4. RADIUS QUALITY BONUS  (smooth signal for the GA)
+            // 4. RADIUS QUALITY BONUS
             // ══════════════════════════════════════════════════════
-            // Among liftable elements, reward smaller working radius.
-            // Smaller radius = safer lift, less crane stress.
-            // Normalised average radius gives a [0,1] penalty signal.
-            // Uses MaxRadius as the normalisation ceiling.
 
             double radiusQualityPenalty = 0;
 
@@ -146,7 +144,24 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             }
 
             // ══════════════════════════════════════════════════════
-            // 5. FINAL FITNESS
+            // 5. BALANCE & RADIUS STD-DEV PENALTIES
+            // ══════════════════════════════════════════════════════
+
+            var countsPerCrane = assignment.AssignedElements.Select(kv => kv.Value.Count).ToList();
+            double variance = countsPerCrane.Count > 1 ? 
+                countsPerCrane.Average(c => Math.Pow(c - countsPerCrane.Average(), 2)) : 0;
+            double normalizedVariance = total > 0 ? Math.Min(variance / total, 1.0) : 0;
+            double balancePenalty = settings.BalancePenaltyWeight * normalizedVariance;
+
+            var liftableRadii = results.Where(r => r.Status == LiftStatus.Liftable).Select(r => r.Radius).ToList();
+            double radiusStdDev = liftableRadii.Count > 1 ? 
+                Math.Sqrt(liftableRadii.Average(r => Math.Pow(r - liftableRadii.Average(), 2))) : 0;
+            double normalizedStdDev = settings.MaxRadiusForNormalisation > 0 ? 
+                Math.Min(radiusStdDev / settings.MaxRadiusForNormalisation, 1.0) : 0;
+            double radiusStdDevPenalty = settings.RadiusStdDevPenaltyWeight * normalizedStdDev;
+
+            // ══════════════════════════════════════════════════════
+            // 6. FINAL FITNESS
             // ══════════════════════════════════════════════════════
 
             double fitness =
@@ -156,21 +171,19 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 - settings.OverweightPenaltyWeight * normOverweight
                 - settings.HeightPenaltyWeight * normHeightFail
                 - SpecialCasePenaltyWeight * normSpecialCase
-                - settings.RadiusPenaltyWeight * radiusQualityPenalty * 0.5;
-            // Note: radiusQualityPenalty uses half the RadiusPenaltyWeight
-            // so it nudges the GA toward smaller radii without overriding
-            // the hard OutOfRadius penalty signal.
+                - settings.RadiusPenaltyWeight * radiusQualityPenalty
+                - balancePenalty
+                - radiusStdDevPenalty;
 
-            // ── Clamp: fitness is never negative ──────────────────
             fitness = Math.Max(0, fitness);
 
             // ══════════════════════════════════════════════════════
-            // 6. POPULATE BREAKDOWN
+            // 7. POPULATE BREAKDOWN
             // ══════════════════════════════════════════════════════
 
             breakdown.FitnessScore = fitness;
             breakdown.CoverageRatio = coverageRatio;
-            breakdown.LiftableElements = liftableCount;
+            breakdown.LiftableElements = uniqueLiftableCount;
             breakdown.TotalElements = total;
             breakdown.RelocationPenalty = normalisedRelocation;
             breakdown.RadiusPenalty = normOutOfRadius;

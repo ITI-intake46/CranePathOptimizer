@@ -1,5 +1,6 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 
@@ -20,7 +21,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     /// </summary>
     public class GAInitializer : IGAInitializer
     {
-        private readonly Random _random = new();
+        private Random Rng => GARandomManager.Instance;
+
+        public GAInitializer(GASettings settings)
+        {
+        }
 
         // ══════════════════════════════════════════════════════════════
         // PUBLIC ENTRY POINT
@@ -30,7 +35,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             List<GreenAreaZone> zones,
             List<PrecastElement> elements,
             int populationSize,
-            int maxCranePositions)
+            int maxCranePositions,
+            GASettings settings)
         {
             var population = new Population();
 
@@ -70,11 +76,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             var chromosome = new CraneChromosome();
 
             // Variable number of crane setups per chromosome
-            int craneCount = _random.Next(1, maxCranePositions + 1);
+            int craneCount = Rng.Next(1, maxCranePositions + 1);
 
             for (int j = 0; j < craneCount; j++)
             {
-                var zone = zones[_random.Next(zones.Count)];
+                var zone = zones[Rng.Next(zones.Count)];
                 var point = GenerateRandomPointInsideZone(zone);
                 chromosome.CranePositions.Add(point);
             }
@@ -109,7 +115,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         {
             var chromosome = new CraneChromosome();
 
-            int craneCount = _random.Next(1, maxCranePositions + 1);
+            int craneCount = Rng.Next(1, maxCranePositions + 1);
 
             // Step 1 — Cluster elements into craneCount groups
             var clusters = ClusterElements(elements, craneCount);
@@ -131,7 +137,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // Fallback: if heuristic failed to produce positions, add one random
             if (chromosome.CranePositions.Count == 0)
             {
-                var zone = zones[_random.Next(zones.Count)];
+                var zone = zones[Rng.Next(zones.Count)];
                 var point = GenerateRandomPointInsideZone(zone);
                 chromosome.CranePositions.Add(point);
             }
@@ -261,8 +267,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
             while (true)
             {
-                double x = bbox.minX + _random.NextDouble() * (bbox.maxX - bbox.minX);
-                double y = bbox.minY + _random.NextDouble() * (bbox.maxY - bbox.minY);
+                double x = bbox.minX + Rng.NextDouble() * (bbox.maxX - bbox.minX);
+                double y = bbox.minY + Rng.NextDouble() * (bbox.maxY - bbox.minY);
 
                 var point = new DomainPoint3D(x, y, 0);
 

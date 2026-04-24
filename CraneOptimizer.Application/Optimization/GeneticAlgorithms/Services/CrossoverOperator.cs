@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
@@ -9,7 +9,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     /// </summary>
     public class CrossoverOperator : ICrossoverOperator
     {
-        private readonly Random _random = new();
+        private Random _random => GARandomManager.Instance;
 
         /// <summary>
         /// Generates a child solution by combining positions from two parents.

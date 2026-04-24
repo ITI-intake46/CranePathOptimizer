@@ -1,4 +1,4 @@
-﻿namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
+namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
 {
     /// <summary>
     /// Configuration parameters of the Genetic Algorithm.
@@ -41,6 +41,12 @@
         /// </summary>
         public int MaxCranePositions { get; set; } = 3;
 
+        /// <summary>
+        /// Random seed for deterministic runs (optional).
+        /// if null -> fully random behaviour.
+        /// </summary>
+        public int? RandomSeed { get; set; } = 42;
+
         // ------------------------------
         // Fitness function weights
         // ------------------------------
@@ -82,5 +88,8 @@
         /// Number of consecutive generations without fitness improvement
         /// </summary>
         public int EarlyStoppingGenerations { get; set; } = 20;
+
+        public double RadiusStdDevPenaltyWeight { get; set; } = 2.0;
+        public double BalancePenaltyWeight { get; set; } = 2.0;
     }
 }

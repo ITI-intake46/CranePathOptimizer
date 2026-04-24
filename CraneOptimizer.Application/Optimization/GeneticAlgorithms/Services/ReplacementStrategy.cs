@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
@@ -25,31 +25,34 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
             int populationSize = oldPopulation.Individuals.Count;
 
-            // 1️⃣ احسب عدد الـ elite (10%)
+            // 1. Calculate elite count (10%)
             int eliteCount = (int)(populationSize * 0.1);
 
-            // 2️⃣ خد أفضل من القديم
+            // 2. Extract best individuals from the old population
             var elites = oldPopulation.Individuals
                 .OrderByDescending(i => i.Fitness)
+                .ThenByDescending(i => i.CoverageRatio)
+                .ThenBy(i => i.Chromosome.CranePositions.Sum(p => p.X + p.Y + p.Z))
                 .Take(eliteCount)
                 .ToList();
 
-            // 3️⃣ merge (old + children)
-            var merged = oldPopulation.Individuals
+            // 3. Merge old + children, but exclude elites to prevent duplication
+            var nonElitesMerged = oldPopulation.Individuals
+                .Except(elites)
                 .Concat(children)
                 .ToList();
 
-            // 4️⃣ sort وخد الأفضل
-            var nextGeneration = merged
+            // 4. Sort remaining merged pool and select enough to fill the population
+            var selectedNonElites = nonElitesMerged
                 .OrderByDescending(i => i.Fitness)
-                .Take(populationSize)
+                .ThenByDescending(i => i.CoverageRatio)
+                .ThenBy(i => i.Chromosome.CranePositions.Sum(p => p.X + p.Y + p.Z))
+                .Take(populationSize - eliteCount)
                 .ToList();
 
-            // 5️⃣ ضمان إن الـ elites موجودين
-            nextGeneration = nextGeneration
-                .Concat(elites)
-                .OrderByDescending(i => i.Fitness)
-                .Take(populationSize)
+            // 5. Combine elites and selected non-elites to form exactly populationSize
+            var nextGeneration = elites
+                .Concat(selectedNonElites)
                 .ToList();
 
             return new Population
