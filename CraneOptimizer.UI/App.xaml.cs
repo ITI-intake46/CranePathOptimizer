@@ -12,6 +12,7 @@ using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
+using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
@@ -93,6 +94,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<CranePlacementViewModel>();
             services.AddSingleton<IfcViewerViewModel>();
             services.AddSingleton<DxfTabViewModel>();
+            services.AddSingleton<ElementManagementViewModel>();
 
             // =========================
             // Views

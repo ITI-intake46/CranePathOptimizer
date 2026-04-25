@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using HelixToolkit.Wpf;
 using System.Windows.Media.Media3D;
@@ -118,6 +119,132 @@ namespace CraneOptimizer.UI.Core.Services
         {
             if (_viewport == null)
                 throw new System.InvalidOperationException("RenderingService not initialized");
+        }
+
+        // =========================
+        // Selection & Highlighting
+        // =========================
+        private readonly Dictionary<PrecastElement, Material?> _originalMaterials = new();
+
+        public void Highlight(PrecastElement element)
+        {
+            EnsureInitialized();
+            ResetHighlight();
+
+            foreach (var layer in _layers.Values)
+            {
+                foreach (var visual in layer)
+                {
+                    if (visual is ModelVisual3D mv && mv.Content is GeometryModel3D geo)
+                    {
+                        var tag = mv.GetValue(System.Windows.FrameworkElement.TagProperty) as PrecastElement;
+                        if (tag == element)
+                        {
+                            _originalMaterials[element] = geo.Material;
+                            geo.Material = MaterialHelper.CreateMaterial(System.Windows.Media.Colors.Yellow);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        public void ResetHighlight()
+        {
+            EnsureInitialized();
+
+            if (_originalMaterials.Count == 0)
+            {
+                // Fallback: Ensure all elements are at least gray if somehow the dictionary is empty
+                foreach (var layer in _layers.Values)
+                {
+                    foreach (var visual in layer)
+                    {
+                        if (visual is ModelVisual3D mv && mv.Content is GeometryModel3D geo)
+                        {
+                            var tag = mv.GetValue(System.Windows.FrameworkElement.TagProperty) as PrecastElement;
+                            if (tag != null)
+                            {
+                                geo.Material = MaterialHelper.CreateMaterial(System.Windows.Media.Colors.Gray);
+                            }
+                        }
+                    }
+                }
+                return;
+            }
+
+            foreach (var kvp in _originalMaterials)
+            {
+                var element = kvp.Key;
+                var originalMat = kvp.Value;
+
+                foreach (var layer in _layers.Values)
+                {
+                    foreach (var visual in layer)
+                    {
+                        if (visual is ModelVisual3D mv && mv.Content is GeometryModel3D geo)
+                        {
+                            var tag = mv.GetValue(System.Windows.FrameworkElement.TagProperty) as PrecastElement;
+                            if (tag == element)
+                            {
+                                geo.Material = originalMat;
+                            }
+                        }
+                    }
+                }
+            }
+            _originalMaterials.Clear();
+        }
+
+        public void Focus(PrecastElement element)
+        {
+            if (_viewport == null) return;
+
+            foreach (var layer in _layers.Values)
+            {
+                foreach (var visual in layer)
+                {
+                    if (visual is ModelVisual3D mv && mv.Content != null)
+                    {
+                        var tag = mv.GetValue(System.Windows.FrameworkElement.TagProperty) as PrecastElement;
+                        if (tag == element)
+                        {
+                            _viewport.ZoomExtents(mv.Content.Bounds, 200);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        public PrecastElement? FindElementAt(Point3D point)
+        {
+            EnsureInitialized();
+
+            foreach (var layer in _layers.Values)
+            {
+                foreach (var visual in layer)
+                {
+                    if (visual is ModelVisual3D mv && mv.Content != null)
+                    {
+                        var tag = mv.GetValue(System.Windows.FrameworkElement.TagProperty) as PrecastElement;
+                        if (tag == null) continue;
+
+                        var bounds = mv.Content.Bounds;
+                        
+                        // Check if point is within bounds (with small tolerance)
+                        var inflated = new Rect3D(bounds.X - 0.5, bounds.Y - 0.5, bounds.Z - 0.5, 
+                                                bounds.SizeX + 1.0, bounds.SizeY + 1.0, bounds.SizeZ + 1.0);
+
+                        if (inflated.Contains(point))
+                        {
+                            return tag;
+                        }
+                    }
+                }
+            }
+
+            return null;
         }
     }
 }

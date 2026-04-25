@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using HelixToolkit.Geometry;
@@ -58,7 +58,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 BackMaterial = material
             };
 
-            return new ModelVisual3D { Content = model };
+            var visual = new ModelVisual3D { Content = model };
+            visual.SetValue(System.Windows.FrameworkElement.TagProperty, element);
+            return visual;
         }
 
         private Color GetColor(LiftStatus? status)

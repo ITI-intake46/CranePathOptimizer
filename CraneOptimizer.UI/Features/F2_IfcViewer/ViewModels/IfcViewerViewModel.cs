@@ -7,7 +7,9 @@ using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Models;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
+using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using System.Windows.Input;
+using System.Windows.Media.Media3D;
 
 namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 {
@@ -65,23 +67,41 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
         #endregion
 
+        private readonly ElementManagementViewModel _elementManagement;
+        private readonly IRenderingService _renderingService;
+
         public IfcViewerViewModel(
             IIfcReaderRepository ifcReader,
             ISceneService scene,
             IDialogService dialog,
-            IIfcOptionsDialogService dialogService)
+            IIfcOptionsDialogService dialogService,
+            ElementManagementViewModel elementManagement,
+            IRenderingService renderingService)
         {
             _ifcReader = ifcReader;
             _scene = scene;
             _dialog = dialog;
             _dialogService = dialogService;
+            _elementManagement = elementManagement;
+            _renderingService = renderingService;
             
             LoadIfcCommand = new RelayCommand(
                 async () => await ExecuteLoadIfcAsync(),
                 () => !IsLoading);
 
-            ViewportClickCommand = new RelayCommand<DomainPoint3D>(
-                p => CurrentInteraction?.OnClick(p));
+            ViewportClickCommand = new RelayCommand<DomainPoint3D>(p =>
+            {
+                if (p == null) return;
+
+                // 1. Interaction routing (Zones etc)
+                CurrentInteraction?.OnClick(p);
+
+                // 2. Element selection hit-test
+                var wpfPoint = new System.Windows.Media.Media3D.Point3D(p.X, p.Y, p.Z);
+                var element = _renderingService.FindElementAt(wpfPoint);
+
+                _elementManagement.SelectedElement = element;
+            });
 
             ViewportMoveCommand = new RelayCommand<DomainPoint3D>(
                 p => CurrentInteraction?.OnMove(p));

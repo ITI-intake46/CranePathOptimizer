@@ -1,15 +1,12 @@
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
-using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
+using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
-using CraneOptimizer.UI.Features.F8_GAOptimizer;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
@@ -39,6 +36,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CranePlacementViewModel cranePlacement,
             IfcViewerViewModel ifcViewer,
             DxfTabViewModel dxf,
+            ElementManagementViewModel elementsVM,
             IIfcReaderRepository ifcReader,
             IRenderingService render,
             ICraneRepository craneRepo,
@@ -50,6 +48,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CranePlacement = cranePlacement;
             IfcViewer = ifcViewer;
             Dxf = dxf;
+            ElementsVM = elementsVM;
             IfcViewer.CurrentInteraction = ZonesDrawing;
             _ifcReader = ifcReader;
             _render = render;
@@ -57,7 +56,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _dialog = dialog;
             _cranePlacementService = cranePlacementService;
 
-            Scene.ElementsChanged += OnElementsChanged;
+            ElementsVM.ElementsLoaded += OnElementsLoaded;
 
             OptimizeCommand = new RelayCommand(OpenOptimizerDialog);
 
@@ -66,21 +65,15 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         #endregion
 
         #region Collections
-        // =========================
-        // Collections
-        // =========================
-        public ObservableCollection<PrecastElement> Elements { get; } = new();
-        public ObservableCollection<PrecastElement> FilteredElements { get; } = new();
         public ObservableCollection<Crane> Cranes { get; } = new();
-
         #endregion
 
         #region ViewModels
         public CranePlacementViewModel CranePlacement { get; }
         public DrawingViewModel ZonesDrawing { get; }
-
         public IfcViewerViewModel IfcViewer { get; }
         public DxfTabViewModel Dxf { get; }
+        public ElementManagementViewModel ElementsVM { get; }
         #endregion
 
         #region Commands
@@ -133,26 +126,11 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         }
         #endregion
 
-        #region Scene sync
-        private void OnElementsChanged(List<PrecastElement> elements)
+        #region Elements bridge
+        private void OnElementsLoaded(int count)
         {
-            Elements.Clear();
-            FilteredElements.Clear();
-
-            foreach (var e in elements)
-            {
-                Elements.Add(e);
-                FilteredElements.Add(e);
-            }
-
-            _render.Render(
-                elements.Select(e => (e, (LiftStatus?)null)),
-                new ElementVisualBuilder(),
-                "Elements"
-            );
-
             IsModelLoaded = true;
-            StatusText = $"Model Loaded ({elements.Count} elements)";
+            StatusText = $"Model Loaded ({count} elements)";
         }
         #endregion
 
@@ -162,7 +140,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             if (_disposed) return;
             _disposed = true;
 
-            Scene.ElementsChanged -= OnElementsChanged;
+            ElementsVM.ElementsLoaded -= OnElementsLoaded;
+            ElementsVM.Dispose();
         } 
         #endregion
 

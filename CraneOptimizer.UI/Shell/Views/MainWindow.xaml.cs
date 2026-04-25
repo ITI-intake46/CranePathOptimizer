@@ -77,7 +77,6 @@ namespace CraneOptimizer.UI.Shell.Views
         private void RedoBtn_Click(object sender, RoutedEventArgs e) { }
         private void ClearHistory_Click(object sender, RoutedEventArgs e) { }
         private void BtnDimensionTool_Click(object sender, RoutedEventArgs e) { }
-        private void ElementItem_Click(object sender, MouseButtonEventArgs e) { }
 
         private void ResetCamera_Click(object sender, RoutedEventArgs e)
         {
