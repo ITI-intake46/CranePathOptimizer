@@ -19,12 +19,14 @@ namespace CraneOptimizer.Infrastructure.Contexts
             modelBuilder.Entity<Crane>()
                 .HasMany(c => c.Specifications)
                 .WithOne(s => s.Crane)
-                .HasForeignKey(s => s.CraneId);
+                .HasForeignKey(s => s.CraneId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<CraneSpecification>()
                 .HasMany(s => s.LoadChart)
                 .WithOne(t => t.CraneSpecification)
-                .HasForeignKey(t => t.CraneSpecificationId);
+                .HasForeignKey(t => t.CraneSpecificationId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }
