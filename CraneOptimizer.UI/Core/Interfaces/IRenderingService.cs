@@ -1,4 +1,4 @@
-﻿using HelixToolkit.Wpf;
+using HelixToolkit.Wpf;
 
 namespace CraneOptimizer.UI.Core.Interfaces
 {
@@ -11,5 +11,9 @@ namespace CraneOptimizer.UI.Core.Interfaces
         void Clear();
 
         void ClearLayer(string layerKey);
+
+        void AddOrUpdate<T>(T item, IVisualBuilder<T> builder, string layerKey);
+
+        void Remove<T>(T item, string layerKey);
     }
 }

@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
@@ -8,7 +8,7 @@ using System.Windows.Input;
 
 namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 {
-    public class DrawingViewModel : ViewModelBase
+    public class DrawingViewModel : ViewModelBase , IViewportInteraction
     {
         private readonly DrawingService _drawing;
         private readonly ISceneService _scene;
@@ -44,6 +44,12 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
                 _isDrawing = value;
                 OnPropertyChanged();
                 CommandManager.InvalidateRequerySuggested();
+
+                (StartAllowedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (StartForbiddenCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (FinishCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (CancelCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (UndoCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
         }
 
@@ -200,6 +206,18 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             return System.Math.Abs(a.X - b.X) < 0.001 &&
                    System.Math.Abs(a.Y - b.Y) < 0.001 &&
                    System.Math.Abs(a.Z - b.Z) < 0.001;
+        }
+
+        public void OnClick(DomainPoint3D point)
+        {
+            if (!IsDrawing) return;
+            AddPoint(point);
+        }
+
+        public void OnMove(DomainPoint3D point)
+        {
+            if (!IsDrawing) return;
+            SetHoverPoint(point);
         }
     }
 }

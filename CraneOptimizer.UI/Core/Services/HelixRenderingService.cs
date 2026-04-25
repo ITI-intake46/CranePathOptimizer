@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Core.Interfaces;
 using HelixToolkit.Wpf;
 using System.Windows.Media.Media3D;
 
@@ -56,6 +56,47 @@ namespace CraneOptimizer.UI.Core.Services
             }
 
             _layers.Remove(layerKey);
+        }
+        // =========================
+        // Incremental Updates
+        // =========================
+        public void AddOrUpdate<T>(T item, IVisualBuilder<T> builder, string layerKey)
+        {
+            EnsureInitialized();
+
+            if (!_layers.ContainsKey(layerKey))
+            {
+                _layers[layerKey] = new List<Visual3D>();
+            }
+
+            var layer = _layers[layerKey];
+            var existing = layer.FirstOrDefault(v => v is ModelVisual3D mv && mv.GetValue(System.Windows.FrameworkElement.TagProperty)?.Equals(item) == true);
+
+            if (existing != null)
+            {
+                _viewport!.Children.Remove(existing);
+                layer.Remove(existing);
+            }
+
+            var visual = builder.Build(item);
+            _viewport!.Children.Add(visual);
+            layer.Add(visual);
+        }
+
+        public void Remove<T>(T item, string layerKey)
+        {
+            EnsureInitialized();
+
+            if (!_layers.ContainsKey(layerKey)) return;
+
+            var layer = _layers[layerKey];
+            var existing = layer.FirstOrDefault(v => v is ModelVisual3D mv && mv.GetValue(System.Windows.FrameworkElement.TagProperty)?.Equals(item) == true);
+
+            if (existing != null)
+            {
+                _viewport!.Children.Remove(existing);
+                layer.Remove(existing);
+            }
         }
 
         // =========================

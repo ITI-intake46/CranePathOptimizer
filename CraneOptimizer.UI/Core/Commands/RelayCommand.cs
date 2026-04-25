@@ -12,18 +12,23 @@ namespace CraneOptimizer.UI.Core.Commands
 
         public RelayCommand(Action execute, Func<bool>? canExecute = null)
         {
-            _execute = execute;
+            _execute = execute ?? throw new ArgumentNullException(nameof(execute));
             _canExecute = canExecute;
         }
 
-        public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
-        public void Execute(object? parameter) => _execute();
+        public bool CanExecute(object? parameter)
+            => _canExecute?.Invoke() ?? true;
 
-        public event EventHandler? CanExecuteChanged
-        {
-            add => CommandManager.RequerySuggested += value;
-            remove => CommandManager.RequerySuggested -= value;
-        }
+        public void Execute(object? parameter)
+            => _execute();
+
+        public event EventHandler? CanExecuteChanged;
+
+        /// <summary>
+        /// Manually trigger CanExecute reevaluation
+        /// </summary>
+        public void RaiseCanExecuteChanged()
+            => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -36,20 +41,34 @@ namespace CraneOptimizer.UI.Core.Commands
 
         public RelayCommand(Action<T?> execute, Func<T?, bool>? canExecute = null)
         {
-            _execute = execute;
+            _execute = execute ?? throw new ArgumentNullException(nameof(execute));
             _canExecute = canExecute;
         }
 
         public bool CanExecute(object? parameter)
-            => _canExecute?.Invoke((T?)parameter) ?? true;
+        {
+            if (_canExecute == null) return true;
+
+            if (parameter == null && typeof(T).IsValueType)
+                return _canExecute(default);
+
+            return _canExecute((T?)parameter);
+        }
 
         public void Execute(object? parameter)
-            => _execute((T?)parameter);
-
-        public event EventHandler? CanExecuteChanged
         {
-            add => CommandManager.RequerySuggested += value;
-            remove => CommandManager.RequerySuggested -= value;
+            if (parameter == null && typeof(T).IsValueType)
+            {
+                _execute(default);
+                return;
+            }
+
+            _execute((T?)parameter);
         }
+
+        public event EventHandler? CanExecuteChanged;
+
+        public void RaiseCanExecuteChanged()
+            => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
     }
 }

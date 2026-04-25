@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:helix="http://helix-toolkit.org/wpf"
     xmlns:nav="clr-namespace:CraneOptimizer.UI.Shared.Layouts"
+    xmlns:views="clr-namespace:CraneOptimizer.UI.Features.F2_IfcViewer.Views"
     Title="IFC Building Analyzer — Crane Planner Edition"
     Width="1600"
     Height="800"
@@ -764,35 +765,7 @@
                     <Grid Grid.Row="1" ClipToBounds="True">
 
                         <!--  3D VIEW  -->
-                        <helix:HelixViewport3D
-                            x:Name="IfcViewer"
-                            MouseDown="IfcViewer_MouseDown"
-                            MouseMove="IfcViewer_MouseMove"
-                            Background="{DynamicResource BackgroundBrush}"
-                            CameraRotationMode="Turntable"
-                            InfiniteSpin="False"
-                            IsPanEnabled="True"
-                            IsRotationEnabled="True"
-                            IsZoomEnabled="True"
-                            PreviewMouseWheel="IfcViewer_PreviewMouseWheel"
-                            RotateAroundMouseDownPoint="True"
-                            RotationSensitivity="1"
-                            ShowCoordinateSystem="True"
-                            ShowViewCube="True"
-                            ZoomAroundMouseDownPoint="True"
-                            ZoomSensitivity="2">
-
-                            <ModelVisual3D>
-                                <ModelVisual3D.Content>
-                                    <Model3DGroup>
-                                        <AmbientLight Color="#3A3A3A" />
-                                        <DirectionalLight Direction="-1,-2,-1.5" Color="#FFFFFF" />
-                                        <DirectionalLight Direction="1,1,0.5" Color="#557799" />
-                                        <DirectionalLight Direction="0.3,1,-2" Color="#334466" />
-                                    </Model3DGroup>
-                                </ModelVisual3D.Content>
-                            </ModelVisual3D>
-                        </helix:HelixViewport3D>
+                        <views:IfcViewerControl x:Name="IfcViewer" DataContext="{Binding IfcViewer}" />
 
                         <!--  🔥 IFC LOADING OVERLAY  -->
                         <Border Background="#AA000000" Visibility="{Binding IfcViewer.IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">

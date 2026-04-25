@@ -46,11 +46,11 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             ICranePlacementService cranePlacementService)
         {
             Scene = scene;
-            Drawing = drawing;
+            ZonesDrawing = drawing;
             CranePlacement = cranePlacement;
             IfcViewer = ifcViewer;
             Dxf = dxf;
-
+            IfcViewer.CurrentInteraction = ZonesDrawing;
             _ifcReader = ifcReader;
             _render = render;
             _craneRepo = craneRepo;
@@ -77,7 +77,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         #region ViewModels
         public CranePlacementViewModel CranePlacement { get; }
-        public DrawingViewModel Drawing { get; }
+        public DrawingViewModel ZonesDrawing { get; }
+
         public IfcViewerViewModel IfcViewer { get; }
         public DxfTabViewModel Dxf { get; }
         #endregion

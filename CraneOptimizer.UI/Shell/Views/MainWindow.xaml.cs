@@ -27,136 +27,25 @@ namespace CraneOptimizer.UI.Shell.Views
 
             DataContext = vm;
 
-            _renderingService.Initialize(IfcViewer);
+            IfcViewer.Initialize(renderingService, sceneService);
 
-            #region DXF
-            // Wire the DXF uploader to the same Helix viewport.
-            // Mirrors the IRenderingService pattern — must be done after InitializeComponent.
-            vm.Dxf.Initialize(IfcViewer);
-            #endregion
-
-            #region Zones Interaction
-            _sceneService.ZoneAdded += OnZoneAdded;
-            _sceneService.ZoneSelected += OnZoneSelected;
-            _sceneService.ZoneRemoved += OnZoneChanged;
-            _sceneService.ZoneUpdated += OnZoneChanged;
-            _sceneService.ZonesCleared += OnZonesCleared;
-            #endregion
+            //#region DXF
+            //// Wire the DXF uploader to the same Helix viewport.
+            //// Mirrors the IRenderingService pattern  must be done after InitializeComponent.
+            //vm.Dxf.Initialize(IfcViewer);
+            //#endregion
         }
 
         private MainViewModel? VM => DataContext as MainViewModel;
 
-        #region Zones Interaction
 
-        private void OnZoneAdded(GreenAreaZone zone) => RenderZones();
-        private void OnZoneSelected(GreenAreaZone? zone) => RenderZones();
-        private void OnZoneChanged(GreenAreaZone zone) => RenderZones();
-
-        private void OnZonesCleared()
-        {
-            RenderZones();
-        }
-
-        private void RenderZones()
-        {
-            _renderingService.Render(
-                _sceneService.GetZones(),
-                new ZoneVisualBuilder(_sceneService),
-                "Zones"
-            );
-        }
-
-        private void HandleZoneSelection(MouseButtonEventArgs e)
-        {
-            var viewport = IfcViewer;
-            var hits = viewport.Viewport.FindHits(e.GetPosition(viewport));
-
-            if (hits == null || hits.Count == 0)
-            {
-                _sceneService.SetSelectedZone(null);
-                return;
-            }
-
-            foreach (var hit in hits)
-            {
-                var visual = hit.Visual;
-
-                if (visual is ModelVisual3D mv &&
-                    mv.GetValue(FrameworkElement.TagProperty) is GreenAreaZone zone)
-                {
-                    _sceneService.SetSelectedZone(zone);
-                    return;
-                }
-            }
-
-            _sceneService.SetSelectedZone(null);
-        }
-
-        #endregion
 
         protected override void OnClosed(EventArgs e)
         {
-            #region Zones Interaction
-            _sceneService.ZoneAdded -= OnZoneAdded;
-            _sceneService.ZoneSelected -= OnZoneSelected;
-            _sceneService.ZoneRemoved -= OnZoneChanged;
-            _sceneService.ZoneUpdated -= OnZoneChanged;
-            _sceneService.ZonesCleared -= OnZonesCleared;
-            #endregion
-
             base.OnClosed(e);
         }
 
-        #region Viewport Interaction
 
-        private void IfcViewer_MouseMove(object sender, MouseEventArgs e)
-        {
-            var viewport = sender as HelixViewport3D;
-            if (viewport == null) return;
-
-            var vm = VM?.Drawing;
-
-            if (vm == null || !vm.IsDrawing) return;
-
-            var screen = e.GetPosition(viewport);
-            var world = GetWorldPoint(viewport, screen);
-
-            vm.SetHoverPoint(new DomainPoint3D(world.X, world.Y, world.Z));
-        }
-
-        private void IfcViewer_MouseDown(object sender, MouseButtonEventArgs e)
-        {
-            var viewport = sender as HelixViewport3D;
-            if (viewport == null) return;
-
-            var vm = VM?.Drawing;
-
-            if (vm != null && !vm.IsDrawing)
-            {
-                HandleZoneSelection(e);
-                return;
-            }
-
-            if (vm == null) return;
-
-            if (e.ChangedButton == MouseButton.Right)
-            {
-                vm.Finish();
-                e.Handled = true;
-                return;
-            }
-
-            if (e.ChangedButton != MouseButton.Left)
-                return;
-
-            var screen = e.GetPosition(viewport);
-            var world = GetWorldPoint(viewport, screen);
-
-            vm.AddPoint(new DomainPoint3D(world.X, world.Y, world.Z));
-            e.Handled = true;
-        }
-
-        #endregion
 
         #region Window Chrome + UI Events (required by XAML)
 
@@ -192,7 +81,7 @@ namespace CraneOptimizer.UI.Shell.Views
 
         private void ResetCamera_Click(object sender, RoutedEventArgs e)
         {
-            IfcViewer?.CameraController?.ResetCamera();
+            //IfcViewer?.CameraController?.ResetCamera();
         }
 
         private void IfcViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e) { }
@@ -217,43 +106,6 @@ namespace CraneOptimizer.UI.Shell.Views
 
         #endregion
 
-        #region Helpers
 
-        private Point3D GetWorldPoint(HelixViewport3D viewport, System.Windows.Point screenPt)
-        {
-            try
-            {
-                var hit = viewport.FindNearestPoint(screenPt);
-                if (hit.HasValue)
-                    return hit.Value;
-            }
-            catch { }
-
-            try
-            {
-                bool ok = Viewport3DHelper.Point2DtoPoint3D(
-                    viewport.Viewport,
-                    screenPt,
-                    out Point3D near,
-                    out Point3D far);
-
-                if (ok)
-                {
-                    var dir = far - near;
-
-                    if (System.Math.Abs(dir.Z) > 1e-9)
-                    {
-                        double t = -near.Z / dir.Z;
-                        if (t > 0)
-                            return near + t * dir;
-                    }
-                }
-            }
-            catch { }
-
-            return new Point3D();
-        }
-
-        #endregion
     }
 }
