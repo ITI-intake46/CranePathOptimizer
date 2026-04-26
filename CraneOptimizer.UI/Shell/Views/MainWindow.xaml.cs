@@ -31,7 +31,7 @@ namespace CraneOptimizer.UI.Shell.Views
 
             #region DXF
             // Wire the DXF uploader to the same Helix viewport.
-            // Mirrors the IRenderingService pattern — must be done after InitializeComponent.
+            // Mirrors the IRenderingService pattern - must be done after InitializeComponent.
             vm.Dxf.Initialize(IfcViewer);
             #endregion
 
@@ -119,7 +119,8 @@ namespace CraneOptimizer.UI.Shell.Views
             if (vm == null || !vm.IsDrawing) return;
 
             var screen = e.GetPosition(viewport);
-            var world = GetWorldPoint(viewport, screen);
+            if (!TryGetWorldPoint(viewport, screen, out var world))
+                return;
 
             vm.SetHoverPoint(new DomainPoint3D(world.X, world.Y, world.Z));
         }
@@ -128,6 +129,21 @@ namespace CraneOptimizer.UI.Shell.Views
         {
             var viewport = sender as HelixViewport3D;
             if (viewport == null) return;
+
+            if (VM?.IsPickingOrigin == true)
+            {
+                if (e.ChangedButton != MouseButton.Left)
+                    return;
+
+                var originScreen = e.GetPosition(viewport);
+                if (!TryGetWorldPoint(viewport, originScreen, out var origin))
+                    return;
+
+                VM.SetOrigin(new DomainPoint3D(origin.X, origin.Y, origin.Z));
+                viewport.ZoomExtents();
+                e.Handled = true;
+                return;
+            }
 
             var vm = VM?.Drawing;
 
@@ -150,7 +166,8 @@ namespace CraneOptimizer.UI.Shell.Views
                 return;
 
             var screen = e.GetPosition(viewport);
-            var world = GetWorldPoint(viewport, screen);
+            if (!TryGetWorldPoint(viewport, screen, out var world))
+                return;
 
             vm.AddPoint(new DomainPoint3D(world.X, world.Y, world.Z));
             e.Handled = true;
@@ -219,13 +236,21 @@ namespace CraneOptimizer.UI.Shell.Views
 
         #region Helpers
 
-        private Point3D GetWorldPoint(HelixViewport3D viewport, System.Windows.Point screenPt)
+        private bool TryGetWorldPoint(
+            HelixViewport3D viewport,
+            System.Windows.Point screenPt,
+            out Point3D worldPoint)
         {
+            worldPoint = new Point3D();
+
             try
             {
                 var hit = viewport.FindNearestPoint(screenPt);
                 if (hit.HasValue)
-                    return hit.Value;
+                {
+                    worldPoint = hit.Value;
+                    return true;
+                }
             }
             catch { }
 
@@ -245,13 +270,16 @@ namespace CraneOptimizer.UI.Shell.Views
                     {
                         double t = -near.Z / dir.Z;
                         if (t > 0)
-                            return near + t * dir;
+                        {
+                            worldPoint = near + t * dir;
+                            return true;
+                        }
                     }
                 }
             }
             catch { }
 
-            return new Point3D();
+            return false;
         }
 
         #endregion

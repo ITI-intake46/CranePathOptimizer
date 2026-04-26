@@ -1,4 +1,5 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using HelixToolkit.Geometry;
@@ -13,6 +14,13 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
     /// </summary>
     public class ElementVisualBuilder : IVisualBuilder<(PrecastElement element, LiftStatus? status)>
     {
+        private readonly DomainPoint3D? _origin;
+
+        public ElementVisualBuilder(DomainPoint3D? origin = null)
+        {
+            _origin = origin;
+        }
+
         public Visual3D Build((PrecastElement element, LiftStatus? status) item)
         {
             return BuildInternal(item.element, item.status);
@@ -21,12 +29,16 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         private ModelVisual3D BuildInternal(PrecastElement element, LiftStatus? status)
         {
             var meshBuilder = new MeshBuilder(true, true);
+            var origin = _origin;
+            var x = element.ElementCOG.X - (origin?.X ?? 0d);
+            var y = element.ElementCOG.Y - (origin?.Y ?? 0d);
+            var z = element.ElementCOG.Z - (origin?.Z ?? 0d);
 
             meshBuilder.AddBox(
                 new Vector3(
-                    (float)element.ElementCOG.X,
-                    (float)element.ElementCOG.Y,
-                    (float)element.ElementCOG.Z),
+                    (float)x,
+                    (float)y,
+                    (float)z),
 
                 (float)(element.BBoxLength ?? 1),
                 (float)(element.BBoxWidth ?? 1),

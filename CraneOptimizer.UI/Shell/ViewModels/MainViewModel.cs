@@ -1,4 +1,5 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
@@ -9,7 +10,6 @@ using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
-using CraneOptimizer.UI.Features.F8_GAOptimizer;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
@@ -26,9 +26,12 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly ICraneRepository _craneRepo;
         private readonly IDialogService _dialog;
         private readonly ICranePlacementService _cranePlacementService;
+        private readonly List<PrecastElement> _sceneElements = new();
 
         private Crane? _selectedCrane;
-        private bool _disposed; 
+        private bool _disposed;
+        private bool _isPickingOrigin;
+        private DomainPoint3D? _originPoint;
         #endregion
         public ISceneService Scene { get; }
 
@@ -135,6 +138,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         #region Scene sync
         private void OnElementsChanged(List<PrecastElement> elements)
         {
+            _sceneElements.Clear();
+            _sceneElements.AddRange(elements);
+
             Elements.Clear();
             FilteredElements.Clear();
 
@@ -144,14 +150,66 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 FilteredElements.Add(e);
             }
 
+            if (_sceneElements.Count == 0)
+            {
+                _render.ClearLayer("Elements");
+                OriginPoint = null;
+                IsPickingOrigin = false;
+                IsModelLoaded = false;
+                StatusText = "Model cleared";
+                return;
+            }
+
+            OriginPoint = null;
+            IsPickingOrigin = true;
+            _render.ClearLayer("Elements");
+
+            IsModelLoaded = true;
+            StatusText = $"Model loaded ({elements.Count} elements). Pick origin to display.";
+        }
+
+        public bool IsPickingOrigin
+        {
+            get => _isPickingOrigin;
+            set
+            {
+                if (_isPickingOrigin == value) return;
+                _isPickingOrigin = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public DomainPoint3D? OriginPoint
+        {
+            get => _originPoint;
+            private set
+            {
+                _originPoint = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public void SetOrigin(DomainPoint3D origin)
+        {
+            OriginPoint = origin;
+            IsPickingOrigin = false;
+            ReRenderElements();
+        }
+
+        public void ReRenderElements()
+        {
+            _render.ClearLayer("Elements");
+
+            if (OriginPoint == null || _sceneElements.Count == 0)
+                return;
+
             _render.Render(
-                elements.Select(e => (e, (LiftStatus?)null)),
-                new ElementVisualBuilder(),
+                _sceneElements.Select(e => (e, (LiftStatus?)null)),
+                new ElementVisualBuilder(OriginPoint),
                 "Elements"
             );
 
-            IsModelLoaded = true;
-            StatusText = $"Model Loaded ({elements.Count} elements)";
+            StatusText = $"Origin set at ({OriginPoint.X:F2}, {OriginPoint.Y:F2}, {OriginPoint.Z:F2}).";
         }
         #endregion
 
@@ -208,7 +266,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             set { _selectedElementName = value; OnPropertyChanged(); }
         }
 
-        private string _renderQualityLabel = "● STD";
+        private string _renderQualityLabel = "STD";
         public string RenderQualityLabel
         {
             get => _renderQualityLabel;
