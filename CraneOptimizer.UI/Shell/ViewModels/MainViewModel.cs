@@ -7,6 +7,7 @@ using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
+using CraneOptimizer.UI.Features.F7_Zones.Interactions;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
@@ -32,7 +33,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         #region Constructor
         public MainViewModel(
             ISceneService scene,
-            DrawingViewModel drawing,
+            ZoneDrawingViewModel zonesVM,
             CranePlacementViewModel cranePlacement,
             IfcViewerViewModel ifcViewer,
             DxfTabViewModel dxf,
@@ -44,12 +45,18 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             ICranePlacementService cranePlacementService)
         {
             Scene = scene;
-            ZonesDrawing = drawing;
+            ZonesVM = zonesVM;
+            ZonesInteraction = new ZoneDrawingInteraction(ZonesVM);
+
             CranePlacement = cranePlacement;
             IfcViewer = ifcViewer;
             Dxf = dxf;
             ElementsVM = elementsVM;
-            IfcViewer.CurrentInteraction = ZonesDrawing;
+
+            // Initialize interaction lifecycle
+            ZonesVM.DrawingStarted += OnZoneDrawingStarted;
+            ZonesVM.DrawingEnded += OnZoneDrawingEnded;
+
             _ifcReader = ifcReader;
             _render = render;
             _craneRepo = craneRepo;
@@ -70,7 +77,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         #region ViewModels
         public CranePlacementViewModel CranePlacement { get; }
-        public DrawingViewModel ZonesDrawing { get; }
+        public ZoneDrawingViewModel ZonesVM { get; }
+        public ZoneDrawingInteraction ZonesInteraction { get; }
         public IfcViewerViewModel IfcViewer { get; }
         public DxfTabViewModel Dxf { get; }
         public ElementManagementViewModel ElementsVM { get; }
@@ -132,6 +140,16 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IsModelLoaded = true;
             StatusText = $"Model Loaded ({count} elements)";
         }
+        private void OnZoneDrawingStarted()
+        {
+            IfcViewer.CurrentInteraction = ZonesInteraction;
+        }
+
+        private void OnZoneDrawingEnded()
+        {
+            IfcViewer.CurrentInteraction = null;
+        }
+
         #endregion
 
         #region Dispose
@@ -141,7 +159,11 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _disposed = true;
 
             ElementsVM.ElementsLoaded -= OnElementsLoaded;
+            ZonesVM.DrawingStarted -= OnZoneDrawingStarted;
+            ZonesVM.DrawingEnded -= OnZoneDrawingEnded;
+
             ElementsVM.Dispose();
+            ZonesVM.Dispose();
         } 
         #endregion
 

@@ -1,21 +1,33 @@
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
+using CraneOptimizer.UI.Features.F7_Zones.Views;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
 
 namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 {
-    public class DrawingViewModel : ViewModelBase , IViewportInteraction
+    public class ZoneDrawingViewModel : ViewModelBase, IDisposable
     {
         private readonly DrawingService _drawing;
         private readonly ISceneService _scene;
         private readonly IRenderingService _render;
         private DomainPoint3D? _currentHover;
+        private bool _disposed;
 
-        public DrawingViewModel(
+        public event Action? DrawingEnded;
+        public event Action? DrawingStarted;
+
+        public ZoneDrawingViewModel(
             DrawingService drawing,
             ISceneService scene,
             IRenderingService render)
@@ -30,6 +42,13 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             FinishCommand = new RelayCommand(Finish, () => IsDrawing);
             CancelCommand = new RelayCommand(Cancel, () => IsDrawing);
             UndoCommand = new RelayCommand(Undo, () => IsDrawing);
+
+            // Move subscriptions from Viewer to here
+            _scene.ZoneAdded += OnZoneChanged;
+            _scene.ZoneUpdated += OnZoneChanged;
+            _scene.ZoneRemoved += OnZoneChanged;
+            _scene.ZonesCleared += OnZonesCleared;
+            _scene.ZoneSelected += OnZoneChanged;
         }
 
         // ─────────────────────────────
@@ -39,7 +58,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         public bool IsDrawing
         {
             get => _isDrawing;
-            private set
+            set
             {
                 _isDrawing = value;
                 OnPropertyChanged();
@@ -65,7 +84,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         public ICommand UndoCommand { get; }
 
         // ─────────────────────────────
-        // Start
+        // Drawing Logic
         // ─────────────────────────────
         public void Start()
         {
@@ -73,6 +92,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             _currentHover = null;
             _render.ClearLayer("Preview");
             IsDrawing = true;
+            DrawingStarted?.Invoke();
         }
 
         private void StartAllowed()
@@ -87,9 +107,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             Start();
         }
 
-        // ─────────────────────────────
-        // Add Point
-        // ─────────────────────────────
         public void AddPoint(DomainPoint3D point)
         {
             if (!IsDrawing) return;
@@ -109,9 +126,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             RenderPreview();
         }
 
-        // ─────────────────────────────
-        // Finish
-        // ─────────────────────────────
         public void Finish()
         {
             if (!IsDrawing) return;
@@ -141,23 +155,19 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             _currentHover = null;
             _drawing.Start();
             IsDrawing = false;
+            DrawingEnded?.Invoke();
         }
 
-        // ─────────────────────────────
-        // Cancel
-        // ─────────────────────────────
-        private void Cancel()
+        public void Cancel()
         {
             _currentHover = null;
             _drawing.Start();
             _render.ClearLayer("Preview");
             IsDrawing = false;
+            DrawingEnded?.Invoke();
         }
 
-        // ─────────────────────────────
-        // Undo
-        // ─────────────────────────────
-        private void Undo()
+        public void Undo()
         {
             var pts = _drawing.GetPoints();
             if (pts.Count == 0) return;
@@ -166,34 +176,20 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             RenderPreview();
         }
 
-        private List<DomainPoint3D> GetPreviewPoints()
+        private void RenderPreview()
         {
-            var previewPoints = new List<DomainPoint3D>(_drawing.GetPoints());
+            var pts = _drawing.GetPoints();
+            var previewPoints = new List<DomainPoint3D>(pts);
 
             if (_currentHover != null)
                 previewPoints.Add(_currentHover);
-
-            return previewPoints;
-        }
-
-        private void RenderPreview()
-        {
-            var previewPoints = GetPreviewPoints();
 
             if (previewPoints.Count < 2)
             {
                 _render.ClearLayer("Preview");
                 return;
             }
-            var elements = _scene.GetElements();
 
-            double minX = elements.Min(e => e.ElementCOG.X);
-            double maxX = elements.Max(e => e.ElementCOG.X);
-
-            double sceneSize = maxX - minX;
-
-            // radius = 2% من حجم المشروع
-            double adaptiveRadius = sceneSize * 0.02;
             _render.Render(
                 new[] { previewPoints },
                 new PreviewLinesBuilder(),
@@ -203,21 +199,48 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 
         private bool ArePointsEqual(DomainPoint3D a, DomainPoint3D b)
         {
-            return System.Math.Abs(a.X - b.X) < 0.001 &&
-                   System.Math.Abs(a.Y - b.Y) < 0.001 &&
-                   System.Math.Abs(a.Z - b.Z) < 0.001;
+            return Math.Abs(a.X - b.X) < 0.001 &&
+                   Math.Abs(a.Y - b.Y) < 0.001 &&
+                   Math.Abs(a.Z - b.Z) < 0.001;
         }
 
-        public void OnClick(DomainPoint3D point)
+        // ─────────────────────────────
+        // Rendering Sync (Moved from View)
+        // ─────────────────────────────
+        private void OnZoneChanged(GreenAreaZone? zone) => SyncZones();
+        private void OnZonesCleared() => SyncZones();
+
+        private void SyncZones()
         {
-            if (!IsDrawing) return;
-            AddPoint(point);
+            var dispatcher = System.Windows.Application.Current.Dispatcher;
+
+            if (dispatcher.CheckAccess())
+                RenderZones();
+            else
+                dispatcher.InvokeAsync(RenderZones);
         }
 
-        public void OnMove(DomainPoint3D point)
+        private void RenderZones()
         {
-            if (!IsDrawing) return;
-            SetHoverPoint(point);
+            _render.Render(
+                _scene.GetZones(),
+                new ZoneVisualBuilder(_scene),
+                "Zones");
+        }
+
+        // ─────────────────────────────
+        // Lifecycle
+        // ─────────────────────────────
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            _scene.ZoneAdded -= OnZoneChanged;
+            _scene.ZoneUpdated -= OnZoneChanged;
+            _scene.ZoneRemoved -= OnZoneChanged;
+            _scene.ZonesCleared -= OnZonesCleared;
+            _scene.ZoneSelected -= OnZoneChanged;
         }
     }
 }

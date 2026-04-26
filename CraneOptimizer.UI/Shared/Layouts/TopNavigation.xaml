@@ -91,7 +91,7 @@
                 <CraneViews:CranesTabView x:Name="PanelCranes" Visibility="Collapsed" />
 
                 <!--  ── ZONES tab ───────────────────────────────────────────────  -->
-                <ZonesViews:ZonesTabView x:Name="PanelZones" Visibility="Collapsed" />
+                <ZonesViews:ZonesTabView x:Name="PanelZones" DataContext="{Binding ZonesVM}" Visibility="Collapsed" />
 
                 <!--  ── ANALYZE tab ─────────────────────────────────────────────  -->
                 <AnalyzeViews:AnalyzeTabView x:Name="PanelAnalyze" Visibility="Collapsed" />

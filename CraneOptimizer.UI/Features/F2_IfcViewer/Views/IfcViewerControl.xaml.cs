@@ -2,7 +2,6 @@ using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
-using CraneOptimizer.UI.Features.F7_Zones;
 using HelixToolkit.Wpf;
 using System.Windows;
 using System.Windows.Controls;
@@ -36,15 +35,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.Views
             _sceneService = sceneService;
 
             _renderingService.Initialize(IfcViewer);
-
-            // Subscribe to events
-            _sceneService.ZoneAdded += OnZoneAdded;
-            _sceneService.ZoneUpdated += OnZoneUpdated;
-            _sceneService.ZoneRemoved += OnZoneRemoved;
-            _sceneService.ZonesCleared += OnZonesCleared;
-            _sceneService.ZoneSelected += OnZoneUpdated;
-
-            RenderAllZones();
         }
 
         #region Lifecycle
@@ -56,50 +46,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.Views
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
-            if (_sceneService == null)
-                return;
-
-            // Prevent memory leaks
-            _sceneService.ZoneAdded -= OnZoneAdded;
-            _sceneService.ZoneUpdated -= OnZoneUpdated;
-            _sceneService.ZoneRemoved -= OnZoneRemoved;
-            _sceneService.ZonesCleared -= OnZonesCleared;
-            _sceneService.ZoneSelected -= OnZoneUpdated;
         }
-
-        #endregion
-
-        #region Zones Rendering
-
-        private void OnZoneAdded(GreenAreaZone zone) => System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
-        {
-            if (_renderingService == null || _sceneService == null) return;
-            _renderingService.AddOrUpdate(zone, new ZoneVisualBuilder(_sceneService), "Zones");
-        });
-
-        private void OnZoneUpdated(GreenAreaZone zone) => System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
-        {
-            if (_renderingService == null || _sceneService == null) return;
-            _renderingService.AddOrUpdate(zone, new ZoneVisualBuilder(_sceneService), "Zones");
-        });
-
-        private void OnZoneRemoved(GreenAreaZone zone) => System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
-        {
-            if (_renderingService == null) return;
-            _renderingService.Remove(zone, "Zones");
-        });
-
-        private void OnZonesCleared() => System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
-        {
-            if (_renderingService == null) return;
-            _renderingService.ClearLayer("Zones");
-        });
-
-        private void RenderAllZones() => System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
-        {
-            if (_renderingService == null || _sceneService == null) return;
-            _renderingService.Render(_sceneService.GetZones(), new ZoneVisualBuilder(_sceneService), "Zones");
-        });
 
         #endregion
 
