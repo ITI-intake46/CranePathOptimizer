@@ -159,10 +159,11 @@ namespace CraneOptimizer.UI
         private static void RegisterGAServices(IServiceCollection services)
         {
             services.AddScoped<IGeneticAlgorithmEngine, GAEngine>();
-
             services.AddScoped<IGAInitializer, GAInitializer>();
-            services.AddScoped<IElementAssignmentService, ElementAssignmentService>();
-            services.AddScoped<IFitnessEvaluator, FitnessEvaluator>();
+            services.AddSingleton<ICraneConstraintService, CraneConstraintService>();
+            services.AddSingleton<CraneOptimizer.Application.Services.ElementAssignmentService>();
+            services.AddSingleton<IElementAssignmentService, ElementAssignmentService>();
+            services.AddSingleton<IFitnessEvaluator, FitnessEvaluator>();
 
             services.AddScoped<ISelectionStrategy, TournamentSelection>();
             services.AddScoped<ICrossoverOperator, CrossoverOperator>();

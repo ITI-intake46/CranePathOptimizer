@@ -2,6 +2,7 @@ using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Spatial;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
 {
@@ -12,6 +13,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public List<PrecastElement> Elements { get; set; }
         public IReadOnlyList<DomainPoint3D> ElementCenters { get; set; }
         public IReadOnlyList<double> ElementWeights { get; set; }
+        public SpatialGridIndex SpatialIndex { get; set; } = null!;
         public Dictionary<int, List<string>> Assignment { get; set; }
         public CraneSpecification CraneSpec { get; set; }
         public GASettings Settings { get; set; }

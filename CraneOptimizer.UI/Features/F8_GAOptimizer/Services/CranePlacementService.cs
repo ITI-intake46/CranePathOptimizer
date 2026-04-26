@@ -150,14 +150,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
                 var assignment = _assignmentService.EvaluateAssignment(
                     solution,
-                    remainingElements,
-                    input.ElementCenters,
-                    input.ElementWeights,
-                    input.Assignment,
-                    input.CraneSpec,
-                    input.Settings,
-                    input.AllowedZones,
-                    input.ForbiddenZones);
+                    input);
 
                 var iterationResult = MapResult(solution, assignment);
 

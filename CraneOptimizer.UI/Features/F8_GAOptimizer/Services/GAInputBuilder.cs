@@ -4,6 +4,7 @@ using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Schemas.Enums;
+using CraneOptimizer.Domain.Spatial;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F0_CoordinateSystem;
 
@@ -95,6 +96,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 Elements = elements,
                 ElementCenters = centers,
                 ElementWeights = weights,
+                SpatialIndex = new SpatialGridIndex(centers, cellSize: 10.0),
                 Assignment = new Dictionary<int, List<string>>(),
                 CraneSpec = craneSpec,
                 Settings = settings

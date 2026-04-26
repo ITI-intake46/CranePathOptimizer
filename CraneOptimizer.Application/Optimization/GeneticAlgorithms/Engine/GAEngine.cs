@@ -2,17 +2,18 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 {
-    /// <summary>
-    /// Main orchestration engine for the Genetic Algorithm.
-    /// Coordinates all GA components.
-    /// </summary>
     public class GAEngine : IGeneticAlgorithmEngine
     {
         private readonly IGAInitializer _initializer;
-        private readonly IElementAssignmentService _assignmentService;
+        private readonly IElementAssignmentService _legacyAssignmentService;
+        private readonly CraneOptimizer.Application.Services.ElementAssignmentService _greedyAssignmentService;
+        private readonly ICraneConstraintService _constraintService;
         private readonly IFitnessEvaluator _fitnessEvaluator;
         private readonly ISelectionStrategy _selection;
         private readonly ICrossoverOperator _crossover;
@@ -21,7 +22,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 
         public GAEngine(
             IGAInitializer initializer,
-            IElementAssignmentService assignmentService,
+            IElementAssignmentService legacyAssignmentService,
+            CraneOptimizer.Application.Services.ElementAssignmentService greedyAssignmentService,
+            ICraneConstraintService constraintService,
             IFitnessEvaluator fitnessEvaluator,
             ISelectionStrategy selection,
             ICrossoverOperator crossover,
@@ -29,12 +32,46 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
             IReplacementStrategy replacement)
         {
             _initializer = initializer;
-            _assignmentService = assignmentService;
+            _legacyAssignmentService = legacyAssignmentService;
+            _greedyAssignmentService = greedyAssignmentService;
+            _constraintService = constraintService;
             _fitnessEvaluator = fitnessEvaluator;
             _selection = selection;
             _crossover = crossover;
             _mutation = mutation;
             _replacement = replacement;
+        }
+
+        private void Evaluate(CraneSolution solution, PlacementInput input)
+        {
+            // 1️⃣ Legacy assignment & evaluation
+            var evaluation = _legacyAssignmentService.EvaluateAssignment(solution, input);
+
+            // 2️⃣ Base fitness
+            var fitnessResult = _fitnessEvaluator.EvaluateFitness(
+                solution,
+                evaluation,
+                input.Settings);
+
+            double fitness = fitnessResult.FitnessScore;
+
+            // 3️⃣ Greedy assignment optimization
+            var greedyAssignment = _greedyAssignmentService.Assign(solution.Chromosome.CranePositions, input);
+            
+            // Reward coverage
+            fitness += greedyAssignment.TotalAssigned * 100.0;
+
+            // Penalise idle cranes
+            fitness -= greedyAssignment.UnusedCraneCount * 50.0;
+
+            // FIX 1 — penalise constraint violations per crane
+            foreach (var pos in solution.Chromosome.CranePositions)
+            {
+                var constraint = _constraintService.Validate(pos, input);
+                fitness -= constraint.NormalizedPenalty;
+            }
+
+            solution.Fitness = fitness;
         }
 
         public CraneSolution Run(PlacementInput input)
@@ -55,28 +92,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 
             for (int generation = 0; generation < input.Settings.MaxGenerations; generation++)
             {
-                foreach (var solution in population.Individuals)
-                {
-                    // 2️⃣ Evaluate assignment
-                    var evaluation = _assignmentService.EvaluateAssignment(
-                        solution,
-                        input.Elements,
-                        input.ElementCenters,
-                        input.ElementWeights,
-                        input.Assignment,
-                        input.CraneSpec,
-                        input.Settings,
-                        input.AllowedZones,
-                        input.ForbiddenZones);
+                // Parallel evaluation
+                Parallel.ForEach(
+                    population.Individuals,
+                    new ParallelOptions { MaxDegreeOfParallelism = System.Environment.ProcessorCount },
+                    individual => Evaluate(individual, input));
 
-                    // 3️⃣ Evaluate fitness
-                    var fitness = _fitnessEvaluator.EvaluateFitness(
-                        solution,
-                        evaluation,
-                        input.Settings);
-
-                    solution.Fitness = fitness.FitnessScore;
-                }
                 // 2️⃣ Track best solution
                 var currentBest = population.Individuals
                     .OrderByDescending(s => s.Fitness)
@@ -127,26 +148,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                     if (GARandomManager.Instance.NextDouble() < input.Settings.MutationRate)
                         _mutation.Mutate(child, input.AllowedZones);
                 }
-                foreach (var child in children)
-                {
-                    var evaluation = _assignmentService.EvaluateAssignment(
-                        child,
-                        input.Elements,
-                        input.ElementCenters,
-                        input.ElementWeights,
-                        input.Assignment,
-                        input.CraneSpec,
-                        input.Settings,
-                        input.AllowedZones,
-                        input.ForbiddenZones);
 
-                    var fitness = _fitnessEvaluator.EvaluateFitness(
-                        child,
-                        evaluation,
-                        input.Settings);
-
-                    child.Fitness = fitness.FitnessScore;
-                }
+                // Parallel evaluation for children
+                Parallel.ForEach(
+                    children,
+                    new ParallelOptions { MaxDegreeOfParallelism = System.Environment.ProcessorCount },
+                    child => Evaluate(child, input));
 
                 // 7️⃣ Replacement
                 population = _replacement.Replace(population, children);

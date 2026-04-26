@@ -1,5 +1,7 @@
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Domain.Spatial;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas.Enums;
@@ -129,14 +131,18 @@ namespace CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels
             var centers = elements.Select(e => e.ElementCOG).ToList();
             var weights = elements.Select(e => e.ElementWT ?? 0).ToList();
 
-            return _constraintService.Validate(
-                point,
-                centers,
-                weights,
-                _scene.GetZones().Where(z => z.Type == ZoneType.Allowed).ToList(),
-                _scene.GetZones().Where(z => z.Type == ZoneType.Forbidden).ToList(),
-                spec,
-                _settings);
+            var tempInput = new PlacementInput
+            {
+                ElementCenters = centers,
+                ElementWeights = weights,
+                SpatialIndex = new SpatialGridIndex(centers, cellSize: 10.0),
+                AllowedZones = _scene.GetZones().Where(z => z.Type == ZoneType.Allowed).ToList(),
+                ForbiddenZones = _scene.GetZones().Where(z => z.Type == ZoneType.Forbidden).ToList(),
+                CraneSpec = spec,
+                Settings = _settings
+            };
+
+            return _constraintService.Validate(point, tempInput);
         }
 
         private void ConfirmPlacement()

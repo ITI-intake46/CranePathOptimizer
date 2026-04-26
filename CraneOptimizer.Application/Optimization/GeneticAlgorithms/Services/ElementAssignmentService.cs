@@ -1,4 +1,5 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
@@ -37,28 +38,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
         public AssignmentResult EvaluateAssignment(
             CraneSolution solution,
-            List<PrecastElement> elements,
-            IReadOnlyList<DomainPoint3D> elementCenters,
-            IReadOnlyList<double> elementWeights,
-            Dictionary<int, List<string>> assignment,
-            CraneSpecification craneSpec,
-            GASettings settings,
-            List<GreenAreaZone> allowedZones,
-            List<GreenAreaZone> forbiddenZones)
+            PlacementInput input)
         {
             var result = new AssignmentResult();
             
             // ── Check for Zone & Constraint Violations ───────────────
             foreach (var pos in solution.Chromosome.CranePositions)
             {
-                var validation = _constraintService.Validate(
-                    pos, 
-                    elementCenters, 
-                    elementWeights, 
-                    allowedZones, 
-                    forbiddenZones, 
-                    craneSpec,
-                    settings);
+                var validation = _constraintService.Validate(pos, input);
 
                 if (!validation.IsOutsideForbiddenZone)
                 {
@@ -68,12 +55,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 result.TotalConstraintPenalty += validation.NormalizedPenalty; // Use Normalized
             }
 
-            foreach (var element in elements)
+            foreach (var element in input.Elements)
             {
                 ElementEvaluationResult evaluation;
 
                 // ── Check for user-defined assignment ─────────────────
-                int? userAssignedIndex = ResolveUserAssignment(element, assignment);
+                int? userAssignedIndex = ResolveUserAssignment(element, input.Assignment);
 
                 if (userAssignedIndex.HasValue)
                 {
@@ -82,8 +69,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         element,
                         solution,
                         userAssignedIndex.Value,
-                        craneSpec,
-                        settings);
+                        input.CraneSpec,
+                        input.Settings);
                 }
                 else
                 {
@@ -91,8 +78,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     evaluation = EvaluateBestPosition(
                         element,
                         solution,
-                        craneSpec,
-                        settings);
+                        input.CraneSpec,
+                        input.Settings);
                 }
 
                 result.EvaluationResults.Add(evaluation);

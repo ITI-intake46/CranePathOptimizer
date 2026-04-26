@@ -1,4 +1,5 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Common;
@@ -28,32 +29,22 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     {
         CraneConstraintResult Validate(
             DomainPoint3D cranePosition,
-            IReadOnlyList<DomainPoint3D> elementCenters,
-            IReadOnlyList<double> elementWeights,
-            IReadOnlyList<GreenAreaZone> allowedZones,
-            IReadOnlyList<GreenAreaZone> forbiddenZones,
-            CraneSpecification craneSpec,
-            GASettings settings);
+            PlacementInput input);
     }
 
     public class CraneConstraintService : ICraneConstraintService
     {
         public CraneConstraintResult Validate(
             DomainPoint3D cranePosition,
-            IReadOnlyList<DomainPoint3D> elementCenters,
-            IReadOnlyList<double> elementWeights,
-            IReadOnlyList<GreenAreaZone> allowedZones,
-            IReadOnlyList<GreenAreaZone> forbiddenZones,
-            CraneSpecification craneSpec,
-            GASettings settings)
+            PlacementInput input)
         {
             var result = new CraneConstraintResult();
 
             // 1. Zone Validation
-            result.IsInsideAllowedZone = allowedZones.Count == 0 || 
-                                        allowedZones.Any(z => IsPointInsidePolygon(cranePosition, z.Vertices));
+            result.IsInsideAllowedZone = input.AllowedZones.Count == 0 || 
+                                        input.AllowedZones.Any(z => IsPointInsidePolygon(cranePosition, z.Vertices));
             
-            result.IsOutsideForbiddenZone = forbiddenZones.All(z => !IsPointInsidePolygon(cranePosition, z.Vertices));
+            result.IsOutsideForbiddenZone = input.ForbiddenZones.All(z => !IsPointInsidePolygon(cranePosition, z.Vertices));
 
             // 2. Physical Constraints (Radius & Capacity)
             bool radiusOk = true;
@@ -61,37 +52,34 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             double maxRadiusRatio = 0;
             double maxOverloadRatio = 0;
 
-            if (craneSpec != null && elementCenters != null && elementWeights != null && settings != null)
+            if (input.CraneSpec != null && input.ElementCenters != null && input.ElementWeights != null && input.Settings != null)
             {
-                for (int i = 0; i < elementCenters.Count; i++)
+                foreach (var i in input.SpatialIndex.Query(cranePosition, input.CraneSpec.MaxRadius))
                 {
-                    var center = elementCenters[i];
-                    var weight = elementWeights[i];
+                    var center = input.ElementCenters[i];
+                    var weight = input.ElementWeights[i];
 
-                    // Simple horizontal distance for radius in the optimized loop
-                    // (Note: LiftCalculation.CalculateRadius uses orientation-aware logic, 
-                    // but for the tight GA loop, we use the precomputed centers)
                     double dx = cranePosition.X - center.X;
                     double dy = cranePosition.Y - center.Y;
                     double horizontalDistance = Math.Sqrt(dx * dx + dy * dy);
                     
-                    // We can still use LiftCalculation for height and capacity if needed, 
-                    // but we must be careful about performance.
-                    double radius = horizontalDistance; // Simplified for performance
-                    double height = center.Z + settings.RiggingLength; // Simplified
+                    if (horizontalDistance > input.CraneSpec.MaxRadius) continue;
+
+                    double radius = horizontalDistance; 
+                    double height = center.Z + input.Settings.RiggingLength; 
                     double boomLength = Math.Sqrt(radius * radius + height * height);
 
-                    var status = LiftCalculation.DetermineLiftStatus(radius, boomLength, weight, craneSpec, settings);
+                    var status = LiftCalculation.DetermineLiftStatus(radius, boomLength, weight, input.CraneSpec, input.Settings);
 
                     if (status == LiftStatus.OutOfRadius) radiusOk = false;
                     if (status == LiftStatus.Overweight || status == LiftStatus.HeightFail || status == LiftStatus.SpecialCase) 
                         capacityOk = false;
 
                     // Compute ratios for penalty
-                    double rRatio = radius / craneSpec.MaxRadius;
+                    double rRatio = radius / input.CraneSpec.MaxRadius;
                     if (rRatio > maxRadiusRatio) maxRadiusRatio = rRatio;
 
-                    double capacity = LiftCalculation.CraneCapacity(craneSpec, radius, boomLength, settings);
+                    double capacity = LiftCalculation.CraneCapacity(input.CraneSpec, radius, boomLength, input.Settings);
                     if (capacity > 0)
                     {
                         double oRatio = weight / capacity;
@@ -99,7 +87,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     }
                     else if (weight > 0)
                     {
-                        maxOverloadRatio = Math.Max(maxOverloadRatio, 2.0); // Large penalty if no capacity
+                        maxOverloadRatio = Math.Max(maxOverloadRatio, 2.0); 
                     }
                 }
             }

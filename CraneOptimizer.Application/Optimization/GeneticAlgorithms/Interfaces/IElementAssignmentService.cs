@@ -1,3 +1,4 @@
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
@@ -15,34 +16,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
         /// <summary>
         /// Evaluates lifting feasibility for the given assignment.
         /// </summary>
-        /// <param name="solution">
-        /// GA solution containing crane positions.
-        /// </param>
-        /// <param name="elements">
-        /// Precast elements extracted from the IFC model.
-        /// </param>
-        /// <param name="assignment">
-        /// Mapping between crane index and element IDs
-        /// provided by the user.
-        /// </param>
-        /// <param name="craneSpec">
-        /// Crane specification including load chart.
-        /// </param>
-        /// <param name="settings">
-        /// Genetic algorithm configuration settings.
-        /// </param>
-        /// <returns>
-        /// Detailed evaluation results and assignment mapping.
-        /// </returns>
         AssignmentResult EvaluateAssignment(
             CraneSolution solution,
-            List<PrecastElement> elements,
-            IReadOnlyList<DomainPoint3D> elementCenters,
-            IReadOnlyList<double> elementWeights,
-            Dictionary<int, List<string>> assignment,
-            CraneSpecification craneSpec,
-            GASettings settings,
-            List<GreenAreaZone> allowedZones,
-            List<GreenAreaZone> forbiddenZones);
+            PlacementInput input);
     }
 }
