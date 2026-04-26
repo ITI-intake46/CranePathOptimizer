@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.Application.Features.CranePlacement.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;

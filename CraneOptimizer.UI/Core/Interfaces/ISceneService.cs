@@ -1,4 +1,5 @@
-﻿using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Models;
 
 namespace CraneOptimizer.UI.Core.Interfaces

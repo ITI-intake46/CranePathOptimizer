@@ -1,4 +1,5 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Domain.Schemas.Enums;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Media;

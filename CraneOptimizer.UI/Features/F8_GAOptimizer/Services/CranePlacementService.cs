@@ -1,10 +1,18 @@
+using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.Application.Features.CranePlacement.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Application.Services;
+using CraneOptimizer.Domain.Assignment;
 using CraneOptimizer.Domain.Entities;
-using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Features.F0_CoordinateSystem;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 {
@@ -12,113 +20,20 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
     {
         private readonly GAInputBuilder _inputBuilder;
         private readonly IGeneticAlgorithmEngine _gaEngine;
-        private readonly IElementAssignmentService _assignmentService;
+        private readonly GreedyAssignmentEngine _assignmentEngine;
         private readonly CoordinateService _coordinateService;
 
         public CranePlacementService(
             GAInputBuilder inputBuilder,
             IGeneticAlgorithmEngine gaEngine,
-            IElementAssignmentService assignmentService,
+            GreedyAssignmentEngine assignmentEngine,
             CoordinateService coordinateService)
         {
             _inputBuilder = inputBuilder;
             _gaEngine = gaEngine;
-            _assignmentService = assignmentService;
+            _assignmentEngine = assignmentEngine;
             _coordinateService = coordinateService;
         }
-
-        #region First triel
-        //public async Task<CranePlacementResult> RunOptimizationAsync(GASettings settings)
-        //{
-        //    var input = await _inputBuilder.BuildAsync(settings);
-
-        //    var solution = await Task.Run(() => _gaEngine.Run(input));
-        //    if (solution == null ||
-        //        solution.Chromosome == null ||
-        //        solution.Chromosome.CranePositions == null ||
-        //        solution.Chromosome.CranePositions.Count == 0)
-        //    {
-        //        throw new InvalidOperationException("Optimization did not return a valid crane position.");
-        //    }
-
-        //    var assignment = _assignmentService.EvaluateAssignment(
-        //        solution,
-        //        input.Elements,
-        //        input.Assignment,
-        //        input.CraneSpec,
-        //        input.Settings);
-
-        //    return MapResult(solution, assignment);
-        //} 
-        #endregion
-
-        #region Second Triel
-        //public async Task<CranePlacementResult> RunOptimizationAsync(GASettings settings)
-        //{
-        //    var input = await _inputBuilder.BuildAsync(settings);
-
-        //    var remainingElements = new List<PrecastElement>(input.Elements);
-
-        //    var finalResult = new CranePlacementResult();
-
-        //    var coveredElements = new HashSet<string>();
-
-        //    int safetyCounter = 0;
-
-        //    while (remainingElements.Count > 0 && safetyCounter < 20)
-        //    {
-        //        safetyCounter++;
-
-        //        // Run GA on remaining elements
-        //        input.Elements = remainingElements;
-
-        //        var solution = await Task.Run(() => _gaEngine.Run(input));
-
-        //        var assignment = _assignmentService.EvaluateAssignment(
-        //            solution,
-        //            remainingElements,
-        //            input.Assignment,
-        //            input.CraneSpec,
-        //            input.Settings);
-
-        //        var iterationResult = MapResult(solution, assignment);
-
-        //        if (iterationResult.Positions.Count == 0)
-        //            break;
-
-        //        var bestPosition = iterationResult.Positions[0];
-
-        //        // Add position to final result
-        //        finalResult.Positions.Add(bestPosition);
-
-        //        // Collect newly covered elements
-        //        var newlyCovered = bestPosition.ElementResults
-        //            .Where(e => e.Status == LiftStatus.Liftable)
-        //            .Select(e => e.ElementId)
-        //            .ToList();
-
-        //        if (newlyCovered.Count == 0)
-        //            break;
-
-        //        foreach (var id in newlyCovered)
-        //            coveredElements.Add(id);
-
-        //        // Remove covered elements from next iteration
-        //        remainingElements = remainingElements
-        //            .Where(e => !coveredElements.Contains(e.ElementID))
-        //            .ToList();
-        //    }
-
-        //    // Final statistics
-        //    int total = input.Elements.Count;
-        //    int covered = coveredElements.Count;
-
-        //    finalResult.CoverageRatio = total == 0 ? 0 : (double)covered / total;
-        //    finalResult.FitnessScore = finalResult.CoverageRatio;
-
-        //    return finalResult;
-        //} 
-        #endregion
 
         public async Task<CranePlacementResult> RunOptimizationAsync(GASettings settings, Crane crane)
         {
@@ -148,7 +63,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
                 var solution = await Task.Run(() => _gaEngine.Run(input));
 
-                var assignment = _assignmentService.EvaluateAssignment(
+                var assignment = _assignmentEngine.Evaluate(
                     solution,
                     input);
 
@@ -209,7 +124,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
         private CranePlacementResult MapResult(
             CraneSolution solution,
-            AssignmentResult assignment)
+            CraneAssignment assignment)
         {
             var result = new CranePlacementResult
             {

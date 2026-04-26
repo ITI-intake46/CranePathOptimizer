@@ -2,6 +2,8 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Services;
+using CraneOptimizer.Domain.Assignment;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,9 +13,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
     public class GAEngine : IGeneticAlgorithmEngine
     {
         private readonly IGAInitializer _initializer;
-        private readonly IElementAssignmentService _legacyAssignmentService;
-        private readonly CraneOptimizer.Application.Services.ElementAssignmentService _greedyAssignmentService;
-        private readonly ICraneConstraintService _constraintService;
+        private readonly GreedyAssignmentEngine _assignmentEngine;
         private readonly IFitnessEvaluator _fitnessEvaluator;
         private readonly ISelectionStrategy _selection;
         private readonly ICrossoverOperator _crossover;
@@ -22,9 +22,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 
         public GAEngine(
             IGAInitializer initializer,
-            IElementAssignmentService legacyAssignmentService,
-            CraneOptimizer.Application.Services.ElementAssignmentService greedyAssignmentService,
-            ICraneConstraintService constraintService,
+            GreedyAssignmentEngine assignmentEngine,
             IFitnessEvaluator fitnessEvaluator,
             ISelectionStrategy selection,
             ICrossoverOperator crossover,
@@ -32,9 +30,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
             IReplacementStrategy replacement)
         {
             _initializer = initializer;
-            _legacyAssignmentService = legacyAssignmentService;
-            _greedyAssignmentService = greedyAssignmentService;
-            _constraintService = constraintService;
+            _assignmentEngine = assignmentEngine;
             _fitnessEvaluator = fitnessEvaluator;
             _selection = selection;
             _crossover = crossover;
@@ -44,32 +40,25 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 
         private void Evaluate(CraneSolution solution, PlacementInput input)
         {
-            // 1️⃣ Legacy assignment & evaluation
-            var evaluation = _legacyAssignmentService.EvaluateAssignment(solution, input);
+            // 1️⃣ Unified assignment & evaluation
+            // This single call handles user overrides, greedy mapping, and constraint validation.
+            var assignment = _assignmentEngine.Evaluate(solution, input);
 
-            // 2️⃣ Base fitness
+            // 2️⃣ Base fitness calculation
+            // The evaluator handles coverage, failures, and subtracts the assignment's TotalConstraintPenalty.
             var fitnessResult = _fitnessEvaluator.EvaluateFitness(
                 solution,
-                evaluation,
+                assignment,
                 input.Settings);
 
             double fitness = fitnessResult.FitnessScore;
 
-            // 3️⃣ Greedy assignment optimization
-            var greedyAssignment = _greedyAssignmentService.Assign(solution.Chromosome.CranePositions, input);
-            
-            // Reward coverage
-            fitness += greedyAssignment.TotalAssigned * 100.0;
+            // 3️⃣ Evolutionary rewards
+            // Reward high element coverage
+            fitness += assignment.TotalAssigned * 100.0;
 
-            // Penalise idle cranes
-            fitness -= greedyAssignment.UnusedCraneCount * 50.0;
-
-            // FIX 1 — penalise constraint violations per crane
-            foreach (var pos in solution.Chromosome.CranePositions)
-            {
-                var constraint = _constraintService.Validate(pos, input);
-                fitness -= constraint.NormalizedPenalty;
-            }
+            // Penalise unused cranes to encourage compact solutions
+            fitness -= assignment.UnusedCraneCount * 50.0;
 
             solution.Fitness = fitness;
         }
@@ -79,7 +68,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
             int stagnantGenerations = 0;
             double bestFitness = double.MinValue;
             CraneSolution bestSolution = null;
-            // Initialize deterministic random manager
+            
             GARandomManager.Initialize(input.Settings.RandomSeed);
 
             // 1️⃣ Initialize population
@@ -92,13 +81,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 
             for (int generation = 0; generation < input.Settings.MaxGenerations; generation++)
             {
-                // Parallel evaluation
                 Parallel.ForEach(
                     population.Individuals,
                     new ParallelOptions { MaxDegreeOfParallelism = System.Environment.ProcessorCount },
                     individual => Evaluate(individual, input));
 
-                // 2️⃣ Track best solution
                 var currentBest = population.Individuals
                     .OrderByDescending(s => s.Fitness)
                     .First();
@@ -114,16 +101,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                     stagnantGenerations++;
                 }
 
-                // 3️⃣ Early stopping
                 if (stagnantGenerations >= input.Settings.EarlyStoppingGenerations)
                     break;
 
-                // 4️⃣ Selection
                 var parents = _selection.SelectParents(
                     population,
                     population.Individuals.Count);
 
-                // 5️⃣ Crossover
                 var children = new List<CraneSolution>();
 
                 for (int i = 0; i < parents.Count - 1; i += 2)
@@ -142,24 +126,20 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                     }
                 }
 
-                // 6️⃣ Mutation
                 foreach (var child in children)
                 {
                     if (GARandomManager.Instance.NextDouble() < input.Settings.MutationRate)
                         _mutation.Mutate(child, input.AllowedZones);
                 }
 
-                // Parallel evaluation for children
                 Parallel.ForEach(
                     children,
                     new ParallelOptions { MaxDegreeOfParallelism = System.Environment.ProcessorCount },
                     child => Evaluate(child, input));
 
-                // 7️⃣ Replacement
                 population = _replacement.Replace(population, children);
             }
 
-            // 8️⃣ Return best solution
             return bestSolution;
         }
     }

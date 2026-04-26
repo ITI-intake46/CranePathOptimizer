@@ -1,3 +1,5 @@
+using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;

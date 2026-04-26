@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;

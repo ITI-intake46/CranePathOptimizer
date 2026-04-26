@@ -1,5 +1,6 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Domain.Assignment;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
 {
@@ -14,7 +15,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
         /// </summary>
         FitnessBreakdown EvaluateFitness(
             CraneSolution solution,
-            AssignmentResult assignment,
+            CraneAssignment assignment,
             GASettings settings);
     }
 }

@@ -1,4 +1,8 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Domain.Schemas.Enums;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Domain.Entities;
+using CraneOptimizer.Domain.Schemas.Enums;
+using System.Collections.Generic;
 
 namespace CraneOptimizer.Application.Features.CranePlacement.DTOs
 {

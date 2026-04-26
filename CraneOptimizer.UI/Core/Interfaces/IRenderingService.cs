@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;

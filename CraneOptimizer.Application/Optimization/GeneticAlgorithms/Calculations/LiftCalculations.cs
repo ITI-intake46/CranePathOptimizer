@@ -1,8 +1,10 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Schemas.Enums;
+using System;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
 {

@@ -2,6 +2,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.Repositories;
@@ -161,8 +162,7 @@ namespace CraneOptimizer.UI
             services.AddScoped<IGeneticAlgorithmEngine, GAEngine>();
             services.AddScoped<IGAInitializer, GAInitializer>();
             services.AddSingleton<ICraneConstraintService, CraneConstraintService>();
-            services.AddSingleton<CraneOptimizer.Application.Services.ElementAssignmentService>();
-            services.AddSingleton<IElementAssignmentService, ElementAssignmentService>();
+            services.AddSingleton<GreedyAssignmentEngine>();
             services.AddSingleton<IFitnessEvaluator, FitnessEvaluator>();
 
             services.AddScoped<ISelectionStrategy, TournamentSelection>();

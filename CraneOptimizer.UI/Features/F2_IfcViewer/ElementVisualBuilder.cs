@@ -1,7 +1,11 @@
+using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Core.Interfaces;
 using HelixToolkit.Geometry;
+using System.Linq;
 using System.Numerics;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
