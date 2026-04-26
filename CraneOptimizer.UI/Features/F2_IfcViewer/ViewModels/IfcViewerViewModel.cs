@@ -1,7 +1,7 @@
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Interfaces;
-using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
@@ -9,21 +9,37 @@ using CraneOptimizer.UI.Features.F2_IfcViewer.Models;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Media3D;
 
 namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 {
-    public class IfcViewerViewModel : ViewModelBase
+    public class IfcViewerViewModel : ViewModelBase, IHighlightService
     {
         private readonly IIfcReaderRepository _ifcReader;
         private readonly ISceneService _scene;
-        private readonly IIfcOptionsDialogService _dialogService;
         private readonly IDialogService _dialog;
+        private readonly IIfcOptionsDialogService _dialogService;
+        private readonly ISelectionService _selectionService;
+        private readonly IRenderingService _renderingService;
+
+        private readonly Dictionary<Visual3D, PrecastElement> _elementVisuals = new();
+        public IReadOnlyDictionary<Visual3D, PrecastElement> ElementVisuals => _elementVisuals;
+
+        public Visual3DCollection? ViewportChildren { get; set; }
+        public PerspectiveCamera? Camera { get; set; }
+
         public IViewportInteraction? CurrentInteraction { get; set; }
+        public ICommand LoadIfcCommand { get; }
         public ICommand ViewportClickCommand { get; }
         public ICommand ViewportMoveCommand { get; }
-        public ICommand LoadIfcCommand { get; }
 
         #region State
 
@@ -68,22 +84,20 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
         #endregion
 
-        private readonly ElementManagementViewModel _elementManagement;
-        private readonly IRenderingService _renderingService;
 
         public IfcViewerViewModel(
             IIfcReaderRepository ifcReader,
             ISceneService scene,
             IDialogService dialog,
             IIfcOptionsDialogService dialogService,
-            ElementManagementViewModel elementManagement,
+            ISelectionService selectionService,
             IRenderingService renderingService)
         {
             _ifcReader = ifcReader;
             _scene = scene;
             _dialog = dialog;
             _dialogService = dialogService;
-            _elementManagement = elementManagement;
+            _selectionService = selectionService;
             _renderingService = renderingService;
             
             LoadIfcCommand = new RelayCommand(
@@ -93,19 +107,134 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             ViewportClickCommand = new RelayCommand<DomainPoint3D>(p =>
             {
                 if (p == null) return;
-
-                // 1. Interaction routing (Zones etc)
                 CurrentInteraction?.OnClick(p);
-
-                // 2. Element selection hit-test
-                var wpfPoint = new System.Windows.Media.Media3D.Point3D(p.X, p.Y, p.Z);
-                var element = _renderingService.FindElementAt(wpfPoint);
-
-                _elementManagement.SelectedElement = element;
             });
 
             ViewportMoveCommand = new RelayCommand<DomainPoint3D>(
                 p => CurrentInteraction?.OnMove(p));
+
+            _selectionService.SelectionChanged += element =>
+            {
+                var mode = element is null ? HighlightMode.Normal : HighlightMode.Highlight;
+                var dispatcher = System.Windows.Application.Current.Dispatcher;
+
+                if (dispatcher.CheckAccess())
+                    ApplyHighlight(element, mode);
+                else
+                    dispatcher.InvokeAsync(() => ApplyHighlight(element, mode));
+            };
+
+            _scene.ElementsChanged += OnElementsChanged;
+        }
+
+        private void OnElementsChanged(List<PrecastElement> elements)
+        {
+            var dispatcher = System.Windows.Application.Current.Dispatcher;
+
+            if (dispatcher.CheckAccess())
+                UpdateVisuals(elements);
+            else
+                dispatcher.InvokeAsync(() => UpdateVisuals(elements));
+        }
+
+        private void UpdateVisuals(List<PrecastElement> elements)
+        {
+            if (ViewportChildren == null) return;
+
+            // Clear old visuals
+            foreach (var visual in _elementVisuals.Keys)
+            {
+                ViewportChildren.Remove(visual);
+            }
+            _elementVisuals.Clear();
+
+            var builder = new ElementVisualBuilder();
+            foreach (var element in elements)
+            {
+                var visual = builder.Build((element, (CraneOptimizer.Domain.Schemas.Enums.LiftStatus?)null));
+                if (visual != null)
+                {
+                    _elementVisuals[visual] = element;
+                    ViewportChildren.Add(visual);
+                }
+            }
+        }
+
+        public void RequestMode(HighlightMode mode)
+        {
+            var dispatcher = System.Windows.Application.Current.Dispatcher;
+
+            if (dispatcher.CheckAccess())
+                ApplyHighlight(_selectionService.SelectedElement, mode);
+            else
+                dispatcher.InvokeAsync(() => ApplyHighlight(_selectionService.SelectedElement, mode));
+        }
+
+        private void ApplyHighlight(PrecastElement? selected, HighlightMode mode)
+        {
+            foreach (var kvp in _elementVisuals)
+            {
+                var visual = kvp.Key as ModelVisual3D;
+                if (visual?.Content is not GeometryModel3D model) continue;
+
+                bool isSelected = kvp.Value == selected;
+                double opacity = 1.0;
+                bool isVisible = true;
+
+                switch (mode)
+                {
+                    case HighlightMode.Normal:
+                        opacity = 1.0;
+                        isVisible = true;
+                        break;
+
+                    case HighlightMode.Highlight:
+                        opacity = isSelected ? 1.0 : 0.35;
+                        isVisible = true;
+                        break;
+
+                    case HighlightMode.Focus:
+                        opacity = isSelected ? 1.0 : 0.35;
+                        isVisible = true;
+                        break;
+
+                    case HighlightMode.Isolation:
+                        opacity = 1.0;
+                        isVisible = isSelected;
+                        break;
+                }
+
+                // Apply opacity to material
+                if (model.Material is DiffuseMaterial dm && dm.Brush is SolidColorBrush scb)
+                {
+                    scb.Opacity = isVisible ? opacity : 0.0;
+                }
+                if (model.BackMaterial is DiffuseMaterial bdm && bdm.Brush is SolidColorBrush bscb)
+                {
+                    bscb.Opacity = isVisible ? opacity : 0.0;
+                }
+            }
+
+            if (mode == HighlightMode.Focus && selected is not null)
+                AnimateCameraTo(selected);
+        }
+
+        private void AnimateCameraTo(PrecastElement element)
+        {
+            if (Camera == null) return;
+
+            var center = element.ElementCOG;
+            var target = new Point3D(center.X, center.Y - 20, center.Z + 10);
+
+            var animation = new Point3DAnimation
+            {
+                To = target,
+                Duration = TimeSpan.FromMilliseconds(600),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+            };
+
+            Camera.BeginAnimation(PerspectiveCamera.PositionProperty, animation);
+            Camera.LookDirection = new Vector3D(center.X - target.X, center.Y - target.Y, center.Z - target.Z);
         }
 
         #region Main Logic

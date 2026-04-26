@@ -1,9 +1,13 @@
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using HelixToolkit.Wpf;
+using System;
+using System.Linq;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
@@ -14,12 +18,22 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.Views
     {
         private IRenderingService? _renderingService;
         private ISceneService? _sceneService;
+        private ISelectionService? _selectionService;
 
         public IfcViewerControl()
         {
             InitializeComponent();
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
+
+            DataContextChanged += (s, e) =>
+            {
+                if (VM != null)
+                {
+                    VM.ViewportChildren = IfcViewer.Children;
+                    VM.Camera = IfcViewer.Camera as PerspectiveCamera;
+                }
+            };
         }
 
         private IfcViewerViewModel? VM => DataContext as IfcViewerViewModel;
@@ -33,8 +47,20 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.Views
 
             _renderingService = renderingService;
             _sceneService = sceneService;
+            _selectionService = (App.ServiceProvider.GetService(typeof(ISelectionService)) as ISelectionService);
 
             _renderingService.Initialize(IfcViewer);
+
+            if (VM != null)
+            {
+                VM.ViewportChildren = IfcViewer.Children;
+                VM.Camera = IfcViewer.Camera as PerspectiveCamera;
+            }
+
+            if (_selectionService != null)
+            {
+                // UI logic for scrolling is handled in ElementManagementControl.xaml.cs
+            }
         }
 
         #region Lifecycle
@@ -64,21 +90,38 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.Views
         {
             if (e.ChangedButton == MouseButton.Right)
             {
-                // We can pass null or handle right click differently if needed, 
-                // but for now let's just not handle it here or we pass it to a different command.
-                // Or we can just let CurrentInteraction handle it if we modify it.
-                // We'll pass the point on right click too, or we can just ignore it for now.
-                // Let's pass the point to the ViewportClickCommand anyway.
+                // Right click logic
             }
 
             if (e.ChangedButton != MouseButton.Left)
                 return;
 
-            var screen = e.GetPosition(IfcViewer);
-            var world = GetWorldPoint(IfcViewer, screen);
+            // FIX-P5: Element selection via hit-test
+            var hits = IfcViewer.Viewport.FindHits(e.GetPosition(IfcViewer));
+            Visual3D? hitVisual = hits.FirstOrDefault()?.Visual;
 
-            VM?.ViewportClickCommand?.Execute(new DomainPoint3D(world.X, world.Y, world.Z));
-            e.Handled = true;
+            PrecastElement? hitElement = null;
+            if (hitVisual != null && VM != null)
+            {
+                VM.ElementVisuals.TryGetValue(hitVisual, out hitElement);
+            }
+
+            if (hitElement != null)
+            {
+                _selectionService?.Select(hitElement);
+                e.Handled = true;
+            }
+            else
+            {
+                // Fallback to coordinates for placement interactions
+                var screen = e.GetPosition(IfcViewer);
+                var world = GetWorldPoint(IfcViewer, screen);
+                VM?.ViewportClickCommand?.Execute(new DomainPoint3D(world.X, world.Y, world.Z));
+                
+                // Clear selection if background clicked
+                if (!hits.Any())
+                    _selectionService?.Select(null);
+            }
         }
 
         #endregion

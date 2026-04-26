@@ -9,6 +9,7 @@
             <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <local:IntToVisibilityConverter x:Key="IntToVisibilityConverter"/>
             <local:LiftStatusToBrushConverter x:Key="LiftStatusToBrushConverter"/>
+            <local:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
             
             <ResourceDictionary.MergedDictionaries>
 

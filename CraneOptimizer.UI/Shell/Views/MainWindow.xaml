@@ -17,6 +17,10 @@
     WindowState="Maximized"
     WindowStyle="None">
 
+    <Window.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding ElementsVM.ResetViewCommand}" />
+    </Window.InputBindings>
+
     <Window.Resources>
         <ResourceDictionary />
     </Window.Resources>
