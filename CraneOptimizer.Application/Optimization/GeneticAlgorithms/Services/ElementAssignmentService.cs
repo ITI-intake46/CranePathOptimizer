@@ -2,6 +2,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 
@@ -24,6 +25,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     /// </summary>
     public class ElementAssignmentService : IElementAssignmentService
     {
+        private readonly ICraneConstraintService _constraintService;
+
+        public ElementAssignmentService(ICraneConstraintService constraintService)
+        {
+            _constraintService = constraintService;
+        }
         // ══════════════════════════════════════════════════════════════
         // PUBLIC ENTRY POINT
         // ══════════════════════════════════════════════════════════════
@@ -31,11 +38,35 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         public AssignmentResult EvaluateAssignment(
             CraneSolution solution,
             List<PrecastElement> elements,
+            IReadOnlyList<DomainPoint3D> elementCenters,
+            IReadOnlyList<double> elementWeights,
             Dictionary<int, List<string>> assignment,
             CraneSpecification craneSpec,
-            GASettings settings)
+            GASettings settings,
+            List<GreenAreaZone> allowedZones,
+            List<GreenAreaZone> forbiddenZones)
         {
             var result = new AssignmentResult();
+            
+            // ── Check for Zone & Constraint Violations ───────────────
+            foreach (var pos in solution.Chromosome.CranePositions)
+            {
+                var validation = _constraintService.Validate(
+                    pos, 
+                    elementCenters, 
+                    elementWeights, 
+                    allowedZones, 
+                    forbiddenZones, 
+                    craneSpec,
+                    settings);
+
+                if (!validation.IsOutsideForbiddenZone)
+                {
+                    result.ForbiddenZoneViolations++;
+                }
+
+                result.TotalConstraintPenalty += validation.NormalizedPenalty; // Use Normalized
+            }
 
             foreach (var element in elements)
             {

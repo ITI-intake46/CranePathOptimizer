@@ -163,7 +163,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // ══════════════════════════════════════════════════════
             // 6. FINAL FITNESS
             // ══════════════════════════════════════════════════════
-
+            
             double fitness =
                   settings.CoverageWeight * coverageRatio
                 - settings.RelocationWeight * normalisedRelocation
@@ -173,7 +173,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 - SpecialCasePenaltyWeight * normSpecialCase
                 - settings.RadiusPenaltyWeight * radiusQualityPenalty
                 - balancePenalty
-                - radiusStdDevPenalty;
+                - radiusStdDevPenalty
+                - assignment.TotalConstraintPenalty; // Unified soft penalties
 
             fitness = Math.Max(0, fitness);
 

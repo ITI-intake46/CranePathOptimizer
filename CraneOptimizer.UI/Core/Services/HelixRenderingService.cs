@@ -1,5 +1,6 @@
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer;
 using HelixToolkit.Wpf;
@@ -248,11 +249,18 @@ namespace CraneOptimizer.UI.Core.Services
 
             return null;
         }
-        public void RenderCranePreview(DomainPoint3D point)
+
+        public void RenderCranePreview(DomainPoint3D point, CraneConstraintResult? validation = null)
         {
+            var color = System.Windows.Media.Colors.DeepSkyBlue; // Default
+            if (validation != null)
+            {
+                color = validation.IsValid ? System.Windows.Media.Colors.LimeGreen : System.Windows.Media.Colors.Crimson;
+            }
+
             Render(
                 new[] { (point.X, point.Y, point.Z + 5.0) }, // Offset slightly to avoid Z-fighting
-                new BestPointVisualBuilder(200.0, System.Windows.Media.Colors.LightSkyBlue), // Ghost crane
+                new BestPointVisualBuilder(200.0, color), // Ghost crane with validation color
                 "CranePreview"
             );
         }

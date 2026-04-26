@@ -1,3 +1,4 @@
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using HelixToolkit.Wpf;
@@ -24,7 +25,7 @@ namespace CraneOptimizer.UI.Core.Interfaces
         void Focus(PrecastElement element);
         PrecastElement? FindElementAt(Point3D point);
 
-        void RenderCranePreview(DomainPoint3D point);
+        void RenderCranePreview(DomainPoint3D point, CraneConstraintResult? validation = null);
         void RenderCraneFinal(DomainPoint3D point);
         void ClearCranePreview();
     }

@@ -47,7 +47,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 
             // 1️⃣ Initialize population
             var population = _initializer.InitializePopulation(
-                input.Zones,
+                input.AllowedZones,
                 input.Elements,
                 input.Settings.PopulationSize,
                 input.Settings.MaxCranePositions,
@@ -61,9 +61,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                     var evaluation = _assignmentService.EvaluateAssignment(
                         solution,
                         input.Elements,
+                        input.ElementCenters,
+                        input.ElementWeights,
                         input.Assignment,
                         input.CraneSpec,
-                        input.Settings);
+                        input.Settings,
+                        input.AllowedZones,
+                        input.ForbiddenZones);
 
                     // 3️⃣ Evaluate fitness
                     var fitness = _fitnessEvaluator.EvaluateFitness(
@@ -121,16 +125,20 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                 foreach (var child in children)
                 {
                     if (GARandomManager.Instance.NextDouble() < input.Settings.MutationRate)
-                        _mutation.Mutate(child, input.Zones);
+                        _mutation.Mutate(child, input.AllowedZones);
                 }
                 foreach (var child in children)
                 {
                     var evaluation = _assignmentService.EvaluateAssignment(
                         child,
                         input.Elements,
+                        input.ElementCenters,
+                        input.ElementWeights,
                         input.Assignment,
                         input.CraneSpec,
-                        input.Settings);
+                        input.Settings,
+                        input.AllowedZones,
+                        input.ForbiddenZones);
 
                     var fitness = _fitnessEvaluator.EvaluateFitness(
                         child,

@@ -1,4 +1,4 @@
-﻿namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
+namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
 {
     /// <summary>
     /// Contains the results of assigning elements to crane positions.
@@ -16,5 +16,15 @@
         /// Detailed evaluation result for every element.
         /// </summary>
         public List<ElementEvaluationResult> EvaluationResults { get; set; } = new();
+
+        /// <summary>
+        /// Number of crane positions that fall inside forbidden zones.
+        /// </summary>
+        public int ForbiddenZoneViolations { get; set; }
+
+        /// <summary>
+        /// Aggregated soft penalty score from all constraints.
+        /// </summary>
+        public double TotalConstraintPenalty { get; set; }
     }
 }

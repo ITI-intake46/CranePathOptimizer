@@ -1,4 +1,5 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
@@ -36,8 +37,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
         AssignmentResult EvaluateAssignment(
             CraneSolution solution,
             List<PrecastElement> elements,
+            IReadOnlyList<DomainPoint3D> elementCenters,
+            IReadOnlyList<double> elementWeights,
             Dictionary<int, List<string>> assignment,
             CraneSpecification craneSpec,
-            GASettings settings);
+            GASettings settings,
+            List<GreenAreaZone> allowedZones,
+            List<GreenAreaZone> forbiddenZones);
     }
 }

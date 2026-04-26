@@ -47,19 +47,27 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             }
 
             var sceneZones = _sceneService.GetZones();
-            var zones = new List<GreenAreaZone>(sceneZones.Count);
+            var allowedZones = new List<GreenAreaZone>();
+            var forbiddenZones = new List<GreenAreaZone>();
 
             for (int i = 0; i < sceneZones.Count; i++)
             {
                 var zone = sceneZones[i];
-                if (zone.Type != ZoneType.Allowed)
-                    continue;
-
-                ValidateZone(zone);
-                zones.Add(_coordinateService.NormalizeZoneToMeters(zone));
+                var normalized = _coordinateService.NormalizeZoneToMeters(zone);
+                
+                if (zone.Type == ZoneType.Allowed)
+                {
+                    ValidateZone(normalized);
+                    allowedZones.Add(normalized);
+                }
+                else if (zone.Type == ZoneType.Forbidden)
+                {
+                    ValidateZone(normalized);
+                    forbiddenZones.Add(normalized);
+                }
             }
 
-            if (zones.Count == 0)
+            if (allowedZones.Count == 0)
                 throw new InvalidOperationException("No allowed zones found in the scene.");
 
             //  FIX: use selected crane from UI
@@ -77,10 +85,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             if (settings.MaxRadiusForNormalisation <= 0)
                 settings.MaxRadiusForNormalisation = craneSpec.MaxRadius;
 
+            var centers = elements.Select(e => e.ElementCOG).ToList();
+            var weights = elements.Select(e => e.ElementWT ?? 0).ToList();
+
             return new PlacementInput
             {
-                Zones = zones,
+                AllowedZones = allowedZones,
+                ForbiddenZones = forbiddenZones,
                 Elements = elements,
+                ElementCenters = centers,
+                ElementWeights = weights,
                 Assignment = new Dictionary<int, List<string>>(),
                 CraneSpec = craneSpec,
                 Settings = settings

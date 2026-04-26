@@ -70,6 +70,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<SceneService>();
             services.AddSingleton<DrawingService>();
             services.AddSingleton<CoordinateService>();
+            services.AddSingleton<ICraneConstraintService, CraneConstraintService>();
 
             // =========================
             // GA

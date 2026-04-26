@@ -1,5 +1,8 @@
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
+using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
@@ -14,6 +17,10 @@ namespace CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels
     public class CranePlacementViewModel : ViewModelBase, IDisposable
     {
         private readonly IRenderingService _render;
+        private readonly ICraneConstraintService _constraintService;
+        private readonly ISceneService _scene;
+        private readonly GASettings _settings;
+
         private bool _isPlacing;
         private DomainPoint3D? _previewPoint;
         private DomainPoint3D? _selectedPoint;
@@ -26,9 +33,16 @@ namespace CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels
 
         public ICommand SelectCandidatePointCommand { get; }
 
-        public CranePlacementViewModel(IRenderingService render)
+        public CranePlacementViewModel(
+            IRenderingService render,
+            ICraneConstraintService constraintService,
+            ISceneService scene,
+            GASettings settings)
         {
             _render = render;
+            _constraintService = constraintService;
+            _scene = scene;
+            _settings = settings;
 
             StartPlacementCommand = new RelayCommand(StartPlacement);
             ConfirmPlacementCommand = new RelayCommand(ConfirmPlacement, () => IsPlacing && SelectedPoint != null);
@@ -63,7 +77,8 @@ namespace CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels
                 
                 if (value != null)
                 {
-                    _render.RenderCranePreview(value);
+                    var result = ValidatePoint(value);
+                    _render.RenderCranePreview(value, result);
                 }
 
                 (ConfirmPlacementCommand as RelayCommand)?.RaiseCanExecuteChanged();
@@ -98,7 +113,30 @@ namespace CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels
             if (!IsPlacing) return;
 
             PreviewPoint = point;
-            _render.RenderCranePreview(point);
+            
+            var result = ValidatePoint(point);
+            _render.RenderCranePreview(point, result);
+        }
+
+        private CraneConstraintResult? ValidatePoint(DomainPoint3D point)
+        {
+            if (SelectedCrane == null) return null;
+
+            var spec = SelectedCrane.Specifications.FirstOrDefault();
+            if (spec == null) return null;
+
+            var elements = _scene.GetElements().ToList();
+            var centers = elements.Select(e => e.ElementCOG).ToList();
+            var weights = elements.Select(e => e.ElementWT ?? 0).ToList();
+
+            return _constraintService.Validate(
+                point,
+                centers,
+                weights,
+                _scene.GetZones().Where(z => z.Type == ZoneType.Allowed).ToList(),
+                _scene.GetZones().Where(z => z.Type == ZoneType.Forbidden).ToList(),
+                spec,
+                _settings);
         }
 
         private void ConfirmPlacement()
@@ -139,9 +177,10 @@ namespace CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels
         public void SelectCandidatePoint(DomainPoint3D point)
         {
             if (point == null) return;
-
+ 
             SelectedPoint = point;
-            _render.RenderCranePreview(point);
+            var result = ValidatePoint(point);
+            _render.RenderCranePreview(point, result);
         }
 
         public void Dispose()
