@@ -17,7 +17,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="28" />
                 <!--  Tab selector strip  -->
-                <RowDefinition Height="100" />
+                <RowDefinition Height="120" />
                 <!--  Tab content area  -->
             </Grid.RowDefinitions>
 
@@ -94,7 +94,10 @@
                 <ZonesViews:ZonesTabView x:Name="PanelZones" Visibility="Collapsed" />
 
                 <!--  ── ANALYZE tab ─────────────────────────────────────────────  -->
-                <AnalyzeViews:AnalyzeTabView x:Name="PanelAnalyze" Visibility="Collapsed" />
+                <AnalyzeViews:AnalyzeTabView
+                    x:Name="PanelAnalyze"
+                    DataContext="{Binding CranePlacement}"
+                    Visibility="Collapsed" />
 
             </Grid>
         </Grid>

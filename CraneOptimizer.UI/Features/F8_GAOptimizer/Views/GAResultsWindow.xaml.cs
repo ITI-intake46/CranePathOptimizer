@@ -12,14 +12,14 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 
-namespace CraneOptimizer.UI.Features.F6_CranePlacement.Views
+namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 {
     /// <summary>
-    /// Interaction logic for CranePlacementView.xaml
+    /// Interaction logic for GAResultsWindow.xaml
     /// </summary>
-    public partial class CranePlacementView : Window
+    public partial class GAResultsWindow : Window
     {
-        public CranePlacementView()
+        public GAResultsWindow()
         {
             InitializeComponent();
         }
