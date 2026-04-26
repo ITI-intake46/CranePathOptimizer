@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Core.Base;
@@ -6,6 +7,7 @@ using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
+using CraneOptimizer.UI.Features.F6_CranePlacement.Interactions;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.Interactions;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
@@ -56,6 +58,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             // Initialize interaction lifecycle
             ZonesVM.DrawingStarted += OnZoneDrawingStarted;
             ZonesVM.DrawingEnded += OnZoneDrawingEnded;
+            
+            CraneInteraction = new CranePlacementInteraction(CranePlacement);
+            CranePlacement.PlacementEnded += OnCranePlacementEnded;
 
             _ifcReader = ifcReader;
             _render = render;
@@ -65,6 +70,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
             ElementsVM.ElementsLoaded += OnElementsLoaded;
 
+            StartCranePlacementCommand = new RelayCommand(StartCranePlacement);
             OptimizeCommand = new RelayCommand(OpenOptimizerDialog);
 
             _ = LoadCranesAsync();
@@ -77,6 +83,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         #region ViewModels
         public CranePlacementViewModel CranePlacement { get; }
+        public CranePlacementInteraction CraneInteraction { get; }
         public ZoneDrawingViewModel ZonesVM { get; }
         public ZoneDrawingInteraction ZonesInteraction { get; }
         public IfcViewerViewModel IfcViewer { get; }
@@ -86,6 +93,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         #region Commands
         public ICommand StartDrawingCommand { get; }
+        public ICommand StartCranePlacementCommand { get; }
         public ICommand OptimizeCommand { get; } 
         #endregion
 
@@ -130,6 +138,20 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             {
                 StatusText = "Optimization Completed";
                 HistoryBreadcrumb = $"Best Fitness: {dialog.LatestResult.FitnessScore:F2}";
+
+                // 🚀 Bridge F8 → F6
+                var points = dialog.LatestResult.Positions
+                    .Select(p => new DomainPoint3D { X = p.X, Y = p.Y, Z = 0 })
+                    .ToList();
+
+                CranePlacement.LoadCandidatePoints(points);
+                
+                // Switch to placement mode automatically to show results
+                if (points.Any())
+                {
+                    IfcViewer.CurrentInteraction = CraneInteraction;
+                    CranePlacement.IsPlacing = true;
+                }
             }
         }
         #endregion
@@ -140,12 +162,25 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IsModelLoaded = true;
             StatusText = $"Model Loaded ({count} elements)";
         }
+
+        private void StartCranePlacement()
+        {
+            CranePlacement.StartPlacementCommand.Execute(null);
+            IfcViewer.CurrentInteraction = CraneInteraction;
+            StatusText = "Click in 3D to position the crane";
+        }
+
         private void OnZoneDrawingStarted()
         {
             IfcViewer.CurrentInteraction = ZonesInteraction;
         }
 
         private void OnZoneDrawingEnded()
+        {
+            IfcViewer.CurrentInteraction = null;
+        }
+
+        private void OnCranePlacementEnded()
         {
             IfcViewer.CurrentInteraction = null;
         }
@@ -161,9 +196,11 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             ElementsVM.ElementsLoaded -= OnElementsLoaded;
             ZonesVM.DrawingStarted -= OnZoneDrawingStarted;
             ZonesVM.DrawingEnded -= OnZoneDrawingEnded;
+            CranePlacement.PlacementEnded -= OnCranePlacementEnded;
 
             ElementsVM.Dispose();
             ZonesVM.Dispose();
+            CranePlacement.Dispose();
         } 
         #endregion
 

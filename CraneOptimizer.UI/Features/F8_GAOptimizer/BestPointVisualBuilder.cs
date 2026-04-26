@@ -9,10 +9,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer
     public class BestPointVisualBuilder : IVisualBuilder<(double x, double y, double z)>
     {
         private readonly double _markerRadiusInMillimeters;
+        private readonly Color _color;
 
-        public BestPointVisualBuilder(double markerRadiusInMillimeters)
+        public BestPointVisualBuilder(double markerRadiusInMillimeters, Color? color = null)
         {
             _markerRadiusInMillimeters = Math.Max(1.0, markerRadiusInMillimeters);
+            _color = color ?? Colors.Blue;
         }
 
         public Visual3D Build((double x, double y, double z) item)
@@ -44,11 +46,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer
                     helixMesh.Normals.Select(normal => new Vector3D(normal.X, normal.Y, normal.Z)));
             }
 
+            var brush = new SolidColorBrush(_color);
             var geometryModel = new GeometryModel3D
             {
                 Geometry = mesh,
-                Material = new DiffuseMaterial(new SolidColorBrush(Colors.Blue)),
-                BackMaterial = new DiffuseMaterial(new SolidColorBrush(Colors.Blue))
+                Material = new DiffuseMaterial(brush),
+                BackMaterial = new DiffuseMaterial(brush)
             };
 
             return new ModelVisual3D

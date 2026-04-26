@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using HelixToolkit.Wpf;
 using System.Windows.Media.Media3D;
@@ -22,5 +23,9 @@ namespace CraneOptimizer.UI.Core.Interfaces
         void ResetHighlight();
         void Focus(PrecastElement element);
         PrecastElement? FindElementAt(Point3D point);
+
+        void RenderCranePreview(DomainPoint3D point);
+        void RenderCraneFinal(DomainPoint3D point);
+        void ClearCranePreview();
     }
 }

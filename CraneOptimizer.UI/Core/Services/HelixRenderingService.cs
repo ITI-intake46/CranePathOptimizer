@@ -1,5 +1,7 @@
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F8_GAOptimizer;
 using HelixToolkit.Wpf;
 using System.Windows.Media.Media3D;
 
@@ -245,6 +247,28 @@ namespace CraneOptimizer.UI.Core.Services
             }
 
             return null;
+        }
+        public void RenderCranePreview(DomainPoint3D point)
+        {
+            Render(
+                new[] { (point.X, point.Y, point.Z + 5.0) }, // Offset slightly to avoid Z-fighting
+                new BestPointVisualBuilder(200.0, System.Windows.Media.Colors.LightSkyBlue), // Ghost crane
+                "CranePreview"
+            );
+        }
+
+        public void RenderCraneFinal(DomainPoint3D point)
+        {
+            Render(
+                new[] { (point.X, point.Y, point.Z + 5.0) },
+                new BestPointVisualBuilder(200.0, System.Windows.Media.Colors.Crimson), // Final crane
+                "CraneFinal"
+            );
+        }
+
+        public void ClearCranePreview()
+        {
+            ClearLayer("CranePreview");
         }
     }
 }
