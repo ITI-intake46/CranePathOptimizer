@@ -8,13 +8,12 @@ using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
-using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
-using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 
 namespace CraneOptimizer.UI.Shell.ViewModels
 {
@@ -115,22 +114,10 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         #region GA_Run
         private void OpenOptimizerDialog()
         {
-            var dialog = new CraneOptimizerDialog(
-                _cranePlacementService,
-                _render,
-                _dialog,
-                _craneRepo,
-                Scene);
-
-            if (System.Windows.Application.Current?.MainWindow != null)
-                dialog.Owner = System.Windows.Application.Current.MainWindow;
-
-            dialog.ShowDialog();
-
-            if (dialog.LatestResult != null)
+            if (CranePlacement.RunOptimizationWorkflow() && CranePlacement.Result != null)
             {
                 StatusText = "Optimization Completed";
-                HistoryBreadcrumb = $"Best Fitness: {dialog.LatestResult.FitnessScore:F2}";
+                HistoryBreadcrumb = $"Best Fitness: {CranePlacement.Result.FitnessScore:F2}";
             }
         }
         #endregion

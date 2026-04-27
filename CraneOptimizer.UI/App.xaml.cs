@@ -12,9 +12,9 @@ using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
-using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 using CraneOptimizer.UI.Shell.ViewModels;
 using CraneOptimizer.UI.Shell.Views;
 using Microsoft.EntityFrameworkCore;
@@ -76,6 +76,8 @@ namespace CraneOptimizer.UI
             RegisterGAServices(services);
             services.AddScoped<GAInputBuilder>();
             services.AddScoped<ICranePlacementService, CranePlacementService>();
+            services.AddSingleton<ICraneOptimizerDialogService, CraneOptimizerDialogService>();
+            services.AddSingleton<IGAResultsWindowService, GAResultsWindowService>();
 
             // =========================
             // Rendering and Geometry Builders

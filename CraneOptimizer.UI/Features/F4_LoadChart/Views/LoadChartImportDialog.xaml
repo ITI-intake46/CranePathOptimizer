@@ -88,7 +88,7 @@
                 <!-- Method tabs -->
                 <Border Grid.Column="1" CornerRadius="5"
                         Background="{DynamicResource BackgroundBrush}"
-                        Padding="1">
+                            Padding="1,1,1,1">
                     <StackPanel Orientation="Horizontal">
                         <RadioButton x:Name="RboCsv" Style="{StaticResource MethodTab}"
                                      IsChecked="True" GroupName="M"
