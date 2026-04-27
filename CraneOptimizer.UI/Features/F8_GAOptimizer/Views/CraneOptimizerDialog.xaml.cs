@@ -13,7 +13,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 {
     public partial class CraneOptimizerDialog : Window
     {
-        const string POINT_LAYER = "GA_SelectedPoint";
         const double CompactDialogWidth = 460;
         const double ExpandedDialogWidth = 780;
         const double AdvancedPanelWidth = 320;
@@ -84,7 +83,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             _cancelRequested = false;
 
             ClearResultPanel();
-            _renderingService.ClearLayer(POINT_LAYER);
+            _renderingService.ClearLayer(SelectedPointRenderer.PointLayer);
 
             BtnRun.IsEnabled = false;
             BtnCancel.IsEnabled = true;
@@ -153,43 +152,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private void ShowPoint(CranePositionResult point)
         {
-            if (point == null)
-                return;
-
-            _renderingService.ClearLayer(POINT_LAYER);
-
-            var markerRadius = CalculateMarkerRadius();
-            var markerZ = CalculateMarkerZ(markerRadius);
-
-            _renderingService.Render(
-                new[] { (point.X, point.Y, markerZ) },
-                new BestPointVisualBuilder(markerRadius),
-                POINT_LAYER
-            );
-
-            var elements = _sceneService.GetElements();
-            if (elements == null) return;
-
-            var statusMap = point.ElementResults
-                .ToDictionary(e => e.ElementId, e => e.Status);
-
-            var elementsWithStatus = elements.Select(e =>
-            {
-                if (statusMap.TryGetValue(e.ElementID, out var status))
-                {
-                    return (e, (LiftStatus?)status);
-                }
-                else
-                {
-                    return (e, null);
-                }
-            });
-
-            _renderingService.Render(
-                elementsWithStatus,
-                new ElementVisualBuilder(),
-                "Elements"
-            );
+            SelectedPointRenderer.Render(_renderingService, _sceneService, point);
         }
 
         private GASettings BuildSettings()
@@ -240,9 +203,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             PanelResults.Visibility = Visibility.Collapsed;
             PointsList.ItemsSource = null;
         }
-
-        private double CalculateMarkerRadius() => 200;
-        private double CalculateMarkerZ(double r) => 500;
 
         private void BtnAdvancedToggle_Click(object sender, RoutedEventArgs e)
         {
