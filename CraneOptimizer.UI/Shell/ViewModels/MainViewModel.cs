@@ -189,11 +189,11 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             }
 
             OriginPoint = null;
-            IsPickingOrigin = true;
+            IsPickingOrigin = false;
 
             IsModelLoaded = true;
             ReRenderElements();
-            StatusText = $"Model loaded ({elements.Count} elements). Pick origin to reposition display.";
+            StatusText = $"Model loaded ({elements.Count} elements).";
         }
 
         public bool IsPickingOrigin
