@@ -57,6 +57,7 @@ namespace CraneOptimizer.UI
             // =========================
             services.AddScoped<ICraneRepository, CraneRepository>();
             services.AddScoped<IIfcReaderRepository, IfcReaderRepository>();
+            services.AddScoped<IProjectRepository, ProjectRepository>();
 
             // =========================
             // UI Services
