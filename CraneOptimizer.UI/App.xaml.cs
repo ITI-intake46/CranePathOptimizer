@@ -15,6 +15,7 @@ using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.UI.F10_ProjectManagement.Views;
 using CraneOptimizer.UI.Shell.ViewModels;
 using CraneOptimizer.UI.Shell.Views;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,8 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels;
 
 namespace CraneOptimizer.UI
 {
@@ -33,9 +36,9 @@ namespace CraneOptimizer.UI
         protected override void OnStartup(StartupEventArgs e)
         {
             // Global exception handlers
-            this.DispatcherUnhandledException += App_DispatcherUnhandledException;
-            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
-            TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
+            DispatcherUnhandledException += OnDispatcherUnhandledException;
+            AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+            TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(AppContext.BaseDirectory)
@@ -43,13 +46,15 @@ namespace CraneOptimizer.UI
                 .Build();
 
             var services = new ServiceCollection();
-
             var connectionString = configuration.GetConnectionString("DefaultConnection");
 
             // =========================
             // DbContext
             // =========================
             services.AddDbContext<CraneDbContext>(options =>
+                options.UseSqlite(connectionString));
+
+            services.AddDbContextFactory<CraneDbContext>(options =>
                 options.UseSqlite(connectionString));
 
             // =========================
@@ -60,9 +65,22 @@ namespace CraneOptimizer.UI
             services.AddScoped<IProjectRepository, ProjectRepository>();
 
             // =========================
-            // UI Services
+            // Core Services
             // =========================
             services.AddSingleton<IDialogService, DialogService>();
+
+            // =========================
+            // F10 Project Management
+            // =========================
+            services.AddTransient<IProjectService, ProjectService>();
+            services.AddSingleton<IProjectShellService, ProjectShellService>();
+            services.AddSingleton<IProjectNavigationService, ProjectNavigationService>();
+
+            services.AddTransient<SplashScreenViewModel>();
+            services.AddTransient<ProjectManagementViewModel>();
+
+            services.AddTransient<SplashScreenWindow>();
+            services.AddTransient<ProjectManagementWindow>();
 
             // =========================
             // Scene
@@ -75,13 +93,14 @@ namespace CraneOptimizer.UI
             // GA
             // =========================
             RegisterGAServices(services);
+
             services.AddScoped<GAInputBuilder>();
             services.AddScoped<ICranePlacementService, CranePlacementService>();
             services.AddSingleton<ICraneOptimizerDialogService, CraneOptimizerDialogService>();
             services.AddSingleton<IGAResultsWindowService, GAResultsWindowService>();
 
             // =========================
-            // Rendering and Geometry Builders
+            // Rendering
             // =========================
             services.AddSingleton<ElementVisualBuilder>();
             services.AddSingleton<IRenderingService, HelixRenderingService>();
@@ -91,7 +110,7 @@ namespace CraneOptimizer.UI
             // =========================
             // ViewModels
             // =========================
-            services.AddSingleton<MainViewModel>();
+            services.AddTransient<MainViewModel>();
             services.AddSingleton<DrawingViewModel>();
             services.AddSingleton<CranePlacementViewModel>();
             services.AddSingleton<IfcViewerViewModel>();
@@ -100,23 +119,80 @@ namespace CraneOptimizer.UI
             // =========================
             // Views
             // =========================
-            services.AddSingleton<MainWindow>();
+            services.AddTransient<MainWindow>();
 
             ServiceProvider = services.BuildServiceProvider();
 
-            var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
-            // DataContext is already assigned in MainWindow's constructor via DI.
-            // Assigning it a second time here would toggle bindings unnecessarily.
-
-            mainWindow.Show();
-
             base.OnStartup(e);
+
+            // Start pipeline safely on UI thread
+            Dispatcher.InvokeAsync(StartupPipelineAsync);
+        }
+
+        private async Task StartupPipelineAsync()
+        {
+            // =========================
+            // Splash (MainWindow مؤقت)
+            // =========================
+            var splash = ServiceProvider.GetRequiredService<SplashScreenWindow>();
+            MainWindow = splash;
+            splash.Show();
+
+            try
+            {
+                var vm = (SplashScreenViewModel)splash.DataContext;
+                vm.Status = "Initializing...";
+
+                vm.Status = "Updating database...";
+                await ApplyMigrationsAsync();
+
+                vm.Status = "Starting application...";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Startup error: {ex}");
+
+                ServiceProvider
+                    .GetRequiredService<IDialogService>()
+                    .ShowNonBlockingError(
+                        "Startup failed:\n" + ex.Message,
+                        "Startup Error");
+            }
+
+            // =========================
+            // Navigate to Project Management
+            // =========================
+            var projectWindow = ServiceProvider.GetRequiredService<ProjectManagementWindow>();
+
+            MainWindow = projectWindow;
+            projectWindow.Show();
+
+            splash.Close();
+        }
+
+        private async Task ApplyMigrationsAsync()
+        {
+            try
+            {
+                await using var scope = ServiceProvider.CreateAsyncScope();
+                var context = scope.ServiceProvider.GetRequiredService<CraneDbContext>();
+
+                await context.Database.MigrateAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Migration failed: {ex}");
+
+                ServiceProvider
+                    .GetRequiredService<IDialogService>()
+                    .ShowNonBlockingError(
+                        "Database update failed.\n\n" + ex.Message,
+                        "Database Error");
+            }
         }
 
         protected override void OnExit(ExitEventArgs e)
         {
-            // Shut down the Dispatcher FIRST so no pending render callbacks
-            // can fire against ViewModels that are about to be disposed.
             Dispatcher.InvokeShutdown();
 
             try
@@ -125,32 +201,29 @@ namespace CraneOptimizer.UI
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error disposing ServiceProvider: {ex}");
+                Debug.WriteLine($"Dispose error: {ex}");
             }
 
             base.OnExit(e);
         }
 
-        #region Global exception handlers
+        #region Exception Handlers
 
-        private void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+        private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
-            // Log and show — capture stack trace
-            Debug.WriteLine($"DispatcherUnhandledException: {e.Exception}");
-            MessageBox.Show($"Unhandled UI exception:\n{e.Exception}\n\nSee Output window for details.", "Unhandled Exception", MessageBoxButton.OK, MessageBoxImage.Error);
-            // If you want the app to continue, set e.Handled = true; otherwise the app will shut down
+            Debug.WriteLine(e.Exception);
+            MessageBox.Show(e.Exception.ToString(), "UI Error");
             e.Handled = false;
         }
 
-        private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
-            Debug.WriteLine($"CurrentDomain UnhandledException: {e.ExceptionObject}");
-            // Do not attempt UI actions here if not on UI thread
+            Debug.WriteLine(e.ExceptionObject);
         }
 
-        private void TaskScheduler_UnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+        private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
         {
-            Debug.WriteLine($"UnobservedTaskException: {e.Exception}");
+            Debug.WriteLine(e.Exception);
             e.SetObserved();
         }
 
@@ -168,6 +241,7 @@ namespace CraneOptimizer.UI
             services.AddScoped<ICrossoverOperator, CrossoverOperator>();
             services.AddScoped<IMutationOperator, MutationOperator>();
             services.AddScoped<IReplacementStrategy, ReplacementStrategy>();
+
             services.AddSingleton<GASettings>();
         }
     }

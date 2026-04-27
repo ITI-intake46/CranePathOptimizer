@@ -31,6 +31,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private bool _disposed;
         private bool _isPickingOrigin;
         private DomainPoint3D? _originPoint;
+        private Guid? _currentProjectId;
+        private string _currentProjectName = string.Empty;
+        private string _currentProjectIfcPath = string.Empty;
         #endregion
         public ISceneService Scene { get; }
 
@@ -87,6 +90,47 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         #region Commands
         public ICommand StartDrawingCommand { get; }
         public ICommand OptimizeCommand { get; } 
+        #endregion
+
+        #region Project Context
+        public Guid? CurrentProjectId
+        {
+            get => _currentProjectId;
+            private set
+            {
+                _currentProjectId = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string CurrentProjectName
+        {
+            get => _currentProjectName;
+            private set
+            {
+                _currentProjectName = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string CurrentProjectIfcPath
+        {
+            get => _currentProjectIfcPath;
+            private set
+            {
+                _currentProjectIfcPath = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public void OpenProject(Guid projectId, string projectName, string ifcFilePath)
+        {
+            CurrentProjectId = projectId;
+            CurrentProjectName = projectName;
+            CurrentProjectIfcPath = ifcFilePath;
+            StatusText = $"Project opened: {projectName}";
+            HistoryBreadcrumb = "IFC is linked; load it when needed.";
+        }
         #endregion
 
         #region Crane Selected
