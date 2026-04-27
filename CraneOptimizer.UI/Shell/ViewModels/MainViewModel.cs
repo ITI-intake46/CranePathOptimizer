@@ -12,6 +12,7 @@ using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Windows.Input;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 
@@ -33,7 +34,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private DomainPoint3D? _originPoint;
         private Guid? _currentProjectId;
         private string _currentProjectName = string.Empty;
-        private string _currentProjectIfcPath = string.Empty;
+        private string? _currentProjectIfcPath;
         #endregion
         public ISceneService Scene { get; }
 
@@ -71,9 +72,6 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         #endregion
 
         #region Collections
-        // =========================
-        // Collections
-        // =========================
         public ObservableCollection<PrecastElement> Elements { get; } = new();
         public ObservableCollection<PrecastElement> FilteredElements { get; } = new();
         public ObservableCollection<Crane> Cranes { get; } = new();
@@ -89,7 +87,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         #region Commands
         public ICommand StartDrawingCommand { get; }
-        public ICommand OptimizeCommand { get; } 
+        public ICommand OptimizeCommand { get; }
         #endregion
 
         #region Project Context
@@ -113,7 +111,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             }
         }
 
-        public string CurrentProjectIfcPath
+        public string? CurrentProjectIfcPath
         {
             get => _currentProjectIfcPath;
             private set
@@ -123,20 +121,17 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             }
         }
 
-        public void OpenProject(Guid projectId, string projectName, string ifcFilePath)
+        public void OpenProject(Guid projectId, string projectName, string? ifcFilePath)
         {
             CurrentProjectId = projectId;
             CurrentProjectName = projectName;
             CurrentProjectIfcPath = ifcFilePath;
             StatusText = $"Project opened: {projectName}";
-            HistoryBreadcrumb = "IFC is linked; load it when needed.";
+            HistoryBreadcrumb = "Load IFC when needed.";
         }
         #endregion
 
         #region Crane Selected
-        // =========================
-        // Selected Crane
-        // =========================
         public Crane? SelectedCrane
         {
             get => _selectedCrane;
@@ -169,6 +164,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         #region Scene sync
         private void OnElementsChanged(List<PrecastElement> elements)
         {
+            Debug.WriteLine("Scene ElementsChanged: " + elements.Count);
+
             _sceneElements.Clear();
             _sceneElements.AddRange(elements);
 
@@ -193,10 +190,10 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
             OriginPoint = null;
             IsPickingOrigin = true;
-            _render.ClearLayer("Elements");
 
             IsModelLoaded = true;
-            StatusText = $"Model loaded ({elements.Count} elements). Pick origin to display.";
+            ReRenderElements();
+            StatusText = $"Model loaded ({elements.Count} elements). Pick origin to reposition display.";
         }
 
         public bool IsPickingOrigin
@@ -231,8 +228,10 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         {
             _render.ClearLayer("Elements");
 
-            if (OriginPoint == null || _sceneElements.Count == 0)
+            if (_sceneElements.Count == 0)
                 return;
+
+            Debug.WriteLine("Rendering Elements: " + _sceneElements.Count);
 
             _render.Render(
                 _sceneElements.Select(e => (e, (LiftStatus?)null)),
@@ -240,7 +239,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 "Elements"
             );
 
-            StatusText = $"Origin set at ({OriginPoint.X:F2}, {OriginPoint.Y:F2}, {OriginPoint.Z:F2}).";
+            if (OriginPoint != null)
+                StatusText = $"Origin set at ({OriginPoint.X:F2}, {OriginPoint.Y:F2}, {OriginPoint.Z:F2}).";
         }
         #endregion
 
@@ -251,7 +251,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _disposed = true;
 
             Scene.ElementsChanged -= OnElementsChanged;
-        } 
+        }
         #endregion
 
         #region Status Properties
@@ -302,7 +302,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         {
             get => _renderQualityLabel;
             set { _renderQualityLabel = value; OnPropertyChanged(); }
-        } 
+        }
         #endregion
 
         #region Helpers
@@ -318,7 +318,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             Cranes.Clear();
             foreach (var c in cranes)
                 Cranes.Add(c);
-        } 
+        }
         #endregion
     }
 }

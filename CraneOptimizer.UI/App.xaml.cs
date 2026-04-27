@@ -104,7 +104,7 @@ namespace CraneOptimizer.UI
             // =========================
             services.AddSingleton<ElementVisualBuilder>();
             services.AddSingleton<IRenderingService, HelixRenderingService>();
-            services.AddSingleton<ISceneService, SceneService>();
+            services.AddSingleton<ISceneService>(provider => provider.GetRequiredService<SceneService>());
             services.AddSingleton<IIfcOptionsDialogService, IfcOptionsDialogService>();
 
             // =========================
@@ -126,21 +126,27 @@ namespace CraneOptimizer.UI
             base.OnStartup(e);
 
             // Start pipeline safely on UI thread
-            Dispatcher.InvokeAsync(StartupPipelineAsync);
+            _ = Dispatcher.InvokeAsync(async () => await StartupPipelineAsync());
         }
 
         private async Task StartupPipelineAsync()
         {
+            SplashScreenWindow? splash = null;
+            SplashScreenViewModel? vm = null;
+
+            try
+            {
             // =========================
-            // Splash (MainWindow مؤقت)
+            // Splash (MainWindow)
             // =========================
-            var splash = ServiceProvider.GetRequiredService<SplashScreenWindow>();
+            splash = ServiceProvider.GetRequiredService<SplashScreenWindow>();
+            vm = ServiceProvider.GetRequiredService<SplashScreenViewModel>();
+            splash.DataContext = vm;
             MainWindow = splash;
             splash.Show();
 
             try
             {
-                var vm = (SplashScreenViewModel)splash.DataContext;
                 vm.Status = "Initializing...";
 
                 vm.Status = "Updating database...";
@@ -151,23 +157,48 @@ namespace CraneOptimizer.UI
             catch (Exception ex)
             {
                 Debug.WriteLine($"Startup error: {ex}");
-
-                ServiceProvider
-                    .GetRequiredService<IDialogService>()
-                    .ShowNonBlockingError(
-                        "Startup failed:\n" + ex.Message,
-                        "Startup Error");
+                MessageBox.Show(ex.ToString(), "Startup Error");
+                vm.Status = "Startup failed.";
+                return;
             }
 
             // =========================
             // Navigate to Project Management
             // =========================
-            var projectWindow = ServiceProvider.GetRequiredService<ProjectManagementWindow>();
+            ProjectManagementWindow projectWindow;
+
+            try
+            {
+                projectWindow = ServiceProvider.GetRequiredService<ProjectManagementWindow>();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Window creation failed: {ex}");
+                MessageBox.Show(ex.ToString(), "Window Creation Failed");
+                vm.Status = "Startup failed. Project window could not be created.";
+                return;
+            }
 
             MainWindow = projectWindow;
             projectWindow.Show();
 
             splash.Close();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Startup error: {ex}");
+                MessageBox.Show(ex.ToString(), "Startup Error");
+
+                if (splash != null)
+                {
+                    MainWindow = splash;
+                    if (!splash.IsVisible)
+                        splash.Show();
+                }
+
+                if (vm != null)
+                    vm.Status = "Startup failed.";
+            }
         }
 
         private async Task ApplyMigrationsAsync()
@@ -182,12 +213,7 @@ namespace CraneOptimizer.UI
             catch (Exception ex)
             {
                 Debug.WriteLine($"Migration failed: {ex}");
-
-                ServiceProvider
-                    .GetRequiredService<IDialogService>()
-                    .ShowNonBlockingError(
-                        "Database update failed.\n\n" + ex.Message,
-                        "Database Error");
+                MessageBox.Show(ex.ToString(), "Database Error");
             }
         }
 

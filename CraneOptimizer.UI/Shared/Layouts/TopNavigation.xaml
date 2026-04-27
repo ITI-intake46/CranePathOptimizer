@@ -7,7 +7,7 @@
     xmlns:DxfViews="clr-namespace:CraneOptimizer.UI.Features.F11_DXF.Views"
     xmlns:IfcViews="clr-namespace:CraneOptimizer.UI.Features.F2_IfcViewer.Views"
     xmlns:ZonesViews="clr-namespace:CraneOptimizer.UI.Features.F7_Zones.Views"
-    xmlns:project="clr-namespace:CraneOptimizer.UI.Features.F1_ProjectManagment.Views">
+    xmlns:project="clr-namespace:CraneOptimizer.UI.F10_ProjectManagement.Views">
 
     <Border
         Background="{DynamicResource SurfaceBrush}"

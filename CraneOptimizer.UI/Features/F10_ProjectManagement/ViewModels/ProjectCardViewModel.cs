@@ -19,7 +19,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
 
         public Guid Id { get; }
         public string Name { get; }
-        public string IfcFilePath { get; }
+        public string? IfcFilePath { get; }
         public DateTime LastOpenedDate { get; }
 
         public string IfcFileName =>

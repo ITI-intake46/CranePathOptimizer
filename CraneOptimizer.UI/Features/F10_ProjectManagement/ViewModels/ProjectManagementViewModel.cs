@@ -147,7 +147,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
 
         private async Task CreateProjectAsync()
         {
-            var createViewModel = new CreateProjectViewModel(_dialogService);
+            var createViewModel = new CreateProjectViewModel();
             var dialog = new CreateProjectDialog
             {
                 DataContext = createViewModel,
@@ -165,7 +165,6 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
                 IsBusy = true;
                 var project = await _projectService.CreateProjectAsync(
                     createViewModel.ProjectName,
-                    createViewModel.IfcFilePath,
                     _lifetime.Token);
 
                 _navigationService.OpenMainWindow(project);
@@ -185,16 +184,6 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
         {
             if (card == null)
                 return;
-
-            if (card.IsIfcMissing)
-            {
-                var relink = _dialogService.Confirm(
-                    "The linked IFC file cannot be found. Open the project anyway?",
-                    "IFC Path Missing");
-
-                if (!relink)
-                    return;
-            }
 
             try
             {
@@ -267,7 +256,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
 
             if (string.IsNullOrWhiteSpace(card.IfcFilePath) || !File.Exists(card.IfcFilePath))
             {
-                _dialogService.ShowMessage("The IFC file path does not exist.");
+                _dialogService.ShowMessage("No IFC file is linked to this project.");
                 return;
             }
 

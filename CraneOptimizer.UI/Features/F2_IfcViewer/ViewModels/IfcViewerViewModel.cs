@@ -5,6 +5,7 @@ using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Models;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
+using System.Diagnostics;
 using System.Windows.Input;
 
 namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
@@ -78,6 +79,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 var all = await Task.Run(() =>
                     _ifcReader.ReadElements(path, progress));
 
+                Debug.WriteLine("IFC Loaded: " + (all?.Count ?? 0));
+
                 if (all == null || !all.Any())
                 {
                     _dialog.ShowMessage("No elements found.");
@@ -88,6 +91,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 var visible = ApplyFilter(all, filter);
 
                 Status = "Updating scene...";
+                Debug.WriteLine("IFC Visible Elements: " + visible.Count);
                 _scene.SetElements(visible);
 
                 Progress = 100;

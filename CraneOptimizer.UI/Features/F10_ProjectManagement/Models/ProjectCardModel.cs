@@ -6,7 +6,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Models
     {
         public Guid Id { get; init; }
         public string Name { get; init; } = string.Empty;
-        public string IfcFilePath { get; init; } = string.Empty;
+        public string? IfcFilePath { get; init; }
         public DateTime CreatedDate { get; init; }
         public DateTime LastOpenedDate { get; init; }
         public DateTime LastModifiedDate { get; init; }

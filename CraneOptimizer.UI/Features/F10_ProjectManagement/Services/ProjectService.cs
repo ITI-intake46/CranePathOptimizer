@@ -2,7 +2,6 @@ using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
 using Microsoft.EntityFrameworkCore;
-using System.IO;
 
 namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 {
@@ -17,14 +16,10 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
         public async Task<ProjectCardModel> CreateProjectAsync(
             string name,
-            string ifcFilePath,
             CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Project name is required.", nameof(name));
-
-            if (string.IsNullOrWhiteSpace(ifcFilePath))
-                throw new ArgumentException("IFC file path is required.", nameof(ifcFilePath));
 
             var now = DateTime.UtcNow;
             var project = new Project
@@ -36,17 +31,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 LastModifiedDate = now,
                 Notes = string.Empty,
                 IsFavorite = false,
-                IsDeleted = false,
-                IfcFiles =
-                {
-                    new ProjectIfcFile
-                    {
-                        Id = Guid.NewGuid(),
-                        FilePath = ifcFilePath,
-                        FileName = Path.GetFileName(ifcFilePath),
-                        Exists = File.Exists(ifcFilePath)
-                    }
-                }
+                IsDeleted = false
             };
 
             await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
@@ -68,7 +53,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                     IfcFilePath = project.IfcFiles
                         .OrderBy(file => file.FileName)
                         .Select(file => file.FilePath)
-                        .FirstOrDefault() ?? string.Empty,
+                        .FirstOrDefault(),
                     CreatedDate = project.CreatedDate,
                     LastOpenedDate = project.LastOpenedDate,
                     LastModifiedDate = project.LastModifiedDate,
@@ -152,7 +137,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                     IfcFilePath = project.IfcFiles
                         .OrderBy(file => file.FileName)
                         .Select(file => file.FilePath)
-                        .FirstOrDefault() ?? string.Empty,
+                        .FirstOrDefault(),
                     CreatedDate = project.CreatedDate,
                     LastOpenedDate = project.LastOpenedDate,
                     LastModifiedDate = project.LastModifiedDate,
@@ -175,7 +160,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             {
                 Id = project.Id,
                 Name = project.Name,
-                IfcFilePath = ifcFile?.FilePath ?? string.Empty,
+                IfcFilePath = ifcFile?.FilePath,
                 CreatedDate = project.CreatedDate,
                 LastOpenedDate = project.LastOpenedDate,
                 LastModifiedDate = project.LastModifiedDate,

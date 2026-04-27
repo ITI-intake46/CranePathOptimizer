@@ -4,7 +4,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 {
     public interface IProjectService
     {
-        Task<ProjectCardModel> CreateProjectAsync(string name, string ifcFilePath, CancellationToken cancellationToken);
+        Task<ProjectCardModel> CreateProjectAsync(string name, CancellationToken cancellationToken);
         Task<IReadOnlyList<ProjectCardModel>> GetRecentProjectsAsync(CancellationToken cancellationToken);
         Task<ProjectCardModel?> OpenProjectAsync(Guid projectId, CancellationToken cancellationToken);
         Task DeleteProjectAsync(Guid projectId, CancellationToken cancellationToken);
