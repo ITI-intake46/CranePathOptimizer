@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Entities;
+using CraneOptimizer.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace CraneOptimizer.Infrastructure.Contexts
@@ -51,6 +51,13 @@ namespace CraneOptimizer.Infrastructure.Contexts
                 entity.Property(x => x.FileName).IsRequired().HasMaxLength(260);
                 entity.HasIndex(x => x.ProjectId);
             });
+        }
+
+        public static IReadOnlyList<TargetPoint> GetTargetPointSeedData()
+        {
+            // IMPORTANT: Populate with the exact 94 records approved by the team.
+            // The app startup seeding is guarded by Any() and count checks to avoid duplication.
+            return Array.Empty<TargetPoint>();
         }
     }
 }

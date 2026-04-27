@@ -19,9 +19,9 @@ using CraneOptimizer.UI.F10_ProjectManagement.Views;
 using CraneOptimizer.UI.Shell.ViewModels;
 using CraneOptimizer.UI.Shell.Views;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
@@ -40,22 +40,23 @@ namespace CraneOptimizer.UI
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
             TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
-            var configuration = new ConfigurationBuilder()
-                .SetBasePath(AppContext.BaseDirectory)
-                .AddJsonFile("Data/appsettings.json", optional: false)
-                .Build();
-
             var services = new ServiceCollection();
-            var connectionString = configuration.GetConnectionString("DefaultConnection");
+
+            // =========================
+            // Unified runtime DB path (always under bin/.../Data/crane.db)
+            // =========================
+            var dataDir = Path.Combine(AppContext.BaseDirectory, "Data");
+            Directory.CreateDirectory(dataDir);
+            var dbPath = Path.Combine(dataDir, "crane.db");
 
             // =========================
             // DbContext
             // =========================
             services.AddDbContext<CraneDbContext>(options =>
-                options.UseSqlite(connectionString));
+                options.UseSqlite($"Data Source={dbPath}"));
 
             services.AddDbContextFactory<CraneDbContext>(options =>
-                options.UseSqlite(connectionString));
+                options.UseSqlite($"Data Source={dbPath}"));
 
             // =========================
             // Infrastructure
@@ -136,53 +137,53 @@ namespace CraneOptimizer.UI
 
             try
             {
-            // =========================
-            // Splash (MainWindow)
-            // =========================
-            splash = ServiceProvider.GetRequiredService<SplashScreenWindow>();
-            vm = ServiceProvider.GetRequiredService<SplashScreenViewModel>();
-            splash.DataContext = vm;
-            MainWindow = splash;
-            splash.Show();
+                // =========================
+                // Splash (MainWindow)
+                // =========================
+                splash = ServiceProvider.GetRequiredService<SplashScreenWindow>();
+                vm = ServiceProvider.GetRequiredService<SplashScreenViewModel>();
+                splash.DataContext = vm;
+                MainWindow = splash;
+                splash.Show();
 
-            try
-            {
-                vm.Status = "Initializing...";
+                try
+                {
+                    vm.Status = "Initializing...";
 
-                vm.Status = "Updating database...";
-                await ApplyMigrationsAsync();
+                    vm.Status = "Updating database...";
+                    await ApplyMigrationsAsync();
 
-                vm.Status = "Starting application...";
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Startup error: {ex}");
-                MessageBox.Show(ex.ToString(), "Startup Error");
-                vm.Status = "Startup failed.";
-                return;
-            }
+                    vm.Status = "Starting application...";
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Startup error: {ex}");
+                    MessageBox.Show(ex.ToString(), "Startup Error");
+                    vm.Status = "Startup failed.";
+                    return;
+                }
 
-            // =========================
-            // Navigate to Project Management
-            // =========================
-            ProjectManagementWindow projectWindow;
+                // =========================
+                // Navigate to Project Management
+                // =========================
+                ProjectManagementWindow projectWindow;
 
-            try
-            {
-                projectWindow = ServiceProvider.GetRequiredService<ProjectManagementWindow>();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Window creation failed: {ex}");
-                MessageBox.Show(ex.ToString(), "Window Creation Failed");
-                vm.Status = "Startup failed. Project window could not be created.";
-                return;
-            }
+                try
+                {
+                    projectWindow = ServiceProvider.GetRequiredService<ProjectManagementWindow>();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Window creation failed: {ex}");
+                    MessageBox.Show(ex.ToString(), "Window Creation Failed");
+                    vm.Status = "Startup failed. Project window could not be created.";
+                    return;
+                }
 
-            MainWindow = projectWindow;
-            projectWindow.Show();
+                MainWindow = projectWindow;
+                projectWindow.Show();
 
-            splash.Close();
+                splash.Close();
             }
             catch (Exception ex)
             {
@@ -209,6 +210,28 @@ namespace CraneOptimizer.UI
                 var context = scope.ServiceProvider.GetRequiredService<CraneDbContext>();
 
                 await context.Database.MigrateAsync();
+
+                // Optional runtime seed (safe, non-duplicating):
+                // - Adds only when TargetPoints is empty
+                // - Warns when partial/non-empty count differs from the expected seed count
+                var seedData = CraneDbContext.GetTargetPointSeedData();
+
+                if (!context.TargetPoints.Any())
+                {
+                    if (seedData.Count > 0)
+                    {
+                        context.TargetPoints.AddRange(seedData);
+                        await context.SaveChangesAsync();
+                    }
+                }
+                else if (seedData.Count > 0)
+                {
+                    var count = context.TargetPoints.Count();
+                    if (count != seedData.Count)
+                    {
+                        Debug.WriteLine($"TargetPoints count mismatch. Existing={count}, Seed={seedData.Count}. Skipping reseed to avoid data loss.");
+                    }
+                }
             }
             catch (Exception ex)
             {
