@@ -62,20 +62,26 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
 
         public GASettings BuildSettings(CraneOptimizerDialogOptions options)
         {
-            double nonLiftablePenalty = ParseDouble(options.NonLiftablePenaltyText, 20.0);
-
             return new GASettings
             {
-                PopulationSize = ParseInt(options.PopulationText, 30),
-                MaxGenerations = ParseInt(options.GenerationsText, 30),
-                MutationRate = ParseDouble(options.MutationRateText, 0.1),
-                MutationSigma = ParseDouble(options.MutationSigmaText, 0.05),
-                GridStep = ParseDouble(options.GridStepText, 2.0),
-                ConvergenceThresholdPercent = ParseDouble(options.ConvergenceText, 0.0),
-                RadiusPenaltyWeight = ParseDouble(options.UnreachablePenaltyText, 100.0),
-                OverweightPenaltyWeight = nonLiftablePenalty,
-                HeightPenaltyWeight = nonLiftablePenalty,
-                RandomSeed = 42
+                CoverageWeight = ParseDouble(options.CoverageWeightText, 10.0),
+                RelocationWeight = ParseDouble(options.RelocationWeightText, 5.0),
+                SafetyFactor = ParseDouble(options.SafetyFactorText, 0.9),
+                RiggingLength = ParseDouble(options.RiggingLengthText, 2.0),
+                MaxCranePositions = ParseInt(options.MaxCranePositionsText, 1),
+                EarlyStoppingGenerations = ParseInt(options.EarlyStoppingGenerationsText, 20),
+                GridStep = ParseDouble(options.GridStepText, 0.0),
+                RadiusPenaltyWeight = ParseDouble(options.RadiusPenaltyWeightText, 3.0),
+                BalancePenaltyWeight = ParseDouble(options.BalancePenaltyWeightText, 2.0),
+                OverweightPenaltyWeight = ParseDouble(options.OverweightPenaltyWeightText, 10.0),
+                HeightPenaltyWeight = ParseDouble(options.HeightPenaltyWeightText, 5.0),
+                MutationRate = ParseDouble(options.DevMutationRateText, 0.1),
+                MutationSigma = ParseDouble(options.DevMutationSigmaText, 0.05),
+                CrossoverRate = ParseDouble(options.DevCrossoverRateText, 0.8),
+                RandomSeed = ParseNullableInt(options.DevRandomSeedText, 42),
+                ConvergenceThresholdPercent = ParseDouble(options.DevConvergenceText, 0.0),
+                PopulationSize = 30,
+                MaxGenerations = 30
             };
         }
 
@@ -93,17 +99,33 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         {
             return double.TryParse(value, out var parsed) ? parsed : fallback;
         }
+
+        private static int? ParseNullableInt(string? value, int? fallback)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            return int.TryParse(value, out var parsed) ? parsed : fallback;
+        }
     }
 
     public sealed record CraneOptimizerDialogOptions(
-        string? PopulationText,
-        string? GenerationsText,
-        string? MutationRateText,
-        string? MutationSigmaText,
+        string? CoverageWeightText,
+        string? RelocationWeightText,
+        string? SafetyFactorText,
+        string? RiggingLengthText,
+        string? MaxCranePositionsText,
+        string? EarlyStoppingGenerationsText,
         string? GridStepText,
-        string? ConvergenceText,
-        string? NonLiftablePenaltyText,
-        string? UnreachablePenaltyText);
+        string? RadiusPenaltyWeightText,
+        string? BalancePenaltyWeightText,
+        string? OverweightPenaltyWeightText,
+        string? HeightPenaltyWeightText,
+        string? DevMutationRateText,
+        string? DevMutationSigmaText,
+        string? DevCrossoverRateText,
+        string? DevRandomSeedText,
+        string? DevConvergenceText);
 
     public sealed class CraneOptimizerPointListItem
     {

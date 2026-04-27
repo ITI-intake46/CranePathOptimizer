@@ -6,7 +6,6 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows;
-using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -205,14 +204,22 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private CraneOptimizerDialogOptions CaptureOptions()
         {
             return new CraneOptimizerDialogOptions(
-                TxtPopulation.Text,
-                TxtGenerations.Text,
-                TxtMutRate.Text,
-                TxtMutSigma.Text,
+                TxtCoverageWeight.Text,
+                TxtRelocationWeight.Text,
+                TxtSafetyFactor.Text,
+                TxtRiggingLength.Text,
+                TxtMaxCranePositions.Text,
+                TxtEarlyStopping.Text,
                 TxtGridStep.Text,
-                TxtConverge.Text,
-                TxtPenNL.Text,
-                TxtPenUR.Text);
+                TxtRadiusPenaltyWeight.Text,
+                TxtBalancePenaltyWeight.Text,
+                TxtOverweightPenaltyWeight.Text,
+                TxtHeightPenaltyWeight.Text,
+                TxtDevMutationRate.Text,
+                TxtDevMutationSigma.Text,
+                TxtDevCrossoverRate.Text,
+                TxtDevRandomSeed.Text,
+                TxtDevConvergence.Text);
         }
 
         private void RefreshSceneCache()

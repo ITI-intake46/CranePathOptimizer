@@ -28,7 +28,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// <summary>
         /// Probability of crossover.
         /// </summary>
-        public double CrossoverRate { get; set; }
+        public double CrossoverRate { get; set; } = 0.8;
 
         /// <summary>
         /// Additional rigging length used during lifting calculations.
@@ -106,7 +106,16 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// </summary>
         public double ConvergenceThresholdPercent { get; set; } = 0;
 
+        /// <summary>
+        /// Weight applied to variation in lift radii among liftable elements.
+        /// Higher values prefer more consistent working radii.
+        /// </summary>
         public double RadiusStdDevPenaltyWeight { get; set; } = 2.0;
+
+        /// <summary>
+        /// Weight applied to uneven element distribution between crane positions.
+        /// Higher values prefer balanced crane-position utilization.
+        /// </summary>
         public double BalancePenaltyWeight { get; set; } = 2.0;
     }
 }
