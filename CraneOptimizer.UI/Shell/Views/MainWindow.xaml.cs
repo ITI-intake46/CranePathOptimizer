@@ -130,6 +130,25 @@ namespace CraneOptimizer.UI.Shell.Views
             var viewport = sender as HelixViewport3D;
             if (viewport == null) return;
 
+            if (VM?.IfcViewer.IsPlacementMode == true)
+            {
+                if (e.ChangedButton != MouseButton.Left)
+                    return;
+
+                var placementScreen = e.GetPosition(viewport);
+                if (!TryGetPlacementPoint(viewport, placementScreen, out var placementPoint))
+                    return;
+
+                if (VM.IfcViewer.PlacePendingIfc(placementPoint))
+                {
+                    viewport.UpdateLayout();
+                    viewport.ZoomExtents();
+                    e.Handled = true;
+                }
+
+                return;
+            }
+
             if (VM?.IsPickingOrigin == true)
             {
                 if (e.ChangedButton != MouseButton.Left)
@@ -280,6 +299,24 @@ namespace CraneOptimizer.UI.Shell.Views
             catch { }
 
             return false;
+        }
+
+        private bool TryGetPlacementPoint(
+            HelixViewport3D viewport,
+            System.Windows.Point screenPt,
+            out Point3D worldPoint)
+        {
+            worldPoint = new Point3D();
+
+            try
+            {
+                var hit = viewport.Viewport.FindHits(screenPt).FirstOrDefault();
+                if (hit != null)
+                    return TryGetWorldPoint(viewport, screenPt, out worldPoint);
+            }
+            catch { }
+
+            return TryGetWorldPoint(viewport, screenPt, out worldPoint);
         }
 
         #endregion
