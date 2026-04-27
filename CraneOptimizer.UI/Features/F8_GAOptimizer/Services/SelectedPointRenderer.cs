@@ -9,9 +9,31 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
     internal static class SelectedPointRenderer
     {
         public const string PointLayer = "GA_SelectedPoint";
-        public const string ElementsLayer = "Elements";
+        public const string ElementsLayer = "GA_Elements";
         private const double MarkerRadius = 200.0;
         private const double MarkerZ = 500.0;
+        private static readonly BestPointVisualBuilder PointBuilder = new(MarkerRadius);
+        private static readonly ElementVisualBuilder ElementBuilder = new();
+
+        public static void Clear(IRenderingService renderingService)
+        {
+            renderingService.ClearLayer(PointLayer);
+            renderingService.ClearLayer(ElementsLayer);
+        }
+
+        public static void RenderPoint(
+            IRenderingService renderingService,
+            double x,
+            double y,
+            double z)
+        {
+            renderingService.ClearLayer(PointLayer);
+            renderingService.Render(
+                new[] { (x, y, z) },
+                PointBuilder,
+                PointLayer
+            );
+        }
 
         public static void Render(
             IRenderingService renderingService,
@@ -26,17 +48,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             IEnumerable<PrecastElement>? elements,
             CranePositionResult? point)
         {
-            renderingService.ClearLayer(PointLayer);
-            renderingService.ClearLayer(ElementsLayer);
+            Clear(renderingService);
 
             if (point == null)
                 return;
 
-            renderingService.Render(
-                new[] { (point.X, point.Y, MarkerZ) },
-                new BestPointVisualBuilder(MarkerRadius),
-                PointLayer
-            );
+            RenderPoint(renderingService, point.X, point.Y, MarkerZ);
 
             if (elements == null)
                 return;
@@ -54,7 +71,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             renderingService.Render(
                 elementsWithStatus,
-                new ElementVisualBuilder(),
+                ElementBuilder,
                 ElementsLayer
             );
         }

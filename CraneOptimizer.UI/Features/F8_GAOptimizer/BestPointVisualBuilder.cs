@@ -17,8 +17,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer
 
         public Visual3D Build((double x, double y, double z) item)
         {
-            // FIX: use raw mm coordinates (same as IFC rendering)
-            var center = new Point3D(item.x, item.y, 0);
+            // Use raw mm coordinates so GA markers align with IFC scene geometry.
+            var center = new Point3D(item.x, item.y, item.z);
 
             // FIX: keep radius in mm (NO scaling)
             var renderRadius = _markerRadiusInMillimeters;

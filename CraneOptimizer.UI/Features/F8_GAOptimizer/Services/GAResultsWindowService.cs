@@ -1,5 +1,6 @@
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
@@ -19,10 +20,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
         public void Show(CranePlacementResult result)
         {
-            var window = new GAResultsWindow(_renderingService, _sceneService)
-            {
-                DataContext = result
-            };
+            var viewModel = new GAResultsWindowViewModel(result, _renderingService, _sceneService);
+            var window = new GAResultsWindow(viewModel);
 
             if (System.Windows.Application.Current?.MainWindow != null)
                 window.Owner = System.Windows.Application.Current.MainWindow;

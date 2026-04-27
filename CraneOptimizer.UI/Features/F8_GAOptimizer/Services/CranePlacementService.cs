@@ -5,6 +5,7 @@ using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Features.F0_CoordinateSystem;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
+using System.Threading;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 {
@@ -27,8 +28,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             _coordinateService = coordinateService;
         }
 
-        public async Task<CranePlacementResult> RunOptimizationAsync(GASettings settings, Crane crane)
+        public async Task<CranePlacementResult> RunOptimizationAsync(
+            GASettings settings,
+            Crane crane,
+            CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var input = await _inputBuilder.BuildAsync(settings, crane);
 
             var allElements = input.Elements;
@@ -48,12 +54,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             while (remainingElements.Count > 0 && iteration < maxPoints)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 iteration++;
 
                 // Run GA on remaining elements only
                 input.Elements = remainingElements;
 
-                var solution = await Task.Run(() => _gaEngine.Run(input));
+                var solution = await Task.Run(
+                    () => _gaEngine.Run(input, cancellationToken),
+                    cancellationToken);
 
                 var assignment = _assignmentService.EvaluateAssignment(
                     solution,

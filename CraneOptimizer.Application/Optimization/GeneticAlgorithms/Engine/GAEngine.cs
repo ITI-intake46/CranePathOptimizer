@@ -2,6 +2,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using System.Threading;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 {
@@ -37,15 +38,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
             _replacement = replacement;
         }
 
-        public CraneSolution Run(PlacementInput input)
+        public CraneSolution Run(PlacementInput input, CancellationToken cancellationToken = default)
         {
             int stagnantGenerations = 0;
             double bestFitness = double.MinValue;
-            CraneSolution bestSolution = null;
-            // Initialize deterministic random manager
+            CraneSolution bestSolution = null!;
+
             GARandomManager.Initialize(input.Settings.RandomSeed);
 
-            // 1️⃣ Initialize population
             var population = _initializer.InitializePopulation(
                 input.Zones,
                 input.Elements,
@@ -55,9 +55,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 
             for (int generation = 0; generation < input.Settings.MaxGenerations; generation++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 foreach (var solution in population.Individuals)
                 {
-                    // 2️⃣ Evaluate assignment
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     var evaluation = _assignmentService.EvaluateAssignment(
                         solution,
                         input.Elements,
@@ -65,7 +68,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                         input.CraneSpec,
                         input.Settings);
 
-                    // 3️⃣ Evaluate fitness
                     var fitness = _fitnessEvaluator.EvaluateFitness(
                         solution,
                         evaluation,
@@ -73,36 +75,48 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 
                     solution.Fitness = fitness.FitnessScore;
                 }
-                // 2️⃣ Track best solution
+
                 var currentBest = population.Individuals
                     .OrderByDescending(s => s.Fitness)
                     .First();
 
                 if (currentBest.Fitness > bestFitness)
                 {
+                    double improvementPercent = bestFitness <= 0
+                        ? double.MaxValue
+                        : ((currentBest.Fitness - bestFitness) / Math.Abs(bestFitness)) * 100.0;
+
                     bestFitness = currentBest.Fitness;
                     bestSolution = currentBest.DeepCopy();
-                    stagnantGenerations = 0;
+
+                    if (input.Settings.ConvergenceThresholdPercent > 0
+                        && improvementPercent < input.Settings.ConvergenceThresholdPercent)
+                    {
+                        stagnantGenerations++;
+                    }
+                    else
+                    {
+                        stagnantGenerations = 0;
+                    }
                 }
                 else
                 {
                     stagnantGenerations++;
                 }
 
-                // 3️⃣ Early stopping
                 if (stagnantGenerations >= input.Settings.EarlyStoppingGenerations)
                     break;
 
-                // 4️⃣ Selection
                 var parents = _selection.SelectParents(
                     population,
                     population.Individuals.Count);
 
-                // 5️⃣ Crossover
                 var children = new List<CraneSolution>();
 
                 for (int i = 0; i < parents.Count - 1; i += 2)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     if (GARandomManager.Instance.NextDouble() < input.Settings.CrossoverRate)
                     {
                         var child1 = _crossover.Crossover(parents[i], parents[i + 1]);
@@ -117,14 +131,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                     }
                 }
 
-                // 6️⃣ Mutation
                 foreach (var child in children)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     if (GARandomManager.Instance.NextDouble() < input.Settings.MutationRate)
-                        _mutation.Mutate(child, input.Zones);
+                        _mutation.Mutate(child, input.Zones, input.Settings);
                 }
+
                 foreach (var child in children)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     var evaluation = _assignmentService.EvaluateAssignment(
                         child,
                         input.Elements,
@@ -140,11 +158,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                     child.Fitness = fitness.FitnessScore;
                 }
 
-                // 7️⃣ Replacement
                 population = _replacement.Replace(population, children);
             }
 
-            // 8️⃣ Return best solution
             return bestSolution;
         }
     }

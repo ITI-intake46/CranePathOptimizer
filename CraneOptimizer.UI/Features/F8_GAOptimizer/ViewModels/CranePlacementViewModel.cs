@@ -5,7 +5,6 @@ using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
-using System.Windows;
 using System.Windows.Input;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
@@ -128,11 +127,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 
             CurrentPosition = point;
 
-            _renderingService.Render(
-                new[] { (point.X, point.Y, point.Z + 500.0) },
-                new BestPointVisualBuilder(200.0),
-                "CranePosition"
-            );
+            SelectedPointRenderer.Clear(_renderingService);
+            SelectedPointRenderer.RenderPoint(
+                _renderingService,
+                point.X,
+                point.Y,
+                point.Z + 500.0);
 
             IsPlacing = false;
         }

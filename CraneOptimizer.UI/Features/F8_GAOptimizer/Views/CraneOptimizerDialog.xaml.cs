@@ -1,11 +1,10 @@
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
+using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -13,28 +12,20 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 {
     public partial class CraneOptimizerDialog : Window
     {
-        const double CompactDialogWidth = 460;
-        const double ExpandedDialogWidth = 780;
-        const double AdvancedPanelWidth = 320;
+        private const double CompactDialogWidth = 460;
+        private const double ExpandedDialogWidth = 780;
+        private const double AdvancedPanelWidth = 320;
 
-        private class PointItem
-        {
-            public CranePositionResult Point { get; set; }
-
-            public string DisplayText =>
-                $"Point ({Point.X:F0}, {Point.Y:F0}) - {Point.ElementResults.Count} elements";
-        }
-
-        private readonly ICranePlacementService _placementService;
         private readonly IRenderingService _renderingService;
         private readonly IDialogService _dialogService;
-        private readonly ICraneRepository _craneRepository;
         private readonly ISceneService _sceneService;
+        private readonly CraneOptimizerDialogWorkflow _workflow;
 
         private CranePlacementResult? _currentResult;
+        private CancellationTokenSource? _runCts;
         private bool _isRunning;
         private bool _isAdvancedPanelOpen;
-        private bool _cancelRequested;
+        private List<PrecastElement> _cachedElements = new();
 
         public CranePlacementResult? LatestResult { get; private set; }
 
@@ -47,11 +38,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         {
             InitializeComponent();
 
-            _placementService = placementService;
             _renderingService = renderingService;
             _dialogService = dialogService;
-            _craneRepository = craneRepository;
             _sceneService = sceneService;
+            _workflow = new CraneOptimizerDialogWorkflow(placementService, craneRepository);
 
             Loaded += OnLoaded;
         }
@@ -59,31 +49,32 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private async void OnLoaded(object sender, RoutedEventArgs e)
         {
             await LoadCranesAsync();
+            RefreshSceneCache();
         }
 
         private async Task LoadCranesAsync()
         {
-            var cranes = await _craneRepository.GetAllWithSpecsAsync();
+            var cranes = await _workflow.LoadCranesAsync();
             CboCrane.ItemsSource = cranes;
         }
 
         private async void BtnRun_Click(object sender, RoutedEventArgs e)
         {
-            if (_isRunning) return;
+            if (_isRunning)
+                return;
 
-            var selectedCrane = CboCrane.SelectedItem as Crane;
-
-            if (selectedCrane == null)
+            if (CboCrane.SelectedItem is not Crane selectedCrane)
             {
                 _dialogService.ShowMessage("Please select a crane.");
                 return;
             }
 
             _isRunning = true;
-            _cancelRequested = false;
+            _runCts = new CancellationTokenSource();
 
+            RefreshSceneCache();
             ClearResultPanel();
-            _renderingService.ClearLayer(SelectedPointRenderer.PointLayer);
+            SelectedPointRenderer.Clear(_renderingService);
 
             BtnRun.IsEnabled = false;
             BtnCancel.IsEnabled = true;
@@ -94,25 +85,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
             try
             {
-                var settings = BuildSettings();
-                var result = await _placementService.RunOptimizationAsync(settings, selectedCrane);
-
-                if (_cancelRequested)
-                {
-                    LatestResult = null;
-                    _currentResult = null;
-                    TxtStatus.Text = "Optimization cancelled.";
-                    ProgBar.IsIndeterminate = false;
-                    ProgBar.Value = 0;
-                    return;
-                }
+                var result = await _workflow.RunOptimizationAsync(
+                    selectedCrane,
+                    CaptureOptions(),
+                    _runCts.Token);
 
                 LatestResult = result;
                 _currentResult = result;
 
-                PointsList.ItemsSource = result.Positions
-                    .Select(p => new PointItem { Point = p })
-                    .ToList();
+                PointsList.ItemsSource = _workflow.CreatePointItems(result);
 
                 if (PointsList.Items.Count > 0)
                     PointsList.SelectedIndex = 0;
@@ -124,6 +105,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 ProgBar.Value = 100;
 
                 BtnApply.IsEnabled = true;
+            }
+            catch (OperationCanceledException)
+            {
+                LatestResult = null;
+                _currentResult = null;
+                TxtStatus.Text = "Optimization cancelled.";
+                ProgBar.IsIndeterminate = false;
+                ProgBar.Value = 0;
             }
             catch (Exception ex)
             {
@@ -138,12 +127,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 _isRunning = false;
                 BtnRun.IsEnabled = true;
                 BtnCancel.IsEnabled = false;
+
+                _runCts?.Dispose();
+                _runCts = null;
             }
         }
 
         private void PointsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (PointsList.SelectedItem is not PointItem item)
+            if (PointsList.SelectedItem is not CraneOptimizerPointListItem item)
                 return;
 
             ShowPoint(item.Point);
@@ -152,21 +144,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private void ShowPoint(CranePositionResult point)
         {
-            SelectedPointRenderer.Render(_renderingService, _sceneService, point);
-        }
-
-        private GASettings BuildSettings()
-        {
-            if (CboCrane.SelectedItem == null)
-                throw new InvalidOperationException("Please select a crane.");
-
-            return new GASettings
-            {
-                PopulationSize = int.TryParse(TxtPopulation.Text, out var p) ? p : 30,
-                MaxGenerations = int.TryParse(TxtGenerations.Text, out var g) ? g : 30,
-                MutationRate = double.TryParse(TxtMutRate.Text, out var m) ? m : 0.1,
-                RandomSeed = 42
-            };
+            SelectedPointRenderer.Render(_renderingService, _cachedElements, point);
         }
 
         private void UpdateResultPanel(CranePlacementResult result)
@@ -182,26 +160,37 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private void UpdateResultPanelForPoint(CranePositionResult point)
         {
-            TxtPosition.Text = $"({point.X:F0}, {point.Y:F0})";
+            var summary = _workflow.CreatePointSummary(point);
 
-            int liftable = point.ElementResults.Count(e => e.Status == LiftStatus.Liftable);
-            int nonLiftable = point.ElementResults.Count(e => e.Status == LiftStatus.Overweight);
-            int unreachable = point.ElementResults.Count(e => e.Status == LiftStatus.OutOfRadius);
-
-            TxtCountL.Text = liftable.ToString();
-            TxtCountNL.Text = nonLiftable.ToString();
-            TxtCountUR.Text = unreachable.ToString();
-
-            int total = point.ElementResults.Count;
-            double coverage = total == 0 ? 0 : (double)liftable / total;
-
-            TxtCoverage.Text = $"Point Coverage: {coverage:P0}";
+            TxtPosition.Text = summary.PositionText;
+            TxtCountL.Text = summary.LiftableCount.ToString();
+            TxtCountNL.Text = summary.NonLiftableCount.ToString();
+            TxtCountUR.Text = summary.UnreachableCount.ToString();
+            TxtCoverage.Text = summary.CoverageText;
         }
 
         private void ClearResultPanel()
         {
             PanelResults.Visibility = Visibility.Collapsed;
             PointsList.ItemsSource = null;
+        }
+
+        private CraneOptimizerDialogOptions CaptureOptions()
+        {
+            return new CraneOptimizerDialogOptions(
+                TxtPopulation.Text,
+                TxtGenerations.Text,
+                TxtMutRate.Text,
+                TxtMutSigma.Text,
+                TxtGridStep.Text,
+                TxtConverge.Text,
+                TxtPenNL.Text,
+                TxtPenUR.Text);
+        }
+
+        private void RefreshSceneCache()
+        {
+            _cachedElements = _sceneService.GetElements() ?? new List<PrecastElement>();
         }
 
         private void BtnAdvancedToggle_Click(object sender, RoutedEventArgs e)
@@ -231,10 +220,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             if (!_isRunning)
                 return;
 
-            _cancelRequested = true;
             BtnCancel.IsEnabled = false;
             BtnApply.IsEnabled = false;
             TxtStatus.Text = "Cancel requested...";
+            _runCts?.Cancel();
         }
 
         private void BtnApply_Click(object sender, RoutedEventArgs e)

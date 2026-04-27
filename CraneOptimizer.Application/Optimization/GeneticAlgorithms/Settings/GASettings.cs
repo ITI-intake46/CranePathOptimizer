@@ -21,6 +21,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public double MutationRate { get; set; }
 
         /// <summary>
+        /// Mutation spread. Values <= 1 are treated as a ratio of MaxRadiusForNormalisation.
+        /// </summary>
+        public double MutationSigma { get; set; } = 0.05;
+
+        /// <summary>
         /// Probability of crossover.
         /// </summary>
         public double CrossoverRate { get; set; }
@@ -85,9 +90,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public double MaxRadiusForNormalisation { get; set; } = 50;
 
         /// <summary>
+        /// Optional grid snapping step in meters for seeded and mutated crane positions.
+        /// Set to 0 to allow free placement.
+        /// </summary>
+        public double GridStep { get; set; } = 0;
+
+        /// <summary>
         /// Number of consecutive generations without fitness improvement
         /// </summary>
         public int EarlyStoppingGenerations { get; set; } = 20;
+
+        /// <summary>
+        /// Minimum relative fitness improvement percentage required to count as convergence progress.
+        /// 0 disables this threshold.
+        /// </summary>
+        public double ConvergenceThresholdPercent { get; set; } = 0;
 
         public double RadiusStdDevPenaltyWeight { get; set; } = 2.0;
         public double BalancePenaltyWeight { get; set; } = 2.0;
