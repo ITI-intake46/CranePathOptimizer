@@ -93,7 +93,6 @@
                             Grid.Row="4"
                             DisplayMemberPath="Name"
                             ItemContainerStyle="{StaticResource DarkComboBoxItem}"
-                            SelectionChanged="CboCrane_SelectionChanged"
                             Style="{StaticResource DarkComboBox}" />
 
                         <TextBlock

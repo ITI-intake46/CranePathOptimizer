@@ -3,9 +3,10 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using System.Threading;
 
-namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
+namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
 {
     public sealed class CraneOptimizerDialogWorkflow
     {
@@ -25,13 +26,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             return await _craneRepository.GetAllWithSpecsAsync();
         }
 
-        public async Task<CranePlacementResult> RunOptimizationAsync(
+        public Task<CranePlacementResult> RunOptimizationAsync(
             Crane selectedCrane,
             CraneOptimizerDialogOptions options,
             CancellationToken cancellationToken)
         {
             var settings = BuildSettings(options);
-            return await _placementService.RunOptimizationAsync(settings, selectedCrane, cancellationToken);
+            return _placementService.RunOptimizationAsync(settings, selectedCrane, cancellationToken);
         }
 
         public IReadOnlyList<CraneOptimizerPointListItem> CreatePointItems(CranePlacementResult result)
@@ -43,16 +44,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
         public CraneOptimizerPointSummary CreatePointSummary(CranePositionResult point)
         {
-            int liftable = point.ElementResults.Count(e => e.Status == LiftStatus.Liftable);
-            int nonLiftable = point.ElementResults.Count(e =>
-                e.Status == LiftStatus.Overweight || e.Status == LiftStatus.HeightFail);
-            int unreachable = point.ElementResults.Count(e => e.Status == LiftStatus.OutOfRadius);
+            int liftable = point.ElementResults.Count(result => result.Status == LiftStatus.Liftable);
+            int nonLiftable = point.ElementResults.Count(result =>
+                result.Status == LiftStatus.Overweight || result.Status == LiftStatus.HeightFail);
+            int unreachable = point.ElementResults.Count(result => result.Status == LiftStatus.OutOfRadius);
 
             int total = point.ElementResults.Count;
             double coverage = total == 0 ? 0 : (double)liftable / total;
 
             return new CraneOptimizerPointSummary(
-                $"({point.X:F0}, {point.Y:F0})",
+                FormatPointCoordinates(point),
                 liftable,
                 nonLiftable,
                 unreachable,
@@ -76,6 +77,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 HeightPenaltyWeight = nonLiftablePenalty,
                 RandomSeed = 42
             };
+        }
+
+        internal static string FormatPointCoordinates(CranePositionResult point)
+        {
+            return $"({point.X:F0}, {point.Y:F0})";
         }
 
         private static int ParseInt(string? value, int fallback)
@@ -109,7 +115,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         public CranePositionResult Point { get; }
 
         public string DisplayText =>
-            $"Point ({Point.X:F0}, {Point.Y:F0}) - {Point.ElementResults.Count} elements";
+            $"Point {CraneOptimizerDialogWorkflow.FormatPointCoordinates(Point)} - {Point.ElementResults.Count} elements";
     }
 
     public sealed record CraneOptimizerPointSummary(

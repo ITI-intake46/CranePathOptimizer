@@ -3,7 +3,9 @@ using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -75,6 +77,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             RefreshSceneCache();
             ClearResultPanel();
             SelectedPointRenderer.Clear(_renderingService);
+            LatestResult = null;
+            _currentResult = null;
 
             BtnRun.IsEnabled = false;
             BtnCancel.IsEnabled = true;
@@ -100,22 +104,30 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
                 UpdateResultPanel(result);
 
-                TxtStatus.Text = "Optimization completed.";
+                TxtStatus.Text = result.Positions.Any()
+                    ? "Optimization completed."
+                    : "Optimization completed with no valid positions.";
                 ProgBar.IsIndeterminate = false;
                 ProgBar.Value = 100;
 
-                BtnApply.IsEnabled = true;
+                BtnApply.IsEnabled = result.Positions.Any();
             }
             catch (OperationCanceledException)
             {
                 LatestResult = null;
                 _currentResult = null;
+                ClearResultPanel();
+                SelectedPointRenderer.Clear(_renderingService);
                 TxtStatus.Text = "Optimization cancelled.";
                 ProgBar.IsIndeterminate = false;
                 ProgBar.Value = 0;
             }
             catch (Exception ex)
             {
+                LatestResult = null;
+                _currentResult = null;
+                ClearResultPanel();
+                SelectedPointRenderer.Clear(_renderingService);
                 TxtStatus.Text = "Optimization failed.";
                 ProgBar.IsIndeterminate = false;
                 ProgBar.Value = 0;
@@ -154,8 +166,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             TxtScore.Text = $"Fitness: {result.FitnessScore:F2}";
             TxtCoverage.Text = $"Total Coverage: {result.CoverageRatio:P0}";
 
-            if (result.Positions.Any())
-                UpdateResultPanelForPoint(result.Positions[0]);
+            if (!result.Positions.Any())
+            {
+                TxtPosition.Text = "No valid positions found.";
+                TxtCountL.Text = "0";
+                TxtCountNL.Text = "0";
+                TxtCountUR.Text = "0";
+                return;
+            }
+
+            UpdateResultPanelForPoint(result.Positions[0]);
         }
 
         private void UpdateResultPanelForPoint(CranePositionResult point)
@@ -173,6 +193,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         {
             PanelResults.Visibility = Visibility.Collapsed;
             PointsList.ItemsSource = null;
+            TxtScore.Text = string.Empty;
+            TxtPosition.Text = string.Empty;
+            TxtCountL.Text = string.Empty;
+            TxtCountNL.Text = string.Empty;
+            TxtCountUR.Text = string.Empty;
+            TxtCoverage.Text = string.Empty;
+            TxtStopReason.Text = string.Empty;
         }
 
         private CraneOptimizerDialogOptions CaptureOptions()
@@ -201,7 +228,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 ? new GridLength(AdvancedPanelWidth)
                 : new GridLength(0);
 
-            PanelAdvanced.Visibility = Visibility.Visible;
+            PanelAdvanced.Visibility = _isAdvancedPanelOpen
+                ? Visibility.Visible
+                : Visibility.Collapsed;
 
             Width = _isAdvancedPanelOpen
                 ? ExpandedDialogWidth
@@ -211,9 +240,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 ? "Hide Advanced"
                 : "Advanced Options";
         }
-
-        private void CboCrane_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
-        private void RbExclusion_Checked(object sender, RoutedEventArgs e) { }
 
         private void BtnCancelRun_Click(object sender, RoutedEventArgs e)
         {
@@ -235,11 +261,5 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             DialogResult = true;
             Close();
         }
-
-        private void BtnIncludeAll_Click(object sender, RoutedEventArgs e) { }
-        private void BtnExcludeAll_Click(object sender, RoutedEventArgs e) { }
-        private void BtnNoSlabs_Click(object sender, RoutedEventArgs e) { }
-        private void BtnNoStairs_Click(object sender, RoutedEventArgs e) { }
-        private void BtnNoRoofs_Click(object sender, RoutedEventArgs e) { }
     }
 }

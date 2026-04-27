@@ -4,6 +4,7 @@ using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using System.Windows.Input;
 
@@ -128,11 +129,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             CurrentPosition = point;
 
             SelectedPointRenderer.Clear(_renderingService);
-            SelectedPointRenderer.RenderPoint(
-                _renderingService,
-                point.X,
-                point.Y,
-                point.Z + 500.0);
+            SelectedPointRenderer.RenderPlacementPoint(_renderingService, point);
 
             IsPlacing = false;
         }

@@ -2,7 +2,7 @@ using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
-using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 {
@@ -50,6 +50,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 
         public void OnLoaded()
         {
+            if (_isLoaded)
+                return;
+
             _cachedElements = _sceneService.GetElements() ?? new List<PrecastElement>();
             _isLoaded = true;
 

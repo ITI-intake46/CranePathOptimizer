@@ -20,6 +20,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
         public void Show(CranePlacementResult result)
         {
+            if (result == null || result.Positions.Count == 0)
+                return;
+
             var viewModel = new GAResultsWindowViewModel(result, _renderingService, _sceneService);
             var window = new GAResultsWindow(viewModel);
 

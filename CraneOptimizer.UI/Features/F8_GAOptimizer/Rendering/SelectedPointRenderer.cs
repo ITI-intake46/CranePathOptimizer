@@ -1,17 +1,20 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 
-namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
+namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
 {
     internal static class SelectedPointRenderer
     {
         public const string PointLayer = "GA_SelectedPoint";
         public const string ElementsLayer = "GA_Elements";
+
         private const double MarkerRadius = 200.0;
-        private const double MarkerZ = 500.0;
+        private const double MarkerElevationOffset = 500.0;
+
         private static readonly BestPointVisualBuilder PointBuilder = new(MarkerRadius);
         private static readonly ElementVisualBuilder ElementBuilder = new();
 
@@ -19,6 +22,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         {
             renderingService.ClearLayer(PointLayer);
             renderingService.ClearLayer(ElementsLayer);
+        }
+
+        public static void RenderPlacementPoint(IRenderingService renderingService, DomainPoint3D point)
+        {
+            RenderPoint(renderingService, point.X, point.Y, point.Z + MarkerElevationOffset);
         }
 
         public static void RenderPoint(
@@ -31,8 +39,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             renderingService.Render(
                 new[] { (x, y, z) },
                 PointBuilder,
-                PointLayer
-            );
+                PointLayer);
         }
 
         public static void Render(
@@ -53,13 +60,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             if (point == null)
                 return;
 
-            RenderPoint(renderingService, point.X, point.Y, MarkerZ);
+            RenderPoint(renderingService, point.X, point.Y, MarkerElevationOffset);
 
             if (elements == null)
                 return;
 
             var statusMap = point.ElementResults
-                .ToDictionary(e => e.ElementId, e => e.Status);
+                .ToDictionary(result => result.ElementId, result => result.Status);
 
             var elementsWithStatus = elements.Select(element =>
             {
@@ -72,8 +79,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             renderingService.Render(
                 elementsWithStatus,
                 ElementBuilder,
-                ElementsLayer
-            );
+                ElementsLayer);
         }
     }
 }
