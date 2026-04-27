@@ -1,16 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 {
@@ -19,6 +8,19 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
     /// </summary>
     public partial class GAResultsWindow : Window
     {
+        public static readonly DependencyProperty SelectedPointProperty =
+            DependencyProperty.Register(
+                nameof(SelectedPoint),
+                typeof(CranePositionResult),
+                typeof(GAResultsWindow),
+                new PropertyMetadata(null));
+
+        public CranePositionResult? SelectedPoint
+        {
+            get => (CranePositionResult?)GetValue(SelectedPointProperty);
+            set => SetValue(SelectedPointProperty, value);
+        }
+
         public GAResultsWindow()
         {
             InitializeComponent();
