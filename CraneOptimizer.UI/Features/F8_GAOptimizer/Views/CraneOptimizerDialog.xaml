@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Crane Position Optimizer"
     Width="460"
-    Height="620"
+    Height="650"
     MinWidth="460"
     MinHeight="620"
     Background="{DynamicResource BackgroundBrush}"
@@ -44,20 +44,19 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0">
-                        <TextBlock
-                            TextAlignment="Center"
-                            FontSize="{StaticResource FontSizeLG}"
-                            FontWeight="SemiBold"
-                            Foreground="{DynamicResource TextPrimaryBrush}"
-                            Text="Crane Selection Optimization" />
-                    </StackPanel>
+                    <TextBlock
+                        Grid.Column="0"
+                        FontSize="{StaticResource FontSizeLG}"
+                        FontWeight="SemiBold"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
+                        Text="Crane Selection Optimization"
+                        TextAlignment="Center" />
 
                     <Button
                         x:Name="BtnAdvancedToggle"
                         Grid.Column="1"
                         Click="BtnAdvancedToggle_Click"
-                        Content="⚙ Advanced Options"
+                        Content="Advanced Options"
                         Style="{StaticResource ButtonSecondary}" />
                 </Grid>
 
@@ -223,161 +222,224 @@
             <Border
                 x:Name="PanelAdvanced"
                 Grid.Column="1"
-                Padding="{StaticResource Space4}"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1,0,0,0"
                 Visibility="Collapsed">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="16" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="16" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <TextBlock
-                        Style="{StaticResource PanelSectionHeader}"
-                        Text="ADVANCED OPTIONS" />
-
-                    <Grid Grid.Row="2">
+                <ScrollViewer
+                    HorizontalScrollBarVisibility="Disabled"
+                    CanContentScroll="False"
+                    VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="{StaticResource Space4}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="8" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="4" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="4" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="4" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="4" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="4" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="8" />
-                            <ColumnDefinition Width="96" />
-                        </Grid.ColumnDefinitions>
 
                         <TextBlock
-                            Grid.ColumnSpan="3"
+                            Grid.Row="0"
+                            Style="{StaticResource PanelSectionHeader}"
+                            Text="ADVANCED OPTIONS" />
+
+                        <TextBlock
+                            Grid.Row="1"
+                            Margin="{StaticResource Space1}"
                             Style="{StaticResource PanelSectionHeader}"
                             Text="ALGORITHM SETTINGS" />
 
-                        <TextBlock
+                        <Grid
                             Grid.Row="2"
-                            FontSize="{StaticResource FontSizeSM}"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text="Population Size" />
-                        <TextBox
-                            x:Name="TxtPopulation"
-                            Grid.Row="2"
-                            Grid.Column="2"
-                            Text="30" />
+                            Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Population Size" />
+                            <TextBox
+                                x:Name="TxtPopulation"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                HorizontalContentAlignment="Center"
+                                Text="30"
+                                VerticalAlignment="Center"
+                                VerticalContentAlignment="Center" />
+                        </Grid>
 
-                        <TextBlock
-                            Grid.Row="4"
-                            FontSize="{StaticResource FontSizeSM}"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text="Max Generations" />
-                        <TextBox
-                            x:Name="TxtGenerations"
-                            Grid.Row="4"
-                            Grid.Column="2"
-                            Text="30" />
+                        <Grid
+                            Grid.Row="3"
+                            Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Max Generations" />
+                            <TextBox
+                                x:Name="TxtGenerations"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                HorizontalContentAlignment="Center"
+                                Text="30"
+                                VerticalAlignment="Center"
+                                VerticalContentAlignment="Center" />
+                        </Grid>
 
-                        <TextBlock
+                        <Grid
+                            Grid.Row="4"
+                            Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Mutation Rate" />
+                            <TextBox
+                                x:Name="TxtMutRate"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                HorizontalContentAlignment="Center"
+                                Text="0.10"
+                                VerticalAlignment="Center"
+                                VerticalContentAlignment="Center" />
+                        </Grid>
+
+                        <Grid
+                            Grid.Row="5"
+                            Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Mutation Sigma" />
+                            <TextBox
+                                x:Name="TxtMutSigma"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                HorizontalContentAlignment="Center"
+                                Text="0.05"
+                                VerticalAlignment="Center"
+                                VerticalContentAlignment="Center" />
+                        </Grid>
+
+                        <Grid
                             Grid.Row="6"
-                            FontSize="{StaticResource FontSizeSM}"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text="Mutation Rate" />
-                        <TextBox
-                            x:Name="TxtMutRate"
-                            Grid.Row="6"
-                            Grid.Column="2"
-                            Text="0.10" />
+                            Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Grid Step (m)" />
+                            <TextBox
+                                x:Name="TxtGridStep"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                HorizontalContentAlignment="Center"
+                                Text="2.0"
+                                VerticalAlignment="Center"
+                                VerticalContentAlignment="Center" />
+                        </Grid>
+
+                        <Grid
+                            Grid.Row="7"
+                            Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Convergence (%)"
+                                ToolTip="0 = always run full generations" />
+                            <TextBox
+                                x:Name="TxtConverge"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                HorizontalContentAlignment="Center"
+                                Text="0"
+                                VerticalAlignment="Center"
+                                VerticalContentAlignment="Center" />
+                        </Grid>
 
                         <TextBlock
                             Grid.Row="8"
-                            FontSize="{StaticResource FontSizeSM}"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text="Mutation Sigma" />
-                        <TextBox
-                            x:Name="TxtMutSigma"
-                            Grid.Row="8"
-                            Grid.Column="2"
-                            Text="0.05" />
-
-                        <TextBlock
-                            Grid.Row="10"
-                            FontSize="{StaticResource FontSizeSM}"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text="Grid Step (m)" />
-                        <TextBox
-                            x:Name="TxtGridStep"
-                            Grid.Row="10"
-                            Grid.Column="2"
-                            Text="2.0" />
-
-                        <TextBlock
-                            Grid.Row="12"
-                            FontSize="{StaticResource FontSizeSM}"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text="Convergence (%)"
-                            ToolTip="0 = always run full generations" />
-                        <TextBox
-                            x:Name="TxtConverge"
-                            Grid.Row="12"
-                            Grid.Column="2"
-                            Text="0" />
-                    </Grid>
-
-                    <Grid Grid.Row="4">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="8" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="4" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="8" />
-                            <ColumnDefinition Width="96" />
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock
-                            Grid.ColumnSpan="3"
+                            Margin="{StaticResource Space1}"
                             Style="{StaticResource PanelSectionHeader}"
                             Text="PENALTY WEIGHTS" />
 
-                        <TextBlock
-                            Grid.Row="2"
-                            FontSize="{StaticResource FontSizeSM}"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text="Non-Liftable penalty" />
-                        <TextBox
-                            x:Name="TxtPenNL"
-                            Grid.Row="2"
-                            Grid.Column="2"
-                            Text="20" />
+                        <Grid
+                            Grid.Row="9"
+                            Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Non-Liftable penalty" />
+                            <TextBox
+                                x:Name="TxtPenNL"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                HorizontalContentAlignment="Center"
+                                Text="20"
+                                VerticalAlignment="Center"
+                                VerticalContentAlignment="Center" />
+                        </Grid>
 
-                        <TextBlock
-                            Grid.Row="4"
-                            FontSize="{StaticResource FontSizeSM}"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text="Unreachable penalty" />
-                        <TextBox
-                            x:Name="TxtPenUR"
-                            Grid.Row="4"
-                            Grid.Column="2"
-                            Text="100" />
+                        <Grid
+                            Grid.Row="10"
+                            Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Unreachable penalty" />
+                            <TextBox
+                                x:Name="TxtPenUR"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                HorizontalContentAlignment="Center"
+                                Text="100"
+                                VerticalAlignment="Center"
+                                VerticalContentAlignment="Center" />
+                        </Grid>
                     </Grid>
-                </Grid>
+                </ScrollViewer>
             </Border>
         </Grid>
 

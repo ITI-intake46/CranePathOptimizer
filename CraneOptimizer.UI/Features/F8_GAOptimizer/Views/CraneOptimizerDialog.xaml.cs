@@ -14,9 +14,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
     public partial class CraneOptimizerDialog : Window
     {
         const string POINT_LAYER = "GA_SelectedPoint";
-        const double CompactDialogWidth = 560;
-        const double ExpandedDialogWidth = 880;
+        const double CompactDialogWidth = 460;
+        const double ExpandedDialogWidth = 780;
         const double AdvancedPanelWidth = 320;
+
         private class PointItem
         {
             public CranePositionResult Point { get; set; }
@@ -34,6 +35,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private CranePlacementResult? _currentResult;
         private bool _isRunning;
         private bool _isAdvancedPanelOpen;
+        private bool _cancelRequested;
 
         public CranePlacementResult? LatestResult { get; private set; }
 
@@ -66,9 +68,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             CboCrane.ItemsSource = cranes;
         }
 
-        // ============================
-        // RUN GA (FULLY FIXED)
-        // ============================
         private async void BtnRun_Click(object sender, RoutedEventArgs e)
         {
             if (_isRunning) return;
@@ -82,11 +81,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             }
 
             _isRunning = true;
+            _cancelRequested = false;
 
             ClearResultPanel();
-            _renderingService.ClearLayer("GA_SelectedPoint");
+            _renderingService.ClearLayer(POINT_LAYER);
 
             BtnRun.IsEnabled = false;
+            BtnCancel.IsEnabled = true;
             BtnApply.IsEnabled = false;
 
             ProgBar.IsIndeterminate = true;
@@ -95,14 +96,21 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             try
             {
                 var settings = BuildSettings();
-
-                //  FIX: pass crane to service
                 var result = await _placementService.RunOptimizationAsync(settings, selectedCrane);
+
+                if (_cancelRequested)
+                {
+                    LatestResult = null;
+                    _currentResult = null;
+                    TxtStatus.Text = "Optimization cancelled.";
+                    ProgBar.IsIndeterminate = false;
+                    ProgBar.Value = 0;
+                    return;
+                }
 
                 LatestResult = result;
                 _currentResult = result;
 
-                // Bind points
                 PointsList.ItemsSource = result.Positions
                     .Select(p => new PointItem { Point = p })
                     .ToList();
@@ -130,19 +138,17 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             {
                 _isRunning = false;
                 BtnRun.IsEnabled = true;
+                BtnCancel.IsEnabled = false;
             }
         }
 
-        // ============================
-        // POINT SELECTION (FULLY LINKED)
-        // ============================
         private void PointsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (PointsList.SelectedItem is not PointItem item)
                 return;
 
             ShowPoint(item.Point);
-            UpdateResultPanelForPoint(item.Point); //  FIX: UI sync
+            UpdateResultPanelForPoint(item.Point);
         }
 
         private void ShowPoint(CranePositionResult point)
@@ -186,9 +192,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             );
         }
 
-        // ============================
-        // SETTINGS (FIXED)
-        // ============================
         private GASettings BuildSettings()
         {
             if (CboCrane.SelectedItem == null)
@@ -203,9 +206,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             };
         }
 
-        // ============================
-        // RESULT PANEL (FULLY FIXED)
-        // ============================
         private void UpdateResultPanel(CranePlacementResult result)
         {
             PanelResults.Visibility = Visibility.Visible;
@@ -241,9 +241,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             PointsList.ItemsSource = null;
         }
 
-        // ============================
-        // HELPERS
-        // ============================
         private double CalculateMarkerRadius() => 200;
         private double CalculateMarkerZ(double r) => 500;
 
@@ -255,9 +252,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 ? new GridLength(AdvancedPanelWidth)
                 : new GridLength(0);
 
-            PanelAdvanced.Visibility = _isAdvancedPanelOpen
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            PanelAdvanced.Visibility = Visibility.Visible;
 
             Width = _isAdvancedPanelOpen
                 ? ExpandedDialogWidth
@@ -265,13 +260,33 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
             BtnAdvancedToggle.Content = _isAdvancedPanelOpen
                 ? "Hide Advanced"
-                : "⚙ Advanced Options";
+                : "Advanced Options";
         }
 
         private void CboCrane_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
         private void RbExclusion_Checked(object sender, RoutedEventArgs e) { }
-        private void BtnCancelRun_Click(object sender, RoutedEventArgs e) { }
-        private void BtnApply_Click(object sender, RoutedEventArgs e) { }
+
+        private void BtnCancelRun_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isRunning)
+                return;
+
+            _cancelRequested = true;
+            BtnCancel.IsEnabled = false;
+            BtnApply.IsEnabled = false;
+            TxtStatus.Text = "Cancel requested...";
+        }
+
+        private void BtnApply_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentResult == null)
+                return;
+
+            LatestResult = _currentResult;
+            DialogResult = true;
+            Close();
+        }
+
         private void BtnIncludeAll_Click(object sender, RoutedEventArgs e) { }
         private void BtnExcludeAll_Click(object sender, RoutedEventArgs e) { }
         private void BtnNoSlabs_Click(object sender, RoutedEventArgs e) { }
