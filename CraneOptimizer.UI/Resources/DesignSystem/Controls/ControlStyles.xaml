@@ -13,7 +13,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
                     <Border Background="{StaticResource SecondaryBrush}"
-                            CornerRadius="3" Margin="2"/>
+                            CornerRadius="3" Margin="2,2,2,2"/>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

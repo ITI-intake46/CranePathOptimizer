@@ -102,7 +102,7 @@
         <TabControl Grid.Row="2"
                     Background="{DynamicResource BackgroundBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
-                    Padding="0">
+                           Padding="0,0,0,0">
 
             <!-- Tab 1: Filters -->
             <TabItem Header="Filters">
@@ -130,7 +130,7 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="ELEMENT TYPE" Style="{StaticResource SectionHeader}"
-                                       VerticalAlignment="Center" Margin="0"/>
+                              VerticalAlignment="Center" Margin="0,0,0,0"/>
                             <Button Grid.Column="1" Style="{StaticResource ButtonSecondary}"
                                     Padding="6,2" FontSize="10" Margin="0,0,4,0"
                                     Click="BtnSelectAllTypes_Click">All</Button>
@@ -219,7 +219,7 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="MATERIAL" Style="{StaticResource SectionHeader}"
-                                       VerticalAlignment="Center" Margin="0"/>
+                              VerticalAlignment="Center" Margin="0,0,0,0"/>
                             <Button Grid.Column="1" Style="{StaticResource ButtonSecondary}"
                                     Padding="6,2" FontSize="10" Margin="0,0,4,0"
                                     Click="BtnSelectAllMaterials_Click">All</Button>

@@ -656,7 +656,7 @@
                                 Grid.Row="2"
                                 HorizontalScrollBarVisibility="Disabled"
                                 VerticalScrollBarVisibility="Auto">
-                                <StackPanel x:Name="PropertiesPanel" Margin="0">
+                                <StackPanel x:Name="PropertiesPanel" Margin="0,0,0,0">
                                     <Border Style="{StaticResource PropertyRow}">
                                         <TextBlock
                                             Margin="0,12"
@@ -936,7 +936,7 @@
                 <Button
                     x:Name="RenderQualityDropBtn"
                     Grid.Column="4"
-                    Padding="0"
+                                            Padding="0,0,0,0"
                     VerticalAlignment="Center"
                     Click="RenderQualityDropBtn_Click"
                     Style="{StaticResource ToolbarButton}"

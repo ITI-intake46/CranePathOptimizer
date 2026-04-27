@@ -14,6 +14,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
     public partial class CraneOptimizerDialog : Window
     {
         const string POINT_LAYER = "GA_SelectedPoint";
+        const double CompactDialogWidth = 560;
+        const double ExpandedDialogWidth = 880;
+        const double AdvancedPanelWidth = 320;
         private class PointItem
         {
             public CranePositionResult Point { get; set; }
@@ -30,6 +33,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private CranePlacementResult? _currentResult;
         private bool _isRunning;
+        private bool _isAdvancedPanelOpen;
 
         public CranePlacementResult? LatestResult { get; private set; }
 
@@ -242,6 +246,27 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         // ============================
         private double CalculateMarkerRadius() => 200;
         private double CalculateMarkerZ(double r) => 500;
+
+        private void BtnAdvancedToggle_Click(object sender, RoutedEventArgs e)
+        {
+            _isAdvancedPanelOpen = !_isAdvancedPanelOpen;
+
+            AdvancedColumn.Width = _isAdvancedPanelOpen
+                ? new GridLength(AdvancedPanelWidth)
+                : new GridLength(0);
+
+            PanelAdvanced.Visibility = _isAdvancedPanelOpen
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            Width = _isAdvancedPanelOpen
+                ? ExpandedDialogWidth
+                : CompactDialogWidth;
+
+            BtnAdvancedToggle.Content = _isAdvancedPanelOpen
+                ? "Hide Advanced"
+                : "⚙ Advanced Options";
+        }
 
         private void CboCrane_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
         private void RbExclusion_Checked(object sender, RoutedEventArgs e) { }

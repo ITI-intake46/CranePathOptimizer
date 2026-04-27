@@ -6,7 +6,7 @@
         <StackPanel>
 
             <!-- User -->
-            <Border Padding="16" Background="{DynamicResource SurfaceElevatedBrush}">
+        <Border Padding="16,16,16,16" Background="{DynamicResource SurfaceElevatedBrush}">
                 <StackPanel Orientation="Horizontal">
                     <Rectangle Width="40" Height="40"
                                Fill="{StaticResource PrimaryBrush}"

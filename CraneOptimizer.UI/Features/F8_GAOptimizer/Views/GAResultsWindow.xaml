@@ -9,7 +9,7 @@
     Width="800"
     Height="450"
     mc:Ignorable="d">
-    <Border Padding="10">
+    <Border Padding="10,10,10,10">
 
         <Grid>
             <Grid.RowDefinitions>
@@ -28,7 +28,7 @@
                     <DataTemplate>
                         <Border
                             Margin="0,0,0,4"
-                            Padding="6"
+            Padding="6,6,6,6"
                             Background="{DynamicResource SurfaceElevatedBrush}">
 
                             <StackPanel Orientation="Horizontal">
