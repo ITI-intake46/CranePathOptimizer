@@ -26,6 +26,7 @@ using System.Windows;
 using System.Windows.Threading;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels;
+using CraneOptimizer.UI.F90_CraneSeedData.Services;
 
 namespace CraneOptimizer.UI
 {
@@ -121,6 +122,7 @@ namespace CraneOptimizer.UI
             // Views
             // =========================
             services.AddTransient<MainWindow>();
+            services.AddScoped<CraneSeedService>();
 
             ServiceProvider = services.BuildServiceProvider();
 
@@ -211,27 +213,8 @@ namespace CraneOptimizer.UI
 
                 await context.Database.MigrateAsync();
 
-                // Optional runtime seed (safe, non-duplicating):
-                // - Adds only when TargetPoints is empty
-                // - Warns when partial/non-empty count differs from the expected seed count
-                var seedData = CraneDbContext.GetTargetPointSeedData();
-
-                if (!context.TargetPoints.Any())
-                {
-                    if (seedData.Count > 0)
-                    {
-                        context.TargetPoints.AddRange(seedData);
-                        await context.SaveChangesAsync();
-                    }
-                }
-                else if (seedData.Count > 0)
-                {
-                    var count = context.TargetPoints.Count();
-                    if (count != seedData.Count)
-                    {
-                        Debug.WriteLine($"TargetPoints count mismatch. Existing={count}, Seed={seedData.Count}. Skipping reseed to avoid data loss.");
-                    }
-                }
+                var seeder = scope.ServiceProvider.GetRequiredService<CraneSeedService>();
+                await seeder.SeedAsync();
             }
             catch (Exception ex)
             {

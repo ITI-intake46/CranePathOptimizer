@@ -53,11 +53,5 @@ namespace CraneOptimizer.Infrastructure.Contexts
             });
         }
 
-        public static IReadOnlyList<TargetPoint> GetTargetPointSeedData()
-        {
-            // IMPORTANT: Populate with the exact 94 records approved by the team.
-            // The app startup seeding is guarded by Any() and count checks to avoid duplication.
-            return Array.Empty<TargetPoint>();
-        }
     }
 }
