@@ -1,6 +1,7 @@
-using CraneOptimizer.Domain.Common;
+﻿using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones;
 using CraneOptimizer.UI.Shell.ViewModels;
 using HelixToolkit.Wpf;
@@ -14,24 +15,33 @@ namespace CraneOptimizer.UI.Shell.Views
     {
         private readonly IRenderingService _renderingService;
         private readonly ISceneService _sceneService;
+        private CraneSetupViewModel? _craneSetup;
+        // ← NEW
 
         public MainWindow(
             MainViewModel vm,
             IRenderingService renderingService,
-            ISceneService sceneService)
+            ISceneService sceneService,
+            CraneSetupViewModel craneSetup)
         {
             InitializeComponent();
 
             _renderingService = renderingService;
             _sceneService = sceneService;
+            _craneSetup = craneSetup;                // ← NEW
+
 
             DataContext = vm;
 
             _renderingService.Initialize(IfcViewer);
 
+            IfcViewer.MouseLeftButtonDown += Viewport_MouseDown;
+            IfcViewer.MouseMove += Viewport_MouseMove;
+            IfcViewer.MouseLeftButtonUp += Viewport_MouseUp;
+
             #region DXF
             // Wire the DXF uploader to the same Helix viewport.
-            // Mirrors the IRenderingService pattern � must be done after InitializeComponent.
+            // Mirrors the IRenderingService pattern — must be done after InitializeComponent.
             vm.Dxf.Initialize(IfcViewer);
             #endregion
 
@@ -219,6 +229,7 @@ namespace CraneOptimizer.UI.Shell.Views
 
         #region Helpers
 
+        #region Dragging the Crane Visual   
         private Point3D GetWorldPoint(HelixViewport3D viewport, System.Windows.Point screenPt)
         {
             try
@@ -253,7 +264,85 @@ namespace CraneOptimizer.UI.Shell.Views
 
             return new Point3D();
         }
+        private void Viewport_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (_craneSetup?.SelectedCrane == null) return;
 
+            // HelixTool's FindHits() performs a 3D ray-cast from the mouse position
+            // and returns all 3D objects under the cursor.
+            var mousePos = e.GetPosition(IfcViewer);
+            var hits = Viewport3DHelper.FindHits(IfcViewer.Viewport, mousePos);
+
+            // Check if any hit belongs to the crane layer
+            if (hits != null && hits.Count > 0)
+            {
+                // The crane visual was clicked → begin drag
+                _craneSetup.BeginDrag();
+                IfcViewer.CaptureMouse(); // keep receiving events even if mouse leaves viewport
+                e.Handled = true;         // prevent HelixTool's default camera rotation
+            }
+        }
+        private void Viewport_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_craneSetup == null || !_craneSetup.IsDraggingActive) return;
+
+            var worldPoint = ScreenToGroundPlane(e.GetPosition(IfcViewer));
+            if (worldPoint == null) return;
+
+            // Convert WPF Point3D to your domain type
+            var domainPoint = new DomainPoint3D(worldPoint.Value.X, worldPoint.Value.Y, 0);
+
+            // Update drag (includes zone constraint check)
+            var zones = VM?.Scene.GetZones() ?? new List<GreenAreaZone>();
+            _craneSetup.UpdateDrag(domainPoint, zones);
+
+            // Show live coordinates in status bar
+            VM?.SetCoordinates(domainPoint.X, domainPoint.Y);
+            e.Handled = true;
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // MOUSE UP — finish drag
+        // ─────────────────────────────────────────────────────────────────────
+        private void Viewport_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_craneSetup == null || !_craneSetup.IsDraggingActive) return;
+
+            var zones = VM?.Scene.GetZones() ?? new List<GreenAreaZone>();
+            _craneSetup.EndDrag(zones);
+
+            IfcViewer.ReleaseMouseCapture();
+            e.Handled = true;
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // COORDINATE CONVERSION: Screen pixel → 3D ground plane point
+        // ─────────────────────────────────────────────────────────────────────
+        /// <summary>
+        /// Converts a 2D mouse position (screen pixels) into a 3D point on the
+        /// ground plane (Z = 0) using ray-plane intersection.
+        ///
+        /// How it works:
+        ///   1. HelixTool shoots a ray from the camera through the mouse pixel.
+        ///   2. We find where that ray intersects the Z=0 horizontal plane.
+        ///   3. That intersection is the "world position" under the cursor.
+        /// </summary>
+        private Point3D? ScreenToGroundPlane(System.Windows.Point mousePos)
+        {
+            // Point2DtoRay3D: HelixTool converts screen position → 3D ray
+            var ray = IfcViewer.Viewport.Point2DtoRay3D(mousePos);
+            if (ray == null) return null;
+
+            // PlaneIntersection: find where the ray hits Z=0 plane
+            // Parameters: a point on the plane (origin), the plane normal (Z-up)
+            return ray.PlaneIntersection(
+                new Point3D(0, 0, 0),
+                new Vector3D(0, 0, 1)
+            );
+        }
         #endregion
+        #endregion
+ 
+
     }
 }

@@ -5,12 +5,13 @@ using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
+using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer;
-using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
 using System.Collections.ObjectModel;
@@ -26,11 +27,11 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly ICraneRepository _craneRepo;
         private readonly IDialogService _dialog;
         private readonly ICranePlacementService _cranePlacementService;
-
         private Crane? _selectedCrane;
-        private bool _disposed; 
-        #endregion
+        private bool _disposed;
         public ISceneService Scene { get; }
+        public CraneSetupViewModel CraneSetup { get; }
+        #endregion
 
         #region Constructor
         public MainViewModel(
@@ -43,6 +44,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IRenderingService render,
             ICraneRepository craneRepo,
             IDialogService dialog,
+            CraneSetupViewModel craneSetup,
+
+
             ICranePlacementService cranePlacementService)
         {
             Scene = scene;
@@ -50,6 +54,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CranePlacement = cranePlacement;
             IfcViewer = ifcViewer;
             Dxf = dxf;
+            CraneSetup = craneSetup;
 
             _ifcReader = ifcReader;
             _render = render;
@@ -61,7 +66,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
             OptimizeCommand = new RelayCommand(OpenOptimizerDialog);
 
+
             _ = LoadCranesAsync();
+
         }
         #endregion
 
@@ -84,7 +91,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         #region Commands
         public ICommand StartDrawingCommand { get; }
-        public ICommand OptimizeCommand { get; } 
+        public ICommand OptimizeCommand { get; }
         #endregion
 
         #region Crane Selected
@@ -101,6 +108,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 OnPropertyChanged(nameof(SelectedCraneSpec));
 
                 CranePlacement.SelectedCrane = value;
+                CraneSetup.SelectedCrane = value;
                 StatusText = $"Crane Selected: {value?.Name}";
             }
         }
@@ -162,7 +170,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _disposed = true;
 
             Scene.ElementsChanged -= OnElementsChanged;
-        } 
+        }
         #endregion
 
         #region Status Properties
@@ -213,7 +221,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         {
             get => _renderQualityLabel;
             set { _renderQualityLabel = value; OnPropertyChanged(); }
-        } 
+        }
         #endregion
 
         #region Helpers
@@ -229,7 +237,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             Cranes.Clear();
             foreach (var c in cranes)
                 Cranes.Add(c);
-        } 
+        }
         #endregion
     }
 }

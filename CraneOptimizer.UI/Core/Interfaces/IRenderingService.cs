@@ -11,5 +11,9 @@ namespace CraneOptimizer.UI.Core.Interfaces
         void Clear();
 
         void ClearLayer(string layerKey);
+
+
+        // NEW — needed for mouse coordinate conversion during drag
+        HelixViewport3D? GetViewport();
     }
 }

@@ -78,5 +78,8 @@ namespace CraneOptimizer.UI.Core.Services
             if (_viewport == null)
                 throw new System.InvalidOperationException("RenderingService not initialized");
         }
+
+        public HelixViewport3D? GetViewport() => _viewport;
+
     }
 }
