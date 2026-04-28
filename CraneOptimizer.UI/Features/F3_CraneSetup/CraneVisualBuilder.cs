@@ -1,44 +1,31 @@
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Entities.Enums;
 using CraneOptimizer.UI.Core.Interfaces;
-using HelixToolkit.Geometry;
-using System.Numerics;
+using HelixToolkit.Wpf;
+using System;
+using System.Linq;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 
 namespace CraneOptimizer.UI.Features.F3_CraneSetup
 {
-    /// <summary>
-    /// Builds a true-to-scale 3D crane model using real manufacturer dimensions.
-    /// Coordinate system: X = forward, Y = lateral, Z = up.
-    /// All dimensions are in metres, read directly from the Crane entity.
-    /// </summary>
     public class CraneVisualBuilder : IVisualBuilder<Crane>
     {
-        // ── Realistic crane colour palette ──────────────────────────────────
-        private static readonly Color ChassisColor      = Color.FromRgb(65, 65, 65);
-        private static readonly Color TrackColor        = Color.FromRgb(45, 45, 45);
-        private static readonly Color OutriggerBeamColor= Color.FromRgb(80, 80, 80);
-        private static readonly Color OutriggerPadColor = Color.FromRgb(110, 110, 110);
-        private static readonly Color SlewRingColor     = Color.FromRgb(90, 90, 90);
-        private static readonly Color SuperColor        = Color.FromRgb(230, 175, 45);   // Industry yellow
-        private static readonly Color CwColor           = Color.FromRgb(35, 35, 35);
-        private static readonly Color CabGlassColor     = Color.FromRgb(155, 200, 235);
-        private static readonly Color CabFrameColor     = Color.FromRgb(55, 55, 55);
-        private static readonly Color BoomColor         = Color.FromRgb(245, 210, 50);
-        private static readonly Color SheaveColor       = Color.FromRgb(100, 100, 100);
-        private static readonly Color RopeColor         = Color.FromRgb(60, 60, 60);
-
-        private const double BoomElevationDeg = 55.0;   // Resting boom angle
+        private static readonly Material YellowMat = MaterialHelper.CreateMaterial(Color.FromRgb(255, 190, 0));
+        private static readonly Material OrangePadMat = MaterialHelper.CreateMaterial(Color.FromRgb(214, 138, 86));
+        private static readonly Material DarkGrayMat = MaterialHelper.CreateMaterial(Color.FromRgb(50, 50, 50));
+        private static readonly Material LightGrayMat = MaterialHelper.CreateMaterial(Color.FromRgb(130, 130, 130));
+        private static readonly Material RedMat = MaterialHelper.CreateMaterial(Color.FromRgb(200, 50, 50));
+        private static readonly Material WhiteStripeMat = MaterialHelper.CreateMaterial(Color.FromRgb(240, 240, 240));
+        private static readonly Material BlackMat = MaterialHelper.CreateMaterial(Color.FromRgb(25, 25, 25));
+        private static readonly Material WindowMat = MaterialHelper.CreateMaterial(Color.FromRgb(80, 120, 160));
+        private static readonly Material ExclusionMat = MaterialHelper.CreateMaterial(Color.FromArgb(100, 214, 138, 86));
 
         private readonly Action<ModelVisual3D>? _onBuilt;
 
         public CraneVisualBuilder() { }
         public CraneVisualBuilder(Action<ModelVisual3D> onBuilt) { _onBuilt = onBuilt; }
 
-        // ====================================================================
-        // PUBLIC ENTRY POINT
-        // ====================================================================
         public Visual3D Build(Crane crane)
         {
             var group = new Model3DGroup();
@@ -48,383 +35,298 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup
                 Transform = new TranslateTransform3D(0, 0, 0)
             };
 
-            // ── Real dimensions with engineering fallbacks ──────────────────
-            double bodyL = crane.VehicleLength > 0 ? crane.VehicleLength : 12.0;
-            double bodyW = crane.VehicleWidth  > 0 ? crane.VehicleWidth  : 2.75;
-            double bodyH = crane.VehicleHeight > 0 ? crane.VehicleHeight : 3.5;
-
-            var spec = crane.Specifications.FirstOrDefault();
-
-            // ── 1. CARRIER / UNDERCARRIAGE ──────────────────────────────────
-            AddCarrier(group, crane.CraneType, bodyL, bodyW, bodyH);
-
-            // ── 2. OUTRIGGERS ───────────────────────────────────────────────
-            if (crane.OutriggerLength.HasValue && crane.OutriggerWidth.HasValue)
-                AddOutriggers(group, bodyL, bodyW, bodyH,
-                              crane.OutriggerLength.Value, crane.OutriggerWidth.Value);
-
-            if (spec != null)
+            // Setup default specs if missing
+            var spec = crane.Specifications?.FirstOrDefault();
+            if (spec == null)
             {
-                double ringH     = 0.3;
-                double platZ     = bodyH;                        // top of chassis
-                double superL    = bodyL * 0.42;                 // superstructure length
-                double superW    = bodyW * 0.92;                 // superstructure width
-                double superH    = bodyH * 0.50;                 // superstructure height
-                double superTopZ = platZ + ringH + superH;       // top of superstructure
-
-                // ── 3. SLEWING RING ─────────────────────────────────────────
-                AddSlewRing(group, platZ, bodyW, ringH);
-
-                // ── 4. SUPERSTRUCTURE (engine house) ────────────────────────
-                AddSuperstructure(group, superL, superW, superH, platZ + ringH);
-
-                // ── 5. COUNTERWEIGHT ────────────────────────────────────────
-                double tailSwing = spec.MachineRotation ?? (superL * 0.85);
-                AddCounterweight(group, spec.CounterWeight, tailSwing,
-                                 superW, platZ + ringH, superH);
-
-                // ── 6. OPERATOR CAB ─────────────────────────────────────────
-                AddCab(group, superL, superW, platZ + ringH, superH);
-
-                // ── 7. A-FRAME (GANTRY) ─────────────────────────────────────
-                AddAFrame(group, superL, superW, superTopZ);
-
-                // ── 8. BOOM ASSEMBLY ────────────────────────────────────────
-                double pivotX = superL * 0.35;
-                double pivotZ = superTopZ + 0.2;
-                AddBoom(group, spec, pivotX, pivotZ);
-
-                // ── 9. BOOM-TIP SHEAVE + HOOK ROPE ──────────────────────────
-                AddHookRope(group, spec, pivotX, pivotZ);
+                spec = new CraneSpecification
+                {
+                    MaxBoomLength = 40.0,
+                    MinBoomLength = 15.0,
+                    MachineRotation = (crane.VehicleLength > 0 ? crane.VehicleLength : 12.0) * 0.45,
+                    CounterWeight = 20.0
+                };
             }
+
+            double length = crane.VehicleLength > 0 ? crane.VehicleLength : 12.0;
+            double width = crane.VehicleWidth > 0 ? crane.VehicleWidth : 2.75;
+            double height = crane.VehicleHeight > 0 ? crane.VehicleHeight : 2.0;
+            
+            double outriggerSpanL = crane.OutriggerLength ?? 8.0;
+            double outriggerSpanW = crane.OutriggerWidth ?? 8.0;
+
+            group.Children.Add(BuildOutriggerPads(outriggerSpanL, outriggerSpanW));
+            group.Children.Add(BuildOutriggerLegs(length, width, height, outriggerSpanL, outriggerSpanW));
+            group.Children.Add(BuildCarrier(length, width, height));
+
+            double turntableZ = height;
+            group.Children.Add(BuildTurntable(turntableZ));
+
+            var superstructure = BuildSuperstructure(turntableZ, spec);
+            // Rotate the superstructure if needed. Here we default to 0.
+            superstructure.Transform = new RotateTransform3D(
+                new AxisAngleRotation3D(new Vector3D(0, 0, 1), 0),
+                new Point3D(0, 0, 0));
+            group.Children.Add(superstructure);
 
             _onBuilt?.Invoke(visual);
             return visual;
         }
 
-        // ====================================================================
-        // 1. CARRIER
-        // ====================================================================
-        private void AddCarrier(Model3DGroup g, CraneType type, double L, double W, double H)
+        private Model3DGroup BuildOutriggerPads(double spanL, double spanW)
         {
-            if (type == CraneType.Crawler)
+            var padsGroup = new Model3DGroup();
+            double halfW = spanW / 2.0;
+            double halfB = spanL / 2.0;
+            double padSize = Math.Max(spanL * 0.1, 0.6);
+            double padThickness = 0.12;
+
+            var positions = new[]
             {
-                // Two crawler tracks
-                double trackW  = W * 0.22;
-                double trackH  = H * 0.35;
-                double trackL  = L * 1.05;
-                double spacing = (W - trackW) / 2.0;
+                new Point3D( halfB,  halfW, padThickness / 2),
+                new Point3D( halfB, -halfW, padThickness / 2),
+                new Point3D(-halfB,  halfW, padThickness / 2),
+                new Point3D(-halfB, -halfW, padThickness / 2)
+            };
 
-                // Left track
-                g.Children.Add(Box(0, -spacing, trackH / 2.0, trackL, trackW, trackH, TrackColor));
-                // Right track
-                g.Children.Add(Box(0,  spacing, trackH / 2.0, trackL, trackW, trackH, TrackColor));
-                // Track pads / grousers (visual texture via thinner overlay)
-                g.Children.Add(Box(0, -spacing, trackH + 0.05, trackL * 0.98, trackW * 0.85, 0.1, ChassisColor));
-                g.Children.Add(Box(0,  spacing, trackH + 0.05, trackL * 0.98, trackW * 0.85, 0.1, ChassisColor));
-                // Car body (sits between the tracks)
-                double carbodyH = H - trackH;
-                g.Children.Add(Box(0, 0, trackH + carbodyH / 2.0, L * 0.80, W * 0.55, carbodyH, ChassisColor));
-            }
-            else
+            foreach (var pos in positions)
             {
-                // Mobile crane: solid chassis
-                g.Children.Add(Box(0, 0, H / 2.0, L, W, H, ChassisColor));
+                padsGroup.Children.Add(new GeometryModel3D(CreateBox(pos, padSize, padSize, padThickness), OrangePadMat));
 
-                // Wheel axles (simplified as cylinders underneath)
-                int axleCount = Math.Max(2, (int)(L / 3.0));
-                double axleSpacing = (L * 0.75) / Math.Max(1, axleCount - 1);
-                double axleStartX  = -L * 0.375;
-                double wheelR      = H * 0.28;
-
-                for (int i = 0; i < axleCount; i++)
-                {
-                    double ax = axleStartX + i * axleSpacing;
-                    // Left wheel
-                    g.Children.Add(Cyl(
-                        new Vector3((float)ax, (float)(-W / 2.0 - 0.15), (float)wheelR),
-                        new Vector3((float)ax, (float)(-W / 2.0 + 0.15), (float)wheelR),
-                        (float)(wheelR * 2), TrackColor));
-                    // Right wheel
-                    g.Children.Add(Cyl(
-                        new Vector3((float)ax, (float)(W / 2.0 - 0.15), (float)wheelR),
-                        new Vector3((float)ax, (float)(W / 2.0 + 0.15), (float)wheelR),
-                        (float)(wheelR * 2), TrackColor));
-                }
+                double bw = 0.08;
+                padsGroup.Children.Add(new GeometryModel3D(
+                    CreateBox(new Point3D(pos.X, pos.Y, pos.Z + padThickness / 2 + 0.02), padSize + bw, padSize + bw, 0.02),
+                    BlackMat));
             }
+            return padsGroup;
         }
 
-        // ====================================================================
-        // 2. OUTRIGGERS
-        // ====================================================================
-        private void AddOutriggers(Model3DGroup g, double bodyL, double bodyW, double bodyH,
-                                   double oSpanL, double oSpanW)
+        private Model3DGroup BuildOutriggerLegs(double bodyL, double bodyW, double bodyH, double spanL, double spanW)
         {
-            double beamH  = 0.25;
-            double beamW  = 0.20;
-            double padSz  = Math.Max(oSpanL * 0.12, 0.6);
-            double padH   = 0.15;
-            double halfX   = oSpanW / 2.0;
-            double halfY   = oSpanL / 2.0;
-            double beamZ   = bodyH * 0.15;
+            var legsGroup = new Model3DGroup();
+            double halfW = spanW / 2.0;
+            double halfB = spanL / 2.0;
+            
+            double carrierHalfWidth = bodyW / 2 + 0.3;
+            double carrierHalfLength = bodyL / 4;
+            double legTopZ = bodyH + 0.2;
+            double legBottomZ = 0.2;
 
-            // Beam reaching from body corner to pad centre
-            double[] cornersX = { -bodyL * 0.40, bodyL * 0.40, -bodyL * 0.40, bodyL * 0.40 };
-            double[] padsX    = { -halfX,         halfX,        -halfX,         halfX        };
-            double[] padsY    = { -halfY,        -halfY,         halfY,         halfY        };
-
-            for (int i = 0; i < 4; i++)
+            var data = new[]
             {
-                double cx = (cornersX[i] + padsX[i]) / 2.0;
-                double cy = padsY[i] / 2.0;
-                double bLen = Math.Sqrt(Math.Pow(padsX[i] - cornersX[i], 2)
-                                      + Math.Pow(padsY[i], 2));
+                (c: new Point3D( carrierHalfLength,  carrierHalfWidth, legTopZ), p: new Point3D( halfB,  halfW, legBottomZ)),
+                (c: new Point3D( carrierHalfLength, -carrierHalfWidth, legTopZ), p: new Point3D( halfB, -halfW, legBottomZ)),
+                (c: new Point3D(-carrierHalfLength,  carrierHalfWidth, legTopZ), p: new Point3D(-halfB,  halfW, legBottomZ)),
+                (c: new Point3D(-carrierHalfLength, -carrierHalfWidth, legTopZ), p: new Point3D(-halfB, -halfW, legBottomZ))
+            };
 
-                // Lateral outrigger beam
-                g.Children.Add(Box(padsX[i] / 2.0, padsY[i] / 2.0, beamZ,
-                                   Math.Abs(padsX[i]), beamW, beamH, OutriggerBeamColor));
-                // Longitudinal stub (from body to lateral beam)
-                g.Children.Add(Box(cornersX[i], padsY[i] / 2.0, beamZ,
-                                   beamW, Math.Abs(padsY[i]), beamH, OutriggerBeamColor));
-                // Pad
-                g.Children.Add(Box(padsX[i], padsY[i], padH / 2.0,
-                                   padSz, padSz, padH, OutriggerPadColor));
+            foreach (var (carrier, pad) in data)
+            {
+                var beamEnd = new Point3D(pad.X, pad.Y, carrier.Z);
+
+                legsGroup.Children.Add(new GeometryModel3D(CreateCylinder(carrier, beamEnd, 0.18, 8), YellowMat));
+                legsGroup.Children.Add(new GeometryModel3D(CreateBox(carrier, 0.6, 0.6, 0.5), YellowMat));
+                legsGroup.Children.Add(new GeometryModel3D(CreateCylinder(beamEnd, pad, 0.15, 12), LightGrayMat));
+                
+                legsGroup.Children.Add(new GeometryModel3D(
+                    CreateCylinder(new Point3D(beamEnd.X, beamEnd.Y, beamEnd.Z + 0.1), new Point3D(beamEnd.X, beamEnd.Y, beamEnd.Z - 0.4), 0.22, 12),
+                    YellowMat));
+                
+                legsGroup.Children.Add(new GeometryModel3D(
+                    CreateCylinder(pad, new Point3D(pad.X, pad.Y, pad.Z - 0.08), 0.35, 12),
+                    DarkGrayMat));
             }
+            return legsGroup;
         }
 
-        // ====================================================================
-        // 3. SLEWING RING
-        // ====================================================================
-        private void AddSlewRing(Model3DGroup g, double z, double bodyW, double ringH)
+        private Model3DGroup BuildCarrier(double length, double width, double height)
         {
-            double dia = bodyW * 0.85;
-            g.Children.Add(Cyl(
-                new Vector3(0, 0, (float)z),
-                new Vector3(0, 0, (float)(z + ringH)),
-                (float)dia, SlewRingColor));
+            var g = new Model3DGroup();
+
+            g.Children.Add(new GeometryModel3D(CreateBox(new Point3D(0, 0, height / 2), length, width, height), YellowMat));
+            g.Children.Add(new GeometryModel3D(CreateBox(new Point3D(0, 0, height + 0.15), length * 0.6, width * 0.8, 0.3), YellowMat));
+            g.Children.Add(new GeometryModel3D(CreateBox(new Point3D(length / 2 - 0.5, 0, height + 0.25), 1.5, width * 0.6, 0.5), YellowMat));
+
+            for (int side = -1; side <= 1; side += 2)
+            {
+                g.Children.Add(new GeometryModel3D(
+                    CreateBox(new Point3D(0, side * (width / 2 + 0.05), height * 0.6), length - 1, 0.1, height - 0.2),
+                    WhiteStripeMat));
+            }
+
+            g.Children.Add(new GeometryModel3D(CreateBox(new Point3D(0, width / 2 + 0.05, height / 2), length - 1, 0.1, height - 0.2), YellowMat));
+            g.Children.Add(new GeometryModel3D(CreateBox(new Point3D(0, -width / 2 - 0.05, height / 2), length - 1, 0.1, height - 0.2), YellowMat));
+
+            double wheelRadius = 0.45;
+            double wheelWidth = 0.35;
+            double wheelY = width / 2 + wheelWidth / 2 + 0.1;
+            double[] wheelXs = { length / 2 - 1, length / 2 - 2.2, -length / 2 + 1.5, -length / 2 + 2.7 };
+
+            foreach (double wx in wheelXs)
+            {
+                g.Children.Add(new GeometryModel3D(CreateCylinder(new Point3D(wx, wheelY, wheelRadius), new Point3D(wx, wheelY + wheelWidth, wheelRadius), wheelRadius, 16), BlackMat));
+                g.Children.Add(new GeometryModel3D(CreateCylinder(new Point3D(wx, -wheelY, wheelRadius), new Point3D(wx, -wheelY - wheelWidth, wheelRadius), wheelRadius, 16), BlackMat));
+
+                g.Children.Add(new GeometryModel3D(CreateCylinder(new Point3D(wx, wheelY + wheelWidth, wheelRadius), new Point3D(wx, wheelY + wheelWidth + 0.05, wheelRadius), wheelRadius * 0.4, 12), LightGrayMat));
+                g.Children.Add(new GeometryModel3D(CreateCylinder(new Point3D(wx, -wheelY - wheelWidth, wheelRadius), new Point3D(wx, -wheelY - wheelWidth - 0.05, wheelRadius), wheelRadius * 0.4, 12), LightGrayMat));
+            }
+            return g;
         }
 
-        // ====================================================================
-        // 4. SUPERSTRUCTURE
-        // ====================================================================
-        private void AddSuperstructure(Model3DGroup g, double sL, double sW, double sH, double baseZ)
+        private Model3DGroup BuildTurntable(double baseZ)
         {
-            // Engine house body — offset rearward
-            double cx = -sL * 0.15;
-            g.Children.Add(Box(cx, 0, baseZ + sH / 2.0, sL, sW, sH, SuperColor));
-
-            // Engine cover / exhaust stack (small detail)
-            g.Children.Add(Box(cx - sL * 0.25, 0, baseZ + sH + 0.15, sL * 0.3, sW * 0.4, 0.3, ChassisColor));
+            var g = new Model3DGroup();
+            g.Children.Add(new GeometryModel3D(
+                CreatePipe(new Point3D(0, 0, baseZ), new Point3D(0, 0, baseZ + 0.3), 1.2, 1.6, 24),
+                DarkGrayMat));
+            return g;
         }
 
-        // ====================================================================
-        // 5. COUNTERWEIGHT
-        // ====================================================================
-        private void AddCounterweight(Model3DGroup g, double cwTonnes, double tailSwing,
-                                       double superW, double baseZ, double superH)
+        private Model3DGroup BuildSuperstructure(double baseZ, CraneSpecification spec)
         {
-            if (cwTonnes <= 0) cwTonnes = 10;
+            var g = new Model3DGroup();
+            double superZ = baseZ + 0.3;
 
-            // Derive block size from mass (assuming ~6 t/m³ steel/concrete mix)
-            double vol   = cwTonnes / 6.0;
-            double scale = Math.Pow(vol, 1.0 / 3.0);
-            double cwW   = Math.Min(scale * 1.6, superW * 0.95);
-            double cwD   = scale * 0.85;
-            double cwH   = scale * 0.9;
+            g.Children.Add(new GeometryModel3D(CreateBox(new Point3D(-0.5, 0, superZ + 0.5), 3, 2.5, 1), YellowMat));
+            g.Children.Add(new GeometryModel3D(CreateBox(new Point3D(-1.5, 0, superZ + 1.6), 2.2, 2.2, 2.2), YellowMat));
+            g.Children.Add(new GeometryModel3D(CreateBox(new Point3D(-0.35, 0, superZ + 1.8), 0.08, 1.4, 1.0), WindowMat));
+            g.Children.Add(new GeometryModel3D(CreateBox(new Point3D(-1.5, 1.15, superZ + 1.8), 1.2, 0.08, 1.0), WindowMat));
+            g.Children.Add(new GeometryModel3D(CreateBox(new Point3D(-1.5, -1.15, superZ + 1.8), 1.2, 0.08, 1.0), WindowMat));
+            g.Children.Add(new GeometryModel3D(CreateBox(new Point3D(-2.8, 0, superZ + 0.8), 2, 2.2, 1.4), DarkGrayMat));
+            g.Children.Add(new GeometryModel3D(CreateBox(new Point3D(-2.5, 0, superZ + 2), 1.5, 1.8, 1), YellowMat));
 
-            double cx = -tailSwing + cwD / 2.0;
-            double cz = baseZ + superH - cwH * 0.1;  // sits flush on super top
-
-            g.Children.Add(Box(cx, 0, cz + cwH / 2.0, cwD, cwW, cwH, CwColor));
-            // Stack line detail
-            g.Children.Add(Box(cx, 0, cz + cwH + 0.04, cwD * 0.95, cwW * 0.95, 0.08, SlewRingColor));
+            g.Children.Add(BuildBoom(superZ + 1, spec));
+            return g;
         }
 
-        // ====================================================================
-        // 6. OPERATOR CAB
-        // ====================================================================
-        private void AddCab(Model3DGroup g, double superL, double superW, double baseZ, double superH)
+        private Model3DGroup BuildBoom(double baseZ, CraneSpecification spec)
         {
-            double cabW = Math.Min(1.2, superW * 0.35);
-            double cabL = Math.Min(1.8, superL * 0.40);
-            double cabH = Math.Min(2.0, superH * 1.1);
-            double cabX = superL * 0.25;
-            double cabY = superW / 2.0 - cabW / 2.0 - 0.05;
+            var g = new Model3DGroup();
+            double boomAngleRad = 55.0 * Math.PI / 180; // Hardcoded angle for visual representation
+            var pivot = new Point3D(0.5, 0, baseZ + 0.5);
+            
+            double boomLen = spec.MaxBoomLength > 0 ? spec.MaxBoomLength : 30.0;
+            double boomEndX = pivot.X + boomLen * Math.Cos(boomAngleRad);
+            double boomEndZ = pivot.Z + boomLen * Math.Sin(boomAngleRad);
+            var boomEnd = new Point3D(boomEndX, 0, boomEndZ);
 
-            // Cab frame
-            g.Children.Add(Box(cabX, cabY, baseZ + superH + cabH / 2.0,
-                               cabL, cabW, cabH, CabFrameColor));
-            // Glass windows (inset panel on each side)
-            double glassInset = 0.06;
-            g.Children.Add(Box(cabX, cabY, baseZ + superH + cabH * 0.55,
-                               cabL - glassInset * 2, cabW - glassInset * 2,
-                               cabH * 0.6, CabGlassColor));
-        }
+            int sections = 4;
+            double baseWidth = 1.2;
 
-        // ====================================================================
-        // 7. A-FRAME / GANTRY
-        // ====================================================================
-        private void AddAFrame(Model3DGroup g, double superL, double superW, double topZ)
-        {
-            double legW = 0.15;
-            double gantryH = superL * 0.45;
-            double footSpread = superW * 0.35;
-            double topSpread  = 0.15;
-
-            // Left leg
-            g.Children.Add(TiltedStrut(
-                -superL * 0.20, -footSpread, topZ,
-                -superL * 0.20, -topSpread,  topZ + gantryH,
-                legW, SlewRingColor));
-            // Right leg
-            g.Children.Add(TiltedStrut(
-                -superL * 0.20,  footSpread, topZ,
-                -superL * 0.20,  topSpread,  topZ + gantryH,
-                legW, SlewRingColor));
-            // Top cross-bar
-            g.Children.Add(Box(-superL * 0.20, 0, topZ + gantryH,
-                               legW, topSpread * 2.5, legW, SlewRingColor));
-        }
-
-        // ====================================================================
-        // 8. BOOM
-        // ====================================================================
-        private void AddBoom(Model3DGroup g, CraneSpecification spec,
-                             double pivotX, double pivotZ)
-        {
-            double boomLen = spec.MaxBoomLength > 0 ? spec.MaxBoomLength : 30;
-            double minBoom = spec.MinBoomLength > 0 ? spec.MinBoomLength : boomLen * 0.35;
-
-            // Three telescoping sections with decreasing cross-section
-            int sections = 3;
-            double[] lengths = new double[sections];
-            double[] widths  = new double[sections];
-            double[] heights = new double[sections];
-
-            lengths[0] = minBoom;
-            lengths[1] = (boomLen - minBoom) * 0.5;
-            lengths[2] = (boomLen - minBoom) * 0.5;
-            if (lengths[1] <= 0) { lengths[1] = 0; lengths[2] = 0; sections = 1; }
-
-            // Cross-sections taper from base to tip
-            double baseCSW = Math.Max(1.0, Math.Min(1.4, boomLen * 0.022));
-            double baseCSH = baseCSW * 0.85;
-            widths[0]  = baseCSW;        heights[0] = baseCSH;
-            widths[1]  = baseCSW * 0.72; heights[1] = baseCSH * 0.72;
-            widths[2]  = baseCSW * 0.48; heights[2] = baseCSH * 0.48;
-
-            var boomTransform = new Transform3DGroup();
-            boomTransform.Children.Add(new RotateTransform3D(
-                new AxisAngleRotation3D(new Vector3D(0, -1, 0), BoomElevationDeg)));
-            boomTransform.Children.Add(new TranslateTransform3D(pivotX, 0, pivotZ));
-
-            // Build boom foot pivot cylinder
-            var pivot = Cyl(
-                new Vector3(-0.3f, 0, 0), new Vector3(0.3f, 0, 0),
-                (float)(baseCSH * 1.1), SlewRingColor);
-            pivot.Transform = boomTransform;
-            g.Children.Add(pivot);
-
-            double runningX = 0;
             for (int i = 0; i < sections; i++)
             {
-                if (lengths[i] <= 0) continue;
-                double cx = runningX + lengths[i] / 2.0;
+                double t1 = (double)i / sections;
+                double t2 = (double)(i + 1) / sections;
+                double avgWidth = baseWidth * (1 - ((t1 + t2) / 2) * 0.6);
 
-                // Main section shell
-                var section = Box(cx, 0, 0, lengths[i], widths[i], heights[i], BoomColor);
-                section.Transform = boomTransform;
-                g.Children.Add(section);
+                var sStart = new Point3D(
+                    pivot.X + t1 * boomLen * Math.Cos(boomAngleRad), 0,
+                    pivot.Z + t1 * boomLen * Math.Sin(boomAngleRad));
+                var sEnd = new Point3D(
+                    pivot.X + t2 * boomLen * Math.Cos(boomAngleRad), 0,
+                    pivot.Z + t2 * boomLen * Math.Sin(boomAngleRad));
 
-                // Inner cutout to suggest hollow lattice/telescopic structure
-                if (lengths[i] > 2)
+                g.Children.Add(new GeometryModel3D(CreateCylinder(sStart, sEnd, avgWidth, 8), YellowMat));
+
+                if (i > 0)
                 {
-                    var inner = Box(cx, 0, 0,
-                                   lengths[i] - 0.4, widths[i] * 0.6, heights[i] * 0.6,
-                                   Color.FromRgb(200, 170, 40));
-                    inner.Transform = boomTransform;
-                    g.Children.Add(inner);
+                    g.Children.Add(new GeometryModel3D(
+                        CreateCylinder(
+                            new Point3D(sStart.X - 0.1 * Math.Cos(boomAngleRad), 0, sStart.Z - 0.1 * Math.Sin(boomAngleRad)),
+                            new Point3D(sStart.X + 0.1 * Math.Cos(boomAngleRad), 0, sStart.Z + 0.1 * Math.Sin(boomAngleRad)),
+                            avgWidth + 0.05, 12),
+                        LightGrayMat));
                 }
-
-                runningX += lengths[i];
             }
 
-            // Boom-tip sheave block
-            var sheave = Box(runningX, 0, 0, 0.5, widths[0] * 0.6, heights[0] * 0.7, SheaveColor);
-            sheave.Transform = boomTransform;
-            g.Children.Add(sheave);
-        }
+            // Boom Tip
+            g.Children.Add(new GeometryModel3D(CreateBox(boomEnd, 0.6, 0.5, 0.8), YellowMat));
 
-        // ====================================================================
-        // 9. HOOK ROPE
-        // ====================================================================
-        private void AddHookRope(Model3DGroup g, CraneSpecification spec,
-                                  double pivotX, double pivotZ)
-        {
-            double boomLen = spec.MaxBoomLength > 0 ? spec.MaxBoomLength : 30;
-            double angleRad = BoomElevationDeg * Math.PI / 180.0;
+            g.Children.Add(new GeometryModel3D(
+                CreateCylinder(new Point3D(boomEnd.X, -0.35, boomEnd.Z), new Point3D(boomEnd.X, 0.35, boomEnd.Z), 0.25, 16),
+                LightGrayMat));
 
-            // Boom-tip position in world coords
-            double tipX = pivotX + boomLen * Math.Cos(angleRad);
-            double tipZ = pivotZ + boomLen * Math.Sin(angleRad);
+            // Luffing Cylinder
+            var cylBase = new Point3D(pivot.X - 1.5, 0, baseZ - 0.3);
+            double cylLen = boomLen * 0.35;
+            double cylAngle = boomAngleRad + 0.3;
+            var cylEnd = new Point3D(
+                cylBase.X + cylLen * Math.Cos(cylAngle), 0,
+                cylBase.Z + cylLen * Math.Sin(cylAngle));
+                
+            g.Children.Add(new GeometryModel3D(CreateCylinder(cylBase, cylEnd, 0.15, 12), LightGrayMat));
+            g.Children.Add(new GeometryModel3D(CreateCylinder(cylBase, new Point3D(cylBase.X + 0.3, 0, cylBase.Z + 0.2), 0.2, 12), YellowMat));
 
-            // Rope hangs straight down from tip to just above ground
-            double ropeBottom = 1.0;
-            g.Children.Add(Cyl(
-                new Vector3((float)tipX, 0, (float)tipZ),
-                new Vector3((float)tipX, 0, (float)ropeBottom),
-                0.06f, RopeColor));
+            // Hook Rope
+            double hookZ = boomEnd.Z - boomLen * 0.8;
+            if (hookZ < 0) hookZ = 1.0;
 
-            // Hook block
-            g.Children.Add(Box(tipX, 0, ropeBottom - 0.3, 0.4, 0.3, 0.6, SheaveColor));
+            g.Children.Add(new GeometryModel3D(CreateCylinder(new Point3D(boomEnd.X, 0, boomEnd.Z - 0.3), new Point3D(boomEnd.X, 0, hookZ), 0.04, 6), BlackMat));
+            
+            // Hook Block
+            g.Children.Add(new GeometryModel3D(CreateBox(new Point3D(boomEnd.X, 0, hookZ - 0.4), 0.7, 0.5, 1.0), RedMat));
+            
+            g.Children.Add(new GeometryModel3D(CreateCylinder(new Point3D(boomEnd.X, -0.3, hookZ - 0.2), new Point3D(boomEnd.X, 0.3, hookZ - 0.2), 0.18, 12), LightGrayMat));
+            g.Children.Add(new GeometryModel3D(CreateCylinder(new Point3D(boomEnd.X, 0, hookZ - 0.9), new Point3D(boomEnd.X, 0, hookZ - 1.5), 0.1, 8), LightGrayMat));
+
+            // Small hook sphere
+            var mbSphere = new HelixToolkit.Geometry.MeshBuilder(false, false);
+            mbSphere.AddSphere(new System.Numerics.Vector3((float)(boomEnd.X + 0.15), 0, (float)(hookZ - 1.6)), 0.15f, 8, 8);
+            var helixSphere = mbSphere.ToMesh();
+            var wpfSphere = new MeshGeometry3D
+            {
+                Positions = new Point3DCollection(helixSphere.Positions.Select(p => new Point3D(p.X, p.Y, p.Z))),
+                TriangleIndices = new Int32Collection(helixSphere.TriangleIndices)
+            };
+            g.Children.Add(new GeometryModel3D(wpfSphere, LightGrayMat));
+
+            return g;
         }
 
         // ====================================================================
         // PRIMITIVE HELPERS
         // ====================================================================
-        private GeometryModel3D Box(double cx, double cy, double cz,
-                                    double sx, double sy, double sz, Color color)
-        {
-            var mb = new MeshBuilder(true, true);
-            mb.AddBox(new Vector3((float)cx, (float)cy, (float)cz),
-                      (float)sx, (float)sy, (float)sz);
-            return ToModel(mb, color);
-        }
 
-        private GeometryModel3D Cyl(Vector3 p1, Vector3 p2, float diameter, Color color)
+        private MeshGeometry3D CreateBox(Point3D center, double xLength, double yLength, double zLength)
         {
-            var mb = new MeshBuilder(true, true);
-            mb.AddCylinder(p1, p2, diameter, 24);
-            return ToModel(mb, color);
-        }
-
-        /// <summary>
-        /// Builds a thin strut between two 3D points (used for A-frame legs).
-        /// </summary>
-        private GeometryModel3D TiltedStrut(
-            double x1, double y1, double z1,
-            double x2, double y2, double z2,
-            double thickness, Color color)
-        {
-            var mb = new MeshBuilder(true, true);
-            mb.AddCylinder(
-                new Vector3((float)x1, (float)y1, (float)z1),
-                new Vector3((float)x2, (float)y2, (float)z2),
-                (float)thickness, 8);
-            return ToModel(mb, color);
-        }
-
-        private GeometryModel3D ToModel(MeshBuilder mb, Color color)
-        {
-            var mesh = mb.ToMesh();
-            var wpf = new System.Windows.Media.Media3D.MeshGeometry3D
+            var mb = new HelixToolkit.Geometry.MeshBuilder(false, false);
+            mb.AddBox(new System.Numerics.Vector3((float)center.X, (float)center.Y, (float)center.Z), (float)xLength, (float)yLength, (float)zLength);
+            var helixMesh = mb.ToMesh();
+            return new MeshGeometry3D
             {
-                Positions       = new Point3DCollection(mesh.Positions.Select(p => new Point3D(p.X, p.Y, p.Z))),
-                TriangleIndices = new Int32Collection(mesh.TriangleIndices),
-                Normals         = new Vector3DCollection(mesh.Normals.Select(n => new Vector3D(n.X, n.Y, n.Z)))
+                Positions = new Point3DCollection(helixMesh.Positions.Select(p => new Point3D(p.X, p.Y, p.Z))),
+                TriangleIndices = new Int32Collection(helixMesh.TriangleIndices)
             };
-            var mat = new DiffuseMaterial(new SolidColorBrush(color));
-            return new GeometryModel3D { Geometry = wpf, Material = mat, BackMaterial = mat };
+        }
+
+        private MeshGeometry3D CreateCylinder(Point3D p1, Point3D p2, double diameter, int thetaDiv)
+        {
+            var mb = new HelixToolkit.Geometry.MeshBuilder(false, false);
+            mb.AddCylinder(
+                new System.Numerics.Vector3((float)p1.X, (float)p1.Y, (float)p1.Z), 
+                new System.Numerics.Vector3((float)p2.X, (float)p2.Y, (float)p2.Z), 
+                (float)diameter, thetaDiv);
+            var helixMesh = mb.ToMesh();
+            return new MeshGeometry3D
+            {
+                Positions = new Point3DCollection(helixMesh.Positions.Select(p => new Point3D(p.X, p.Y, p.Z))),
+                TriangleIndices = new Int32Collection(helixMesh.TriangleIndices)
+            };
+        }
+
+        private MeshGeometry3D CreatePipe(Point3D p1, Point3D p2, double innerDiameter, double outerDiameter, int thetaDiv)
+        {
+            var mb = new HelixToolkit.Geometry.MeshBuilder(false, false);
+            mb.AddCylinder(
+                new System.Numerics.Vector3((float)p1.X, (float)p1.Y, (float)p1.Z), 
+                new System.Numerics.Vector3((float)p2.X, (float)p2.Y, (float)p2.Z), 
+                (float)outerDiameter, thetaDiv);
+            var helixMesh = mb.ToMesh();
+            return new MeshGeometry3D
+            {
+                Positions = new Point3DCollection(helixMesh.Positions.Select(p => new Point3D(p.X, p.Y, p.Z))),
+                TriangleIndices = new Int32Collection(helixMesh.TriangleIndices)
+            };
         }
     }
 }
