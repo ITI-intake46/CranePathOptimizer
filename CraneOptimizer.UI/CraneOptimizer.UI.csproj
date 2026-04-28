@@ -70,4 +70,28 @@
     <PackageReference Include="Xbim.WindowsUI" Version="5.1.228" />
   </ItemGroup>
 
+	<Target Name="CopyXbimNativeDll" AfterTargets="Build">
+		<!-- Find DLL dynamically from Infrastructure output -->
+		<ItemGroup>
+			<XbimNativeDll Include="..\CraneOptimizer.Infrastructure\bin\**\Xbim.Geometry.Engine64.dll" />
+		</ItemGroup>
+
+		<!-- Copy to UI output -->
+		<Copy
+		  SourceFiles="@(XbimNativeDll)"
+		  DestinationFolder="$(OutputPath)"
+		  SkipUnchangedFiles="true"
+		  Condition="'@(XbimNativeDll)' != ''" />
+
+		<!-- Logging -->
+		<Message
+		  Importance="High"
+		  Text="Xbim DLL copied to $(OutputPath)"
+		  Condition="'@(XbimNativeDll)' != ''" />
+
+		<Warning
+		  Text="❌ Xbim.Geometry.Engine64.dll NOT FOUND in Infrastructure build output"
+		  Condition="'@(XbimNativeDll)' == ''" />
+	</Target>
+
 </Project>
