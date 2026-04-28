@@ -63,6 +63,9 @@ namespace CraneOptimizer.Infrastructure.Migrations
                     b.Property<double>("CounterWeight")
                         .HasColumnType("REAL");
 
+                    b.Property<double?>("CraneDerating")
+                        .HasColumnType("REAL");
+
                     b.Property<int>("CraneId")
                         .HasColumnType("INTEGER");
 
@@ -83,6 +86,9 @@ namespace CraneOptimizer.Infrastructure.Migrations
 
                     b.Property<double>("MinRadius")
                         .HasColumnType("REAL");
+
+                    b.Property<string>("OutriggerConfig")
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
