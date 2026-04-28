@@ -7,7 +7,7 @@
     xmlns:DxfViews="clr-namespace:CraneOptimizer.UI.Features.F11_DXF.Views"
     xmlns:IfcViews="clr-namespace:CraneOptimizer.UI.Features.F2_IfcViewer.Views"
     xmlns:ZonesViews="clr-namespace:CraneOptimizer.UI.Features.F7_Zones.Views"
-    xmlns:project="clr-namespace:CraneOptimizer.UI.Features.F1_ProjectManagment.Views">
+    xmlns:project="clr-namespace:CraneOptimizer.UI.F10_ProjectManagement.Views">
 
     <Border
         Background="{DynamicResource SurfaceBrush}"
@@ -17,7 +17,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="28" />
                 <!--  Tab selector strip  -->
-                <RowDefinition Height="100" />
+                <RowDefinition Height="120" />
                 <!--  Tab content area  -->
             </Grid.RowDefinitions>
 
@@ -94,7 +94,10 @@
                 <ZonesViews:ZonesTabView x:Name="PanelZones" Visibility="Collapsed" />
 
                 <!--  ── ANALYZE tab ─────────────────────────────────────────────  -->
-                <AnalyzeViews:AnalyzeTabView x:Name="PanelAnalyze" Visibility="Collapsed" />
+                <AnalyzeViews:AnalyzeTabView
+                    x:Name="PanelAnalyze"
+                    DataContext="{Binding CranePlacement}"
+                    Visibility="Collapsed" />
 
             </Grid>
         </Grid>

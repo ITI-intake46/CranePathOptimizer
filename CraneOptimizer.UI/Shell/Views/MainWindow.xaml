@@ -19,6 +19,10 @@
         <ResourceDictionary />
     </Window.Resources>
 
+    <Window.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding IfcViewer.CancelPlacementCommand}" />
+    </Window.InputBindings>
+
     <!--
         ROOT GRID — compensates for WPF WindowStyle=None + AllowsTransparency=True
         maximized-overflow bug: adds 8px inset only when Maximized.
@@ -656,7 +660,7 @@
                                 Grid.Row="2"
                                 HorizontalScrollBarVisibility="Disabled"
                                 VerticalScrollBarVisibility="Auto">
-                                <StackPanel x:Name="PropertiesPanel" Margin="0">
+                                <StackPanel x:Name="PropertiesPanel" Margin="0,0,0,0">
                                     <Border Style="{StaticResource PropertyRow}">
                                         <TextBlock
                                             Margin="0,12"
@@ -782,6 +786,17 @@
                             ZoomAroundMouseDownPoint="True"
                             ZoomSensitivity="2">
 
+                            <helix:HelixViewport3D.Style>
+                                <Style TargetType="{x:Type helix:HelixViewport3D}">
+                                    <Setter Property="Cursor" Value="Arrow" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IfcViewer.IsPlacementMode}" Value="True">
+                                            <Setter Property="Cursor" Value="Cross" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </helix:HelixViewport3D.Style>
+
                             <ModelVisual3D>
                                 <ModelVisual3D.Content>
                                     <Model3DGroup>
@@ -814,6 +829,24 @@
                                     Minimum="0"
                                     Value="{Binding IfcViewer.Progress}" />
                             </StackPanel>
+                        </Border>
+
+                        <Border
+                            Margin="0,24,0,0"
+                            Padding="16,10"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Top"
+                            Background="{DynamicResource SurfaceElevatedBrush}"
+                            BorderBrush="{StaticResource PrimaryBrush}"
+                            BorderThickness="1"
+                            CornerRadius="{StaticResource CardCornerRadius}"
+                            Visibility="{Binding IfcViewer.IsPlacementMode, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock
+                                FontFamily="{StaticResource FontPrimary}"
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                Text="Click to place IFC. Press Esc to cancel." />
                         </Border>
 
                     </Grid>
@@ -936,7 +969,7 @@
                 <Button
                     x:Name="RenderQualityDropBtn"
                     Grid.Column="4"
-                    Padding="0"
+                                            Padding="0,0,0,0"
                     VerticalAlignment="Center"
                     Click="RenderQualityDropBtn_Click"
                     Style="{StaticResource ToolbarButton}"

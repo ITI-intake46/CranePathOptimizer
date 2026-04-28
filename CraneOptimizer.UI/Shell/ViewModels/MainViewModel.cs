@@ -1,4 +1,5 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
@@ -12,10 +13,13 @@ using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer;
+using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
+using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
-using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Windows.Input;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 
 namespace CraneOptimizer.UI.Shell.ViewModels
 {
@@ -29,6 +33,16 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly ICranePlacementService _cranePlacementService;
         private Crane? _selectedCrane;
         private bool _disposed;
+        private readonly List<PrecastElement> _sceneElements = new();
+
+        private Crane? _selectedCrane;
+        private bool _disposed;
+        private bool _isPickingOrigin;
+        private DomainPoint3D? _originPoint;
+        private Guid? _currentProjectId;
+        private string _currentProjectName = string.Empty;
+        private string? _currentProjectIfcPath;
+       
         public ISceneService Scene { get; }
         public CraneSetupViewModel CraneSetup { get; }
         #endregion
@@ -73,9 +87,6 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         #endregion
 
         #region Collections
-        // =========================
-        // Collections
-        // =========================
         public ObservableCollection<PrecastElement> Elements { get; } = new();
         public ObservableCollection<PrecastElement> FilteredElements { get; } = new();
         public ObservableCollection<Crane> Cranes { get; } = new();
@@ -94,10 +105,48 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         public ICommand OptimizeCommand { get; }
         #endregion
 
+        #region Project Context
+        public Guid? CurrentProjectId
+        {
+            get => _currentProjectId;
+            private set
+            {
+                _currentProjectId = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string CurrentProjectName
+        {
+            get => _currentProjectName;
+            private set
+            {
+                _currentProjectName = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string? CurrentProjectIfcPath
+        {
+            get => _currentProjectIfcPath;
+            private set
+            {
+                _currentProjectIfcPath = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public void OpenProject(Guid projectId, string projectName, string? ifcFilePath)
+        {
+            CurrentProjectId = projectId;
+            CurrentProjectName = projectName;
+            CurrentProjectIfcPath = ifcFilePath;
+            StatusText = $"Project opened: {projectName}";
+            HistoryBreadcrumb = "Load IFC when needed.";
+        }
+        #endregion
+
         #region Crane Selected
-        // =========================
-        // Selected Crane
-        // =========================
         public Crane? SelectedCrane
         {
             get => _selectedCrane;
@@ -134,9 +183,10 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             dialog.ShowDialog();
 
             if (dialog.LatestResult != null)
+            if (CranePlacement.RunOptimizationWorkflow() && CranePlacement.Result != null)
             {
                 StatusText = "Optimization Completed";
-                HistoryBreadcrumb = $"Best Fitness: {dialog.LatestResult.FitnessScore:F2}";
+                HistoryBreadcrumb = $"Best Fitness: {CranePlacement.Result.FitnessScore:F2}";
             }
         }
         #endregion
@@ -144,6 +194,11 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         #region Scene sync
         private void OnElementsChanged(List<PrecastElement> elements)
         {
+            Debug.WriteLine("Scene ElementsChanged: " + elements.Count);
+
+            _sceneElements.Clear();
+            _sceneElements.AddRange(elements);
+
             Elements.Clear();
             FilteredElements.Clear();
 
@@ -153,14 +208,69 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 FilteredElements.Add(e);
             }
 
+            if (_sceneElements.Count == 0)
+            {
+                _render.ClearLayer("Elements");
+                OriginPoint = null;
+                IsPickingOrigin = false;
+                IsModelLoaded = false;
+                StatusText = "Model cleared";
+                return;
+            }
+
+            OriginPoint = null;
+            IsPickingOrigin = false;
+
+            IsModelLoaded = true;
+            ReRenderElements();
+            StatusText = $"Model loaded ({elements.Count} elements).";
+        }
+
+        public bool IsPickingOrigin
+        {
+            get => _isPickingOrigin;
+            set
+            {
+                if (_isPickingOrigin == value) return;
+                _isPickingOrigin = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public DomainPoint3D? OriginPoint
+        {
+            get => _originPoint;
+            private set
+            {
+                _originPoint = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public void SetOrigin(DomainPoint3D origin)
+        {
+            OriginPoint = origin;
+            IsPickingOrigin = false;
+            ReRenderElements();
+        }
+
+        public void ReRenderElements()
+        {
+            _render.ClearLayer("Elements");
+
+            if (_sceneElements.Count == 0)
+                return;
+
+            Debug.WriteLine("Rendering Elements: " + _sceneElements.Count);
+
             _render.Render(
-                elements.Select(e => (e, (LiftStatus?)null)),
-                new ElementVisualBuilder(),
+                _sceneElements.Select(e => (e, (LiftStatus?)null)),
+                new ElementVisualBuilder(OriginPoint),
                 "Elements"
             );
 
-            IsModelLoaded = true;
-            StatusText = $"Model Loaded ({elements.Count} elements)";
+            if (OriginPoint != null)
+                StatusText = $"Origin set at ({OriginPoint.X:F2}, {OriginPoint.Y:F2}, {OriginPoint.Z:F2}).";
         }
         #endregion
 
@@ -217,7 +327,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             set { _selectedElementName = value; OnPropertyChanged(); }
         }
 
-        private string _renderQualityLabel = "● STD";
+        private string _renderQualityLabel = "STD";
         public string RenderQualityLabel
         {
             get => _renderQualityLabel;
