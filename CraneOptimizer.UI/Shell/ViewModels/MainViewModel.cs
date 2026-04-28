@@ -125,7 +125,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 _render,
                 _dialog,
                 _craneRepo,
-                Scene);
+                Scene,
+                CraneSetup);
 
             if (System.Windows.Application.Current?.MainWindow != null)
                 dialog.Owner = System.Windows.Application.Current.MainWindow;

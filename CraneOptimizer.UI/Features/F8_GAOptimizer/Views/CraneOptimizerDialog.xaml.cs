@@ -1,10 +1,12 @@
 using CraneOptimizer.Application.Features.CranePlacement.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
+using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using System.Windows;
 using System.Windows.Controls;
@@ -27,6 +29,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private readonly IDialogService _dialogService;
         private readonly ICraneRepository _craneRepository;
         private readonly ISceneService _sceneService;
+        private readonly CraneSetupViewModel _craneSetup;
 
         private CranePlacementResult? _currentResult;
         private bool _isRunning;
@@ -38,7 +41,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             IRenderingService renderingService,
             IDialogService dialogService,
             ICraneRepository craneRepository,
-            ISceneService sceneService)
+            ISceneService sceneService,
+            CraneSetupViewModel craneSetup)
         {
             InitializeComponent();
 
@@ -47,9 +51,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             _dialogService = dialogService;
             _craneRepository = craneRepository;
             _sceneService = sceneService;
-
-            Loaded += OnLoaded;
-        }
+            _craneSetup = craneSetup;        }
 
         private async void OnLoaded(object sender, RoutedEventArgs e)
         {
@@ -246,7 +248,21 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private void CboCrane_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
         private void RbExclusion_Checked(object sender, RoutedEventArgs e) { }
         private void BtnCancelRun_Click(object sender, RoutedEventArgs e) { }
-        private void BtnApply_Click(object sender, RoutedEventArgs e) { }
+        private void BtnApply_Click(object sender, RoutedEventArgs e)
+        {
+            if (PointsList.SelectedItem is not PointItem item || _currentResult == null)
+            {
+                _dialogService.ShowMessage("Please select a point to apply.");
+                return;
+            }
+
+            // Lock the crane position to the selected GA result
+            var selectedPoint = item.Point;
+            var lockedPosition = new DomainPoint3D(selectedPoint.X, selectedPoint.Y, 0);
+            _craneSetup.LockPosition(lockedPosition);
+
+            Close();
+        }
         private void BtnIncludeAll_Click(object sender, RoutedEventArgs e) { }
         private void BtnExcludeAll_Click(object sender, RoutedEventArgs e) { }
         private void BtnNoSlabs_Click(object sender, RoutedEventArgs e) { }

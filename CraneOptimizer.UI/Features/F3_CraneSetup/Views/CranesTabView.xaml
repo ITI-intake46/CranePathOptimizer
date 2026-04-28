@@ -145,6 +145,11 @@
                                         <Border Background="{Binding CraneSetup.IsPositionValid,Converter={StaticResource BoolToColorConverter},ConverterParameter='Green|Red'}" Padding="8,4" CornerRadius="4" Margin="0,8,0,0">
                                             <TextBlock Text="{Binding CraneSetup.IsPositionValid,Converter={StaticResource BoolToTextConverter},ConverterParameter='Inside Zone|Outside Zone'}" Foreground="White" FontWeight="Bold"/>
                                         </Border>
+
+                                        <!-- Lock Status Indicator -->
+                                        <Border Background="{Binding CraneSetup.IsPositionLocked,Converter={StaticResource BoolToColorConverter},ConverterParameter='Orange|Transparent'}" Padding="8,4" CornerRadius="4" Margin="0,6,0,0" Visibility="{Binding CraneSetup.IsPositionLocked,Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <TextBlock Text="🔒 Position Locked (GA Optimized)" Foreground="White" FontWeight="Bold" FontSize="10"/>
+                                        </Border>
                                         <!-- Thin divider -->
                                         <Rectangle Height="1"
                                                    Fill="{DynamicResource BorderBrush}"
@@ -200,6 +205,18 @@
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🗑" Margin="0,0,6,0"/>
                                 <TextBlock Text="Remove All Cranes"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Style="{StaticResource RibbonSmallBtn}"
+                                Width="165"
+                                Margin="0,0,0,3"
+                                Command="{Binding CraneSetup.UnlockPositionCommand}"
+                                IsEnabled="{Binding CraneSetup.IsPositionLocked}">
+
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🔓" Margin="0,0,6,0"/>
+                                <TextBlock Text="Unlock Position"/>
                             </StackPanel>
                         </Button>
 

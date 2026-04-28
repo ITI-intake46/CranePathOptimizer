@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
@@ -25,6 +25,14 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
 
         // The last known valid position (so we can revert if zone check fails)
         private DomainPoint3D _lastValidPosition = new(0, 0, 0);
+
+        // Whether the crane is locked (after GA optimization)
+        private bool _isPositionLocked;
+        public bool IsPositionLocked
+        {
+            get => _isPositionLocked;
+            set { _isPositionLocked = value; OnPropertyChanged(); }
+        }
 
         // ── Bound Properties ──────────────────────────────────────────────
         private Crane? _selectedCrane;
@@ -54,11 +62,25 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
             set { _isDraggingActive = value; OnPropertyChanged(); }
         }
 
+        private bool _isCranePickerOpen;
+        public bool IsCranePickerOpen
+        {
+            get => _isCranePickerOpen;
+            set { _isCranePickerOpen = value; OnPropertyChanged(); }
+        }
+
+        // ── Commands ──────────────────────────────────────────────────
+        public ICommand UnlockPositionCommand { get; private set; }
+        public ICommand ToggleCranePickerCommand { get; private set; }
+
         // ── Constructor ───────────────────────────────────────────────────
         public CraneSetupViewModel(IRenderingService render, ISceneService scene)
         {
             _render = render;
             _scene = scene;
+
+            UnlockPositionCommand = new RelayCommand(UnlockPosition);
+            ToggleCranePickerCommand = new RelayCommand(() => IsCranePickerOpen = !IsCranePickerOpen);
 
             // Listen to scene changes: when a new crane is set via ISceneService,
             // update our local SelectedCrane automatically.
@@ -97,6 +119,10 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
             _render.ClearLayer("CraneRadius");
             _craneVisual = null;
 
+            // Unlock the position when a new crane is selected
+            _isPositionLocked = false;
+            IsPositionLocked = false;
+
             if (crane == null) return;
 
             // Build and render the crane model
@@ -129,7 +155,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
         /// </summary>
         public void BeginDrag()
         {
-            if (_selectedCrane == null) return;
+            if (_selectedCrane == null || _isPositionLocked) return;
             _isDragging = true;
             IsDraggingActive = true;
         }
@@ -184,6 +210,30 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
         public void RegisterCraneVisual(ModelVisual3D visual)
         {
             _craneVisual = visual;
+        }
+
+        /// <summary>
+        /// Locks the crane position after GA optimization.
+        /// When locked, the crane cannot be dragged.
+        /// </summary>
+        public void LockPosition(DomainPoint3D lockedPosition)
+        {
+            CurrentPosition = lockedPosition;
+            MoveCraneVisualTo(lockedPosition);
+            _lastValidPosition = lockedPosition;
+            _isPositionLocked = true;
+            IsPositionLocked = true;
+            _isDragging = false;
+            IsDraggingActive = false;
+        }
+
+        /// <summary>
+        /// Unlocks the crane position, allowing it to be dragged again.
+        /// </summary>
+        public void UnlockPosition()
+        {
+            _isPositionLocked = false;
+            IsPositionLocked = false;
         }
 
     }
