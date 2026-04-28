@@ -41,6 +41,10 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private string? _currentProjectIfcPath;
         private bool _showCraneRadius = true;
 
+        private SceneCrane? _selectedSceneCrane;
+        private bool _isDraggingCrane;
+        private DomainPoint3D? _dragOffset;
+
         public ISceneService Scene { get; }
 
         public MainViewModel(
@@ -325,6 +329,99 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 crane,
                 Scene.GetElements(),
                 Scene.GetZones());
+        }
+
+        public SceneCrane? SelectedSceneCrane
+        {
+            get => _selectedSceneCrane;
+            set
+            {
+                _selectedSceneCrane = value;
+                Scene.SetSelectedCrane(value);
+                OnPropertyChanged();
+            }
+        }
+
+        public bool IsDraggingCrane
+        {
+            get => _isDraggingCrane;
+            private set
+            {
+                _isDraggingCrane = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public DomainPoint3D? DragOffset
+        {
+            get => _dragOffset;
+            private set
+            {
+                _dragOffset = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public void StartDrag(DomainPoint3D clickPoint)
+        {
+            var crane = SelectedSceneCrane;
+            if (crane == null)
+                return;
+
+            var scenePoint = _coordinateTransform.ViewportToScene(clickPoint);
+            DragOffset = new DomainPoint3D(
+                crane.Position.X - scenePoint.X,
+                crane.Position.Y - scenePoint.Y,
+                crane.Position.Z - scenePoint.Z);
+
+            IsDraggingCrane = true;
+            StatusText = "Dragging crane...";
+        }
+
+        public void DragCrane(DomainPoint3D worldPoint)
+        {
+            if (!IsDraggingCrane)
+                return;
+
+            var crane = SelectedSceneCrane;
+            var offset = DragOffset;
+            if (crane == null || offset == null)
+                return;
+
+            var scenePoint = _coordinateTransform.ViewportToScene(worldPoint);
+            var target = new DomainPoint3D(
+                scenePoint.X + offset.X,
+                scenePoint.Y + offset.Y,
+                crane.Position.Z);
+
+            crane.Position = target;
+            crane.IsValidPlacement = _craneValidationService.ValidatePlacement(crane, Scene.GetZones());
+
+            // real-time visual feedback (valid/invalid color)
+            Scene.UpdateCrane(crane);
+            ReRenderCranes();
+        }
+
+        public void EndDrag()
+        {
+            if (!IsDraggingCrane)
+                return;
+
+            IsDraggingCrane = false;
+            DragOffset = null;
+
+            var crane = SelectedSceneCrane;
+            if (crane != null)
+            {
+                crane.IsValidPlacement = _craneValidationService.ValidatePlacement(crane, Scene.GetZones());
+                Scene.UpdateCrane(crane);
+                ReRenderCranes();
+                StatusText = crane.IsValidPlacement ? "Crane drag finished." : "Crane drag finished: invalid placement.";
+            }
+            else
+            {
+                StatusText = "Crane drag finished.";
+            }
         }
 
         private bool CanAddCrane() => SelectedCrane != null;

@@ -117,13 +117,19 @@ namespace CraneOptimizer.UI.Shell.Views
             var viewport = sender as HelixViewport3D;
             if (viewport == null) return;
 
-            var vm = VM?.Drawing;
-
-            if (vm == null || !vm.IsDrawing) return;
-
             var screen = e.GetPosition(viewport);
             if (!TryGetWorldPoint(viewport, screen, out var world))
                 return;
+
+            if (VM?.IsDraggingCrane == true && e.LeftButton == MouseButtonState.Pressed)
+            {
+                VM.DragCrane(new DomainPoint3D(world.X, world.Y, world.Z));
+                e.Handled = true;
+                return;
+            }
+
+            var vm = VM?.Drawing;
+            if (vm == null || !vm.IsDrawing) return;
 
             vm.SetHoverPoint(new DomainPoint3D(world.X, world.Y, world.Z));
         }
@@ -132,6 +138,20 @@ namespace CraneOptimizer.UI.Shell.Views
         {
             var viewport = sender as HelixViewport3D;
             if (viewport == null) return;
+
+            if (e.ChangedButton == MouseButton.Left)
+            {
+                var pickPos = e.GetPosition(viewport);
+                if (TryGetWorldPoint(viewport, pickPos, out var pickWorld)
+                    && TryGetHitCrane(viewport, pickPos, out var hitCrane)
+                    && VM != null)
+                {
+                    VM.SelectedSceneCrane = hitCrane;
+                    VM.StartDrag(new DomainPoint3D(pickWorld.X, pickWorld.Y, pickWorld.Z));
+                    e.Handled = true;
+                    return;
+                }
+            }
 
             if (VM?.IfcViewer.IsPlacementMode == true)
             {
@@ -209,6 +229,14 @@ namespace CraneOptimizer.UI.Shell.Views
 
             vm.AddPoint(new DomainPoint3D(world.X, world.Y, world.Z));
             e.Handled = true;
+        }
+
+        private void IfcViewer_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != MouseButton.Left)
+                return;
+
+            VM?.EndDrag();
         }
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -328,6 +356,41 @@ namespace CraneOptimizer.UI.Shell.Views
             catch { }
 
             return TryGetWorldPoint(viewport, screenPt, out worldPoint);
+        }
+
+        private bool TryGetHitCrane(HelixViewport3D viewport, System.Windows.Point screenPt, out SceneCrane crane)
+        {
+            crane = null!;
+
+            try
+            {
+                var hits = viewport.Viewport.FindHits(screenPt);
+                foreach (var h in hits)
+                {
+                    if (h.Visual is ModelVisual3D mv)
+                    {
+                        var tag = mv.GetValue(FrameworkElement.TagProperty);
+                        if (tag is SceneCrane sc)
+                        {
+                            crane = sc;
+                            return true;
+                        }
+                    }
+
+                    if (h.Visual is Visual3D v3)
+                    {
+                        var tag = v3.GetValue(FrameworkElement.TagProperty);
+                        if (tag is SceneCrane sc2)
+                        {
+                            crane = sc2;
+                            return true;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return false;
         }
     }
 }
