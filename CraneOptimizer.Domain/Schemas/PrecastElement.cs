@@ -35,5 +35,6 @@ namespace CraneOptimizer.Domain.Schemas
     {
         public List<DomainPoint3D> Positions { get; set; } = new();
         public List<int> TriangleIndices { get; set; } = new();
+        public List<DomainVector3D> Normals { get; set; } = new();
     }
 }

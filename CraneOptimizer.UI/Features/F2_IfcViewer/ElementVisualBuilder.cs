@@ -102,7 +102,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 ? BuildIfcMesh(element)
                 : BuildFallbackBox(element);
 
-            GenerateNormals(mesh);
+            if (mesh.Normals.Count != mesh.Positions.Count)
+                GenerateNormals(mesh);
 
             if (mesh.CanFreeze)
                 mesh.Freeze();
@@ -121,6 +122,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
                 foreach (var position in sourceMesh.Positions)
                     mesh.Positions.Add(new Point3D(position.X, position.Y, position.Z));
+
+                foreach (var normal in sourceMesh.Normals)
+                    mesh.Normals.Add(new Vector3D(normal.X, normal.Y, normal.Z));
 
                 foreach (var index in sourceMesh.TriangleIndices)
                     mesh.TriangleIndices.Add(indexOffset + index);

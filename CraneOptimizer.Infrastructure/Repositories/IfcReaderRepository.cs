@@ -1,6 +1,7 @@
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Infrastructure.Services;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -52,7 +53,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var extractor = new IfcEngineeringExtractor(
                     model,
                     geometryContext,
-                    GetLengthToMillimetersFactor(model));
+                    GetLengthToMillimetersFactor(model),
+                    new XbimMeshExtractor());
 
                 return extractor.Extract(progress, cancellationToken);
             }
@@ -150,6 +152,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             private readonly Xbim3DModelContext _geometryContext;
             private readonly double _lengthToMillimetersFactor;
             private readonly double _volumeToCubicMillimetersFactor;
+            private readonly IIfcMeshExtractor _meshExtractor;
 
             private readonly Dictionary<int, SourceElementSnapshot> _sourceCache = new();
             private readonly Dictionary<int, AggregateSnapshot> _aggregateCache = new();
@@ -157,12 +160,14 @@ namespace CraneOptimizer.Infrastructure.Repositories
             public IfcEngineeringExtractor(
                 IfcStore model,
                 Xbim3DModelContext geometryContext,
-                double lengthToMillimetersFactor)
+                double lengthToMillimetersFactor,
+                IIfcMeshExtractor meshExtractor)
             {
                 _model = model;
                 _geometryContext = geometryContext;
                 _lengthToMillimetersFactor = lengthToMillimetersFactor;
                 _volumeToCubicMillimetersFactor = Math.Pow(lengthToMillimetersFactor, 3);
+                _meshExtractor = meshExtractor;
             }
 
             public List<PrecastElement> Extract(IProgress<double>? progress, CancellationToken cancellationToken)
@@ -207,8 +212,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     if (!_sourceCache.TryGetValue(product.EntityLabel, out var snapshot))
                         continue;
 
-                    if (!snapshot.HasEngineeringData)
-                        continue;
+                    // TEMP DEBUG
+                    // if (!snapshot.HasEngineeringData)
+                    //     continue;
 
                     result.Add(ToPrecastElement(snapshot));
                 }
@@ -287,7 +293,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var childProducts = GetAssemblyChildren(assembly);
                 var childSnapshots = CollectChildSnapshots(childProducts, consumedByAssemblies);
 
-                // No usable children — fall back to the assembly's own data if available
+                // No usable children ï¿½ fall back to the assembly's own data if available
                 if (childSnapshots.Count == 0)
                     return BuildFallbackAggregate(assembly, parentSnapshot);
 
@@ -491,37 +497,11 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         return null;
                     }
 
-                    using var stream = new MemoryStream(bytes);
-                    using var reader = new BinaryReader(stream);
-
-                    var triangulation = reader.ReadShapeTriangulation();
-                    if (triangulation?.Vertices == null || triangulation.Faces == null)
-                        return null;
-
-                    var sourceVertices = triangulation.Vertices.ToList();
-                    var extractedMesh = new IfcElementMesh();
-
-                    foreach (var vertex in sourceVertices)
-                    {
-                        var transformed = transform.Transform(vertex);
-                        extractedMesh.Positions.Add(new DomainPoint3D(
-                            ConvertLength(transformed.X),
-                            ConvertLength(transformed.Y),
-                            ConvertLength(transformed.Z)));
-                    }
-
-                    foreach (var face in triangulation.Faces)
-                    {
-                        var indices = face.Indices.ToList();
-                        for (int i = 0; i + 2 < indices.Count; i += 3)
-                        {
-                            extractedMesh.TriangleIndices.Add(indices[i]);
-                            extractedMesh.TriangleIndices.Add(indices[i + 1]);
-                            extractedMesh.TriangleIndices.Add(indices[i + 2]);
-                        }
-                    }
-
-                    return extractedMesh;
+                    return _meshExtractor.Extract(
+                        bytes,
+                        transform,
+                        _lengthToMillimetersFactor,
+                        IfcMeshQuality.Smooth);
                 }
                 catch (Exception ex)
                 {
@@ -529,7 +509,6 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     return null;
                 }
             }
-
             private static void UpdateBounds(
                 XbimShapeInstance shapeInstance,
                 ref double minX, ref double minY, ref double minZ,
