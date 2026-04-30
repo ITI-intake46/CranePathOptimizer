@@ -163,18 +163,21 @@
 
                         <Button Style="{StaticResource RibbonSmallBtn}"
                                 Width="165"
-                                Margin="0,0,0,3">
+                                Margin="0,0,0,3"
+                                Click="ImportLoadChart_Click">
                             <TextBlock Text="Import Load Chart..."/>
                         </Button>
 
                         <Button Style="{StaticResource RibbonSmallBtn}"
                                 Width="165"
-                                Margin="0,0,0,3">
+                                Margin="0,0,0,3"
+                                Click="ViewSavedCharts_Click">
                             <TextBlock Text="View Saved Charts"/>
                         </Button>
 
                         <Button Style="{StaticResource RibbonSmallBtn}"
-                                Width="165">
+                                Width="165"
+                                Click="CraneCatalog_Click">
                             <TextBlock Text="Crane Catalog..."/>
                         </Button>
 
