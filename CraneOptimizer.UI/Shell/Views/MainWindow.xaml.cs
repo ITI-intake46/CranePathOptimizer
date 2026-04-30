@@ -15,6 +15,8 @@ namespace CraneOptimizer.UI.Shell.Views
     {
         private readonly IRenderingService _renderingService;
         private readonly ISceneService _sceneService;
+        private bool _isDraggingIfcElements;
+        private Point3D _lastIfcDragPoint;
 
         public MainWindow(
             MainViewModel vm,
@@ -94,10 +96,37 @@ namespace CraneOptimizer.UI.Shell.Views
                         _sceneService.SetSelectedCrane(crane);
                         return;
                     }
+
+                    if (tag is IfcElementVisualRef ifcElement)
+                    {
+                        SelectIfcElement(ifcElement, e);
+                        return;
+                    }
                 }
             }
 
             _sceneService.SetSelectedZone(null);
+            _sceneService.ClearIfcElementSelection();
+        }
+
+        private void SelectIfcElement(IfcElementVisualRef ifcElement, MouseButtonEventArgs e)
+        {
+            _sceneService.SetSelectedZone(null);
+            _sceneService.SetSelectedCrane(null);
+
+            if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+                _sceneService.ToggleSelectedIfcElement(ifcElement);
+            else
+                _sceneService.SetSelectedIfcElements(new List<IfcElementVisualRef> { ifcElement });
+
+            var viewport = IfcViewer;
+            if (TryGetWorldPoint(viewport, e.GetPosition(viewport), out var dragStart))
+            {
+                _lastIfcDragPoint = dragStart;
+                _isDraggingIfcElements = true;
+            }
+
+            e.Handled = true;
         }
 
         protected override void OnClosed(EventArgs e)
@@ -126,6 +155,22 @@ namespace CraneOptimizer.UI.Shell.Views
                 VM.DragCrane(new DomainPoint3D(world.X, world.Y, world.Z));
                 e.Handled = true;
                 return;
+            }
+
+            if (_isDraggingIfcElements && e.LeftButton == MouseButtonState.Pressed)
+            {
+                var selected = _sceneService.GetSelectedIfcElements();
+                if (selected.Count > 0)
+                {
+                    var dx = world.X - _lastIfcDragPoint.X;
+                    var dy = world.Y - _lastIfcDragPoint.Y;
+                    var dz = world.Z - _lastIfcDragPoint.Z;
+
+                    _sceneService.MoveIfcElements(selected, dx, dy, dz);
+                    _lastIfcDragPoint = world;
+                    e.Handled = true;
+                    return;
+                }
             }
 
             var vm = VM?.Drawing;
@@ -237,6 +282,7 @@ namespace CraneOptimizer.UI.Shell.Views
                 return;
 
             VM?.EndDrag();
+            _isDraggingIfcElements = false;
         }
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)

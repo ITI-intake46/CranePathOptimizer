@@ -18,9 +18,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly IIfcOptionsDialogService _dialogService;
         private readonly IDialogService _dialog;
         private List<PrecastElement>? _pendingIfcElements;
+        private IfcModelPlacement? _pendingPlacement;
 
         public ICommand LoadIfcCommand { get; }
         public ICommand CancelPlacementCommand { get; }
+        public ICommand DeleteSelectedElementsCommand { get; }
 
         private bool _isLoading;
         public bool IsLoading
@@ -79,6 +81,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
             LoadIfcCommand = new RelayCommand(async () => await LoadIfcAsync(), () => !IsLoading);
             CancelPlacementCommand = new RelayCommand(CancelPlacement, () => IsPlacementMode);
+            DeleteSelectedElementsCommand = new RelayCommand(DeleteSelectedElements, () => _scene.GetSelectedIfcElements().Count > 0);
         }
 
         private async Task LoadIfcAsync()
@@ -119,7 +122,15 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                 Debug.WriteLine("IFC Visible Elements: " + visible.Count);
 
+                var modelInstanceId = Guid.NewGuid();
+                foreach (var element in visible)
+                {
+                    element.ModelInstanceId = modelInstanceId;
+                    element.OriginalElementCOG = element.ElementCOG;
+                }
+
                 _pendingIfcElements = visible;
+                _pendingPlacement = new IfcModelPlacement(modelInstanceId, visible);
                 PendingPlacementPoint = null;
                 IsPlacementMode = true;
 
@@ -142,15 +153,20 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 return false;
 
             PendingPlacementPoint = insertionPoint;
+            _pendingPlacement?.PlaceAt(new Domain.Common.DomainPoint3D(
+                insertionPoint.X,
+                insertionPoint.Y,
+                insertionPoint.Z));
 
             var placedElements = _pendingIfcElements
-                .Select(element => TranslateElement(element, insertionPoint))
+                .Select(element => TranslateElement(element, _pendingPlacement))
                 .ToList();
 
             Debug.WriteLine($"IFC Placed At: {insertionPoint.X:F3}, {insertionPoint.Y:F3}, {insertionPoint.Z:F3}");
             _scene.SetElements(placedElements);
 
             _pendingIfcElements = null;
+            _pendingPlacement = null;
             IsPlacementMode = false;
             Status = $"Placed {placedElements.Count} elements";
             return true;
@@ -159,16 +175,32 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private void CancelPlacement()
         {
             _pendingIfcElements = null;
+            _pendingPlacement = null;
             PendingPlacementPoint = null;
             IsPlacementMode = false;
             Progress = 0;
             Status = "IFC placement cancelled";
         }
 
-        private static PrecastElement TranslateElement(PrecastElement element, Point3D insertionPoint)
+        private void DeleteSelectedElements()
         {
+            var selected = _scene.GetSelectedIfcElements();
+            if (selected.Count == 0)
+                return;
+
+            _scene.RemoveIfcElements(selected);
+            Status = $"Deleted {selected.Count} IFC element(s)";
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private static PrecastElement TranslateElement(PrecastElement element, IfcModelPlacement? placement)
+        {
+            var translation = placement?.Translation ?? new Domain.Common.DomainPoint3D();
+            var originalCog = element.OriginalElementCOG ?? element.ElementCOG;
+
             return new PrecastElement
             {
+                ModelInstanceId = element.ModelInstanceId,
                 ElementID = element.ElementID,
                 ElementType = element.ElementType,
                 ElementLength = element.ElementLength,
@@ -177,13 +209,15 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 ElementMaterial = element.ElementMaterial,
                 ElementWT = element.ElementWT,
                 ElementVolume = element.ElementVolume,
+                OriginalElementCOG = originalCog,
                 ElementCOG = new Domain.Common.DomainPoint3D(
-                    element.ElementCOG.X + insertionPoint.X,
-                    element.ElementCOG.Y + insertionPoint.Y,
-                    element.ElementCOG.Z + insertionPoint.Z),
+                    originalCog.X + translation.X,
+                    originalCog.Y + translation.Y,
+                    originalCog.Z + translation.Z),
                 BBoxLength = element.BBoxLength,
                 BBoxWidth = element.BBoxWidth,
-                BBoxHeight = element.BBoxHeight
+                BBoxHeight = element.BBoxHeight,
+                Meshes = element.Meshes
             };
         }
 

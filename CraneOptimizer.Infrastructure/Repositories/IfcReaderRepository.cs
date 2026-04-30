@@ -420,6 +420,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 double totalMeshVolume = 0d;
                 double weightedX = 0d, weightedY = 0d, weightedZ = 0d;
+                var meshes = new List<IfcElementMesh>();
 
                 foreach (var shapeInstance in shapeInstances)
                 {
@@ -428,6 +429,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     var shapeGeometry = _geometryContext.ShapeGeometry(shapeInstance);
                     if (shapeGeometry == null)
                         continue;
+
+                    var mesh = ExtractMesh(shapeGeometry, shapeInstance.Transformation);
+                    if (mesh != null && mesh.Positions.Count > 0 && mesh.TriangleIndices.Count > 0)
+                        meshes.Add(mesh);
 
                     var centroidResult = CalculateCentroidFromShapeGeometry(shapeGeometry, shapeInstance.Transformation);
                     if (!centroidResult.HasValue || centroidResult.Value.volume <= 0)
@@ -461,7 +466,68 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     ConvertLength(maxX),
                     ConvertLength(maxY),
                     ConvertLength(maxZ),
-                    center);
+                    center,
+                    meshes);
+            }
+
+            private IfcElementMesh? ExtractMesh(
+                XbimShapeGeometry shapeGeometry,
+                XbimMatrix3D transform)
+            {
+                try
+                {
+                    var data = shapeGeometry.ShapeData;
+                    if (string.IsNullOrEmpty(data))
+                        return null;
+
+                    byte[] bytes;
+                    try
+                    {
+                        bytes = Convert.FromBase64String(data);
+                    }
+                    catch (FormatException ex)
+                    {
+                        Debug.WriteLine($"Invalid Base64 shape data: {ex.Message}");
+                        return null;
+                    }
+
+                    using var stream = new MemoryStream(bytes);
+                    using var reader = new BinaryReader(stream);
+
+                    var triangulation = reader.ReadShapeTriangulation();
+                    if (triangulation?.Vertices == null || triangulation.Faces == null)
+                        return null;
+
+                    var sourceVertices = triangulation.Vertices.ToList();
+                    var extractedMesh = new IfcElementMesh();
+
+                    foreach (var vertex in sourceVertices)
+                    {
+                        var transformed = transform.Transform(vertex);
+                        extractedMesh.Positions.Add(new DomainPoint3D(
+                            ConvertLength(transformed.X),
+                            ConvertLength(transformed.Y),
+                            ConvertLength(transformed.Z)));
+                    }
+
+                    foreach (var face in triangulation.Faces)
+                    {
+                        var indices = face.Indices.ToList();
+                        for (int i = 0; i + 2 < indices.Count; i += 3)
+                        {
+                            extractedMesh.TriangleIndices.Add(indices[i]);
+                            extractedMesh.TriangleIndices.Add(indices[i + 1]);
+                            extractedMesh.TriangleIndices.Add(indices[i + 2]);
+                        }
+                    }
+
+                    return extractedMesh;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Mesh extraction error: {ex.Message}");
+                    return null;
+                }
             }
 
             private static void UpdateBounds(
@@ -765,10 +831,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     ElementMaterial = snapshot.Material ?? string.Empty,
                     ElementWT = snapshot.Weight,
                     ElementVolume = snapshot.Volume,
+                    OriginalElementCOG = snapshot.CenterOfGravity,
                     ElementCOG = snapshot.CenterOfGravity,
                     BBoxLength = snapshot.Geometry?.Length,
                     BBoxWidth = snapshot.Geometry?.Width,
-                    BBoxHeight = snapshot.Geometry?.Height
+                    BBoxHeight = snapshot.Geometry?.Height,
+                    Meshes = snapshot.Geometry?.Meshes.ToList() ?? new List<IfcElementMesh>()
                 };
             }
         }
@@ -843,7 +911,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private sealed record GeometrySnapshot(
             double MinX, double MinY, double MinZ,
             double MaxX, double MaxY, double MaxZ,
-            DomainPoint3D Center)
+            DomainPoint3D Center,
+            IReadOnlyList<IfcElementMesh> Meshes)
         {
             public double Length => MaxX - MinX;
             public double Width => MaxY - MinY;
@@ -870,7 +939,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 double maxZ = geometries.Max(g => g.MaxZ);
 
                 var center = ComputeCenter(minX, minY, minZ, maxX, maxY, maxZ, totalWeight, centers, weights);
-                return new GeometrySnapshot(minX, minY, minZ, maxX, maxY, maxZ, center);
+                var meshes = geometries.SelectMany(g => g.Meshes).ToList();
+                return new GeometrySnapshot(minX, minY, minZ, maxX, maxY, maxZ, center, meshes);
             }
 
             public static GeometrySnapshot? FromCenterPoints(
@@ -890,7 +960,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return new GeometrySnapshot(
                     center.X, center.Y, center.Z,
                     center.X, center.Y, center.Z,
-                    center);
+                    center,
+                    []);
             }
 
             private static DomainPoint3D ComputeCenter(

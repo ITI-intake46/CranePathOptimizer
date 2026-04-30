@@ -1,4 +1,5 @@
 ﻿using HelixToolkit.Wpf;
+using System.Windows.Media.Media3D;
 
 namespace CraneOptimizer.UI.Core.Interfaces
 {
@@ -11,5 +12,11 @@ namespace CraneOptimizer.UI.Core.Interfaces
         void Clear();
 
         void ClearLayer(string layerKey);
+
+        void AddOrUpdateVisual(string layerKey, string visualKey, Visual3D visual);
+
+        void UpdateVisualTransform(string layerKey, string visualKey, Transform3D transform);
+
+        void RemoveVisual(string layerKey, string visualKey);
     }
 }

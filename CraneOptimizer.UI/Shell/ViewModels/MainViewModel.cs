@@ -31,6 +31,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly ICoordinateTransformService _coordinateTransform;
         private readonly ICraneValidationService _craneValidationService;
         private readonly List<PrecastElement> _sceneElements = new();
+        private readonly HashSet<string> _renderedIfcElementKeys = new();
+        private HashSet<IfcElementVisualRef> _selectedIfcElementRefs = new();
 
         private Crane? _selectedCrane;
         private bool _disposed;
@@ -76,6 +78,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _craneValidationService = craneValidationService;
 
             Scene.ElementsChanged += OnElementsChanged;
+            Scene.IfcElementsSelectionChanged += OnIfcElementsSelectionChanged;
+            Scene.IfcElementMoved += OnIfcElementChanged;
+            Scene.IfcElementRemoved += OnIfcElementRemoved;
             Scene.CraneAdded += OnCranesChanged;
             Scene.CraneMoved += OnCranesChanged;
             Scene.CraneUpdated += OnCranesChanged;
@@ -204,7 +209,10 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
             if (_sceneElements.Count == 0)
             {
-                _render.ClearLayer("Elements");
+                foreach (var key in _renderedIfcElementKeys.ToList())
+                    _render.RemoveVisual("Elements", key);
+
+                _renderedIfcElementKeys.Clear();
                 OriginPoint = null;
                 IsPickingOrigin = false;
                 IsModelLoaded = false;
@@ -218,6 +226,48 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IsModelLoaded = true;
             ReRenderElements();
             StatusText = $"Model loaded ({elements.Count} elements).";
+        }
+
+        private void OnIfcElementsSelectionChanged(List<IfcElementVisualRef> selectedElements)
+        {
+            var next = selectedElements.ToHashSet();
+            var affected = _selectedIfcElementRefs.Union(next).ToList();
+            _selectedIfcElementRefs = next;
+
+            foreach (var elementRef in affected)
+            {
+                var element = Scene.GetElement(elementRef);
+                if (element != null)
+                    RenderIfcElement(element);
+            }
+
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private void OnIfcElementChanged(PrecastElement element)
+        {
+            UpdateIfcElementTransform(element);
+        }
+
+        private void OnIfcElementRemoved(IfcElementVisualRef elementRef)
+        {
+            _render.RemoveVisual("Elements", elementRef.Key);
+            _renderedIfcElementKeys.Remove(elementRef.Key);
+            _selectedIfcElementRefs.Remove(elementRef);
+            _sceneElements.RemoveAll(e =>
+                e.ModelInstanceId == elementRef.ModelInstanceId &&
+                string.Equals(e.ElementID, elementRef.ElementId, StringComparison.Ordinal));
+            var element = Elements.FirstOrDefault(e =>
+                e.ModelInstanceId == elementRef.ModelInstanceId &&
+                string.Equals(e.ElementID, elementRef.ElementId, StringComparison.Ordinal));
+            if (element != null)
+                Elements.Remove(element);
+
+            var filteredElement = FilteredElements.FirstOrDefault(e =>
+                e.ModelInstanceId == elementRef.ModelInstanceId &&
+                string.Equals(e.ElementID, elementRef.ElementId, StringComparison.Ordinal));
+            if (filteredElement != null)
+                FilteredElements.Remove(filteredElement);
         }
 
         private void OnCranesChanged(SceneCrane _) => ReRenderCranes();
@@ -259,21 +309,46 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         public void ReRenderElements()
         {
-            _render.ClearLayer("Elements");
-
             if (_sceneElements.Count == 0)
                 return;
 
             Debug.WriteLine("Rendering Elements: " + _sceneElements.Count);
 
-            _render.Render(
-                _sceneElements.Select(e => (e, (LiftStatus?)null)),
-                new ElementVisualBuilder(OriginPoint),
-                "Elements"
-            );
+            var currentKeys = _sceneElements
+                .Select(e => new IfcElementVisualRef(e.ModelInstanceId, e.ElementID).Key)
+                .ToHashSet();
+
+            foreach (var staleKey in _renderedIfcElementKeys.Except(currentKeys).ToList())
+            {
+                _render.RemoveVisual("Elements", staleKey);
+                _renderedIfcElementKeys.Remove(staleKey);
+            }
+
+            foreach (var element in _sceneElements)
+                RenderIfcElement(element);
 
             if (OriginPoint != null)
                 StatusText = $"Origin set at ({OriginPoint.X:F2}, {OriginPoint.Y:F2}, {OriginPoint.Z:F2}).";
+        }
+
+        private void RenderIfcElement(PrecastElement element)
+        {
+            var elementRef = new IfcElementVisualRef(element.ModelInstanceId, element.ElementID);
+            var builder = new ElementVisualBuilder(OriginPoint, _selectedIfcElementRefs);
+            var visual = builder.Build((element, (LiftStatus?)null));
+
+            _render.AddOrUpdateVisual("Elements", elementRef.Key, visual);
+            _renderedIfcElementKeys.Add(elementRef.Key);
+        }
+
+        private void UpdateIfcElementTransform(PrecastElement element)
+        {
+            var elementRef = new IfcElementVisualRef(element.ModelInstanceId, element.ElementID);
+            var builder = new ElementVisualBuilder(OriginPoint, _selectedIfcElementRefs);
+            _render.UpdateVisualTransform(
+                "Elements",
+                elementRef.Key,
+                builder.CreatePlacementTransform(element));
         }
 
         public void PlaceSelectedCrane(DomainPoint3D point)
@@ -457,6 +532,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _disposed = true;
 
             Scene.ElementsChanged -= OnElementsChanged;
+            Scene.IfcElementsSelectionChanged -= OnIfcElementsSelectionChanged;
+            Scene.IfcElementMoved -= OnIfcElementChanged;
+            Scene.IfcElementRemoved -= OnIfcElementRemoved;
             Scene.CraneAdded -= OnCranesChanged;
             Scene.CraneMoved -= OnCranesChanged;
             Scene.CraneUpdated -= OnCranesChanged;

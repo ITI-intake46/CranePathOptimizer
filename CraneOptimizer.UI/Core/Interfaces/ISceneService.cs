@@ -16,8 +16,19 @@ namespace CraneOptimizer.UI.Core.Interfaces
         void SetSelectedElements(List<PrecastElement> elements);
         void ClearSelectedElements();
 
+        List<IfcElementVisualRef> GetSelectedIfcElements();
+        void SetSelectedIfcElements(List<IfcElementVisualRef> elements);
+        void ToggleSelectedIfcElement(IfcElementVisualRef element);
+        void ClearIfcElementSelection();
+        void MoveIfcElements(List<IfcElementVisualRef> elements, double dx, double dy, double dz);
+        void RemoveIfcElements(List<IfcElementVisualRef> elements);
+        PrecastElement? GetElement(IfcElementVisualRef element);
+
         event Action<List<PrecastElement>>? ElementsChanged;
         event Action<List<PrecastElement>>? ElementsSelectionChanged;
+        event Action<List<IfcElementVisualRef>>? IfcElementsSelectionChanged;
+        event Action<PrecastElement>? IfcElementMoved;
+        event Action<IfcElementVisualRef>? IfcElementRemoved;
 
         // =========================
         // ZONES

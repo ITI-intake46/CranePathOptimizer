@@ -14,6 +14,7 @@ namespace CraneOptimizer.UI.Core.Services
         public ObservableCollection<SceneCrane> Cranes { get; } = new();
 
         private readonly List<PrecastElement> _selectedElements = new();
+        private readonly List<IfcElementVisualRef> _selectedIfcElements = new();
         public ObservableCollection<SceneDxf> DxfEntities { get; } = new();
 
         public SceneDxf? SelectedDxfEntity { get; private set; }
@@ -22,11 +23,15 @@ namespace CraneOptimizer.UI.Core.Services
         // =========================
         public event Action<List<PrecastElement>>? ElementsChanged;
         public event Action<List<PrecastElement>>? ElementsSelectionChanged;
+        public event Action<List<IfcElementVisualRef>>? IfcElementsSelectionChanged;
+        public event Action<PrecastElement>? IfcElementMoved;
+        public event Action<IfcElementVisualRef>? IfcElementRemoved;
 
         public void SetElements(List<PrecastElement> elements)
         {
             Elements.Clear();
             Elements.AddRange(elements);
+            ClearIfcElementSelection();
             ElementsChanged?.Invoke(elements);
         }
 
@@ -35,6 +40,7 @@ namespace CraneOptimizer.UI.Core.Services
         public void ClearElements()
         {
             Elements.Clear();
+            ClearIfcElementSelection();
             ElementsChanged?.Invoke(new List<PrecastElement>());
         }
 
@@ -51,6 +57,77 @@ namespace CraneOptimizer.UI.Core.Services
         {
             _selectedElements.Clear();
             ElementsSelectionChanged?.Invoke(new List<PrecastElement>());
+        }
+
+        public List<IfcElementVisualRef> GetSelectedIfcElements() => _selectedIfcElements.ToList();
+
+        public void SetSelectedIfcElements(List<IfcElementVisualRef> elements)
+        {
+            _selectedIfcElements.Clear();
+            _selectedIfcElements.AddRange(elements.Distinct());
+            IfcElementsSelectionChanged?.Invoke(GetSelectedIfcElements());
+            SelectionChanged?.Invoke(_selectedIfcElements.Count == 1 ? _selectedIfcElements[0] : null);
+        }
+
+        public void ToggleSelectedIfcElement(IfcElementVisualRef element)
+        {
+            if (_selectedIfcElements.Contains(element))
+                _selectedIfcElements.Remove(element);
+            else
+                _selectedIfcElements.Add(element);
+
+            IfcElementsSelectionChanged?.Invoke(GetSelectedIfcElements());
+            SelectionChanged?.Invoke(_selectedIfcElements.Count == 1 ? _selectedIfcElements[0] : null);
+        }
+
+        public void ClearIfcElementSelection()
+        {
+            if (_selectedIfcElements.Count == 0)
+                return;
+
+            _selectedIfcElements.Clear();
+            IfcElementsSelectionChanged?.Invoke(new List<IfcElementVisualRef>());
+            SelectionChanged?.Invoke(null);
+        }
+
+        public PrecastElement? GetElement(IfcElementVisualRef element)
+        {
+            return Elements.FirstOrDefault(e =>
+                e.ModelInstanceId == element.ModelInstanceId &&
+                string.Equals(e.ElementID, element.ElementId, StringComparison.Ordinal));
+        }
+
+        public void MoveIfcElements(List<IfcElementVisualRef> elements, double dx, double dy, double dz)
+        {
+            foreach (var elementRef in elements.Distinct())
+            {
+                var element = GetElement(elementRef);
+                if (element == null)
+                    continue;
+
+                element.ElementCOG = new Domain.Common.DomainPoint3D(
+                    element.ElementCOG.X + dx,
+                    element.ElementCOG.Y + dy,
+                    element.ElementCOG.Z + dz);
+
+                IfcElementMoved?.Invoke(element);
+            }
+        }
+
+        public void RemoveIfcElements(List<IfcElementVisualRef> elements)
+        {
+            foreach (var elementRef in elements.Distinct().ToList())
+            {
+                var element = GetElement(elementRef);
+                if (element == null)
+                    continue;
+
+                Elements.Remove(element);
+                _selectedIfcElements.Remove(elementRef);
+                IfcElementRemoved?.Invoke(elementRef);
+            }
+
+            IfcElementsSelectionChanged?.Invoke(GetSelectedIfcElements());
         }
 
         // =========================

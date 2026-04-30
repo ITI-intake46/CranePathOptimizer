@@ -21,6 +21,7 @@
 
     <Window.InputBindings>
         <KeyBinding Key="Escape" Command="{Binding IfcViewer.CancelPlacementCommand}" />
+        <KeyBinding Key="Delete" Command="{Binding IfcViewer.DeleteSelectedElementsCommand}" />
     </Window.InputBindings>
 
     <!--
