@@ -3,8 +3,6 @@ using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
-using HelixToolkit.Geometry;
-using System.Numerics;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
@@ -98,9 +96,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             if (MeshCache.TryGetValue(visualRef.Key, out var cached))
                 return cached;
 
-            var mesh = element.Meshes.Count > 0
-                ? BuildIfcMesh(element)
-                : BuildFallbackBox(element);
+            var mesh = BuildIfcMesh(element);
+            if (mesh.Positions.Count == 0 || mesh.TriangleIndices.Count == 0)
+            {
+                mesh = BuildEmptyMesh();
+            }
 
             if (mesh.Normals.Count != mesh.Positions.Count)
                 GenerateNormals(mesh);
@@ -133,35 +133,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             return mesh;
         }
 
-        private System.Windows.Media.Media3D.MeshGeometry3D BuildFallbackBox(PrecastElement element)
+        private static System.Windows.Media.Media3D.MeshGeometry3D BuildEmptyMesh()
         {
-            var meshBuilder = new MeshBuilder(true, true);
-
-            meshBuilder.AddBox(
-                new Vector3(
-                    (float)element.OriginalElementCOG.X,
-                    (float)element.OriginalElementCOG.Y,
-                    (float)element.OriginalElementCOG.Z),
-                (float)(element.BBoxLength ?? 1),
-                (float)(element.BBoxWidth ?? 1),
-                (float)(element.BBoxHeight ?? 1));
-
-            var helixMesh = meshBuilder.ToMesh();
-
-            var mesh = new System.Windows.Media.Media3D.MeshGeometry3D
-            {
-                Positions = new Point3DCollection(
-                    helixMesh.Positions.Select(p => new Point3D(p.X, p.Y, p.Z))),
-                TriangleIndices = new Int32Collection(helixMesh.TriangleIndices)
-            };
-
-            if (helixMesh.Normals != null)
-            {
-                mesh.Normals = new Vector3DCollection(
-                    helixMesh.Normals.Select(n => new Vector3D(n.X, n.Y, n.Z)));
-            }
-
-            return mesh;
+            return new System.Windows.Media.Media3D.MeshGeometry3D();
         }
 
         private static void GenerateNormals(System.Windows.Media.Media3D.MeshGeometry3D mesh)

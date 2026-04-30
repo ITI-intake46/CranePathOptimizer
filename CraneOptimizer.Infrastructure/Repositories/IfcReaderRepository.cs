@@ -482,20 +482,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
             {
                 try
                 {
-                    var data = shapeGeometry.ShapeData;
-                    if (string.IsNullOrEmpty(data))
+                    var bytes = DecodeShapeData(shapeGeometry);
+                    if (bytes == null || bytes.Length == 0)
                         return null;
-
-                    byte[] bytes;
-                    try
-                    {
-                        bytes = Convert.FromBase64String(data);
-                    }
-                    catch (FormatException ex)
-                    {
-                        Debug.WriteLine($"Invalid Base64 shape data: {ex.Message}");
-                        return null;
-                    }
 
                     return _meshExtractor.Extract(
                         bytes,
@@ -509,6 +498,28 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     return null;
                 }
             }
+
+            private static byte[]? DecodeShapeData(XbimShapeGeometry shapeGeometry)
+            {
+                if (shapeGeometry.ShapeData is byte[] binary && binary.Length > 0)
+                    return binary;
+
+                if (shapeGeometry.ShapeData is string encoded && !string.IsNullOrWhiteSpace(encoded))
+                {
+                    try
+                    {
+                        return Convert.FromBase64String(encoded);
+                    }
+                    catch (FormatException ex)
+                    {
+                        Debug.WriteLine($"Invalid Base64 shape data: {ex.Message}");
+                        return null;
+                    }
+                }
+
+                return null;
+            }
+
             private static void UpdateBounds(
                 XbimShapeInstance shapeInstance,
                 ref double minX, ref double minY, ref double minZ,
@@ -547,20 +558,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
             {
                 try
                 {
-                    var data = shapeGeometry.ShapeData;
-                    if (string.IsNullOrEmpty(data))
+                    var bytes = DecodeShapeData(shapeGeometry);
+                    if (bytes == null || bytes.Length == 0)
                         return null;
-
-                    byte[] bytes;
-                    try
-                    {
-                        bytes = Convert.FromBase64String(data);
-                    }
-                    catch (FormatException ex)
-                    {
-                        Debug.WriteLine($"Invalid Base64 shape data: {ex.Message}");
-                        return null;
-                    }
 
                     using var stream = new MemoryStream(bytes);
                     using var reader = new BinaryReader(stream);
