@@ -300,7 +300,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
             _render.Render(
                 _sceneElements.Select(e => (e, (LiftStatus?)null)),
-                new ElementVisualBuilder(OriginPoint),
+                new ElementVisualBuilder(_ifcReader, OriginPoint),
                 "Elements"
             );
 

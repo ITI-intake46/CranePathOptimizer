@@ -8,6 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Xbim.Essentials" Version="6.0.587" />
+    <PackageReference Include="Xbim.Ifc" Version="6.0.587" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\CraneOptimizer.Domain\CraneOptimizer.Domain.csproj" />
   </ItemGroup>
 
