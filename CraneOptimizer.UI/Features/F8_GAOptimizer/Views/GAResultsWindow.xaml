@@ -1,0 +1,109 @@
+<Window
+    x:Class="CraneOptimizer.UI.Features.F8_GAOptimizer.Views.GAResultsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Title="Optimization Results"
+    Width="600"
+    Height="500"
+    Background="{DynamicResource BackgroundBrush}"
+    FontFamily="{StaticResource FontPrimary}"
+    Foreground="{DynamicResource TextPrimaryBrush}"
+    mc:Ignorable="d">
+
+    <Grid Margin="{StaticResource Space4}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock
+            Style="{StaticResource PanelSectionHeader}"
+            Text="BEST CRANE POSITIONS" />
+
+        <Border
+            Grid.Row="2"
+            Padding="{StaticResource Space3}"
+            Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource CardCornerRadius}">
+
+            <ListBox
+                ItemsSource="{Binding Positions}"
+                SelectedItem="{Binding SelectedPoint, Mode=TwoWay}"
+                Background="Transparent"
+                BorderThickness="0">
+
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border
+                            Margin="{StaticResource Space1}"
+                            Padding="{StaticResource Space2}"
+                            Background="{DynamicResource SurfaceElevatedBrush}"
+                            CornerRadius="{StaticResource ControlCornerRadius}">
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="4" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock
+                                    Grid.Row="0"
+                                    FontSize="{StaticResource FontSizeSM}"
+                                    FontWeight="SemiBold"
+                                    Text="{Binding X, StringFormat=X: {0:F2}}" />
+
+                                <TextBlock
+                                    Grid.Row="2"
+                                    FontSize="{StaticResource FontSizeSM}"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    Text="{Binding Y, StringFormat=Y: {0:F2}}" />
+
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Grid.Row="0"
+                                    Grid.RowSpan="3"
+                                    VerticalAlignment="Center"
+                                    FontWeight="Bold"
+                                    Foreground="{StaticResource PrimaryBrush}"
+                                    Text="{Binding ElementResults.Count, StringFormat={}{0} el}" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+
+        <Border
+            Grid.Row="4"
+            Padding="{StaticResource Space3}"
+            Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource CardCornerRadius}">
+
+            <UniformGrid Columns="2">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontWeight="Bold"
+                    Foreground="{StaticResource SuccessBrush}"
+                    Text="{Binding FitnessScore, StringFormat=Score: {0:F2}}" />
+
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Text="{Binding CoverageRatio, StringFormat=Coverage: {0:P0}}" />
+            </UniformGrid>
+        </Border>
+    </Grid>
+</Window>

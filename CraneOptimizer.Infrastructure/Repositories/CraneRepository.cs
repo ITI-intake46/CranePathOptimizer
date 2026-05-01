@@ -36,5 +36,55 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 .ThenInclude(s => s.LoadChart)
                 .FirstOrDefaultAsync(c => c.Id == id);
         }
+        public async Task AddAsync(Crane crane)
+        {
+            await _context.Cranes.AddAsync(crane);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task AddRangeAsync(List<Crane> cranes)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                _context.ChangeTracker.AutoDetectChangesEnabled = false;
+
+                await _context.Cranes.AddRangeAsync(cranes);
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+            finally
+            {
+                _context.ChangeTracker.AutoDetectChangesEnabled = true;
+            }
+        }
+
+        public async Task UpdateAsync(Crane crane)
+        {
+            _context.Cranes.Update(crane);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task DeleteAsync(int id)
+        {
+            var crane = await _context.Cranes.FindAsync(id);
+            if (crane == null) return;
+
+            _context.Cranes.Remove(crane);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<bool> ExistsByNameAsync(string name)
+        {
+            return await _context.Cranes
+                .AnyAsync(c => c.Name == name);
+        }
     }
 }

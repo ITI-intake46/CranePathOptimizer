@@ -1,5 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using System.IO;
 
 namespace CraneOptimizer.Infrastructure.Contexts
 {
@@ -9,7 +10,12 @@ namespace CraneOptimizer.Infrastructure.Contexts
         {
             var optionsBuilder = new DbContextOptionsBuilder<CraneDbContext>();
 
-            optionsBuilder.UseSqlite("Data Source=crane.db");
+            // Design-time DB path aligned with runtime convention: ./Data/crane.db
+            var dataDir = Path.Combine(AppContext.BaseDirectory, "Data");
+            Directory.CreateDirectory(dataDir);
+            var dbPath = Path.Combine(dataDir, "crane.db");
+
+            optionsBuilder.UseSqlite($"Data Source={dbPath}");
 
             return new CraneDbContext(optionsBuilder.Options);
         }
