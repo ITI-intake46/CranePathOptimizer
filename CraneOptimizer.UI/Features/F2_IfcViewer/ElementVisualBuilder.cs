@@ -37,11 +37,12 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         }
 
         /// <summary>
-        /// The REAL rendering path. Iterates ALL shape instances from the geometry 
-        /// context (exactly like the reference code), gets raw byte[] ShapeData via 
-        /// IXbimShapeGeometryData, decodes triangulations, and batches them into a 
-        /// single Model3DGroup. Falls back to bounding boxes only for elements with 
-        /// no shape data.
+        /// Renders IFC elements using the EXACT same approach as the reference code:
+        ///   1. Use model.ModelFactors.OneMeter for scaling (xBIM-computed, reliable)
+        ///   2. Iterate ALL shape instances, filter only by product label
+        ///   3. Cast to IXbimShapeGeometryData for raw byte[] ShapeData
+        ///   4. Divide coordinates by OneMeter to get meters (reference approach)
+        ///      then multiply by 1000 to convert to our mm-based viewport
         /// </summary>
         public Visual3D BuildBatch(IEnumerable<(PrecastElement element, LiftStatus? status)> items)
         {
@@ -55,12 +56,13 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 var model = concreteRepo.CurrentModel;
                 var context = concreteRepo.GeometryContext;
 
-                // ModelLengthFactor = _lengthToMillimetersFactor (raw model-units → mm)
-                // This is EXACTLY the same factor used by ConvertLength() to compute
-                // ElementCOG and BBox*, so our mesh vertices will align perfectly.
-                double lengthFactor = concreteRepo.ModelLengthFactor;
+                // Use OneMeter exactly like the reference code.
+                // OneMeter = how many model-internal-units make 1 real meter.
+                // This is computed by xBIM's engine and is always correct.
+                double oneMeter = model.ModelFactors.OneMeter;
+                if (oneMeter <= 0) oneMeter = 1000.0;
 
-                Debug.WriteLine($"[ElementVisualBuilder] ModelLengthFactor = {lengthFactor}");
+                Debug.WriteLine($"[ElementVisualBuilder] OneMeter = {oneMeter}");
 
                 // Build a lookup: GlobalId → (element, status, color)
                 var elementMap = new Dictionary<string, (PrecastElement el, LiftStatus? st, Color col)>(
@@ -85,12 +87,18 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 // Track which elements got real geometry
                 var renderedElements = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                // Iterate ALL shape instances (exactly like reference code)
+                // Iterate ALL shape instances — EXACTLY like the reference code.
+                // The reference code does NOT filter by RepresentationType.
+                // It renders every shape instance that belongs to a whitelisted product.
                 var allInstances = context.ShapeInstances()
                     .Where(si => labelToGid.ContainsKey(si.IfcProductLabel))
                     .ToList();
 
                 Debug.WriteLine($"[ElementVisualBuilder] Found {allInstances.Count} shape instances to render");
+
+                // Convert origin from mm to meters (our origin is stored in mm by ConvertLength,
+                // but we'll render in meters first then scale the whole batch to mm)
+                var originMm = _origin ?? new DomainPoint3D(0, 0, 0);
 
                 int successCount = 0;
                 int failCount = 0;
@@ -109,10 +117,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
                         var gid = labelToGid[si.IfcProductLabel];
                         var (el, st, col) = elementMap[gid];
-                        var origin = _origin ?? new DomainPoint3D(0, 0, 0);
 
-                        // Decode triangulated mesh from raw bytes (NOT Base64!)
-                        var mesh = CreateMeshFlat(shapeGeom.ShapeData, si.Transformation, lengthFactor, origin);
+                        // Build mesh using EXACTLY the reference code's approach:
+                        //   wp / oneMeter → meters, then * 1000 → millimeters
+                        var mesh = CreateMeshFlat(shapeGeom.ShapeData, si.Transformation, oneMeter, originMm);
                         if (mesh == null || mesh.Positions.Count == 0)
                         {
                             failCount++;
@@ -154,7 +162,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             }
             else
             {
-                // No geometry context at all → all bounding boxes
                 Debug.WriteLine("[ElementVisualBuilder] No GeometryContext — all fallback boxes");
                 foreach (var item in itemsList)
                 {
@@ -166,11 +173,14 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         }
 
         /// <summary>
-        /// Creates a mesh from raw xBIM binary shape data (byte[]).
-        /// This is the same approach as the reference code's CreateMeshFlat.
+        /// Creates a mesh from raw xBIM binary shape data.
+        /// Uses EXACTLY the same math as the reference code's CreateMeshFlat:
+        ///   wp = matrix.Transform(vertex)
+        ///   result = wp / oneMeter              → meters
+        ///   result = result * 1000 - originMm   → millimeters with origin offset
         /// </summary>
-        private System.Windows.Media.Media3D.MeshGeometry3D? CreateMeshFlat(
-            byte[] shapeData, XbimMatrix3D matrix, double lengthFactor, DomainPoint3D origin)
+        private static System.Windows.Media.Media3D.MeshGeometry3D? CreateMeshFlat(
+            byte[] shapeData, XbimMatrix3D matrix, double oneMeter, DomainPoint3D originMm)
         {
             var positions = new Point3DCollection();
             var normals = new Vector3DCollection();
@@ -182,16 +192,22 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             var xbimMesh = br.ReadShapeTriangulation();
             if (xbimMesh == null) return null;
 
-            // Transform vertices: apply instance matrix, then multiply by lengthFactor
-            // to convert raw model-units directly to millimeters (same as ConvertLength).
+            // EXACTLY the reference code's vertex transformation:
+            //   wp / oneMeter  →  meters
+            // Then we convert meters to mm for our viewport:
+            //   meters * 1000  →  mm
+            // Then subtract origin (already in mm):
             var tv = xbimMesh.Vertices
                 .Select(v =>
                 {
                     var wp = matrix.Transform(new XbimPoint3D(v.X, v.Y, v.Z));
+                    double xM = wp.X / oneMeter;
+                    double yM = wp.Y / oneMeter;
+                    double zM = wp.Z / oneMeter;
                     return new Point3D(
-                        wp.X * lengthFactor - origin.X,
-                        wp.Y * lengthFactor - origin.Y,
-                        wp.Z * lengthFactor - origin.Z);
+                        xM * 1000.0 - originMm.X,
+                        yM * 1000.0 - originMm.Y,
+                        zM * 1000.0 - originMm.Z);
                 })
                 .ToArray();
 
