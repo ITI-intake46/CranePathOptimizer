@@ -63,6 +63,8 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup
             group.SetValue(System.Windows.FrameworkElement.TagProperty, item);
 
             return group;
+                //< TryCommit >
+
         }
     }
 }
