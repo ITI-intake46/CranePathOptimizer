@@ -1,9 +1,10 @@
-﻿using System.Windows.Media.Media3D;
+using System.Windows.Media.Media3D;
 
 namespace CraneOptimizer.UI.Core.Interfaces
 {
     public interface IVisualBuilder<T>
     {
         Visual3D Build(T item);
+        Visual3D BuildBatch(System.Collections.Generic.IEnumerable<T> items);
     }
 }

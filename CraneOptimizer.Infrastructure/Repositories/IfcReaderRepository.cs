@@ -24,6 +24,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         public IfcStore? CurrentModel { get; private set; }
         public Xbim3DModelContext? GeometryContext { get; private set; }
+        public double ModelLengthFactor { get; private set; } = 1.0;
 
         public void ClearData()
         {
@@ -86,10 +87,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 GeometryContext = new Xbim3DModelContext(CurrentModel);
                 GeometryContext.CreateContext();
 
+                ModelLengthFactor = GetLengthToMillimetersFactor(CurrentModel);
+
                 var extractor = new IfcEngineeringExtractor(
                     CurrentModel,
                     GeometryContext,
-                    GetLengthToMillimetersFactor(CurrentModel));
+                    ModelLengthFactor);
 
                 return extractor.Extract(progress, cancellationToken);
             }

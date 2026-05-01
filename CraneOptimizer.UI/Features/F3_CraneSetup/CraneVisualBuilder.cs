@@ -387,5 +387,15 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup
 
             return group;
         }
+
+        public Visual3D BuildBatch(IEnumerable<SceneCrane> items)
+        {
+            var container = new ModelVisual3D();
+            foreach (var item in items)
+            {
+                container.Children.Add(Build(item));
+            }
+            return container;
+        }
     }
 }
