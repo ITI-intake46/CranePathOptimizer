@@ -4,6 +4,7 @@ using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;   // ← this one was missing
+using CraneOptimizer.UI.Core.Models;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
 
@@ -114,34 +115,45 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
         // ── Called when the selected crane changes ────────────────────────
         private void OnCraneChanged(Crane? crane)
         {
-            // Remove any existing crane visual from the viewport
+            // Clear previous visuals
             _render.ClearLayer("Crane");
             _render.ClearLayer("CraneRadius");
             _craneVisual = null;
 
-            // Unlock the position when a new crane is selected
+            // Reset lock state
             _isPositionLocked = false;
             IsPositionLocked = false;
 
-            if (crane == null) return;
+            if (crane == null)
+                return;
 
-            // Build and render the crane model
-            // We pass [crane] as a single-item list to Render()
-            _render.Render(new[] { crane }, new CraneVisualBuilder(visual => RegisterCraneVisual(visual)),  // pass the callback
-            "Crane");
-
-            // Also render the max-radius circle
-            var spec = crane.Specifications.FirstOrDefault();
-            if (spec != null)
+            // Create scene model
+            var sceneCrane = new SceneCrane
             {
-                _render.Render(
-                    new[] { crane },
+                CraneDefinition = crane,
+                Position = new DomainPoint3D(0, 0, 0),
+                ActiveSpecification = crane.Specifications.FirstOrDefault(),
+                IsValidPlacement = true
+            };
+
+            // Render crane visual
+            _render.Render<SceneCrane>(
+                new[] { sceneCrane },
+                new CraneVisualBuilder(visual => RegisterCraneVisual(visual)),
+                "Crane"
+            );
+
+            // Render radius if specification exists
+            if (sceneCrane.ActiveSpecification != null)
+            {
+                _render.Render<SceneCrane>(
+                    new[] { sceneCrane },
                     new CraneRadiusBuilder(),
                     "CraneRadius"
                 );
             }
 
-            // Store the default position
+            // Initialize position
             _lastValidPosition = new DomainPoint3D(0, 0, 0);
             CurrentPosition = _lastValidPosition;
         }

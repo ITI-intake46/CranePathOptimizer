@@ -319,8 +319,8 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup
         {
             var mb = new HelixToolkit.Geometry.MeshBuilder(false, false);
             mb.AddCylinder(
-                new System.Numerics.Vector3((float)p1.X, (float)p1.Y, (float)p1.Z), 
-                new System.Numerics.Vector3((float)p2.X, (float)p2.Y, (float)p2.Z), 
+                new System.Numerics.Vector3((float)p1.X, (float)p1.Y, (float)p1.Z),
+                new System.Numerics.Vector3((float)p2.X, (float)p2.Y, (float)p2.Z),
                 (float)outerDiameter, thetaDiv);
             var helixMesh = mb.ToMesh();
             return new MeshGeometry3D
@@ -328,6 +328,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup
                 Positions = new Point3DCollection(helixMesh.Positions.Select(p => new Point3D(p.X, p.Y, p.Z))),
                 TriangleIndices = new Int32Collection(helixMesh.TriangleIndices)
             };
+        }
         public Visual3D Build(SceneCrane item)
         {
             var group = new ModelVisual3D();

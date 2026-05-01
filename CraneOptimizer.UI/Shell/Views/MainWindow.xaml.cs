@@ -322,12 +322,11 @@ namespace CraneOptimizer.UI.Shell.Views
         private void ShowCommandPanel_Click(object sender, RoutedEventArgs e) { }
         private void ShowLogsPanel_Click(object sender, RoutedEventArgs e) { }
 
-        #endregion
+
 
         #region Helpers
 
         #region Dragging the Crane Visual   
-        private Point3D GetWorldPoint(HelixViewport3D viewport, System.Windows.Point screenPt)
         private bool TryGetWorldPoint(
             HelixViewport3D viewport,
             System.Windows.Point screenPt,

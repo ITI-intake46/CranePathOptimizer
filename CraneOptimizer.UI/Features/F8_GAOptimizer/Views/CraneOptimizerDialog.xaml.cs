@@ -1,12 +1,8 @@
-using CraneOptimizer.Application.Features.CranePlacement.DTOs;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering;
@@ -276,18 +272,23 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private void CboCrane_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
         private void RbExclusion_Checked(object sender, RoutedEventArgs e) { }
-        private void BtnCancelRun_Click(object sender, RoutedEventArgs e) { }
         private void BtnApply_Click(object sender, RoutedEventArgs e)
         {
-            if (PointsList.SelectedItem is not PointItem item || _currentResult == null)
+            if (_currentResult == null || PointsList.SelectedItem is not Point item)
             {
                 _dialogService.ShowMessage("Please select a point to apply.");
                 return;
             }
 
             // Lock the crane position to the selected GA result
-            var selectedPoint = item.Point;
-            var lockedPosition = new DomainPoint3D(selectedPoint.X, selectedPoint.Y, 0);
+            var selectedPoint = item;
+
+            var lockedPosition = new DomainPoint3D(
+                selectedPoint.X,
+                selectedPoint.Y,
+                0
+            );
+
             _craneSetup.LockPosition(lockedPosition);
 
             Close();
@@ -297,14 +298,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private void BtnNoSlabs_Click(object sender, RoutedEventArgs e) { }
         private void BtnNoStairs_Click(object sender, RoutedEventArgs e) { }
         private void BtnNoRoofs_Click(object sender, RoutedEventArgs e) { }
-        private void BtnApply_Click(object sender, RoutedEventArgs e)
-        {
-            if (_currentResult == null)
-                return;
+        //private void BtnApply_Click(object sender, RoutedEventArgs e)
+        //{
+        //    if (_currentResult == null)
+        //        return;
 
-            LatestResult = _currentResult;
-            DialogResult = true;
-            Close();
-        }
+        //    LatestResult = _currentResult;
+        //    DialogResult = true;
+        //    Close();
+        //}
     }
 }

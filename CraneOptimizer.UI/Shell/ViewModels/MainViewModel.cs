@@ -10,19 +10,15 @@ using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
-using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
-using CraneOptimizer.UI.Features.F8_GAOptimizer;
 using CraneOptimizer.UI.Core.Models;
-using CraneOptimizer.UI.Features.F0_CoordinateSystem;
 using CraneOptimizer.UI.Features.F3_CraneSetup;
-using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
-using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Windows.Input;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
 
 namespace CraneOptimizer.UI.Shell.ViewModels
 {
@@ -38,9 +34,6 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly ICoordinateTransformService _coordinateTransform;
         private readonly ICraneValidationService _craneValidationService;
         private readonly List<PrecastElement> _sceneElements = new();
-
-        private Crane? _selectedCrane;
-        private bool _disposed;
         private bool _isPickingOrigin;
         private DomainPoint3D? _originPoint;
         private Guid? _currentProjectId;
@@ -55,7 +48,6 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         public ISceneService Scene { get; }
         public CraneSetupViewModel CraneSetup { get; }
-        #endregion
 
         public MainViewModel(
             ISceneService scene,
