@@ -772,6 +772,7 @@
                             x:Name="IfcViewer"
                             MouseDown="IfcViewer_MouseDown"
                             MouseMove="IfcViewer_MouseMove"
+                            MouseUp="IfcViewer_MouseUp"
                             Background="{DynamicResource BackgroundBrush}"
                             CameraRotationMode="Turntable"
                             InfiniteSpin="False"
