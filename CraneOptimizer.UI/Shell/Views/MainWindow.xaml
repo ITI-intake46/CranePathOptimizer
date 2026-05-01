@@ -9,6 +9,7 @@
     Height="800"
     AllowsTransparency="True"
     Background="{DynamicResource BackgroundBrush}"
+    PreviewKeyDown="MainWindow_PreviewKeyDown"
     ResizeMode="CanResize"
     SnapsToDevicePixels="True"
     UseLayoutRounding="True"
@@ -792,6 +793,12 @@
                                     <Setter Property="Cursor" Value="Arrow" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IfcViewer.IsPlacementMode}" Value="True">
+                                            <Setter Property="Cursor" Value="Cross" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Drawing.IsDrawing}" Value="True">
+                                            <Setter Property="Cursor" Value="Cross" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Drawing.IsMeasuring}" Value="True">
                                             <Setter Property="Cursor" Value="Cross" />
                                         </DataTrigger>
                                     </Style.Triggers>
