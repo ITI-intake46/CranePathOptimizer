@@ -2,6 +2,7 @@
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
 using System.Collections.ObjectModel;
+using CraneOptimizer.Domain.Entities;
 
 namespace CraneOptimizer.UI.Core.Services
 {
@@ -22,6 +23,7 @@ namespace CraneOptimizer.UI.Core.Services
         // =========================
         public event Action<List<PrecastElement>>? ElementsChanged;
         public event Action<List<PrecastElement>>? ElementsSelectionChanged;
+        public event Action<Crane?>? CraneChanged;
 
         public void SetElements(List<PrecastElement> elements)
         {

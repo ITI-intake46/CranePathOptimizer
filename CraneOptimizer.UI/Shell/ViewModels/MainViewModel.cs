@@ -6,9 +6,14 @@ using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Core.Models;
+using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
+using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
+using CraneOptimizer.UI.Features.F6_CranePlacement.ViewModels;
+using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
+using CraneOptimizer.UI.Features.F8_GAOptimizer;
+using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F0_CoordinateSystem;
 using CraneOptimizer.UI.Features.F3_CraneSetup;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
@@ -28,6 +33,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly ICraneRepository _craneRepo;
         private readonly IDialogService _dialog;
         private readonly ICranePlacementService _cranePlacementService;
+        private Crane? _selectedCrane;
+        private bool _disposed;
         private readonly ICoordinateTransformService _coordinateTransform;
         private readonly ICraneValidationService _craneValidationService;
         private readonly List<PrecastElement> _sceneElements = new();
@@ -39,6 +46,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private Guid? _currentProjectId;
         private string _currentProjectName = string.Empty;
         private string? _currentProjectIfcPath;
+       
         private bool _showCraneRadius = true;
 
         private SceneCrane? _selectedSceneCrane;
@@ -46,6 +54,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private DomainPoint3D? _dragOffset;
 
         public ISceneService Scene { get; }
+        public CraneSetupViewModel CraneSetup { get; }
+        #endregion
 
         public MainViewModel(
             ISceneService scene,
@@ -56,7 +66,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IIfcReaderRepository ifcReader,
             IRenderingService render,
             ICraneRepository craneRepo,
-            IDialogService dialog,
+            IDialogService dialog,           
+            CraneSetupViewModel craneSetup,
             ICranePlacementService cranePlacementService,
             ICoordinateTransformService coordinateTransform,
             ICraneValidationService craneValidationService)
@@ -66,6 +77,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CranePlacement = cranePlacement;
             IfcViewer = ifcViewer;
             Dxf = dxf;
+            CraneSetup = craneSetup;
 
             _ifcReader = ifcReader;
             _render = render;
@@ -91,7 +103,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             RemoveSelectedCraneCommand = new RelayCommand(RemoveSelectedCrane, CanRemoveSelectedCrane);
             RemoveAllCranesCommand = new RelayCommand(RemoveAllCranes, () => Scene.GetCranes().Count > 0);
 
+
             _ = LoadCranesAsync();
+
         }
 
         public ObservableCollection<PrecastElement> Elements { get; } = new();
@@ -170,6 +184,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 OnPropertyChanged(nameof(SelectedCraneSpec));
 
                 CranePlacement.SelectedCrane = value;
+                CraneSetup.SelectedCrane = value;
                 StatusText = $"Crane Selected: {value?.Name}";
             }
         }
@@ -179,6 +194,20 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         private void OpenOptimizerDialog()
         {
+            var dialog = new CraneOptimizerDialog(
+                _cranePlacementService,
+                _render,
+                _dialog,
+                _craneRepo,
+                Scene,
+                CraneSetup);
+
+            if (System.Windows.Application.Current?.MainWindow != null)
+                dialog.Owner = System.Windows.Application.Current.MainWindow;
+
+            dialog.ShowDialog();
+
+            if (dialog.LatestResult != null)
             if (CranePlacement.RunOptimizationWorkflow() && CranePlacement.Result != null)
             {
                 StatusText = "Optimization Completed";

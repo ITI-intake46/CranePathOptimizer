@@ -1,42 +1,123 @@
+using CraneOptimizer.Domain.Entities;
+using CraneOptimizer.Infrastructure.Contexts;
+using CraneOptimizer.UI.Features.F4_LoadChart.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
+using System.Data;
+using System.Globalization;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Input;
 
 namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 {
     public partial class LoadChartImportDialog : Window
     {
-        private string? _loadedFilePath;
+        private readonly LoadChartCatalogService _catalogService;
+        private readonly Crane? _existingCrane;
+        private ParsedLoadChart? _nominalChart;
+        private List<string> _gridHeaders = new();
+        private double _vehicleLengthMm;
+        private double _vehicleHeightMm;
+        private double _vehicleWidthMm;
+        private double? _outriggerWidthMm;
+        private double? _outriggerLengthMm;
 
-        public LoadChartImportDialog()
+        public LoadChartImportDialog(Crane? craneToEdit = null)
         {
             InitializeComponent();
+
+            var factory = App.ServiceProvider.GetRequiredService<IDbContextFactory<CraneDbContext>>();
+            _catalogService = new LoadChartCatalogService(factory);
+            _existingCrane = craneToEdit;
+            RefreshDimensionsSummary();
+
+            if (_existingCrane != null)
+                LoadExistingCrane(_existingCrane);
         }
 
-        private void Method_Checked(object sender, RoutedEventArgs e)
+        private void LoadExistingCrane(Crane crane)
         {
-            if (DropTitle == null) return;
-            bool isCsv = RboCsv.IsChecked == true;
-            DropTitle.Text     = isCsv ? "Drop CSV here" : "Drop PDF here";
-            DropIcon.Text      = isCsv ? "📄" : "📑";
-            PdfPagePanel.Visibility = isCsv ? Visibility.Collapsed : Visibility.Visible;
+            TxtHeader.Text = "Edit Crane Load Chart";
+            TxtModel.Text = crane.Name;
+            TxtMfg.Text = crane.Manufacturer;
+
+            var spec = crane.Specifications.FirstOrDefault();
+            if (spec == null)
+                return;
+
+            SelectOutriggerConfig(spec.OutriggerConfig);
+            TxtCounterweight.Text = spec.CounterWeight.ToString(CultureInfo.InvariantCulture);
+            TxtMaxRadius.Text = spec.MaxRadius.ToString(CultureInfo.InvariantCulture);
+            _vehicleLengthMm = crane.VehicleLength;
+            _vehicleHeightMm = crane.VehicleHeight;
+            _vehicleWidthMm = crane.VehicleWidth;
+            _outriggerWidthMm = crane.OutriggerWidth;
+            _outriggerLengthMm = crane.OutriggerLength;
+            RefreshDimensionsSummary();
+
+            SetNominalChart(LoadChartCsvService.ParseRawGrid(BuildRawGridFromSpecification(spec)));
+            TxtStatus.Text = $"Editing saved crane '{crane.Name}'.";
         }
 
-        private void DropZone_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        private static List<List<string>> BuildRawGridFromSpecification(CraneSpecification specification)
         {
-            var dlg = new OpenFileDialog
+            var booms = specification.LoadChart
+                .Select(point => point.BoomLength)
+                .Distinct()
+                .OrderBy(value => value)
+                .ToList();
+
+            var radii = specification.LoadChart
+                .Select(point => point.Radius)
+                .Distinct()
+                .OrderBy(value => value)
+                .ToList();
+
+            var rawGrid = new List<List<string>>
             {
-                Filter = RboCsv.IsChecked == true
-                    ? "CSV files (*.csv)|*.csv"
-                    : "PDF files (*.pdf)|*.pdf"
+                new() { "Radius (m)" }
             };
-            if (dlg.ShowDialog() == true)
-                LoadFile(dlg.FileName);
+            rawGrid[0].AddRange(booms.Select(boom => boom.ToString("G", CultureInfo.InvariantCulture)));
+
+            foreach (double radius in radii)
+            {
+                var row = new List<string> { radius.ToString("G", CultureInfo.InvariantCulture) };
+
+                for (int i = 0; i < booms.Count; i++)
+                {
+                    var point = specification.LoadChart
+                        .FirstOrDefault(item => Math.Abs(item.Radius - radius) < 0.0001 && Math.Abs(item.BoomLength - booms[i]) < 0.0001);
+
+                    row.Add(point == null || point.Capacity == 0d
+                        ? string.Empty
+                        : point.Capacity.ToString("G", CultureInfo.InvariantCulture));
+                }
+
+                rawGrid.Add(row);
+            }
+
+            return rawGrid;
+        }
+
+        private void DropZone_Click(object sender, MouseButtonEventArgs e)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "CSV files (*.csv)|*.csv"
+            };
+
+            if (dialog.ShowDialog() == true)
+                LoadFile(dialog.FileName);
         }
 
         private void DropZone_DragOver(object sender, DragEventArgs e)
             => e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
-                ? DragDropEffects.Copy : DragDropEffects.None;
+                ? DragDropEffects.Copy
+                : DragDropEffects.None;
 
         private void DropZone_DragEnter(object sender, DragEventArgs e)
             => DropZone.Opacity = 0.7;
@@ -53,43 +134,307 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
         private void LoadFile(string path)
         {
-            _loadedFilePath    = path;
-            TxtFileName.Text   = Path.GetFileName(path);
-            var info = new FileInfo(path);
-            TxtFileSize.Text   = $"{info.Length / 1024.0:F1} KB";
-            FileInfoPanel.Visibility = Visibility.Visible;
-            AxisPanel.Visibility     = Visibility.Visible;
-            TxtStatus.Text     = $"File loaded: {Path.GetFileName(path)}";
-            TxtGridStats.Text  = "Ready to parse";
-            // TODO: parse CSV/PDF into ChartGrid
-        }
-
-        private void AxisOrientation_Changed(object sender, RoutedEventArgs e)
-        {
-            // TODO: re-transpose grid data when axis flips
-        }
-
-        private void ReExtract_Click(object sender, RoutedEventArgs e)
-        {
-            // TODO: re-parse PDF at specified page number
-        }
-
-        private void BtnSave_Click(object sender, RoutedEventArgs e)
-        {
-            if (string.IsNullOrWhiteSpace(TxtModel.Text))
+            try
             {
-                TxtStatus.Text = "Please enter a model name before saving.";
+                SetNominalChart(LoadChartCsvService.ParseCsv(path));
+
+                TxtFileName.Text = Path.GetFileName(path);
+                var info = new FileInfo(path);
+                TxtFileSize.Text = $"{info.Length / 1024.0:F1} KB";
+                FileInfoPanel.Visibility = Visibility.Visible;
+
+                if (string.IsNullOrWhiteSpace(TxtModel.Text))
+                    TxtModel.Text = Path.GetFileNameWithoutExtension(path);
+
+                TxtMaxRadius.Text = _nominalChart?.MaxRadius.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+
+                TxtStatus.Text = $"Loaded {Path.GetFileName(path)}.";
+            }
+            catch (Exception ex)
+            {
+                TxtStatus.Text = ex.Message;
+                MessageBox.Show(this, ex.Message, "CSV Import Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void BtnTranspose_Click(object sender, RoutedEventArgs e)
+        {
+            if (_nominalChart == null)
+            {
+                TxtStatus.Text = "Load chart data first.";
                 return;
             }
-            // TODO: persist chart to database
-            DialogResult = true;
-            Close();
+
+            CommitGridEdits();
+            if (ChartGrid.ItemsSource is DataView dataView && dataView.Table != null)
+            {
+                try
+                {
+                    _nominalChart = LoadChartCsvService.ParseTable(dataView.Table, _gridHeaders);
+                }
+                catch (Exception ex)
+                {
+                    TxtStatus.Text = ex.Message;
+                    return;
+                }
+            }
+
+            if (_nominalChart == null)
+                return;
+
+            SetNominalChart(LoadChartCsvService.TransposePreview(_nominalChart.PreviewTable, _gridHeaders));
+            TxtStatus.Text = "Grid orientation swapped.";
+        }
+
+        private void BtnToggleDimensions_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new CraneDimensionsDialog(
+                _vehicleLengthMm,
+                _vehicleHeightMm,
+                _vehicleWidthMm,
+                _outriggerWidthMm,
+                _outriggerLengthMm)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() != true)
+                return;
+
+            _vehicleLengthMm = dialog.VehicleLengthMm;
+            _vehicleHeightMm = dialog.VehicleHeightMm;
+            _vehicleWidthMm = dialog.VehicleWidthMm;
+            _outriggerWidthMm = dialog.OutriggerWidthMm;
+            _outriggerLengthMm = dialog.OutriggerLengthMm;
+            RefreshDimensionsSummary();
+            TxtStatus.Text = "Crane dimensions updated.";
+        }
+
+        private async void BtnSave_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(TxtModel.Text))
+                {
+                    TxtStatus.Text = "Model name is required.";
+                    return;
+                }
+
+                if (ChartGrid.ItemsSource is not DataView dataView || dataView.Table == null)
+                {
+                    TxtStatus.Text = "Load chart data is required.";
+                    return;
+                }
+
+                CommitGridEdits();
+                var chartForSave = LoadChartCsvService.ParseTable(dataView.Table, _gridHeaders);
+
+                if (TryParseOptionalNumber(TxtMaxCap.Text, "Max Capacity", out double manualMaxCapacity))
+                    chartForSave = CopyChartWith(chartForSave, maxCapacity: manualMaxCapacity);
+
+                if (TryParseOptionalNumber(TxtMaxRadius.Text, "Max Radius", out double manualMaxRadius))
+                    chartForSave = CopyChartWith(chartForSave, maxRadius: manualMaxRadius);
+
+                var crane = LoadChartCatalogService.BuildCrane(
+                    TxtModel.Text.Trim(),
+                    TxtMfg.Text.Trim(),
+                    GetSelectedOutriggerConfig(),
+                    ParseNumberOrZero(TxtCounterweight.Text, "Counterweight"),
+                    _vehicleLengthMm,
+                    _vehicleHeightMm,
+                    _vehicleWidthMm,
+                    _outriggerWidthMm,
+                    _outriggerLengthMm,
+                    chartForSave,
+                    _existingCrane?.Id ?? 0);
+
+                if (_existingCrane == null)
+                    await _catalogService.CreateAsync(crane);
+                else
+                    await _catalogService.UpdateAsync(crane);
+
+                DialogResult = true;
+                Close();
+            }
+            catch (Exception ex)
+            {
+                TxtStatus.Text = ex.Message;
+                MessageBox.Show(this, ex.Message, "Save Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private string GetSelectedOutriggerConfig()
+        {
+            return CboOutriggerConfig.SelectedItem is ComboBoxItem item
+                ? item.Content?.ToString() ?? "100%"
+                : "100%";
+        }
+
+        private void SelectOutriggerConfig(string? value)
+        {
+            string normalized = string.IsNullOrWhiteSpace(value)
+                ? "100%"
+                : value.Trim();
+
+            foreach (ComboBoxItem item in CboOutriggerConfig.Items)
+            {
+                if (string.Equals(item.Content?.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
+                {
+                    CboOutriggerConfig.SelectedItem = item;
+                    return;
+                }
+            }
+
+            CboOutriggerConfig.SelectedIndex = 0;
         }
 
         private void BtnCancel_Click(object sender, RoutedEventArgs e)
         {
             DialogResult = false;
             Close();
+        }
+
+        private void UpdateGridStats(ParsedLoadChart parsedChart)
+        {
+            TxtGridStats.Text =
+                $"{parsedChart.PreviewTable.Rows.Count} radii | {parsedChart.PreviewTable.Columns.Count - 1} booms | max {FormatCapacity(parsedChart.MaxCapacity)} t";
+        }
+
+        private void RefreshDimensionsSummary()
+        {
+            var parts = new List<string>();
+
+            if (_vehicleLengthMm > 0 || _vehicleWidthMm > 0 || _vehicleHeightMm > 0)
+            {
+                parts.Add(
+                    $"Transport L {FormatMillimetres(_vehicleLengthMm)}  W {FormatMillimetres(_vehicleWidthMm)}  H {FormatMillimetres(_vehicleHeightMm)}");
+            }
+
+            if (_outriggerWidthMm.HasValue || _outriggerLengthMm.HasValue)
+            {
+                parts.Add(
+                    $"Outriggers W {FormatMillimetres(_outriggerWidthMm)}  B {FormatMillimetres(_outriggerLengthMm)}");
+            }
+
+            TxtDimensionsSummary.Text = parts.Count > 0
+                ? string.Join(Environment.NewLine, parts)
+                : "No crane dimensions entered yet.";
+
+            BtnToggleDimensions.Content = parts.Count > 0
+                ? "Edit Crane Dimensions"
+                : "Enter Crane Dimensions";
+        }
+
+        private void SetNominalChart(ParsedLoadChart nominalChart)
+        {
+            _nominalChart = nominalChart;
+            ShowChart(nominalChart);
+        }
+
+        private void CommitGridEdits()
+        {
+            ChartGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+            ChartGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        }
+
+        private void ShowChart(ParsedLoadChart chart)
+        {
+            _gridHeaders = chart.PreviewHeaders.ToList();
+            TxtMaxCap.Text = FormatCapacity(chart.MaxCapacity);
+
+            ConfigureChartGrid(chart.PreviewTable, _gridHeaders);
+            ChartGrid.ItemsSource = chart.PreviewTable.DefaultView;
+            UpdateGridStats(chart);
+        }
+
+        private static ParsedLoadChart CopyChartWith(
+            ParsedLoadChart source,
+            DataTable? previewTable = null,
+            List<TargetPoint>? points = null,
+            double? maxCapacity = null,
+            double? maxRadius = null)
+        {
+            return new ParsedLoadChart
+            {
+                PreviewTable = previewTable ?? source.PreviewTable.Copy(),
+                PreviewHeaders = source.PreviewHeaders.ToList(),
+                Points = points ?? source.Points
+                    .Select(point => new TargetPoint
+                    {
+                        Radius = point.Radius,
+                        BoomLength = point.BoomLength,
+                        Capacity = point.Capacity
+                    })
+                    .ToList(),
+                MinRadius = source.MinRadius,
+                MaxRadius = maxRadius ?? source.MaxRadius,
+                MinBoomLength = source.MinBoomLength,
+                MaxBoomLength = source.MaxBoomLength,
+                MaxCapacity = maxCapacity ?? source.MaxCapacity
+            };
+        }
+
+        private static string FormatCapacity(double value)
+        {
+            return value.ToString("0.##", CultureInfo.InvariantCulture);
+        }
+
+        private void ConfigureChartGrid(DataTable table, IReadOnlyList<string> headers)
+        {
+            ChartGrid.AutoGenerateColumns = false;
+            ChartGrid.Columns.Clear();
+
+            for (int columnIndex = 0; columnIndex < table.Columns.Count; columnIndex++)
+            {
+                string header = columnIndex < headers.Count
+                    ? headers[columnIndex]
+                    : table.Columns[columnIndex].ColumnName;
+
+                ChartGrid.Columns.Add(new DataGridTextColumn
+                {
+                    Header = header,
+                    Binding = new Binding($"[{table.Columns[columnIndex].ColumnName}]")
+                    {
+                        Mode = BindingMode.TwoWay,
+                        UpdateSourceTrigger = UpdateSourceTrigger.LostFocus
+                    },
+                    Width = columnIndex == 0 ? new DataGridLength(96) : new DataGridLength(60)
+                });
+            }
+        }
+
+        private static double ParseNumberOrZero(string text, string fieldName)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return 0d;
+            }
+
+            if (LoadChartCsvService.TryParseFlexibleNumber(text, out double value))
+                return value;
+
+            throw new FormatException($"{fieldName} value '{text}' is invalid.");
+        }
+
+        private static bool TryParseOptionalNumber(string text, string fieldName, out double value)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                value = 0d;
+                return false;
+            }
+
+            if (LoadChartCsvService.TryParseFlexibleNumber(text, out value))
+                return true;
+
+            throw new FormatException($"{fieldName} value '{text}' is invalid.");
+        }
+
+        private static string FormatMillimetres(double? value)
+        {
+            return value.HasValue && value.Value > 0
+                ? $"{value.Value.ToString("F0", CultureInfo.InvariantCulture)} mm"
+                : "-";
         }
     }
 }
