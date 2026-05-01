@@ -5,9 +5,11 @@
     xmlns:local="clr-namespace:CraneOptimizer.UI.Core.Converters">
     <Application.Resources>
         <ResourceDictionary>
-            
+
             <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <local:LiftStatusToBrushConverter x:Key="LiftStatusToBrushConverter"/>
+            <local:BoolToTextConverter x:Key="BoolToTextConverter"/>
+            <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
             
             <ResourceDictionary.MergedDictionaries>
 
