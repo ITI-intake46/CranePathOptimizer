@@ -177,7 +177,18 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
                 CranePlacement.SelectedCrane = value;
                 CraneSetup.SelectedCrane = value;
-                StatusText = $"Crane Selected: {value?.Name}";
+
+                if (value != null)
+                {
+                    // Automatically enter placement mode so the user
+                    // can click in the viewport to place the crane.
+                    CranePlacement.IsPlacing = true;
+                    StatusText = "Click in viewport to place crane.";
+                }
+                else
+                {
+                    StatusText = "No crane selected.";
+                }
             }
         }
 

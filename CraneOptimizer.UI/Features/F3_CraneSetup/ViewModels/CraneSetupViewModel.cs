@@ -3,7 +3,7 @@ using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
-using CraneOptimizer.UI.Core.Interfaces;   // ← this one was missing
+using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
@@ -12,22 +12,14 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
 {
     public class CraneSetupViewModel : ViewModelBase
     {
-        // ── Dependencies (injected via constructor) ───────────────────────
+        // ── Dependencies ──────────────────────────────────────────────────
         private readonly IRenderingService _render;
         private readonly ISceneService _scene;
+        private readonly ICraneValidationService _craneValidation;
 
-        // ── Dragging state ────────────────────────────────────────────────
-        // This stores the visual that is currently in the viewport.
-        // We keep a reference so we can move it (change its Transform) on drag.
+        // ── State ─────────────────────────────────────────────────────────
         private ModelVisual3D? _craneVisual;
 
-        // Whether the user is currently dragging the crane
-        private bool _isDragging;
-
-        // The last known valid position (so we can revert if zone check fails)
-        private DomainPoint3D _lastValidPosition = new(0, 0, 0);
-
-        // Whether the crane is locked (after GA optimization)
         private bool _isPositionLocked;
         public bool IsPositionLocked
         {
@@ -44,7 +36,6 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
             {
                 _selectedCrane = value;
                 OnPropertyChanged();
-                // When crane changes, re-render it
                 OnCraneChanged(value);
             }
         }
@@ -70,41 +61,6 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
             set { _isCranePickerOpen = value; OnPropertyChanged(); }
         }
 
-        // ── Commands ──────────────────────────────────────────────────
-        public ICommand UnlockPositionCommand { get; private set; }
-        public ICommand ToggleCranePickerCommand { get; private set; }
-
-        // ── Constructor ───────────────────────────────────────────────────
-        public CraneSetupViewModel(IRenderingService render, ISceneService scene)
-        {
-            _render = render;
-            _scene = scene;
-
-            UnlockPositionCommand = new RelayCommand(UnlockPosition);
-            ToggleCranePickerCommand = new RelayCommand(() => IsCranePickerOpen = !IsCranePickerOpen);
-
-            // Listen to scene changes: when a new crane is set via ISceneService,
-            // update our local SelectedCrane automatically.
-
-        }
-        // In CraneSetupViewModel.UpdateDrag(), add colour feedback:
-
-        public void UpdateDrag(DomainPoint3D worldPoint, List<GreenAreaZone> zones)
-        {
-            if (!_isDragging) return;
-
-            bool hasZones = zones != null && zones.Count > 0;
-            bool isInside = !hasZones || GreenZoneConstraint.IsInsideAnyZone(worldPoint, zones);
-
-            // Visual feedback: update status for the View to display
-            IsPositionValid = isInside;
-
-            var constrained = GreenZoneConstraint.Clamp(worldPoint, zones!);
-            MoveCraneVisualTo(constrained);
-            CurrentPosition = constrained;
-        }
-
-        // Add this property to CraneSetupViewModel:
         private bool _isPositionValid = true;
         public bool IsPositionValid
         {
@@ -112,131 +68,62 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
             set { _isPositionValid = value; OnPropertyChanged(); }
         }
 
-        // ── Called when the selected crane changes ────────────────────────
+        // ── Commands ──────────────────────────────────────────────────
+        public ICommand UnlockPositionCommand { get; private set; }
+        public ICommand ToggleCranePickerCommand { get; private set; }
+
+        // ── Constructor ───────────────────────────────────────────────────
+        public CraneSetupViewModel(
+            IRenderingService render,
+            ISceneService scene,
+            ICraneValidationService craneValidation)
+        {
+            _render = render;
+            _scene = scene;
+            _craneValidation = craneValidation;
+
+            UnlockPositionCommand = new RelayCommand(UnlockPosition);
+            ToggleCranePickerCommand = new RelayCommand(() => IsCranePickerOpen = !IsCranePickerOpen);
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // CRANE SELECTION
+        // ══════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// When a crane is selected from the picker, just store the selection
+        /// and reset state. The crane is NOT placed in the scene yet — the
+        /// user must click in the viewport to place it (handled by
+        /// MainViewModel.PlaceSelectedCrane via CranePlacement.IsPlacing).
+        /// </summary>
         private void OnCraneChanged(Crane? crane)
         {
-            // Clear previous visuals
-            _render.ClearLayer("Crane");
-            _render.ClearLayer("CraneRadius");
             _craneVisual = null;
 
             // Reset lock state
             _isPositionLocked = false;
             IsPositionLocked = false;
+            CurrentPosition = null;
 
             if (crane == null)
                 return;
 
-            // Create scene model
-            var sceneCrane = new SceneCrane
-            {
-                CraneDefinition = crane,
-                Position = new DomainPoint3D(0, 0, 0),
-                ActiveSpecification = crane.Specifications.FirstOrDefault(),
-                IsValidPlacement = true
-            };
-
-            // Render crane visual
-            _render.Render<SceneCrane>(
-                new[] { sceneCrane },
-                new CraneVisualBuilder(visual => RegisterCraneVisual(visual)),
-                "Crane"
-            );
-
-            // Render radius if specification exists
-            if (sceneCrane.ActiveSpecification != null)
-            {
-                _render.Render<SceneCrane>(
-                    new[] { sceneCrane },
-                    new CraneRadiusBuilder(),
-                    "CraneRadius"
-                );
-            }
-
-            // Initialize position
-            _lastValidPosition = new DomainPoint3D(0, 0, 0);
-            CurrentPosition = _lastValidPosition;
+            // Just store the selection — don't add to scene.
+            // The crane will appear when the user clicks in the viewport.
         }
 
-        // ─────────────────────────────────────────────────────────────────
-        // DRAG API — called by the View's mouse event handlers
-        // ─────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Call this from MouseDown when the user clicks on the crane.
-        /// </summary>
-        public void BeginDrag()
-        {
-            if (_selectedCrane == null || _isPositionLocked) return;
-            _isDragging = true;
-            IsDraggingActive = true;
-        }
-
-        /// <summary>
-        /// Call this from MouseMove. worldPoint is the 3D position on
-        /// the ground plane where the mouse is currently pointing.
-        /// </summary>
-
-
-        /// <summary>
-        /// Call this from MouseUp. Finalises the position.
-        /// </summary>
-        public void EndDrag(List<GreenAreaZone> zones)
-        {
-            if (!_isDragging) return;
-
-            _isDragging = false;
-            IsDraggingActive = false;
-
-            if (CurrentPosition != null)
-            {
-                // Final validation
-                var final = GreenZoneConstraint.Clamp(CurrentPosition, zones);
-                MoveCraneVisualTo(final);
-                _lastValidPosition = final;
-                CurrentPosition = final;
-            }
-        }
-
-        // ─────────────────────────────────────────────────────────────────
-        // PRIVATE HELPERS
-        // ─────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Moves the crane's 3D visual to a new X,Y position on the ground plane.
-        /// This does NOT rebuild the mesh — it only changes the Transform.
-        /// This is what makes dragging feel smooth and fast.
-        /// </summary>
-        private void MoveCraneVisualTo(DomainPoint3D pos)
-        {
-            if (_craneVisual == null) return;
-
-            // TranslateTransform3D offsets the entire visual in 3D space
-            _craneVisual.Transform = new TranslateTransform3D(pos.X, pos.Y, pos.Z);
-        }
-
-        /// <summary>
-        /// Called by CraneVisualBuilder after it creates the visual,
-        /// so we can store a reference for drag operations.
-        /// </summary>
-        public void RegisterCraneVisual(ModelVisual3D visual)
-        {
-            _craneVisual = visual;
-        }
+        // ══════════════════════════════════════════════════════════════════
+        // POSITION LOCK (used by GA optimizer)
+        // ══════════════════════════════════════════════════════════════════
 
         /// <summary>
         /// Locks the crane position after GA optimization.
-        /// When locked, the crane cannot be dragged.
         /// </summary>
         public void LockPosition(DomainPoint3D lockedPosition)
         {
             CurrentPosition = lockedPosition;
-            MoveCraneVisualTo(lockedPosition);
-            _lastValidPosition = lockedPosition;
             _isPositionLocked = true;
             IsPositionLocked = true;
-            _isDragging = false;
-            IsDraggingActive = false;
         }
 
         /// <summary>
@@ -248,5 +135,13 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
             IsPositionLocked = false;
         }
 
+        /// <summary>
+        /// Called by CraneVisualBuilder after it creates the visual.
+        /// Kept for backward compatibility.
+        /// </summary>
+        public void RegisterCraneVisual(ModelVisual3D visual)
+        {
+            _craneVisual = visual;
+        }
     }
 }

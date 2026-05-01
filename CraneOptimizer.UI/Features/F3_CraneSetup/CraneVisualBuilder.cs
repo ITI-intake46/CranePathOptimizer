@@ -333,15 +333,15 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup
         {
             var group = new ModelVisual3D();
 
-            var vehicleLength = item.CraneDefinition.VehicleLength;
-            var vehicleWidth = item.CraneDefinition.VehicleWidth;
-            var vehicleHeight = item.CraneDefinition.VehicleHeight > 0 ? item.CraneDefinition.VehicleHeight : 1.0;
+            var vehicleLength = item.CraneDefinition.VehicleLength > 0 ? item.CraneDefinition.VehicleLength : 12.0;
+            var vehicleWidth = item.CraneDefinition.VehicleWidth > 0 ? item.CraneDefinition.VehicleWidth : 2.75;
+            var vehicleHeight = item.CraneDefinition.VehicleHeight > 0 ? item.CraneDefinition.VehicleHeight : 2.0;
 
             var centerX = item.Position.X;
             var centerY = item.Position.Y;
             var baseZ = item.Position.Z;
 
-            var bodyColor = item.IsValidPlacement ? Color.FromRgb(53, 132, 228) : Color.FromRgb(220, 53, 69);
+            var bodyColor = item.IsValidPlacement ? Color.FromRgb(255, 215, 0) : Color.FromRgb(220, 53, 69);
 
             var truck = new BoxVisual3D
             {
@@ -382,6 +382,8 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup
             group.Children.Add(boom);
             group.Children.Add(pivotMarker);
             group.SetValue(System.Windows.FrameworkElement.TagProperty, item);
+
+            _onBuilt?.Invoke(group);
 
             return group;
         }
