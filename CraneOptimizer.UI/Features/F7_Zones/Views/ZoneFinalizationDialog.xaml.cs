@@ -10,12 +10,16 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Views
         public double MinHeight { get; private set; } = 0;
         public double MaxHeight { get; private set; } = 999;
 
-        public ZoneFinalizationDialog(double areaM2 = 0)
+        public ZoneFinalizationDialog(double areaM2 = 0, string initialZoneType = "Allowed")
         {
             InitializeComponent();
             AreaLabel.Text = areaM2 > 0
                 ? $"Area: {areaM2:F2} m²"
                 : string.Empty;
+            var isAllowed = string.Equals(initialZoneType, "Allowed", System.StringComparison.OrdinalIgnoreCase);
+            RadioAllowed.IsChecked = isAllowed;
+            RadioForbidden.IsChecked = !isAllowed;
+            ZoneType = isAllowed ? "Allowed" : "Forbidden";
         }
 
         private void ZoneType_Changed(object sender, RoutedEventArgs e)
@@ -32,7 +36,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Views
         private void Confirm_Click(object sender, RoutedEventArgs e)
         {
             ErrorLabel.Text = string.Empty;
-
             if (!double.TryParse(TxtMinHeight.Text, out double min) ||
                 !double.TryParse(TxtMaxHeight.Text, out double max) ||
                 min >= max)
@@ -45,7 +48,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Views
             MinHeight = min;
             MaxHeight = max;
             ZoneType = RadioAllowed.IsChecked == true ? "Allowed" : "Forbidden";
-
             DialogResult = true;
             Close();
         }

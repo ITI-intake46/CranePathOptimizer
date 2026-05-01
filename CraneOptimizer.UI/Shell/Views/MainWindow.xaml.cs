@@ -146,6 +146,14 @@ namespace CraneOptimizer.UI.Shell.Views
             vm.SetHoverPoint(new DomainPoint3D(world.X, world.Y, world.Z));
         }
 
+        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (VM?.IfcViewer.IsPlacementMode == true)
+                return;
+
+            VM?.Drawing.HandleKeyDown(e);
+        }
+
         private void IfcViewer_MouseDown(object sender, MouseButtonEventArgs e)
         {
             var viewport = sender as HelixViewport3D;
@@ -220,14 +228,15 @@ namespace CraneOptimizer.UI.Shell.Views
             if (vm != null && !vm.IsDrawing)
             {
                 HandleZoneSelection(e);
-                return;
+                if (!vm.IsMeasuring)
+                    return;
             }
 
             if (vm == null) return;
 
             if (e.ChangedButton == MouseButton.Right)
             {
-                vm.Finish();
+                vm.HandleRightClick();
                 e.Handled = true;
                 return;
             }
@@ -239,7 +248,14 @@ namespace CraneOptimizer.UI.Shell.Views
             if (!TryGetWorldPoint(viewport, screen, out var world))
                 return;
 
-            vm.AddPoint(new DomainPoint3D(world.X, world.Y, world.Z));
+            if (e.ClickCount > 1)
+            {
+                vm.HandleDoubleClick();
+                e.Handled = true;
+                return;
+            }
+
+            vm.HandleViewportLeftClick(new DomainPoint3D(world.X, world.Y, world.Z));
             e.Handled = true;
         }
 

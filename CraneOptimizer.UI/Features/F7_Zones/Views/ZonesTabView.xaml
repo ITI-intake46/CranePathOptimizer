@@ -2,203 +2,246 @@
     x:Class="CraneOptimizer.UI.Features.F7_Zones.Views.ZonesTabView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Background="{DynamicResource SurfaceBrush}">
+    Background="{DynamicResource SurfaceBrush}"
+    Cursor="{Binding ViewportCursor}"
+    Focusable="True"
+    PreviewKeyDown="ZonesTabView_PreviewKeyDown">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+    </UserControl.Resources>
 
-    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
-        <StackPanel Margin="6,0" Orientation="Horizontal">
+        <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
 
-            <!--  ── DRAW MODE ─────────────────────────  -->
-            <Border Padding="8,6,8,0">
-                <DockPanel Width="220">
+            <StackPanel Margin="6,0" Orientation="Horizontal">
 
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="DRAW MODE" />
+                <Border Padding="8,6,8,0" Width="173">
+                    <DockPanel Width="220">
+                        <TextBlock
+                            DockPanel.Dock="Bottom"
+                            Style="{StaticResource GroupLabel}"
+                            Text="DRAW MODE" Width="106" />
 
-                    <StackPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal" Width="157">
+                            <Border Margin="0,0,8,0">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="BorderBrush" Value="Transparent" />
+                                        <Setter Property="BorderThickness" Value="0" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ActiveDrawingMode}" Value="Allowed">
+                                                <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}" />
+                                                <Setter Property="BorderThickness" Value="4,0,0,0" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <Button
+                                    Command="{Binding StartAllowedCommand}"
+                                    Style="{StaticResource RibbonLargeBtn}" Height="95">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock
+                                            Margin="0,6,0,4"
+                                            FontSize="26"
+                                            Text="✔" />
+                                        <TextBlock Text="Allowed" Height="18" />
+                                        <TextBlock Text="Zone" RenderTransformOrigin="0.5,0.5" Height="17" >
+                                            <TextBlock.RenderTransform>
+                                                <TransformGroup>
+                                                    <ScaleTransform/>
+                                                    <SkewTransform AngleX="0.003"/>
+                                                    <RotateTransform Angle="-0.017"/>
+                                                    <TranslateTransform/>
+                                                </TransformGroup>
+                                            </TextBlock.RenderTransform>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Button>
+                            </Border>
 
-                        <!--  Site Boundary  -->
-                        <Button Style="{StaticResource RibbonLargeBtn}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,6,0,4"
-                                    FontSize="26"
-                                    Foreground="{StaticResource PrimaryBrush}"
-                                    Text="⬡" />
-                                <TextBlock Text="Site" />
-                                <TextBlock Text="Boundary" />
-                            </StackPanel>
-                        </Button>
-
-                        <!--  Allowed  -->
-                        <Button Margin="14,0,0,0"
-                                Style="{StaticResource RibbonLargeBtn}"
-                                Command="{Binding StartAllowedCommand}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,6,0,4"
-                                    FontSize="26"
-                                    Text="✔" />
-                                <TextBlock Text="Allowed" />
-                                <TextBlock Text="Zone" />
-                            </StackPanel>
-                        </Button>
-
-                        <!--  Forbidden  -->
-                        <Button Margin="14,0,0,0"
-                                Style="{StaticResource RibbonLargeBtn}"
-                                Command="{Binding StartForbiddenCommand}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,6,0,4"
-                                    FontSize="26"
-                                    Text="✖" />
-                                <TextBlock Text="Forbidden" />
-                                <TextBlock Text="Zone" />
-                            </StackPanel>
-                        </Button>
-
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
-            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
-
-            <!--  ── MEASURE ─────────────────────────  -->
-            <Border Padding="8,6,8,0">
-                <DockPanel Width="90">
-
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="MEASURE" />
-
-                    <Button Style="{StaticResource RibbonLargeBtn}">
-                        <StackPanel HorizontalAlignment="Center">
-                            <TextBlock
-                                Margin="0,6,0,4"
-                                FontSize="26"
-                                Text="📏" />
-                            <TextBlock Text="Measure" />
+                            <Border>
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="BorderBrush" Value="Transparent" />
+                                        <Setter Property="BorderThickness" Value="0" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ActiveDrawingMode}" Value="Forbidden">
+                                                <Setter Property="BorderBrush" Value="{StaticResource DestructiveBrush}" />
+                                                <Setter Property="BorderThickness" Value="4,0,0,0" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <Button
+                                    Command="{Binding StartForbiddenCommand}"
+                                    Style="{StaticResource RibbonLargeBtn}" Height="87">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock
+                                            Margin="0,6,0,4"
+                                            FontSize="26"
+                                            Text="✖" />
+                                        <TextBlock Text="Forbidden" />
+                                        <TextBlock Text="Zone" />
+                                    </StackPanel>
+                                </Button>
+                            </Border>
                         </StackPanel>
-                    </Button>
+                    </DockPanel>
+                </Border>
 
-                </DockPanel>
-            </Border>
+                <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
-            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
-
-            <!--  ── ACTIONS ─────────────────────────  -->
-            <Border Padding="8,6,8,0">
-                <DockPanel Width="160">
-
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="ACTIONS" />
-
-                    <StackPanel Margin="0,2,0,0">
+                <Border Padding="8,6,8,0">
+                    <DockPanel Width="90">
+                        <TextBlock
+                            DockPanel.Dock="Bottom"
+                            Style="{StaticResource GroupLabel}"
+                            Text="MEASURE" />
 
                         <Button
-                            Width="150"
-                            Margin="0,0,0,3"
-                            Style="{StaticResource RibbonSmallBtn}"
-                            Command="{Binding FinishCommand}">
-                            <TextBlock Text="Finish Zone" />
-                        </Button>
-
-                        <Button
-                            Width="150"
-                            Margin="0,0,0,3"
-                            Style="{StaticResource RibbonSmallBtn}"
-                            Command="{Binding UndoCommand}">
-                            <TextBlock Text="Undo Vertex" />
-                        </Button>
-
-                        <Button Width="150"
-                                Style="{StaticResource RibbonSmallBtn}"
-                                Command="{Binding CancelCommand}">
-                            <TextBlock Text="Cancel" />
-                        </Button>
-
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
-            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
-
-            <!--  ── VIEW ─────────────────────────  -->
-            <Border Padding="8,6,8,0">
-                <DockPanel Width="150">
-
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="VIEW" />
-
-                    <StackPanel Orientation="Horizontal">
-
-                        <Button Style="{StaticResource RibbonLargeBtn}">
+                            Command="{Binding StartMeasureCommand}"
+                            Style="{StaticResource RibbonLargeBtn}">
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock
                                     Margin="0,6,0,4"
                                     FontSize="26"
-                                    Text="🗺" />
-                                <TextBlock Text="Plan" />
+                                    Text="📏" />
+                                <TextBlock Text="Measure" />
                             </StackPanel>
                         </Button>
+                    </DockPanel>
+                </Border>
 
-                        <Button Margin="4,0,0,0" Style="{StaticResource RibbonLargeBtn}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,6,0,4"
-                                    FontSize="26"
-                                    Text="🏗" />
-                                <TextBlock Text="3D" />
-                            </StackPanel>
-                        </Button>
+                <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
-                    </StackPanel>
-                </DockPanel>
+                <Border Padding="8,6,8,0">
+                    <DockPanel Width="160">
+                        <TextBlock
+                            DockPanel.Dock="Bottom"
+                            Style="{StaticResource GroupLabel}"
+                            Text="ACTIONS" />
+
+                        <StackPanel Margin="0,2,0,0">
+                            <Button
+                                Width="150"
+                                Margin="0,0,0,3"
+                                Command="{Binding FinishCommand}"
+                                Style="{StaticResource RibbonSmallBtn}">
+                                <TextBlock Text="Finish Zone" />
+                            </Button>
+
+                            <Button
+                                Width="150"
+                                Margin="0,0,0,3"
+                                Command="{Binding UndoCommand}"
+                                Style="{StaticResource RibbonSmallBtn}">
+                                <TextBlock Text="Undo Vertex" />
+                            </Button>
+
+                            <Button
+                                Width="150"
+                                Command="{Binding CancelCommand}"
+                                Style="{StaticResource RibbonSmallBtn}">
+                                <TextBlock Text="Cancel" />
+                            </Button>
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+
+                <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+
+                <Border Padding="8,6,8,0">
+                    <DockPanel Width="165">
+                        <TextBlock
+                            DockPanel.Dock="Bottom"
+                            Style="{StaticResource GroupLabel}"
+                            Text="{Binding ZoneList.ZoneCount, StringFormat=MANAGE ({0} zones)}" />
+
+                        <StackPanel Margin="0,2,0,0">
+                            <Button
+                                Width="150"
+                                Margin="0,0,0,3"
+                                Command="{Binding DeleteZoneCommand}"
+                                Style="{StaticResource RibbonSmallBtn}">
+                                <TextBlock Text="Delete Selected" />
+                            </Button>
+
+                            <Button
+                                Width="150"
+                                Margin="0,0,0,3"
+                                Command="{Binding DeleteAllCommand}"
+                                Style="{StaticResource RibbonSmallBtn}">
+                                <TextBlock Text="Delete All" />
+                            </Button>
+
+                            <Button
+                                Width="150"
+                                Command="{Binding ZoneList.ExportZonesCommand}"
+                                Style="{StaticResource RibbonSmallBtn}">
+                                <TextBlock Text="Export JSON" />
+                            </Button>
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="1" Margin="12,0,12,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border
+                Grid.Row="0"
+                Padding="10,5"
+                Background="#CC2A2A2A"
+                CornerRadius="12"
+                HorizontalAlignment="Center"
+                Margin="0,4,0,0"
+                Visibility="{Binding IsHintVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <TextBlock
+                    FontFamily="Consolas"
+                    FontSize="{StaticResource FontSizeSM}"
+                    Foreground="#FFD700"
+                    Text="{Binding HintText}" />
             </Border>
 
-            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
-
-            <!--  ── MANAGE ─────────────────────────  -->
-            <Border Padding="8,6,8,0">
-                <DockPanel Width="150">
-
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="MANAGE" />
-
-                    <StackPanel Margin="0,2,0,0">
-
-                        <Button
-                            Width="140"
-                            Margin="0,0,0,3"
-                            Style="{StaticResource RibbonSmallBtn}">
-                            <TextBlock Text="Delete Selected" />
-                        </Button>
-
-                        <Button
-                            Width="140"
-                            Margin="0,0,0,3"
-                            Style="{StaticResource RibbonSmallBtn}">
-                            <TextBlock Text="Delete All" />
-                        </Button>
-
-                        <Button Width="140" Style="{StaticResource RibbonSmallBtn}">
-                            <TextBlock Text="Export JSON" />
-                        </Button>
-
-                    </StackPanel>
-                </DockPanel>
+            <Border
+                Grid.Row="1"
+                Margin="0,6,0,0"
+                Padding="10,5"
+                Background="{DynamicResource SurfaceElevatedBrush}"
+                BorderBrush="{StaticResource WarningBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                HorizontalAlignment="Left"
+                Visibility="{Binding IsInlineWarningVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <TextBlock
+                    FontSize="{StaticResource FontSizeSM}"
+                    Foreground="{StaticResource WarningBrush}"
+                    Text="{Binding InlineWarning}" />
             </Border>
 
-        </StackPanel>
-    </ScrollViewer>
+            <Border
+                Grid.Row="1"
+                Margin="0,6,0,0"
+                Padding="10,5"
+                Background="#CC2A2A2A"
+                CornerRadius="8"
+                HorizontalAlignment="Center"
+                Visibility="{Binding IsMeasureOverlayVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <TextBlock
+                    FontFamily="Consolas"
+                    FontSize="{StaticResource FontSizeSM}"
+                    Foreground="#FFD700"
+                    Text="{Binding MeasureText}" />
+            </Border>
+        </Grid>
+    </Grid>
 </UserControl>
