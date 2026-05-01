@@ -1,5 +1,4 @@
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
@@ -13,6 +12,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
         /// <summary>
         /// Mutates the solution position slightly.
         /// </summary>
-        void Mutate(CraneSolution solution, List<GreenAreaZone> zones, GASettings settings);
+        void Mutate(CraneSolution solution, List<GreenAreaZone> zones);
     }
 }

@@ -3,19 +3,13 @@
 
     <!-- Base TextBox -->
     <Style x:Key="TextBox.Base" TargetType="TextBox">
-        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
-        <Setter Property="FontSize" Value="{StaticResource FontSizeBase}" />
-        <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
-        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        <Setter Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="{StaticResource InputPadding}" />
-        <Setter Property="MinHeight" Value="{StaticResource InputHeight}" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="Margin" Value="5" />
         <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}" />
-        <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
 
         <Setter Property="Template">
             <Setter.Value>
@@ -24,17 +18,9 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource ControlCornerRadius}"
-                            Padding="{TemplateBinding Padding}">
-                        <ScrollViewer
-                            x:Name="PART_ContentHost"
-                            CanContentScroll="False"
-                            HorizontalScrollBarVisibility="Hidden"
-                            Margin="0"
-                            Padding="0"
-                            Focusable="False"
-                            VerticalScrollBarVisibility="Hidden"
-                            VerticalAlignment="Center" />
+                            CornerRadius="6">
+
+                        <ScrollViewer x:Name="PART_ContentHost" />
                     </Border>
 
                     <ControlTemplate.Triggers>

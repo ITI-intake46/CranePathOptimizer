@@ -4,7 +4,7 @@ using System.Numerics;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 
-namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
+namespace CraneOptimizer.UI.Features.F8_GAOptimizer
 {
     public class BestPointVisualBuilder : IVisualBuilder<(double x, double y, double z)>
     {
@@ -17,13 +17,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
 
         public Visual3D Build((double x, double y, double z) item)
         {
-            // Use raw mm coordinates so GA markers align with IFC scene geometry.
-            var center = new Point3D(item.x, item.y, item.z);
+            // FIX: use raw mm coordinates (same as IFC rendering)
+            var center = new Point3D(item.x, item.y, 0);
+
+            // FIX: keep radius in mm (NO scaling)
+            var renderRadius = _markerRadiusInMillimeters;
 
             var meshBuilder = new MeshBuilder(true, true);
             meshBuilder.AddSphere(
                 new Vector3((float)center.X, (float)center.Y, (float)center.Z),
-                (float)_markerRadiusInMillimeters,
+                (float)renderRadius,
                 18,
                 12);
 
@@ -41,12 +44,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
                     helixMesh.Normals.Select(normal => new Vector3D(normal.X, normal.Y, normal.Z)));
             }
 
-            var material = new DiffuseMaterial(new SolidColorBrush(Colors.Blue));
             var geometryModel = new GeometryModel3D
             {
                 Geometry = mesh,
-                Material = material,
-                BackMaterial = material
+                Material = new DiffuseMaterial(new SolidColorBrush(Colors.Blue)),
+                BackMaterial = new DiffuseMaterial(new SolidColorBrush(Colors.Blue))
             };
 
             return new ModelVisual3D

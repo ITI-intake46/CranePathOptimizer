@@ -21,14 +21,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public double MutationRate { get; set; }
 
         /// <summary>
-        /// Mutation spread. Values <= 1 are treated as a ratio of MaxRadiusForNormalisation.
-        /// </summary>
-        public double MutationSigma { get; set; } = 0.05;
-
-        /// <summary>
         /// Probability of crossover.
         /// </summary>
-        public double CrossoverRate { get; set; } = 0.8;
+        public double CrossoverRate { get; set; }
 
         /// <summary>
         /// Additional rigging length used during lifting calculations.
@@ -90,32 +85,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public double MaxRadiusForNormalisation { get; set; } = 50;
 
         /// <summary>
-        /// Optional grid snapping step in meters for seeded and mutated crane positions.
-        /// Set to 0 to allow free placement.
-        /// </summary>
-        public double GridStep { get; set; } = 0;
-
-        /// <summary>
         /// Number of consecutive generations without fitness improvement
         /// </summary>
         public int EarlyStoppingGenerations { get; set; } = 20;
 
-        /// <summary>
-        /// Minimum relative fitness improvement percentage required to count as convergence progress.
-        /// 0 disables this threshold.
-        /// </summary>
-        public double ConvergenceThresholdPercent { get; set; } = 0;
-
-        /// <summary>
-        /// Weight applied to variation in lift radii among liftable elements.
-        /// Higher values prefer more consistent working radii.
-        /// </summary>
         public double RadiusStdDevPenaltyWeight { get; set; } = 2.0;
-
-        /// <summary>
-        /// Weight applied to uneven element distribution between crane positions.
-        /// Higher values prefer balanced crane-position utilization.
-        /// </summary>
         public double BalancePenaltyWeight { get; set; } = 2.0;
     }
 }

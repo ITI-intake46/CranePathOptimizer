@@ -1,6 +1,6 @@
 ﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 
-namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
+namespace CraneOptimizer.Application.Features.CranePlacement.DTOs
 {
     /// <summary>
     /// Final result returned from the Crane Placement optimization.

@@ -11,7 +11,7 @@
     ResizeMode="NoResize"
     WindowStartupLocation="CenterOwner">
 
-    <Grid Margin="20,20,20,20">
+    <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <!--  Header  -->

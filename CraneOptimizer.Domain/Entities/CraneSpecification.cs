@@ -18,15 +18,6 @@
         public int CraneId { get; set; }
         public Crane Crane { get; set; } = null!;
 
-
-        #region Configurable load-chart CSV
-        public double? CraneDerating { get; set; }
-
-        public string? OutriggerConfig { get; set; } 
-        #endregion
-
-
-
         public ICollection<TargetPoint> LoadChart { get; set; } = new List<TargetPoint>();
     }
 

@@ -1,6 +1,7 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
+using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Core.Interfaces;
@@ -15,18 +16,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
         public GAInputBuilder(
             ISceneService sceneService,
+            ICraneRepository craneRepository,
             CoordinateService coordinateService)
         {
             _sceneService = sceneService;
             _coordinateService = coordinateService;
         }
 
-        public Task<PlacementInput> BuildAsync(GASettings settings, Crane selectedCrane)
-        {
-            return Task.FromResult(Build(settings, selectedCrane));
-        }
-
-        private PlacementInput Build(GASettings settings, Crane selectedCrane)
+        public async Task<PlacementInput> BuildAsync(GASettings settings, Crane selectedCrane)
         {
             if (settings == null)
                 throw new ArgumentNullException(nameof(settings));

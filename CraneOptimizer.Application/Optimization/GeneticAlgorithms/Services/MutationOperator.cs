@@ -1,6 +1,5 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 
@@ -14,61 +13,54 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     {
         private Random _random => GARandomManager.Instance;
 
-        public void Mutate(CraneSolution solution, List<GreenAreaZone> zones, GASettings settings)
+        /// <summary>
+        /// Applies mutation to a solution.
+        /// </summary>
+        public void Mutate(CraneSolution solution , List<GreenAreaZone> zones)
         {
+            // TODO:
+            // 1️⃣ Select random crane position from chromosome
+
+            // TODO:
+            // 2️⃣ Slightly modify X or Y coordinate
+
+            // Example:
+            // position.X += random small value
+            // position.Y += random small value
+
+            // TODO:
+            // 3️⃣ Ensure position remains valid
+            // (inside crane placement zone)
             var positions = solution.Chromosome.CranePositions;
 
             if (positions == null || positions.Count == 0)
                 return;
 
+            // 1️⃣ pick random position
             int index = _random.Next(positions.Count);
-            var point = positions[index];
+            var p = positions[index];
 
-            double sigma = ResolveMutationSigma(settings);
-            double deltaX = NextGaussian() * sigma;
-            double deltaY = NextGaussian() * sigma;
+            // 2️⃣ perturb
+            double deltaX = (_random.NextDouble() * 10) - 5;
+            double deltaY = (_random.NextDouble() * 10) - 5;
 
             var mutated = new DomainPoint3D(
-                SnapToGrid(point.X + deltaX, settings.GridStep),
-                SnapToGrid(point.Y + deltaY, settings.GridStep),
-                point.Z
+                p.X + deltaX,
+                p.Y + deltaY,
+                p.Z
             );
 
+            // 3️⃣ validate (Reject strategy)
             if (IsInsideAnyZone(mutated, zones))
+            {
                 positions[index] = mutated;
+            }
+            // else: ignore mutation (keep original)
         }
-
-        private double ResolveMutationSigma(GASettings settings)
-        {
-            if (settings.MutationSigma <= 0)
-                return 5.0;
-
-            if (settings.MutationSigma <= 1.0)
-                return settings.MutationSigma * settings.MaxRadiusForNormalisation;
-
-            return settings.MutationSigma;
-        }
-
-        private double NextGaussian()
-        {
-            double u1 = 1.0 - _random.NextDouble();
-            double u2 = 1.0 - _random.NextDouble();
-            return Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Cos(2.0 * Math.PI * u2);
-        }
-
-        private double SnapToGrid(double value, double gridStep)
-        {
-            if (gridStep <= 0)
-                return value;
-
-            return Math.Round(value / gridStep) * gridStep;
-        }
-
         private bool IsInsideAnyZone(DomainPoint3D point, List<GreenAreaZone> zones)
         {
-            return zones.Any(zone => IsPointInsidePolygon(point, zone.Vertices));
+            return zones.Any(z => IsPointInsidePolygon(point, z.Vertices));
         }
-
         private bool IsPointInsidePolygon(DomainPoint3D point, List<DomainPoint3D> polygon)
         {
             bool inside = false;

@@ -41,12 +41,6 @@ namespace CraneOptimizer.UI.Core.Services
             }
 
             _layers[layerKey] = visuals;
-
-            if (layerKey == "Elements")
-            {
-                _viewport!.UpdateLayout();
-                _viewport.ZoomExtents();
-            }
         }
 
         // =========================

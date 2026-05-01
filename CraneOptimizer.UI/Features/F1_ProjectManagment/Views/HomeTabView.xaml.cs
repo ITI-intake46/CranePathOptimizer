@@ -1,6 +1,6 @@
 ﻿using System.Windows.Controls;
 
-namespace CraneOptimizer.UI.F10_ProjectManagement.Views
+namespace CraneOptimizer.UI.Features.F1_ProjectManagment.Views
 {
     /// <summary>
     /// Interaction logic for HomeTabView.xaml

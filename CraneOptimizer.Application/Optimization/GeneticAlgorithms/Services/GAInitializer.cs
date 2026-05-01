@@ -47,14 +47,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // ── 70% Pure Random ────────────────────────────────────
             for (int i = 0; i < randomCount; i++)
             {
-                var solution = CreateRandomSolution(zones, maxCranePositions, settings);
+                var solution = CreateRandomSolution(zones, maxCranePositions);
                 population.Individuals.Add(solution);
             }
 
             // ── 30% Heuristic (element-centroid guided) ────────────
             for (int i = 0; i < heuristicCount; i++)
             {
-                var solution = CreateHeuristicSolution(zones, elements, maxCranePositions, settings);
+                var solution = CreateHeuristicSolution(zones, elements, maxCranePositions);
                 population.Individuals.Add(solution);
             }
 
@@ -71,8 +71,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// </summary>
         private CraneSolution CreateRandomSolution(
             List<GreenAreaZone> zones,
-            int maxCranePositions,
-            GASettings settings)
+            int maxCranePositions)
         {
             var chromosome = new CraneChromosome();
 
@@ -82,7 +81,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             for (int j = 0; j < craneCount; j++)
             {
                 var zone = zones[Rng.Next(zones.Count)];
-                var point = GenerateRandomPointInsideZone(zone, settings);
+                var point = GenerateRandomPointInsideZone(zone);
                 chromosome.CranePositions.Add(point);
             }
 
@@ -112,8 +111,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         private CraneSolution CreateHeuristicSolution(
             List<GreenAreaZone> zones,
             List<PrecastElement> elements,
-            int maxCranePositions,
-            GASettings settings)
+            int maxCranePositions)
         {
             var chromosome = new CraneChromosome();
 
@@ -131,7 +129,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 var centroid = CalculateCentroid(cluster);
 
                 // Step 3 — Find nearest valid crane position inside zones
-                var point = FindNearestValidPoint(centroid, zones, settings);
+                var point = FindNearestValidPoint(centroid, zones);
 
                 chromosome.CranePositions.Add(point);
             }
@@ -140,7 +138,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             if (chromosome.CranePositions.Count == 0)
             {
                 var zone = zones[Rng.Next(zones.Count)];
-                var point = GenerateRandomPointInsideZone(zone, settings);
+                var point = GenerateRandomPointInsideZone(zone);
                 chromosome.CranePositions.Add(point);
             }
 
@@ -223,19 +221,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// </summary>
         private DomainPoint3D FindNearestValidPoint(
             DomainPoint3D centroid,
-            List<GreenAreaZone> zones,
-            GASettings settings)
+            List<GreenAreaZone> zones)
         {
             // Case 1: centroid falls inside one of the zones
             foreach (var zone in zones)
             {
                 if (IsPointInsidePolygon(centroid, zone.Vertices))
-                {
-                    var snappedCentroid = SnapPointToGrid(centroid, settings.GridStep);
-                    return IsPointInsidePolygon(snappedCentroid, zone.Vertices)
-                        ? snappedCentroid
-                        : centroid;
-                }
+                    return centroid;
             }
 
             // Case 2: find the closest zone and sample inside it
@@ -243,7 +235,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 .OrderBy(z => DistanceToZoneCentroid(centroid, z))
                 .First();
 
-            return GenerateRandomPointInsideZone(closestZone, settings);
+            return GenerateRandomPointInsideZone(closestZone);
         }
 
         /// <summary>
@@ -269,7 +261,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// Generates a random point inside a polygon zone.
         /// Uses bounding box rejection sampling with ray-casting validation.
         /// </summary>
-        private DomainPoint3D GenerateRandomPointInsideZone(GreenAreaZone zone, GASettings settings)
+        private DomainPoint3D GenerateRandomPointInsideZone(GreenAreaZone zone)
         {
             var bbox = GetBoundingBox(zone.Vertices);
 
@@ -278,22 +270,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 double x = bbox.minX + Rng.NextDouble() * (bbox.maxX - bbox.minX);
                 double y = bbox.minY + Rng.NextDouble() * (bbox.maxY - bbox.minY);
 
-                var point = SnapPointToGrid(new DomainPoint3D(x, y, 0), settings.GridStep);
+                var point = new DomainPoint3D(x, y, 0);
 
                 if (IsPointInsidePolygon(point, zone.Vertices))
                     return point;
             }
-        }
-
-        private DomainPoint3D SnapPointToGrid(DomainPoint3D point, double gridStep)
-        {
-            if (gridStep <= 0)
-                return point;
-
-            return new DomainPoint3D(
-                Math.Round(point.X / gridStep) * gridStep,
-                Math.Round(point.Y / gridStep) * gridStep,
-                point.Z);
         }
 
         /// <summary>

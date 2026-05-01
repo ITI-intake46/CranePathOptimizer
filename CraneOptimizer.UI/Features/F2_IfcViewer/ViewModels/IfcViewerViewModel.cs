@@ -5,9 +5,7 @@ using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Models;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
-using System.Diagnostics;
 using System.Windows.Input;
-using System.Windows.Media.Media3D;
 
 namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 {
@@ -17,10 +15,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly ISceneService _scene;
         private readonly IIfcOptionsDialogService _dialogService;
         private readonly IDialogService _dialog;
-        private List<PrecastElement>? _pendingIfcElements;
 
         public ICommand LoadIfcCommand { get; }
-        public ICommand CancelPlacementCommand { get; }
 
         private bool _isLoading;
         public bool IsLoading
@@ -43,29 +39,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             set { _progress = value; OnPropertyChanged(); }
         }
 
-        private bool _isPlacementMode;
-        public bool IsPlacementMode
-        {
-            get => _isPlacementMode;
-            private set
-            {
-                _isPlacementMode = value;
-                OnPropertyChanged();
-                CommandManager.InvalidateRequerySuggested();
-            }
-        }
-
-        private Point3D? _pendingPlacementPoint;
-        public Point3D? PendingPlacementPoint
-        {
-            get => _pendingPlacementPoint;
-            private set
-            {
-                _pendingPlacementPoint = value;
-                OnPropertyChanged();
-            }
-        }
-
         public IfcViewerViewModel(
             IIfcReaderRepository ifcReader,
             ISceneService scene,
@@ -78,7 +51,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _dialogService = dialogService;
 
             LoadIfcCommand = new RelayCommand(async () => await LoadIfcAsync(), () => !IsLoading);
-            CancelPlacementCommand = new RelayCommand(CancelPlacement, () => IsPlacementMode);
         }
 
         private async Task LoadIfcAsync()
@@ -106,8 +78,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 var all = await Task.Run(() =>
                     _ifcReader.ReadElements(path, progress));
 
-                Debug.WriteLine("IFC Loaded: " + (all?.Count ?? 0));
-
                 if (all == null || !all.Any())
                 {
                     _dialog.ShowMessage("No elements found.");
@@ -117,14 +87,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 Status = "Filtering...";
                 var visible = ApplyFilter(all, filter);
 
-                Debug.WriteLine("IFC Visible Elements: " + visible.Count);
-
-                _pendingIfcElements = visible;
-                PendingPlacementPoint = null;
-                IsPlacementMode = true;
+                Status = "Updating scene...";
+                _scene.SetElements(visible);
 
                 Progress = 100;
-                Status = $"Loaded {visible.Count} elements. Click to place IFC.";
+                Status = $"Loaded {visible.Count} elements";
             }
             catch (Exception ex)
             {
@@ -134,57 +101,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             {
                 IsLoading = false;
             }
-        }
-
-        public bool PlacePendingIfc(Point3D insertionPoint)
-        {
-            if (!IsPlacementMode || _pendingIfcElements == null || _pendingIfcElements.Count == 0)
-                return false;
-
-            PendingPlacementPoint = insertionPoint;
-
-            var placedElements = _pendingIfcElements
-                .Select(element => TranslateElement(element, insertionPoint))
-                .ToList();
-
-            Debug.WriteLine($"IFC Placed At: {insertionPoint.X:F3}, {insertionPoint.Y:F3}, {insertionPoint.Z:F3}");
-            _scene.SetElements(placedElements);
-
-            _pendingIfcElements = null;
-            IsPlacementMode = false;
-            Status = $"Placed {placedElements.Count} elements";
-            return true;
-        }
-
-        private void CancelPlacement()
-        {
-            _pendingIfcElements = null;
-            PendingPlacementPoint = null;
-            IsPlacementMode = false;
-            Progress = 0;
-            Status = "IFC placement cancelled";
-        }
-
-        private static PrecastElement TranslateElement(PrecastElement element, Point3D insertionPoint)
-        {
-            return new PrecastElement
-            {
-                ElementID = element.ElementID,
-                ElementType = element.ElementType,
-                ElementLength = element.ElementLength,
-                ElementWidth = element.ElementWidth,
-                ElementHeight = element.ElementHeight,
-                ElementMaterial = element.ElementMaterial,
-                ElementWT = element.ElementWT,
-                ElementVolume = element.ElementVolume,
-                ElementCOG = new Domain.Common.DomainPoint3D(
-                    element.ElementCOG.X + insertionPoint.X,
-                    element.ElementCOG.Y + insertionPoint.Y,
-                    element.ElementCOG.Z + insertionPoint.Z),
-                BBoxLength = element.BBoxLength,
-                BBoxWidth = element.BBoxWidth,
-                BBoxHeight = element.BBoxHeight
-            };
         }
 
         private static List<PrecastElement> ApplyFilter(

@@ -25,7 +25,7 @@
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Bd"
                             Background="{TemplateBinding Background}"
-                    CornerRadius="3" Margin="1,1,1,1">
+                            CornerRadius="3" Margin="1">
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>
                     </Border>

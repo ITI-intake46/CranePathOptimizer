@@ -4,5 +4,6 @@
     {
         Mobile,
         Crawler,
+        Tower
     }
 }
