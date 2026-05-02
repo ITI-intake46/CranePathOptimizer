@@ -287,20 +287,22 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private void CboCrane_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
         private void RbExclusion_Checked(object sender, RoutedEventArgs e) { }
+        public CranePositionResult? AppliedPosition { get; private set; }
+
         private void BtnApply_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentResult == null || PointsList.SelectedItem is not Point item)
+            if (_currentResult == null || PointsList.SelectedItem is not CraneOptimizerPointListItem item)
             {
                 _dialogService.ShowMessage("Please select a point to apply.");
                 return;
             }
 
-            // Lock the crane position to the selected GA result
-            var selectedPoint = item;
+            AppliedPosition = item.Point;
 
+            // Lock the crane position to the selected GA result
             var lockedPosition = new DomainPoint3D(
-                selectedPoint.X,
-                selectedPoint.Y,
+                item.Point.X,
+                item.Point.Y,
                 0
             );
 
