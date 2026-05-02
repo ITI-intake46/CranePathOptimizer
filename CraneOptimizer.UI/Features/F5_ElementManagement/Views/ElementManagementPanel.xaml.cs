@@ -1,6 +1,6 @@
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Shell.ViewModels;
+using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
 using System.Windows.Controls;
@@ -18,18 +18,14 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.Views
             _sceneService = App.ServiceProvider.GetRequiredService<ISceneService>();
         }
 
-        private MainViewModel? VM => DataContext as MainViewModel;
+        private ElementManagementViewModel? VM => DataContext as ElementManagementViewModel;
 
         private void ElementItem_Click(object sender, MouseButtonEventArgs e)
         {
             if (sender is not Border border || border.Tag is not PrecastElement element || VM == null)
                 return;
 
-            VM.SelectedElementName = string.IsNullOrWhiteSpace(element.ElementID)
-                ? "No element selected"
-                : element.ElementID;
-
-            _sceneService.SetSelectedElements(new List<PrecastElement> { element });
+            VM.SelectElement(element);
             e.Handled = true;
         }
     }

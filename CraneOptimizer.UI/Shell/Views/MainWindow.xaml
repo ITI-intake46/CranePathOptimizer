@@ -424,7 +424,7 @@
             </Grid.ColumnDefinitions>
 
             <!--  ── Col 0: Elements list + Properties (F5 module) ───────────  -->
-            <f5:ElementManagementPanel Grid.Column="0" />
+            <f5:ElementManagementPanel Grid.Column="0" DataContext="{Binding ElementManagement}" />
 
             <!--  ── Col 1: Vertical splitter ────────────────────────────────  -->
             <GridSplitter

@@ -19,6 +19,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Windows.Input;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
+using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 
 namespace CraneOptimizer.UI.Shell.ViewModels
 {
@@ -62,7 +63,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CraneSetupViewModel craneSetup,
             ICranePlacementService cranePlacementService,
             ICoordinateTransformService coordinateTransform,
-            ICraneValidationService craneValidationService)
+            ICraneValidationService craneValidationService,
+            ElementManagementViewModel elementManagement)
         {
             Scene = scene;
             Drawing = drawing;
@@ -70,6 +72,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IfcViewer = ifcViewer;
             Dxf = dxf;
             CraneSetup = craneSetup;
+            ElementManagement = elementManagement;
 
             _ifcReader = ifcReader;
             _render = render;
@@ -100,9 +103,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         }
 
-        public ObservableCollection<PrecastElement> Elements { get; } = new();
-        public ObservableCollection<PrecastElement> FilteredElements { get; } = new();
         public ObservableCollection<Crane> Cranes { get; } = new();
+
+        public ElementManagementViewModel ElementManagement { get; }
 
         public CranePlacementViewModel CranePlacement { get; }
         public DrawingViewModel Drawing { get; }
@@ -238,15 +241,6 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
             _sceneElements.Clear();
             _sceneElements.AddRange(elements);
-
-            Elements.Clear();
-            FilteredElements.Clear();
-
-            foreach (var e in elements)
-            {
-                Elements.Add(e);
-                FilteredElements.Add(e);
-            }
 
             if (_sceneElements.Count == 0)
             {
@@ -560,13 +554,6 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         {
             get => _isModelLoaded;
             set { _isModelLoaded = value; OnPropertyChanged(); }
-        }
-
-        private string _selectedElementName = string.Empty;
-        public string SelectedElementName
-        {
-            get => _selectedElementName;
-            set { _selectedElementName = value; OnPropertyChanged(); }
         }
 
         private string _renderQualityLabel = "STD";
