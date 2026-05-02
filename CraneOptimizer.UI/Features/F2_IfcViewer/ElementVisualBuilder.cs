@@ -22,11 +22,16 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
     {
         private readonly IIfcReaderRepository? _ifcReader;
         private readonly DomainPoint3D? _origin;
+        private readonly DomainPoint3D? _placementOffset;
 
-        public ElementVisualBuilder(IIfcReaderRepository? ifcReader = null, DomainPoint3D? origin = null)
+        public ElementVisualBuilder(
+            IIfcReaderRepository? ifcReader = null,
+            DomainPoint3D? origin = null,
+            DomainPoint3D? placementOffset = null)
         {
             _ifcReader = ifcReader;
             _origin = origin;
+            _placementOffset = placementOffset;
         }
 
         public Visual3D Build((PrecastElement element, LiftStatus? status) item)
@@ -41,8 +46,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         ///   1. Use model.ModelFactors.OneMeter for scaling (xBIM-computed, reliable)
         ///   2. Iterate ALL shape instances, filter only by product label
         ///   3. Cast to IXbimShapeGeometryData for raw byte[] ShapeData
-        ///   4. Divide coordinates by OneMeter to get meters (reference approach)
-        ///      then multiply by 1000 to convert to our mm-based viewport
+        ///   4. Divide coordinates by OneMeter to get meters, then convert once to millimeters
+        ///      because this viewport/grid works in millimeter-sized scene units
         /// </summary>
         public Visual3D BuildBatch(IEnumerable<(PrecastElement element, LiftStatus? status)> items)
         {
@@ -79,7 +84,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 {
                     var gid = p.GlobalId.ToString();
                     if (!string.IsNullOrEmpty(gid) && elementMap.ContainsKey(gid))
+                    {
                         labelToGid[p.EntityLabel] = gid;
+                        AddChildProductLabels(p, gid, labelToGid);
+                    }
                 }
 
                 Debug.WriteLine($"[ElementVisualBuilder] Mapped {labelToGid.Count} product labels to GlobalIds");
@@ -96,9 +104,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
                 Debug.WriteLine($"[ElementVisualBuilder] Found {allInstances.Count} shape instances to render");
 
-                // Convert origin from mm to meters (our origin is stored in mm by ConvertLength,
-                // but we'll render in meters first then scale the whole batch to mm)
-                var originMm = _origin ?? new DomainPoint3D(0, 0, 0);
+                var origin = _origin ?? new DomainPoint3D(0, 0, 0);
+                var placementOffset = _placementOffset ?? new DomainPoint3D(0, 0, 0);
 
                 int successCount = 0;
                 int failCount = 0;
@@ -118,9 +125,14 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                         var gid = labelToGid[si.IfcProductLabel];
                         var (el, st, col) = elementMap[gid];
 
-                        // Build mesh using EXACTLY the reference code's approach:
-                        //   wp / oneMeter → meters, then * 1000 → millimeters
-                        var mesh = CreateMeshFlat(shapeGeom.ShapeData, si.Transformation, oneMeter, originMm);
+                        // Build mesh using the reference code's xBIM approach:
+                        //   wp / oneMeter -> meters, then convert once to millimeters.
+                        var mesh = CreateMeshFlat(
+                            shapeGeom.ShapeData,
+                            si.Transformation,
+                            oneMeter,
+                            origin,
+                            placementOffset);
                         if (mesh == null || mesh.Positions.Count == 0)
                         {
                             failCount++;
@@ -150,13 +162,13 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
                 Debug.WriteLine($"[ElementVisualBuilder] Rendered {successCount} shapes, {failCount} failed");
 
-                // Fallback: any elements that had no shape instances → draw bounding box
+                // Do not draw normal missing elements as bounding boxes here. A large
+                // assembly box can look like a stretched column and hide the real mesh.
                 foreach (var item in itemsList)
                 {
                     if (!renderedElements.Contains(item.element.ElementID))
                     {
-                        Debug.WriteLine($"[ElementVisualBuilder] Fallback box for: {item.element.ElementID}");
-                        BuildFallbackBox(batchGroup, item.element, item.status);
+                        Debug.WriteLine($"[ElementVisualBuilder] No xBIM shape geometry for: {item.element.ElementID}");
                     }
                 }
             }
@@ -172,15 +184,50 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             return new ModelVisual3D { Content = batchGroup };
         }
 
+        private static void AddChildProductLabels(
+            IIfcProduct product,
+            string owningGlobalId,
+            Dictionary<int, string> labelToGid)
+        {
+            var visited = new HashSet<int>();
+            AddChildProductLabels(product, owningGlobalId, labelToGid, visited);
+        }
+
+        private static void AddChildProductLabels(
+            IIfcProduct product,
+            string owningGlobalId,
+            Dictionary<int, string> labelToGid,
+            HashSet<int> visited)
+        {
+            if (!visited.Add(product.EntityLabel))
+                return;
+
+            var children = product.IsDecomposedBy?
+                .SelectMany(rel => rel.RelatedObjects)
+                .OfType<IIfcProduct>() ?? Enumerable.Empty<IIfcProduct>();
+
+            foreach (var child in children)
+            {
+                if (!labelToGid.ContainsKey(child.EntityLabel))
+                    labelToGid[child.EntityLabel] = owningGlobalId;
+
+                AddChildProductLabels(child, owningGlobalId, labelToGid, visited);
+            }
+        }
+
         /// <summary>
         /// Creates a mesh from raw xBIM binary shape data.
-        /// Uses EXACTLY the same math as the reference code's CreateMeshFlat:
+        /// Uses the same xBIM transform order as the reference code's CreateMeshFlat:
         ///   wp = matrix.Transform(vertex)
-        ///   result = wp / oneMeter              → meters
-        ///   result = result * 1000 - originMm   → millimeters with origin offset
+        ///   result = wp / oneMeter * 1000       -> millimeters
+        ///   result = result + placement - origin
         /// </summary>
         private static System.Windows.Media.Media3D.MeshGeometry3D? CreateMeshFlat(
-            byte[] shapeData, XbimMatrix3D matrix, double oneMeter, DomainPoint3D originMm)
+            byte[] shapeData,
+            XbimMatrix3D matrix,
+            double oneMeter,
+            DomainPoint3D origin,
+            DomainPoint3D placementOffset)
         {
             var positions = new Point3DCollection();
             var normals = new Vector3DCollection();
@@ -192,22 +239,17 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             var xbimMesh = br.ReadShapeTriangulation();
             if (xbimMesh == null) return null;
 
-            // EXACTLY the reference code's vertex transformation:
-            //   wp / oneMeter  →  meters
-            // Then we convert meters to mm for our viewport:
-            //   meters * 1000  →  mm
-            // Then subtract origin (already in mm):
+            // xBIM gives local vertices plus the shape-instance transform.
+            // Convert to millimeters exactly once so the mesh matches the extracted
+            // IFC metadata and the existing viewport/grid scale.
             var tv = xbimMesh.Vertices
                 .Select(v =>
                 {
                     var wp = matrix.Transform(new XbimPoint3D(v.X, v.Y, v.Z));
-                    double xM = wp.X / oneMeter;
-                    double yM = wp.Y / oneMeter;
-                    double zM = wp.Z / oneMeter;
                     return new Point3D(
-                        xM * 1000.0 - originMm.X,
-                        yM * 1000.0 - originMm.Y,
-                        zM * 1000.0 - originMm.Z);
+                        wp.X / oneMeter * 1000.0 + placementOffset.X - origin.X,
+                        wp.Y / oneMeter * 1000.0 + placementOffset.Y - origin.Y,
+                        wp.Z / oneMeter * 1000.0 + placementOffset.Z - origin.Z);
                 })
                 .ToArray();
 

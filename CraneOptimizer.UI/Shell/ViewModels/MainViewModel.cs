@@ -298,9 +298,17 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
             Debug.WriteLine("Rendering Elements: " + _sceneElements.Count);
 
+            var pendingPlacement = IfcViewer.PendingPlacementPoint;
+            var placementOffset = pendingPlacement.HasValue
+                ? new DomainPoint3D(
+                    pendingPlacement.Value.X,
+                    pendingPlacement.Value.Y,
+                    pendingPlacement.Value.Z)
+                : null;
+
             _render.Render(
                 _sceneElements.Select(e => (e, (LiftStatus?)null)),
-                new ElementVisualBuilder(_ifcReader, OriginPoint),
+                new ElementVisualBuilder(_ifcReader, OriginPoint, placementOffset),
                 "Elements"
             );
 
