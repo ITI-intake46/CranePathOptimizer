@@ -27,6 +27,10 @@ namespace CraneOptimizer.UI.Shell.Views
         private double _gridCenterXMillimeters;
         private double _gridCenterYMillimeters;
 
+        private const double DefaultGridSizeMeters = 50.0;
+        private const double GridPaddingFactor = 1.2;
+        private const double GridRoundStepMeters = 5.0;
+
         private readonly OsnapPanelViewModel _osnapVm;
         private readonly IOsnapService _osnapService;
         private readonly OsnapGeometryBridge _osnapBridge;
@@ -40,7 +44,7 @@ namespace CraneOptimizer.UI.Shell.Views
             OsnapPanelViewModel osnapVm,
             IOsnapService osnapService,
             OsnapGeometryBridge osnapBridge,
-            CraneSetupViewModel craneSetup)
+            CraneSetupViewModel craneSetup,
             IElementGridSizingService elementGridSizingService)
         {
             InitializeComponent();
@@ -378,7 +382,7 @@ namespace CraneOptimizer.UI.Shell.Views
 
         private void OsnapDropBtn_Click(object sender, RoutedEventArgs e)
         {
-            OsnapPopup.IsOpen = true;
+            //OsnapPopup.IsOpen = true;
         }
 
         private void StatusOsnapMaster_Click(object sender, RoutedEventArgs e)
