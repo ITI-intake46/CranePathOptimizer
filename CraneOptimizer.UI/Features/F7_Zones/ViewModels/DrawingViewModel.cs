@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
@@ -179,15 +179,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
                 _render.ClearLayer("Preview");
                 return;
             }
-            var elements = _scene.GetElements();
 
-            double minX = elements.Min(e => e.ElementCOG.X);
-            double maxX = elements.Max(e => e.ElementCOG.X);
-
-            double sceneSize = maxX - minX;
-
-            // radius = 2% من حجم المشروع
-            double adaptiveRadius = sceneSize * 0.02;
             _render.Render(
                 new[] { previewPoints },
                 new PreviewLinesBuilder(),

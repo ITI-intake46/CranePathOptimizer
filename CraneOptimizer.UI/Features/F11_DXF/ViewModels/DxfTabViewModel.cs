@@ -45,6 +45,13 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
         public ICommand SelectCommand         { get; }
         public ICommand SelectAllCommand      { get; }
 
+        // ── Events ────────────────────────────────────────────────────────
+        /// <summary>
+        /// Fired after a DXF file has been successfully loaded into the viewport.
+        /// Subscribers (e.g. OsnapGeometryBridge) use this to refresh snap geometry.
+        /// </summary>
+        public event Action<DxfUploader>? DxfLoaded;
+
         // ── Constructor ───────────────────────────────────────────────────
         public DxfTabViewModel()
         {
@@ -147,6 +154,10 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
 
             HasDxfLoaded  = true;
             StatusMessage = $"Loaded: {LoadedFileName}";
+
+            // Notify subscribers (e.g. OsnapGeometryBridge) that snap geometry is ready
+            if (_uploader != null)
+                DxfLoaded?.Invoke(_uploader);
 
             // Open the alignment dialog immediately — uploader is now pre-loaded
             ExecuteAlign();

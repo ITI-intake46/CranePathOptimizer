@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:helix="http://helix-toolkit.org/wpf"
+    xmlns:osnap="clr-namespace:CraneOptimizer.UI.Features.F15_ObjectSnap.Views"
     xmlns:nav="clr-namespace:CraneOptimizer.UI.Shared.Layouts"
     Title="IFC Building Analyzer — Crane Planner Edition"
     Width="1600"
@@ -809,6 +810,15 @@
                             </ModelVisual3D>
                         </helix:HelixViewport3D>
 
+                        <!--  ── OSNAP INDICATOR OVERLAY ──────────────────────
+                              Transparent Canvas floats above the 3D viewport.
+                              IsHitTestVisible=False means ALL mouse events still
+                              reach the HelixViewport3D below it.                   -->
+                        <Canvas x:Name="OsnapOverlayCanvas"
+                                IsHitTestVisible="False"
+                                Background="Transparent"
+                                ClipToBounds="True"/>
+
                         <!--  🔥 IFC LOADING OVERLAY  -->
                         <Border Background="#AA000000" Visibility="{Binding IfcViewer.IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
 
@@ -1084,205 +1094,10 @@
                     Margin="8,0"
                     Fill="{DynamicResource BorderBrush}" />
 
-                <!--  Col 6: OSnap drop button  -->
-                <ToggleButton
-                    x:Name="OsnapDropBtn"
-                    Grid.Column="6"
-                    Height="16"
-                    Padding="5,0"
-                    VerticalAlignment="Center"
-                    Click="OsnapDropBtn_Click"
-                    Style="{StaticResource StatusOsnapBtn}"
-                    ToolTip="Object Snap settings">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeXS}"
-                            FontWeight="SemiBold"
-                            Text="OSN" />
-                        <TextBlock
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeXS}"
-                            Text=" ▾" />
-                    </StackPanel>
-                </ToggleButton>
-
-                <!--  OSnap Popup  -->
-                <Popup
-                    x:Name="OsnapPopup"
-                    AllowsTransparency="True"
-                    Placement="Top"
-                    PlacementTarget="{Binding ElementName=OsnapDropBtn}"
-                    StaysOpen="False"
-                    VerticalOffset="-4">
-                    <Border
-                        MinWidth="280"
-                        Background="{DynamicResource SurfaceElevatedBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="4">
-                        <StackPanel>
-                            <Border
-                                Padding="10,7"
-                                Background="{DynamicResource SurfaceBrush}"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,0,0,1"
-                                CornerRadius="4,4,0,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <ToggleButton
-                                        x:Name="StatusOsnapMaster"
-                                        Height="16"
-                                        Padding="4,0"
-                                        Click="StatusOsnapMaster_Click"
-                                        IsChecked="True"
-                                        Style="{StaticResource StatusOsnapBtn}">
-                                        <TextBlock
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeXS}"
-                                            FontWeight="Bold"
-                                            Text="OBJECT SNAP" />
-                                    </ToggleButton>
-                                    <TextBlock
-                                        VerticalAlignment="Center"
-                                        FontFamily="{StaticResource FontPrimary}"
-                                        FontSize="{StaticResource FontSizeXS}"
-                                        Foreground="{DynamicResource TextDisabledBrush}"
-                                        Text="  — toggle individual snaps below" />
-                                </StackPanel>
-                            </Border>
-                            <UniformGrid
-                                Width="264"
-                                Margin="8,8,8,10"
-                                Columns="2">
-                                <ToggleButton
-                                    x:Name="StatusOsnapEnd"
-                                    Margin="0,0,4,4"
-                                    Click="StatusOsnap_Click"
-                                    IsChecked="True"
-                                    Style="{StaticResource OsnapPopupItem}"
-                                    Tag="Endpoint"
-                                    ToolTip="Snap to Endpoint">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeSM}"
-                                            Text="Endpoint" />
-                                        <TextBlock
-                                            VerticalAlignment="Center"
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeXS}"
-                                            Foreground="{DynamicResource TextDisabledBrush}"
-                                            Text="  END" />
-                                    </StackPanel>
-                                </ToggleButton>
-                                <ToggleButton
-                                    x:Name="StatusOsnapMid"
-                                    Margin="0,0,0,4"
-                                    Click="StatusOsnap_Click"
-                                    IsChecked="True"
-                                    Style="{StaticResource OsnapPopupItem}"
-                                    Tag="Midpoint"
-                                    ToolTip="Snap to Midpoint">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeSM}"
-                                            Text="Midpoint" />
-                                        <TextBlock
-                                            VerticalAlignment="Center"
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeXS}"
-                                            Foreground="{DynamicResource TextDisabledBrush}"
-                                            Text="  MID" />
-                                    </StackPanel>
-                                </ToggleButton>
-                                <ToggleButton
-                                    x:Name="StatusOsnapInt"
-                                    Margin="0,0,4,4"
-                                    Click="StatusOsnap_Click"
-                                    IsChecked="False"
-                                    Style="{StaticResource OsnapPopupItem}"
-                                    Tag="Intersection"
-                                    ToolTip="Snap to Intersection">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeSM}"
-                                            Text="Intersection" />
-                                        <TextBlock
-                                            VerticalAlignment="Center"
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeXS}"
-                                            Foreground="{DynamicResource TextDisabledBrush}"
-                                            Text="  INT" />
-                                    </StackPanel>
-                                </ToggleButton>
-                                <ToggleButton
-                                    x:Name="StatusOsnapPer"
-                                    Margin="0,0,0,4"
-                                    Click="StatusOsnap_Click"
-                                    IsChecked="False"
-                                    Style="{StaticResource OsnapPopupItem}"
-                                    Tag="Perpendicular"
-                                    ToolTip="Snap Perpendicular">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeSM}"
-                                            Text="Perpendicular" />
-                                        <TextBlock
-                                            VerticalAlignment="Center"
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeXS}"
-                                            Foreground="{DynamicResource TextDisabledBrush}"
-                                            Text="  PER" />
-                                    </StackPanel>
-                                </ToggleButton>
-                                <ToggleButton
-                                    x:Name="StatusOsnapGrid"
-                                    Margin="0,0,4,0"
-                                    Click="StatusOsnap_Click"
-                                    IsChecked="True"
-                                    Style="{StaticResource OsnapPopupItem}"
-                                    Tag="Grid"
-                                    ToolTip="Snap to Grid">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeSM}"
-                                            Text="Grid" />
-                                        <TextBlock
-                                            VerticalAlignment="Center"
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeXS}"
-                                            Foreground="{DynamicResource TextDisabledBrush}"
-                                            Text="  GRID" />
-                                    </StackPanel>
-                                </ToggleButton>
-                                <ToggleButton
-                                    x:Name="StatusOsnapNea"
-                                    Click="StatusOsnap_Click"
-                                    IsChecked="False"
-                                    Style="{StaticResource OsnapPopupItem}"
-                                    Tag="Nearest"
-                                    ToolTip="Snap to Nearest point">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeSM}"
-                                            Text="Nearest" />
-                                        <TextBlock
-                                            VerticalAlignment="Center"
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeXS}"
-                                            Foreground="{DynamicResource TextDisabledBrush}"
-                                            Text="  NEA" />
-                                    </StackPanel>
-                                </ToggleButton>
-                            </UniformGrid>
-                        </StackPanel>
-                    </Border>
-                </Popup>
+                <!--  Col 6: OSnap panel (bound to OsnapPanelViewModel via code-behind)  -->
+                <osnap:OsnapStatusPanel x:Name="OsnapPanel"
+                                        Grid.Column="6"
+                                        VerticalAlignment="Center"/>
 
                 <!--  Col 7: Separator  -->
                 <Rectangle
