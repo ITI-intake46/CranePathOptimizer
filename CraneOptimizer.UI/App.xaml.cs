@@ -13,6 +13,7 @@ using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
+using CraneOptimizer.UI.Features.F5_ElementManagement.Services;
 using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
@@ -72,6 +73,7 @@ namespace CraneOptimizer.UI
             // Core Services
             // =========================
             services.AddSingleton<IDialogService, DialogService>();
+            services.AddSingleton<IElementGridSizingService, ElementGridSizingService>();
 
             // =========================
             // F10 Project Management
