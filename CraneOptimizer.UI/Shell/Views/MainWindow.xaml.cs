@@ -2,6 +2,10 @@ using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Views;
 using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones;
 using CraneOptimizer.UI.Shell.ViewModels;
@@ -26,19 +30,19 @@ namespace CraneOptimizer.UI.Shell.Views
         private double _gridCenterXMillimeters;
         private double _gridCenterYMillimeters;
 
-        //private readonly OsnapPanelViewModel _osnapVm;
-        //private readonly IOsnapService _osnapService;
-        //private readonly OsnapGeometryBridge _osnapBridge;
-        //private OsnapIndicator? _osnapIndicator;
+        private readonly OsnapPanelViewModel _osnapVm;
+        private readonly IOsnapService _osnapService;
+        private readonly OsnapGeometryBridge _osnapBridge;
+        private OsnapIndicator? _osnapIndicator;
         // ← NEW
 
         public MainWindow(
             MainViewModel vm,
             IRenderingService renderingService,
             ISceneService sceneService,
-//            OsnapPanelViewModel osnapVm,
-//IOsnapService osnapService,
-//OsnapGeometryBridge osnapBridge,
+            OsnapPanelViewModel osnapVm,
+            IOsnapService osnapService,
+            OsnapGeometryBridge osnapBridge,
             CraneSetupViewModel craneSetup)
         {
             InitializeComponent();
@@ -47,28 +51,28 @@ namespace CraneOptimizer.UI.Shell.Views
             _sceneService = sceneService;
             _craneSetup = craneSetup;                // ← NEW
 
-            //_osnapVm = osnapVm;
-            //_osnapService = osnapService;
-            //_osnapBridge = osnapBridge;   // activates scene-event subscriptions
+            _osnapVm = osnapVm;
+            _osnapService = osnapService;
+            _osnapBridge = osnapBridge;   // activates scene-event subscriptions
 
             DataContext = vm;
 
-            //// Give the embedded OsnapStatusPanel its own ViewModel
-            //OsnapPanel.DataContext = osnapVm;
+            // Give the embedded OsnapStatusPanel its own ViewModel
+            OsnapPanel.DataContext = osnapVm;
 
-            //// Create the AutoCAD-style snap indicator on the overlay canvas
-            //_osnapIndicator = new OsnapIndicator(OsnapOverlayCanvas);
+            // Create the AutoCAD-style snap indicator on the overlay canvas
+            _osnapIndicator = new OsnapIndicator(OsnapOverlayCanvas);
 
             _renderingService.Initialize(IfcViewer);
 
-            //_osnapBridge.AttachViewport(IfcViewer);
+            _osnapBridge.AttachViewport(IfcViewer);
 
-            // Wire the DXF uploader to the same Helix viewport.
+            //Wire the DXF uploader to the same Helix viewport.
             // Mirrors the IRenderingService pattern — must be done after InitializeComponent.
             vm.Dxf.Initialize(IfcViewer);
 
-            //// After DXF loads, push snap points to the bridge so snapping works on DXF geometry
-            //vm.Dxf.DxfLoaded += uploader => _osnapBridge.RefreshDxf(uploader);
+            // After DXF loads, push snap points to the bridge so snapping works on DXF geometry
+            vm.Dxf.DxfLoaded += uploader => _osnapBridge.RefreshDxf(uploader);
 
             _sceneService.ZoneAdded += OnZoneAdded;
             _sceneService.ZoneSelected += OnZoneSelected;
@@ -176,20 +180,18 @@ namespace CraneOptimizer.UI.Shell.Views
             if (viewport == null) return;
             //if (sender is not HelixViewport3D viewport) return;
 
-            //// Get position relative to the HelixViewport3D — this matches
-            //// the OsnapOverlayCanvas coordinate space (sibling in same Grid cell)
-            //// so snap markers are positioned correctly.
+            // Get position relative to the HelixViewport3D — this matches
+            // the OsnapOverlayCanvas coordinate space (sibling in same Grid cell)
+            // so snap markers are positioned correctly.
             var screen = e.GetPosition(viewport);
 
-            //// ── OSnap indicator: pass screen cursor directly (screen-space engine) ──
-            //if (_osnapIndicator != null)
-            //{
-            //    var result = _osnapService.Snap(screen, viewport);
-            //    _osnapIndicator.Update(result);
-            //}
+            // ── OSnap indicator: pass screen cursor directly (screen-space engine) ──
+            if (_osnapIndicator != null)
+            {
+                var result = _osnapService.Snap(screen, viewport);
+                _osnapIndicator.Update(result);
+            }
 
-            //// ── Drawing hover point ───
-            //var screen = e.GetPosition(viewport);
             if (!TryGetWorldPoint(viewport, screen, out var world))
                 return;
 
@@ -376,25 +378,18 @@ namespace CraneOptimizer.UI.Shell.Views
             //OsnapPopup.IsOpen = true;
         }
 
-        private void StatusOsnapMaster_Click(object sender, RoutedEventArgs e) { }
-        private void StatusOsnap_Click(object sender, RoutedEventArgs e) { }
-        //private void OsnapDropBtn_Click(object sender, RoutedEventArgs e)
-        //{
-        //    // Kept for XAML event wiring — actual popup is now inside OsnapStatusPanel UserControl.
-        //}
+        private void StatusOsnapMaster_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is ToggleButton tb)
+                _osnapVm.MasterEnabled = tb.IsChecked == true;
+        }
 
-        //private void StatusOsnapMaster_Click(object sender, RoutedEventArgs e)
-        //{
-        //    if (sender is ToggleButton tb)
-        //        _osnapVm.MasterEnabled = tb.IsChecked == true;
-        //}
-
-        //private void StatusOsnap_Click(object sender, RoutedEventArgs e)
-        //{
-        //    if (sender is ToggleButton btn && btn.Tag is string snapName
-        //        && Enum.TryParse<OsnapType>(snapName, out var snapType))
-        //        _osnapVm.SetSnapEnabled(snapType, btn.IsChecked == true);
-        //}
+        private void StatusOsnap_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is ToggleButton btn && btn.Tag is string snapName
+                && Enum.TryParse<OsnapType>(snapName, out var snapType))
+                _osnapVm.SetSnapEnabled(snapType, btn.IsChecked == true);
+        }
         private void ShowCommandPanel_Click(object sender, RoutedEventArgs e) { }
         private void ShowLogsPanel_Click(object sender, RoutedEventArgs e) { }
 
