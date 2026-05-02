@@ -247,7 +247,6 @@ namespace CraneOptimizer.UI.Shell.Views
                 if (VM.IfcViewer.PlacePendingIfc(placementPoint))
                 {
                     viewport.UpdateLayout();
-                    viewport.ZoomExtents();
                     e.Handled = true;
                 }
 
@@ -445,10 +444,13 @@ namespace CraneOptimizer.UI.Shell.Views
             var minY = elements.Min(e => e.ElementCOG.Y - ((e.BBoxWidth ?? 0d) / 2d));
             var maxY = elements.Max(e => e.ElementCOG.Y + ((e.BBoxWidth ?? 0d) / 2d));
 
-            var buildingWidthMeters = Math.Max(0d, (maxX - minX) / 1000.0);
-            var buildingLengthMeters = Math.Max(0d, (maxY - minY) / 1000.0);
-            var centerXMillimeters = (minX + maxX) / 2.0;
-            var centerYMillimeters = (minY + maxY) / 2.0;
+            var maxAbsX = Math.Max(Math.Abs(minX), Math.Abs(maxX));
+            var maxAbsY = Math.Max(Math.Abs(minY), Math.Abs(maxY));
+
+            var buildingWidthMeters = Math.Max(0d, (maxAbsX * 2) / 1000.0);
+            var buildingLengthMeters = Math.Max(0d, (maxAbsY * 2) / 1000.0);
+            var centerXMillimeters = 0d;
+            var centerYMillimeters = 0d;
 
             return (
                 CalculateGridAxisMeters(buildingWidthMeters),

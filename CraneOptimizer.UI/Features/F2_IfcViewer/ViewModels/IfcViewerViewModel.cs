@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Interfaces;
+using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
@@ -141,10 +141,20 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             if (!IsPlacementMode || _pendingIfcElements == null || _pendingIfcElements.Count == 0)
                 return false;
 
-            PendingPlacementPoint = insertionPoint;
+            var minX = _pendingIfcElements.Min(e => e.ElementCOG.X - ((e.BBoxLength ?? 0d) / 2d));
+            var minY = _pendingIfcElements.Min(e => e.ElementCOG.Y - ((e.BBoxWidth ?? 0d) / 2d));
+            var minZ = _pendingIfcElements.Min(e => e.ElementCOG.Z - ((e.BBoxHeight ?? 0d) / 2d));
+
+            var shiftX = insertionPoint.X - minX;
+            var shiftY = insertionPoint.Y - minY;
+            var shiftZ = insertionPoint.Z - minZ;
+
+            var placementOffset = new Point3D(shiftX, shiftY, shiftZ);
+
+            PendingPlacementPoint = placementOffset;
 
             var placedElements = _pendingIfcElements
-                .Select(element => TranslateElement(element, insertionPoint))
+                .Select(element => TranslateElement(element, placementOffset))
                 .ToList();
 
             Debug.WriteLine($"IFC Placed At: {insertionPoint.X:F3}, {insertionPoint.Y:F3}, {insertionPoint.Z:F3}");
