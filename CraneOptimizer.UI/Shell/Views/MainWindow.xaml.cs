@@ -14,9 +14,16 @@ namespace CraneOptimizer.UI.Shell.Views
 {
     public partial class MainWindow : Window
     {
+        private const double DefaultGridSizeMeters = 50d;
+        private const double GridPaddingFactor = 1.2d;
+        private const double GridRoundStepMeters = 10d;
+
         private readonly IRenderingService _renderingService;
         private readonly ISceneService _sceneService;
         private CraneSetupViewModel? _craneSetup;
+        private bool _manualGridSize;
+        private double _gridCenterXMillimeters;
+        private double _gridCenterYMillimeters;
         // ← NEW
 
         public MainWindow(
@@ -46,7 +53,10 @@ namespace CraneOptimizer.UI.Shell.Views
             _sceneService.ZoneUpdated += OnZoneChanged;
             _sceneService.ZonesCleared += OnZonesCleared;
 
+            _sceneService.ElementsChanged += OnElementsChanged;
             _sceneService.CraneSelected += OnCraneSelected;
+
+            SetGridText(DefaultGridSizeMeters, DefaultGridSizeMeters);
         }
 
         private MainViewModel? VM => DataContext as MainViewModel;
@@ -56,6 +66,22 @@ namespace CraneOptimizer.UI.Shell.Views
         private void OnZoneChanged(GreenAreaZone zone) => RenderZones();
 
         private void OnZonesCleared() => RenderZones();
+
+        private void OnElementsChanged(List<PrecastElement> elements)
+        {
+            if (_manualGridSize)
+                return;
+
+            var (widthMeters, lengthMeters, centerXMillimeters, centerYMillimeters) = CalculateGridSizeMeters(elements);
+            _gridCenterXMillimeters = centerXMillimeters;
+            _gridCenterYMillimeters = centerYMillimeters;
+            SetGridText(widthMeters, lengthMeters);
+            _renderingService.SetGridSize(
+                widthMeters * 1000.0,
+                lengthMeters * 1000.0,
+                _gridCenterXMillimeters,
+                _gridCenterYMillimeters);
+        }
 
         private void RenderZones()
         {
@@ -115,6 +141,7 @@ namespace CraneOptimizer.UI.Shell.Views
             _sceneService.ZoneRemoved -= OnZoneChanged;
             _sceneService.ZoneUpdated -= OnZoneChanged;
             _sceneService.ZonesCleared -= OnZonesCleared;
+            _sceneService.ElementsChanged -= OnElementsChanged;
             _sceneService.CraneSelected -= OnCraneSelected;
 
             base.OnClosed(e);
@@ -317,6 +344,79 @@ namespace CraneOptimizer.UI.Shell.Views
 
         private void ShowCommandPanel_Click(object sender, RoutedEventArgs e) { }
         private void ShowLogsPanel_Click(object sender, RoutedEventArgs e) { }
+
+        private void ApplyGridSize_Click(object sender, RoutedEventArgs e)
+        {
+            if (!TryReadGridSizeMeters(out var widthMeters, out var lengthMeters))
+            {
+                VM!.StatusText = "Grid size must be positive numbers in meters.";
+                return;
+            }
+
+            _manualGridSize = true;
+            _renderingService.SetGridSize(
+                widthMeters * 1000.0,
+                lengthMeters * 1000.0,
+                _gridCenterXMillimeters,
+                _gridCenterYMillimeters);
+            VM!.StatusText = $"Grid size set to {widthMeters:F0}m x {lengthMeters:F0}m.";
+        }
+
+        private void AutoGridSize_Click(object sender, RoutedEventArgs e)
+        {
+            _manualGridSize = false;
+            OnElementsChanged(_sceneService.GetElements());
+            VM!.StatusText = "Grid size set from building extents.";
+        }
+
+        private bool TryReadGridSizeMeters(out double widthMeters, out double lengthMeters)
+        {
+            var hasWidth = double.TryParse(GridSizeXTextBox.Text, out widthMeters);
+            var hasLength = double.TryParse(GridSizeYTextBox.Text, out lengthMeters);
+
+            return hasWidth
+                && hasLength
+                && widthMeters > 0
+                && lengthMeters > 0;
+        }
+
+        private void SetGridText(double widthMeters, double lengthMeters)
+        {
+            GridSizeXTextBox.Text = widthMeters.ToString("0");
+            GridSizeYTextBox.Text = lengthMeters.ToString("0");
+        }
+
+        private static (double widthMeters, double lengthMeters, double centerXMillimeters, double centerYMillimeters)
+            CalculateGridSizeMeters(IReadOnlyList<PrecastElement> elements)
+        {
+            if (elements.Count == 0)
+                return (DefaultGridSizeMeters, DefaultGridSizeMeters, 0d, 0d);
+
+            var minX = elements.Min(e => e.ElementCOG.X - ((e.BBoxLength ?? 0d) / 2d));
+            var maxX = elements.Max(e => e.ElementCOG.X + ((e.BBoxLength ?? 0d) / 2d));
+            var minY = elements.Min(e => e.ElementCOG.Y - ((e.BBoxWidth ?? 0d) / 2d));
+            var maxY = elements.Max(e => e.ElementCOG.Y + ((e.BBoxWidth ?? 0d) / 2d));
+
+            var buildingWidthMeters = Math.Max(0d, (maxX - minX) / 1000.0);
+            var buildingLengthMeters = Math.Max(0d, (maxY - minY) / 1000.0);
+            var centerXMillimeters = (minX + maxX) / 2.0;
+            var centerYMillimeters = (minY + maxY) / 2.0;
+
+            return (
+                CalculateGridAxisMeters(buildingWidthMeters),
+                CalculateGridAxisMeters(buildingLengthMeters),
+                centerXMillimeters,
+                centerYMillimeters);
+        }
+
+        private static double CalculateGridAxisMeters(double buildingAxisMeters)
+        {
+            if (buildingAxisMeters <= DefaultGridSizeMeters)
+                return DefaultGridSizeMeters;
+
+            var padded = buildingAxisMeters * GridPaddingFactor;
+            return Math.Ceiling(padded / GridRoundStepMeters) * GridRoundStepMeters;
+        }
 
 
 
