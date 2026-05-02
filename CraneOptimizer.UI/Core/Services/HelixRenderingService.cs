@@ -1,6 +1,7 @@
 using CraneOptimizer.UI.Core.Interfaces;
 using HelixToolkit.Wpf;
 using System.Windows.Media;
+using System.Windows;
 using System.Windows.Media.Media3D;
 
 namespace CraneOptimizer.UI.Core.Services
@@ -214,6 +215,54 @@ namespace CraneOptimizer.UI.Core.Services
         // =========================
         // Render with Layer
         // =========================
+        //public void Render<T>(IEnumerable<T> items, IVisualBuilder<T> builder, string layerKey)
+        //{
+        //    EnsureInitialized();
+
+        //    ClearLayer(layerKey);
+
+        //    var visuals = new List<Visual3D>();
+
+        //    // Use the high-performance batch builder
+        //    var batchVisual = builder.BuildBatch(items);
+        //    _viewport!.Children.Add(batchVisual);
+        //    visuals.Add(batchVisual);
+
+        //    _layers[layerKey] = visuals;
+
+        //    if (layerKey == "Elements")
+        //    {
+        //        _viewport!.UpdateLayout();
+        //        _viewport.ZoomExtents();
+        //    }
+        //}
+
+        //public void Render<T>(IEnumerable<T> items, IVisualBuilder<T> builder, string layerKey)
+        //{
+        //    EnsureInitialized();
+
+        //    ClearLayer(layerKey);
+
+        //    var visuals = new List<Visual3D>();
+
+        //    foreach (var item in items)
+        //    {
+        //        var visual = builder.Build(item);
+        //        // Tag visuals by layer so OSnap can selectively harvest meshes (e.g. IFC elements only).
+        //        if (visual is ModelVisual3D mv)
+        //            mv.SetValue(FrameworkElement.TagProperty, layerKey);
+        //        _viewport!.Children.Add(visual);
+        //        visuals.Add(visual);
+        //    }
+
+        //    _layers[layerKey] = visuals;
+
+        //    if (layerKey == "Elements")
+        //    {
+        //        _viewport!.UpdateLayout();
+        //        _viewport.ZoomExtents();
+        //    }
+        //}
         public void Render<T>(IEnumerable<T> items, IVisualBuilder<T> builder, string layerKey)
         {
             EnsureInitialized();
@@ -222,10 +271,32 @@ namespace CraneOptimizer.UI.Core.Services
 
             var visuals = new List<Visual3D>();
 
-            // Use the high-performance batch builder
+            // Try batch first (for performance)
             var batchVisual = builder.BuildBatch(items);
-            _viewport!.Children.Add(batchVisual);
-            visuals.Add(batchVisual);
+
+            if (batchVisual != null)
+            {
+                // Tag the whole batch (fallback tagging)
+                if (batchVisual is ModelVisual3D mv)
+                    mv.SetValue(FrameworkElement.TagProperty, layerKey);
+
+                _viewport!.Children.Add(batchVisual);
+                visuals.Add(batchVisual);
+            }
+            else
+            {
+                // Fallback to per-item rendering (for features like OSnap)
+                foreach (var item in items)
+                {
+                    var visual = builder.Build(item);
+
+                    if (visual is ModelVisual3D mv)
+                        mv.SetValue(FrameworkElement.TagProperty, layerKey);
+
+                    _viewport!.Children.Add(visual);
+                    visuals.Add(visual);
+                }
+            }
 
             _layers[layerKey] = visuals;
 
