@@ -161,7 +161,7 @@
                         Style="{StaticResource ToolbarButton}"
                         ToolTip="Undo (Ctrl+Z)">
                         <TextBlock
-                            FontSize="12"
+                            FontSize="{StaticResource FontSizeSM}"
                             FontWeight="Bold"
                             Foreground="{DynamicResource TextSecondaryBrush}"
                             Text="↩" />
@@ -182,7 +182,7 @@
                         Style="{StaticResource ToolbarButton}"
                         ToolTip="Redo (Ctrl+Y)">
                         <TextBlock
-                            FontSize="12"
+                            FontSize="{StaticResource FontSizeSM}"
                             FontWeight="Bold"
                             Foreground="{DynamicResource TextSecondaryBrush}"
                             Text="↪" />
@@ -646,16 +646,17 @@
                                 ClipToBounds="True"/>
 
                         <!--  🔥 IFC LOADING OVERLAY  -->
-                        <Border Background="#AA000000" Visibility="{Binding IfcViewer.IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <Border Background="{DynamicResource SurfaceOverlayBrush}" Visibility="{Binding IfcViewer.IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
 
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
 
                                 <TextBlock
                                     Margin="0,0,0,10"
                                     HorizontalAlignment="Center"
-                                    FontSize="16"
+                                    FontFamily="{StaticResource FontPrimary}"
+                                    FontSize="{StaticResource FontSizeLG}"
                                     FontWeight="SemiBold"
-                                    Foreground="White"
+                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                     Text="{Binding IfcViewer.Status}" />
 
                                 <ProgressBar
@@ -679,7 +680,7 @@
                             Visibility="{Binding IfcViewer.IsPlacementMode, Converter={StaticResource BoolToVisibilityConverter}}">
                             <TextBlock
                                 FontFamily="{StaticResource FontPrimary}"
-                                FontSize="14"
+                                FontSize="{StaticResource FontSizeSM}"
                                 FontWeight="SemiBold"
                                 Foreground="{DynamicResource TextPrimaryBrush}"
                                 Text="Click to place IFC. Press Esc to cancel." />
@@ -897,7 +898,7 @@
                                         FontFamily="{StaticResource FontPrimary}"
                                         FontSize="{StaticResource FontSizeSM}"
                                         FontWeight="SemiBold"
-                                        Foreground="#4FC3F7"
+                                        Foreground="{StaticResource PrimaryBrush}"
                                         GroupName="RenderQualityGroup"
                                         ToolTip="High Quality — smoother curves" />
                                     <TextBlock

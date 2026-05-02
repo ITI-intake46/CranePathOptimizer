@@ -1,0 +1,19 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Light.Brushes.xaml — CraneOptimizer Design System
+        Surface/text brushes for the LIGHT theme.
+        ThemeService swaps this file at runtime to switch themes.
+    -->
+
+    <SolidColorBrush x:Key="BackgroundBrush"      Color="#EFEFEF"/>
+    <SolidColorBrush x:Key="SurfaceBrush"         Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="SurfaceElevatedBrush" Color="#F5F5F5"/>
+    <SolidColorBrush x:Key="BorderBrush"          Color="#DDDDDD"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush"     Color="#1A1A1A"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush"   Color="#757575"/>
+    <SolidColorBrush x:Key="TextDisabledBrush"    Color="#BBBBBB"/>
+    <SolidColorBrush x:Key="SurfaceOverlayBrush"  Color="#AAFFFFFF"/>
+
+</ResourceDictionary>

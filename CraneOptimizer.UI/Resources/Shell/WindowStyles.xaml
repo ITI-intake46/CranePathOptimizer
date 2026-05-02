@@ -1,4 +1,18 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    
+
+    <!--
+        WindowStyles.xaml — CraneOptimizer Design System
+        Base Window and root-level element defaults.
+        All colours and fonts from active design tokens — no hardcoded values.
+    -->
+
+    <!-- ── Window base ────────────────────────────────────────────── -->
+    <Style TargetType="Window">
+        <Setter Property="Background"  Value="{DynamicResource BackgroundBrush}"/>
+        <Setter Property="Foreground"  Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="FontFamily"  Value="{StaticResource FontPrimary}"/>
+        <Setter Property="FontSize"    Value="{StaticResource FontSizeBase}"/>
+    </Style>
+
 </ResourceDictionary>

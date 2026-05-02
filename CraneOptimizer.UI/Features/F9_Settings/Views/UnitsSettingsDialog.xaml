@@ -7,31 +7,12 @@
     Height="420"
     Background="{DynamicResource BackgroundBrush}"
     FontFamily="{StaticResource FontPrimary}"
-    FontSize="13"
+    FontSize="{StaticResource FontSizeBase}"
     Foreground="{DynamicResource TextSecondaryBrush}"
     ResizeMode="NoResize"
     WindowStartupLocation="CenterOwner">
 
-    <Window.Resources>
-        <Style x:Key="UnitSectionLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Margin" Value="0,16,0,6" />
-        </Style>
-        <Style x:Key="UnitRowLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Width" Value="130" />
-            <Setter Property="FontSize" Value="12" />
-        </Style>
-        <Style x:Key="HRule" TargetType="Rectangle">
-            <Setter Property="Height" Value="1" />
-            <Setter Property="Fill" Value="{DynamicResource BorderBrush}" />
-            <Setter Property="Margin" Value="0,4,0,0" />
-        </Style>
-    </Window.Resources>
+
 
     <Grid Margin="24,20,24,20">
         <Grid.RowDefinitions>
@@ -48,11 +29,11 @@
             <TextBlock
                 Margin="0,0,10,0"
                 VerticalAlignment="Center"
-                FontSize="20"
+                FontSize="{StaticResource FontSizeLG}"
                 Text="📐" />
             <TextBlock
                 VerticalAlignment="Center"
-                FontSize="18"
+                FontSize="{StaticResource FontSizeLG}"
                 FontWeight="SemiBold"
                 Foreground="{DynamicResource TextPrimaryBrush}"
                 Text="Units Settings" />
@@ -61,22 +42,23 @@
         <TextBlock
             Grid.Row="1"
             Margin="0,6,0,0"
-            FontSize="11"
+            FontSize="{StaticResource FontSizeXS}"
             Foreground="{DynamicResource TextSecondaryBrush}"
             Text="Changes apply immediately to all measurements, crane parameters, zone areas, and grid labels."
             TextWrapping="Wrap" />
 
         <Rectangle
             Grid.Row="2"
+            Height="1"
             Margin="0,14,0,0"
-            Style="{StaticResource HRule}" />
+            Fill="{DynamicResource BorderBrush}" />
 
         <!--  Settings  -->
         <StackPanel Grid.Row="3" Margin="0,4,0,0">
 
-            <TextBlock Style="{StaticResource UnitSectionLabel}" Text="LENGTH" />
+            <TextBlock Style="{StaticResource PanelSectionHeader}" Text="LENGTH" />
             <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
-                <TextBlock Style="{StaticResource UnitRowLabel}" Text="Length unit:" />
+                <TextBlock Style="{StaticResource PropertyLabel}" Width="130" Text="Length unit:" />
                 <ComboBox
                     x:Name="CboLength"
                     Width="280"
@@ -86,7 +68,7 @@
             </StackPanel>
 
             <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
-                <TextBlock Style="{StaticResource UnitRowLabel}" Text="Area unit:" />
+                <TextBlock Style="{StaticResource PropertyLabel}" Width="130" Text="Area unit:" />
                 <ComboBox
                     x:Name="CboArea"
                     Width="280"
@@ -95,9 +77,9 @@
                     Style="{StaticResource DarkComboBox}" />
             </StackPanel>
 
-            <TextBlock Style="{StaticResource UnitSectionLabel}" Text="DISPLAY" />
+            <TextBlock Style="{StaticResource PanelSectionHeader}" Text="DISPLAY" />
             <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
-                <TextBlock Style="{StaticResource UnitRowLabel}" Text="Decimal places:" />
+                <TextBlock Style="{StaticResource PropertyLabel}" Width="130" Text="Decimal places:" />
                 <ComboBox
                     x:Name="CboPrecision"
                     Width="120"
@@ -107,7 +89,7 @@
             </StackPanel>
 
             <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
-                <TextBlock Style="{StaticResource UnitRowLabel}" Text="Display format:" />
+                <TextBlock Style="{StaticResource PropertyLabel}" Width="130" Text="Display format:" />
                 <ComboBox
                     x:Name="CboFormat"
                     Width="280"
@@ -130,14 +112,14 @@
             <StackPanel Orientation="Horizontal">
                 <TextBlock
                     VerticalAlignment="Center"
-                    FontSize="12"
+                    FontSize="{StaticResource FontSizeBase}"
                     Foreground="{DynamicResource TextSecondaryBrush}"
                     Text="Preview: " />
                 <TextBlock
                     x:Name="TxtPreview"
                     VerticalAlignment="Center"
                     FontFamily="Consolas"
-                    FontSize="14"
+                    FontSize="{StaticResource FontSizeSM}"
                     Foreground="{StaticResource SuccessBrush}" />
                 <TextBlock
                     VerticalAlignment="Center"
@@ -147,7 +129,7 @@
                     x:Name="TxtPreviewArea"
                     VerticalAlignment="Center"
                     FontFamily="Consolas"
-                    FontSize="14"
+                    FontSize="{StaticResource FontSizeSM}"
                     Foreground="{StaticResource WarningBrush}" />
             </StackPanel>
         </Border>

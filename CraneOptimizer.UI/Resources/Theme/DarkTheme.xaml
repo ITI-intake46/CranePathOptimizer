@@ -1,4 +1,18 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    
+    <!--
+        DarkTheme.xaml — CraneOptimizer Design System
+        Dark theme entry point. Aggregates all design tokens for dark mode.
+        ThemeService swaps the brush file (Dark.Brushes ↔ Light.Brushes) at runtime.
+        This file is also the design-time preview entry point.
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/CraneOptimizer.UI;component/Resources/Colors.xaml"/>
+        <ResourceDictionary Source="/CraneOptimizer.UI;component/Resources/Brushes.xaml"/>
+        <ResourceDictionary Source="/CraneOptimizer.UI;component/Resources/Typography.xaml"/>
+        <ResourceDictionary Source="/CraneOptimizer.UI;component/Resources/Theme/Dark.Brushes.xaml"/>
+        <ResourceDictionary Source="/CraneOptimizer.UI;component/Resources/DesignSystem/Spacing.xaml"/>
+        <ResourceDictionary Source="/CraneOptimizer.UI;component/Resources/DesignSystem/Controls/ControlStyles.xaml"/>
+        <ResourceDictionary Source="/CraneOptimizer.UI;component/Resources/Shell/ShellStyles.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

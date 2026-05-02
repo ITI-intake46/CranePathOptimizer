@@ -78,7 +78,7 @@
                                         <!-- Popup header -->
                                         <TextBlock Text="Select a Crane"
                                                    FontWeight="SemiBold"
-                                                   FontSize="12"
+                                                   FontSize="{StaticResource FontSizeSM}"
                                                    Margin="0,0,0,6"
                                                    Foreground="{DynamicResource TextPrimaryBrush}"/>
 
@@ -113,7 +113,7 @@
                                                     <StackPanel Orientation="Horizontal">
 
                                                         <TextBlock Text="🏗"
-                                                                   FontSize="14"
+                                                                   FontSize="{StaticResource FontSizeSM}"
                                                                    Margin="0,0,8,0"
                                                                    VerticalAlignment="Center"/>
 
@@ -121,10 +121,10 @@
                                                             <!-- Crane.Name from the database -->
                                                             <TextBlock Text="{Binding Name}"
                                                                        FontWeight="SemiBold"
-                                                                       FontSize="12"/>
+                                                                       FontSize="{StaticResource FontSizeSM}"/>
 
                                                             <!-- Manufacturer · CraneType on a second line -->
-                                                            <TextBlock FontSize="10"
+                                                            <TextBlock FontSize="{StaticResource FontSizeXS}"
                                                                        Foreground="{DynamicResource TextSecondaryBrush}">
                                                                 <Run Text="{Binding Manufacturer}"/>
                                                                 <Run Text=" · "/>
@@ -143,7 +143,7 @@
 
                                         <!-- Lock Status Indicator -->
                                         <Border Background="{Binding CraneSetup.IsPositionLocked,Converter={StaticResource BoolToColorConverter},ConverterParameter='Orange|Transparent'}" Padding="8,4" CornerRadius="4" Margin="0,6,0,0" Visibility="{Binding CraneSetup.IsPositionLocked,Converter={StaticResource BoolToVisibilityConverter}}">
-                                            <TextBlock Text="🔒 Position Locked (GA Optimized)" Foreground="White" FontWeight="Bold" FontSize="10"/>
+                                            <TextBlock Text="🔒 Position Locked (GA Optimized)" Foreground="White" FontWeight="Bold" FontSize="{StaticResource FontSizeXS}"/>
                                         </Border>
                                         <!-- Thin divider -->
                                         <Rectangle Height="1"
@@ -151,7 +151,7 @@
                                                    Margin="0,6"/>
 
                                         <!-- Shows which crane is currently active -->
-                                        <TextBlock FontSize="10"
+                                        <TextBlock FontSize="{StaticResource FontSizeXS}"
                                                    Foreground="{DynamicResource TextSecondaryBrush}">
                                             <Run Text="Active: "/>
                                             <Run Text="{Binding SelectedCrane.Name, FallbackValue='None'}"

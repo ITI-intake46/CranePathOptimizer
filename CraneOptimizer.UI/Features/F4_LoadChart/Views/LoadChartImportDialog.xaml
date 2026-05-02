@@ -2,41 +2,29 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Import Crane Load Chart"
-        Width="980"
-        Height="720"
-        MinWidth="840"
-        MinHeight="560"
+        Width="980" Height="720"
+        MinWidth="840" MinHeight="560"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource BackgroundBrush}">
+
     <Window.Resources>
-        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-            <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-        </Style>
-        <Style x:Key="FieldTextBoxStyle" TargetType="TextBox">
-            <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="8,5"/>
-            <Setter Property="Height" Value="30"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}"/>
-        </Style>
+        <!--
+            DialogScrollThumbStyle / DialogScrollBarStyle are kept local because
+            this dialog uses a custom slim scrollbar only for its dense data grid.
+            All tokens inside still resolve from the design system.
+        -->
         <Style x:Key="DialogScrollThumbStyle" TargetType="Thumb">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
                         <Border Background="{DynamicResource SecondaryBrush}"
                                 BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="4"/>
+                                BorderThickness="1" CornerRadius="4"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
+
         <Style x:Key="DialogScrollBarStyle" TargetType="ScrollBar">
             <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
             <Setter Property="Width" Value="12"/>
@@ -85,6 +73,8 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <!-- Apply slim scrollbar globally within this window -->
         <Style TargetType="ScrollBar" BasedOn="{StaticResource DialogScrollBarStyle}"/>
     </Window.Resources>
 
@@ -95,23 +85,16 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <!-- Header -->
         <Border Grid.Row="0"
                 Background="{DynamicResource SurfaceBrush}"
-                CornerRadius="6"
-                Padding="18,14"
-                Margin="0,0,0,12">
+                CornerRadius="6" Padding="18,14" Margin="0,0,0,12">
             <StackPanel>
                 <TextBlock x:Name="TxtHeader"
                            Text="Import Crane Load Chart"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           FontFamily="{StaticResource FontPrimary}"
-                           FontSize="16"
-                           FontWeight="Bold"/>
+                           Style="{StaticResource TextTitle}"/>
                 <TextBlock Text="Import a CSV, verify the grid, then save it as one crane with one specification."
-                           Foreground="{DynamicResource TextSecondaryBrush}"
-                           FontFamily="{StaticResource FontPrimary}"
-                           FontSize="11"
-                           Margin="0,4,0,0"/>
+                           Style="{StaticResource TextCaption}" Margin="0,4,0,0"/>
             </StackPanel>
         </Border>
 
@@ -122,18 +105,20 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
+            <!-- Left panel -->
             <ScrollViewer Grid.Column="0"
                           Margin="0,0,6,0"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <StackPanel>
+
+                    <!-- Drop zone -->
                     <Border x:Name="DropZone"
                             AllowDrop="True"
                             Background="{DynamicResource SurfaceBrush}"
                             BorderBrush="{StaticResource PrimaryBrush}"
                             BorderThickness="2"
-                            CornerRadius="6"
-                            Padding="14"
+                            CornerRadius="6" Padding="14"
                             Cursor="Hand"
                             MouseLeftButtonUp="DropZone_Click"
                             DragEnter="DropZone_DragEnter"
@@ -143,100 +128,89 @@
                         <StackPanel HorizontalAlignment="Center">
                             <TextBlock Text="CSV"
                                        FontFamily="{StaticResource FontPrimary}"
-                                       FontSize="24"
+                                       FontSize="{StaticResource FontSizeXXL}"
                                        FontWeight="Bold"
                                        Foreground="{StaticResource PrimaryBrush}"
                                        HorizontalAlignment="Center"/>
                             <TextBlock Text="Drop CSV here or click to browse"
                                        Margin="0,8,0,0"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        FontFamily="{StaticResource FontPrimary}"
-                                       FontSize="12"
+                                       FontSize="{StaticResource FontSizeSM}"
                                        FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        TextAlignment="Center"/>
                         </StackPanel>
                     </Border>
 
+                    <!-- File info badge -->
                     <Border x:Name="FileInfoPanel"
                             Visibility="Collapsed"
                             Background="{DynamicResource SurfaceBrush}"
-                            CornerRadius="6"
-                            Padding="10"
-                            Margin="0,8,0,0">
+                            CornerRadius="6" Padding="10" Margin="0,8,0,0">
                         <StackPanel>
                             <TextBlock x:Name="TxtFileName"
                                        Foreground="{StaticResource PrimaryBrush}"
                                        FontFamily="{StaticResource FontPrimary}"
-                                       FontSize="11"
+                                       FontSize="{StaticResource FontSizeXS}"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"/>
                             <TextBlock x:Name="TxtFileSize"
                                        Margin="0,3,0,0"
-                                       Foreground="{DynamicResource TextDisabledBrush}"
                                        FontFamily="{StaticResource FontPrimary}"
-                                       FontSize="10"/>
+                                       FontSize="{StaticResource FontSizeXS}"
+                                       Foreground="{DynamicResource TextDisabledBrush}"/>
                         </StackPanel>
                     </Border>
 
+                    <!-- Metadata form -->
                     <Border Background="{DynamicResource SurfaceBrush}"
-                            CornerRadius="6"
-                            Padding="12"
-                            Margin="0,12,0,0">
+                            CornerRadius="6" Padding="12" Margin="0,12,0,0">
                         <StackPanel>
-                            <TextBlock Text="Model Name" Style="{StaticResource FieldLabelStyle}"/>
-                            <TextBox x:Name="TxtModel" Style="{StaticResource FieldTextBoxStyle}" Margin="0,0,0,8"/>
+                            <TextBlock Text="Model Name" Style="{StaticResource PropertyLabel}"/>
+                            <TextBox x:Name="TxtModel" Margin="0,0,0,8"/>
 
-                            <TextBlock Text="Manufacturer" Style="{StaticResource FieldLabelStyle}"/>
-                            <TextBox x:Name="TxtMfg" Style="{StaticResource FieldTextBoxStyle}" Margin="0,0,0,8"/>
+                            <TextBlock Text="Manufacturer" Style="{StaticResource PropertyLabel}"/>
+                            <TextBox x:Name="TxtMfg" Margin="0,0,0,8"/>
 
-                            <TextBlock Text="Outrigger Config" Style="{StaticResource FieldLabelStyle}"/>
+                            <TextBlock Text="Outrigger Config" Style="{StaticResource PropertyLabel}"/>
                             <ComboBox x:Name="CboOutriggerConfig"
                                       Style="{StaticResource DarkComboBox}"
                                       ItemContainerStyle="{StaticResource DarkComboBoxItem}"
-                                      SelectedIndex="0"
-                                      Height="30"
-                                      Margin="0,0,0,8">
+                                      SelectedIndex="0" Height="30" Margin="0,0,0,8">
                                 <ComboBoxItem Content="100%"/>
                                 <ComboBoxItem Content="75%"/>
                                 <ComboBoxItem Content="50%"/>
                                 <ComboBoxItem Content="On Rubber"/>
                             </ComboBox>
 
-                            <TextBlock Text="Counterweight (kg)" Style="{StaticResource FieldLabelStyle}"/>
-                            <TextBox x:Name="TxtCounterweight" Style="{StaticResource FieldTextBoxStyle}" Margin="0,0,0,8"/>
+                            <TextBlock Text="Counterweight (kg)" Style="{StaticResource PropertyLabel}"/>
+                            <TextBox x:Name="TxtCounterweight" Margin="0,0,0,8"/>
 
-                            <TextBlock Text="Max Capacity (t)" Style="{StaticResource FieldLabelStyle}"/>
-                            <TextBox x:Name="TxtMaxCap"
-                                     Style="{StaticResource FieldTextBoxStyle}"
-                                     Margin="0,0,0,8"/>
+                            <TextBlock Text="Max Capacity (t)" Style="{StaticResource PropertyLabel}"/>
+                            <TextBox x:Name="TxtMaxCap" Margin="0,0,0,8"/>
 
-                            <TextBlock Text="Max Radius (m)" Style="{StaticResource FieldLabelStyle}"/>
-                            <TextBox x:Name="TxtMaxRadius" Style="{StaticResource FieldTextBoxStyle}" Margin="0,0,0,8"/>
+                            <TextBlock Text="Max Radius (m)" Style="{StaticResource PropertyLabel}"/>
+                            <TextBox x:Name="TxtMaxRadius" Margin="0,0,0,8"/>
 
                             <Button x:Name="BtnToggleDimensions"
                                     Content="Enter Crane Dimensions"
-                                    Style="{StaticResource ButtonSecondary}"
-                                    Height="32"
-                                    Margin="0,0,0,8"
+                                    Style="{StaticResource ButtonOutlined}"
+                                    Height="32" Margin="0,0,0,8"
                                     Click="BtnToggleDimensions_Click"/>
 
                             <Border Background="{DynamicResource BackgroundBrush}"
                                     BorderBrush="{DynamicResource BorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="10"
-                                    Margin="0,0,0,10">
+                                    BorderThickness="1" CornerRadius="6"
+                                    Padding="10" Margin="0,0,0,10">
                                 <TextBlock x:Name="TxtDimensionsSummary"
-                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                           FontFamily="{StaticResource FontPrimary}"
-                                           FontSize="11"
+                                           Style="{StaticResource TextCaption}"
                                            TextWrapping="Wrap"
                                            Text="No crane dimensions entered yet."/>
                             </Border>
 
                             <Button x:Name="BtnTranspose"
                                     Content="Swap Radius / Boom"
-                                    Style="{StaticResource ButtonSecondary}"
+                                    Style="{StaticResource ButtonOutlined}"
                                     Height="32"
                                     Click="BtnTranspose_Click"/>
                         </StackPanel>
@@ -244,6 +218,7 @@
                 </StackPanel>
             </ScrollViewer>
 
+            <!-- Right: data grid -->
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -254,27 +229,22 @@
                         Background="{DynamicResource SurfaceBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1,1,1,0"
-                        CornerRadius="6,6,0,0"
-                        Padding="12,8">
+                        CornerRadius="6,6,0,0" Padding="12,8">
                     <DockPanel>
                         <TextBlock Text="LOAD CHART DATA"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   FontFamily="{StaticResource FontPrimary}"
-                                   FontSize="9"
-                                   FontWeight="Bold"/>
+                                   Style="{StaticResource PanelSectionHeader}"/>
                         <TextBlock x:Name="TxtGridStats"
                                    DockPanel.Dock="Right"
-                                   Foreground="{DynamicResource TextDisabledBrush}"
                                    FontFamily="{StaticResource FontPrimary}"
-                                   FontSize="10"
+                                   FontSize="{StaticResource FontSizeXS}"
+                                   Foreground="{DynamicResource TextDisabledBrush}"
                                    Text="No data loaded"/>
                     </DockPanel>
                 </Border>
 
                 <Border Grid.Row="1"
                         BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="0,0,6,6">
+                        BorderThickness="1" CornerRadius="0,0,6,6">
                     <DataGrid x:Name="ChartGrid"
                               AutoGenerateColumns="False"
                               CanUserAddRows="True"
@@ -294,11 +264,10 @@
             </Grid>
         </Grid>
 
+        <!-- Footer -->
         <Border Grid.Row="2"
                 Background="{DynamicResource SurfaceBrush}"
-                CornerRadius="6"
-                Padding="14,10"
-                Margin="0,12,0,0">
+                CornerRadius="6" Padding="14,10" Margin="0,12,0,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -309,21 +278,14 @@
 
                 <TextBlock x:Name="TxtStatus"
                            VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
-                           FontFamily="{StaticResource FontPrimary}"
-                           FontSize="11"
+                           Style="{StaticResource TextCaption}"
                            Text="Load a CSV to begin."/>
 
-                <Button Grid.Column="1"
-                        Width="150"
-                        Height="34"
+                <Button Grid.Column="1" Width="150" Height="34"
                         Content="Save Crane"
                         Style="{StaticResource ButtonPrimary}"
                         Click="BtnSave_Click"/>
-
-                <Button Grid.Column="3"
-                        Width="90"
-                        Height="34"
+                <Button Grid.Column="3" Width="90" Height="34"
                         Content="Cancel"
                         Style="{StaticResource ButtonSecondary}"
                         Click="BtnCancel_Click"/>
