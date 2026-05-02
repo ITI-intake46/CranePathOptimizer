@@ -39,6 +39,10 @@
   <ItemGroup>
     <None Remove="appsettings.json" />
     <None Remove="Data\crane.db" />
+    <None Remove="ICONS\restricted-area.png" />
+    <None Remove="ICONS\ruler.png" />
+    <None Remove="ICONS\safe-zone %281%29.png" />
+    <None Remove="ICONS\safe-zone.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -72,6 +76,21 @@
     <PackageReference Include="Xbim.Geometry" Version="5.1.820" />
     <PackageReference Include="Xbim.Ifc" Version="6.0.587" />
     <PackageReference Include="Xbim.WindowsUI" Version="5.1.228" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="ICONS\restricted-area.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="ICONS\ruler.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="ICONS\safe-zone (1).png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="ICONS\safe-zone.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
   </ItemGroup>
 
 	<Target Name="CopyXbimNativeDll" AfterTargets="Build">

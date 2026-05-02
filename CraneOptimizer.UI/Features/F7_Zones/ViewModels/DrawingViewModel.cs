@@ -443,7 +443,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             ResetMeasurement();
         }
 
-        private void ResetMeasurement()
+        public void ResetMeasurement()
         {
             _measurePoints.Clear();
             _measureSegments.Clear();
