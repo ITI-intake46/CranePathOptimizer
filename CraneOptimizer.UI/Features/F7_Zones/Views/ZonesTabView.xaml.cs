@@ -23,29 +23,69 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Views
         {
             InitializeComponent();
             DataContext = App.ServiceProvider.GetRequiredService<DrawingViewModel>();
-            Loaded += (_, _) =>
-            {
-                Keyboard.Focus(this);
-                _viewport = FindViewport();
-                if (_viewport != null)
-                {
-                    _viewport.MouseDown += Viewport_MouseDown;
-                    _viewport.MouseMove += Viewport_MouseMove;
-                    _viewport.MouseDoubleClick += Viewport_MouseDoubleClick;
-                }
-            };
 
-            Unloaded += (_, _) =>
-            {
-                if (_viewport != null)
-                {
-                    _viewport.MouseDown -= Viewport_MouseDown;
-                    _viewport.MouseMove -= Viewport_MouseMove;
-                    _viewport.MouseDoubleClick -= Viewport_MouseDoubleClick;
-                }
-            };
+            Loaded += ZonesTabView_Loaded;
+            Unloaded += ZonesTabView_Unloaded;
         }
 
+        private void ZonesTabView_Loaded(object sender, RoutedEventArgs e)
+        {
+            Keyboard.Focus(this);
+
+            _viewport = FindViewport();
+            if (_viewport != null)
+            {
+                // Use PreviewMouseDown instead of MouseDown
+                _viewport.PreviewMouseDown -= Viewport_PreviewMouseDown;
+                _viewport.PreviewMouseDown += Viewport_PreviewMouseDown;
+
+                _viewport.MouseMove -= Viewport_MouseMove;
+                _viewport.MouseMove += Viewport_MouseMove;
+
+                _viewport.MouseDoubleClick -= Viewport_MouseDoubleClick;
+                _viewport.MouseDoubleClick += Viewport_MouseDoubleClick;
+
+                System.Diagnostics.Debug.WriteLine("✅ PreviewMouseDown attached");
+            }
+        }
+        private void Viewport_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (DataContext is not DrawingViewModel vm) return;
+
+            if (e.ChangedButton == MouseButton.Right)
+            {
+                System.Diagnostics.Debug.WriteLine("→ Preview Right Click");
+
+                if (vm.IsDrawing)
+                {
+                    vm.Finish();
+                    e.Handled = true;
+                    return;
+                }
+                else if (vm.IsMeasuring)
+                {
+                    vm.ResetMeasurement();
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            // Left click logic (keep original if needed)
+            if (e.ChangedButton == MouseButton.Left && e.ClickCount == 1)
+            {
+                // Call your existing left click logic here if needed
+            }
+        }
+
+        private void ZonesTabView_Unloaded(object sender, RoutedEventArgs e)
+        {
+            if (_viewport != null)
+            {
+                _viewport.MouseDown -= Viewport_MouseDown;
+                _viewport.MouseMove -= Viewport_MouseMove;
+                _viewport.MouseDoubleClick -= Viewport_MouseDoubleClick;
+            }
+        }
         // ════════════════════════════════════════════════════════════════════
         // Find HelixViewport3D in visual tree
         // ════════════════════════════════════════════════════════════════════
@@ -134,25 +174,42 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Views
             if (sender is not HelixViewport3D viewport) return;
             if (DataContext is not DrawingViewModel vm) return;
 
-            // Right click → finish / reset
+            System.Diagnostics.Debug.WriteLine($"[MouseDown] Button={e.ChangedButton} | IsDrawing={vm.IsDrawing} | IsMeasuring={vm.IsMeasuring}");
+
+            // RIGHT CLICK - أعلى أولوية
             if (e.ChangedButton == MouseButton.Right)
             {
-                vm.HandleRightClick();
-                e.Handled = true;
-                return;
+                System.Diagnostics.Debug.WriteLine("→ Right Click Detected");
+
+                if (vm.IsDrawing)
+                {
+                    System.Diagnostics.Debug.WriteLine("→ Finishing Zone...");
+                    vm.Finish();
+                    e.Handled = true;
+                    return;
+                }
+                else if (vm.IsMeasuring)
+                {
+                    vm.ResetMeasurement();
+                    e.Handled = true;
+                    return;
+                }
+                else
+                {
+                    // Right click outside drawing mode (optional: can be used for other things later)
+                    System.Diagnostics.Debug.WriteLine("→ Right Click outside drawing/measuring");
+                }
             }
 
-            // Only single left-click reaches here
-            if (e.ChangedButton != MouseButton.Left || e.ClickCount > 1)
-                return;
-
-            // Grab SHIFT state for ortho-lock / snap
-            bool shiftDown = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
-
-            var screen = e.GetPosition(viewport);
-            var world = GetWorldPoint(viewport, screen);
-            vm.HandleViewportLeftClick(new DomainPoint3D(world.X, world.Y, world.Z), shiftDown);
-            e.Handled = true;
+            // LEFT CLICK
+            if (e.ChangedButton == MouseButton.Left && e.ClickCount == 1)
+            {
+                bool shiftDown = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+                var screen = e.GetPosition(viewport);
+                var world = GetWorldPoint(viewport, screen);
+                vm.HandleViewportLeftClick(new DomainPoint3D(world.X, world.Y, world.Z), shiftDown);
+                e.Handled = true;
+            }
         }
 
         // ════════════════════════════════════════════════════════════════════
