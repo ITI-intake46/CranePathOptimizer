@@ -19,16 +19,19 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.Services
             var minY = elements.Min(e => e.ElementCOG.Y - ((e.BBoxWidth ?? 0d) / 2d));
             var maxY = elements.Max(e => e.ElementCOG.Y + ((e.BBoxWidth ?? 0d) / 2d));
 
-            var buildingWidthMeters = Math.Max(0d, (maxX - minX) / 1000.0);
-            var buildingLengthMeters = Math.Max(0d, (maxY - minY) / 1000.0);
-            var centerXMillimeters = (minX + maxX) / 2.0;
-            var centerYMillimeters = (minY + maxY) / 2.0;
+            // Use maximum absolute extent from origin so the grid
+            // is large enough to contain the building wherever it sits.
+            var maxAbsX = Math.Max(Math.Abs(minX), Math.Abs(maxX));
+            var maxAbsY = Math.Max(Math.Abs(minY), Math.Abs(maxY));
+            var buildingWidthMeters = Math.Max(0d, (maxAbsX * 2) / 1000.0);
+            var buildingLengthMeters = Math.Max(0d, (maxAbsY * 2) / 1000.0);
 
+            // Grid always stays centered at the world origin (0, 0).
             return (
                 CalculateGridAxisMeters(buildingWidthMeters),
                 CalculateGridAxisMeters(buildingLengthMeters),
-                centerXMillimeters,
-                centerYMillimeters);
+                0d,
+                0d);
         }
 
         private static double CalculateGridAxisMeters(double buildingAxisMeters)
