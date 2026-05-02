@@ -16,12 +16,26 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         private readonly HelixViewport3D _viewport;
         private readonly List<ModelVisual3D> _dxfVisuals = new();
 
+        // Large DXF world coordinates (e.g. survey coordinates) can make WPF 3D projection
+        // numerically unstable. We optionally rebase DXF geometry near origin for rendering
+        // and snapping consistency (does not affect IFC/zones).
+        private Matrix3D _dxfRebase = Matrix3D.Identity;
+
         public List<Point3D> SnapPoints { get; private set; } = new();
+        /// <summary>Clean A→B segment pairs for edge-based snaps (midpoint / nearest / perpendicular).</summary>
+        public List<(Point3D A, Point3D B)> SnapSegments { get; private set; } = new();
+        /// <summary>Arc / circle center points for Center snap.</summary>
+        public List<Point3D> SnapCenters { get; private set; } = new();
+        /// <summary>Quadrant points (0°, 90°, 180°, 270°) on arcs / circles.</summary>
+        public List<Point3D> SnapQuadrants { get; private set; } = new();
         public bool IsLoaded { get; private set; }
         public string? LoadedFilePath { get; private set; }
         public bool IsVisible { get; private set; } = true;
 
         public string LastLoadDiagnostic { get; private set; } = "";
+
+        /// <summary>Fired whenever snap data is repopulated (after Load, ReApplyTransform, or Clear).</summary>
+        public event Action? SnapDataChanged;
 
         private double _opacity = 0.7;
         public double Opacity
@@ -92,6 +106,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
 
                 int pointCount = RenderDxf(dxf);
                 Log($"Render done. Points: {pointCount}");
+                RaiseSnapDataChanged();
                 return true;
             }
             catch (Exception ex)
@@ -109,6 +124,12 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         {
             var pts = new Point3DCollection();
             SnapPoints.Clear();
+            SnapSegments.Clear();
+            SnapCenters.Clear();
+            SnapQuadrants.Clear();
+
+            // Reset rebase each render (will be recomputed after we know bounds).
+            _dxfRebase = Matrix3D.Identity;
 
             int lineCount = 0, polyCount = 0, circleCount = 0, arcCount = 0, splineCount = 0;
 
@@ -124,6 +145,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                         pts.Add(a); pts.Add(b);
                         SnapPoints.Add(a); SnapPoints.Add(b);
                         SnapPoints.Add(new Point3D((a.X + b.X) / 2, (a.Y + b.Y) / 2, 0));
+                        SnapSegments.Add((a, b));   // clean A,B pair for edge snaps
                         lineCount++;
                     }
                     catch { }
@@ -149,6 +171,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                         {
                             pts.Add(verts[i]);
                             pts.Add(verts[(i + 1) % verts.Count]);
+                            SnapSegments.Add((verts[i], verts[(i + 1) % verts.Count]));
                         }
                         SnapPoints.AddRange(verts);
                         polyCount++;
@@ -176,6 +199,24 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                             pts.Add(new Point3D(center.X + r * Math.Cos(a2), center.Y + r * Math.Sin(a2), 0.002));
                         }
                         SnapPoints.Add(center);
+                        SnapCenters.Add(center);
+
+                        // Quadrant points (0°, 90°, 180°, 270°)
+                        SnapQuadrants.Add(new Point3D(center.X + r, center.Y,     0.002));
+                        SnapQuadrants.Add(new Point3D(center.X,     center.Y + r, 0.002));
+                        SnapQuadrants.Add(new Point3D(center.X - r, center.Y,     0.002));
+                        SnapQuadrants.Add(new Point3D(center.X,     center.Y - r, 0.002));
+
+                        // Add circle segments for edge-based snaps
+                        const int cSeg = 36;
+                        for (int i = 0; i < cSeg; i++)
+                        {
+                            double a1 = i * Math.PI * 2 / cSeg;
+                            double a2 = (i + 1) * Math.PI * 2 / cSeg;
+                            var p1 = new Point3D(center.X + r * Math.Cos(a1), center.Y + r * Math.Sin(a1), 0.002);
+                            var p2 = new Point3D(center.X + r * Math.Cos(a2), center.Y + r * Math.Sin(a2), 0.002);
+                            SnapSegments.Add((p1, p2));
+                        }
                         circleCount++;
                     }
                     catch { }
@@ -205,6 +246,35 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                             pts.Add(new Point3D(center.X + r * Math.Cos(a2), center.Y + r * Math.Sin(a2), 0.002));
                         }
                         SnapPoints.Add(center);
+                        SnapCenters.Add(center);
+
+                        // Endpoints on the arc
+                        double startRad = startDeg * Math.PI / 180;
+                        double endRad   = (startDeg + span) * Math.PI / 180;
+                        SnapPoints.Add(new Point3D(center.X + r * Math.Cos(startRad), center.Y + r * Math.Sin(startRad), 0.002));
+                        SnapPoints.Add(new Point3D(center.X + r * Math.Cos(endRad),   center.Y + r * Math.Sin(endRad),   0.002));
+
+                        // Quadrant points that fall within the arc span
+                        for (int qi = 0; qi < 4; qi++)
+                        {
+                            double qDeg = qi * 90.0;
+                            double qNorm = qDeg >= startDeg ? qDeg - startDeg : qDeg + 360 - startDeg;
+                            if (qNorm >= 0 && qNorm <= span)
+                            {
+                                double qRad = qDeg * Math.PI / 180;
+                                SnapQuadrants.Add(new Point3D(center.X + r * Math.Cos(qRad), center.Y + r * Math.Sin(qRad), 0.002));
+                            }
+                        }
+
+                        // Add arc segments for edge-based snaps
+                        for (int i = 0; i < seg; i++)
+                        {
+                            double a1 = (startDeg + i * span / seg) * Math.PI / 180;
+                            double a2 = (startDeg + (i + 1) * span / seg) * Math.PI / 180;
+                            var p1 = new Point3D(center.X + r * Math.Cos(a1), center.Y + r * Math.Sin(a1), 0.002);
+                            var p2 = new Point3D(center.X + r * Math.Cos(a2), center.Y + r * Math.Sin(a2), 0.002);
+                            SnapSegments.Add((p1, p2));
+                        }
                         arcCount++;
                     }
                     catch { }
@@ -255,6 +325,52 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
 
             Log($"Entities — Lines:{lineCount} Polys:{polyCount} Circles:{circleCount} Arcs:{arcCount} Splines:{splineCount}");
 
+            // If the DXF is very far from origin, rebase all snap points and visuals closer
+            // to improve projection precision and OSnap behavior at far zoom.
+            // Thresholds are conservative; only engage for large coordinates.
+            if (SnapPoints.Count > 0)
+            {
+                try
+                {
+                    double minX = double.PositiveInfinity, minY = double.PositiveInfinity;
+                    double maxX = double.NegativeInfinity, maxY = double.NegativeInfinity;
+                    foreach (var p in SnapPoints)
+                    {
+                        if (p.X < minX) minX = p.X;
+                        if (p.Y < minY) minY = p.Y;
+                        if (p.X > maxX) maxX = p.X;
+                        if (p.Y > maxY) maxY = p.Y;
+                    }
+
+                    double cx = (minX + maxX) / 2.0;
+                    double cy = (minY + maxY) / 2.0;
+                    double maxAbs = Math.Max(Math.Abs(cx), Math.Abs(cy));
+
+                    if (maxAbs > 10_000) // engage only for "big-world" drawings
+                    {
+                        _dxfRebase = Matrix3D.Identity;
+                        _dxfRebase.Translate(new Vector3D(-cx, -cy, 0));
+
+                        // Apply to all snap data
+                        for (int i = 0; i < SnapPoints.Count; i++)
+                            SnapPoints[i] = _dxfRebase.Transform(SnapPoints[i]);
+                        for (int i = 0; i < SnapCenters.Count; i++)
+                            SnapCenters[i] = _dxfRebase.Transform(SnapCenters[i]);
+                        for (int i = 0; i < SnapQuadrants.Count; i++)
+                            SnapQuadrants[i] = _dxfRebase.Transform(SnapQuadrants[i]);
+                        for (int i = 0; i < SnapSegments.Count; i++)
+                            SnapSegments[i] = (_dxfRebase.Transform(SnapSegments[i].A), _dxfRebase.Transform(SnapSegments[i].B));
+
+                        // Apply to rendered line collection too
+                        for (int i = 0; i < pts.Count; i++)
+                            pts[i] = _dxfRebase.Transform(pts[i]);
+
+                        Log($"Rebased DXF near origin. Center=({cx:F2},{cy:F2})");
+                    }
+                }
+                catch { }
+            }
+
             if (pts.Count > 0)
             {
                 byte alpha = (byte)(_opacity * 255);
@@ -270,6 +386,8 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
 
             return pts.Count;
         }
+
+        private void RaiseSnapDataChanged() => SnapDataChanged?.Invoke();
 
         // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -306,7 +424,11 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             foreach (var v in _dxfVisuals) _viewport.Children.Remove(v);
             _dxfVisuals.Clear();
             SnapPoints.Clear();
+            SnapSegments.Clear();
+            SnapCenters.Clear();
+            SnapQuadrants.Clear();
             IsLoaded = false;
+            RaiseSnapDataChanged();
         }
 
         private static void Log(string msg)

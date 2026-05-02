@@ -10,6 +10,9 @@ using CraneOptimizer.UI.Core.Services;
 using CraneOptimizer.UI.Features.F0_CoordinateSystem;
 using CraneOptimizer.UI.Features.F3_CraneSetup.Services;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
@@ -121,6 +124,16 @@ namespace CraneOptimizer.UI
             services.AddSingleton<CranePlacementViewModel>();
             services.AddSingleton<IfcViewerViewModel>();
             services.AddSingleton<DxfTabViewModel>();
+
+            // =========================
+            // F15 Object Snap
+            // =========================
+            services.AddSingleton<OsnapSettingsService>();
+            services.AddSingleton<OsnapSettings>(sp =>
+                sp.GetRequiredService<OsnapSettingsService>().Load());
+            services.AddSingleton<IOsnapService, OsnapService>();
+            services.AddSingleton<OsnapPanelViewModel>();
+            services.AddSingleton<OsnapGeometryBridge>();
 
             // =========================
             // Views
