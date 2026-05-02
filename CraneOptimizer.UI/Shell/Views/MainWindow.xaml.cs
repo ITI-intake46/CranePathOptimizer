@@ -1,6 +1,7 @@
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F5_ElementManagement.Services;
 using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
@@ -19,13 +20,9 @@ namespace CraneOptimizer.UI.Shell.Views
 {
     public partial class MainWindow : Window
     {
-        private const double DefaultGridSizeMeters = 50d;
-        private const double GridPaddingFactor = 1.2d;
-        private const double GridRoundStepMeters = 10d;
-
         private readonly IRenderingService _renderingService;
         private readonly ISceneService _sceneService;
-        private CraneSetupViewModel? _craneSetup;
+        private readonly IElementGridSizingService _elementGridSizingService;
         private bool _manualGridSize;
         private double _gridCenterXMillimeters;
         private double _gridCenterYMillimeters;
@@ -44,12 +41,13 @@ namespace CraneOptimizer.UI.Shell.Views
             IOsnapService osnapService,
             OsnapGeometryBridge osnapBridge,
             CraneSetupViewModel craneSetup)
+            IElementGridSizingService elementGridSizingService)
         {
             InitializeComponent();
 
             _renderingService = renderingService;
             _sceneService = sceneService;
-            _craneSetup = craneSetup;                // ← NEW
+            _elementGridSizingService = elementGridSizingService;
 
             _osnapVm = osnapVm;
             _osnapService = osnapService;
@@ -83,7 +81,7 @@ namespace CraneOptimizer.UI.Shell.Views
             _sceneService.ElementsChanged += OnElementsChanged;
             _sceneService.CraneSelected += OnCraneSelected;
 
-            SetGridText(DefaultGridSizeMeters, DefaultGridSizeMeters);
+            SetGridText(50d, 50d);
         }
 
         private MainViewModel? VM => DataContext as MainViewModel;
@@ -99,7 +97,8 @@ namespace CraneOptimizer.UI.Shell.Views
             if (_manualGridSize)
                 return;
 
-            var (widthMeters, lengthMeters, centerXMillimeters, centerYMillimeters) = CalculateGridSizeMeters(elements);
+            var (widthMeters, lengthMeters, centerXMillimeters, centerYMillimeters) =
+                _elementGridSizingService.CalculateGridSizeMeters(elements);
             _gridCenterXMillimeters = centerXMillimeters;
             _gridCenterYMillimeters = centerYMillimeters;
             SetGridText(widthMeters, lengthMeters);
@@ -124,40 +123,47 @@ namespace CraneOptimizer.UI.Shell.Views
             // Placeholder for future UI highlight/inspector sync.
         }
 
-        private void HandleZoneSelection(MouseButtonEventArgs e)
+        private void HandleViewportSelection(MouseButtonEventArgs e)
         {
             var viewport = IfcViewer;
             var hits = viewport.Viewport.FindHits(e.GetPosition(viewport));
-
+ 
             if (hits == null || hits.Count == 0)
             {
                 _sceneService.SetSelectedZone(null);
                 _sceneService.SetSelectedCrane(null);
+                _sceneService.SetSelectedElements(new List<PrecastElement>());
                 return;
             }
-
+ 
             foreach (var hit in hits)
             {
                 var visual = hit.Visual;
-
+ 
                 if (visual is ModelVisual3D mv)
                 {
                     var tag = mv.GetValue(FrameworkElement.TagProperty);
-
+ 
                     if (tag is GreenAreaZone zone)
                     {
                         _sceneService.SetSelectedZone(zone);
                         return;
                     }
-
+ 
                     if (tag is SceneCrane crane)
                     {
                         _sceneService.SetSelectedCrane(crane);
                         return;
                     }
+
+                    if (tag is PrecastElement element)
+                    {
+                        _sceneService.SetSelectedElements(new List<PrecastElement> { element });
+                        return;
+                    }
                 }
             }
-
+ 
             _sceneService.SetSelectedZone(null);
         }
 
@@ -288,7 +294,7 @@ namespace CraneOptimizer.UI.Shell.Views
 
             if (vm != null && !vm.IsDrawing)
             {
-                HandleZoneSelection(e);
+                HandleViewportSelection(e);
                 if (!vm.IsMeasuring)
                     return;
             }
@@ -356,8 +362,6 @@ namespace CraneOptimizer.UI.Shell.Views
         private void RedoBtn_Click(object sender, RoutedEventArgs e) { }
         private void ClearHistory_Click(object sender, RoutedEventArgs e) { }
         private void BtnDimensionTool_Click(object sender, RoutedEventArgs e) { }
-        private void ElementItem_Click(object sender, MouseButtonEventArgs e) { }
-
         private void ResetCamera_Click(object sender, RoutedEventArgs e)
         {
             IfcViewer?.CameraController?.ResetCamera();
@@ -374,7 +378,7 @@ namespace CraneOptimizer.UI.Shell.Views
 
         private void OsnapDropBtn_Click(object sender, RoutedEventArgs e)
         {
-            //OsnapPopup.IsOpen = true;
+            OsnapPopup.IsOpen = true;
         }
 
         private void StatusOsnapMaster_Click(object sender, RoutedEventArgs e)

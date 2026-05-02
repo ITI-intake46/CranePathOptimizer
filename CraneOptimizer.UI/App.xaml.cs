@@ -16,10 +16,12 @@ using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
+using CraneOptimizer.UI.Features.F5_ElementManagement.Services;
 using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.F10_ProjectManagement.Views;
 using CraneOptimizer.UI.Shell.ViewModels;
 using CraneOptimizer.UI.Shell.Views;
@@ -75,6 +77,7 @@ namespace CraneOptimizer.UI
             // Core Services
             // =========================
             services.AddSingleton<IDialogService, DialogService>();
+            services.AddSingleton<IElementGridSizingService, ElementGridSizingService>();
 
             // =========================
             // F10 Project Management
@@ -124,6 +127,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<CranePlacementViewModel>();
             services.AddSingleton<IfcViewerViewModel>();
             services.AddSingleton<DxfTabViewModel>();
+            services.AddSingleton<ElementManagementViewModel>();
 
             // =========================
             // F15 Object Snap

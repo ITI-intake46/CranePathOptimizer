@@ -79,12 +79,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
 
             var elementsWithStatus = elements.Select(element =>
             {
-                if (statusMap.TryGetValue(element.ElementID, out var status))
-                    return (element, (LiftStatus?)status);
-
-                return (element, (LiftStatus?)null);
+                LiftStatus? status = null;
+                if (statusMap.TryGetValue(element.ElementID, out var s))
+                    status = s;
+ 
+                return (element, status, false);
             });
-
+ 
             renderingService.Render(
                 elementsWithStatus,
                 new ElementVisualBuilder(ifcReader, origin, placementOffset),

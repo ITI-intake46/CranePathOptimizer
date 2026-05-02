@@ -1,0 +1,163 @@
+<UserControl x:Class="CraneOptimizer.UI.Features.F5_ElementManagement.Views.ElementManagementPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d">
+    <Border
+        Background="{DynamicResource SurfaceBrush}"
+        BorderBrush="{DynamicResource BorderBrush}"
+        BorderThickness="0,0,1,0">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+ 
+            <Border
+                Grid.Row="0"
+                Height="30"
+                Padding="10,0"
+                Background="{DynamicResource SurfaceElevatedBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+                <TextBlock VerticalAlignment="Center" Style="{StaticResource PanelSectionHeader}" Text="ELEMENT DETAILS" />
+            </Border>
+ 
+            <ScrollViewer
+                Grid.Row="1"
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <!--  Element ID Hero Section  -->
+                    <Border
+                        Padding="16,20"
+                        Background="{DynamicResource SurfaceElevatedBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="0,0,0,1">
+                        <StackPanel>
+                            <TextBlock
+                                Margin="0,0,0,4"
+                                FontSize="10"
+                                FontWeight="Bold"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="ELEMENT ID" />
+                            <TextBlock
+                                FontSize="18"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource PrimaryBrush}"
+                                Text="{Binding SelectedElement.ElementID, FallbackValue='N/A'}" />
+                            <TextBlock
+                                Margin="0,4,0,0"
+                                FontSize="11"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="{Binding SelectedElement.ElementType, FallbackValue='No Selection'}" />
+                        </StackPanel>
+                    </Border>
+ 
+                    <StackPanel Margin="0,10,0,20">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedElement}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+ 
+                        <!--  Geometry Section  -->
+                        <Border Margin="12,10,12,5" Style="{StaticResource PropertyRow}">
+                            <StackPanel>
+                                <TextBlock Margin="0,0,0,8" Style="{StaticResource PanelSectionHeader}" Text="GEOMETRY" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <Grid Margin="0,4">
+                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Length" />
+                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementLength, StringFormat={}{0:F2} m}" />
+                                </Grid>
+                                <Grid Margin="0,4">
+                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Width" />
+                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementWidth, StringFormat={}{0:F2} m}" />
+                                </Grid>
+                                <Grid Margin="0,4">
+                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Height" />
+                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementHeight, StringFormat={}{0:F2} m}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+ 
+                        <!--  Physical Properties  -->
+                        <Border Margin="12,10,12,5" Style="{StaticResource PropertyRow}">
+                            <StackPanel>
+                                <TextBlock Margin="0,0,0,8" Style="{StaticResource PanelSectionHeader}" Text="PHYSICAL" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <Grid Margin="0,4">
+                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Weight" />
+                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="Bold" Text="{Binding SelectedElement.ElementWT, StringFormat={}{0:N0} kg}" />
+                                </Grid>
+                                <Grid Margin="0,4">
+                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Volume" />
+                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementVolume, StringFormat={}{0:F3} m³}" />
+                                </Grid>
+                                <Grid Margin="0,4">
+                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Material" />
+                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementMaterial, FallbackValue='-'}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+ 
+                        <!--  Center of Gravity  -->
+                        <Border Margin="12,10,12,5" Style="{StaticResource PropertyRow}">
+                            <StackPanel>
+                                <TextBlock Margin="0,0,0,8" Style="{StaticResource PanelSectionHeader}" Text="COORDINATES (COG)" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <Grid Margin="0,4">
+                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="X" />
+                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementCOG.X, StringFormat={}{0:F3}}" />
+                                </Grid>
+                                <Grid Margin="0,4">
+                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Y" />
+                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementCOG.Y, StringFormat={}{0:F3}}" />
+                                </Grid>
+                                <Grid Margin="0,4">
+                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Z" />
+                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementCOG.Z, StringFormat={}{0:F3}}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+ 
+                    <!--  Empty State  -->
+                    <Border Margin="20,60" VerticalAlignment="Center">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedElement}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                FontSize="48"
+                                Text="🔳" />
+                            <TextBlock
+                                Margin="0,15,0,5"
+                                HorizontalAlignment="Center"
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="No Element Selected" />
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                FontSize="11"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Select an element in the 3D scene"
+                                TextAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Border>
+</UserControl>
