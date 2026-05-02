@@ -11,5 +11,13 @@ namespace CraneOptimizer.UI.Core.Interfaces
         void Clear();
 
         void ClearLayer(string layerKey);
+
+        void SetGridSize(double widthMillimeters, double lengthMillimeters);
+
+        void SetGridSize(double widthMillimeters, double lengthMillimeters, double centerXMillimeters, double centerYMillimeters);
+
+
+        // NEW — needed for mouse coordinate conversion during drag
+        HelixViewport3D? GetViewport();
     }
 }

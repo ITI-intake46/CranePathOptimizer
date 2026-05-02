@@ -10,6 +10,7 @@
     Height="800"
     AllowsTransparency="True"
     Background="{DynamicResource BackgroundBrush}"
+    PreviewKeyDown="MainWindow_PreviewKeyDown"
     ResizeMode="CanResize"
     SnapsToDevicePixels="True"
     UseLayoutRounding="True"
@@ -762,6 +763,75 @@
                                 FontSize="{StaticResource FontSizeSM}"
                                 FontWeight="SemiBold"
                                 Style="{StaticResource ButtonSecondary}" />
+                            <StackPanel
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center"
+                                DockPanel.Dock="Right"
+                                Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,5,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource FontPrimary}"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    FontWeight="SemiBold"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    Text="GRID m" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource FontPrimary}"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    Foreground="{DynamicResource TextDisabledBrush}"
+                                    Text="X" />
+                                <TextBox
+                                    x:Name="GridSizeXTextBox"
+                                    Width="44"
+                                    Height="20"
+                                    Margin="4,0,6,0"
+                                    Padding="3,0"
+                                    VerticalContentAlignment="Center"
+                                    FontFamily="{StaticResource FontPrimary}"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    Text="50"
+                                    ToolTip="Grid size on X axis in meters" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource FontPrimary}"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    Foreground="{DynamicResource TextDisabledBrush}"
+                                    Text="Y" />
+                                <TextBox
+                                    x:Name="GridSizeYTextBox"
+                                    Width="44"
+                                    Height="20"
+                                    Margin="4,0,6,0"
+                                    Padding="3,0"
+                                    VerticalContentAlignment="Center"
+                                    FontFamily="{StaticResource FontPrimary}"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    Text="50"
+                                    ToolTip="Grid size on Y axis in meters" />
+                                <Button
+                                    Height="20"
+                                    Padding="6,0"
+                                    VerticalAlignment="Center"
+                                    Click="ApplyGridSize_Click"
+                                    Content="Apply"
+                                    FontFamily="{StaticResource FontPrimary}"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    Style="{StaticResource ToolbarButton}"
+                                    ToolTip="Apply manual grid size" />
+                                <Button
+                                    Height="20"
+                                    Margin="3,0,0,0"
+                                    Padding="6,0"
+                                    VerticalAlignment="Center"
+                                    Click="AutoGridSize_Click"
+                                    Content="Auto"
+                                    FontFamily="{StaticResource FontPrimary}"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    Style="{StaticResource ToolbarButton}"
+                                    ToolTip="Fit grid to current building" />
+                            </StackPanel>
                         </DockPanel>
                     </Border>
 
@@ -773,6 +843,7 @@
                             x:Name="IfcViewer"
                             MouseDown="IfcViewer_MouseDown"
                             MouseMove="IfcViewer_MouseMove"
+                            MouseUp="IfcViewer_MouseUp"
                             Background="{DynamicResource BackgroundBrush}"
                             CameraRotationMode="Turntable"
                             InfiniteSpin="False"
@@ -792,6 +863,12 @@
                                     <Setter Property="Cursor" Value="Arrow" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IfcViewer.IsPlacementMode}" Value="True">
+                                            <Setter Property="Cursor" Value="Cross" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Drawing.IsDrawing}" Value="True">
+                                            <Setter Property="Cursor" Value="Cross" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Drawing.IsMeasuring}" Value="True">
                                             <Setter Property="Cursor" Value="Cross" />
                                         </DataTrigger>
                                     </Style.Triggers>

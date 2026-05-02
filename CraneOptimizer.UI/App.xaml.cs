@@ -8,6 +8,7 @@ using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
 using CraneOptimizer.UI.Features.F0_CoordinateSystem;
+using CraneOptimizer.UI.Features.F3_CraneSetup.Services;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
@@ -15,6 +16,7 @@ using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
+using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
@@ -66,7 +68,7 @@ namespace CraneOptimizer.UI
             // Infrastructure
             // =========================
             services.AddScoped<ICraneRepository, CraneRepository>();
-            services.AddScoped<IIfcReaderRepository, IfcReaderRepository>();
+            services.AddSingleton<IIfcReaderRepository, IfcReaderRepository>();
             services.AddScoped<IProjectRepository, ProjectRepository>();
 
             // =========================
@@ -93,6 +95,8 @@ namespace CraneOptimizer.UI
             services.AddSingleton<SceneService>();
             services.AddSingleton<DrawingService>();
             services.AddSingleton<CoordinateService>();
+            services.AddSingleton<ICoordinateTransformService, CoordinateTransformService>();
+            services.AddSingleton<ICraneValidationService, CraneValidationService>();
 
             // =========================
             // GA
@@ -281,7 +285,7 @@ namespace CraneOptimizer.UI
             services.AddScoped<IGAInitializer, GAInitializer>();
             services.AddScoped<IElementAssignmentService, ElementAssignmentService>();
             services.AddScoped<IFitnessEvaluator, FitnessEvaluator>();
-
+            services.AddSingleton<CraneSetupViewModel>();
             services.AddScoped<ISelectionStrategy, TournamentSelection>();
             services.AddScoped<ICrossoverOperator, CrossoverOperator>();
             services.AddScoped<IMutationOperator, MutationOperator>();
@@ -291,3 +295,5 @@ namespace CraneOptimizer.UI
         }
     }
 }
+
+

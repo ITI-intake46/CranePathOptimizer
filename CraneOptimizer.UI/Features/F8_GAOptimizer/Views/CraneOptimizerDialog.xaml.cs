@@ -1,7 +1,9 @@
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
@@ -20,7 +22,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private readonly IRenderingService _renderingService;
         private readonly IDialogService _dialogService;
         private readonly ISceneService _sceneService;
+        private readonly IIfcReaderRepository? _ifcReader;
+        private readonly CraneSetupViewModel _craneSetup;
         private readonly CraneOptimizerDialogWorkflow _workflow;
+        private readonly DomainPoint3D? _origin;
+        private readonly DomainPoint3D? _placementOffset;
 
         private CranePlacementResult? _currentResult;
         private CancellationTokenSource? _runCts;
@@ -35,14 +41,22 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             IRenderingService renderingService,
             IDialogService dialogService,
             ICraneRepository craneRepository,
-            ISceneService sceneService)
+            ISceneService sceneService,
+            CraneSetupViewModel craneSetup,
+            IIfcReaderRepository? ifcReader = null,
+            DomainPoint3D? origin = null,
+            DomainPoint3D? placementOffset = null)
         {
             InitializeComponent();
 
             _renderingService = renderingService;
             _dialogService = dialogService;
             _sceneService = sceneService;
+            _ifcReader = ifcReader;
+            _craneSetup = craneSetup;        
             _workflow = new CraneOptimizerDialogWorkflow(placementService, craneRepository);
+            _origin = origin;
+            _placementOffset = placementOffset;
 
             Loaded += OnLoaded;
         }
@@ -155,7 +169,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private void ShowPoint(CranePositionResult point)
         {
-            SelectedPointRenderer.Render(_renderingService, _cachedElements, point);
+            SelectedPointRenderer.Render(
+                _renderingService,
+                _cachedElements,
+                point,
+                _ifcReader,
+                _origin,
+                _placementOffset);
         }
 
         private void UpdateResultPanel(CranePlacementResult result)
@@ -259,14 +279,50 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             _runCts?.Cancel();
         }
 
+        // ============================
+        // HELPERS
+        // ============================
+        private double CalculateMarkerRadius() => 200;
+        private double CalculateMarkerZ(double r) => 500;
+
+        private void CboCrane_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
+        private void RbExclusion_Checked(object sender, RoutedEventArgs e) { }
+        public CranePositionResult? AppliedPosition { get; private set; }
+
         private void BtnApply_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentResult == null)
+            if (_currentResult == null || PointsList.SelectedItem is not CraneOptimizerPointListItem item)
+            {
+                _dialogService.ShowMessage("Please select a point to apply.");
                 return;
+            }
 
-            LatestResult = _currentResult;
-            DialogResult = true;
+            AppliedPosition = item.Point;
+
+            // Lock the crane position to the selected GA result
+            var lockedPosition = new DomainPoint3D(
+                item.Point.X,
+                item.Point.Y,
+                0
+            );
+
+            _craneSetup.LockPosition(lockedPosition);
+
             Close();
         }
+        private void BtnIncludeAll_Click(object sender, RoutedEventArgs e) { }
+        private void BtnExcludeAll_Click(object sender, RoutedEventArgs e) { }
+        private void BtnNoSlabs_Click(object sender, RoutedEventArgs e) { }
+        private void BtnNoStairs_Click(object sender, RoutedEventArgs e) { }
+        private void BtnNoRoofs_Click(object sender, RoutedEventArgs e) { }
+        //private void BtnApply_Click(object sender, RoutedEventArgs e)
+        //{
+        //    if (_currentResult == null)
+        //        return;
+
+        //    LatestResult = _currentResult;
+        //    DialogResult = true;
+        //    Close();
+        //}
     }
 }

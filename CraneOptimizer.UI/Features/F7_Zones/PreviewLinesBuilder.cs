@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.UI.Core.Interfaces;
 using HelixToolkit.Wpf;
 using System.Windows.Media;
@@ -8,11 +8,18 @@ namespace CraneOptimizer.UI.Features.F7_Zones
 {
     public class PreviewLinesBuilder : IVisualBuilder<List<DomainPoint3D>>
     {
+        private readonly Color _lineColor;
+
+        public PreviewLinesBuilder(Color? lineColor = null)
+        {
+            _lineColor = lineColor ?? Colors.Yellow;
+        }
+
         public Visual3D Build(List<DomainPoint3D> points)
         {
             var lines = new LinesVisual3D
             {
-                Color = Colors.Yellow,
+                Color = _lineColor,
                 Thickness = 2
             };
 
@@ -20,7 +27,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones
             {
                 var p1 = points[i];
                 var p2 = points[i + 1];
-
                 lines.Points.Add(new Point3D(p1.X, p1.Y, p1.Z));
                 lines.Points.Add(new Point3D(p2.X, p2.Y, p2.Z));
             }
@@ -29,12 +35,21 @@ namespace CraneOptimizer.UI.Features.F7_Zones
             {
                 var first = points[0];
                 var last = points[^1];
-
                 lines.Points.Add(new Point3D(last.X, last.Y, last.Z));
                 lines.Points.Add(new Point3D(first.X, first.Y, first.Z));
             }
 
             return lines;
+        }
+
+        public Visual3D BuildBatch(IEnumerable<List<DomainPoint3D>> items)
+        {
+            var container = new ModelVisual3D();
+            foreach (var item in items)
+            {
+                container.Children.Add(Build(item));
+            }
+            return container;
         }
     }
 }

@@ -1,6 +1,8 @@
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
+using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F7_Zones;
 using CraneOptimizer.UI.Shell.ViewModels;
 using HelixToolkit.Wpf;
@@ -12,49 +14,73 @@ namespace CraneOptimizer.UI.Shell.Views
 {
     public partial class MainWindow : Window
     {
+        private const double DefaultGridSizeMeters = 50d;
+        private const double GridPaddingFactor = 1.2d;
+        private const double GridRoundStepMeters = 10d;
+
         private readonly IRenderingService _renderingService;
         private readonly ISceneService _sceneService;
+        private CraneSetupViewModel? _craneSetup;
+        private bool _manualGridSize;
+        private double _gridCenterXMillimeters;
+        private double _gridCenterYMillimeters;
+        // ← NEW
 
         public MainWindow(
             MainViewModel vm,
             IRenderingService renderingService,
-            ISceneService sceneService)
+            ISceneService sceneService,
+            CraneSetupViewModel craneSetup)
         {
             InitializeComponent();
 
             _renderingService = renderingService;
             _sceneService = sceneService;
+            _craneSetup = craneSetup;                // ← NEW
+
 
             DataContext = vm;
 
             _renderingService.Initialize(IfcViewer);
 
-            #region DXF
             // Wire the DXF uploader to the same Helix viewport.
-            // Mirrors the IRenderingService pattern - must be done after InitializeComponent.
+            // Mirrors the IRenderingService pattern — must be done after InitializeComponent.
             vm.Dxf.Initialize(IfcViewer);
-            #endregion
 
-            #region Zones Interaction
             _sceneService.ZoneAdded += OnZoneAdded;
             _sceneService.ZoneSelected += OnZoneSelected;
             _sceneService.ZoneRemoved += OnZoneChanged;
             _sceneService.ZoneUpdated += OnZoneChanged;
             _sceneService.ZonesCleared += OnZonesCleared;
-            #endregion
+
+            _sceneService.ElementsChanged += OnElementsChanged;
+            _sceneService.CraneSelected += OnCraneSelected;
+
+            SetGridText(DefaultGridSizeMeters, DefaultGridSizeMeters);
         }
 
         private MainViewModel? VM => DataContext as MainViewModel;
-
-        #region Zones Interaction
 
         private void OnZoneAdded(GreenAreaZone zone) => RenderZones();
         private void OnZoneSelected(GreenAreaZone? zone) => RenderZones();
         private void OnZoneChanged(GreenAreaZone zone) => RenderZones();
 
-        private void OnZonesCleared()
+        private void OnZonesCleared() => RenderZones();
+
+        private void OnElementsChanged(List<PrecastElement> elements)
         {
-            RenderZones();
+            if (_manualGridSize)
+                return;
+
+            var (widthMeters, lengthMeters, centerXMillimeters, centerYMillimeters) = CalculateGridSizeMeters(elements);
+            _gridCenterXMillimeters = centerXMillimeters;
+            _gridCenterYMillimeters = centerYMillimeters;
+            SetGridText(widthMeters, lengthMeters);
+            _renderingService.SetGridSize(
+                widthMeters * 1000.0,
+                lengthMeters * 1000.0,
+                _gridCenterXMillimeters,
+                _gridCenterYMillimeters);
         }
 
         private void RenderZones()
@@ -66,6 +92,11 @@ namespace CraneOptimizer.UI.Shell.Views
             );
         }
 
+        private void OnCraneSelected(SceneCrane? crane)
+        {
+            // Placeholder for future UI highlight/inspector sync.
+        }
+
         private void HandleZoneSelection(MouseButtonEventArgs e)
         {
             var viewport = IfcViewer;
@@ -74,6 +105,7 @@ namespace CraneOptimizer.UI.Shell.Views
             if (hits == null || hits.Count == 0)
             {
                 _sceneService.SetSelectedZone(null);
+                _sceneService.SetSelectedCrane(null);
                 return;
             }
 
@@ -81,54 +113,88 @@ namespace CraneOptimizer.UI.Shell.Views
             {
                 var visual = hit.Visual;
 
-                if (visual is ModelVisual3D mv &&
-                    mv.GetValue(FrameworkElement.TagProperty) is GreenAreaZone zone)
+                if (visual is ModelVisual3D mv)
                 {
-                    _sceneService.SetSelectedZone(zone);
-                    return;
+                    var tag = mv.GetValue(FrameworkElement.TagProperty);
+
+                    if (tag is GreenAreaZone zone)
+                    {
+                        _sceneService.SetSelectedZone(zone);
+                        return;
+                    }
+
+                    if (tag is SceneCrane crane)
+                    {
+                        _sceneService.SetSelectedCrane(crane);
+                        return;
+                    }
                 }
             }
 
             _sceneService.SetSelectedZone(null);
         }
 
-        #endregion
-
         protected override void OnClosed(EventArgs e)
         {
-            #region Zones Interaction
             _sceneService.ZoneAdded -= OnZoneAdded;
             _sceneService.ZoneSelected -= OnZoneSelected;
             _sceneService.ZoneRemoved -= OnZoneChanged;
             _sceneService.ZoneUpdated -= OnZoneChanged;
             _sceneService.ZonesCleared -= OnZonesCleared;
-            #endregion
+            _sceneService.ElementsChanged -= OnElementsChanged;
+            _sceneService.CraneSelected -= OnCraneSelected;
 
             base.OnClosed(e);
         }
-
-        #region Viewport Interaction
 
         private void IfcViewer_MouseMove(object sender, MouseEventArgs e)
         {
             var viewport = sender as HelixViewport3D;
             if (viewport == null) return;
 
-            var vm = VM?.Drawing;
-
-            if (vm == null || !vm.IsDrawing) return;
-
             var screen = e.GetPosition(viewport);
             if (!TryGetWorldPoint(viewport, screen, out var world))
                 return;
 
+            if (VM?.IsDraggingCrane == true && e.LeftButton == MouseButtonState.Pressed)
+            {
+                VM.DragCrane(new DomainPoint3D(world.X, world.Y, world.Z));
+                e.Handled = true;
+                return;
+            }
+
+            var vm = VM?.Drawing;
+            if (vm == null || !vm.IsDrawing) return;
+
             vm.SetHoverPoint(new DomainPoint3D(world.X, world.Y, world.Z));
+        }
+
+        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (VM?.IfcViewer.IsPlacementMode == true)
+                return;
+
+            VM?.Drawing.HandleKeyDown(e);
         }
 
         private void IfcViewer_MouseDown(object sender, MouseButtonEventArgs e)
         {
             var viewport = sender as HelixViewport3D;
             if (viewport == null) return;
+
+            if (e.ChangedButton == MouseButton.Left)
+            {
+                var pickPos = e.GetPosition(viewport);
+                if (TryGetWorldPoint(viewport, pickPos, out var pickWorld)
+                    && TryGetHitCrane(viewport, pickPos, out var hitCrane)
+                    && VM != null)
+                {
+                    VM.SelectedSceneCrane = hitCrane;
+                    VM.StartDrag(new DomainPoint3D(pickWorld.X, pickWorld.Y, pickWorld.Z));
+                    e.Handled = true;
+                    return;
+                }
+            }
 
             if (VM?.IfcViewer.IsPlacementMode == true)
             {
@@ -146,6 +212,22 @@ namespace CraneOptimizer.UI.Shell.Views
                     e.Handled = true;
                 }
 
+                return;
+            }
+
+            if (VM?.CranePlacement.IsPlacing == true)
+            {
+                if (e.ChangedButton != MouseButton.Left)
+                    return;
+
+                var cranePlacementScreen = e.GetPosition(viewport);
+                if (!TryGetWorldPoint(viewport, cranePlacementScreen, out var cranePoint))
+                    return;
+
+                var point = new DomainPoint3D(cranePoint.X, cranePoint.Y, cranePoint.Z);
+                VM.CranePlacement.Place(point);
+                VM.PlaceSelectedCrane(point);
+                e.Handled = true;
                 return;
             }
 
@@ -169,14 +251,15 @@ namespace CraneOptimizer.UI.Shell.Views
             if (vm != null && !vm.IsDrawing)
             {
                 HandleZoneSelection(e);
-                return;
+                if (!vm.IsMeasuring)
+                    return;
             }
 
             if (vm == null) return;
 
             if (e.ChangedButton == MouseButton.Right)
             {
-                vm.Finish();
+                vm.HandleRightClick();
                 e.Handled = true;
                 return;
             }
@@ -188,13 +271,24 @@ namespace CraneOptimizer.UI.Shell.Views
             if (!TryGetWorldPoint(viewport, screen, out var world))
                 return;
 
-            vm.AddPoint(new DomainPoint3D(world.X, world.Y, world.Z));
+            if (e.ClickCount > 1)
+            {
+                vm.HandleDoubleClick();
+                e.Handled = true;
+                return;
+            }
+
+            vm.HandleViewportLeftClick(new DomainPoint3D(world.X, world.Y, world.Z));
             e.Handled = true;
         }
 
-        #endregion
+        private void IfcViewer_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != MouseButton.Left)
+                return;
 
-        #region Window Chrome + UI Events (required by XAML)
+            VM?.EndDrag();
+        }
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
@@ -251,10 +345,84 @@ namespace CraneOptimizer.UI.Shell.Views
         private void ShowCommandPanel_Click(object sender, RoutedEventArgs e) { }
         private void ShowLogsPanel_Click(object sender, RoutedEventArgs e) { }
 
-        #endregion
+        private void ApplyGridSize_Click(object sender, RoutedEventArgs e)
+        {
+            if (!TryReadGridSizeMeters(out var widthMeters, out var lengthMeters))
+            {
+                VM!.StatusText = "Grid size must be positive numbers in meters.";
+                return;
+            }
+
+            _manualGridSize = true;
+            _renderingService.SetGridSize(
+                widthMeters * 1000.0,
+                lengthMeters * 1000.0,
+                _gridCenterXMillimeters,
+                _gridCenterYMillimeters);
+            VM!.StatusText = $"Grid size set to {widthMeters:F0}m x {lengthMeters:F0}m.";
+        }
+
+        private void AutoGridSize_Click(object sender, RoutedEventArgs e)
+        {
+            _manualGridSize = false;
+            OnElementsChanged(_sceneService.GetElements());
+            VM!.StatusText = "Grid size set from building extents.";
+        }
+
+        private bool TryReadGridSizeMeters(out double widthMeters, out double lengthMeters)
+        {
+            var hasWidth = double.TryParse(GridSizeXTextBox.Text, out widthMeters);
+            var hasLength = double.TryParse(GridSizeYTextBox.Text, out lengthMeters);
+
+            return hasWidth
+                && hasLength
+                && widthMeters > 0
+                && lengthMeters > 0;
+        }
+
+        private void SetGridText(double widthMeters, double lengthMeters)
+        {
+            GridSizeXTextBox.Text = widthMeters.ToString("0");
+            GridSizeYTextBox.Text = lengthMeters.ToString("0");
+        }
+
+        private static (double widthMeters, double lengthMeters, double centerXMillimeters, double centerYMillimeters)
+            CalculateGridSizeMeters(IReadOnlyList<PrecastElement> elements)
+        {
+            if (elements.Count == 0)
+                return (DefaultGridSizeMeters, DefaultGridSizeMeters, 0d, 0d);
+
+            var minX = elements.Min(e => e.ElementCOG.X - ((e.BBoxLength ?? 0d) / 2d));
+            var maxX = elements.Max(e => e.ElementCOG.X + ((e.BBoxLength ?? 0d) / 2d));
+            var minY = elements.Min(e => e.ElementCOG.Y - ((e.BBoxWidth ?? 0d) / 2d));
+            var maxY = elements.Max(e => e.ElementCOG.Y + ((e.BBoxWidth ?? 0d) / 2d));
+
+            var buildingWidthMeters = Math.Max(0d, (maxX - minX) / 1000.0);
+            var buildingLengthMeters = Math.Max(0d, (maxY - minY) / 1000.0);
+            var centerXMillimeters = (minX + maxX) / 2.0;
+            var centerYMillimeters = (minY + maxY) / 2.0;
+
+            return (
+                CalculateGridAxisMeters(buildingWidthMeters),
+                CalculateGridAxisMeters(buildingLengthMeters),
+                centerXMillimeters,
+                centerYMillimeters);
+        }
+
+        private static double CalculateGridAxisMeters(double buildingAxisMeters)
+        {
+            if (buildingAxisMeters <= DefaultGridSizeMeters)
+                return DefaultGridSizeMeters;
+
+            var padded = buildingAxisMeters * GridPaddingFactor;
+            return Math.Ceiling(padded / GridRoundStepMeters) * GridRoundStepMeters;
+        }
+
+
 
         #region Helpers
 
+        #region Dragging the Crane Visual   
         private bool TryGetWorldPoint(
             HelixViewport3D viewport,
             System.Windows.Point screenPt,
@@ -320,5 +488,42 @@ namespace CraneOptimizer.UI.Shell.Views
         }
 
         #endregion
+        #endregion
+ 
+
+        private bool TryGetHitCrane(HelixViewport3D viewport, System.Windows.Point screenPt, out SceneCrane crane)
+        {
+            crane = null!;
+
+            try
+            {
+                var hits = viewport.Viewport.FindHits(screenPt);
+                foreach (var h in hits)
+                {
+                    if (h.Visual is ModelVisual3D mv)
+                    {
+                        var tag = mv.GetValue(FrameworkElement.TagProperty);
+                        if (tag is SceneCrane sc)
+                        {
+                            crane = sc;
+                            return true;
+                        }
+                    }
+
+                    if (h.Visual is Visual3D v3)
+                    {
+                        var tag = v3.GetValue(FrameworkElement.TagProperty);
+                        if (tag is SceneCrane sc2)
+                        {
+                            crane = sc2;
+                            return true;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return false;
+        }
     }
 }

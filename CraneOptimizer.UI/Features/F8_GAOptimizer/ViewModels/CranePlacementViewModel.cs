@@ -82,6 +82,20 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             }
         }
 
+        private CranePositionResult? _selectedPosition;
+        public CranePositionResult? SelectedPosition
+        {
+            get => _selectedPosition;
+            set
+            {
+                if (ReferenceEquals(_selectedPosition, value))
+                    return;
+
+                _selectedPosition = value;
+                OnPropertyChanged();
+            }
+        }
+
         public bool HasResult => Result != null && Result.Positions.Count > 0;
 
         public ICommand OptimizeCommand => _optimizeCommand;

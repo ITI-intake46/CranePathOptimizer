@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Core.Interfaces;
 using HelixToolkit.Wpf;
@@ -19,8 +19,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones
 
         public Visual3D Build(GreenAreaZone zone)
         {
-            var meshBuilder = new HelixToolkit.Geometry.MeshBuilder(false, false);
-
             var points = zone.Vertices
                 .Select(v => new Point3D(v.X, v.Y, v.Z))
                 .ToList();
@@ -48,12 +46,12 @@ namespace CraneOptimizer.UI.Features.F7_Zones
                 border.Points.Add(points[(i + 1) % points.Count]);
             }
 
+            var meshBuilder = new HelixToolkit.Geometry.MeshBuilder(false, false);
             var vectors = zone.Vertices
                 .Select(v => new System.Numerics.Vector3((float)v.X, (float)v.Y, (float)v.Z))
                 .ToList();
 
             meshBuilder.AddPolygon(vectors);
-
             var helixMesh = meshBuilder.ToMesh();
 
             var wpfMesh = new MeshGeometry3D
@@ -77,11 +75,19 @@ namespace CraneOptimizer.UI.Features.F7_Zones
             };
 
             var container = new ModelVisual3D { Content = model };
-
             container.SetValue(FrameworkElement.TagProperty, zone);
-
             container.Children.Add(border);
 
+            return container;
+        }
+
+        public Visual3D BuildBatch(IEnumerable<GreenAreaZone> items)
+        {
+            var container = new ModelVisual3D();
+            foreach (var item in items)
+            {
+                container.Children.Add(Build(item));
+            }
             return container;
         }
     }

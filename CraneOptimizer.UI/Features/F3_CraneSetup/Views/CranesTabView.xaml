@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="CraneOptimizer.UI.Features.F3_CraneSetup.Views.CranesTabView"
+<UserControl x:Class="CraneOptimizer.UI.Features.F3_CraneSetup.Views.CranesTabView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="{DynamicResource SurfaceBrush}">
@@ -8,40 +8,162 @@
 
         <StackPanel Orientation="Horizontal" Margin="6,0">
 
-            <!-- ── ADD CRANE ───────────────────────── -->
             <Border Padding="8,6,8,0">
                 <DockPanel Width="90">
-
-                    <TextBlock DockPanel.Dock="Bottom"
-                               Text="ADD CRANE"
-                               Style="{StaticResource GroupLabel}"/>
-
+                    <TextBlock DockPanel.Dock="Bottom" Text="ADD CRANE" Style="{StaticResource GroupLabel}"/>
                     <StackPanel Orientation="Horizontal">
 
-                        <!-- Mobile ONLY -->
-                        <Button Style="{StaticResource RibbonLargeBtn}"
-                                Width="70"
-                                ToolTip="Place Mobile Crane">
+                        <!--
+                            The button is wrapped in a Grid so the Popup can reference
+                            it by x:Name as its PlacementTarget. A plain StackPanel child
+                            cannot serve as a PlacementTarget reliably in WPF.
+                        -->
+                        <Grid>
 
-                            <StackPanel HorizontalAlignment="Center">
+                            <!-- Clicking the button calls ToggleCranePickerCommand,
+                                 which flips IsCranePickerOpen true/false in the ViewModel. -->
+                            <Button x:Name="BtnAddMobileCrane"
+                                    Style="{StaticResource RibbonLargeBtn}"
+                                    Width="70"
+                                    ToolTip="Click to pick a crane from the database"
+                                    Command="{Binding CraneSetup.ToggleCranePickerCommand}">
 
-                                <TextBlock Text="🚚"
-                                           FontSize="26"
-                                           Margin="0,6,0,4"
-                                           Foreground="{StaticResource PrimaryBrush}"/>
+                                <StackPanel HorizontalAlignment="Center">
 
-                                <TextBlock Text="MOBILE"
-                                           FontSize="9"
-                                           FontWeight="Bold"
-                                           Margin="0,0,0,1"
-                                           Foreground="{StaticResource PrimaryBrush}"/>
+                                    <TextBlock Text="🚚"
+                                               FontSize="26"
+                                               Margin="0,6,0,4"
+                                               Foreground="{StaticResource PrimaryBrush}"/>
 
-                                <TextBlock Text="CRANE"
-                                           FontSize="9"
-                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                    <TextBlock Text="MOBILE"
+                                               FontSize="9"
+                                               FontWeight="Bold"
+                                               Margin="0,0,0,1"
+                                               Foreground="{StaticResource PrimaryBrush}"/>
 
-                            </StackPanel>
-                        </Button>
+                                    <TextBlock Text="CRANE"
+                                               FontSize="9"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+                                </StackPanel>
+                            </Button>
+
+                            <!--
+                                CRANE PICKER POPUP
+                                ──────────────────
+                                Placement="Bottom"   → drops down directly below the button.
+                                StaysOpen="False"    → WPF closes it automatically when the
+                                                       user clicks anywhere outside, including
+                                                       on a list row. When it closes itself it
+                                                       writes false back to IsCranePickerOpen
+                                                       via the TwoWay binding.
+                                AllowsTransparency   → needed so CornerRadius on the inner
+                                                       Border renders without a rectangular clip.
+                            -->
+                            <Popup PlacementTarget="{Binding ElementName=BtnAddMobileCrane}"
+                                   Placement="Bottom"
+                                   StaysOpen="False"
+                                   AllowsTransparency="True"
+                                   IsOpen="{Binding CraneSetup.IsCranePickerOpen, Mode=TwoWay}">
+
+                                <Border Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource PrimaryBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="8"
+                                        MinWidth="240">
+
+                                    <StackPanel>
+
+                                        <!-- Popup header -->
+                                        <TextBlock Text="Select a Crane"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12"
+                                                   Margin="0,0,0,6"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+
+                                        <!--
+                                            CRANE LIST
+                                            ItemsSource  → MainViewModel.Cranes (full DB list)
+                                            SelectedItem → MainViewModel.SelectedCrane (TwoWay)
+
+                                            Flow when user clicks a row:
+                                              1. SelectedCrane is set on MainViewModel.
+                                              2. MainViewModel setter calls
+                                                 CraneSetup.SelectedCrane = value,
+                                                 which runs OnCraneChanged() and renders
+                                                 the crane in the 3D viewport.
+                                              3. StaysOpen="False" closes the popup.
+                                        -->
+                                        <ListBox ItemsSource="{Binding Cranes}"
+                                                 SelectedItem="{Binding SelectedCrane, Mode=TwoWay}"
+                                                 MaxHeight="200"
+                                                 BorderThickness="0"
+                                                 Background="Transparent">
+
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem">
+                                                    <Setter Property="Padding" Value="6,5"/>
+                                                    <Setter Property="Cursor"  Value="Hand"/>
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
+
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+
+                                                        <TextBlock Text="🏗"
+                                                                   FontSize="14"
+                                                                   Margin="0,0,8,0"
+                                                                   VerticalAlignment="Center"/>
+
+                                                        <StackPanel>
+                                                            <!-- Crane.Name from the database -->
+                                                            <TextBlock Text="{Binding Name}"
+                                                                       FontWeight="SemiBold"
+                                                                       FontSize="12"/>
+
+                                                            <!-- Manufacturer · CraneType on a second line -->
+                                                            <TextBlock FontSize="10"
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}">
+                                                                <Run Text="{Binding Manufacturer}"/>
+                                                                <Run Text=" · "/>
+                                                                <Run Text="{Binding CraneType}"/>
+                                                            </TextBlock>
+                                                        </StackPanel>
+
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+
+                                        </ListBox>
+                                        <Border Background="{Binding CraneSetup.IsPositionValid,Converter={StaticResource BoolToColorConverter},ConverterParameter='Green|Red'}" Padding="8,4" CornerRadius="4" Margin="0,8,0,0">
+                                            <TextBlock Text="{Binding CraneSetup.IsPositionValid,Converter={StaticResource BoolToTextConverter},ConverterParameter='Inside Zone|Outside Zone'}" Foreground="White" FontWeight="Bold"/>
+                                        </Border>
+
+                                        <!-- Lock Status Indicator -->
+                                        <Border Background="{Binding CraneSetup.IsPositionLocked,Converter={StaticResource BoolToColorConverter},ConverterParameter='Orange|Transparent'}" Padding="8,4" CornerRadius="4" Margin="0,6,0,0" Visibility="{Binding CraneSetup.IsPositionLocked,Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <TextBlock Text="🔒 Position Locked (GA Optimized)" Foreground="White" FontWeight="Bold" FontSize="10"/>
+                                        </Border>
+                                        <!-- Thin divider -->
+                                        <Rectangle Height="1"
+                                                   Fill="{DynamicResource BorderBrush}"
+                                                   Margin="0,6"/>
+
+                                        <!-- Shows which crane is currently active -->
+                                        <TextBlock FontSize="10"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}">
+                                            <Run Text="Active: "/>
+                                            <Run Text="{Binding SelectedCrane.Name, FallbackValue='None'}"
+                                                 FontWeight="SemiBold"
+                                                 Foreground="{DynamicResource PrimaryBrush}"/>
+                                        </TextBlock>
+
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+
+                        </Grid>
 
                     </StackPanel>
                 </DockPanel>
@@ -49,102 +171,67 @@
 
             <Rectangle Style="{StaticResource RibbonSep}" Margin="4,0"/>
 
-            <!-- ── MANAGE ───────────────────────── -->
             <Border Padding="8,6,8,0">
                 <DockPanel Width="180">
-
-                    <TextBlock DockPanel.Dock="Bottom"
-                               Text="MANAGE"
-                               Style="{StaticResource GroupLabel}"/>
-
+                    <TextBlock DockPanel.Dock="Bottom" Text="MANAGE" Style="{StaticResource GroupLabel}"/>
                     <StackPanel Margin="0,2,0,0">
-
                         <Button Style="{StaticResource RibbonSmallBtn}"
                                 Width="165"
-                                Margin="0,0,0,3">
-
+                                Margin="0,0,0,3"
+                                Command="{Binding RemoveSelectedCraneCommand}">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="✖"
-                                           Margin="0,0,6,0"
-                                           Foreground="{StaticResource DestructiveBrush}"/>
+                                <TextBlock Text="✖" Margin="0,0,6,0" Foreground="{StaticResource DestructiveBrush}"/>
                                 <TextBlock Text="Remove Selected Crane"/>
                             </StackPanel>
                         </Button>
 
                         <Button Style="{StaticResource RibbonSmallBtn}"
                                 Width="165"
-                                Margin="0,0,0,4">
-
+                                Margin="0,0,0,4"
+                                Command="{Binding RemoveAllCranesCommand}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🗑" Margin="0,0,6,0"/>
                                 <TextBlock Text="Remove All Cranes"/>
                             </StackPanel>
                         </Button>
 
+                        <Button Style="{StaticResource RibbonSmallBtn}"
+                                Width="165"
+                                Margin="0,0,0,3"
+                                Command="{Binding CraneSetup.UnlockPositionCommand}"
+                                IsEnabled="{Binding CraneSetup.IsPositionLocked}">
+
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🔓" Margin="0,0,6,0"/>
+                                <TextBlock Text="Unlock Position"/>
+                            </StackPanel>
+                        </Button>
+
                         <ToggleButton Style="{StaticResource RibbonToggleBtn}"
                                       Width="165"
                                       Margin="0,0,0,3"
-                                      Padding="6,2">
-
+                                      Padding="6,2"
+                                      IsChecked="{Binding ShowCraneRadius}">
                             <StackPanel Orientation="Horizontal">
-                                <Ellipse Width="8" Height="8"
-                                         Stroke="{StaticResource PrimaryBrush}"
-                                         StrokeThickness="1.5"
-                                         Margin="0,0,6,0"/>
+                                <Ellipse Width="8" Height="8" Stroke="{StaticResource PrimaryBrush}" StrokeThickness="1.5" Margin="0,0,6,0"/>
                                 <TextBlock Text="Show Swing Radius"/>
                             </StackPanel>
                         </ToggleButton>
-
-                        <ToggleButton Style="{StaticResource RibbonToggleBtn}"
-                                      Width="165"
-                                      Padding="6,2">
-
-                            <StackPanel Orientation="Horizontal">
-                                <Ellipse Width="8" Height="8"
-                                         Stroke="{StaticResource PrimaryBrush}"
-                                         StrokeThickness="1.5"
-                                         Margin="0,0,6,0"/>
-                                <TextBlock Text="Show Capacity Rings"/>
-                            </StackPanel>
-                        </ToggleButton>
-
                     </StackPanel>
                 </DockPanel>
             </Border>
 
             <Rectangle Style="{StaticResource RibbonSep}" Margin="4,0"/>
 
-            <!-- ── OPTIMIZE ───────────────────────── -->
             <Border Padding="8,6,8,0">
                 <DockPanel Width="100">
-
-                    <TextBlock DockPanel.Dock="Bottom"
-                               Text="OPTIMIZE"
-                               Style="{StaticResource GroupLabel}"/>
-
-                    <Button Style="{StaticResource RibbonLargeBtn}"
-                            Width="80"
-                            Command="{Binding OptimizeCommand}">
-
+                    <TextBlock DockPanel.Dock="Bottom" Text="OPTIMIZE" Style="{StaticResource GroupLabel}"/>
+                    <Button Style="{StaticResource RibbonLargeBtn}" Width="80" Command="{Binding OptimizeCommand}">
                         <StackPanel HorizontalAlignment="Center">
-
-                            <TextBlock Text="⚡"
-                                       FontSize="26"
-                                       Margin="0,6,0,4"
-                                       Foreground="{StaticResource PrimaryBrush}"/>
-
-                            <TextBlock Text="Run"
-                                       FontSize="9"
-                                       FontWeight="Bold"
-                                       Margin="0,0,0,1"
-                                       Foreground="{StaticResource PrimaryBrush}"/>
-
-                            <TextBlock Text="Optimizer"
-                                       FontSize="9"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
-
+                            <TextBlock Text="⚡" FontSize="26" Margin="0,6,0,4" Foreground="{StaticResource PrimaryBrush}"/>
+                            <TextBlock Text="Run" FontSize="9" FontWeight="Bold" Margin="0,0,0,1" Foreground="{StaticResource PrimaryBrush}"/>
+                            <TextBlock Text="Optimizer" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"/>
                         </StackPanel>
-
                     </Button>
                 </DockPanel>
             </Border>

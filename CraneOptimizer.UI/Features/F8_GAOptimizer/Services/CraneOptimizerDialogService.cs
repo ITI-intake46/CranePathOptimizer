@@ -1,5 +1,6 @@
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
@@ -11,6 +12,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         private readonly IDialogService _dialogService;
         private readonly ICraneRepository _craneRepository;
         private readonly ISceneService _sceneService;
+        private readonly CraneSetupViewModel _craneSetup;
 
         public CraneOptimizerDialogService(
             ICranePlacementService placementService,
@@ -33,7 +35,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 _renderingService,
                 _dialogService,
                 _craneRepository,
-                _sceneService);
+                _sceneService,
+                _craneSetup);
 
             if (System.Windows.Application.Current?.MainWindow != null)
                 dialog.Owner = System.Windows.Application.Current.MainWindow;

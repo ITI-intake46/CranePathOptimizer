@@ -26,6 +26,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="HelixToolkit.Wpf" Version="3.1.2" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.14" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.14">
 			<PrivateAssets>all</PrivateAssets>
@@ -34,6 +35,7 @@
 		<PackageReference Include="Xbim.Essentials" Version="6.0.565" />
 		<PackageReference Include="Xbim.Geometry" Version="5.1.820" />
 		<PackageReference Include="Xbim.Geometry.Engine.Interop" Version="5.1.820" />
+		<PackageReference Include="Xbim.Ifc" Version="6.0.587" />
 		<PackageReference Include="Xbim.ModelGeometry.Scene" Version="5.1.820" />
 		<PackageReference Include="Xbim.WindowsUI" Version="5.1.228" />
 	</ItemGroup>
