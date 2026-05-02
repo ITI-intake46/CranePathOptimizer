@@ -197,13 +197,24 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         private void OpenOptimizerDialog()
         {
+            var pendingPlacement = IfcViewer.PendingPlacementPoint;
+            var placementOffset = pendingPlacement.HasValue
+                ? new DomainPoint3D(
+                    pendingPlacement.Value.X,
+                    pendingPlacement.Value.Y,
+                    pendingPlacement.Value.Z)
+                : null;
+
             var dialog = new CraneOptimizerDialog(
                 _cranePlacementService,
                 _render,
                 _dialog,
                 _craneRepo,
                 Scene,
-                CraneSetup);
+                CraneSetup,
+                _ifcReader,
+                OriginPoint,
+                placementOffset);
 
             if (System.Windows.Application.Current?.MainWindow != null)
                 dialog.Owner = System.Windows.Application.Current.MainWindow;

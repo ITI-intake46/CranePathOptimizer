@@ -23,15 +23,18 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         private readonly IIfcReaderRepository? _ifcReader;
         private readonly DomainPoint3D? _origin;
         private readonly DomainPoint3D? _placementOffset;
+        private readonly bool _renderOnlyStatusElements;
 
         public ElementVisualBuilder(
             IIfcReaderRepository? ifcReader = null,
             DomainPoint3D? origin = null,
-            DomainPoint3D? placementOffset = null)
+            DomainPoint3D? placementOffset = null,
+            bool renderOnlyStatusElements = false)
         {
             _ifcReader = ifcReader;
             _origin = origin;
             _placementOffset = placementOffset;
+            _renderOnlyStatusElements = renderOnlyStatusElements;
         }
 
         public Visual3D Build((PrecastElement element, LiftStatus? status) item)
@@ -53,6 +56,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         {
             var batchGroup = new Model3DGroup();
             var itemsList = items.ToList();
+            if (_renderOnlyStatusElements)
+                itemsList = itemsList.Where(item => item.status.HasValue).ToList();
 
             if (_ifcReader is CraneOptimizer.Infrastructure.Repositories.IfcReaderRepository concreteRepo
                 && concreteRepo.GeometryContext != null
@@ -324,10 +329,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             return status.Value switch
             {
                 LiftStatus.Liftable => Colors.LightGreen,
-                LiftStatus.Overweight => Colors.OrangeRed,
-                LiftStatus.OutOfRadius => Colors.DarkRed,
-                LiftStatus.HeightFail => Colors.Purple,
-                LiftStatus.SpecialCase => Colors.Magenta,
+                LiftStatus.Overweight => Colors.Gold,
+                LiftStatus.OutOfRadius => Colors.IndianRed,
+                LiftStatus.HeightFail => Colors.IndianRed,
+                LiftStatus.SpecialCase => Colors.Gold,
                 _ => Colors.Gray
             };
         }
