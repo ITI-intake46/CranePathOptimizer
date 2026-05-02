@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Core.Interfaces;
 using HelixToolkit.Wpf;
@@ -78,6 +78,16 @@ namespace CraneOptimizer.UI.Features.F7_Zones
             container.SetValue(FrameworkElement.TagProperty, zone);
             container.Children.Add(border);
 
+            return container;
+        }
+
+        public Visual3D BuildBatch(IEnumerable<GreenAreaZone> items)
+        {
+            var container = new ModelVisual3D();
+            foreach (var item in items)
+            {
+                container.Children.Add(Build(item));
+            }
             return container;
         }
     }

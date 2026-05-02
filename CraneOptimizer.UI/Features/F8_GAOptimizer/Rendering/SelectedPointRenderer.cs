@@ -1,5 +1,6 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
@@ -10,18 +11,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
     internal static class SelectedPointRenderer
     {
         public const string PointLayer = "GA_SelectedPoint";
-        public const string ElementsLayer = "GA_Elements";
 
         private const double MarkerRadius = 200.0;
         private const double MarkerElevationOffset = 500.0;
 
         private static readonly BestPointVisualBuilder PointBuilder = new(MarkerRadius);
-        private static readonly ElementVisualBuilder ElementBuilder = new();
 
         public static void Clear(IRenderingService renderingService)
         {
             renderingService.ClearLayer(PointLayer);
-            renderingService.ClearLayer(ElementsLayer);
         }
 
         public static void RenderPlacementPoint(IRenderingService renderingService, DomainPoint3D point)
@@ -55,6 +53,17 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
             IEnumerable<PrecastElement>? elements,
             CranePositionResult? point)
         {
+            Render(renderingService, elements, point, null, null, null);
+        }
+
+        public static void Render(
+            IRenderingService renderingService,
+            IEnumerable<PrecastElement>? elements,
+            CranePositionResult? point,
+            IIfcReaderRepository? ifcReader,
+            DomainPoint3D? origin,
+            DomainPoint3D? placementOffset)
+        {
             Clear(renderingService);
 
             if (point == null)
@@ -62,7 +71,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
 
             RenderPoint(renderingService, point.X, point.Y, MarkerElevationOffset);
 
-            if (elements == null)
+            if (elements == null || ifcReader == null)
                 return;
 
             var statusMap = point.ElementResults
@@ -78,8 +87,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
 
             renderingService.Render(
                 elementsWithStatus,
-                ElementBuilder,
-                ElementsLayer);
+                new ElementVisualBuilder(ifcReader, origin, placementOffset),
+                "Elements");
         }
     }
 }

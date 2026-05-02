@@ -54,5 +54,19 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
                 Content = geometryModel
             };
         }
+
+        public Visual3D BuildBatch(IEnumerable<(double x, double y, double z)> items)
+        {
+            var group = new Model3DGroup();
+            foreach (var item in items)
+            {
+                var visual = Build(item) as ModelVisual3D;
+                if (visual?.Content != null)
+                {
+                    group.Children.Add(visual.Content);
+                }
+            }
+            return new ModelVisual3D { Content = group };
+        }
     }
 }

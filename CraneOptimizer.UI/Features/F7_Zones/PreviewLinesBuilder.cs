@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.UI.Core.Interfaces;
 using HelixToolkit.Wpf;
 using System.Windows.Media;
@@ -40,6 +40,16 @@ namespace CraneOptimizer.UI.Features.F7_Zones
             }
 
             return lines;
+        }
+
+        public Visual3D BuildBatch(IEnumerable<List<DomainPoint3D>> items)
+        {
+            var container = new ModelVisual3D();
+            foreach (var item in items)
+            {
+                container.Children.Add(Build(item));
+            }
+            return container;
         }
     }
 }

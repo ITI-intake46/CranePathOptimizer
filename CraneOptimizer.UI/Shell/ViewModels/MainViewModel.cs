@@ -197,24 +197,38 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         private void OpenOptimizerDialog()
         {
+            var pendingPlacement = IfcViewer.PendingPlacementPoint;
+            var placementOffset = pendingPlacement.HasValue
+                ? new DomainPoint3D(
+                    pendingPlacement.Value.X,
+                    pendingPlacement.Value.Y,
+                    pendingPlacement.Value.Z)
+                : null;
+
             var dialog = new CraneOptimizerDialog(
                 _cranePlacementService,
                 _render,
                 _dialog,
                 _craneRepo,
                 Scene,
-                CraneSetup);
+                CraneSetup,
+                _ifcReader,
+                OriginPoint,
+                placementOffset);
 
             if (System.Windows.Application.Current?.MainWindow != null)
                 dialog.Owner = System.Windows.Application.Current.MainWindow;
 
             dialog.ShowDialog();
 
-            if (dialog.LatestResult != null)
-            if (CranePlacement.RunOptimizationWorkflow() && CranePlacement.Result != null)
+            if (dialog.LatestResult != null && dialog.AppliedPosition != null)
             {
+                CranePlacement.Result = dialog.LatestResult;
+                CranePlacement.SelectedPosition = dialog.AppliedPosition;
                 StatusText = "Optimization Completed";
-                HistoryBreadcrumb = $"Best Fitness: {CranePlacement.Result.FitnessScore:F2}";
+                HistoryBreadcrumb = $"Best Fitness: {dialog.LatestResult.FitnessScore:F2}";
+                
+                ReRenderElements();
             }
         }
 
@@ -298,9 +312,26 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
             Debug.WriteLine("Rendering Elements: " + _sceneElements.Count);
 
+            var pendingPlacement = IfcViewer.PendingPlacementPoint;
+            var placementOffset = pendingPlacement.HasValue
+                ? new DomainPoint3D(
+                    pendingPlacement.Value.X,
+                    pendingPlacement.Value.Y,
+                    pendingPlacement.Value.Z)
+                : null;
+
+            var statusMap = CranePlacement?.SelectedPosition?.ElementResults
+                ?.ToDictionary(r => r.ElementId, r => r.Status);
+
             _render.Render(
-                _sceneElements.Select(e => (e, (LiftStatus?)null)),
-                new ElementVisualBuilder(OriginPoint),
+                _sceneElements.Select(e =>
+                {
+                    LiftStatus? status = null;
+                    if (statusMap != null && statusMap.TryGetValue(e.ElementID, out var s))
+                        status = s;
+                    return (e, status);
+                }),
+                new ElementVisualBuilder(_ifcReader, OriginPoint, placementOffset),
                 "Elements"
             );
 

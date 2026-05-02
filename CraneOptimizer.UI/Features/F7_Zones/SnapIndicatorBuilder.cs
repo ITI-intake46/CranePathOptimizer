@@ -63,5 +63,15 @@ namespace CraneOptimizer.UI.Features.F7_Zones
             container.Children.Add(ring);
             return container;
         }
+
+        public Visual3D BuildBatch(IEnumerable<SnapIndicatorData> items)
+        {
+            var container = new ModelVisual3D();
+            foreach (var item in items)
+            {
+                container.Children.Add(Build(item));
+            }
+            return container;
+        }
     }
 }

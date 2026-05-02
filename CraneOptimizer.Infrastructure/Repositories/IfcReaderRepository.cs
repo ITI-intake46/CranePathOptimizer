@@ -22,6 +22,42 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private const double GlassDensityTonPerCubicMeter = 2.5d;
         private const double TimberDensityTonPerCubicMeter = 0.6d;
 
+        public IfcStore? CurrentModel { get; private set; }
+        public Xbim3DModelContext? GeometryContext { get; private set; }
+        public double ModelLengthFactor { get; private set; } = 1.0;
+
+        public void ClearData()
+        {
+            if (CurrentModel != null)
+            {
+                try { CurrentModel.Close(); CurrentModel.Dispose(); } catch { }
+                CurrentModel = null;
+            }
+            GeometryContext = null;
+        }
+
+        public void Dispose()
+        {
+            ClearData();
+        }
+
+        public IEnumerable<XbimShapeInstance> GetElementShapes(string globalId)
+        {
+            if (CurrentModel == null || GeometryContext == null) return Enumerable.Empty<XbimShapeInstance>();
+
+            var product = CurrentModel.Instances.FirstOrDefault<IIfcProduct>(p => p.GlobalId == globalId);
+            if (product == null) return Enumerable.Empty<XbimShapeInstance>();
+
+            try
+            {
+                return GeometryContext.ShapeInstancesOf(product);
+            }
+            catch
+            {
+                return Enumerable.Empty<XbimShapeInstance>();
+            }
+        }
+
         public List<PrecastElement> ReadElements(string ifcPath)
         {
             return ReadElementsCore(ifcPath, null, CancellationToken.None);
@@ -37,22 +73,26 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return ReadElementsCore(path, progress, cancellationToken);
         }
 
-        private static List<PrecastElement> ReadElementsCore(
+        private List<PrecastElement> ReadElementsCore(
             string ifcPath,
             IProgress<double>? progress,
             CancellationToken cancellationToken)
         {
             try
             {
-                using var model = IfcStore.Open(ifcPath);
+                ClearData();
+                CurrentModel = IfcStore.Open(ifcPath);
 
-                var geometryContext = new Xbim3DModelContext(model);
-                geometryContext.CreateContext();
+                _ = new Xbim.Geometry.Engine.Interop.XbimGeometryEngine();
+                GeometryContext = new Xbim3DModelContext(CurrentModel);
+                GeometryContext.CreateContext();
+
+                ModelLengthFactor = GetLengthToMillimetersFactor(CurrentModel);
 
                 var extractor = new IfcEngineeringExtractor(
-                    model,
-                    geometryContext,
-                    GetLengthToMillimetersFactor(model));
+                    CurrentModel,
+                    GeometryContext,
+                    ModelLengthFactor);
 
                 return extractor.Extract(progress, cancellationToken);
             }
@@ -287,7 +327,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var childProducts = GetAssemblyChildren(assembly);
                 var childSnapshots = CollectChildSnapshots(childProducts, consumedByAssemblies);
 
-                // No usable children — fall back to the assembly's own data if available
+                // No usable children â€” fall back to the assembly's own data if available
                 if (childSnapshots.Count == 0)
                     return BuildFallbackAggregate(assembly, parentSnapshot);
 
