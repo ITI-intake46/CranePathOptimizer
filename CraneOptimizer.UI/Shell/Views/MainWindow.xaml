@@ -411,8 +411,8 @@
         -->
         <Grid Grid.Row="4" Background="{DynamicResource BackgroundBrush}">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="240" MinWidth="200" />
-                <!--  Col 0: Elements + Props  -->
+                <ColumnDefinition Width="300" MinWidth="250" />
+                <!--  Col 0: Element Details  -->
                 <ColumnDefinition Width="4" />
                 <!--  Col 1: Splitter  -->
                 <ColumnDefinition Width="*" MinWidth="400" />

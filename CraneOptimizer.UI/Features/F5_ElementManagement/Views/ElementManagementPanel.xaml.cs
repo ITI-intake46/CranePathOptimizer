@@ -20,13 +20,5 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.Views
 
         private ElementManagementViewModel? VM => DataContext as ElementManagementViewModel;
 
-        private void ElementItem_Click(object sender, MouseButtonEventArgs e)
-        {
-            if (sender is not Border border || border.Tag is not PrecastElement element || VM == null)
-                return;
-
-            VM.SelectElement(element);
-            e.Handled = true;
-        }
     }
 }

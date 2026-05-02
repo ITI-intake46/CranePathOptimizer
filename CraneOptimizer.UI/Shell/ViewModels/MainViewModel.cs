@@ -101,6 +101,13 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
             _ = LoadCranesAsync();
 
+            ElementManagement.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(ElementManagementViewModel.SelectedElement))
+                {
+                    ReRenderElements();
+                }
+            };
         }
 
         public ObservableCollection<Crane> Cranes { get; } = new();
@@ -317,13 +324,15 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             var statusMap = CranePlacement?.SelectedPosition?.ElementResults
                 ?.ToDictionary(r => r.ElementId, r => r.Status);
 
+            var selectedElementId = ElementManagement.SelectedElement?.ElementID;
+
             _render.Render(
                 _sceneElements.Select(e =>
                 {
                     LiftStatus? status = null;
                     if (statusMap != null && statusMap.TryGetValue(e.ElementID, out var s))
                         status = s;
-                    return (e, status);
+                    return (e, status, e.ElementID == selectedElementId);
                 }),
                 new ElementVisualBuilder(_ifcReader, OriginPoint, placementOffset),
                 "Elements"

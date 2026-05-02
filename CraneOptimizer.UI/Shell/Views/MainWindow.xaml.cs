@@ -92,40 +92,47 @@ namespace CraneOptimizer.UI.Shell.Views
             // Placeholder for future UI highlight/inspector sync.
         }
 
-        private void HandleZoneSelection(MouseButtonEventArgs e)
+        private void HandleViewportSelection(MouseButtonEventArgs e)
         {
             var viewport = IfcViewer;
             var hits = viewport.Viewport.FindHits(e.GetPosition(viewport));
-
+ 
             if (hits == null || hits.Count == 0)
             {
                 _sceneService.SetSelectedZone(null);
                 _sceneService.SetSelectedCrane(null);
+                _sceneService.SetSelectedElements(new List<PrecastElement>());
                 return;
             }
-
+ 
             foreach (var hit in hits)
             {
                 var visual = hit.Visual;
-
+ 
                 if (visual is ModelVisual3D mv)
                 {
                     var tag = mv.GetValue(FrameworkElement.TagProperty);
-
+ 
                     if (tag is GreenAreaZone zone)
                     {
                         _sceneService.SetSelectedZone(zone);
                         return;
                     }
-
+ 
                     if (tag is SceneCrane crane)
                     {
                         _sceneService.SetSelectedCrane(crane);
                         return;
                     }
+
+                    if (tag is PrecastElement element)
+                    {
+                        _sceneService.SetSelectedElements(new List<PrecastElement> { element });
+                        return;
+                    }
                 }
             }
-
+ 
             _sceneService.SetSelectedZone(null);
         }
 
@@ -245,7 +252,7 @@ namespace CraneOptimizer.UI.Shell.Views
 
             if (vm != null && !vm.IsDrawing)
             {
-                HandleZoneSelection(e);
+                HandleViewportSelection(e);
                 if (!vm.IsMeasuring)
                     return;
             }
