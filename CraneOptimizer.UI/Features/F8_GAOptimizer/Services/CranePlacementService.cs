@@ -78,7 +78,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
                 var bestPoint = iterationResult.Positions[0];
 
-                // Get NEW elements only (no duplication)
+                // Determine newly-covered liftable elements (coverage tracking only)
                 var newElements = bestPoint.ElementResults
                     .Where(e => e.Status == LiftStatus.Liftable && !coveredElements.Contains(e.ElementId))
                     .ToList();
@@ -87,16 +87,36 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 if (newElements.Count == 0)
                     break;
 
-                // Add to covered set
+                // Build FULL element-result list for visualization:
+                //   • All elements evaluated this iteration keep their actual GA status
+                //   • Elements covered by previous iterations are injected as Liftable
+                //     so the entire building is always color-coded when a point is selected.
+                var allElementResults = new List<ElementLiftResult>(bestPoint.ElementResults);
+                foreach (var coveredId in coveredElements)
+                {
+                    if (!allElementResults.Any(e => e.ElementId == coveredId))
+                    {
+                        allElementResults.Add(new ElementLiftResult
+                        {
+                            ElementId = coveredId,
+                            Status = LiftStatus.Liftable,
+                            Radius = 0,
+                            RequiredCapacity = 0
+                        });
+                    }
+                }
+
+                // Update coverage tracking
                 foreach (var e in newElements)
                     coveredElements.Add(e.ElementId);
 
-                // Add filtered result (only new elements)
+                // Store position with FULL element results + new-coverage count
                 finalResult.Positions.Add(new CranePositionResult
                 {
                     X = bestPoint.X,
                     Y = bestPoint.Y,
-                    ElementResults = newElements
+                    NewLiftableCount = newElements.Count,
+                    ElementResults = allElementResults
                 });
 
                 // Calculate coverage
@@ -119,11 +139,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     .ToList();
             }
 
-            // Final stats
+            // Final stats — order by how many NEW elements each position covers
+            // (not by total ElementResults which now reflects the whole building)
             finalResult.CoverageRatio = (double)coveredElements.Count / allElements.Count;
             finalResult.FitnessScore = finalResult.CoverageRatio;
             finalResult.Positions = finalResult.Positions
-                .OrderByDescending(p => p.ElementResults.Count)
+                .OrderByDescending(p => p.NewLiftableCount)
                 .ToList();
             return finalResult;
         }
@@ -158,10 +179,18 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 var evaluation = evaluationResults[i];
                 UpdateStatistics(statistics, evaluation.Status);
 
-                if (evaluation.AssignedCraneIndex < 0 || evaluation.AssignedCraneIndex >= result.Positions.Count)
+                // Determine which position to attach this result to.
+                // Elements with no assigned crane (index < 0) fall back to position[0]
+                // so they still receive a color in the viewport.
+                int targetIndex = (evaluation.AssignedCraneIndex >= 0 &&
+                                   evaluation.AssignedCraneIndex < result.Positions.Count)
+                    ? evaluation.AssignedCraneIndex
+                    : (result.Positions.Count > 0 ? 0 : -1);
+
+                if (targetIndex < 0)
                     continue;
 
-                result.Positions[evaluation.AssignedCraneIndex].ElementResults.Add(new ElementLiftResult
+                result.Positions[targetIndex].ElementResults.Add(new ElementLiftResult
                 {
                     ElementId = evaluation.ElementId,
                     Status = evaluation.Status,

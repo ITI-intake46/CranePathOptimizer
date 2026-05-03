@@ -44,20 +44,24 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
 
         public CraneOptimizerPointSummary CreatePointSummary(CranePositionResult point)
         {
-            int liftable = point.ElementResults.Count(result => result.Status == LiftStatus.Liftable);
-            int nonLiftable = point.ElementResults.Count(result =>
-                result.Status == LiftStatus.Overweight || result.Status == LiftStatus.HeightFail);
-            int unreachable = point.ElementResults.Count(result => result.Status == LiftStatus.OutOfRadius);
+            int liftable   = point.ElementResults.Count(r => r.Status == LiftStatus.Liftable);
+            int nonLiftable = point.ElementResults.Count(r =>
+                r.Status == LiftStatus.Overweight || r.Status == LiftStatus.HeightFail);
+            int unreachable = point.ElementResults.Count(r => r.Status == LiftStatus.OutOfRadius);
 
             int total = point.ElementResults.Count;
             double coverage = total == 0 ? 0 : (double)liftable / total;
+
+            string coverageText = point.NewLiftableCount > 0
+                ? $"Point Coverage: {coverage:P0}  (+{point.NewLiftableCount} newly covered)"
+                : $"Point Coverage: {coverage:P0}";
 
             return new CraneOptimizerPointSummary(
                 FormatPointCoordinates(point),
                 liftable,
                 nonLiftable,
                 unreachable,
-                $"Point Coverage: {coverage:P0}");
+                coverageText);
         }
 
         public GASettings BuildSettings(CraneOptimizerDialogOptions options)
@@ -137,7 +141,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         public CranePositionResult Point { get; }
 
         public string DisplayText =>
-            $"Point {CraneOptimizerDialogWorkflow.FormatPointCoordinates(Point)} - {Point.ElementResults.Count} elements";
+            $"Point {CraneOptimizerDialogWorkflow.FormatPointCoordinates(Point)} — covers {Point.NewLiftableCount} elements";
     }
 
     public sealed record CraneOptimizerPointSummary(

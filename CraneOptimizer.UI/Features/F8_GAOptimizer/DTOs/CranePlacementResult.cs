@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
 {
@@ -45,7 +45,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         public double Y { get; set; }
 
         /// <summary>
-        /// Evaluation results of all elements for this position.
+        /// Number of elements newly lifted by this crane that were not
+        /// covered by any earlier crane position. Used for display ordering.
+        /// </summary>
+        public int NewLiftableCount { get; set; }
+
+        /// <summary>
+        /// Full evaluation results for ALL elements (all statuses) when this
+        /// crane position is selected. Used for viewport color-coding.
         /// </summary>
         public List<ElementLiftResult> ElementResults { get; set; } = new();
     }
