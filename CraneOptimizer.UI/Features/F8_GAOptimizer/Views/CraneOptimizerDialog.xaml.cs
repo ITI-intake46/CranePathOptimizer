@@ -373,8 +373,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             AppliedPosition = item.Point;
             AppliedCrane   = CboCrane.SelectedItem as Crane;
 
-            // Lock the crane position into CraneSetupViewModel (for compatibility)
-            _craneSetup.LockPosition(new DomainPoint3D(item.Point.X, item.Point.Y, 0));
+            // Sync position into CraneSetupViewModel (for compatibility with F3 UI)
+            // Guard against null in case the service was not fully injected.
+            _craneSetup?.LockPosition(new DomainPoint3D(item.Point.X, item.Point.Y, 0));
 
             // The scene crane is already at the correct position (moved by ShowPoint).
             // Just close — the crane persists in the scene.

@@ -19,13 +19,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             IRenderingService renderingService,
             IDialogService dialogService,
             ICraneRepository craneRepository,
-            ISceneService sceneService)
+            ISceneService sceneService,
+            CraneSetupViewModel craneSetup)
         {
             _placementService = placementService;
             _renderingService = renderingService;
             _dialogService = dialogService;
             _craneRepository = craneRepository;
             _sceneService = sceneService;
+            _craneSetup = craneSetup;
         }
 
         public CranePlacementResult? ShowDialog()
