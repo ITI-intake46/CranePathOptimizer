@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Interfaces;
@@ -63,11 +64,23 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public void OnClosing()
         {
             _isClosing = true;
+            SelectedPointRenderer.Clear(_renderingService);
         }
 
         private void RenderSelectedPoint()
         {
             SelectedPointRenderer.Render(_renderingService, _cachedElements, SelectedPoint);
+
+            // Move the existing crane to the selected GA point
+            if (SelectedPoint != null)
+            {
+                var sceneCrane = _sceneService.GetCranes().FirstOrDefault();
+                if (sceneCrane != null)
+                {
+                    sceneCrane.Position = new DomainPoint3D(SelectedPoint.X, SelectedPoint.Y, 0);
+                    _sceneService.UpdateCrane(sceneCrane);
+                }
+            }
         }
     }
 }
