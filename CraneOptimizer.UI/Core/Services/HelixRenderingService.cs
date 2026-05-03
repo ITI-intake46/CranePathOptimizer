@@ -12,9 +12,9 @@ namespace CraneOptimizer.UI.Core.Services
 
         private HelixViewport3D? _viewport;
         private GridLinesVisual3D? _grid;
+        private LinesVisual3D? _majorGridLines;
         private LinesVisual3D? _xAxis;
         private LinesVisual3D? _yAxis;
-        private PointsVisual3D? _gridIntersections;
         private double _gridCenterX;
         private double _gridCenterY;
 
@@ -58,8 +58,8 @@ namespace CraneOptimizer.UI.Core.Services
             _grid.Width = widthMillimeters;
             _grid.Length = lengthMillimeters;
             _grid.Center = new Point3D(_gridCenterX, _gridCenterY, 0);
+            UpdateMajorGridLines(widthMillimeters, lengthMillimeters);
             UpdateGridAxes(widthMillimeters, lengthMillimeters);
-            UpdateGridIntersections(widthMillimeters, lengthMillimeters);
         }
 
         private void AddGrid(double widthMillimeters, double lengthMillimeters)
@@ -72,26 +72,26 @@ namespace CraneOptimizer.UI.Core.Services
                 Length = lengthMillimeters,
                 MajorDistance = 10_000,
                 MinorDistance = 5_000,
-                Thickness = 1.2,
-                Fill = new SolidColorBrush(Color.FromArgb(180, 150, 150, 150)),
+                Thickness = 0.75,
+                Fill = new SolidColorBrush(Color.FromArgb(95, 150, 158, 168)),
                 Center = new Point3D(_gridCenterX, _gridCenterY, 0)
             };
             _viewport.Children.Add(_grid);
-            AddGridIntersections(widthMillimeters, lengthMillimeters);
+            AddMajorGridLines(widthMillimeters, lengthMillimeters);
             AddGridAxes(widthMillimeters, lengthMillimeters);
         }
 
-        private void AddGridIntersections(double widthMillimeters, double lengthMillimeters)
+        private void AddMajorGridLines(double widthMillimeters, double lengthMillimeters)
         {
             if (_viewport == null) return;
 
-            _gridIntersections = new PointsVisual3D
+            _majorGridLines = new LinesVisual3D
             {
-                Color = Color.FromRgb(105, 105, 105),
-                Size = 6
+                Color = Color.FromArgb(155, 176, 185, 195),
+                Thickness = 1.2
             };
-            _viewport.Children.Add(_gridIntersections);
-            UpdateGridIntersections(widthMillimeters, lengthMillimeters);
+            _viewport.Children.Add(_majorGridLines);
+            UpdateMajorGridLines(widthMillimeters, lengthMillimeters);
         }
 
         private void AddGridAxes(double widthMillimeters, double lengthMillimeters)
@@ -105,35 +105,42 @@ namespace CraneOptimizer.UI.Core.Services
             UpdateGridAxes(widthMillimeters, lengthMillimeters);
         }
 
-        private void UpdateGridIntersections(double widthMillimeters, double lengthMillimeters)
+        private void UpdateMajorGridLines(double widthMillimeters, double lengthMillimeters)
         {
-            if (_gridIntersections == null) return;
+            if (_majorGridLines == null) return;
 
             var halfWidth = widthMillimeters / 2.0;
             var halfLength = lengthMillimeters / 2.0;
-            var step = CalculateIntersectionStep(widthMillimeters, lengthMillimeters);
-            const double dotZ = 2.0;
+            var step = CalculateMajorGridStep(widthMillimeters, lengthMillimeters);
+            const double z = 0.8;
             var points = new Point3DCollection();
 
-            for (var x = -halfWidth; x <= halfWidth + 0.001; x += step)
+            for (var x = RoundUpToStep(-halfWidth, step); x <= halfWidth + 0.001; x += step)
             {
-                for (var y = -halfLength; y <= halfLength + 0.001; y += step)
-                {
-                    points.Add(new Point3D(_gridCenterX + x, _gridCenterY + y, dotZ));
-                }
+                points.Add(new Point3D(_gridCenterX + x, _gridCenterY - halfLength, z));
+                points.Add(new Point3D(_gridCenterX + x, _gridCenterY + halfLength, z));
             }
 
-            _gridIntersections.Points = points;
+            for (var y = RoundUpToStep(-halfLength, step); y <= halfLength + 0.001; y += step)
+            {
+                points.Add(new Point3D(_gridCenterX - halfWidth, _gridCenterY + y, z));
+                points.Add(new Point3D(_gridCenterX + halfWidth, _gridCenterY + y, z));
+            }
+
+            _majorGridLines.Points = points;
         }
 
-        private static double CalculateIntersectionStep(double widthMillimeters, double lengthMillimeters)
+        private static double CalculateMajorGridStep(double widthMillimeters, double lengthMillimeters)
         {
-            const double baseStep = 5_000d;
-            const double maxLinesPerAxis = 45d;
+            const double baseStep = 10_000d;
+            const double maxLinesPerAxis = 32d;
             var largestAxis = Math.Max(widthMillimeters, lengthMillimeters);
             var multiplier = Math.Max(1d, Math.Ceiling(largestAxis / (baseStep * maxLinesPerAxis)));
             return baseStep * multiplier;
         }
+
+        private static double RoundUpToStep(double value, double step)
+            => Math.Ceiling(value / step) * step;
 
         private void UpdateGridAxes(double widthMillimeters, double lengthMillimeters)
         {

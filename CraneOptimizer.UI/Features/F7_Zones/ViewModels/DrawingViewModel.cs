@@ -19,6 +19,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         private readonly DrawingService _drawing;
         private readonly ISceneService _scene;
         private readonly IRenderingService _render;
+        private readonly IViewportInteractionService _interaction;
+        private readonly IViewportHitTestService _hitTest;
         private readonly ZoneListViewModel _zoneList;
 
         // ── Timers ───────────────────────────────────────────────────────────
@@ -58,11 +60,15 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         public DrawingViewModel(
             DrawingService drawing,
             ISceneService scene,
-            IRenderingService render)
+            IRenderingService render,
+            IViewportInteractionService interaction,
+            IViewportHitTestService hitTest)
         {
             _drawing = drawing;
             _scene = scene;
             _render = render;
+            _interaction = interaction;
+            _hitTest = hitTest;
             _zoneList = new ZoneListViewModel(scene);
 
             // Commands
@@ -210,7 +216,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 
         /// <summary>
         /// Update the rubber-band preview while the cursor moves during drawing
-        /// AND handle measure hover — MainWindow calls this for all MouseMove events,
+        /// AND handle measure hover — DrawingInteractionMode calls this for all MouseMove events,
         /// so both modes are served from the same entry point.
         /// </summary>
         public void SetHoverPoint(DomainPoint3D rawPoint, bool shiftDown = false)
@@ -309,6 +315,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         public void Start()
         {
             StopMeasureMode();
+            _interaction.PushMode(new Interaction.DrawingInteractionMode(this, _hitTest, _interaction));
             _drawing.Start();
             _currentHover = null;
             _render.ClearLayer(PreviewLayer);
@@ -432,12 +439,14 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         {
             if (IsDrawing) Cancel();
 
+            _interaction.PushMode(new Interaction.DrawingInteractionMode(this, _hitTest, _interaction));
             IsMeasuring = true;
             ResetMeasurement();
         }
 
         private void StopMeasureMode()
         {
+            if (IsMeasuring) _interaction.PopMode();
             IsMeasuring = false;
             ResetMeasurement();
         }
@@ -621,6 +630,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 
         private void EndDrawingSession()
         {
+            if (IsDrawing) _interaction.PopMode();
             _drawing.Start();
             _render.ClearLayer(PreviewLayer);
             _render.ClearLayer(SnapIndicatorLayer);

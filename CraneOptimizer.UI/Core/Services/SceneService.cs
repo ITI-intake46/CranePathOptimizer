@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
 using System.Collections.ObjectModel;
@@ -44,9 +44,18 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void SetSelectedElements(List<PrecastElement> elements)
         {
+            if (elements.Count == 1 && _selectedObject == elements[0]) return;
+            if (elements.Count == 0 && _selectedObject == null) return;
+
             _selectedElements.Clear();
             _selectedElements.AddRange(elements);
+            
+            if (elements.Count == 1) _selectedObject = elements[0];
+            else if (elements.Count == 0) _selectedObject = null;
+            else _selectedObject = elements; // Multi-selection
+
             ElementsSelectionChanged?.Invoke(GetSelectedElements());
+            SelectionChanged?.Invoke(_selectedObject);
         }
 
         public void ClearSelectedElements()
@@ -110,6 +119,7 @@ namespace CraneOptimizer.UI.Core.Services
             if (SelectedZone == zone) return;
 
             SelectedZone = zone;
+            _selectedObject = zone;
             ZoneSelected?.Invoke(zone);
             SelectionChanged?.Invoke(zone);
         }
@@ -187,6 +197,7 @@ namespace CraneOptimizer.UI.Core.Services
             if (SelectedCrane == crane) return;
 
             SelectedCrane = crane;
+            _selectedObject = crane;
             CraneSelected?.Invoke(crane);
             SelectionChanged?.Invoke(crane);
         }
@@ -252,6 +263,7 @@ namespace CraneOptimizer.UI.Core.Services
             if (SelectedDxfEntity == entity) return;
 
             SelectedDxfEntity = entity;
+            _selectedObject = entity;
 
             DxfEntitySelected?.Invoke(entity);
             SelectionChanged?.Invoke(entity);
@@ -271,8 +283,35 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void SetSelectedObject(object? obj)
         {
-            _selectedObject = obj;
-            SelectionChanged?.Invoke(obj);
+            if (_selectedObject == obj) return;
+
+            if (obj is GreenAreaZone zone)
+                SetSelectedZone(zone);
+            else if (obj is SceneCrane crane)
+                SetSelectedCrane(crane);
+            else if (obj is PrecastElement element)
+                SetSelectedElements(new List<PrecastElement> { element });
+            else if (obj is SceneDxf dxf)
+                SetSelectedDxfEntity(dxf);
+            else if (obj == null)
+            {
+                _selectedObject = null;
+                SelectedZone = null;
+                SelectedCrane = null;
+                _selectedElements.Clear();
+                SelectedDxfEntity = null;
+                
+                ZoneSelected?.Invoke(null);
+                CraneSelected?.Invoke(null);
+                ElementsSelectionChanged?.Invoke(new List<PrecastElement>());
+                DxfEntitySelected?.Invoke(null);
+                SelectionChanged?.Invoke(null);
+            }
+            else
+            {
+                _selectedObject = obj;
+                SelectionChanged?.Invoke(obj);
+            }
         }
     }
 

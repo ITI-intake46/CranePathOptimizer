@@ -17,6 +17,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly ISceneService _scene;
         private readonly IIfcOptionsDialogService _dialogService;
         private readonly IDialogService _dialog;
+        private readonly IViewportInteractionService _interaction;
+        private readonly IViewportHitTestService _hitTest;
+        private readonly ICameraService _camera;
         private List<PrecastElement>? _pendingIfcElements;
 
         public ICommand LoadIfcCommand { get; }
@@ -70,12 +73,18 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IIfcReaderRepository ifcReader,
             ISceneService scene,
             IDialogService dialog,
-            IIfcOptionsDialogService dialogService)
+            IIfcOptionsDialogService dialogService,
+            IViewportInteractionService interaction,
+            IViewportHitTestService hitTest,
+            ICameraService camera)
         {
             _ifcReader = ifcReader;
             _scene = scene;
             _dialog = dialog;
             _dialogService = dialogService;
+            _interaction = interaction;
+            _hitTest = hitTest;
+            _camera = camera;
 
             LoadIfcCommand = new RelayCommand(async () => await LoadIfcAsync(), () => !IsLoading);
             CancelPlacementCommand = new RelayCommand(CancelPlacement, () => IsPlacementMode);
@@ -122,6 +131,12 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 _pendingIfcElements = visible;
                 PendingPlacementPoint = null;
                 IsPlacementMode = true;
+
+                _interaction.PushMode(new Interaction.IfcPlacementMode(
+                    this,
+                    _hitTest,
+                    _interaction,
+                    () => _camera.UpdateClipping(_scene.GetElements())));
 
                 Progress = 100;
                 Status = $"Loaded {visible.Count} elements. Click to place IFC.";

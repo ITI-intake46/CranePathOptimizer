@@ -30,6 +30,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly ICraneRepository _craneRepo;
         private readonly IDialogService _dialog;
         private readonly ICranePlacementService _cranePlacementService;
+        private readonly IViewportInteractionService _interaction;
+        private readonly IViewportHitTestService _hitTest;
+        private readonly ICameraService _camera;
         private Crane? _selectedCrane;
         private bool _disposed;
         private readonly ICoordinateTransformService _coordinateTransform;
@@ -64,15 +67,22 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             ICranePlacementService cranePlacementService,
             ICoordinateTransformService coordinateTransform,
             ICraneValidationService craneValidationService,
-            ElementManagementViewModel elementManagement)
+            ElementManagementViewModel elementManagement,
+            IViewportInteractionService interaction,
+            IViewportHitTestService hitTest,
+            ICameraService camera)
         {
             Scene = scene;
             Drawing = drawing;
             CranePlacement = cranePlacement;
+            CranePlacement.PlaceCraneInScene = PlaceSelectedCrane;
             IfcViewer = ifcViewer;
             Dxf = dxf;
             CraneSetup = craneSetup;
             ElementManagement = elementManagement;
+            _interaction = interaction;
+            _hitTest = hitTest;
+            _camera = camera;
 
             _ifcReader = ifcReader;
             _render = render;
@@ -286,6 +296,15 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 if (_isPickingOrigin == value) return;
                 _isPickingOrigin = value;
                 OnPropertyChanged();
+
+                if (_isPickingOrigin)
+                {
+                    _interaction.PushMode(new Interaction.OriginPickingMode(
+                        this,
+                        _hitTest,
+                        _interaction,
+                        () => _camera.UpdateClipping(Scene.GetElements())));
+                }
             }
         }
 

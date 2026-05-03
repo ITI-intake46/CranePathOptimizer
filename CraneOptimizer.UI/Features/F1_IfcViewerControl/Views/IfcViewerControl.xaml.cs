@@ -86,15 +86,19 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
             if (DataContext is MainViewModel vm)
             {
-                _interactionService.CurrentMode = new InteractionRouter(
+                _interactionService.ResetToDefaultMode(new DefaultSelectionMode(
                     vm,
                     _hitTestService,
-                    () => _cameraService.UpdateClipping(_sceneService.GetElements()));
+                    () => _cameraService.UpdateClipping(_sceneService.GetElements())));
                 vm.Dxf.Initialize(IfcViewer);
             }
 
             SetGridText(50d, 50d);
-            _cameraService.UpdateClipping(_sceneService.GetElements());
+            var elements = _sceneService.GetElements();
+            if (elements.Count == 0)
+                _cameraService.ResetToDefaultView();
+            else
+                _cameraService.ZoomToElements(elements);
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -148,6 +152,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             if (elements.Count == 0)
             {
                 _lastElementSceneKey = string.Empty;
+                _cameraService.ResetToDefaultView();
                 return;
             }
 
@@ -155,7 +160,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             if (elementSceneKey != _lastElementSceneKey)
             {
                 _lastElementSceneKey = elementSceneKey;
-                _cameraService.ZoomExtents();
+                _cameraService.ZoomToElements(elements);
             }
         }
 
@@ -193,8 +198,11 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
         private void ResetCamera_Click(object sender, RoutedEventArgs e)
         {
-            _cameraService.ResetCamera();
-            _cameraService.UpdateClipping(_sceneService.GetElements());
+            var elements = _sceneService.GetElements();
+            if (elements.Count == 0)
+                _cameraService.ResetToDefaultView();
+            else
+                _cameraService.ZoomToElements(elements);
         }
 
         private void RenderQualityDropBtn_Click(object sender, RoutedEventArgs e)

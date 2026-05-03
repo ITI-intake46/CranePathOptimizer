@@ -15,6 +15,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         private readonly IRenderingService _renderingService;
         private readonly ICraneOptimizerDialogService _optimizerDialogService;
         private readonly IGAResultsWindowService _resultsWindowService;
+        private readonly IViewportInteractionService _interaction;
+        private readonly IViewportHitTestService _hitTest;
         private readonly RelayCommand _optimizeCommand;
         private readonly RelayCommand _showResultsCommand;
 
@@ -26,11 +28,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public CranePlacementViewModel(
             IRenderingService renderingService,
             ICraneOptimizerDialogService optimizerDialogService,
-            IGAResultsWindowService resultsWindowService)
+            IGAResultsWindowService resultsWindowService,
+            IViewportInteractionService interaction,
+            IViewportHitTestService hitTest)
         {
             _renderingService = renderingService;
             _optimizerDialogService = optimizerDialogService;
             _resultsWindowService = resultsWindowService;
+            _interaction = interaction;
+            _hitTest = hitTest;
 
             _optimizeCommand = new RelayCommand(ExecuteOptimize);
             _showResultsCommand = new RelayCommand(OpenResults, CanShowResults);
@@ -101,6 +107,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public ICommand OptimizeCommand => _optimizeCommand;
         public ICommand ShowResultsCommand => _showResultsCommand;
         public ICommand StartPlacementCommand { get; }
+        public Action<DomainPoint3D>? PlaceCraneInScene { get; set; }
 
         public bool RunOptimizationWorkflow()
         {
@@ -120,6 +127,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         private void StartPlacement()
         {
             IsPlacing = true;
+
+            if (PlaceCraneInScene != null)
+            {
+                _interaction.PushMode(new Interaction.CranePlacementMode(this, _hitTest, _interaction, PlaceCraneInScene));
+            }
         }
 
         private bool CanShowResults()

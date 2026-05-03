@@ -14,6 +14,7 @@ namespace CraneOptimizer.UI.Core.Services
 
         private const double MinNearPlane = 1d;
         private const double FarPlanePaddingFactor = 1.4;
+        private const double DefaultGridViewSize = 50_000d;
 
         public CameraService(IRenderingService renderingService)
         {
@@ -22,8 +23,21 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void ResetCamera()
         {
+            ResetToDefaultView();
+        }
+
+        public void ResetToDefaultView()
+        {
             var viewport = _renderingService.GetViewport();
-            viewport?.CameraController?.ResetCamera();
+            if (viewport == null)
+                return;
+
+            SetCameraView(
+                center: new Point3D(0, 0, 0),
+                sceneSize: DefaultGridViewSize,
+                elevationFactor: 0.82,
+                distanceFactor: 1.32);
+            UpdateClipping(null);
         }
 
         public void ZoomExtents()
@@ -34,6 +48,19 @@ namespace CraneOptimizer.UI.Core.Services
 
             viewport.UpdateLayout();
             viewport.ZoomExtents();
+        }
+
+        public void ZoomToElements(IReadOnlyList<PrecastElement> elements)
+        {
+            if (elements.Count == 0)
+            {
+                ResetToDefaultView();
+                return;
+            }
+
+            var (center, size) = CalculateBounds(elements);
+            SetCameraView(center, size, elevationFactor: 0.72, distanceFactor: 1.55);
+            UpdateClipping(elements);
         }
 
         public void UpdateClipping(IReadOnlyList<PrecastElement>? elements)
@@ -52,6 +79,43 @@ namespace CraneOptimizer.UI.Core.Services
                 return;
             }
 
+            var (center, size) = CalculateBounds(source);
+            var radius = Math.Max(1000d, size * 0.5);
+
+            var cameraDistance = (camera.Position - center).Length;
+            camera.NearPlaneDistance = Math.Max(MinNearPlane, Math.Min(radius * 0.02, cameraDistance * 0.1));
+            camera.FarPlaneDistance = Math.Max(camera.NearPlaneDistance * 1000, (cameraDistance + radius) * FarPlanePaddingFactor);
+        }
+
+        private void SetCameraView(Point3D center, double sceneSize, double elevationFactor, double distanceFactor)
+        {
+            var viewport = _renderingService.GetViewport();
+            if (viewport == null)
+                return;
+
+            var distance = Math.Max(25_000d, sceneSize * distanceFactor);
+            var elevation = Math.Max(12_000d, sceneSize * elevationFactor);
+            var position = new Point3D(
+                center.X + distance,
+                center.Y - distance,
+                center.Z + elevation);
+
+            var camera = viewport.Camera as PerspectiveCamera;
+            if (camera == null)
+            {
+                camera = new PerspectiveCamera();
+                viewport.Camera = camera;
+            }
+
+            camera.Position = position;
+            camera.LookDirection = center - position;
+            camera.UpDirection = new Vector3D(0, 0, 1);
+            camera.FieldOfView = 45;
+            viewport.UpdateLayout();
+        }
+
+        private static (Point3D center, double size) CalculateBounds(IReadOnlyList<PrecastElement> source)
+        {
             var minX = source.Min(e => e.ElementCOG.X - ((e.BBoxLength ?? 0d) / 2d));
             var maxX = source.Max(e => e.ElementCOG.X + ((e.BBoxLength ?? 0d) / 2d));
             var minY = source.Min(e => e.ElementCOG.Y - ((e.BBoxWidth ?? 0d) / 2d));
@@ -63,11 +127,8 @@ namespace CraneOptimizer.UI.Core.Services
             var dx = maxX - minX;
             var dy = maxY - minY;
             var dz = maxZ - minZ;
-            var radius = Math.Max(1000d, Math.Sqrt(dx * dx + dy * dy + dz * dz) * 0.5);
-
-            var cameraDistance = (camera.Position - center).Length;
-            camera.NearPlaneDistance = Math.Max(MinNearPlane, Math.Min(radius * 0.02, cameraDistance * 0.1));
-            camera.FarPlaneDistance = Math.Max(camera.NearPlaneDistance * 1000, (cameraDistance + radius) * FarPlanePaddingFactor);
+            var size = Math.Max(1_000d, Math.Sqrt(dx * dx + dy * dy + dz * dz));
+            return (center, size);
         }
     }
 }
