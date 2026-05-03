@@ -9,6 +9,7 @@ using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Views;
 using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones;
+using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Shell.ViewModels;
 using HelixToolkit.Wpf;
 using System.Windows;
@@ -27,6 +28,9 @@ namespace CraneOptimizer.UI.Shell.Views
         private double _gridCenterXMillimeters;
         private double _gridCenterYMillimeters;
 
+        private const double MinNearPlane = 1d;
+        private const double FarPlanePaddingFactor = 1.4;
+
         private const double DefaultGridSizeMeters = 50.0;
         private const double GridPaddingFactor = 1.2;
         private const double GridRoundStepMeters = 5.0;
@@ -35,7 +39,6 @@ namespace CraneOptimizer.UI.Shell.Views
         private readonly IOsnapService _osnapService;
         private readonly OsnapGeometryBridge _osnapBridge;
         private OsnapIndicator? _osnapIndicator;
-        // ← NEW
 
         public MainWindow(
             MainViewModel vm,
@@ -55,25 +58,16 @@ namespace CraneOptimizer.UI.Shell.Views
 
             _osnapVm = osnapVm;
             _osnapService = osnapService;
-            _osnapBridge = osnapBridge;   // activates scene-event subscriptions
+            _osnapBridge = osnapBridge;
 
             DataContext = vm;
-
-            // Give the embedded OsnapStatusPanel its own ViewModel
             OsnapPanel.DataContext = osnapVm;
-
-            // Create the AutoCAD-style snap indicator on the overlay canvas
             _osnapIndicator = new OsnapIndicator(OsnapOverlayCanvas);
 
             _renderingService.Initialize(IfcViewer);
-
             _osnapBridge.AttachViewport(IfcViewer);
 
-            //Wire the DXF uploader to the same Helix viewport.
-            // Mirrors the IRenderingService pattern — must be done after InitializeComponent.
             vm.Dxf.Initialize(IfcViewer);
-
-            // After DXF loads, push snap points to the bridge so snapping works on DXF geometry
             vm.Dxf.DxfLoaded += uploader => _osnapBridge.RefreshDxf(uploader);
 
             _sceneService.ZoneAdded += OnZoneAdded;
@@ -86,6 +80,7 @@ namespace CraneOptimizer.UI.Shell.Views
             _sceneService.CraneSelected += OnCraneSelected;
 
             SetGridText(50d, 50d);
+            UpdateCameraClipping();
         }
 
         private MainViewModel? VM => DataContext as MainViewModel;
@@ -93,45 +88,42 @@ namespace CraneOptimizer.UI.Shell.Views
         private void OnZoneAdded(GreenAreaZone zone) => RenderZones();
         private void OnZoneSelected(GreenAreaZone? zone) => RenderZones();
         private void OnZoneChanged(GreenAreaZone zone) => RenderZones();
-
         private void OnZonesCleared() => RenderZones();
 
         private void OnElementsChanged(List<PrecastElement> elements)
         {
-            if (_manualGridSize)
-                return;
+            if (!_manualGridSize)
+            {
+                var (widthMeters, lengthMeters, centerXMillimeters, centerYMillimeters) =
+                    _elementGridSizingService.CalculateGridSizeMeters(elements);
+                _gridCenterXMillimeters = centerXMillimeters;
+                _gridCenterYMillimeters = centerYMillimeters;
+                SetGridText(widthMeters, lengthMeters);
+                _renderingService.SetGridSize(
+                    widthMeters * 1000.0,
+                    lengthMeters * 1000.0,
+                    _gridCenterXMillimeters,
+                    _gridCenterYMillimeters);
+            }
 
-            var (widthMeters, lengthMeters, centerXMillimeters, centerYMillimeters) =
-                _elementGridSizingService.CalculateGridSizeMeters(elements);
-            _gridCenterXMillimeters = centerXMillimeters;
-            _gridCenterYMillimeters = centerYMillimeters;
-            SetGridText(widthMeters, lengthMeters);
-            _renderingService.SetGridSize(
-                widthMeters * 1000.0,
-                lengthMeters * 1000.0,
-                _gridCenterXMillimeters,
-                _gridCenterYMillimeters);
+            UpdateCameraClipping(elements);
         }
 
         private void RenderZones()
         {
-            _renderingService.Render(
-                _sceneService.GetZones(),
-                new ZoneVisualBuilder(_sceneService),
-                "Zones"
-            );
+            _renderingService.Render(_sceneService.GetZones(), new ZoneVisualBuilder(_sceneService), "Zones");
         }
 
         private void OnCraneSelected(SceneCrane? crane)
         {
-            // Placeholder for future UI highlight/inspector sync.
+            // future UI sync
         }
 
         private void HandleViewportSelection(MouseButtonEventArgs e)
         {
             var viewport = IfcViewer;
             var hits = viewport.Viewport.FindHits(e.GetPosition(viewport));
- 
+
             if (hits == null || hits.Count == 0)
             {
                 _sceneService.SetSelectedZone(null);
@@ -139,35 +131,33 @@ namespace CraneOptimizer.UI.Shell.Views
                 _sceneService.SetSelectedElements(new List<PrecastElement>());
                 return;
             }
- 
+
             foreach (var hit in hits)
             {
-                var visual = hit.Visual;
- 
-                if (visual is ModelVisual3D mv)
-                {
-                    var tag = mv.GetValue(FrameworkElement.TagProperty);
- 
-                    if (tag is GreenAreaZone zone)
-                    {
-                        _sceneService.SetSelectedZone(zone);
-                        return;
-                    }
- 
-                    if (tag is SceneCrane crane)
-                    {
-                        _sceneService.SetSelectedCrane(crane);
-                        return;
-                    }
+                if (hit.Visual is not ModelVisual3D mv)
+                    continue;
 
-                    if (tag is PrecastElement element)
-                    {
-                        _sceneService.SetSelectedElements(new List<PrecastElement> { element });
-                        return;
-                    }
+                var tag = mv.GetValue(FrameworkElement.TagProperty);
+
+                if (tag is GreenAreaZone zone)
+                {
+                    _sceneService.SetSelectedZone(zone);
+                    return;
+                }
+
+                if (tag is SceneCrane crane)
+                {
+                    _sceneService.SetSelectedCrane(crane);
+                    return;
+                }
+
+                if (tag is PrecastElement element)
+                {
+                    _sceneService.SetSelectedElements(new List<PrecastElement> { element });
+                    return;
                 }
             }
- 
+
             _sceneService.SetSelectedZone(null);
         }
 
@@ -186,16 +176,10 @@ namespace CraneOptimizer.UI.Shell.Views
 
         private void IfcViewer_MouseMove(object sender, MouseEventArgs e)
         {
-            var viewport = sender as HelixViewport3D;
-            if (viewport == null) return;
-            //if (sender is not HelixViewport3D viewport) return;
+            if (sender is not HelixViewport3D viewport) return;
 
-            // Get position relative to the HelixViewport3D — this matches
-            // the OsnapOverlayCanvas coordinate space (sibling in same Grid cell)
-            // so snap markers are positioned correctly.
             var screen = e.GetPosition(viewport);
 
-            // ── OSnap indicator: pass screen cursor directly (screen-space engine) ──
             if (_osnapIndicator != null)
             {
                 var result = _osnapService.Snap(screen, viewport);
@@ -228,8 +212,7 @@ namespace CraneOptimizer.UI.Shell.Views
 
         private void IfcViewer_MouseDown(object sender, MouseButtonEventArgs e)
         {
-            var viewport = sender as HelixViewport3D;
-            if (viewport == null) return;
+            if (sender is not HelixViewport3D viewport) return;
 
             if (e.ChangedButton == MouseButton.Left)
             {
@@ -257,6 +240,7 @@ namespace CraneOptimizer.UI.Shell.Views
                 if (VM.IfcViewer.PlacePendingIfc(placementPoint))
                 {
                     viewport.UpdateLayout();
+                    UpdateCameraClipping();
                     e.Handled = true;
                 }
 
@@ -290,6 +274,7 @@ namespace CraneOptimizer.UI.Shell.Views
 
                 VM.SetOrigin(new DomainPoint3D(origin.X, origin.Y, origin.Z));
                 viewport.ZoomExtents();
+                UpdateCameraClipping();
                 e.Handled = true;
                 return;
             }
@@ -338,27 +323,15 @@ namespace CraneOptimizer.UI.Shell.Views
             VM?.EndDrag();
         }
 
-        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            DragMove();
-        }
-
-        private void MinimizeWindow_Click(object sender, RoutedEventArgs e)
-        {
-            WindowState = WindowState.Minimized;
-        }
+        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => DragMove();
+        private void MinimizeWindow_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
         private void MaximizeWindow_Click(object sender, RoutedEventArgs e)
         {
-            WindowState = WindowState == WindowState.Maximized
-                ? WindowState.Normal
-                : WindowState.Maximized;
+            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
         }
 
-        private void CloseWindow_Click(object sender, RoutedEventArgs e)
-        {
-            Close();
-        }
+        private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
 
         private void BackToWelcome_Click(object sender, RoutedEventArgs e) { }
         private void SaveProject_Click(object sender, RoutedEventArgs e) { }
@@ -366,24 +339,44 @@ namespace CraneOptimizer.UI.Shell.Views
         private void RedoBtn_Click(object sender, RoutedEventArgs e) { }
         private void ClearHistory_Click(object sender, RoutedEventArgs e) { }
         private void BtnDimensionTool_Click(object sender, RoutedEventArgs e) { }
+
         private void ResetCamera_Click(object sender, RoutedEventArgs e)
         {
             IfcViewer?.CameraController?.ResetCamera();
+            UpdateCameraClipping();
         }
 
-        private void IfcViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e) { }
+        private void IfcViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            UpdateCameraClipping();
+        }
 
         private void RenderQualityDropBtn_Click(object sender, RoutedEventArgs e)
         {
             RenderQualityPopup.IsOpen = true;
         }
 
-        private void RenderQuality_Changed(object sender, RoutedEventArgs e) { }
-
-        private void OsnapDropBtn_Click(object sender, RoutedEventArgs e)
+        private void RenderQuality_Changed(object sender, RoutedEventArgs e)
         {
-            //OsnapPopup.IsOpen = true;
+            if (VM == null) return;
+
+            if (rbRenderHigh.IsChecked == true)
+            {
+                ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.High;
+                VM.RenderQualityLabel = "● HIGH";
+            }
+            else
+            {
+                ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.Standard;
+                VM.RenderQualityLabel = "● STD";
+            }
+
+            VM.ReRenderElements();
+            UpdateCameraClipping();
+            VM.StatusText = $"Render quality: {VM.RenderQualityLabel}";
         }
+
+        private void OsnapDropBtn_Click(object sender, RoutedEventArgs e) { }
 
         private void StatusOsnapMaster_Click(object sender, RoutedEventArgs e)
         {
@@ -397,6 +390,7 @@ namespace CraneOptimizer.UI.Shell.Views
                 && Enum.TryParse<OsnapType>(snapName, out var snapType))
                 _osnapVm.SetSnapEnabled(snapType, btn.IsChecked == true);
         }
+
         private void ShowCommandPanel_Click(object sender, RoutedEventArgs e) { }
         private void ShowLogsPanel_Click(object sender, RoutedEventArgs e) { }
 
@@ -429,42 +423,13 @@ namespace CraneOptimizer.UI.Shell.Views
             var hasWidth = double.TryParse(GridSizeXTextBox.Text, out widthMeters);
             var hasLength = double.TryParse(GridSizeYTextBox.Text, out lengthMeters);
 
-            return hasWidth
-                && hasLength
-                && widthMeters > 0
-                && lengthMeters > 0;
+            return hasWidth && hasLength && widthMeters > 0 && lengthMeters > 0;
         }
 
         private void SetGridText(double widthMeters, double lengthMeters)
         {
             GridSizeXTextBox.Text = widthMeters.ToString("0");
             GridSizeYTextBox.Text = lengthMeters.ToString("0");
-        }
-
-        private static (double widthMeters, double lengthMeters, double centerXMillimeters, double centerYMillimeters)
-            CalculateGridSizeMeters(IReadOnlyList<PrecastElement> elements)
-        {
-            if (elements.Count == 0)
-                return (DefaultGridSizeMeters, DefaultGridSizeMeters, 0d, 0d);
-
-            var minX = elements.Min(e => e.ElementCOG.X - ((e.BBoxLength ?? 0d) / 2d));
-            var maxX = elements.Max(e => e.ElementCOG.X + ((e.BBoxLength ?? 0d) / 2d));
-            var minY = elements.Min(e => e.ElementCOG.Y - ((e.BBoxWidth ?? 0d) / 2d));
-            var maxY = elements.Max(e => e.ElementCOG.Y + ((e.BBoxWidth ?? 0d) / 2d));
-
-            var maxAbsX = Math.Max(Math.Abs(minX), Math.Abs(maxX));
-            var maxAbsY = Math.Max(Math.Abs(minY), Math.Abs(maxY));
-
-            var buildingWidthMeters = Math.Max(0d, (maxAbsX * 2) / 1000.0);
-            var buildingLengthMeters = Math.Max(0d, (maxAbsY * 2) / 1000.0);
-            var centerXMillimeters = 0d;
-            var centerYMillimeters = 0d;
-
-            return (
-                CalculateGridAxisMeters(buildingWidthMeters),
-                CalculateGridAxisMeters(buildingLengthMeters),
-                centerXMillimeters,
-                centerYMillimeters);
         }
 
         private static double CalculateGridAxisMeters(double buildingAxisMeters)
@@ -476,15 +441,41 @@ namespace CraneOptimizer.UI.Shell.Views
             return Math.Ceiling(padded / GridRoundStepMeters) * GridRoundStepMeters;
         }
 
+        private void UpdateCameraClipping(IReadOnlyList<PrecastElement>? elements = null)
+        {
+            var camera = IfcViewer?.Camera as PerspectiveCamera;
+            if (camera == null)
+                return;
 
+            var source = elements ?? _sceneService.GetElements();
+            if (source == null || source.Count == 0)
+            {
+                camera.NearPlaneDistance = MinNearPlane;
+                camera.FarPlaneDistance = 2_000_000;
+                return;
+            }
+
+            var minX = source.Min(e => e.ElementCOG.X - ((e.BBoxLength ?? 0d) / 2d));
+            var maxX = source.Max(e => e.ElementCOG.X + ((e.BBoxLength ?? 0d) / 2d));
+            var minY = source.Min(e => e.ElementCOG.Y - ((e.BBoxWidth ?? 0d) / 2d));
+            var maxY = source.Max(e => e.ElementCOG.Y + ((e.BBoxWidth ?? 0d) / 2d));
+            var minZ = source.Min(e => e.ElementCOG.Z - ((e.BBoxHeight ?? 0d) / 2d));
+            var maxZ = source.Max(e => e.ElementCOG.Z + ((e.BBoxHeight ?? 0d) / 2d));
+
+            var center = new Point3D((minX + maxX) * 0.5, (minY + maxY) * 0.5, (minZ + maxZ) * 0.5);
+            var dx = maxX - minX;
+            var dy = maxY - minY;
+            var dz = maxZ - minZ;
+            var radius = Math.Max(1000d, Math.Sqrt(dx * dx + dy * dy + dz * dz) * 0.5);
+
+            var cameraDistance = (camera.Position - center).Length;
+            camera.NearPlaneDistance = Math.Max(MinNearPlane, Math.Min(radius * 0.02, cameraDistance * 0.1));
+            camera.FarPlaneDistance = Math.Max(camera.NearPlaneDistance * 1000, (cameraDistance + radius) * FarPlanePaddingFactor);
+        }
 
         #region Helpers
 
-        #region Dragging the Crane Visual   
-        private bool TryGetWorldPoint(
-            HelixViewport3D viewport,
-            System.Windows.Point screenPt,
-            out Point3D worldPoint)
+        private bool TryGetWorldPoint(HelixViewport3D viewport, System.Windows.Point screenPt, out Point3D worldPoint)
         {
             worldPoint = new Point3D();
 
@@ -501,36 +492,26 @@ namespace CraneOptimizer.UI.Shell.Views
 
             try
             {
-                bool ok = Viewport3DHelper.Point2DtoPoint3D(
-                    viewport.Viewport,
-                    screenPt,
-                    out Point3D near,
-                    out Point3D far);
+                bool ok = Viewport3DHelper.Point2DtoPoint3D(viewport.Viewport, screenPt, out Point3D near, out Point3D far);
+                if (!ok) return false;
 
-                if (ok)
-                {
-                    var dir = far - near;
+                var dir = far - near;
+                if (Math.Abs(dir.Z) <= 1e-9)
+                    return false;
 
-                    if (System.Math.Abs(dir.Z) > 1e-9)
-                    {
-                        double t = -near.Z / dir.Z;
-                        if (t > 0)
-                        {
-                            worldPoint = near + t * dir;
-                            return true;
-                        }
-                    }
-                }
+                double t = -near.Z / dir.Z;
+                if (t <= 0)
+                    return false;
+
+                worldPoint = near + t * dir;
+                return true;
             }
             catch { }
 
             return false;
         }
 
-        private bool TryGetPlacementPoint(
-            HelixViewport3D viewport,
-            System.Windows.Point screenPt,
-            out Point3D worldPoint)
+        private bool TryGetPlacementPoint(HelixViewport3D viewport, System.Windows.Point screenPt, out Point3D worldPoint)
         {
             worldPoint = new Point3D();
 
@@ -544,10 +525,6 @@ namespace CraneOptimizer.UI.Shell.Views
 
             return TryGetWorldPoint(viewport, screenPt, out worldPoint);
         }
-
-        #endregion
-        #endregion
- 
 
         private bool TryGetHitCrane(HelixViewport3D viewport, System.Windows.Point screenPt, out SceneCrane crane)
         {
@@ -583,5 +560,7 @@ namespace CraneOptimizer.UI.Shell.Views
 
             return false;
         }
+
+        #endregion
     }
 }

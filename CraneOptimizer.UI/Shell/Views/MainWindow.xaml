@@ -596,7 +596,8 @@
                             ShowCoordinateSystem="True"
                             ShowViewCube="True"
                             ZoomAroundMouseDownPoint="True"
-                            ZoomSensitivity="2">
+                            ZoomSensitivity="2"
+                            IsHeadLightEnabled="False">
 
                             <helix:HelixViewport3D.Style>
                                 <Style TargetType="{x:Type helix:HelixViewport3D}">
