@@ -120,6 +120,9 @@ namespace CraneOptimizer.UI
             // =========================
             services.AddSingleton<ElementVisualBuilder>();
             services.AddSingleton<IRenderingService, HelixRenderingService>();
+            services.AddSingleton<ICameraService, CameraService>();
+            services.AddSingleton<IViewportHitTestService, ViewportHitTestService>();
+            services.AddSingleton<IViewportInteractionService, ViewportInteractionService>();
             services.AddSingleton<ISceneService>(provider => provider.GetRequiredService<SceneService>());
             services.AddSingleton<IIfcOptionsDialogService, IfcOptionsDialogService>();
 

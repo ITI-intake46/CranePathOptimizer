@@ -22,9 +22,10 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void Initialize(HelixViewport3D viewport)
         {
-            if (_viewport != null) return;
+            if (ReferenceEquals(_viewport, viewport)) return;
 
             _viewport = viewport;
+            _layers.Clear();
             _viewport.Children.Clear();
 
             SetupUltraLighting();
