@@ -4,48 +4,6 @@
              xmlns:f3="clr-namespace:CraneOptimizer.UI.Features.F3_CraneSetup.Views"
              xmlns:f7="clr-namespace:CraneOptimizer.UI.Features.F7_Zones.Views">
 
-    <UserControl.Resources>
-
-        <!-- Tab toggle button template -->
-        <ControlTemplate x:Key="SitePlannerTabTemplate" TargetType="ToggleButton">
-            <Border x:Name="Bd"
-                    Background="Transparent"
-                    BorderBrush="Transparent"
-                    BorderThickness="0,0,0,3"
-                    Padding="0,8">
-                <ContentPresenter HorizontalAlignment="Center"
-                                  VerticalAlignment="Center"/>
-            </Border>
-            <ControlTemplate.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter TargetName="Bd" Property="Background"
-                            Value="{DynamicResource SurfaceElevatedBrush}"/>
-                    <Setter Property="Foreground"
-                            Value="{DynamicResource TextPrimaryBrush}"/>
-                </Trigger>
-                <Trigger Property="IsChecked" Value="True">
-                    <Setter TargetName="Bd" Property="BorderBrush"
-                            Value="{StaticResource PrimaryBrush}"/>
-                    <Setter Property="Foreground"
-                            Value="{DynamicResource TextPrimaryBrush}"/>
-                    <Setter Property="FontWeight" Value="SemiBold"/>
-                </Trigger>
-            </ControlTemplate.Triggers>
-        </ControlTemplate>
-
-        <Style x:Key="SitePlannerTabBtn" TargetType="ToggleButton">
-            <Setter Property="Foreground"      Value="{DynamicResource TextSecondaryBrush}"/>
-            <Setter Property="FontSize"        Value="{StaticResource FontSizeSM}"/>
-            <Setter Property="FontFamily"      Value="{StaticResource FontPrimary}"/>
-            <Setter Property="FontWeight"      Value="Normal"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-            <Setter Property="Template"        Value="{StaticResource SitePlannerTabTemplate}"/>
-        </Style>
-
-    </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>

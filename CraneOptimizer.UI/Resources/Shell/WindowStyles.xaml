@@ -15,4 +15,14 @@
         <Setter Property="FontSize"    Value="{StaticResource FontSizeBase}"/>
     </Style>
 
+    <!-- ── Maximized window root grid ─────────────────────────────── -->
+    <!-- Compensates for WPF WindowStyle=None + AllowsTransparency bug -->
+    <Style x:Key="MaximizedWindowGridStyle" TargetType="Grid">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" Value="Maximized">
+                <Setter Property="Margin" Value="8" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>
