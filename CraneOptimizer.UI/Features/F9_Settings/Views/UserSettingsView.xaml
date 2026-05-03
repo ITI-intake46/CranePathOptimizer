@@ -3,15 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="{DynamicResource BackgroundBrush}">
 
-    <UserControl.Resources>
-        <Style x:Key="InfoCard" TargetType="Border">
-            <Setter Property="Background"      Value="{DynamicResource SurfaceElevatedBrush}"/>
-            <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius"    Value="6"/>
-            <Setter Property="Padding"         Value="25"/>
-        </Style>
-    </UserControl.Resources>
+
 
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
@@ -23,7 +15,7 @@
                         Background="{StaticResource PrimaryBrush}"
                         Margin="0,0,12,0" VerticalAlignment="Center"/>
                 <TextBlock Text="User Settings"
-                           FontSize="28" FontWeight="Bold"
+                           FontSize="{StaticResource FontSizeXL}" FontWeight="Bold"
                            FontFamily="{StaticResource FontPrimary}"
                            Foreground="{DynamicResource TextPrimaryBrush}"/>
             </StackPanel>
@@ -41,7 +33,9 @@
                        Foreground="{DynamicResource TextPrimaryBrush}"
                        Margin="0,0,0,15"/>
 
-            <Border Style="{StaticResource InfoCard}" Margin="0,0,0,30">
+            <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="6" Padding="25" Margin="0,0,0,30">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
                         <TextBlock Text="User ID:"
@@ -87,7 +81,9 @@
                        Foreground="{DynamicResource TextPrimaryBrush}"
                        Margin="0,0,0,15"/>
 
-            <Border Style="{StaticResource InfoCard}" Margin="0,0,0,40">
+            <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="6" Padding="25" Margin="0,0,0,40">
                 <StackPanel Orientation="Horizontal">
                     <Border Width="44" Height="44" CornerRadius="4"
                             Background="{DynamicResource SurfaceBrush}"

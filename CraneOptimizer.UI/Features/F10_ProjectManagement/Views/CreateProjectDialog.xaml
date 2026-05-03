@@ -6,7 +6,9 @@
         Height="220"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        Background="#F8FAFC">
+        Background="{DynamicResource BackgroundBrush}"
+        FontFamily="{StaticResource FontPrimary}"
+        Foreground="{DynamicResource TextPrimaryBrush}">
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -15,12 +17,13 @@
         </Grid.RowDefinitions>
 
         <TextBlock Text="Create Project"
-                   FontSize="22"
+                   FontSize="{StaticResource FontSizeLG}"
                    FontWeight="SemiBold"
-                   Foreground="#111827" />
+                   Foreground="{DynamicResource TextPrimaryBrush}" />
 
         <StackPanel Grid.Row="1" Margin="0,24,0,0">
-            <TextBlock Text="Project Name" Foreground="#374151" />
+            <TextBlock Text="Project Name"
+                       Style="{StaticResource PropertyLabel}" />
             <TextBox Text="{Binding ProjectName, UpdateSourceTrigger=PropertyChanged}"
                      Margin="0,6,0,0"
                      Height="34"
@@ -34,12 +37,12 @@
                     Width="90"
                     Height="34"
                     Margin="0,0,8,0"
+                    Style="{StaticResource ButtonSecondary}"
                     Command="{Binding CancelCommand}" />
             <Button Content="Create"
                     Width="110"
                     Height="34"
-                    Background="#2563EB"
-                    Foreground="White"
+                    Style="{StaticResource ButtonPrimary}"
                     Command="{Binding CreateCommand}" />
         </StackPanel>
     </Grid>

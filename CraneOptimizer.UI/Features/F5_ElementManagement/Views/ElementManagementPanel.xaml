@@ -38,18 +38,18 @@
                         <StackPanel>
                             <TextBlock
                                 Margin="0,0,0,4"
-                                FontSize="10"
+                                FontSize="{StaticResource FontSizeXS}"
                                 FontWeight="Bold"
                                 Foreground="{DynamicResource TextSecondaryBrush}"
                                 Text="ELEMENT ID" />
                             <TextBlock
-                                FontSize="18"
+                                FontSize="{StaticResource FontSizeLG}"
                                 FontWeight="SemiBold"
                                 Foreground="{StaticResource PrimaryBrush}"
                                 Text="{Binding SelectedElement.ElementID, FallbackValue='N/A'}" />
                             <TextBlock
                                 Margin="0,4,0,0"
-                                FontSize="11"
+                                FontSize="{StaticResource FontSizeXS}"
                                 Foreground="{DynamicResource TextSecondaryBrush}"
                                 Text="{Binding SelectedElement.ElementType, FallbackValue='No Selection'}" />
                         </StackPanel>
@@ -69,7 +69,7 @@
                         <!--  Geometry Section  -->
                         <Border Margin="12,10,12,5" Style="{StaticResource PropertyRow}">
                             <StackPanel>
-                                <TextBlock Margin="0,0,0,8" Style="{StaticResource PanelSectionHeader}" Text="GEOMETRY" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Margin="0,0,0,8" Style="{StaticResource PanelSectionHeader}" Text="GEOMETRY"/>
                                 <Grid Margin="0,4">
                                     <TextBlock Style="{StaticResource PropertyLabel}" Text="Length" />
                                     <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementLength, StringFormat={}{0:F2} m}" />
@@ -88,7 +88,7 @@
                         <!--  Physical Properties  -->
                         <Border Margin="12,10,12,5" Style="{StaticResource PropertyRow}">
                             <StackPanel>
-                                <TextBlock Margin="0,0,0,8" Style="{StaticResource PanelSectionHeader}" Text="PHYSICAL" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Margin="0,0,0,8" Style="{StaticResource PanelSectionHeader}" Text="PHYSICAL"/>
                                 <Grid Margin="0,4">
                                     <TextBlock Style="{StaticResource PropertyLabel}" Text="Weight" />
                                     <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="Bold" Text="{Binding SelectedElement.ElementWT, StringFormat={}{0:N0} kg}" />
@@ -107,7 +107,7 @@
                         <!--  Center of Gravity  -->
                         <Border Margin="12,10,12,5" Style="{StaticResource PropertyRow}">
                             <StackPanel>
-                                <TextBlock Margin="0,0,0,8" Style="{StaticResource PanelSectionHeader}" Text="COORDINATES (COG)" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Margin="0,0,0,8" Style="{StaticResource PanelSectionHeader}" Text="COORDINATES (COG)"/>
                                 <Grid Margin="0,4">
                                     <TextBlock Style="{StaticResource PropertyLabel}" Text="X" />
                                     <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementCOG.X, StringFormat={}{0:F3}}" />
@@ -144,13 +144,13 @@
                             <TextBlock
                                 Margin="0,15,0,5"
                                 HorizontalAlignment="Center"
-                                FontSize="14"
+                                FontSize="{StaticResource FontSizeSM}"
                                 FontWeight="SemiBold"
                                 Foreground="{DynamicResource TextSecondaryBrush}"
                                 Text="No Element Selected" />
                             <TextBlock
                                 HorizontalAlignment="Center"
-                                FontSize="11"
+                                FontSize="{StaticResource FontSizeXS}"
                                 Foreground="{DynamicResource TextSecondaryBrush}"
                                 Text="Select an element in the 3D scene"
                                 TextAlignment="Center" />

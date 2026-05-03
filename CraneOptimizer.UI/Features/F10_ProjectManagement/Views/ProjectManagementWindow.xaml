@@ -13,14 +13,6 @@
     WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
-        <Style x:Key="ProjectTopBar" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
-            <Setter Property="Padding" Value="{StaticResource Space4}" />
-        </Style>
-
         <Style x:Key="ProjectCardStyle" TargetType="Border">
             <Setter Property="Width" Value="312" />
             <Setter Property="MinHeight" Value="188" />
@@ -37,19 +29,6 @@
                     <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
                 </Trigger>
             </Style.Triggers>
-        </Style>
-
-        <Style x:Key="ProjectCardTitle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-        </Style>
-
-        <Style x:Key="ProjectCardMeta" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
 
         <Style x:Key="ProjectIconButton" TargetType="Button">
@@ -103,7 +82,7 @@
                             <TextBlock
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
-                                FontSize="15"
+                                FontSize="{StaticResource FontSizeSM}"
                                 Foreground="{TemplateBinding Foreground}"
                                 Text="★" />
                         </Border>
@@ -131,7 +110,10 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Style="{StaticResource ProjectTopBar}">
+        <Border Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                CornerRadius="{StaticResource CardCornerRadius}"
+                Padding="{StaticResource Space4}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -144,13 +126,13 @@
 
                 <StackPanel Grid.ColumnSpan="2">
                     <TextBlock
-                        FontSize="28"
+                        FontSize="{StaticResource FontSizeXL}"
                         FontWeight="SemiBold"
                         Foreground="{DynamicResource TextPrimaryBrush}"
                         Text="Projects" />
                     <TextBlock
                         Margin="0,4,0,0"
-                        FontSize="13"
+                        FontSize="{StaticResource FontSizeBase}"
                         Foreground="{DynamicResource TextSecondaryBrush}"
                         Text="Choose a project to enter the workspace" />
                 </StackPanel>
@@ -217,7 +199,12 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <TextBlock Style="{StaticResource ProjectCardTitle}" Text="{Binding Name}" />
+                                    <TextBlock
+                                        Foreground="{DynamicResource TextPrimaryBrush}"
+                                        FontSize="{StaticResource FontSizeSM}"
+                                        FontWeight="SemiBold"
+                                        TextTrimming="CharacterEllipsis"
+                                        Text="{Binding Name}" />
 
                                     <CheckBox
                                         Grid.Column="1"
@@ -231,16 +218,20 @@
                                         Grid.Row="1"
                                         Grid.ColumnSpan="2"
                                         Margin="0,14,0,0"
-                                        Style="{StaticResource ProjectCardMeta}"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        FontSize="{StaticResource FontSizeXS}"
+                                        TextTrimming="CharacterEllipsis"
                                         Text="{Binding IfcFileName}" />
 
                                     <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="0,16,0,0">
                                         <TextBlock
-                                            Style="{StaticResource ProjectCardMeta}"
-                                            Text="{Binding LastOpenedDate, StringFormat=Last opened: {0:g}}" />
+                                            Foreground="{DynamicResource TextSecondaryBrush}"
+                                            FontSize="{StaticResource FontSizeXS}"
+                                            TextTrimming="CharacterEllipsis"
+                                            Text="{Binding LastOpenedDate, StringFormat='Last opened: {0:g}'}" />
                                         <TextBlock
                                             Margin="0,8,0,0"
-                                            FontSize="12"
+                                            FontSize="{StaticResource FontSizeXS}"
                                             Foreground="{StaticResource WarningBrush}"
                                             Text="IFC path missing">
                                             <TextBlock.Style>
@@ -312,7 +303,7 @@
                 <StackPanel Width="320">
                     <TextBlock
                         HorizontalAlignment="Center"
-                        FontSize="18"
+                        FontSize="{StaticResource FontSizeLG}"
                         FontWeight="SemiBold"
                         Text="No projects" />
                     <TextBlock

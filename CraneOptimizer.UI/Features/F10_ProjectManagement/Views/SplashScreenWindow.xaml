@@ -6,25 +6,26 @@
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         ResizeMode="NoResize"
-        Background="#111827"
+        Background="{DynamicResource BackgroundBrush}"
+        FontFamily="{StaticResource FontPrimary}"
         ShowInTaskbar="False">
     <Grid>
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
             <TextBlock Text="Crane Optimizer"
-                       Foreground="#F9FAFB"
-                       FontSize="26"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       FontSize="{StaticResource FontSizeXL}"
                        FontWeight="SemiBold"
                        HorizontalAlignment="Center" />
             <TextBlock Text="{Binding Status}"
-                       Foreground="#CBD5E1"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
                        Margin="0,16,0,0"
-                       FontSize="13"
+                       FontSize="{StaticResource FontSizeBase}"
                        HorizontalAlignment="Center" />
             <ProgressBar Width="220"
                          Height="4"
                          Margin="0,22,0,0"
                          IsIndeterminate="True"
-                         Foreground="#38BDF8" />
+                         Foreground="{StaticResource PrimaryBrush}" />
         </StackPanel>
     </Grid>
 </Window>

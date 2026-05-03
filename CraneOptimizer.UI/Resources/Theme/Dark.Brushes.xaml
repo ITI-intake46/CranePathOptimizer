@@ -1,0 +1,19 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Dark.Brushes.xaml — CraneOptimizer Design System
+        Surface/text brushes for the DARK theme.
+        ThemeService swaps this file at runtime to switch themes.
+    -->
+
+    <SolidColorBrush x:Key="BackgroundBrush"      Color="#1A1A1A"/>
+    <SolidColorBrush x:Key="SurfaceBrush"         Color="#222222"/>
+    <SolidColorBrush x:Key="SurfaceElevatedBrush" Color="#2C2C2C"/>
+    <SolidColorBrush x:Key="BorderBrush"          Color="#383838"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush"     Color="#F0F0F0"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush"   Color="#9E9E9E"/>
+    <SolidColorBrush x:Key="TextDisabledBrush"    Color="#555555"/>
+    <SolidColorBrush x:Key="SurfaceOverlayBrush"  Color="#AA000000"/>
+
+</ResourceDictionary>

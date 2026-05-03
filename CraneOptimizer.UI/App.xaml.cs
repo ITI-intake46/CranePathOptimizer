@@ -48,6 +48,10 @@ namespace CraneOptimizer.UI
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
             TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
+            // Apply default theme — Dark. Can be changed later via ThemeService.Instance.ApplyTheme(AppTheme.Light)
+            CraneOptimizer.UI.Resources.ThemeService.Instance.ApplyTheme(
+                CraneOptimizer.UI.Resources.AppTheme.Dark);
+
             var services = new ServiceCollection();
 
             // =========================

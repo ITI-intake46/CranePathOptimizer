@@ -9,25 +9,10 @@
         Background="{DynamicResource BackgroundBrush}"
         Foreground="{DynamicResource TextPrimaryBrush}"
         FontFamily="{StaticResource FontPrimary}"
-        FontSize="12">
+        FontSize="{StaticResource FontSizeBase}">
 
     <Window.Resources>
-        <Style x:Key="SectionHeader" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize"   Value="11"/>
-            <Setter Property="Margin"     Value="0,0,0,6"/>
-        </Style>
-        <Style x:Key="Lbl" TargetType="TextBlock">
-            <Setter Property="Foreground"        Value="{DynamicResource TextSecondaryBrush}"/>
-            <Setter Property="FontSize"          Value="11"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        <Style x:Key="HSep" TargetType="Rectangle">
-            <Setter Property="Height" Value="1"/>
-            <Setter Property="Fill"   Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="Margin" Value="0,10"/>
-        </Style>
+        <!-- FilterTag kept: referenced from code-behind to build the active tag strip -->
         <Style x:Key="FilterTag" TargetType="Border">
             <Setter Property="Background"      Value="{DynamicResource SurfaceElevatedBrush}"/>
             <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
@@ -41,13 +26,14 @@
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{Binding DisplayName}"
                                Foreground="{DynamicResource TextPrimaryBrush}"
-                               FontSize="11" VerticalAlignment="Center"/>
+                               FontSize="{StaticResource FontSizeXS}"
+                               VerticalAlignment="Center"/>
                     <Border Background="{DynamicResource SurfaceElevatedBrush}"
                             CornerRadius="8" Padding="5,1" Margin="6,0,0,0"
                             VerticalAlignment="Center">
                         <TextBlock Text="{Binding Count}"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
-                                   FontSize="10"/>
+                                   FontSize="{StaticResource FontSizeXS}"/>
                     </Border>
                 </StackPanel>
             </CheckBox>
@@ -57,16 +43,12 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <!-- Title bar       -->
             <RowDefinition Height="Auto"/>
-            <!-- Active tag strip-->
             <RowDefinition Height="*"/>
-            <!-- Tab control     -->
             <RowDefinition Height="Auto"/>
-            <!-- Footer          -->
         </Grid.RowDefinitions>
 
-        <!-- ── Title bar ──────────────────────────────────────────────── -->
+        <!-- Title bar -->
         <Border Grid.Row="0"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
@@ -77,20 +59,17 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Text="Filter &amp; Sort Elements"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               FontSize="14" FontWeight="SemiBold"/>
-                    <TextBlock x:Name="TxtSubtitle"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               FontSize="11" Margin="0,2,0,0"/>
+                    <TextBlock Text="Filter &amp; Sort Elements" Style="{StaticResource TextTitle}"/>
+                    <TextBlock x:Name="TxtSubtitle" Style="{StaticResource TextCaption}" Margin="0,2,0,0"/>
                 </StackPanel>
                 <TextBlock Grid.Column="1" x:Name="TxtActiveFilters"
                            Foreground="{StaticResource PrimaryBrush}"
-                           FontSize="11" VerticalAlignment="Center"/>
+                           FontSize="{StaticResource FontSizeXS}"
+                           VerticalAlignment="Center"/>
             </Grid>
         </Border>
 
-        <!-- ── Active filter tag strip ────────────────────────────────── -->
+        <!-- Active filter tag strip -->
         <Border Grid.Row="1"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
@@ -98,29 +77,23 @@
             <WrapPanel x:Name="TagsPanel"/>
         </Border>
 
-        <!-- ── Tab control ────────────────────────────────────────────── -->
+        <!-- Tab control -->
         <TabControl Grid.Row="2"
                     Background="{DynamicResource BackgroundBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
-                           Padding="0,0,0,0">
+                    Padding="0">
 
             <!-- Tab 1: Filters -->
             <TabItem Header="Filters">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
-                               Background="{DynamicResource BackgroundBrush}">
+                              Background="{DynamicResource BackgroundBrush}">
                     <StackPanel Margin="16,14,16,16">
 
-                        <!-- Search -->
-                        <TextBlock Text="SEARCH" Style="{StaticResource SectionHeader}"/>
-                        <TextBox x:Name="TxtSearch"
-                                 Background="{DynamicResource SurfaceElevatedBrush}"
-                                 Foreground="{DynamicResource TextPrimaryBrush}"
-                                 BorderBrush="{DynamicResource BorderBrush}"
-                                 BorderThickness="1" Padding="8,5"
-                                 TextChanged="TxtSearch_TextChanged"
-                                 Margin="0,0,0,12"/>
+                        <TextBlock Text="SEARCH" Style="{StaticResource PanelSectionHeader}"/>
+                        <TextBox x:Name="TxtSearch" Margin="0,0,0,12"
+                                 TextChanged="TxtSearch_TextChanged"/>
 
-                        <Rectangle Style="{StaticResource HSep}"/>
+                        <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="0,10"/>
 
                         <!-- Element Type -->
                         <Grid Margin="0,0,0,4">
@@ -129,87 +102,62 @@
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="ELEMENT TYPE" Style="{StaticResource SectionHeader}"
-                               VerticalAlignment="Center" Margin="0,0,0,0"/>
+                            <TextBlock Text="ELEMENT TYPE" Style="{StaticResource PanelSectionHeader}"
+                                       VerticalAlignment="Center" Margin="0"/>
                             <Button Grid.Column="1" Style="{StaticResource ButtonSecondary}"
-                                    Padding="6,2" FontSize="10" Margin="0,0,4,0"
+                                    Padding="6,2" Margin="0,0,4,0"
                                     Click="BtnSelectAllTypes_Click">All</Button>
                             <Button Grid.Column="2" Style="{StaticResource ButtonSecondary}"
-                                    Padding="6,2" FontSize="10"
+                                    Padding="6,2"
                                     Click="BtnClearAllTypes_Click">None</Button>
                         </Grid>
                         <ItemsControl x:Name="TypesList"
                                       ItemTemplate="{StaticResource CheckableItemTemplate}"
                                       Margin="0,0,0,12"/>
 
-                        <Rectangle Style="{StaticResource HSep}"/>
+                        <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="0,10"/>
 
                         <!-- Weight range -->
-                        <TextBlock Text="WEIGHT RANGE (kg)" Style="{StaticResource SectionHeader}"/>
+                        <TextBlock Text="WEIGHT RANGE (kg)" Style="{StaticResource PanelSectionHeader}"/>
                         <TextBlock x:Name="TxtWeightRange"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   FontSize="10" Margin="0,0,0,4"/>
+                                   Style="{StaticResource TextCaption}" Margin="0,0,0,4"/>
                         <Grid Margin="0,0,0,4">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="20"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBox x:Name="TxtWeightMin"
-                                     Background="{DynamicResource SurfaceElevatedBrush}"
-                                     Foreground="{DynamicResource TextPrimaryBrush}"
-                                     BorderBrush="{DynamicResource BorderBrush}"
-                                     BorderThickness="1" Padding="8,5"
-                                     TextChanged="WeightRange_Changed"/>
+                            <TextBox x:Name="TxtWeightMin" TextChanged="WeightRange_Changed"/>
                             <TextBlock Grid.Column="1" Text="-"
                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <TextBox x:Name="TxtWeightMax" Grid.Column="2"
-                                     Background="{DynamicResource SurfaceElevatedBrush}"
-                                     Foreground="{DynamicResource TextPrimaryBrush}"
-                                     BorderBrush="{DynamicResource BorderBrush}"
-                                     BorderThickness="1" Padding="8,5"
-                                     TextChanged="WeightRange_Changed"/>
+                            <TextBox x:Name="TxtWeightMax" Grid.Column="2" TextChanged="WeightRange_Changed"/>
                         </Grid>
-                        <Slider x:Name="SliderWeightMax"
-                                Minimum="0" Maximum="50000" Value="50000"
+                        <Slider x:Name="SliderWeightMax" Minimum="0" Maximum="50000" Value="50000"
                                 Foreground="{StaticResource PrimaryBrush}"
-                                Margin="0,4,0,12"
-                                ValueChanged="SliderWeight_Changed"/>
+                                Margin="0,4,0,12" ValueChanged="SliderWeight_Changed"/>
 
-                        <Rectangle Style="{StaticResource HSep}"/>
+                        <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="0,10"/>
 
                         <!-- Height range -->
-                        <TextBlock Text="HEIGHT RANGE (m)" Style="{StaticResource SectionHeader}"/>
+                        <TextBlock Text="HEIGHT RANGE (m)" Style="{StaticResource PanelSectionHeader}"/>
                         <Grid Margin="0,0,0,4">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="20"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBox x:Name="TxtHeightMin"
-                                     Background="{DynamicResource SurfaceElevatedBrush}"
-                                     Foreground="{DynamicResource TextPrimaryBrush}"
-                                     BorderBrush="{DynamicResource BorderBrush}"
-                                     BorderThickness="1" Padding="8,5"
-                                     TextChanged="HeightRange_Changed"/>
+                            <TextBox x:Name="TxtHeightMin" TextChanged="HeightRange_Changed"/>
                             <TextBlock Grid.Column="1" Text="-"
                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <TextBox x:Name="TxtHeightMax" Grid.Column="2"
-                                     Background="{DynamicResource SurfaceElevatedBrush}"
-                                     Foreground="{DynamicResource TextPrimaryBrush}"
-                                     BorderBrush="{DynamicResource BorderBrush}"
-                                     BorderThickness="1" Padding="8,5"
-                                     TextChanged="HeightRange_Changed"/>
+                            <TextBox x:Name="TxtHeightMax" Grid.Column="2" TextChanged="HeightRange_Changed"/>
                         </Grid>
-                        <Slider x:Name="SliderHeightMax"
-                                Minimum="0" Maximum="500" Value="500"
+                        <Slider x:Name="SliderHeightMax" Minimum="0" Maximum="500" Value="500"
                                 Foreground="{StaticResource PrimaryBrush}"
-                                Margin="0,4,0,12"
-                                ValueChanged="SliderHeight_Changed"/>
+                                Margin="0,4,0,12" ValueChanged="SliderHeight_Changed"/>
 
-                        <Rectangle Style="{StaticResource HSep}"/>
+                        <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="0,10"/>
 
                         <!-- Material -->
                         <Grid Margin="0,0,0,4">
@@ -218,28 +166,27 @@
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="MATERIAL" Style="{StaticResource SectionHeader}"
-                               VerticalAlignment="Center" Margin="0,0,0,0"/>
+                            <TextBlock Text="MATERIAL" Style="{StaticResource PanelSectionHeader}"
+                                       VerticalAlignment="Center" Margin="0"/>
                             <Button Grid.Column="1" Style="{StaticResource ButtonSecondary}"
-                                    Padding="6,2" FontSize="10" Margin="0,0,4,0"
+                                    Padding="6,2" Margin="0,0,4,0"
                                     Click="BtnSelectAllMaterials_Click">All</Button>
                             <Button Grid.Column="2" Style="{StaticResource ButtonSecondary}"
-                                    Padding="6,2" FontSize="10"
+                                    Padding="6,2"
                                     Click="BtnClearAllMaterials_Click">None</Button>
                         </Grid>
                         <TextBlock x:Name="TxtNoMaterials"
                                    Text="No material data in this model."
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   FontSize="11" Visibility="Collapsed"
-                                   Margin="0,0,0,12"/>
+                                   Style="{StaticResource TextCaption}"
+                                   Visibility="Collapsed" Margin="0,0,0,12"/>
                         <ItemsControl x:Name="MaterialsList"
                                       ItemTemplate="{StaticResource CheckableItemTemplate}"
                                       Margin="0,0,0,12"/>
 
-                        <Rectangle Style="{StaticResource HSep}"/>
+                        <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="0,10"/>
 
                         <!-- Options -->
-                        <TextBlock Text="OPTIONS" Style="{StaticResource SectionHeader}"/>
+                        <TextBlock Text="OPTIONS" Style="{StaticResource PanelSectionHeader}"/>
                         <CheckBox x:Name="ChkShowUnplaced"
                                   Content="Include unplaced elements"
                                   Foreground="{DynamicResource TextPrimaryBrush}"
@@ -257,9 +204,9 @@
             <!-- Tab 2: Sort & Group -->
             <TabItem Header="Sort &amp; Group">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
-                               Background="{DynamicResource BackgroundBrush}">
+                              Background="{DynamicResource BackgroundBrush}">
                     <StackPanel Margin="16,14,16,16">
-                        <TextBlock Text="SORT BY" Style="{StaticResource SectionHeader}"/>
+                        <TextBlock Text="SORT BY" Style="{StaticResource PanelSectionHeader}"/>
                         <ComboBox x:Name="CboSortBy"
                                   Style="{StaticResource DarkComboBox}"
                                   ItemContainerStyle="{StaticResource DarkComboBoxItem}"
@@ -280,9 +227,9 @@
                                          Foreground="{DynamicResource TextPrimaryBrush}"/>
                         </StackPanel>
 
-                        <Rectangle Style="{StaticResource HSep}"/>
+                        <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="0,10"/>
 
-                        <TextBlock Text="GROUP BY" Style="{StaticResource SectionHeader}"/>
+                        <TextBlock Text="GROUP BY" Style="{StaticResource PanelSectionHeader}"/>
                         <ComboBox x:Name="CboGroupBy"
                                   Style="{StaticResource DarkComboBox}"
                                   ItemContainerStyle="{StaticResource DarkComboBoxItem}">
@@ -297,7 +244,7 @@
             </TabItem>
         </TabControl>
 
-        <!-- ── Footer ─────────────────────────────────────────────────── -->
+        <!-- Footer -->
         <Border Grid.Row="3"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
@@ -315,11 +262,9 @@
                         Style="{StaticResource ButtonSecondary}"
                         Click="BtnReset_Click" Padding="14,6"/>
 
-                <!-- preview count -->
                 <TextBlock Grid.Column="1" x:Name="TxtPreviewCount"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
-                           FontSize="11" VerticalAlignment="Center"
-                           HorizontalAlignment="Center"/>
+                           Style="{StaticResource TextCaption}"
+                           VerticalAlignment="Center" HorizontalAlignment="Center"/>
 
                 <Button Grid.Column="2" Content="Apply"
                         Style="{StaticResource ButtonPrimary}"

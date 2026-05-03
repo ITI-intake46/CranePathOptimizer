@@ -2,6 +2,7 @@ using CraneOptimizer.Domain.Common;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using HelixToolkit.Wpf;
 using Microsoft.Extensions.DependencyInjection;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -22,6 +23,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Views
         public ZonesTabView()
         {
             InitializeComponent();
+            if (DesignerProperties.GetIsInDesignMode(this)) return;
             DataContext = App.ServiceProvider.GetRequiredService<DrawingViewModel>();
 
             Loaded += ZonesTabView_Loaded;
