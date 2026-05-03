@@ -141,15 +141,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             if (!IsPlacementMode || _pendingIfcElements == null || _pendingIfcElements.Count == 0)
                 return false;
 
-            var minX = _pendingIfcElements.Min(e => e.ElementCOG.X - ((e.BBoxLength ?? 0d) / 2d));
-            var minY = _pendingIfcElements.Min(e => e.ElementCOG.Y - ((e.BBoxWidth ?? 0d) / 2d));
-            var minZ = _pendingIfcElements.Min(e => e.ElementCOG.Z - ((e.BBoxHeight ?? 0d) / 2d));
-
-            var shiftX = insertionPoint.X - minX;
-            var shiftY = insertionPoint.Y - minY;
-            var shiftZ = insertionPoint.Z - minZ;
-
-            var placementOffset = new Point3D(shiftX, shiftY, shiftZ);
+            var placementOffset = new Point3D(insertionPoint.X, insertionPoint.Y, insertionPoint.Z);
 
             PendingPlacementPoint = placementOffset;
 
