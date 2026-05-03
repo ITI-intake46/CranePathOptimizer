@@ -18,7 +18,6 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Windows.Input;
-using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 
@@ -237,51 +236,13 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 CranePlacement.Result           = dialog.LatestResult;
                 CranePlacement.SelectedPosition = dialog.AppliedPosition;
 
-                // Place the crane at the GA-selected position and re-render with colors
-                if (dialog.AppliedCrane != null)
-                    PlaceGACrane(dialog.AppliedCrane, dialog.AppliedPosition);
-
+                // The crane is already in the scene at the applied position (moved by the dialog).
+                // Just re-render elements with the full LiftStatus color map.
                 ReRenderElements();
 
                 StatusText = "Optimization Applied";
                 HistoryBreadcrumb = $"Best Fitness: {dialog.LatestResult.FitnessScore:F2}";
             }
-        }
-
-        /// <summary>
-        /// Places a crane in the scene at a GA-computed position.
-        /// GA coordinates are already in scene millimetre space, so no
-        /// viewport->scene transform is applied here (unlike PlaceSelectedCrane).
-        /// </summary>
-        private void PlaceGACrane(Crane crane, CranePositionResult point)
-        {
-            var activeSpec = crane.Specifications
-                ?.OrderByDescending(s => s.MaxRadius)
-                .FirstOrDefault();
-
-            var sceneCrane = new SceneCrane
-            {
-                CraneDefinition   = crane,
-                ActiveSpecification = activeSpec,
-                Position  = new DomainPoint3D(point.X, point.Y, 0),
-                Rotation  = 0,
-                PivotOffset = new DomainPoint3D(0, 0, Math.Max(1.2, crane.VehicleHeight)),
-                BoomLength = activeSpec != null
-                    ? Math.Clamp(activeSpec.MaxBoomLength * 0.6,
-                                 activeSpec.MinBoomLength,
-                                 activeSpec.MaxBoomLength)
-                    : 20,
-                BoomAngle = 45
-            };
-
-            sceneCrane.IsValidPlacement = _craneValidationService.ValidatePlacement(sceneCrane, Scene.GetZones());
-
-            Scene.AddCrane(sceneCrane);
-            Scene.SetSelectedCrane(sceneCrane);
-
-            StatusText = sceneCrane.IsValidPlacement
-                ? $"GA crane placed at ({point.X:F0}, {point.Y:F0})."
-                : $"GA crane placed at ({point.X:F0}, {point.Y:F0}) — check zone constraints.";
         }
 
         private void OnElementsChanged(List<PrecastElement> elements)

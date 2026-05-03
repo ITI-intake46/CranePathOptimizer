@@ -3,6 +3,7 @@ using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering;
@@ -33,6 +34,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private bool _isRunning;
         private bool _isAdvancedPanelOpen;
         private List<PrecastElement> _cachedElements = new();
+
+        /// <summary>
+        /// The single SceneCrane that lives in the scene while the dialog is open.
+        /// Moves to each selected point; persists in the scene after the dialog closes.
+        /// </summary>
+        private SceneCrane? _previewSceneCrane;
 
         public CranePlacementResult? LatestResult { get; private set; }
         public CranePositionResult? AppliedPosition { get; private set; }
@@ -93,7 +100,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             RefreshSceneCache();
             ClearResultPanel();
             SelectedPointRenderer.Clear(_renderingService);
-            SelectedPointRenderer.ClearCranePreview(_renderingService);
             LatestResult = null;
             _currentResult = null;
 
@@ -135,7 +141,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 _currentResult = null;
                 ClearResultPanel();
                 SelectedPointRenderer.Clear(_renderingService);
-                SelectedPointRenderer.ClearCranePreview(_renderingService);
                 TxtStatus.Text = "Optimization cancelled.";
                 ProgBar.IsIndeterminate = false;
                 ProgBar.Value = 0;
@@ -146,7 +151,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 _currentResult = null;
                 ClearResultPanel();
                 SelectedPointRenderer.Clear(_renderingService);
-                SelectedPointRenderer.ClearCranePreview(_renderingService);
                 TxtStatus.Text = "Optimization failed.";
                 ProgBar.IsIndeterminate = false;
                 ProgBar.Value = 0;
@@ -175,6 +179,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private void ShowPoint(CranePositionResult point)
         {
+            // Color all elements by their GA status for this position
             SelectedPointRenderer.Render(
                 _renderingService,
                 _cachedElements,
@@ -183,9 +188,68 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 _origin,
                 _placementOffset);
 
-            // Show crane preview at the candidate position while browsing results
+            // Move the persistent scene crane to this GA position (creates it if needed)
             if (CboCrane.SelectedItem is Crane crane)
-                SelectedPointRenderer.RenderCranePreview(_renderingService, crane, point);
+                MoveOrCreateSceneCrane(crane, point);
+        }
+
+        /// <summary>
+        /// Ensures exactly one crane exists in the scene and positions it at
+        /// the specified GA candidate point.  On the first call the crane is
+        /// created (any existing cranes are cleared first).  On subsequent
+        /// calls the same instance is moved so there is never a duplicate.
+        /// </summary>
+        private void MoveOrCreateSceneCrane(Crane crane, CranePositionResult point)
+        {
+            var activeSpec = crane.Specifications
+                ?.OrderByDescending(s => s.MaxRadius)
+                .FirstOrDefault();
+
+            double boomLength = activeSpec != null
+                ? Math.Clamp(activeSpec.MaxBoomLength * 0.6,
+                             activeSpec.MinBoomLength,
+                             activeSpec.MaxBoomLength)
+                : 20;
+
+            var position = new DomainPoint3D(point.X, point.Y, 0);
+            var pivotOffset = new DomainPoint3D(0, 0, Math.Max(1.2, crane.VehicleHeight));
+
+            // Check whether our tracked crane is still in the scene
+            bool craneIsInScene = _previewSceneCrane != null &&
+                                  _sceneService.GetCranes().Contains(_previewSceneCrane);
+
+            if (craneIsInScene)
+            {
+                // Move the existing crane — no duplicate is created
+                _previewSceneCrane!.CraneDefinition    = crane;
+                _previewSceneCrane.ActiveSpecification = activeSpec;
+                _previewSceneCrane.Position            = position;
+                _previewSceneCrane.PivotOffset         = pivotOffset;
+                _previewSceneCrane.BoomLength          = boomLength;
+                _previewSceneCrane.BoomAngle           = 45;
+                _sceneService.UpdateCrane(_previewSceneCrane);
+            }
+            else
+            {
+                // First time (or the crane was externally removed): clear any
+                // stale cranes and add a fresh one so there is always exactly one.
+                _sceneService.ClearCranes();
+
+                _previewSceneCrane = new SceneCrane
+                {
+                    CraneDefinition    = crane,
+                    ActiveSpecification = activeSpec,
+                    Position           = position,
+                    Rotation           = 0,
+                    PivotOffset        = pivotOffset,
+                    BoomLength         = boomLength,
+                    BoomAngle          = 45,
+                    IsValidPlacement   = true
+                };
+
+                _sceneService.AddCrane(_previewSceneCrane);
+                _sceneService.SetSelectedCrane(_previewSceneCrane);
+            }
         }
 
         private void UpdateResultPanel(CranePlacementResult result)
@@ -309,20 +373,17 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             AppliedPosition = item.Point;
             AppliedCrane   = CboCrane.SelectedItem as Crane;
 
-            // Lock the crane position into CraneSetupViewModel (legacy path kept for compatibility)
+            // Lock the crane position into CraneSetupViewModel (for compatibility)
             _craneSetup.LockPosition(new DomainPoint3D(item.Point.X, item.Point.Y, 0));
 
-            // Clear preview crane — the persistent crane will be placed by MainViewModel
-            SelectedPointRenderer.ClearCranePreview(_renderingService);
-
+            // The scene crane is already at the correct position (moved by ShowPoint).
+            // Just close — the crane persists in the scene.
             Close();
         }
 
         private void OnClosed(object? sender, EventArgs e)
         {
-            // Ensure the preview is always cleared when the dialog is dismissed
-            // (e.g. user presses Escape or clicks the X button without applying)
-            SelectedPointRenderer.ClearCranePreview(_renderingService);
+            // Only remove the sphere marker; the scene crane stays at its last position.
             SelectedPointRenderer.Clear(_renderingService);
         }
 
