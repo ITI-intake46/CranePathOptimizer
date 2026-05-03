@@ -303,7 +303,6 @@ namespace CraneOptimizer.UI.Core.Services
             if (layerKey == "Elements")
             {
                 _viewport!.UpdateLayout();
-                _viewport.ZoomExtents();
             }
         }
 
@@ -345,5 +344,13 @@ namespace CraneOptimizer.UI.Core.Services
 
         public HelixViewport3D? GetViewport() => _viewport;
 
+        public void ZoomExtents()
+        {
+            if (_viewport != null)
+            {
+                _viewport.UpdateLayout();
+                _viewport.ZoomExtents();
+            }
+        }
     }
 }

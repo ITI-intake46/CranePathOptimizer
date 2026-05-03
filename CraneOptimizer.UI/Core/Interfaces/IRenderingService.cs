@@ -1,4 +1,4 @@
-﻿using HelixToolkit.Wpf;
+using HelixToolkit.Wpf;
 
 namespace CraneOptimizer.UI.Core.Interfaces
 {
@@ -19,5 +19,7 @@ namespace CraneOptimizer.UI.Core.Interfaces
 
         // NEW — needed for mouse coordinate conversion during drag
         HelixViewport3D? GetViewport();
+
+        void ZoomExtents();
     }
 }

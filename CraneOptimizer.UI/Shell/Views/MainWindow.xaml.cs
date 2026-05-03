@@ -24,9 +24,11 @@ namespace CraneOptimizer.UI.Shell.Views
         private readonly IRenderingService _renderingService;
         private readonly ISceneService _sceneService;
         private readonly IElementGridSizingService _elementGridSizingService;
+        private readonly IViewportInteractionService _interactionService;
         private bool _manualGridSize;
         private double _gridCenterXMillimeters;
         private double _gridCenterYMillimeters;
+        private string _lastElementSceneKey = string.Empty;
 
         private const double MinNearPlane = 1d;
         private const double FarPlanePaddingFactor = 1.4;
@@ -63,6 +65,10 @@ namespace CraneOptimizer.UI.Shell.Views
             DataContext = vm;
             OsnapPanel.DataContext = osnapVm;
             _osnapIndicator = new OsnapIndicator(OsnapOverlayCanvas);
+
+            var hitTest = new CraneOptimizer.UI.Core.Services.ViewportHitTestService();
+            _interactionService = new CraneOptimizer.UI.Core.Services.ViewportInteractionService();
+            _interactionService.CurrentMode = new CraneOptimizer.UI.Shell.Interaction.InteractionRouter(vm, hitTest, () => UpdateCameraClipping());
 
             _renderingService.Initialize(IfcViewer);
             _osnapBridge.AttachViewport(IfcViewer);
@@ -107,6 +113,18 @@ namespace CraneOptimizer.UI.Shell.Views
             }
 
             UpdateCameraClipping(elements);
+            if (elements.Count == 0)
+            {
+                _lastElementSceneKey = string.Empty;
+                return;
+            }
+
+            var elementSceneKey = BuildElementSceneKey(elements);
+            if (elementSceneKey != _lastElementSceneKey)
+            {
+                _lastElementSceneKey = elementSceneKey;
+                _renderingService.ZoomExtents();
+            }
         }
 
         private void RenderZones()
@@ -117,48 +135,6 @@ namespace CraneOptimizer.UI.Shell.Views
         private void OnCraneSelected(SceneCrane? crane)
         {
             // future UI sync
-        }
-
-        private void HandleViewportSelection(MouseButtonEventArgs e)
-        {
-            var viewport = IfcViewer;
-            var hits = viewport.Viewport.FindHits(e.GetPosition(viewport));
-
-            if (hits == null || hits.Count == 0)
-            {
-                _sceneService.SetSelectedZone(null);
-                _sceneService.SetSelectedCrane(null);
-                _sceneService.SetSelectedElements(new List<PrecastElement>());
-                return;
-            }
-
-            foreach (var hit in hits)
-            {
-                if (hit.Visual is not ModelVisual3D mv)
-                    continue;
-
-                var tag = mv.GetValue(FrameworkElement.TagProperty);
-
-                if (tag is GreenAreaZone zone)
-                {
-                    _sceneService.SetSelectedZone(zone);
-                    return;
-                }
-
-                if (tag is SceneCrane crane)
-                {
-                    _sceneService.SetSelectedCrane(crane);
-                    return;
-                }
-
-                if (tag is PrecastElement element)
-                {
-                    _sceneService.SetSelectedElements(new List<PrecastElement> { element });
-                    return;
-                }
-            }
-
-            _sceneService.SetSelectedZone(null);
         }
 
         protected override void OnClosed(EventArgs e)
@@ -186,141 +162,25 @@ namespace CraneOptimizer.UI.Shell.Views
                 _osnapIndicator.Update(result);
             }
 
-            if (!TryGetWorldPoint(viewport, screen, out var world))
-                return;
-
-            if (VM?.IsDraggingCrane == true && e.LeftButton == MouseButtonState.Pressed)
-            {
-                VM.DragCrane(new DomainPoint3D(world.X, world.Y, world.Z));
-                e.Handled = true;
-                return;
-            }
-
-            var vm = VM?.Drawing;
-            if (vm == null || !vm.IsDrawing) return;
-
-            vm.SetHoverPoint(new DomainPoint3D(world.X, world.Y, world.Z));
+            _interactionService.HandleMouseMove(viewport, e);
         }
 
         private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (VM?.IfcViewer.IsPlacementMode == true)
-                return;
-
-            VM?.Drawing.HandleKeyDown(e);
+            if (IfcViewer != null)
+                _interactionService.HandleKeyDown(IfcViewer, e);
         }
 
         private void IfcViewer_MouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (sender is not HelixViewport3D viewport) return;
-
-            if (e.ChangedButton == MouseButton.Left)
-            {
-                var pickPos = e.GetPosition(viewport);
-                if (TryGetWorldPoint(viewport, pickPos, out var pickWorld)
-                    && TryGetHitCrane(viewport, pickPos, out var hitCrane)
-                    && VM != null)
-                {
-                    VM.SelectedSceneCrane = hitCrane;
-                    VM.StartDrag(new DomainPoint3D(pickWorld.X, pickWorld.Y, pickWorld.Z));
-                    e.Handled = true;
-                    return;
-                }
-            }
-
-            if (VM?.IfcViewer.IsPlacementMode == true)
-            {
-                if (e.ChangedButton != MouseButton.Left)
-                    return;
-
-                var placementScreen = e.GetPosition(viewport);
-                if (!TryGetPlacementPoint(viewport, placementScreen, out var placementPoint))
-                    return;
-
-                if (VM.IfcViewer.PlacePendingIfc(placementPoint))
-                {
-                    viewport.UpdateLayout();
-                    UpdateCameraClipping();
-                    e.Handled = true;
-                }
-
-                return;
-            }
-
-            if (VM?.CranePlacement.IsPlacing == true)
-            {
-                if (e.ChangedButton != MouseButton.Left)
-                    return;
-
-                var cranePlacementScreen = e.GetPosition(viewport);
-                if (!TryGetWorldPoint(viewport, cranePlacementScreen, out var cranePoint))
-                    return;
-
-                var point = new DomainPoint3D(cranePoint.X, cranePoint.Y, cranePoint.Z);
-                VM.CranePlacement.Place(point);
-                VM.PlaceSelectedCrane(point);
-                e.Handled = true;
-                return;
-            }
-
-            if (VM?.IsPickingOrigin == true)
-            {
-                if (e.ChangedButton != MouseButton.Left)
-                    return;
-
-                var originScreen = e.GetPosition(viewport);
-                if (!TryGetWorldPoint(viewport, originScreen, out var origin))
-                    return;
-
-                VM.SetOrigin(new DomainPoint3D(origin.X, origin.Y, origin.Z));
-                viewport.ZoomExtents();
-                UpdateCameraClipping();
-                e.Handled = true;
-                return;
-            }
-
-            var vm = VM?.Drawing;
-
-            if (vm != null && !vm.IsDrawing)
-            {
-                HandleViewportSelection(e);
-                if (!vm.IsMeasuring)
-                    return;
-            }
-
-            if (vm == null) return;
-
-            if (e.ChangedButton == MouseButton.Right)
-            {
-                vm.HandleRightClick();
-                e.Handled = true;
-                return;
-            }
-
-            if (e.ChangedButton != MouseButton.Left)
-                return;
-
-            var screen = e.GetPosition(viewport);
-            if (!TryGetWorldPoint(viewport, screen, out var world))
-                return;
-
-            if (e.ClickCount > 1)
-            {
-                vm.HandleDoubleClick();
-                e.Handled = true;
-                return;
-            }
-
-            vm.HandleViewportLeftClick(new DomainPoint3D(world.X, world.Y, world.Z));
-            e.Handled = true;
+            if (sender is HelixViewport3D viewport)
+                _interactionService.HandleMouseDown(viewport, e);
         }
 
         private void IfcViewer_MouseUp(object sender, MouseButtonEventArgs e)
         {
-            if (e.ChangedButton != MouseButton.Left)
-                return;
-
-            VM?.EndDrag();
+            if (sender is HelixViewport3D viewport)
+                _interactionService.HandleMouseUp(viewport, e);
         }
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => DragMove();
@@ -473,94 +333,25 @@ namespace CraneOptimizer.UI.Shell.Views
             camera.FarPlaneDistance = Math.Max(camera.NearPlaneDistance * 1000, (cameraDistance + radius) * FarPlanePaddingFactor);
         }
 
-        #region Helpers
-
-        private bool TryGetWorldPoint(HelixViewport3D viewport, System.Windows.Point screenPt, out Point3D worldPoint)
+        private static string BuildElementSceneKey(IReadOnlyList<PrecastElement> elements)
         {
-            worldPoint = new Point3D();
-
-            try
+            unchecked
             {
-                var hit = viewport.FindNearestPoint(screenPt);
-                if (hit.HasValue)
+                var hash = 17;
+                foreach (var element in elements)
                 {
-                    worldPoint = hit.Value;
-                    return true;
+                    hash = (hash * 31) + StringComparer.Ordinal.GetHashCode(element.ElementID ?? string.Empty);
+                    hash = (hash * 31) + element.ElementCOG.X.GetHashCode();
+                    hash = (hash * 31) + element.ElementCOG.Y.GetHashCode();
+                    hash = (hash * 31) + element.ElementCOG.Z.GetHashCode();
+                    hash = (hash * 31) + (element.BBoxLength ?? 0d).GetHashCode();
+                    hash = (hash * 31) + (element.BBoxWidth ?? 0d).GetHashCode();
+                    hash = (hash * 31) + (element.BBoxHeight ?? 0d).GetHashCode();
                 }
+
+                return $"{elements.Count}:{hash}";
             }
-            catch { }
-
-            try
-            {
-                bool ok = Viewport3DHelper.Point2DtoPoint3D(viewport.Viewport, screenPt, out Point3D near, out Point3D far);
-                if (!ok) return false;
-
-                var dir = far - near;
-                if (Math.Abs(dir.Z) <= 1e-9)
-                    return false;
-
-                double t = -near.Z / dir.Z;
-                if (t <= 0)
-                    return false;
-
-                worldPoint = near + t * dir;
-                return true;
-            }
-            catch { }
-
-            return false;
         }
 
-        private bool TryGetPlacementPoint(HelixViewport3D viewport, System.Windows.Point screenPt, out Point3D worldPoint)
-        {
-            worldPoint = new Point3D();
-
-            try
-            {
-                var hit = viewport.Viewport.FindHits(screenPt).FirstOrDefault();
-                if (hit != null)
-                    return TryGetWorldPoint(viewport, screenPt, out worldPoint);
-            }
-            catch { }
-
-            return TryGetWorldPoint(viewport, screenPt, out worldPoint);
-        }
-
-        private bool TryGetHitCrane(HelixViewport3D viewport, System.Windows.Point screenPt, out SceneCrane crane)
-        {
-            crane = null!;
-
-            try
-            {
-                var hits = viewport.Viewport.FindHits(screenPt);
-                foreach (var h in hits)
-                {
-                    if (h.Visual is ModelVisual3D mv)
-                    {
-                        var tag = mv.GetValue(FrameworkElement.TagProperty);
-                        if (tag is SceneCrane sc)
-                        {
-                            crane = sc;
-                            return true;
-                        }
-                    }
-
-                    if (h.Visual is Visual3D v3)
-                    {
-                        var tag = v3.GetValue(FrameworkElement.TagProperty);
-                        if (tag is SceneCrane sc2)
-                        {
-                            crane = sc2;
-                            return true;
-                        }
-                    }
-                }
-            }
-            catch { }
-
-            return false;
-        }
-
-        #endregion
     }
 }
