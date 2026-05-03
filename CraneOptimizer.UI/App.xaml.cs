@@ -23,6 +23,7 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.F10_ProjectManagement.Views;
+using CraneOptimizer.UI.Shell.Services;
 using CraneOptimizer.UI.Shell.ViewModels;
 using CraneOptimizer.UI.Shell.Views;
 using Microsoft.EntityFrameworkCore;
@@ -81,6 +82,7 @@ namespace CraneOptimizer.UI
             // Core Services
             // =========================
             services.AddSingleton<IDialogService, DialogService>();
+            services.AddSingleton<IStatusService, StatusService>();
             services.AddSingleton<IElementGridSizingService, ElementGridSizingService>();
 
             // =========================
@@ -120,9 +122,12 @@ namespace CraneOptimizer.UI
             // =========================
             services.AddSingleton<ElementVisualBuilder>();
             services.AddSingleton<IRenderingService, HelixRenderingService>();
+            services.AddSingleton<ISceneRenderingManager, SceneRenderingManager>();
             services.AddSingleton<ICameraService, CameraService>();
             services.AddSingleton<IViewportHitTestService, ViewportHitTestService>();
             services.AddSingleton<IViewportInteractionService, ViewportInteractionService>();
+            services.AddSingleton<IOriginService, OriginService>();
+            services.AddSingleton<ICraneSceneInteractionService, CraneSceneInteractionService>();
             services.AddSingleton<ISceneService>(provider => provider.GetRequiredService<SceneService>());
             services.AddSingleton<IIfcOptionsDialogService, IfcOptionsDialogService>();
 

@@ -1,25 +1,24 @@
 using System.Windows.Input;
 using HelixToolkit.Wpf;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Shell.ViewModels;
 using CraneOptimizer.Domain.Common;
 
 namespace CraneOptimizer.UI.Shell.Interaction
 {
     public class OriginPickingMode : IInteractionMode
     {
-        private readonly MainViewModel _vm;
+        private readonly IOriginService _originService;
         private readonly IViewportHitTestService _hitTest;
         private readonly IViewportInteractionService _interactionService;
         private readonly Action _updateCameraClipping;
 
         public OriginPickingMode(
-            MainViewModel vm,
+            IOriginService originService,
             IViewportHitTestService hitTest,
             IViewportInteractionService interactionService,
             Action updateCameraClipping)
         {
-            _vm = vm;
+            _originService = originService;
             _hitTest = hitTest;
             _interactionService = interactionService;
             _updateCameraClipping = updateCameraClipping;
@@ -33,7 +32,7 @@ namespace CraneOptimizer.UI.Shell.Interaction
             if (!_hitTest.TryGetWorldPoint(viewport, originScreen, out var origin))
                 return;
 
-            _vm.SetOrigin(new DomainPoint3D(origin.X, origin.Y, origin.Z));
+            _originService.SetOrigin(new DomainPoint3D(origin.X, origin.Y, origin.Z));
             _updateCameraClipping();
             _interactionService.PopMode();
             e.Handled = true;
@@ -51,7 +50,7 @@ namespace CraneOptimizer.UI.Shell.Interaction
         {
             if (e.Key == Key.Escape)
             {
-                _vm.IsPickingOrigin = false;
+                _originService.CancelPicking();
                 _interactionService.PopMode();
                 e.Handled = true;
             }
