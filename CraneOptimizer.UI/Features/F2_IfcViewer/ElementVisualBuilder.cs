@@ -14,6 +14,7 @@ using System.Windows.Media.Media3D;
 using Xbim.Common.Geometry;
 using Xbim.Common.XbimExtensions;
 using Xbim.Ifc4.Interfaces;
+using System.Diagnostics;
 
 namespace CraneOptimizer.UI.Features.F2_IfcViewer
 {
@@ -54,6 +55,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         public Visual3D BuildBatch(IEnumerable<(PrecastElement element, LiftStatus? status, bool isSelected)> items)
         {
             var itemsList = items.ToList();
+            
+            // DEBUG: Verify status distribution
+            int withStatus = itemsList.Count(i => i.status.HasValue);
+            Debug.WriteLine($"[ElementVisualBuilder] BuildBatch called for {itemsList.Count} items. Items with LiftStatus: {withStatus}");
+
             if (_renderOnlyStatusElements)
                 itemsList = itemsList.Where(item => item.status.HasValue).ToList();
 
@@ -304,15 +310,17 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
         private Color GetColor(LiftStatus? status)
         {
-            if (!status.HasValue) return Color.FromRgb(160, 160, 170);
+            if (!status.HasValue) return Color.FromRgb(160, 160, 175); // Neutral Blueprint Gray
+
             return status.Value switch
             {
-                LiftStatus.Liftable => Colors.LightGreen,
-                LiftStatus.Overweight => Colors.Gold,
-                LiftStatus.OutOfRadius => Colors.IndianRed,
-                LiftStatus.HeightFail => Colors.IndianRed,
-                LiftStatus.SpecialCase => Colors.Gold,
-                _ => Colors.Gray
+                // Premium High-Contrast Palette
+                LiftStatus.Liftable    => Color.FromRgb(46, 204, 113),  // Emerald Green
+                LiftStatus.Overweight  => Color.FromRgb(241, 196, 15),  // Vivid Sun Yellow
+                LiftStatus.OutOfRadius => Color.FromRgb(231, 76, 60),   // Alizarin Red
+                LiftStatus.HeightFail  => Color.FromRgb(230, 126, 34),  // Carrot Orange
+                LiftStatus.SpecialCase => Color.FromRgb(155, 89, 182),  // Amethyst Purple
+                _                      => Color.FromRgb(149, 165, 166)  // Asbestos Gray
             };
         }
     }

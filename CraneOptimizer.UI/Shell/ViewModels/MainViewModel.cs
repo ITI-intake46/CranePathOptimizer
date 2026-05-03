@@ -76,6 +76,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             Drawing = drawing;
             CranePlacement = cranePlacement;
             CranePlacement.PlaceCraneInScene = PlaceSelectedCrane;
+            CranePlacement.RenderElementsWithCurrentStatus = ReRenderElements;
             IfcViewer = ifcViewer;
             Dxf = dxf;
             CraneSetup = craneSetup;
@@ -344,7 +345,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 : null;
 
             var statusMap = CranePlacement?.SelectedPosition?.ElementResults
-                ?.ToDictionary(r => r.ElementId, r => r.Status);
+                ?.Where(r => !string.IsNullOrWhiteSpace(r.ElementId))
+                .GroupBy(r => r.ElementId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.Last().Status, StringComparer.OrdinalIgnoreCase);
 
             var selectedElementId = ElementManagement.SelectedElement?.ElementID;
 

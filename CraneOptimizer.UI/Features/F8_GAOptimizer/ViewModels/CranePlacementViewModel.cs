@@ -108,14 +108,17 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public ICommand ShowResultsCommand => _showResultsCommand;
         public ICommand StartPlacementCommand { get; }
         public Action<DomainPoint3D>? PlaceCraneInScene { get; set; }
+        public Action? RenderElementsWithCurrentStatus { get; set; }
 
         public bool RunOptimizationWorkflow()
         {
-            var result = _optimizerDialogService.ShowDialog();
-            if (result == null || result.Positions.Count == 0)
+            var outcome = _optimizerDialogService.ShowDialog();
+            if (outcome?.Result == null || outcome.Result.Positions.Count == 0)
                 return false;
 
-            Result = result;
+            Result = outcome.Result;
+            SelectedPosition = outcome.AppliedPosition ?? outcome.Result.Positions[0];
+            RenderElementsWithCurrentStatus?.Invoke();
             return true;
         }
 

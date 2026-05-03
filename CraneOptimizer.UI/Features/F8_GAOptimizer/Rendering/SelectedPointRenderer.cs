@@ -80,7 +80,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
                 return;
 
             var statusMap = point.ElementResults
-                .ToDictionary(result => result.ElementId, result => result.Status);
+                .Where(result => !string.IsNullOrWhiteSpace(result.ElementId))
+                .GroupBy(result => result.ElementId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.Last().Status, StringComparer.OrdinalIgnoreCase);
 
             var elementsWithStatus = elements.Select(element =>
             {

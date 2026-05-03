@@ -1,4 +1,5 @@
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Interfaces;
@@ -11,6 +12,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
     {
         private readonly IRenderingService _renderingService;
         private readonly ISceneService _sceneService;
+        private readonly IIfcReaderRepository _ifcReader;
         private readonly CranePlacementResult _result;
         private List<PrecastElement> _cachedElements = new();
         private CranePositionResult? _selectedPoint;
@@ -20,11 +22,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public GAResultsWindowViewModel(
             CranePlacementResult result,
             IRenderingService renderingService,
-            ISceneService sceneService)
+            ISceneService sceneService,
+            IIfcReaderRepository ifcReader)
         {
             _result = result;
             _renderingService = renderingService;
             _sceneService = sceneService;
+            _ifcReader = ifcReader;
         }
 
         public IReadOnlyList<CranePositionResult> Positions => _result.Positions;
@@ -69,7 +73,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 
         private void RenderSelectedPoint()
         {
-            SelectedPointRenderer.Render(_renderingService, _cachedElements, SelectedPoint);
+            SelectedPointRenderer.Render(_renderingService, _cachedElements, SelectedPoint, _ifcReader, null, null);
 
             // Move the existing crane to the selected GA point
             if (SelectedPoint != null)

@@ -39,5 +39,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
             Dictionary<int, List<string>> assignment,
             CraneSpecification craneSpec,
             GASettings settings);
+
+        /// <summary>
+        /// Evaluates every element against one specific crane position.
+        /// This is used for viewport result previews where each GA point must
+        /// have its own independent color classification.
+        /// </summary>
+        IReadOnlyList<ElementEvaluationResult> EvaluatePosition(
+            CraneSolution solution,
+            int craneIndex,
+            List<PrecastElement> elements,
+            CraneSpecification craneSpec,
+            GASettings settings);
     }
 }

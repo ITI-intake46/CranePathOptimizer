@@ -44,9 +44,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
 
         public CraneOptimizerPointSummary CreatePointSummary(CranePositionResult point)
         {
-            int liftable   = point.ElementResults.Count(r => r.Status == LiftStatus.Liftable);
+            int liftable = point.LiftableCount;
             int nonLiftable = point.ElementResults.Count(r =>
-                r.Status == LiftStatus.Overweight || r.Status == LiftStatus.HeightFail);
+                r.Status == LiftStatus.Overweight ||
+                r.Status == LiftStatus.HeightFail ||
+                r.Status == LiftStatus.SpecialCase);
             int unreachable = point.ElementResults.Count(r => r.Status == LiftStatus.OutOfRadius);
 
             int total = point.ElementResults.Count;
@@ -141,7 +143,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         public CranePositionResult Point { get; }
 
         public string DisplayText =>
-            $"Point {CraneOptimizerDialogWorkflow.FormatPointCoordinates(Point)} — covers {Point.NewLiftableCount} elements";
+            $"Point {CraneOptimizerDialogWorkflow.FormatPointCoordinates(Point)} - liftable {Point.LiftableCount} elements (+{Point.NewLiftableCount} new)";
     }
 
     public sealed record CraneOptimizerPointSummary(

@@ -72,6 +72,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             return result;
         }
 
+        public IReadOnlyList<ElementEvaluationResult> EvaluatePosition(
+            CraneSolution solution,
+            int craneIndex,
+            List<PrecastElement> elements,
+            CraneSpecification craneSpec,
+            GASettings settings)
+        {
+            if (solution.Chromosome.CranePositions.Count == 0 || craneIndex < 0 || craneIndex >= solution.Chromosome.CranePositions.Count)
+                return Array.Empty<ElementEvaluationResult>();
+
+            return elements
+                .Select(element => ComputeEvaluationResult(element, solution, craneIndex, craneSpec, settings))
+                .ToList();
+        }
+
         // ══════════════════════════════════════════════════════════════
         // USER ASSIGNMENT RESOLUTION
         // ══════════════════════════════════════════════════════════════

@@ -30,7 +30,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             _craneSetup = craneSetup;
         }
 
-        public CranePlacementResult? ShowDialog()
+        public CraneOptimizerDialogOutcome? ShowDialog()
         {
             var dialog = new CraneOptimizerDialog(
                 _placementService,
@@ -44,7 +44,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 dialog.Owner = System.Windows.Application.Current.MainWindow;
 
             dialog.ShowDialog();
-            return dialog.LatestResult;
+
+            if (dialog.LatestResult == null)
+                return null;
+
+            return new CraneOptimizerDialogOutcome(
+                dialog.LatestResult,
+                dialog.AppliedPosition,
+                dialog.AppliedCrane);
         }
     }
 }

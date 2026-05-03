@@ -51,6 +51,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         public int NewLiftableCount { get; set; }
 
         /// <summary>
+        /// Number of elements this point can lift by itself.
+        /// </summary>
+        public int LiftableCount =>
+            ElementResults.Count(result => result.Status == LiftStatus.Liftable);
+
+        /// <summary>
         /// Full evaluation results for ALL elements (all statuses) when this
         /// crane position is selected. Used for viewport color-coding.
         /// </summary>
