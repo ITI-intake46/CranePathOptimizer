@@ -147,7 +147,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             if (!CanShowResults() || Result == null)
                 return;
 
-            _resultsWindowService.Show(Result);
+            _resultsWindowService.Show(Result, point =>
+            {
+                SelectedPosition = point;
+                RenderElementsWithCurrentStatus?.Invoke();
+            });
         }
 
         public void Place(DomainPoint3D point)

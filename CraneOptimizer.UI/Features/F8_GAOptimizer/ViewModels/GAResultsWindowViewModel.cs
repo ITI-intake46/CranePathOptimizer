@@ -1,6 +1,4 @@
 using CraneOptimizer.Domain.Common;
-using CraneOptimizer.Domain.Interfaces;
-using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
@@ -12,9 +10,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
     {
         private readonly IRenderingService _renderingService;
         private readonly ISceneService _sceneService;
-        private readonly IIfcReaderRepository _ifcReader;
+        private readonly Action<CranePositionResult?> _selectedPointChanged;
         private readonly CranePlacementResult _result;
-        private List<PrecastElement> _cachedElements = new();
         private CranePositionResult? _selectedPoint;
         private bool _isLoaded;
         private bool _isClosing;
@@ -23,12 +20,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             CranePlacementResult result,
             IRenderingService renderingService,
             ISceneService sceneService,
-            IIfcReaderRepository ifcReader)
+            Action<CranePositionResult?> selectedPointChanged)
         {
             _result = result;
             _renderingService = renderingService;
             _sceneService = sceneService;
-            _ifcReader = ifcReader;
+            _selectedPointChanged = selectedPointChanged;
         }
 
         public IReadOnlyList<CranePositionResult> Positions => _result.Positions;
@@ -58,7 +55,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             if (_isLoaded)
                 return;
 
-            _cachedElements = _sceneService.GetElements() ?? new List<PrecastElement>();
             _isLoaded = true;
 
             if (SelectedPoint == null && _result.Positions.Any())
@@ -73,7 +69,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 
         private void RenderSelectedPoint()
         {
-            SelectedPointRenderer.Render(_renderingService, _cachedElements, SelectedPoint, _ifcReader, null, null);
+            SelectedPointRenderer.Clear(_renderingService);
+            _selectedPointChanged(SelectedPoint);
+
+            if (SelectedPoint != null)
+                SelectedPointRenderer.RenderPlacementPoint(
+                    _renderingService,
+                    new DomainPoint3D(SelectedPoint.X, SelectedPoint.Y, 0));
 
             // Move the existing crane to the selected GA point
             if (SelectedPoint != null)
