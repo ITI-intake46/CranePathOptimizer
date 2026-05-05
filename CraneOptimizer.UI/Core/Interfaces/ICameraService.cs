@@ -9,6 +9,7 @@ namespace CraneOptimizer.UI.Core.Interfaces
         void ResetToDefaultView();
         void ZoomExtents();
         void ZoomToElements(IReadOnlyList<PrecastElement> elements);
+        void ZoomToFrontView(IReadOnlyList<PrecastElement> elements, bool animate = true);
         void UpdateClipping(IReadOnlyList<PrecastElement>? elements);
     }
 }

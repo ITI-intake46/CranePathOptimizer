@@ -97,8 +97,6 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             var elements = _sceneService.GetElements();
             if (elements.Count == 0)
                 _cameraService.ResetToDefaultView();
-            else
-                _cameraService.ZoomToElements(elements);
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -158,10 +156,16 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
             var elementSceneKey = BuildElementSceneKey(elements);
             if (elementSceneKey != _lastElementSceneKey)
-            {
                 _lastElementSceneKey = elementSceneKey;
-                _cameraService.ZoomToElements(elements);
-            }
+        }
+
+        private void IfcViewer_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != MouseButton.Middle || e.ClickCount != 2)
+                return;
+
+            _cameraService.ZoomToFrontView(_sceneService.GetElements(), animate: true);
+            e.Handled = true;
         }
 
         private void IfcViewer_MouseMove(object sender, MouseEventArgs e)

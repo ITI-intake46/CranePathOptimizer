@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Media3D;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
@@ -15,6 +17,7 @@ namespace CraneOptimizer.UI.Core.Services
         private const double MinNearPlane = 1d;
         private const double FarPlanePaddingFactor = 1.4;
         private const double DefaultGridViewSize = 50_000d;
+        private static readonly Duration CameraAnimationDuration = new(TimeSpan.FromMilliseconds(420));
 
         public CameraService(IRenderingService renderingService)
         {
@@ -61,6 +64,17 @@ namespace CraneOptimizer.UI.Core.Services
             var (center, size) = CalculateBounds(elements);
             SetCameraView(center, size, elevationFactor: 0.72, distanceFactor: 1.55);
             UpdateClipping(elements);
+        }
+
+        public void ZoomToFrontView(IReadOnlyList<PrecastElement> elements, bool animate = true)
+        {
+            var hasElements = elements.Count > 0;
+            var (center, size) = hasElements
+                ? CalculateBounds(elements)
+                : (new Point3D(0, 0, 0), DefaultGridViewSize);
+
+            SetFrontCameraView(center, size, animate);
+            UpdateClipping(hasElements ? elements : null);
         }
 
         public void UpdateClipping(IReadOnlyList<PrecastElement>? elements)
@@ -112,6 +126,119 @@ namespace CraneOptimizer.UI.Core.Services
             camera.UpDirection = new Vector3D(0, 0, 1);
             camera.FieldOfView = 45;
             viewport.UpdateLayout();
+        }
+
+        private void SetFrontCameraView(Point3D center, double sceneSize, bool animate)
+        {
+            var viewport = _renderingService.GetViewport();
+            if (viewport == null)
+                return;
+
+            var distance = Math.Max(25_000d, sceneSize * 1.55);
+            var elevation = Math.Max(12_000d, sceneSize * 0.55);
+            var position = new Point3D(
+                center.X,
+                center.Y - distance,
+                center.Z + elevation);
+            var lookDirection = center - position;
+            var upDirection = new Vector3D(0, 0, 1);
+
+            var camera = viewport.Camera as PerspectiveCamera;
+            if (camera == null)
+            {
+                camera = new PerspectiveCamera();
+                viewport.Camera = camera;
+            }
+
+            camera.FieldOfView = 45;
+            if (animate)
+                AnimateCamera(camera, position, lookDirection, upDirection);
+            else
+                ApplyCamera(camera, position, lookDirection, upDirection);
+
+            viewport.UpdateLayout();
+        }
+
+        private static void AnimateCamera(
+            PerspectiveCamera camera,
+            Point3D position,
+            Vector3D lookDirection,
+            Vector3D upDirection)
+        {
+            var startPosition = camera.Position;
+            var startLookDirection = camera.LookDirection;
+            var startUpDirection = camera.UpDirection;
+            var easing = new CubicEase { EasingMode = EasingMode.EaseInOut };
+            var remainingAnimations = 3;
+
+            camera.BeginAnimation(ProjectionCamera.PositionProperty, null);
+            camera.BeginAnimation(ProjectionCamera.LookDirectionProperty, null);
+            camera.BeginAnimation(ProjectionCamera.UpDirectionProperty, null);
+
+            camera.Position = position;
+            camera.LookDirection = lookDirection;
+            camera.UpDirection = upDirection;
+
+            void ReleaseAnimation(object? sender, EventArgs e)
+            {
+                remainingAnimations--;
+                if (remainingAnimations > 0)
+                    return;
+
+                camera.BeginAnimation(ProjectionCamera.PositionProperty, null);
+                camera.BeginAnimation(ProjectionCamera.LookDirectionProperty, null);
+                camera.BeginAnimation(ProjectionCamera.UpDirectionProperty, null);
+                camera.Position = position;
+                camera.LookDirection = lookDirection;
+                camera.UpDirection = upDirection;
+            }
+
+            var positionAnimation = new Point3DAnimation
+            {
+                From = startPosition,
+                To = position,
+                Duration = CameraAnimationDuration,
+                EasingFunction = easing,
+                FillBehavior = FillBehavior.Stop
+            };
+            var lookAnimation = new Vector3DAnimation
+            {
+                From = startLookDirection,
+                To = lookDirection,
+                Duration = CameraAnimationDuration,
+                EasingFunction = easing,
+                FillBehavior = FillBehavior.Stop
+            };
+            var upAnimation = new Vector3DAnimation
+            {
+                From = startUpDirection,
+                To = upDirection,
+                Duration = CameraAnimationDuration,
+                EasingFunction = easing,
+                FillBehavior = FillBehavior.Stop
+            };
+
+            positionAnimation.Completed += ReleaseAnimation;
+            lookAnimation.Completed += ReleaseAnimation;
+            upAnimation.Completed += ReleaseAnimation;
+
+            camera.BeginAnimation(ProjectionCamera.PositionProperty, positionAnimation);
+            camera.BeginAnimation(ProjectionCamera.LookDirectionProperty, lookAnimation);
+            camera.BeginAnimation(ProjectionCamera.UpDirectionProperty, upAnimation);
+        }
+
+        private static void ApplyCamera(
+            PerspectiveCamera camera,
+            Point3D position,
+            Vector3D lookDirection,
+            Vector3D upDirection)
+        {
+            camera.BeginAnimation(ProjectionCamera.PositionProperty, null);
+            camera.BeginAnimation(ProjectionCamera.LookDirectionProperty, null);
+            camera.BeginAnimation(ProjectionCamera.UpDirectionProperty, null);
+            camera.Position = position;
+            camera.LookDirection = lookDirection;
+            camera.UpDirection = upDirection;
         }
 
         private static (Point3D center, double size) CalculateBounds(IReadOnlyList<PrecastElement> source)

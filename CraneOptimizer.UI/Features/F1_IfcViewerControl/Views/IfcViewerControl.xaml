@@ -163,6 +163,7 @@
                     MouseDown="IfcViewer_MouseDown"
                     MouseMove="IfcViewer_MouseMove"
                     MouseUp="IfcViewer_MouseUp"
+                    PreviewMouseDown="IfcViewer_PreviewMouseDown"
                     Background="{DynamicResource BackgroundBrush}"
                     CameraRotationMode="Turntable"
                     InfiniteSpin="False"
