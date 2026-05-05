@@ -15,7 +15,7 @@ namespace CraneOptimizer.UI.Core.Models
 
         // Kinematics
         public DomainPoint3D PivotOffset { get; set; } = new(0, 0, 1.5);
-        public double BoomAngle { get; set; } = 45.0; // deg from horizontal
+        public double BoomAngle { get; set; } = 75.0; // deg from horizontal
         public double BoomLength { get; set; } = 20.0; // m
 
         public CraneSpecification? ActiveSpecification { get; set; }

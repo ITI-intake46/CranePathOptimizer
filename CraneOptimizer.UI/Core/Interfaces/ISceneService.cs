@@ -12,7 +12,6 @@ namespace CraneOptimizer.UI.Core.Interfaces
         List<PrecastElement> GetElements();
         void SetElements(List<PrecastElement> elements);
         void ClearElements();
-        event Action<Crane?>? CraneChanged;
 
         List<PrecastElement> GetSelectedElements();
         void SetSelectedElements(List<PrecastElement> elements);

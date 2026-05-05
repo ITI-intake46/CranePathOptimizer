@@ -64,7 +64,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 return;
             }
 
-            var spec = crane.Specifications.FirstOrDefault();
+            var spec = crane.Specifications?.FirstOrDefault();
             DetailModel.Text = crane.Name;
             DetailMfg.Text = crane.Manufacturer;
             DetailDimensions.Text = BuildDimensionSummary(crane);

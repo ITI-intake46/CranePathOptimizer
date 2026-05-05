@@ -16,6 +16,9 @@ namespace CraneOptimizer.UI.Core.Services
         private readonly IIfcReaderRepository _ifcReader;
         private readonly ICraneValidationService _craneValidation;
         private readonly List<PrecastElement> _sceneElements = new();
+        // Persistent builder so per-crane MobileCraneVisual3D and the
+        // INotifyPropertyChanged -> Rebuild plumbing survive across renders.
+        private readonly CraneVisualBuilder _craneBuilder;
         private SceneRenderingContext? _context;
         private bool _disposed;
         private bool _showCraneRadius = true;
@@ -24,12 +27,14 @@ namespace CraneOptimizer.UI.Core.Services
             ISceneService scene,
             IRenderingService rendering,
             IIfcReaderRepository ifcReader,
-            ICraneValidationService craneValidation)
+            ICraneValidationService craneValidation,
+            CraneVisualBuilder craneBuilder)
         {
             _scene = scene;
             _rendering = rendering;
             _ifcReader = ifcReader;
             _craneValidation = craneValidation;
+            _craneBuilder = craneBuilder;
 
             _scene.ElementsChanged += OnElementsChanged;
             _scene.CraneAdded += OnCraneChanged;
@@ -109,7 +114,7 @@ namespace CraneOptimizer.UI.Core.Services
             foreach (var crane in cranes)
                 crane.IsValidPlacement = _craneValidation.ValidatePlacement(crane, zones);
 
-            _rendering.Render(cranes, new CraneVisualBuilder(), "Cranes");
+            _rendering.Render(cranes, _craneBuilder, "Cranes");
 
             if (ShowCraneRadius)
                 _rendering.Render(cranes, new CraneRadiusBuilder(), "CraneRadius");

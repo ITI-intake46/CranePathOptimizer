@@ -30,14 +30,26 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Interaction
             if (e.ChangedButton != MouseButton.Left) return;
 
             var screen = e.GetPosition(viewport);
-            if (!_hitTest.TryGetWorldPoint(viewport, screen, out var worldPoint))
+            if (!_hitTest.TryGetPlacementPoint(viewport, screen, out var worldPoint)
+                && !_hitTest.TryGetWorldPoint(viewport, screen, out worldPoint))
                 return;
 
             var point = new DomainPoint3D(worldPoint.X, worldPoint.Y, worldPoint.Z);
+            if (_vm.SelectedCrane == null)
+            {
+                // Keep placement mode active until a crane is selected.
+                System.Diagnostics.Debug.WriteLine("[Placement] Click swallowed: SelectedCrane is null, staying in placement mode.");
+                e.Handled = true;
+                return;
+            }
+
             _vm.Place(point);
             _placeCraneInScene(point);
-            
-            _interactionService.PopMode();
+
+            // Pop only when placement actually completed.
+            if (!_vm.IsPlacing)
+                _interactionService.PopMode();
+
             e.Handled = true;
         }
 

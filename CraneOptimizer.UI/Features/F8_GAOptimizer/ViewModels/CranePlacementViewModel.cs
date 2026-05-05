@@ -129,7 +129,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 
         private void StartPlacement()
         {
+            // Re-arm placement reliably. If the same mode is already active,
+            // keep state but avoid stacking duplicate modes.
             IsPlacing = true;
+            if (_interaction.CurrentMode is Interaction.CranePlacementMode)
+                return;
 
             if (PlaceCraneInScene != null)
             {

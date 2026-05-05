@@ -8,7 +8,9 @@ using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
 using CraneOptimizer.UI.Features.F0_CoordinateSystem;
+using CraneOptimizer.UI.Features.F3_CraneSetup;
 using CraneOptimizer.UI.Features.F3_CraneSetup.Services;
+using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
@@ -17,7 +19,6 @@ using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.Services;
-using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
@@ -121,6 +122,7 @@ namespace CraneOptimizer.UI
             // Rendering
             // =========================
             services.AddSingleton<ElementVisualBuilder>();
+            services.AddSingleton<CraneVisualBuilder>();       // shared singleton — carries CraneParametersReady event
             services.AddSingleton<IRenderingService, HelixRenderingService>();
             services.AddSingleton<ISceneRenderingManager, SceneRenderingManager>();
             services.AddSingleton<ICameraService, CameraService>();
@@ -135,6 +137,7 @@ namespace CraneOptimizer.UI
             // ViewModels
             // =========================
             services.AddTransient<MainViewModel>();
+            services.AddSingleton<CraneManagerViewModel>();    // right-panel properties VM
             services.AddSingleton<DrawingViewModel>();
             services.AddSingleton<CranePlacementViewModel>();
             services.AddSingleton<IfcViewerViewModel>();

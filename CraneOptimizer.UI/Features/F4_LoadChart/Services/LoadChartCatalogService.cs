@@ -53,9 +53,10 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             existingCrane.OutriggerLength = updatedCrane.OutriggerLength;
             existingCrane.OutriggerWidth = updatedCrane.OutriggerWidth;
 
-            var updatedSpec = updatedCrane.Specifications.FirstOrDefault()
+            var updatedSpec = updatedCrane.Specifications?.FirstOrDefault()
                 ?? throw new InvalidOperationException("Updated crane data does not contain a specification.");
 
+            existingCrane.Specifications ??= new List<CraneSpecification>();
             var existingSpec = existingCrane.Specifications.FirstOrDefault();
             if (existingSpec == null)
             {

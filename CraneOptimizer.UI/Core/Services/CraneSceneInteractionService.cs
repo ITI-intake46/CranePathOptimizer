@@ -39,7 +39,7 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void PlaceCrane(Crane crane, DomainPoint3D point)
         {
-            var activeSpec = crane.Specifications
+            var activeSpec = crane.Specifications?
                 .OrderByDescending(spec => spec.MaxRadius)
                 .FirstOrDefault();
 
@@ -63,9 +63,19 @@ namespace CraneOptimizer.UI.Core.Services
             _scene.AddCrane(sceneCrane);
             SelectSceneCrane(sceneCrane);
 
-            _status.SetStatus(sceneCrane.IsValidPlacement
-                ? $"Crane placed at ({point.X:F2}, {point.Y:F2})."
-                : "Crane placed, but invalid: footprint/radius violate zone constraints.");
+            if (activeSpec == null)
+            {
+                _status.SetStatus(
+                    sceneCrane.IsValidPlacement
+                        ? $"Crane placed at ({point.X:F2}, {point.Y:F2}) with default boom values (no load chart found)."
+                        : "Crane placed with default boom values, but invalid: footprint/radius violate zone constraints.");
+            }
+            else
+            {
+                _status.SetStatus(sceneCrane.IsValidPlacement
+                    ? $"Crane placed at ({point.X:F2}, {point.Y:F2})."
+                    : "Crane placed, but invalid: footprint/radius violate zone constraints.");
+            }
         }
 
         public double EvaluateFitness(SceneCrane crane)

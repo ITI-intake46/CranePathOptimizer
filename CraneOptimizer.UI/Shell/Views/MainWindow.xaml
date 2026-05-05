@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:f5="clr-namespace:CraneOptimizer.UI.Features.F5_ElementManagement.Views"
     xmlns:f1="clr-namespace:CraneOptimizer.UI.Features.F1_IfcViewerControl.Views"
+    xmlns:f3="clr-namespace:CraneOptimizer.UI.Features.F3_CraneSetup.Views"
     xmlns:nav="clr-namespace:CraneOptimizer.UI.Shared.Layouts"
     Title="IFC Building Analyzer — Crane Planner Edition"
     Width="1600"
@@ -433,13 +434,13 @@
                 Cursor="SizeWE"
                 ShowsPreview="True" />
 
-            <!--  ── Col 4: Site Planner (placeholder) ───────────────────────  -->
+            <!--  ── Col 4: Crane Properties Panel ─────────────────────────  -->
             <Border
                 Grid.Column="4"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1,0,0,0">
-                <!--  TODO: SitePlannerPanel goes here  -->
+                <f3:CraneManagerView DataContext="{Binding CraneManager}" />
             </Border>
 
         </Grid>
