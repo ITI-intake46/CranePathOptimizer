@@ -88,9 +88,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                     if (!string.IsNullOrWhiteSpace(capacityText))
                     {
                         if (TryParseFlexibleNumber(capacityText, out capacity))
+                        {
                             maxCapacity = !maxCapacity.HasValue || capacity > maxCapacity.Value ? capacity : maxCapacity;
+                        }
                         else
-                            capacity = 0d;
+                        {
+                            throw new FormatException(
+                                $"Capacity value '{capacityText}' is invalid at radius '{radiusText}', boom '{boomLength}'.");
+                        }
                     }
 
                     minBoom = !minBoom.HasValue || boomLength < minBoom.Value ? boomLength : minBoom;

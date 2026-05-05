@@ -148,18 +148,29 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             StatusText = "All cranes removed.";
         }
 
-        private async Task LoadCranesAsync()
+        public async Task ReloadCranesAsync()
         {
+            var selectedCraneId = SelectedCrane?.Id;
             var cranes = await _craneRepo.GetAllWithSpecsAsync();
             Cranes.Clear();
 
             foreach (var crane in cranes)
                 Cranes.Add(crane);
 
-            if (Cranes.Count > 0 && SelectedCrane == null)
+            if (selectedCraneId.HasValue)
+            {
+                var refreshedSelection = Cranes.FirstOrDefault(crane => crane.Id == selectedCraneId.Value);
+                if (refreshedSelection != null && !ReferenceEquals(SelectedCrane, refreshedSelection))
+                    SelectedCrane = refreshedSelection;
+            }
+            else if (Cranes.Count > 0)
+            {
                 SelectedCrane = Cranes[0];
+            }
 
             CommandManager.InvalidateRequerySuggested();
         }
+
+        private Task LoadCranesAsync() => ReloadCranesAsync();
     }
 }

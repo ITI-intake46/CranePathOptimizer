@@ -128,7 +128,7 @@
                         <StackPanel HorizontalAlignment="Center">
                             <TextBlock Text="CSV"
                                        FontFamily="{StaticResource FontPrimary}"
-                                       FontSize="{StaticResource FontSizeXXL}"
+                                       FontSize="{StaticResource FontSize3XL}"
                                        FontWeight="Bold"
                                        Foreground="{StaticResource PrimaryBrush}"
                                        HorizontalAlignment="Center"/>

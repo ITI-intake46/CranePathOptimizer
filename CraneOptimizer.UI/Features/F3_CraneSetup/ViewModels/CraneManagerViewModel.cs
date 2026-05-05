@@ -79,7 +79,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
                     ActiveParams.ShowOutriggerPads = !ActiveParams.ShowOutriggerPads;
             }, () => HasActiveCrane);
 
-            _ = LoadCranesAsync();
+            _ = ReloadCranesAsync();
         }
 
         /// <summary>
@@ -101,7 +101,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
             System.Windows.Input.CommandManager.InvalidateRequerySuggested();
         }
 
-        private async Task LoadCranesAsync()
+        public async Task ReloadCranesAsync()
         {
             using var scope = _scopeFactory.CreateScope();
             var repo = scope.ServiceProvider.GetRequiredService<ICraneRepository>();
