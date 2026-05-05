@@ -295,7 +295,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             {
                 Positions = new Point3DCollection(helixMesh.Positions.Select(p => new Point3D(p.X, p.Y, p.Z))),
                 TriangleIndices = new Int32Collection(helixMesh.TriangleIndices),
-                Normals = new Vector3DCollection(helixMesh.Normals.Select(n => new Vector3D(n.X, n.Y, n.Z)))
+                Normals = helixMesh.Normals == null
+                    ? new Vector3DCollection()
+                    : new Vector3DCollection(helixMesh.Normals.Select(n => new Vector3D(n.X, n.Y, n.Z)))
             };
 
             var finalMaterial = BuildMaterial(color, isSelected, new DiffuseMaterial(new SolidColorBrush(Color.FromArgb(120, 100, 180, 255))));

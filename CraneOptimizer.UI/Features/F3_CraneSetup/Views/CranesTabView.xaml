@@ -20,13 +20,17 @@
                         -->
                         <Grid>
 
-                            <!-- Clicking the button calls ToggleCranePickerCommand,
-                                 which flips IsCranePickerOpen true/false in the ViewModel. -->
+                            <!--
+                                Single click → AddMobileCraneCommand
+                                If elements are loaded: crane is auto-positioned beside the model.
+                                If no elements loaded: enters click-to-place mode.
+                                CanExecute = Cranes list is non-empty (auto-selected on load).
+                            -->
                             <Button x:Name="BtnAddMobileCrane"
                                     Style="{StaticResource RibbonLargeBtn}"
                                     Width="70"
-                                    ToolTip="Click to pick a crane from the database"
-                                    Command="{Binding CraneSetup.ToggleCranePickerCommand}">
+                                    ToolTip="Place a mobile crane in the scene"
+                                    Command="{Binding AddMobileCraneCommand}">
 
                                 <StackPanel HorizontalAlignment="Center">
 
@@ -47,121 +51,6 @@
 
                                 </StackPanel>
                             </Button>
-
-                            <!--
-                                CRANE PICKER POPUP
-                                ──────────────────
-                                Placement="Bottom"   → drops down directly below the button.
-                                StaysOpen="False"    → WPF closes it automatically when the
-                                                       user clicks anywhere outside, including
-                                                       on a list row. When it closes itself it
-                                                       writes false back to IsCranePickerOpen
-                                                       via the TwoWay binding.
-                                AllowsTransparency   → needed so CornerRadius on the inner
-                                                       Border renders without a rectangular clip.
-                            -->
-                            <Popup PlacementTarget="{Binding ElementName=BtnAddMobileCrane}"
-                                   Placement="Bottom"
-                                   StaysOpen="False"
-                                   AllowsTransparency="True"
-                                   IsOpen="{Binding CraneSetup.IsCranePickerOpen, Mode=TwoWay}">
-
-                                <Border Background="{DynamicResource SurfaceBrush}"
-                                        BorderBrush="{DynamicResource PrimaryBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="4"
-                                        Padding="8"
-                                        MinWidth="240">
-
-                                    <StackPanel>
-
-                                        <!-- Popup header -->
-                                        <TextBlock Text="Select a Crane"
-                                                   FontWeight="SemiBold"
-                                                   FontSize="{StaticResource FontSizeSM}"
-                                                   Margin="0,0,0,6"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
-
-                                        <!--
-                                            CRANE LIST
-                                            ItemsSource  → MainViewModel.Cranes (full DB list)
-                                            SelectedItem → MainViewModel.SelectedCrane (TwoWay)
-
-                                            Flow when user clicks a row:
-                                              1. SelectedCrane is set on MainViewModel.
-                                              2. MainViewModel setter calls
-                                                 CraneSetup.SelectedCrane = value,
-                                                 which runs OnCraneChanged() and renders
-                                                 the crane in the 3D viewport.
-                                              3. StaysOpen="False" closes the popup.
-                                        -->
-                                        <ListBox ItemsSource="{Binding Cranes}"
-                                                 SelectedItem="{Binding SelectedCrane, Mode=TwoWay}"
-                                                 MaxHeight="200"
-                                                 BorderThickness="0"
-                                                 Background="Transparent">
-
-                                            <ListBox.ItemContainerStyle>
-                                                <Style TargetType="ListBoxItem">
-                                                    <Setter Property="Padding" Value="6,5"/>
-                                                    <Setter Property="Cursor"  Value="Hand"/>
-                                                </Style>
-                                            </ListBox.ItemContainerStyle>
-
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <StackPanel Orientation="Horizontal">
-
-                                                        <TextBlock Text="🏗"
-                                                                   FontSize="{StaticResource FontSizeSM}"
-                                                                   Margin="0,0,8,0"
-                                                                   VerticalAlignment="Center"/>
-
-                                                        <StackPanel>
-                                                            <!-- Crane.Name from the database -->
-                                                            <TextBlock Text="{Binding Name}"
-                                                                       FontWeight="SemiBold"
-                                                                       FontSize="{StaticResource FontSizeSM}"/>
-
-                                                            <!-- Manufacturer · CraneType on a second line -->
-                                                            <TextBlock FontSize="{StaticResource FontSizeXS}"
-                                                                       Foreground="{DynamicResource TextSecondaryBrush}">
-                                                                <Run Text="{Binding Manufacturer}"/>
-                                                                <Run Text=" · "/>
-                                                                <Run Text="{Binding CraneType}"/>
-                                                            </TextBlock>
-                                                        </StackPanel>
-
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-
-                                        </ListBox>
-                                        <Border Background="{Binding CraneSetup.IsPositionValid,Converter={StaticResource BoolToColorConverter},ConverterParameter='Green|Red'}" Padding="8,4" CornerRadius="4" Margin="0,8,0,0">
-                                            <TextBlock Text="{Binding CraneSetup.IsPositionValid,Converter={StaticResource BoolToTextConverter},ConverterParameter='Inside Zone|Outside Zone'}" Foreground="White" FontWeight="Bold"/>
-                                        </Border>
-
-                                        <!-- Lock Status Indicator -->
-                                        <Border Background="{Binding CraneSetup.IsPositionLocked,Converter={StaticResource BoolToColorConverter},ConverterParameter='Orange|Transparent'}" Padding="8,4" CornerRadius="4" Margin="0,6,0,0" Visibility="{Binding CraneSetup.IsPositionLocked,Converter={StaticResource BoolToVisibilityConverter}}">
-                                            <TextBlock Text="🔒 Position Locked (GA Optimized)" Foreground="White" FontWeight="Bold" FontSize="{StaticResource FontSizeXS}"/>
-                                        </Border>
-                                        <!-- Thin divider -->
-                                        <Rectangle Height="1"
-                                                   Fill="{DynamicResource BorderBrush}"
-                                                   Margin="0,6"/>
-
-                                        <!-- Shows which crane is currently active -->
-                                        <TextBlock FontSize="{StaticResource FontSizeXS}"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}">
-                                            <Run Text="Active: "/>
-                                            <Run Text="{Binding SelectedCrane.Name, FallbackValue='None'}"
-                                                 FontWeight="SemiBold"
-                                                 Foreground="{DynamicResource PrimaryBrush}"/>
-                                        </TextBlock>
-
-                                    </StackPanel>
-                                </Border>
-                            </Popup>
 
                         </Grid>
 

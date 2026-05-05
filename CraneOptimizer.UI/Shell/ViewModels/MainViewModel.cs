@@ -7,6 +7,7 @@ using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
+using CraneOptimizer.UI.Features.F3_CraneSetup;
 using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
@@ -28,6 +29,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly IStatusService _status;
         private readonly IOriginService _originService;
         private readonly ICraneSceneInteractionService _craneSceneInteraction;
+        private readonly CraneVisualBuilder _craneVisualBuilder;
 
         private Crane? _selectedCrane;
         private bool _disposed;
@@ -51,7 +53,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             ISceneRenderingManager sceneRendering,
             IStatusService status,
             IOriginService originService,
-            ICraneSceneInteractionService craneSceneInteraction)
+            ICraneSceneInteractionService craneSceneInteraction,
+            CraneManagerViewModel craneManager,
+            CraneVisualBuilder craneVisualBuilder)
         {
             Scene = scene;
             Drawing = drawing;
@@ -60,6 +64,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             Dxf = dxf;
             CraneSetup = craneSetup;
             ElementManagement = elementManagement;
+            CraneManager = craneManager;
 
             _ifcReader = ifcReader;
             _render = render;
@@ -70,12 +75,25 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _status = status;
             _originService = originService;
             _craneSceneInteraction = craneSceneInteraction;
+            _craneVisualBuilder = craneVisualBuilder;
 
             _status.StatusChanged += OnStatusChanged;
             _status.HistoryChanged += OnHistoryChanged;
             _originService.OriginChanged += OnOriginChanged;
             _originService.PickingChanged += OnOriginPickingChanged;
             _craneSceneInteraction.StateChanged += OnCraneInteractionStateChanged;
+
+            // When any crane is built/re-rendered, push its parameters to the right panel.
+            _craneVisualBuilder.CraneParametersReady += (scene, p) =>
+            {
+                var selected = _craneSceneInteraction.SelectedSceneCrane;
+                if (selected == null || selected.Id == scene.Id)
+                    CraneManager.UpdateActiveParams(p);
+            };
+
+            // Wire remove actions.
+            CraneManager.RequestRemoveSelected = RemoveSelectedCrane;
+            CraneManager.RequestRemoveAll = RemoveAllCranes;
 
             CranePlacement.PlaceCraneInScene = PlaceSelectedCrane;
             CranePlacement.RenderElementsWithCurrentStatus = ReRenderElements;
@@ -98,6 +116,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         public ISceneService Scene { get; }
         public CraneSetupViewModel CraneSetup { get; }
+        public CraneManagerViewModel CraneManager { get; }
         public ObservableCollection<Crane> Cranes { get; } = new();
         public ElementManagementViewModel ElementManagement { get; }
         public CranePlacementViewModel CranePlacement { get; }
@@ -150,23 +169,57 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(SelectedCraneSpec));
 
+                // Propagate to sub-ViewModels — actual placement is done by AddMobileCraneCommand.
                 CranePlacement.SelectedCrane = value;
                 CraneSetup.SelectedCrane = value;
 
-                if (value != null)
-                {
-                    CranePlacement.IsPlacing = true;
-                    StatusText = "Click in viewport to place crane.";
-                }
-                else
-                {
-                    StatusText = "No crane selected.";
-                }
+                StatusText = value != null
+                    ? $"Crane '{value.Name}' selected."
+                    : "No crane selected.";
             }
         }
 
+        /// <summary>
+        /// Calculates a default position for the crane beside the IFC model bounds.
+        /// Returns null if no elements are loaded.
+        /// </summary>
+        private DomainPoint3D? CalculateDefaultCranePosition()
+        {
+            var elements = Scene.GetElements();
+            if (elements == null || elements.Count == 0)
+                return null;
+
+            // Calculate bounding box of all elements
+            double minX = double.MaxValue, maxX = double.MinValue;
+            double minY = double.MaxValue, maxY = double.MinValue;
+            double minZ = double.MaxValue, maxZ = double.MinValue;
+
+            foreach (var element in elements)
+            {
+                var cog = element.ElementCOG;
+                var halfLength = (element.BBoxLength ?? 0) / 2.0;
+                var halfWidth = (element.BBoxWidth ?? 0) / 2.0;
+                var halfHeight = (element.BBoxHeight ?? 0) / 2.0;
+
+                minX = Math.Min(minX, cog.X - halfLength);
+                maxX = Math.Max(maxX, cog.X + halfLength);
+                minY = Math.Min(minY, cog.Y - halfWidth);
+                maxY = Math.Max(maxY, cog.Y + halfWidth);
+                minZ = Math.Min(minZ, cog.Z - halfHeight);
+                maxZ = Math.Max(maxZ, cog.Z + halfHeight);
+            }
+
+            // Place crane beside the IFC model (to the right with some offset)
+            double offsetX = (maxX - minX) * 0.1 + 10; // 10% of model width + 10m offset
+            double craneX = maxX + offsetX;
+            double craneY = (minY + maxY) / 2.0; // Center of model in Y
+            double craneZ = minZ; // Ground level
+
+            return new DomainPoint3D(craneX, craneY, craneZ);
+        }
+
         public CraneSpecification? SelectedCraneSpec =>
-            SelectedCrane?.Specifications.FirstOrDefault();
+            SelectedCrane?.Specifications?.FirstOrDefault();
 
         public string StatusText
         {

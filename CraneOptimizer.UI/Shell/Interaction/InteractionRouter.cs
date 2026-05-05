@@ -48,12 +48,17 @@ namespace CraneOptimizer.UI.Shell.Interaction
                 if (e.ChangedButton != MouseButton.Left) return;
 
                 var cranePlacementScreen = e.GetPosition(viewport);
-                if (!_hitTest.TryGetWorldPoint(viewport, cranePlacementScreen, out var cranePoint))
+                if (!_hitTest.TryGetPlacementPoint(viewport, cranePlacementScreen, out var cranePoint)
+                    && !_hitTest.TryGetWorldPoint(viewport, cranePlacementScreen, out cranePoint))
                     return;
 
                 var point = new DomainPoint3D(cranePoint.X, cranePoint.Y, cranePoint.Z);
                 _vm.CranePlacement.Place(point);
-                _vm.PlaceSelectedCrane(point);
+
+                // Only finalize placement when a crane is actually selected.
+                if (_vm.CranePlacement.SelectedCrane != null || _vm.SelectedCrane != null)
+                    _vm.PlaceSelectedCrane(point);
+
                 e.Handled = true;
                 return;
             }

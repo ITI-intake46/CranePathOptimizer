@@ -23,7 +23,6 @@ namespace CraneOptimizer.UI.Core.Services
         // =========================
         public event Action<List<PrecastElement>>? ElementsChanged;
         public event Action<List<PrecastElement>>? ElementsSelectionChanged;
-        public event Action<Crane?>? CraneChanged;
 
         public void SetElements(List<PrecastElement> elements)
         {
@@ -71,7 +70,7 @@ namespace CraneOptimizer.UI.Core.Services
         public event Action<GreenAreaZone>? ZoneRemoved;
         public event Action? ZonesCleared;
         public event Action<GreenAreaZone?>? ZoneSelected;
-        public event Action<GreenAreaZone?>? ZoneUpdated;
+        public event Action<GreenAreaZone>? ZoneUpdated;
 
         public GreenAreaZone? SelectedZone { get; private set; }
 

@@ -1,66 +1,232 @@
+using CraneOptimizer.Domain.Entities;
+using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
+using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F3_CraneSetup.Parameters;
+using Microsoft.Extensions.DependencyInjection;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows.Input;
 
 namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
 {
     public class CraneManagerViewModel : ViewModelBase
     {
-        // ── Properties ────────────────────────────────────────────────────
-        public ObservableCollection<CraneItemViewModel> Cranes { get; } = new();
+        // ── Active parameters (bound to the right-panel sliders) ──────────
+        private readonly ISceneService _scene;
+        private readonly IServiceScopeFactory _scopeFactory;
+        private bool _suppressDatabaseSelection;
+        private MobileCraneParameters? _activeParams;
+        private Crane? _selectedDatabaseCrane;
 
-        private CraneItemViewModel? _selectedCrane;
-        public CraneItemViewModel? SelectedCrane
+        public ObservableCollection<Crane> AvailableCranes { get; } = new();
+
+        public Crane? SelectedDatabaseCrane
         {
-            get => _selectedCrane;
-            set { _selectedCrane = value; OnPropertyChanged(); }
+            get => _selectedDatabaseCrane;
+            set
+            {
+                if (_selectedDatabaseCrane == value)
+                    return;
+
+                _selectedDatabaseCrane = value;
+                OnPropertyChanged();
+
+                if (!_suppressDatabaseSelection && value != null)
+                    ApplyDatabaseCrane(value);
+            }
         }
+        public MobileCraneParameters? ActiveParams
+        {
+            get => _activeParams;
+            private set { _activeParams = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasActiveCrane)); }
+        }
+
+        public bool HasActiveCrane => _activeParams != null;
 
         // ── Commands ──────────────────────────────────────────────────────
-        public ICommand AddTowerCraneCommand  { get; }
-        public ICommand AddMobileCraneCommand { get; }
-        public ICommand RemoveCraneCommand    { get; }
-        public ICommand RemoveAllCranesCommand{ get; }
+        public ICommand RemoveSelectedCraneCommand  { get; }
+        public ICommand RemoveAllCranesCommand      { get; }
+        public ICommand ToggleSwingRadiusCommand    { get; }
+        public ICommand ToggleOutriggerPadsCommand  { get; }
 
-        public CraneManagerViewModel()
-        {
-            AddTowerCraneCommand   = new RelayCommand(AddTowerCrane);
-            AddMobileCraneCommand  = new RelayCommand(AddMobileCrane);
-            RemoveCraneCommand     = new RelayCommand<CraneItemViewModel>(RemoveCrane);
-            RemoveAllCranesCommand = new RelayCommand(RemoveAll);
-        }
+        // ── External actions wired by MainViewModel ────────────────────────
+        public Action? RequestRemoveSelected  { get; set; }
+        public Action? RequestRemoveAll       { get; set; }
 
-        private void AddTowerCrane()
+        public CraneManagerViewModel(ISceneService scene, IServiceScopeFactory scopeFactory)
         {
-            var crane = new CraneItemViewModel
+            _scene = scene;
+            _scopeFactory = scopeFactory;
+
+            RemoveSelectedCraneCommand = new RelayCommand(
+                () => RequestRemoveSelected?.Invoke(),
+                () => HasActiveCrane);
+
+            RemoveAllCranesCommand = new RelayCommand(
+                () => RequestRemoveAll?.Invoke());
+
+            ToggleSwingRadiusCommand = new RelayCommand(() =>
             {
-                Name = $"Tower Crane {Cranes.Count + 1}",
-                Type = "TowerCrane"
-            };
-            Cranes.Add(crane);
-            SelectedCrane = crane;
-        }
+                if (ActiveParams != null)
+                    ActiveParams.ShowSwingRadius = !ActiveParams.ShowSwingRadius;
+            }, () => HasActiveCrane);
 
-        private void AddMobileCrane()
-        {
-            var crane = new CraneItemViewModel
+            ToggleOutriggerPadsCommand = new RelayCommand(() =>
             {
-                Name = $"Mobile Crane {Cranes.Count + 1}",
-                Type = "MobileCrane"
-            };
-            Cranes.Add(crane);
-            SelectedCrane = crane;
+                if (ActiveParams != null)
+                    ActiveParams.ShowOutriggerPads = !ActiveParams.ShowOutriggerPads;
+            }, () => HasActiveCrane);
+
+            _ = LoadCranesAsync();
         }
 
-        private void RemoveCrane(CraneItemViewModel? crane)
+        /// <summary>
+        /// Called by MainViewModel after a crane is placed or selected —
+        /// pushes the live parameters into the panel so sliders reflect the
+        /// correct crane immediately.
+        /// </summary>
+        public void UpdateActiveParams(MobileCraneParameters? p)
         {
-            if (crane != null) Cranes.Remove(crane);
+            if (ActiveParams != null)
+                ActiveParams.PropertyChanged -= OnActiveParamsChanged;
+
+            ActiveParams = p;
+
+            if (ActiveParams != null)
+                ActiveParams.PropertyChanged += OnActiveParamsChanged;
+
+            SyncSelectedDatabaseCrane();
+            System.Windows.Input.CommandManager.InvalidateRequerySuggested();
         }
 
-        private void RemoveAll() => Cranes.Clear();
+        private async Task LoadCranesAsync()
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var repo = scope.ServiceProvider.GetRequiredService<ICraneRepository>();
+            var cranes = await repo.GetAllWithSpecsAsync();
+
+            AvailableCranes.Clear();
+            foreach (var crane in cranes)
+                AvailableCranes.Add(crane);
+
+            SyncSelectedDatabaseCrane();
+        }
+
+        private void SyncSelectedDatabaseCrane()
+        {
+            var selectedSceneCrane = _scene.SelectedCrane;
+            var databaseCrane = selectedSceneCrane == null
+                ? null
+                : AvailableCranes.FirstOrDefault(crane => crane.Id == selectedSceneCrane.CraneDefinition.Id);
+
+            _suppressDatabaseSelection = true;
+            SelectedDatabaseCrane = databaseCrane;
+            _suppressDatabaseSelection = false;
+        }
+
+        private void ApplyDatabaseCrane(Crane databaseCrane)
+        {
+            var selected = _scene.SelectedCrane;
+            if (selected == null)
+                return;
+
+            selected.CraneDefinition = databaseCrane;
+            selected.ActiveSpecification = ChooseActiveSpecification(databaseCrane);
+            selected.PivotOffset = new Domain.Common.DomainPoint3D(
+                0,
+                0,
+                Math.Max(1.2, ToMeters(databaseCrane.VehicleHeight, 1.5)));
+
+            if (selected.ActiveSpecification != null)
+            {
+                var spec = selected.ActiveSpecification;
+                selected.BoomLength = Math.Clamp(
+                    selected.BoomLength > 0 ? selected.BoomLength : spec.MaxBoomLength * 0.6,
+                    spec.MinBoomLength,
+                    spec.MaxBoomLength);
+            }
+
+            _scene.UpdateCrane(selected);
+        }
+
+        private static CraneSpecification? ChooseActiveSpecification(Crane crane)
+        {
+            return crane.Specifications?
+                .OrderByDescending(spec => spec.MaxRadius)
+                .FirstOrDefault();
+        }
+
+        private void OnActiveParamsChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            var selected = _scene.SelectedCrane;
+            var p = ActiveParams;
+            if (selected == null || p == null)
+                return;
+
+            if (e.PropertyName is nameof(MobileCraneParameters.PositionX)
+                or nameof(MobileCraneParameters.PositionY)
+                or nameof(MobileCraneParameters.PositionZ))
+            {
+                if (NearlyEqual(selected.Position.X, p.PositionX)
+                    && NearlyEqual(selected.Position.Y, p.PositionY)
+                    && NearlyEqual(selected.Position.Z, p.PositionZ))
+                    return;
+
+                selected.Position = new Domain.Common.DomainPoint3D(
+                    p.PositionX,
+                    p.PositionY,
+                    p.PositionZ);
+                _scene.UpdateCrane(selected);
+                return;
+            }
+
+            if (e.PropertyName == nameof(MobileCraneParameters.SlewAngle))
+            {
+                if (NearlyEqual(selected.Rotation, p.SlewAngle))
+                    return;
+
+                selected.Rotation = p.SlewAngle;
+                _scene.UpdateCrane(selected);
+                return;
+            }
+
+            if (e.PropertyName == nameof(MobileCraneParameters.BoomLength))
+            {
+                if (NearlyEqual(selected.BoomLength, p.BoomLength))
+                    return;
+
+                selected.BoomLength = p.BoomLength;
+                _scene.UpdateCrane(selected);
+                return;
+            }
+
+            if (e.PropertyName == nameof(MobileCraneParameters.BoomAngle))
+            {
+                if (NearlyEqual(selected.BoomAngle, p.BoomAngle))
+                    return;
+
+                selected.BoomAngle = p.BoomAngle;
+                _scene.UpdateCrane(selected);
+            }
+        }
+
+        private static bool NearlyEqual(double a, double b)
+        {
+            return Math.Abs(a - b) < 0.0001;
+        }
+
+        private static double ToMeters(double value, double fallback)
+        {
+            if (value <= 0)
+                return fallback;
+
+            return value > 100.0 ? value / 1000.0 : value;
+        }
     }
 
+    // ── Kept for backward compatibility with CraneManagerView list ────────
     public class CraneItemViewModel : ViewModelBase
     {
         private string _name = string.Empty;

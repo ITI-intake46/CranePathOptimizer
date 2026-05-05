@@ -402,7 +402,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
                             ? $"{zone.Type} Zone {_scene.GetZones().Count + 1}"
                             : dialog.ZoneName;
                 _scene.AddZone(zone);
-                _zoneList.AddOrUpdateFromZone(zone, dialog.MinHeight, dialog.MaxHeight);
+                _zoneList.AddOrUpdateFromZone(zone, dialog.MinHeightValue, dialog.MaxHeightValue);
             }
 
             EndDrawingSession();

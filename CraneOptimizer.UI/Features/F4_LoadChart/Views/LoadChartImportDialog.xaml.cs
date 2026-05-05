@@ -45,7 +45,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             TxtModel.Text = crane.Name;
             TxtMfg.Text = crane.Manufacturer;
 
-            var spec = crane.Specifications.FirstOrDefault();
+            var spec = crane.Specifications?.FirstOrDefault();
             if (spec == null)
                 return;
 
