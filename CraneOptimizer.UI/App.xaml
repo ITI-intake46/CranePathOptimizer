@@ -5,9 +5,11 @@
     xmlns:local="clr-namespace:CraneOptimizer.UI.Core.Converters">
     <Application.Resources>
         <ResourceDictionary>
-            
+
             <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <local:LiftStatusToBrushConverter x:Key="LiftStatusToBrushConverter"/>
+            <local:BoolToTextConverter x:Key="BoolToTextConverter"/>
+            <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
             
             <ResourceDictionary.MergedDictionaries>
 
@@ -28,18 +30,22 @@
                 <!-- [1] Brush tokens — ALL StaticResource brush refs must be defined here -->
                 <ResourceDictionary Source="Resources/Brushes.xaml"/>
 
+                <!-- [1b] Theme surface brushes — default: Dark. ThemeService swaps index [2] at runtime -->
+                <ResourceDictionary Source="Resources/Theme/Dark.Brushes.xaml"/>
+
                 <!-- [2] Typography -->
                 <ResourceDictionary Source="Resources/Typography.xaml"/>
 
                 <!-- [3] Spacing -->
                 <ResourceDictionary Source="Resources/DesignSystem/Spacing.xaml"/>
 
-                <!-- [4] Control styles (single entry — was duplicated, now corrected) -->
-                <ResourceDictionary Source="Resources/DesignSystem/Controls/ButtonStyles.xaml"/>
-                <ResourceDictionary Source="Resources/DesignSystem/Controls/TextBoxStyles.xaml"/>
-                <ResourceDictionary Source="Resources/DesignSystem/Controls/ComboBoxStyles.xaml"/>
+                <!-- [3b] Elevation — shadow presets (Shadow1 / Shadow2 / Shadow3) -->
+                <ResourceDictionary Source="Resources/DesignSystem/Elevation.xaml"/>
+
+                <!-- [4] Control styles — ControlStyles.xaml is the single authoritative source. -->
+                <!--     ButtonStyles / TextBoxStyles / ComboBoxStyles / ToolbarStyles removed   -->
+                <!--     (all superseded by ControlStyles.xaml + ShellStyles.xaml)               -->
                 <ResourceDictionary Source="Resources/DesignSystem/Controls/DataGridStyles.xaml"/>
-                <ResourceDictionary Source="Resources/DesignSystem/Controls/ToolbarStyles.xaml"/>
                 <ResourceDictionary Source="Resources/DesignSystem/Controls/RibbonStyles.xaml"/>
                 <ResourceDictionary Source="Resources/DesignSystem/Controls/NavigationStyles.xaml"/>
                 <ResourceDictionary Source="Resources/DesignSystem/Controls/ControlStyles.xaml"/>

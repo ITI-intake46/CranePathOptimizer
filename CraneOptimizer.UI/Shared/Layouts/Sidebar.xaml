@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="CraneOptimizer.UI.Shared.Layouts.Sidebar"
+<UserControl x:Class="CraneOptimizer.UI.Shared.Layouts.Sidebar"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
@@ -18,7 +18,7 @@
                                    FontWeight="Bold"/>
                         <TextBlock Text="SYSTEM ADMIN"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
-                                   FontSize="10"/>
+                                   FontSize="{StaticResource FontSizeXS}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>

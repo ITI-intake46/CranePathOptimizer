@@ -1,7 +1,8 @@
 <Window x:Class="CraneOptimizer.UI.Features.F11_DXF.Views.DxfAlignmentDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:conv="clr-namespace:CraneOptimizer.UI.Core.Converters" xmlns:convdx="clr-namespace:CraneOptimizer.UI.Core.Converters.DXF"
+        xmlns:conv="clr-namespace:CraneOptimizer.UI.Core.Converters"
+        xmlns:convdx="clr-namespace:CraneOptimizer.UI.Core.Converters.DXF"
         Title="DXF Alignment"
         Width="920" Height="660"
         MinWidth="720" MinHeight="520"
@@ -14,206 +15,16 @@
 
     <Window.Resources>
         <conv:BoolToVisibilityConverter  x:Key="BoolToVisibilityConverter"/>
-        <convdx:NullToCollapsedConverter   x:Key="NullToCollapsedConverter"/>
-        <convdx:HexStringToColorConverter  x:Key="HexStringToColorConverter"/>
-
-        <Style x:Key="ThemedGroupBox" TargetType="GroupBox">
-            <Setter Property="Margin"          Value="0,0,0,10"/>
-            <Setter Property="Padding"         Value="8,6,8,8"/>
-            <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Background"      Value="{DynamicResource SurfaceElevatedBrush}"/>
-            <Setter Property="Foreground"      Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="GroupBox">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-                            <Border Grid.Row="0"
-                                    Background="{DynamicResource SurfaceBrush}"
-                                    BorderBrush="{DynamicResource BorderBrush}"
-                                    BorderThickness="1,1,1,0"
-                                    CornerRadius="4,4,0,0"
-                                    Padding="10,5,10,5">
-                                <ContentPresenter ContentSource="Header"
-                                                  RecognizesAccessKey="True"
-                                                  TextBlock.FontSize="11"
-                                                  TextBlock.FontWeight="SemiBold"
-                                                  TextBlock.Foreground="{DynamicResource PrimaryBrush}"/>
-                            </Border>
-                            <Border Grid.Row="1"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{DynamicResource BorderBrush}"
-                                    BorderThickness="1,0,1,1"
-                                    CornerRadius="0,0,4,4"
-                                    Padding="{TemplateBinding Padding}">
-                                <ContentPresenter/>
-                            </Border>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="ThemedTextBox" TargetType="TextBox">
-            <Setter Property="Background"       Value="{DynamicResource SurfaceBrush}"/>
-            <Setter Property="Foreground"       Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="BorderBrush"      Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness"  Value="1"/>
-            <Setter Property="Padding"          Value="6,4"/>
-            <Setter Property="FontSize"         Value="12"/>
-            <Setter Property="CaretBrush"       Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="SelectionBrush"   Value="{DynamicResource PrimaryBrush}"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Style.Triggers>
-                <Trigger Property="IsFocused"    Value="True">
-                    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
-                </Trigger>
-                <Trigger Property="IsMouseOver"  Value="True">
-                    <Setter Property="BorderBrush" Value="{DynamicResource SecondaryBrush}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="PrimaryButton" TargetType="Button">
-            <Setter Property="Background"      Value="{DynamicResource PrimaryBrush}"/>
-            <Setter Property="Foreground"      Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="12,5"/>
-            <Setter Property="FontSize"        Value="12"/>
-            <Setter Property="FontWeight"      Value="SemiBold"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="3" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed"   Value="True">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.7"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled"   Value="False">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="SecondaryButton" TargetType="Button">
-            <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding"         Value="12,5"/>
-            <Setter Property="FontSize"        Value="12"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="3" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.7"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="ChromeButton" TargetType="Button">
-            <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="{DynamicResource TextSecondaryBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Width"           Value="34"/>
-            <Setter Property="Height"          Value="34"/>
-            <Setter Property="FontSize"        Value="14"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.7"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="CloseButton" TargetType="Button" BasedOn="{StaticResource ChromeButton}">
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#C0392B"/>
-                    <Setter Property="Foreground" Value="White"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="ThemedSlider"   TargetType="Slider">
-            <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-            <Setter Property="Margin"     Value="0,4,0,4"/>
-        </Style>
-
-        <Style x:Key="ThemedCheckBox" TargetType="CheckBox">
-            <Setter Property="Foreground"        Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-
-        <Style x:Key="FieldLabel"     TargetType="TextBlock">
-            <Setter Property="FontSize"   Value="11"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-            <Setter Property="Margin"     Value="0,5,0,2"/>
-        </Style>
-
-        <Style x:Key="ValidationText" TargetType="TextBlock">
-            <Setter Property="Foreground"   Value="{DynamicResource DestructiveBrush}"/>
-            <Setter Property="FontSize"     Value="11"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-            <Setter Property="Margin"       Value="0,2,0,0"/>
-        </Style>
+        <convdx:NullToCollapsedConverter  x:Key="NullToCollapsedConverter"/>
+        <convdx:HexStringToColorConverter x:Key="HexStringToColorConverter"/>
     </Window.Resources>
 
+    <!--  Use Shadow3 from Elevation.xaml instead of inline DropShadowEffect  -->
     <Border Background="{DynamicResource BackgroundBrush}"
             BorderBrush="{DynamicResource BorderBrush}"
             BorderThickness="1"
-            CornerRadius="6">
-        <Border.Effect>
-            <DropShadowEffect BlurRadius="20" ShadowDepth="4" Direction="270" Opacity="0.45" Color="Black"/>
-        </Border.Effect>
+            CornerRadius="6"
+            Effect="{StaticResource Shadow3}">
 
         <Grid>
             <Grid.RowDefinitions>
@@ -222,8 +33,10 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <!-- Title bar -->
-            <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="6,6,0,0"
+            <!-- ── Title bar ─────────────────────────────────────────── -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SurfaceBrush}"
+                    CornerRadius="6,6,0,0"
                     MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -231,22 +44,35 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
-                        <TextBlock Text="📐" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBlock Text="DXF Alignment" FontSize="13" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal"
+                                VerticalAlignment="Center" Margin="14,0,0,0">
+                        <TextBlock Text="📐"
+                                   FontSize="{StaticResource FontSizeBase}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="DXF Alignment"
+                                   FontFamily="{StaticResource FontPrimary}"
+                                   FontSize="{StaticResource FontSizeSM}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
                     </StackPanel>
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0">
-                        <Button Style="{StaticResource ChromeButton}" Content="—" FontSize="11"
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                VerticalAlignment="Center" Margin="0,0,6,0">
+                        <!--  TitleBarButton and CloseButton from ShellStyles.xaml  -->
+                        <Button Style="{StaticResource TitleBarButton}" Content="—"
+                                FontSize="{StaticResource FontSizeXS}"
                                 Click="MinimizeButton_Click" ToolTip="Minimise"/>
-                        <Button Style="{StaticResource CloseButton}"  Content="✕"
-                                Click="CloseButton_Click"   ToolTip="Close"/>
+                        <Button Style="{StaticResource CloseButton}" Content="✕"
+                                Click="CloseButton_Click" ToolTip="Close"/>
                     </StackPanel>
                 </Grid>
             </Border>
-            <Border Grid.Row="0" Height="1" VerticalAlignment="Bottom" Background="{DynamicResource BorderBrush}"/>
+            <Border Grid.Row="0" Height="1" VerticalAlignment="Bottom"
+                    Background="{DynamicResource BorderBrush}"/>
 
-            <!-- Main content -->
+            <!-- ── Main content ──────────────────────────────────────── -->
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -258,26 +84,45 @@
                 <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" ClipToBounds="True">
                     <Grid>
                         <Canvas x:Name="DxfCanvas" Background="Transparent" ClipToBounds="True"/>
+
+                        <!-- Loading overlay -->
                         <Border Background="#AA000000"
                                 Visibility="{Binding IsDxfLoading, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <TextBlock Text="⏳  Loading DXF…" Foreground="White" FontSize="15"
+                            <TextBlock Text="⏳  Loading DXF…"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="{StaticResource FontSizeSM}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
+
+                        <!-- Empty state -->
                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
                                     Visibility="{Binding DxfFileName, Converter={StaticResource NullToCollapsedConverter}}">
-                            <TextBlock Text="📂" FontSize="36" HorizontalAlignment="Center" Margin="0,0,0,10"
+                            <TextBlock Text="📂"
+                                       FontSize="36"
+                                       HorizontalAlignment="Center" Margin="0,0,0,10"
                                        Foreground="{DynamicResource TextSecondaryBrush}"/>
-                            <TextBlock Text="No DXF loaded" Foreground="{DynamicResource TextSecondaryBrush}"
-                                       FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                            <TextBlock Text="No DXF loaded"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="{StaticResource FontSizeSM}"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"/>
                             <TextBlock Text="Click 'Load DXF…' in the panel to begin."
-                                       Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="{StaticResource FontSizeXS}"
                                        HorizontalAlignment="Center" Margin="0,4,0,0"/>
                         </StackPanel>
+
+                        <!-- Zoom hint badge -->
                         <Border VerticalAlignment="Bottom" HorizontalAlignment="Right"
                                 Background="{DynamicResource SurfaceElevatedBrush}"
                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                                 CornerRadius="3" Padding="6,2" Margin="0,0,8,8">
-                            <TextBlock Text="Scroll to zoom  ·  Drag to pan" FontSize="10"
+                            <TextBlock Text="Scroll to zoom  ·  Drag to pan"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="{StaticResource FontSizeXS}"
                                        Foreground="{DynamicResource TextSecondaryBrush}"/>
                         </Border>
                     </Grid>
@@ -290,21 +135,33 @@
                               Background="{DynamicResource BackgroundBrush}" Padding="10,10,10,6">
                     <StackPanel>
 
-                        <GroupBox Header="DXF FILE" Style="{StaticResource ThemedGroupBox}">
+                        <!-- DXF FILE -->
+                        <GroupBox Header="DXF FILE" Margin="0,0,0,10">
                             <StackPanel>
-                                <Button Content="📂  Load DXF…" Command="{Binding LoadDxfCommand}"
-                                        Style="{StaticResource PrimaryButton}"
+                                <Button Content="📂  Load DXF…"
+                                        Command="{Binding LoadDxfCommand}"
+                                        Style="{StaticResource ButtonPrimary}"
                                         HorizontalAlignment="Stretch" Margin="0,0,0,6"/>
-                                <TextBlock Text="{Binding DxfFileName}" FontWeight="SemiBold" FontSize="12"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="{Binding DxfInfo}" FontSize="11" Margin="0,3,0,0"
-                                           Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding DxfFileName}"
+                                           FontFamily="{StaticResource FontPrimary}"
+                                           FontSize="{StaticResource FontSizeSM}"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding DxfInfo}"
+                                           FontFamily="{StaticResource FontPrimary}"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           Margin="0,3,0,0"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
                             </StackPanel>
                         </GroupBox>
 
-                        <GroupBox Header="POINT MATCH" Style="{StaticResource ThemedGroupBox}">
+                        <!-- POINT MATCH -->
+                        <GroupBox Header="POINT MATCH" Margin="0,0,0,10">
                             <StackPanel>
-                                <TextBlock Text="DXF reference point (world units):" Style="{StaticResource FieldLabel}"/>
+                                <TextBlock Text="DXF reference point (world units):"
+                                           Style="{StaticResource PropertyLabel}" Margin="0,5,0,2"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="18"/>
@@ -312,12 +169,24 @@
                                         <ColumnDefinition Width="18"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="X" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" VerticalAlignment="Center"/>
-                                    <TextBox   Grid.Column="1" Style="{StaticResource ThemedTextBox}" Text="{Binding DxfRefXText, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,6,0"/>
-                                    <TextBlock Grid.Column="2" Text="Y" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" VerticalAlignment="Center"/>
-                                    <TextBox   Grid.Column="3" Style="{StaticResource ThemedTextBox}" Text="{Binding DxfRefYText, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBlock Grid.Column="0" Text="X"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               FontFamily="{StaticResource FontPrimary}"
+                                               FontSize="{StaticResource FontSizeXS}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="1"
+                                             Text="{Binding DxfRefXText, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,0,6,0"/>
+                                    <TextBlock Grid.Column="2" Text="Y"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               FontFamily="{StaticResource FontPrimary}"
+                                               FontSize="{StaticResource FontSizeXS}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="3"
+                                             Text="{Binding DxfRefYText, UpdateSourceTrigger=PropertyChanged}"/>
                                 </Grid>
-                                <TextBlock Text="IFC reference point (metres):" Style="{StaticResource FieldLabel}"/>
+                                <TextBlock Text="IFC reference point (metres):"
+                                           Style="{StaticResource PropertyLabel}" Margin="0,5,0,2"/>
                                 <Grid Margin="0,0,0,6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="18"/>
@@ -325,19 +194,36 @@
                                         <ColumnDefinition Width="18"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="X" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" VerticalAlignment="Center"/>
-                                    <TextBox   Grid.Column="1" Style="{StaticResource ThemedTextBox}" Text="{Binding IfcRefXText, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,6,0"/>
-                                    <TextBlock Grid.Column="2" Text="Y" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" VerticalAlignment="Center"/>
-                                    <TextBox   Grid.Column="3" Style="{StaticResource ThemedTextBox}" Text="{Binding IfcRefYText, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBlock Grid.Column="0" Text="X"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               FontFamily="{StaticResource FontPrimary}"
+                                               FontSize="{StaticResource FontSizeXS}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="1"
+                                             Text="{Binding IfcRefXText, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,0,6,0"/>
+                                    <TextBlock Grid.Column="2" Text="Y"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               FontFamily="{StaticResource FontPrimary}"
+                                               FontSize="{StaticResource FontSizeXS}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="3"
+                                             Text="{Binding IfcRefYText, UpdateSourceTrigger=PropertyChanged}"/>
                                 </Grid>
-                                <Button Content="Apply Point Match" Command="{Binding ApplyPointMatchCommand}"
-                                        Style="{StaticResource SecondaryButton}" HorizontalAlignment="Stretch"/>
-                                <TextBlock Style="{StaticResource ValidationText}" Text="{Binding ValidationError}"
+                                <Button Content="Apply Point Match"
+                                        Command="{Binding ApplyPointMatchCommand}"
+                                        Style="{StaticResource ButtonOutlined}"
+                                        HorizontalAlignment="Stretch"/>
+                                <TextBlock Style="{StaticResource TextCaption}"
+                                           Foreground="{StaticResource DestructiveBrush}"
+                                           Text="{Binding ValidationError}"
+                                           TextWrapping="Wrap" Margin="0,2,0,0"
                                            Visibility="{Binding ValidationError, Converter={StaticResource NullToCollapsedConverter}}"/>
                             </StackPanel>
                         </GroupBox>
 
-                        <GroupBox Header="MANUAL TRANSFORM" Style="{StaticResource ThemedGroupBox}">
+                        <!-- MANUAL TRANSFORM -->
+                        <GroupBox Header="MANUAL TRANSFORM" Margin="0,0,0,10">
                             <StackPanel>
                                 <Grid Margin="0,0,0,4">
                                     <Grid.ColumnDefinitions>
@@ -346,12 +232,12 @@
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Offset X (m)" Style="{StaticResource FieldLabel}"/>
-                                        <TextBox Style="{StaticResource ThemedTextBox}" Text="{Binding OffsetXText, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="Offset X (m)" Style="{StaticResource PropertyLabel}" Margin="0,5,0,2"/>
+                                        <TextBox Text="{Binding OffsetXText, UpdateSourceTrigger=PropertyChanged}"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="2">
-                                        <TextBlock Text="Offset Y (m)" Style="{StaticResource FieldLabel}"/>
-                                        <TextBox Style="{StaticResource ThemedTextBox}" Text="{Binding OffsetYText, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="Offset Y (m)" Style="{StaticResource PropertyLabel}" Margin="0,5,0,2"/>
+                                        <TextBox Text="{Binding OffsetYText, UpdateSourceTrigger=PropertyChanged}"/>
                                     </StackPanel>
                                 </Grid>
                                 <Grid Margin="0,0,0,6">
@@ -361,86 +247,91 @@
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Scale" Style="{StaticResource FieldLabel}"/>
-                                        <TextBox Style="{StaticResource ThemedTextBox}" Text="{Binding ScaleText, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="Scale" Style="{StaticResource PropertyLabel}" Margin="0,5,0,2"/>
+                                        <TextBox Text="{Binding ScaleText, UpdateSourceTrigger=PropertyChanged}"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="2">
-                                        <TextBlock Text="Rotation (°, CW)" Style="{StaticResource FieldLabel}"/>
-                                        <TextBox Style="{StaticResource ThemedTextBox}" Text="{Binding RotationText, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="Rotation (°, CW)" Style="{StaticResource PropertyLabel}" Margin="0,5,0,2"/>
+                                        <TextBox Text="{Binding RotationText, UpdateSourceTrigger=PropertyChanged}"/>
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Style="{StaticResource ValidationText}" Text="{Binding ValidationError}"
+                                <TextBlock Foreground="{StaticResource DestructiveBrush}"
+                                           Style="{StaticResource TextCaption}"
+                                           Text="{Binding ValidationError}"
+                                           TextWrapping="Wrap" Margin="0,2,0,4"
                                            Visibility="{Binding ValidationError, Converter={StaticResource NullToCollapsedConverter}}"/>
                                 <UniformGrid Columns="2" Rows="2" Margin="0,4,0,0">
-                                    <Button Content="✔  Apply"    Style="{StaticResource PrimaryButton}"   Command="{Binding ApplyManualCommand}" Margin="0,0,3,3"/>
-                                    <Button Content="⇱  Auto-Fit" Style="{StaticResource SecondaryButton}" Command="{Binding AutoFitCommand}"     Margin="3,0,0,3"/>
-                                    <Button Content="↩  Undo"     Style="{StaticResource SecondaryButton}" Command="{Binding UndoCommand}"        Margin="0,3,3,0"/>
-                                    <Button Content="⊗  Reset"    Style="{StaticResource SecondaryButton}" Command="{Binding ResetCommand}"       Margin="3,3,0,0"/>
+                                    <Button Content="✔  Apply"    Style="{StaticResource ButtonPrimary}"   Command="{Binding ApplyManualCommand}" Margin="0,0,3,3"/>
+                                    <Button Content="⇱  Auto-Fit" Style="{StaticResource ButtonOutlined}"  Command="{Binding AutoFitCommand}"      Margin="3,0,0,3"/>
+                                    <Button Content="↩  Undo"     Style="{StaticResource ButtonOutlined}"  Command="{Binding UndoCommand}"         Margin="0,3,3,0"/>
+                                    <Button Content="⊗  Reset"    Style="{StaticResource ButtonOutlined}"  Command="{Binding ResetCommand}"        Margin="3,3,0,0"/>
                                 </UniformGrid>
                             </StackPanel>
                         </GroupBox>
 
-                        <GroupBox Header="OVERLAY OPACITY" Style="{StaticResource ThemedGroupBox}">
+                        <!-- OVERLAY OPACITY -->
+                        <GroupBox Header="OVERLAY OPACITY" Margin="0,0,0,10">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Slider Grid.Column="0" Style="{StaticResource ThemedSlider}"
-                                        Minimum="0.1" Maximum="1.0" Value="{Binding Opacity}"
+                                <Slider Grid.Column="0"
+                                        Minimum="0.1" Maximum="1.0"
+                                        Value="{Binding Opacity}"
                                         VerticalAlignment="Center"/>
-                                <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}"
+                                <Border Grid.Column="1"
+                                        Background="{DynamicResource SurfaceBrush}"
                                         BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                                         CornerRadius="3" Padding="6,2" Margin="8,0,0,0">
                                     <TextBlock Text="{Binding Opacity, StringFormat={}{0:P0}}"
-                                               FontSize="11" FontWeight="SemiBold"
+                                               FontFamily="{StaticResource FontPrimary}"
+                                               FontSize="{StaticResource FontSizeXS}"
+                                               FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextPrimaryBrush}"
                                                Width="36" TextAlignment="Center"/>
                                 </Border>
                             </Grid>
                         </GroupBox>
 
-                        <GroupBox Header="CURRENT TRANSFORM" Style="{StaticResource ThemedGroupBox}">
-                            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                        <!-- CURRENT TRANSFORM -->
+                        <GroupBox Header="CURRENT TRANSFORM" Margin="0,0,0,10">
+                            <Border Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1" CornerRadius="3" Padding="8,6">
-                                <TextBlock Text="{Binding TransformSummary}" FontFamily="Consolas" FontSize="11"
-                                           Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding TransformSummary}"
+                                           FontFamily="{StaticResource FontPrimary}"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
                             </Border>
                         </GroupBox>
 
-                        <GroupBox Header="LAYERS" Style="{StaticResource ThemedGroupBox}"
+                        <!-- LAYERS -->
+                        <GroupBox Header="LAYERS" Margin="0,0,0,10"
                                   Visibility="{Binding Layers.Count, Converter={StaticResource NullToCollapsedConverter}}">
                             <ListBox ItemsSource="{Binding Layers}" MaxHeight="170"
-                                     BorderThickness="0" Background="Transparent"
-                                     Foreground="{DynamicResource TextPrimaryBrush}">
-                                <ListBox.ItemContainerStyle>
-                                    <Style TargetType="ListBoxItem">
-                                        <Setter Property="Background" Value="Transparent"/>
-                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-                                        <Setter Property="Padding"    Value="4,3"/>
-                                        <Style.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
-                                            </Trigger>
-                                            <Trigger Property="IsSelected"  Value="True">
-                                                <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ListBox.ItemContainerStyle>
+                                     BorderThickness="0" Background="Transparent">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal">
-                                            <CheckBox IsChecked="{Binding IsVisible}" Style="{StaticResource ThemedCheckBox}" Margin="0,0,6,0"/>
+                                            <CheckBox IsChecked="{Binding IsVisible}" Margin="0,0,6,0"/>
                                             <Rectangle Width="12" Height="12" VerticalAlignment="Center" Margin="0,0,6,0">
                                                 <Rectangle.Fill>
                                                     <SolidColorBrush Color="{Binding ColorHex, Converter={StaticResource HexStringToColorConverter}}"/>
                                                 </Rectangle.Fill>
                                             </Rectangle>
-                                            <TextBlock Text="{Binding Name}" FontSize="11"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                                            <TextBlock Text="{Binding EntityCount, StringFormat=' ({0})'}" FontSize="10"
-                                                       Margin="2,0,0,0" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontFamily="{StaticResource FontPrimary}"
+                                                       FontSize="{StaticResource FontSizeXS}"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding EntityCount, StringFormat=' ({0})'}"
+                                                       FontFamily="{StaticResource FontPrimary}"
+                                                       FontSize="{StaticResource FontSizeXS}"
+                                                       Margin="2,0,0,0"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
@@ -451,29 +342,42 @@
                 </ScrollViewer>
             </Grid>
 
-            <!-- Status bar -->
-            <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" CornerRadius="0,0,6,6">
+            <!-- ── Status bar ────────────────────────────────────────── -->
+            <Border Grid.Row="2"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,1,0,0" CornerRadius="0,0,6,6">
                 <Grid Margin="12,7,12,7">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
+
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="●" FontSize="8" VerticalAlignment="Center" Margin="0,0,6,0"
+                        <TextBlock Text="●"
+                                   FontSize="{StaticResource FontSizeXS}"
+                                   VerticalAlignment="Center" Margin="0,0,6,0"
                                    Foreground="{DynamicResource PrimaryBrush}"/>
-                        <TextBlock Text="{Binding StatusMessage}" FontSize="12" VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   FontFamily="{StaticResource FontPrimary}"
+                                   FontSize="{StaticResource FontSizeSM}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
                     </StackPanel>
+
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                         <Button Content="✔  Apply"
-                                Style="{StaticResource SecondaryButton}" Click="Apply_Click" Margin="0,0,6,0"
+                                Style="{StaticResource ButtonOutlined}"
+                                Click="Apply_Click" Margin="0,0,6,0"
                                 ToolTip="Apply the current transform and keep the dialog open"/>
                         <Button Content="✔  Apply &amp; Close" IsDefault="True"
-                                Style="{StaticResource PrimaryButton}" Click="ApplyAndClose_Click" Margin="0,0,6,0"
+                                Style="{StaticResource ButtonPrimary}"
+                                Click="ApplyAndClose_Click" Margin="0,0,6,0"
                                 ToolTip="Apply the current transform and close"/>
                         <Button Content="Close"
-                                Style="{StaticResource SecondaryButton}" Click="Cancel_Click"/>
+                                Style="{StaticResource ButtonOutlined}"
+                                Click="Cancel_Click"/>
                     </StackPanel>
                 </Grid>
             </Border>

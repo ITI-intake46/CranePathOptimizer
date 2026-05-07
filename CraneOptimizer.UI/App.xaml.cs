@@ -8,15 +8,23 @@ using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
 using CraneOptimizer.UI.Features.F0_CoordinateSystem;
+using CraneOptimizer.UI.Features.F3_CraneSetup;
 using CraneOptimizer.UI.Features.F3_CraneSetup.Services;
+using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
+using CraneOptimizer.UI.Features.F5_ElementManagement.Services;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.F10_ProjectManagement.Views;
+using CraneOptimizer.UI.Shell.Services;
 using CraneOptimizer.UI.Shell.ViewModels;
 using CraneOptimizer.UI.Shell.Views;
 using Microsoft.EntityFrameworkCore;
@@ -42,6 +50,10 @@ namespace CraneOptimizer.UI
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
             TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
+            // Apply default theme — Dark. Can be changed later via ThemeService.Instance.ApplyTheme(AppTheme.Light)
+            CraneOptimizer.UI.Resources.ThemeService.Instance.ApplyTheme(
+                CraneOptimizer.UI.Resources.AppTheme.Dark);
+
             var services = new ServiceCollection();
 
             // =========================
@@ -64,13 +76,15 @@ namespace CraneOptimizer.UI
             // Infrastructure
             // =========================
             services.AddScoped<ICraneRepository, CraneRepository>();
-            services.AddScoped<IIfcReaderRepository, IfcReaderRepository>();
+            services.AddSingleton<IIfcReaderRepository, IfcReaderRepository>();
             services.AddScoped<IProjectRepository, ProjectRepository>();
 
             // =========================
             // Core Services
             // =========================
             services.AddSingleton<IDialogService, DialogService>();
+            services.AddSingleton<IStatusService, StatusService>();
+            services.AddSingleton<IElementGridSizingService, ElementGridSizingService>();
 
             // =========================
             // F10 Project Management
@@ -108,7 +122,14 @@ namespace CraneOptimizer.UI
             // Rendering
             // =========================
             services.AddSingleton<ElementVisualBuilder>();
+            services.AddSingleton<CraneVisualBuilder>();       // shared singleton — carries CraneParametersReady event
             services.AddSingleton<IRenderingService, HelixRenderingService>();
+            services.AddSingleton<ISceneRenderingManager, SceneRenderingManager>();
+            services.AddSingleton<ICameraService, CameraService>();
+            services.AddSingleton<IViewportHitTestService, ViewportHitTestService>();
+            services.AddSingleton<IViewportInteractionService, ViewportInteractionService>();
+            services.AddSingleton<IOriginService, OriginService>();
+            services.AddSingleton<ICraneSceneInteractionService, CraneSceneInteractionService>();
             services.AddSingleton<ISceneService>(provider => provider.GetRequiredService<SceneService>());
             services.AddSingleton<IIfcOptionsDialogService, IfcOptionsDialogService>();
 
@@ -116,10 +137,22 @@ namespace CraneOptimizer.UI
             // ViewModels
             // =========================
             services.AddTransient<MainViewModel>();
+            services.AddSingleton<CraneManagerViewModel>();    // right-panel properties VM
             services.AddSingleton<DrawingViewModel>();
             services.AddSingleton<CranePlacementViewModel>();
             services.AddSingleton<IfcViewerViewModel>();
             services.AddSingleton<DxfTabViewModel>();
+            services.AddScoped<ElementManagementViewModel>();
+
+            // =========================
+            // F15 Object Snap
+            // =========================
+            services.AddSingleton<OsnapSettingsService>();
+            services.AddSingleton<OsnapSettings>(sp =>
+                sp.GetRequiredService<OsnapSettingsService>().Load());
+            services.AddSingleton<IOsnapService, OsnapService>();
+            services.AddSingleton<OsnapPanelViewModel>();
+            services.AddSingleton<OsnapGeometryBridge>();
 
             // =========================
             // Views
@@ -271,7 +304,7 @@ namespace CraneOptimizer.UI
             services.AddScoped<IGAInitializer, GAInitializer>();
             services.AddScoped<IElementAssignmentService, ElementAssignmentService>();
             services.AddScoped<IFitnessEvaluator, FitnessEvaluator>();
-
+            services.AddSingleton<CraneSetupViewModel>();
             services.AddScoped<ISelectionStrategy, TournamentSelection>();
             services.AddScoped<ICrossoverOperator, CrossoverOperator>();
             services.AddScoped<IMutationOperator, MutationOperator>();

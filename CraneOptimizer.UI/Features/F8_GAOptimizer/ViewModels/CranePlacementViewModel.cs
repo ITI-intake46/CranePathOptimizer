@@ -15,6 +15,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         private readonly IRenderingService _renderingService;
         private readonly ICraneOptimizerDialogService _optimizerDialogService;
         private readonly IGAResultsWindowService _resultsWindowService;
+        private readonly IViewportInteractionService _interaction;
+        private readonly IViewportHitTestService _hitTest;
         private readonly RelayCommand _optimizeCommand;
         private readonly RelayCommand _showResultsCommand;
 
@@ -26,11 +28,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public CranePlacementViewModel(
             IRenderingService renderingService,
             ICraneOptimizerDialogService optimizerDialogService,
-            IGAResultsWindowService resultsWindowService)
+            IGAResultsWindowService resultsWindowService,
+            IViewportInteractionService interaction,
+            IViewportHitTestService hitTest)
         {
             _renderingService = renderingService;
             _optimizerDialogService = optimizerDialogService;
             _resultsWindowService = resultsWindowService;
+            _interaction = interaction;
+            _hitTest = hitTest;
 
             _optimizeCommand = new RelayCommand(ExecuteOptimize);
             _showResultsCommand = new RelayCommand(OpenResults, CanShowResults);
@@ -82,19 +88,37 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             }
         }
 
+        private CranePositionResult? _selectedPosition;
+        public CranePositionResult? SelectedPosition
+        {
+            get => _selectedPosition;
+            set
+            {
+                if (ReferenceEquals(_selectedPosition, value))
+                    return;
+
+                _selectedPosition = value;
+                OnPropertyChanged();
+            }
+        }
+
         public bool HasResult => Result != null && Result.Positions.Count > 0;
 
         public ICommand OptimizeCommand => _optimizeCommand;
         public ICommand ShowResultsCommand => _showResultsCommand;
         public ICommand StartPlacementCommand { get; }
+        public Action<DomainPoint3D>? PlaceCraneInScene { get; set; }
+        public Action? RenderElementsWithCurrentStatus { get; set; }
 
         public bool RunOptimizationWorkflow()
         {
-            var result = _optimizerDialogService.ShowDialog();
-            if (result == null || result.Positions.Count == 0)
+            var outcome = _optimizerDialogService.ShowDialog();
+            if (outcome?.Result == null || outcome.Result.Positions.Count == 0)
                 return false;
 
-            Result = result;
+            Result = outcome.Result;
+            SelectedPosition = outcome.AppliedPosition ?? outcome.Result.Positions[0];
+            RenderElementsWithCurrentStatus?.Invoke();
             return true;
         }
 
@@ -105,7 +129,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 
         private void StartPlacement()
         {
+            // Re-arm placement reliably. If the same mode is already active,
+            // keep state but avoid stacking duplicate modes.
             IsPlacing = true;
+            if (_interaction.CurrentMode is Interaction.CranePlacementMode)
+                return;
+
+            if (PlaceCraneInScene != null)
+            {
+                _interaction.PushMode(new Interaction.CranePlacementMode(this, _hitTest, _interaction, PlaceCraneInScene));
+            }
         }
 
         private bool CanShowResults()
@@ -118,7 +151,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             if (!CanShowResults() || Result == null)
                 return;
 
-            _resultsWindowService.Show(Result);
+            _resultsWindowService.Show(Result, point =>
+            {
+                SelectedPosition = point;
+                RenderElementsWithCurrentStatus?.Invoke();
+            });
         }
 
         public void Place(DomainPoint3D point)

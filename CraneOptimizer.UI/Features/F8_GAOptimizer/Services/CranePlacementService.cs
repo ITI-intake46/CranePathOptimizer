@@ -39,17 +39,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             var allElements = input.Elements;
             var remainingElements = new List<PrecastElement>(allElements);
-
             var coveredElements = new HashSet<string>();
-
             var finalResult = new CranePlacementResult();
 
             double previousCoverage = 0;
-
             int maxPoints = 4;
             double targetCoverage = 0.95;
             double minImprovement = 0.05;
-
             int iteration = 0;
 
             while (remainingElements.Count > 0 && iteration < maxPoints)
@@ -57,54 +53,50 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 cancellationToken.ThrowIfCancellationRequested();
                 iteration++;
 
-                // Run GA on remaining elements only
                 input.Elements = remainingElements;
 
                 var solution = await Task.Run(
                     () => _gaEngine.Run(input, cancellationToken),
                     cancellationToken);
 
-                var assignment = _assignmentService.EvaluateAssignment(
+                var iterationResult = MapResult(
                     solution,
-                    remainingElements,
-                    input.Assignment,
+                    allElements,
                     input.CraneSpec,
                     input.Settings);
-
-                var iterationResult = MapResult(solution, assignment);
 
                 if (iterationResult.Positions.Count == 0)
                     break;
 
-                var bestPoint = iterationResult.Positions[0];
+                var bestPoint = iterationResult.Positions
+                    .OrderByDescending(point => point.ElementResults.Count(result => result.Status == LiftStatus.Liftable && !coveredElements.Contains(result.ElementId)))
+                    .ThenByDescending(point => point.LiftableCount)
+                    .First();
 
-                // Get NEW elements only (no duplication)
                 var newElements = bestPoint.ElementResults
-                    .Where(e => e.Status == LiftStatus.Liftable && !coveredElements.Contains(e.ElementId))
+                    .Where(result => result.Status == LiftStatus.Liftable && !coveredElements.Contains(result.ElementId))
                     .ToList();
 
-                // Stop if no new contribution
                 if (newElements.Count == 0)
                     break;
 
-                // Add to covered set
-                foreach (var e in newElements)
-                    coveredElements.Add(e.ElementId);
+                foreach (var element in newElements)
+                    coveredElements.Add(element.ElementId);
 
-                // Add filtered result (only new elements)
                 finalResult.Positions.Add(new CranePositionResult
                 {
                     X = bestPoint.X,
                     Y = bestPoint.Y,
-                    ElementResults = newElements
+                    NewLiftableCount = newElements.Count,
+                    ElementResults = bestPoint.ElementResults
                 });
 
-                // Calculate coverage
-                double currentCoverage = (double)coveredElements.Count / allElements.Count;
+                double currentCoverage = allElements.Count == 0
+                    ? 0
+                    : (double)coveredElements.Count / allElements.Count;
 
                 double improvement = currentCoverage - previousCoverage;
 
-                // Stop conditions
                 if (currentCoverage >= targetCoverage)
                     break;
 
@@ -113,69 +105,69 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
                 previousCoverage = currentCoverage;
 
-                // Update remaining elements
                 remainingElements = allElements
-                    .Where(e => !coveredElements.Contains(e.ElementID))
+                    .Where(element => !coveredElements.Contains(element.ElementID))
                     .ToList();
             }
 
-            // Final stats
-            finalResult.CoverageRatio = (double)coveredElements.Count / allElements.Count;
+            finalResult.CoverageRatio = allElements.Count == 0
+                ? 0
+                : (double)coveredElements.Count / allElements.Count;
             finalResult.FitnessScore = finalResult.CoverageRatio;
             finalResult.Positions = finalResult.Positions
-                .OrderByDescending(p => p.ElementResults.Count)
+                .OrderByDescending(position => position.NewLiftableCount)
                 .ToList();
+
             return finalResult;
         }
 
         private CranePlacementResult MapResult(
             CraneSolution solution,
-            AssignmentResult assignment)
+            List<PrecastElement> elements,
+            CraneSpecification craneSpec,
+            GASettings settings)
         {
             var result = new CranePlacementResult
             {
-                FitnessScore = solution.Fitness
+                FitnessScore = solution.Fitness,
+                Positions = new List<CranePositionResult>(solution.Chromosome.CranePositions.Count)
             };
 
-            var positions = solution.Chromosome.CranePositions;
-            result.Positions = new List<CranePositionResult>(positions.Count);
-
-            for (int i = 0; i < positions.Count; i++)
+            for (int i = 0; i < solution.Chromosome.CranePositions.Count; i++)
             {
-                var scenePoint = _coordinateService.DenormalizePoint(positions[i]);
-                result.Positions.Add(new CranePositionResult
+                var scenePoint = _coordinateService.DenormalizePoint(solution.Chromosome.CranePositions[i]);
+                var evaluations = _assignmentService.EvaluatePosition(
+                    solution,
+                    i,
+                    elements,
+                    craneSpec,
+                    settings);
+
+                var point = new CranePositionResult
                 {
                     X = scenePoint.X,
-                    Y = scenePoint.Y
-                });
+                    Y = scenePoint.Y,
+                    ElementResults = evaluations
+                        .Select(evaluation => new ElementLiftResult
+                        {
+                            ElementId = evaluation.ElementId,
+                            Status = evaluation.Status,
+                            Radius = evaluation.Radius,
+                            RequiredCapacity = evaluation.RequiredCapacity
+                        })
+                        .ToList()
+                };
+
+                result.Positions.Add(point);
+
+                foreach (var evaluation in evaluations)
+                    UpdateStatistics(result.Statistics, evaluation.Status);
             }
 
-            var statistics = new LiftStatistics();
-            var evaluationResults = assignment.EvaluationResults;
-
-            for (int i = 0; i < evaluationResults.Count; i++)
-            {
-                var evaluation = evaluationResults[i];
-                UpdateStatistics(statistics, evaluation.Status);
-
-                if (evaluation.AssignedCraneIndex < 0 || evaluation.AssignedCraneIndex >= result.Positions.Count)
-                    continue;
-
-                result.Positions[evaluation.AssignedCraneIndex].ElementResults.Add(new ElementLiftResult
-                {
-                    ElementId = evaluation.ElementId,
-                    Status = evaluation.Status,
-                    Radius = evaluation.Radius,
-                    RequiredCapacity = evaluation.RequiredCapacity
-                });
-            }
-
-            result.Statistics = statistics;
-
-            int totalElements = evaluationResults.Count;
+            int totalElements = result.Positions.Sum(position => position.ElementResults.Count);
             result.CoverageRatio = totalElements == 0
                 ? 0
-                : (double)statistics.Liftable / totalElements;
+                : (double)result.Statistics.Liftable / totalElements;
 
             return result;
         }

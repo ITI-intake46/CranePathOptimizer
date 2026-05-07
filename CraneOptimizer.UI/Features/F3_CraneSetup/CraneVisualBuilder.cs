@@ -1,6 +1,8 @@
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F3_CraneSetup.Management;
+using CraneOptimizer.UI.Features.F3_CraneSetup.Parameters;
 using CraneOptimizer.UI.Core.Models;
-using HelixToolkit.Wpf;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 
@@ -8,61 +10,55 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup
 {
     public class CraneVisualBuilder : IVisualBuilder<SceneCrane>
     {
+        private readonly CraneManager _manager = new();
+
+        /// <summary>
+        /// Raised after any crane is built/updated.
+        /// Listeners (e.g. MainViewModel) can call GetParameters() to refresh the right panel.
+        /// </summary>
+        public event Action<SceneCrane, MobileCraneParameters>? CraneParametersReady;
+
         public Visual3D Build(SceneCrane item)
         {
-            var group = new ModelVisual3D();
+            var instance = _manager.GetOrAdd(item);
+            instance.Visual.SetValue(FrameworkElement.TagProperty, item);
+            DetachFromCurrentParent(instance.Visual);
 
-            var vehicleLength = item.CraneDefinition.VehicleLength;
-            var vehicleWidth = item.CraneDefinition.VehicleWidth;
-            var vehicleHeight = item.CraneDefinition.VehicleHeight > 0 ? item.CraneDefinition.VehicleHeight : 1.0;
+            if (instance.Parameters is MobileCraneParameters mp)
+                CraneParametersReady?.Invoke(item, mp);
 
-            var centerX = item.Position.X;
-            var centerY = item.Position.Y;
-            var baseZ = item.Position.Z;
+            return instance.Visual;
+        }
 
-            var bodyColor = item.IsValidPlacement ? Color.FromRgb(53, 132, 228) : Color.FromRgb(220, 53, 69);
-
-            var truck = new BoxVisual3D
+        public Visual3D BuildBatch(IEnumerable<SceneCrane> items)
+        {
+            _manager.Sync(items);
+            var container = new ModelVisual3D();
+            foreach (var instance in _manager.Instances)
             {
-                Width = vehicleWidth,
-                Length = vehicleLength,
-                Height = vehicleHeight,
-                Fill = new SolidColorBrush(bodyColor),
-                Center = new Point3D(centerX, centerY, baseZ + vehicleHeight / 2.0)
-            };
+                DetachFromCurrentParent(instance.Visual);
+                container.Children.Add(instance.Visual);
 
-            truck.Transform = new RotateTransform3D(
-                new AxisAngleRotation3D(new Vector3D(0, 0, 1), item.Rotation),
-                new Point3D(centerX, centerY, baseZ));
+                if (instance.Parameters is MobileCraneParameters mp)
+                    CraneParametersReady?.Invoke(instance.Scene, mp);
+            }
 
-            var pivot = item.GetBoomPivotWorld();
-            var tip = item.GetBoomTipWorld();
+            return container;
+        }
 
-            var boom = new PipeVisual3D
-            {
-                Point1 = new Point3D(pivot.X, pivot.Y, pivot.Z),
-                Point2 = new Point3D(tip.X, tip.Y, tip.Z),
-                Diameter = 0.25,
-                Fill = Brushes.Goldenrod
-            };
+        /// <summary>
+        /// Returns live MobileCraneParameters for the given SceneCrane, or null if not yet built.
+        /// </summary>
+        public MobileCraneParameters? GetParameters(SceneCrane scene)
+        {
+            var instance = _manager.Instances.FirstOrDefault(i => i.Scene.Id == scene.Id);
+            return instance?.Parameters as MobileCraneParameters;
+        }
 
-            var pivotMarker = new SphereVisual3D
-            {
-                Center = new Point3D(pivot.X, pivot.Y, pivot.Z),
-                Radius = 0.2,
-                Fill = Brushes.OrangeRed
-            };
-
-            truck.SetValue(System.Windows.FrameworkElement.TagProperty, item);
-            boom.SetValue(System.Windows.FrameworkElement.TagProperty, item);
-            pivotMarker.SetValue(System.Windows.FrameworkElement.TagProperty, item);
-
-            group.Children.Add(truck);
-            group.Children.Add(boom);
-            group.Children.Add(pivotMarker);
-            group.SetValue(System.Windows.FrameworkElement.TagProperty, item);
-
-            return group;
+        private static void DetachFromCurrentParent(Visual3D visual)
+        {
+            if (VisualTreeHelper.GetParent(visual) is ModelVisual3D parent)
+                parent.Children.Remove(visual);
         }
     }
 }

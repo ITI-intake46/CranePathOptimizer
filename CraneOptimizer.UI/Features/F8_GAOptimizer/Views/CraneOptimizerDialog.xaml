@@ -1,4 +1,4 @@
-<Window
+    <Window
     x:Class="CraneOptimizer.UI.Features.F8_GAOptimizer.Views.CraneOptimizerDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -13,6 +13,12 @@
     Foreground="{DynamicResource TextPrimaryBrush}"
     ResizeMode="CanResize"
     WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+
+
+
 
     <Grid Margin="{StaticResource Space4}">
         <Grid.RowDefinitions>

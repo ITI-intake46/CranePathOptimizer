@@ -39,6 +39,10 @@
   <ItemGroup>
     <None Remove="appsettings.json" />
     <None Remove="Data\crane.db" />
+    <None Remove="ICONS\restricted-area.png" />
+    <None Remove="ICONS\ruler.png" />
+    <None Remove="ICONS\safe-zone %281%29.png" />
+    <None Remove="ICONS\safe-zone.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -54,9 +58,15 @@
 
   <ItemGroup>
     <Folder Include="Core\Rendering\" />
-    <Folder Include="Features\F4_LoadChart\" />
+    <Folder Include="Features\F15_ObjectSnap\Models\" />
+    <Folder Include="Features\F15_ObjectSnap\Views\" />
+    <Folder Include="Features\F15_ObjectSnap\ViewModels\" />
+    <Folder Include="Features\F15_ObjectSnap\Services\" />
+    <Folder Include="Features\F4_LoadChart\Services\" />
+    <Folder Include="Features\F4_LoadChart\ViewModels\" />
     <Folder Include="Features\F5_ElementManagement\" />
     <Folder Include="Features\F9_Settings\" />
+    <Folder Include="Shared\Assets\" />
     <Folder Include="Shell\ViewModels\" />
   </ItemGroup>
 
@@ -67,7 +77,25 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.13" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.14" />
     <PackageReference Include="netDxf" Version="2023.11.10" />
+    <PackageReference Include="Xbim.Essentials" Version="6.0.587" />
+    <PackageReference Include="Xbim.Geometry" Version="5.1.820" />
+    <PackageReference Include="Xbim.Ifc" Version="6.0.587" />
     <PackageReference Include="Xbim.WindowsUI" Version="5.1.228" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="ICONS\restricted-area.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="ICONS\ruler.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="ICONS\safe-zone (1).png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="ICONS\safe-zone.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
   </ItemGroup>
 
 	<Target Name="CopyXbimNativeDll" AfterTargets="Build">
@@ -77,21 +105,12 @@
 		</ItemGroup>
 
 		<!-- Copy to UI output -->
-		<Copy
-		  SourceFiles="@(XbimNativeDll)"
-		  DestinationFolder="$(OutputPath)"
-		  SkipUnchangedFiles="true"
-		  Condition="'@(XbimNativeDll)' != ''" />
+		<Copy SourceFiles="@(XbimNativeDll)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(XbimNativeDll)' != ''" />
 
 		<!-- Logging -->
-		<Message
-		  Importance="High"
-		  Text="Xbim DLL copied to $(OutputPath)"
-		  Condition="'@(XbimNativeDll)' != ''" />
+		<Message Importance="High" Text="Xbim DLL copied to $(OutputPath)" Condition="'@(XbimNativeDll)' != ''" />
 
-		<Warning
-		  Text="❌ Xbim.Geometry.Engine64.dll NOT FOUND in Infrastructure build output"
-		  Condition="'@(XbimNativeDll)' == ''" />
+		<Warning Text="❌ Xbim.Geometry.Engine64.dll NOT FOUND in Infrastructure build output" Condition="'@(XbimNativeDll)' == ''" />
 	</Target>
 
 </Project>

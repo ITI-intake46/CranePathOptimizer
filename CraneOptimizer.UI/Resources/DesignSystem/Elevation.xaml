@@ -1,4 +1,34 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    
+
+    <!--
+        Elevation.xaml — CraneOptimizer Design System
+        Drop shadow presets for layered surfaces.
+        Apply via  Effect="{StaticResource ShadowX}"
+    -->
+
+    <!-- Shadow1 — subtle lift for cards and panels -->
+    <DropShadowEffect x:Key="Shadow1"
+                      BlurRadius="4"
+                      ShadowDepth="1"
+                      Direction="270"
+                      Color="#000000"
+                      Opacity="0.20"/>
+
+    <!-- Shadow2 — floating surfaces (dropdowns, tooltips, popovers) -->
+    <DropShadowEffect x:Key="Shadow2"
+                      BlurRadius="12"
+                      ShadowDepth="2"
+                      Direction="270"
+                      Color="#000000"
+                      Opacity="0.30"/>
+
+    <!-- Shadow3 — modal dialogs and high-elevation overlays -->
+    <DropShadowEffect x:Key="Shadow3"
+                      BlurRadius="24"
+                      ShadowDepth="4"
+                      Direction="270"
+                      Color="#000000"
+                      Opacity="0.40"/>
+
 </ResourceDictionary>

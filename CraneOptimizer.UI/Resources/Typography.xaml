@@ -2,16 +2,77 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
-    <!-- Font Family -->
-    <FontFamily x:Key="AppFont">Segoe UI</FontFamily>
-    <!-- Alias used throughout Shell and Ribbon -->
-    <FontFamily x:Key="FontPrimary">Segoe UI</FontFamily>
+    <!--
+        Typography.xaml — CraneOptimizer Design System
+        Font family: Exo 2 (embedded in /Fonts/)
+        Scale: compact for dense engineering UI
+    -->
 
-    <!-- Font Sizes -->
-    <sys:Double x:Key="FontSizeXS">10</sys:Double>
-    <sys:Double x:Key="FontSizeSM">12</sys:Double>
-    <sys:Double x:Key="FontSizeBase">14</sys:Double>
-    <sys:Double x:Key="FontSizeLG">18</sys:Double>
-    <sys:Double x:Key="FontSizeXL">24</sys:Double>
+    <!--  WPF discovers all weights (Regular, SemiBold, Bold) from the Fonts folder automatically  -->
+    <FontFamily x:Key="FontPrimary">/CraneOptimizer.UI;component/Resources/Fonts/#Exo 2</FontFamily>
+
+    <!-- ── Font sizes (compact scale) ──────────────────────────── -->
+    <sys:Double x:Key="FontSizeXS">9</sys:Double>
+    <sys:Double x:Key="FontSizeSM">10</sys:Double>
+    <sys:Double x:Key="FontSizeMD">11</sys:Double>
+    <sys:Double x:Key="FontSizeBase">11</sys:Double>
+    <sys:Double x:Key="FontSizeLG">13</sys:Double>
+    <sys:Double x:Key="FontSizeXL">16</sys:Double>
+    <sys:Double x:Key="FontSize2XL">20</sys:Double>
+    <sys:Double x:Key="FontSize3XL">28</sys:Double>
+
+    <!-- ── Headline — section / dialog titles ───────────────────── -->
+    <Style x:Key="TextHeadline" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeLG}"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+    </Style>
+
+    <!-- ── Title — card / panel headers ────────────────────────── -->
+    <Style x:Key="TextTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeMD}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- ── Body — default reading text ─────────────────────────── -->
+    <Style x:Key="TextBody" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeBase}"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+    </Style>
+
+    <!-- ── Caption — small helper / metadata text ──────────────── -->
+    <Style x:Key="TextCaption" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeSM}"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+    </Style>
+
+    <!-- ── Value — data readouts like 124.5t, 32.0m ───────────── -->
+    <Style x:Key="TextValue" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeLG}"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+    </Style>
+
+    <!-- ── NavLabel — sidebar / ribbon navigation items ────────── -->
+    <Style x:Key="TextNavLabel" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeBase}"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+    </Style>
+
+    <!-- ── DegreeValue — orange angle readout (crane slew angle) ─ -->
+    <Style x:Key="DegreeValue" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeSM}"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
 
 </ResourceDictionary>

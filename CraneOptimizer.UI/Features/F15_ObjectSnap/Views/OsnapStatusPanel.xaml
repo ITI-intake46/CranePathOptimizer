@@ -1,0 +1,393 @@
+<UserControl
+    x:Class="CraneOptimizer.UI.Features.F15_ObjectSnap.Views.OsnapStatusPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="clr-namespace:CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels">
+
+    <UserControl.Resources>
+
+        <!--
+            These 3 styles are OSnap-specific compact status-bar widgets.
+            They use design-system tokens throughout — no hardcoded values.
+        -->
+
+        <!-- ── OSN launch button (plain Button, opens popup) ─────────── -->
+        <Style x:Key="OsnLaunchBtn" TargetType="Button">
+            <Setter Property="Height"            Value="17"/>
+            <Setter Property="Padding"           Value="6,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Cursor"            Value="Hand"/>
+            <Setter Property="FontFamily"        Value="{StaticResource FontPrimary}"/>
+            <Setter Property="FontSize"          Value="{StaticResource FontSizeXS}"/>
+            <Setter Property="FontWeight"        Value="Bold"/>
+            <Setter Property="Background"        Value="Transparent"/>
+            <Setter Property="BorderThickness"   Value="0"/>
+            <Setter Property="FocusVisualStyle"  Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="3"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"
+                                              HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource SurfaceBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{StaticResource PrimaryMutedBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush"
+                                        Value="{StaticResource PrimaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Master toggle (ToggleButton in popup header) ──────────── -->
+        <Style x:Key="OsnMasterBtn" TargetType="ToggleButton">
+            <Setter Property="Height"            Value="17"/>
+            <Setter Property="Padding"           Value="6,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Cursor"            Value="Hand"/>
+            <Setter Property="FontFamily"        Value="{StaticResource FontPrimary}"/>
+            <Setter Property="FontSize"          Value="{StaticResource FontSizeXS}"/>
+            <Setter Property="FontWeight"        Value="Bold"/>
+            <Setter Property="BorderThickness"   Value="1"/>
+            <Setter Property="FocusVisualStyle"  Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd"
+                                Background="{DynamicResource SurfaceElevatedBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="3"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"
+                                              HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{StaticResource PrimaryMutedBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush"
+                                        Value="{StaticResource PrimaryBrush}"/>
+                                <Setter Property="Foreground"
+                                        Value="{StaticResource PrimaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="False">
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource TextDisabledBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource SurfaceBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Individual snap-type toggle row ───────────────────────── -->
+        <Style x:Key="OsnTypeToggle" TargetType="ToggleButton">
+            <Setter Property="Height"                    Value="22"/>
+            <Setter Property="Padding"                   Value="7,0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Cursor"                    Value="Hand"/>
+            <Setter Property="FontFamily"                Value="{StaticResource FontPrimary}"/>
+            <Setter Property="FontSize"                  Value="{StaticResource FontSizeXS}"/>
+            <Setter Property="BorderThickness"           Value="0"/>
+            <Setter Property="FocusVisualStyle"          Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                CornerRadius="3"
+                                Margin="1"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{StaticResource PrimaryMutedBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush"
+                                        Value="{StaticResource PrimaryBrush}"/>
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource TextPrimaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="False">
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource TextDisabledBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource SurfaceElevatedBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </UserControl.Resources>
+
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+
+        <!-- ── OSN launch button ──────────────────────────────────────── -->
+        <Button x:Name="OsnLaunchBtn"
+                Style="{StaticResource OsnLaunchBtn}"
+                Click="OsnLaunchBtn_Click"
+                ToolTip="Object Snap settings (click to open)">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="OsnBtnText"
+                           Text="OSN"
+                           Foreground="{DynamicResource TextDisabledBrush}"/>
+                <TextBlock Text=" ▾"
+                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+            </StackPanel>
+        </Button>
+
+        <!-- ── Popup: placed above the OSN button ────────────────────── -->
+        <Popup x:Name="OsnapPopup"
+               AllowsTransparency="True"
+               Placement="Top"
+               PlacementTarget="{Binding ElementName=OsnLaunchBtn}"
+               StaysOpen="False"
+               VerticalOffset="-6"
+               Closed="OsnapPopup_Closed">
+
+            <Border MinWidth="268"
+                    Padding="0"
+                    Background="{DynamicResource SurfaceElevatedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="5"
+                    Effect="{StaticResource Shadow2}">
+                <StackPanel>
+
+                    <!-- ── Header: master toggle ──────────────────────── -->
+                    <Border Padding="10,7"
+                            Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            CornerRadius="5,5,0,0">
+                        <DockPanel>
+                            <ToggleButton DockPanel.Dock="Left"
+                                          IsChecked="{Binding MasterEnabled, Mode=TwoWay}"
+                                          Style="{StaticResource OsnMasterBtn}">
+                                <TextBlock FontFamily="{StaticResource FontPrimary}"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           FontWeight="Bold"
+                                           Text="OBJECT SNAP"/>
+                            </ToggleButton>
+                            <TextBlock Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="{StaticResource FontSizeXS}"
+                                       Foreground="{DynamicResource TextDisabledBrush}"
+                                       Text="— toggle individual snaps below"/>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- ── 2-column snap type grid ────────────────────── -->
+                    <UniformGrid Width="252" Margin="7,6,7,4" Columns="2">
+
+                        <ToggleButton IsChecked="{Binding SnapEndpoint, Mode=TwoWay}"
+                                      Margin="0,0,3,2" Style="{StaticResource OsnTypeToggle}"
+                                      ToolTip="Snap to polygon / line endpoints">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="✦" FontSize="{StaticResource FontSizeXS}"
+                                           VerticalAlignment="Center" Margin="0,0,5,0"
+                                           Foreground="#FFDD00"/>
+                                <TextBlock Text="Endpoint" FontWeight="SemiBold"/>
+                                <TextBlock Margin="5,0,0,0" VerticalAlignment="Center"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           Foreground="{DynamicResource TextDisabledBrush}"
+                                           Text="END"/>
+                            </StackPanel>
+                        </ToggleButton>
+
+                        <ToggleButton IsChecked="{Binding SnapMidpoint, Mode=TwoWay}"
+                                      Margin="0,0,0,2" Style="{StaticResource OsnTypeToggle}"
+                                      ToolTip="Snap to edge midpoints">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="▲" FontSize="{StaticResource FontSizeXS}"
+                                           VerticalAlignment="Center" Margin="0,0,5,0"
+                                           Foreground="#FFDD00"/>
+                                <TextBlock Text="Midpoint" FontWeight="SemiBold"/>
+                                <TextBlock Margin="5,0,0,0" VerticalAlignment="Center"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           Foreground="{DynamicResource TextDisabledBrush}"
+                                           Text="MID"/>
+                            </StackPanel>
+                        </ToggleButton>
+
+                        <ToggleButton IsChecked="{Binding SnapIntersection, Mode=TwoWay}"
+                                      Margin="0,0,3,2" Style="{StaticResource OsnTypeToggle}"
+                                      ToolTip="Snap to line intersections">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="✕" FontSize="{StaticResource FontSizeXS}"
+                                           VerticalAlignment="Center" Margin="0,0,5,0"
+                                           Foreground="#FF6666"/>
+                                <TextBlock Text="Intersection" FontWeight="SemiBold"/>
+                                <TextBlock Margin="5,0,0,0" VerticalAlignment="Center"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           Foreground="{DynamicResource TextDisabledBrush}"
+                                           Text="INT"/>
+                            </StackPanel>
+                        </ToggleButton>
+
+                        <ToggleButton IsChecked="{Binding SnapPerpendicular, Mode=TwoWay}"
+                                      Margin="0,0,0,2" Style="{StaticResource OsnTypeToggle}"
+                                      ToolTip="Snap perpendicular to nearest edge">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="⊾" FontSize="{StaticResource FontSizeXS}"
+                                           VerticalAlignment="Center" Margin="0,0,5,0"
+                                           Foreground="#66FF88"/>
+                                <TextBlock Text="Perpendicular" FontWeight="SemiBold"/>
+                                <TextBlock Margin="5,0,0,0" VerticalAlignment="Center"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           Foreground="{DynamicResource TextDisabledBrush}"
+                                           Text="PER"/>
+                            </StackPanel>
+                        </ToggleButton>
+
+                        <ToggleButton IsChecked="{Binding SnapGrid, Mode=TwoWay}"
+                                      Margin="0,0,3,2" Style="{StaticResource OsnTypeToggle}"
+                                      ToolTip="Snap to grid intersections">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="+" FontSize="{StaticResource FontSizeXS}"
+                                           FontWeight="Bold" VerticalAlignment="Center"
+                                           Margin="0,0,5,0"
+                                           Foreground="{DynamicResource TextDisabledBrush}"/>
+                                <TextBlock Text="Grid" FontWeight="SemiBold"/>
+                                <TextBlock Margin="5,0,0,0" VerticalAlignment="Center"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           Foreground="{DynamicResource TextDisabledBrush}"
+                                           Text="GRID"/>
+                            </StackPanel>
+                        </ToggleButton>
+
+                        <ToggleButton IsChecked="{Binding SnapNearest, Mode=TwoWay}"
+                                      Margin="0,0,0,2" Style="{StaticResource OsnTypeToggle}"
+                                      ToolTip="Snap to nearest point on any edge">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="◇" FontSize="{StaticResource FontSizeXS}"
+                                           VerticalAlignment="Center" Margin="0,0,5,0"
+                                           Foreground="{StaticResource PrimaryBrush}"/>
+                                <TextBlock Text="Nearest" FontWeight="SemiBold"/>
+                                <TextBlock Margin="5,0,0,0" VerticalAlignment="Center"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           Foreground="{DynamicResource TextDisabledBrush}"
+                                           Text="NEA"/>
+                            </StackPanel>
+                        </ToggleButton>
+
+                        <ToggleButton IsChecked="{Binding SnapCenter, Mode=TwoWay}"
+                                      Margin="0,0,3,2" Style="{StaticResource OsnTypeToggle}"
+                                      ToolTip="Snap to arc / circle center">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="⊙" FontSize="{StaticResource FontSizeXS}"
+                                           VerticalAlignment="Center" Margin="0,0,5,0"
+                                           Foreground="{StaticResource TertiaryBrush}"/>
+                                <TextBlock Text="Center" FontWeight="SemiBold"/>
+                                <TextBlock Margin="5,0,0,0" VerticalAlignment="Center"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           Foreground="{DynamicResource TextDisabledBrush}"
+                                           Text="CEN"/>
+                            </StackPanel>
+                        </ToggleButton>
+
+                        <ToggleButton IsChecked="{Binding SnapQuadrant, Mode=TwoWay}"
+                                      Margin="0,0,0,2" Style="{StaticResource OsnTypeToggle}"
+                                      ToolTip="Snap to quadrant points on arcs / circles (0° 90° 180° 270°)">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="◇" FontSize="{StaticResource FontSizeXS}"
+                                           VerticalAlignment="Center" Margin="0,0,5,0"
+                                           Foreground="{StaticResource SecondaryBrush}"/>
+                                <TextBlock Text="Quadrant" FontWeight="SemiBold"/>
+                                <TextBlock Margin="5,0,0,0" VerticalAlignment="Center"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           Foreground="{DynamicResource TextDisabledBrush}"
+                                           Text="QUA"/>
+                            </StackPanel>
+                        </ToggleButton>
+
+                    </UniformGrid>
+
+                    <!-- ── Source toggles ─────────────────────────────── -->
+                    <Border Padding="9,5"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="0,1,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock VerticalAlignment="Center"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="{StaticResource FontSizeXS}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Text="SNAP TO:"/>
+                            <CheckBox Margin="8,0,0,0" VerticalAlignment="Center"
+                                      IsChecked="{Binding SnapToDxf, Mode=TwoWay}"
+                                      FontFamily="{StaticResource FontPrimary}"
+                                      FontSize="{StaticResource FontSizeXS}"
+                                      Content="DXF"
+                                      ToolTip="Include DXF geometry in snap"/>
+                            <CheckBox Margin="8,0,0,0" VerticalAlignment="Center"
+                                      IsChecked="{Binding SnapToIfc, Mode=TwoWay}"
+                                      FontFamily="{StaticResource FontPrimary}"
+                                      FontSize="{StaticResource FontSizeXS}"
+                                      Content="IFC"
+                                      ToolTip="Include structural IFC vertices in snap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ── Footer: Save / Reset ───────────────────────── -->
+                    <Border Padding="9,5,9,8"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="0,1,0,0"
+                            CornerRadius="0,0,5,5">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right"
+                                    Padding="7,2"
+                                    Command="{Binding ResetToDefaultsCommand}"
+                                    FontFamily="{StaticResource FontPrimary}"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    Content="Reset"
+                                    Style="{StaticResource ButtonSecondary}"
+                                    ToolTip="Reset to defaults"/>
+                            <Button DockPanel.Dock="Right"
+                                    Margin="0,0,5,0" Padding="7,2"
+                                    Command="{Binding SaveSettingsCommand}"
+                                    FontFamily="{StaticResource FontPrimary}"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    Content="Save"
+                                    Style="{StaticResource ButtonPrimary}"
+                                    ToolTip="Save snap settings to disk"/>
+                            <TextBlock VerticalAlignment="Center"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="{StaticResource FontSizeXS}"
+                                       Foreground="{DynamicResource TextDisabledBrush}"
+                                       Text="Global settings"/>
+                        </DockPanel>
+                    </Border>
+
+                </StackPanel>
+            </Border>
+        </Popup>
+
+    </StackPanel>
+</UserControl>

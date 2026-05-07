@@ -12,16 +12,48 @@
                 <DockPanel Width="90">
                     <TextBlock DockPanel.Dock="Bottom" Text="ADD CRANE" Style="{StaticResource GroupLabel}"/>
                     <StackPanel Orientation="Horizontal">
-                        <Button Style="{StaticResource RibbonLargeBtn}"
-                                Width="70"
-                                ToolTip="Place Mobile Crane"
-                                Command="{Binding AddMobileCraneCommand}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock Text="🚚" FontSize="26" Margin="0,6,0,4" Foreground="{StaticResource PrimaryBrush}"/>
-                                <TextBlock Text="MOBILE" FontSize="9" FontWeight="Bold" Margin="0,0,0,1" Foreground="{StaticResource PrimaryBrush}"/>
-                                <TextBlock Text="CRANE" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"/>
-                            </StackPanel>
-                        </Button>
+
+                        <!--
+                            The button is wrapped in a Grid so the Popup can reference
+                            it by x:Name as its PlacementTarget. A plain StackPanel child
+                            cannot serve as a PlacementTarget reliably in WPF.
+                        -->
+                        <Grid>
+
+                            <!--
+                                Single click → AddMobileCraneCommand
+                                If elements are loaded: crane is auto-positioned beside the model.
+                                If no elements loaded: enters click-to-place mode.
+                                CanExecute = Cranes list is non-empty (auto-selected on load).
+                            -->
+                            <Button x:Name="BtnAddMobileCrane"
+                                    Style="{StaticResource RibbonLargeBtn}"
+                                    Width="70"
+                                    ToolTip="Place a mobile crane in the scene"
+                                    Command="{Binding AddMobileCraneCommand}">
+
+                                <StackPanel HorizontalAlignment="Center">
+
+                                    <TextBlock Text="🚚"
+                                               FontSize="26"
+                                               Margin="0,6,0,4"
+                                               Foreground="{StaticResource PrimaryBrush}"/>
+
+                                    <TextBlock Text="MOBILE"
+                                               FontSize="9"
+                                               FontWeight="Bold"
+                                               Margin="0,0,0,1"
+                                               Foreground="{StaticResource PrimaryBrush}"/>
+
+                                    <TextBlock Text="CRANE"
+                                               FontSize="9"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+                                </StackPanel>
+                            </Button>
+
+                        </Grid>
+
                     </StackPanel>
                 </DockPanel>
             </Border>
@@ -49,6 +81,18 @@
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="🗑" Margin="0,0,6,0"/>
                                 <TextBlock Text="Remove All Cranes"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Style="{StaticResource RibbonSmallBtn}"
+                                Width="165"
+                                Margin="0,0,0,3"
+                                Command="{Binding CraneSetup.UnlockPositionCommand}"
+                                IsEnabled="{Binding CraneSetup.IsPositionLocked}">
+
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🔓" Margin="0,0,6,0"/>
+                                <TextBlock Text="Unlock Position"/>
                             </StackPanel>
                         </Button>
 
@@ -80,6 +124,43 @@
                     </Button>
                 </DockPanel>
             </Border>
+
+            <Rectangle Style="{StaticResource RibbonSep}" Margin="4,0"/>
+
+            <!-- ── LOAD CHART ───────────────────────── -->
+            <Border Padding="8,6,8,0">
+                <DockPanel Width="180">
+
+                    <TextBlock DockPanel.Dock="Bottom"
+                               Text="LOAD CHART"
+                               Style="{StaticResource GroupLabel}"/>
+
+                    <StackPanel Margin="0,2,0,0">
+
+                        <Button Style="{StaticResource RibbonSmallBtn}"
+                                Width="165"
+                                Margin="0,0,0,3"
+                                Click="ImportLoadChart_Click">
+                            <TextBlock Text="Import Load Chart..."/>
+                        </Button>
+
+                        <Button Style="{StaticResource RibbonSmallBtn}"
+                                Width="165"
+                                Margin="0,0,0,3"
+                                Click="ViewSavedCharts_Click">
+                            <TextBlock Text="View Saved Charts"/>
+                        </Button>
+
+                        <Button Style="{StaticResource RibbonSmallBtn}"
+                                Width="165"
+                                Click="CraneCatalog_Click">
+                            <TextBlock Text="Crane Catalog..."/>
+                        </Button>
+
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
         </StackPanel>
     </ScrollViewer>
 </UserControl>

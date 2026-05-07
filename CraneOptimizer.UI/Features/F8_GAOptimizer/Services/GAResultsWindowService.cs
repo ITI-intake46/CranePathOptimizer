@@ -18,12 +18,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             _sceneService = sceneService;
         }
 
-        public void Show(CranePlacementResult result)
+        public void Show(CranePlacementResult result, Action<CranePositionResult?> selectedPointChanged)
         {
             if (result == null || result.Positions.Count == 0)
                 return;
 
-            var viewModel = new GAResultsWindowViewModel(result, _renderingService, _sceneService);
+            var viewModel = new GAResultsWindowViewModel(
+                result,
+                _renderingService,
+                _sceneService,
+                selectedPointChanged);
             var window = new GAResultsWindow(viewModel);
 
             if (System.Windows.Application.Current?.MainWindow != null)

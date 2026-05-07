@@ -1,7 +1,10 @@
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Core.Models;
+using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
@@ -20,7 +23,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private readonly IRenderingService _renderingService;
         private readonly IDialogService _dialogService;
         private readonly ISceneService _sceneService;
+        private readonly IIfcReaderRepository? _ifcReader;
+        private readonly CraneSetupViewModel _craneSetup;
         private readonly CraneOptimizerDialogWorkflow _workflow;
+        private readonly DomainPoint3D? _origin;
+        private readonly DomainPoint3D? _placementOffset;
 
         private CranePlacementResult? _currentResult;
         private CancellationTokenSource? _runCts;
@@ -28,23 +35,40 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private bool _isAdvancedPanelOpen;
         private List<PrecastElement> _cachedElements = new();
 
+        /// <summary>
+        /// The single SceneCrane that lives in the scene while the dialog is open.
+        /// Moves to each selected point; persists in the scene after the dialog closes.
+        /// </summary>
+        private SceneCrane? _previewSceneCrane;
+
         public CranePlacementResult? LatestResult { get; private set; }
+        public CranePositionResult? AppliedPosition { get; private set; }
+        public Crane? AppliedCrane { get; private set; }
 
         public CraneOptimizerDialog(
             ICranePlacementService placementService,
             IRenderingService renderingService,
             IDialogService dialogService,
             ICraneRepository craneRepository,
-            ISceneService sceneService)
+            ISceneService sceneService,
+            CraneSetupViewModel craneSetup,
+            IIfcReaderRepository? ifcReader = null,
+            DomainPoint3D? origin = null,
+            DomainPoint3D? placementOffset = null)
         {
             InitializeComponent();
 
             _renderingService = renderingService;
             _dialogService = dialogService;
             _sceneService = sceneService;
+            _ifcReader = ifcReader;
+            _craneSetup = craneSetup;        
             _workflow = new CraneOptimizerDialogWorkflow(placementService, craneRepository);
+            _origin = origin;
+            _placementOffset = placementOffset;
 
             Loaded += OnLoaded;
+            Closed += OnClosed;
         }
 
         private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -155,7 +179,77 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private void ShowPoint(CranePositionResult point)
         {
-            SelectedPointRenderer.Render(_renderingService, _cachedElements, point);
+            // Color all elements by their GA status for this position
+            SelectedPointRenderer.Render(
+                _renderingService,
+                _cachedElements,
+                point,
+                _ifcReader,
+                _origin,
+                _placementOffset);
+
+            // Move the persistent scene crane to this GA position (creates it if needed)
+            if (CboCrane.SelectedItem is Crane crane)
+                MoveOrCreateSceneCrane(crane, point);
+        }
+
+        /// <summary>
+        /// Ensures exactly one crane exists in the scene and positions it at
+        /// the specified GA candidate point.  On the first call the crane is
+        /// created (any existing cranes are cleared first).  On subsequent
+        /// calls the same instance is moved so there is never a duplicate.
+        /// </summary>
+        private void MoveOrCreateSceneCrane(Crane crane, CranePositionResult point)
+        {
+            var activeSpec = crane.Specifications
+                ?.OrderByDescending(s => s.MaxRadius)
+                .FirstOrDefault();
+
+            double boomLength = activeSpec != null
+                ? Math.Clamp(activeSpec.MaxBoomLength * 0.6,
+                             activeSpec.MinBoomLength,
+                             activeSpec.MaxBoomLength)
+                : 20;
+
+            var position = new DomainPoint3D(point.X, point.Y, 0);
+            var pivotOffset = new DomainPoint3D(0, 0, Math.Max(1.2, crane.VehicleHeight));
+
+            // Check whether our tracked crane is still in the scene
+            bool craneIsInScene = _previewSceneCrane != null &&
+                                  _sceneService.GetCranes().Contains(_previewSceneCrane);
+
+            if (craneIsInScene)
+            {
+                // Move the existing crane — no duplicate is created
+                _previewSceneCrane!.CraneDefinition    = crane;
+                _previewSceneCrane.ActiveSpecification = activeSpec;
+                _previewSceneCrane.Position            = position;
+                _previewSceneCrane.PivotOffset         = pivotOffset;
+                _previewSceneCrane.BoomLength          = boomLength;
+                _previewSceneCrane.BoomAngle           = 45;
+                _sceneService.UpdateCrane(_previewSceneCrane);
+            }
+            else
+            {
+                // First time (or the crane was externally removed): clear any
+                // stale cranes and add a fresh one so there is always exactly one.
+                _sceneService.ClearCranes();
+
+                _previewSceneCrane = new SceneCrane
+                {
+                    CraneDefinition    = crane,
+                    ActiveSpecification = activeSpec,
+                    Position           = position,
+                    Rotation           = 0,
+                    PivotOffset        = pivotOffset,
+                    BoomLength         = boomLength,
+                    BoomAngle          = 45,
+                    IsValidPlacement   = true
+                };
+
+                _sceneService.AddCrane(_previewSceneCrane);
+                _sceneService.SetSelectedCrane(_previewSceneCrane);
+            }
         }
 
         private void UpdateResultPanel(CranePlacementResult result)
@@ -259,14 +353,45 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             _runCts?.Cancel();
         }
 
+        // ============================
+        // HELPERS
+        // ============================
+        private double CalculateMarkerRadius() => 200;
+        private double CalculateMarkerZ(double r) => 500;
+
+        private void CboCrane_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
+        private void RbExclusion_Checked(object sender, RoutedEventArgs e) { }
+
         private void BtnApply_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentResult == null)
+            if (_currentResult == null || PointsList.SelectedItem is not CraneOptimizerPointListItem item)
+            {
+                _dialogService.ShowMessage("Please select a point to apply.");
                 return;
+            }
 
-            LatestResult = _currentResult;
-            DialogResult = true;
+            AppliedPosition = item.Point;
+            AppliedCrane   = CboCrane.SelectedItem as Crane;
+
+            // Sync position into CraneSetupViewModel (for compatibility with F3 UI)
+            // Guard against null in case the service was not fully injected.
+            _craneSetup?.LockPosition(new DomainPoint3D(item.Point.X, item.Point.Y, 0));
+
+            // The scene crane is already at the correct position (moved by ShowPoint).
+            // Just close — the crane persists in the scene.
             Close();
         }
+
+        private void OnClosed(object? sender, EventArgs e)
+        {
+            // Only remove the sphere marker; the scene crane stays at its last position.
+            SelectedPointRenderer.Clear(_renderingService);
+        }
+
+        private void BtnIncludeAll_Click(object sender, RoutedEventArgs e) { }
+        private void BtnExcludeAll_Click(object sender, RoutedEventArgs e) { }
+        private void BtnNoSlabs_Click(object sender, RoutedEventArgs e) { }
+        private void BtnNoStairs_Click(object sender, RoutedEventArgs e) { }
+        private void BtnNoRoofs_Click(object sender, RoutedEventArgs e) { }
     }
 }
