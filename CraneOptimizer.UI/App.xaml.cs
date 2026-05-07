@@ -139,7 +139,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<CranePlacementViewModel>();
             services.AddSingleton<IfcViewerViewModel>();
             services.AddSingleton<DxfTabViewModel>();
-            services.AddSingleton<ElementManagementViewModel>();
+            services.AddScoped<ElementManagementViewModel>();
 
             // =========================
             // F15 Object Snap

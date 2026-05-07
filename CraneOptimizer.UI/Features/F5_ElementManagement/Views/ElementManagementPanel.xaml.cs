@@ -18,6 +18,8 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.Views
             InitializeComponent();
             if (DesignerProperties.GetIsInDesignMode(this)) return;
             _sceneService = App.ServiceProvider.GetRequiredService<ISceneService>();
+            var vm = App.ServiceProvider.GetRequiredService<ElementManagementViewModel>();
+            DataContext = vm;
         }
 
         private ElementManagementViewModel? VM => DataContext as ElementManagementViewModel;
