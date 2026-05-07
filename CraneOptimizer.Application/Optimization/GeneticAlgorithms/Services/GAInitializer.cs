@@ -33,6 +33,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
         public Population InitializePopulation(
             List<GreenAreaZone> zones,
+            List<GreenAreaZone> forbiddenZones,
             List<PrecastElement> elements,
             int populationSize,
             int maxCranePositions,
@@ -47,14 +48,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // ── 70% Pure Random ────────────────────────────────────
             for (int i = 0; i < randomCount; i++)
             {
-                var solution = CreateRandomSolution(zones, maxCranePositions, settings);
+                var solution = CreateRandomSolution(zones, forbiddenZones, maxCranePositions, settings);
                 population.Individuals.Add(solution);
             }
 
             // ── 30% Heuristic (element-centroid guided) ────────────
             for (int i = 0; i < heuristicCount; i++)
             {
-                var solution = CreateHeuristicSolution(zones, elements, maxCranePositions, settings);
+                var solution = CreateHeuristicSolution(zones, forbiddenZones, elements, maxCranePositions, settings);
                 population.Individuals.Add(solution);
             }
 
@@ -71,6 +72,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// </summary>
         private CraneSolution CreateRandomSolution(
             List<GreenAreaZone> zones,
+            List<GreenAreaZone> forbiddenZones,
             int maxCranePositions,
             GASettings settings)
         {
@@ -81,8 +83,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
             for (int j = 0; j < craneCount; j++)
             {
-                var zone = zones[Rng.Next(zones.Count)];
-                var point = GenerateRandomPointInsideZone(zone, settings);
+                var point = GenerateDiversePointInsideZones(
+                    zones,
+                    forbiddenZones,
+                    chromosome.CranePositions,
+                    settings);
+
                 chromosome.CranePositions.Add(point);
             }
 
@@ -111,6 +117,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// </summary>
         private CraneSolution CreateHeuristicSolution(
             List<GreenAreaZone> zones,
+            List<GreenAreaZone> forbiddenZones,
             List<PrecastElement> elements,
             int maxCranePositions,
             GASettings settings)
@@ -131,7 +138,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 var centroid = CalculateCentroid(cluster);
 
                 // Step 3 — Find nearest valid crane position inside zones
-                var point = FindNearestValidPoint(centroid, zones, settings);
+                var point = FindNearestValidPoint(
+                    centroid,
+                    zones,
+                    forbiddenZones,
+                    chromosome.CranePositions,
+                    settings);
 
                 chromosome.CranePositions.Add(point);
             }
@@ -139,8 +151,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // Fallback: if heuristic failed to produce positions, add one random
             if (chromosome.CranePositions.Count == 0)
             {
-                var zone = zones[Rng.Next(zones.Count)];
-                var point = GenerateRandomPointInsideZone(zone, settings);
+                var point = GenerateDiversePointInsideZones(
+                    zones,
+                    forbiddenZones,
+                    chromosome.CranePositions,
+                    settings);
+
                 chromosome.CranePositions.Add(point);
             }
 
@@ -224,18 +240,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         private DomainPoint3D FindNearestValidPoint(
             DomainPoint3D centroid,
             List<GreenAreaZone> zones,
+            List<GreenAreaZone> forbiddenZones,
+            List<DomainPoint3D> existingPoints,
             GASettings settings)
         {
             // Case 1: centroid falls inside one of the zones
-            foreach (var zone in zones)
+            if (CranePlacementConstraintService.IsValidSetupPoint(centroid, zones, forbiddenZones, settings)
+                && CranePlacementConstraintService.IsMeaningfullySeparated(centroid, existingPoints, settings))
             {
-                if (IsPointInsidePolygon(centroid, zone.Vertices))
-                {
-                    var snappedCentroid = SnapPointToGrid(centroid, settings.GridStep);
-                    return IsPointInsidePolygon(snappedCentroid, zone.Vertices)
-                        ? snappedCentroid
-                        : centroid;
-                }
+                var snappedCentroid = SnapPointToGrid(centroid, settings.GridStep);
+                return CranePlacementConstraintService.IsValidSetupPoint(snappedCentroid, zones, forbiddenZones, settings)
+                    ? snappedCentroid
+                    : centroid;
             }
 
             // Case 2: find the closest zone and sample inside it
@@ -243,7 +259,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 .OrderBy(z => DistanceToZoneCentroid(centroid, z))
                 .First();
 
-            return GenerateRandomPointInsideZone(closestZone, settings);
+            var sampled = GenerateRandomPointInsideZone(closestZone, forbiddenZones, settings);
+            return CranePlacementConstraintService.IsMeaningfullySeparated(sampled, existingPoints, settings)
+                ? sampled
+                : GenerateDiversePointInsideZones(zones, forbiddenZones, existingPoints, settings);
         }
 
         /// <summary>
@@ -269,20 +288,72 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// Generates a random point inside a polygon zone.
         /// Uses bounding box rejection sampling with ray-casting validation.
         /// </summary>
-        private DomainPoint3D GenerateRandomPointInsideZone(GreenAreaZone zone, GASettings settings)
+        /// <summary>
+        /// Samples a spatially diverse setup point from allowed zones.
+        /// Inputs are allowed zones, forbidden zones, existing chromosome points, and GA settings.
+        /// The output is a valid setup point that maximizes distance from existing points when
+        /// the minimum relocation threshold cannot be satisfied immediately.
+        /// </summary>
+        private DomainPoint3D GenerateDiversePointInsideZones(
+            List<GreenAreaZone> zones,
+            List<GreenAreaZone> forbiddenZones,
+            List<DomainPoint3D> existingPoints,
+            GASettings settings)
+        {
+            DomainPoint3D? bestCandidate = null;
+            double bestDistance = double.MinValue;
+            int attempts = Math.Max(1, settings.PositionSamplingAttempts);
+
+            for (int i = 0; i < attempts; i++)
+            {
+                var zone = zones[Rng.Next(zones.Count)];
+                var candidate = GenerateRandomPointInsideZone(zone, forbiddenZones, settings);
+                double nearestDistance = existingPoints.Count == 0
+                    ? double.MaxValue
+                    : existingPoints.Min(point => CranePlacementConstraintService.Distance2D(point, candidate));
+
+                if (CranePlacementConstraintService.IsMeaningfullySeparated(candidate, existingPoints, settings))
+                    return candidate;
+
+                if (nearestDistance > bestDistance)
+                {
+                    bestDistance = nearestDistance;
+                    bestCandidate = candidate;
+                }
+            }
+
+            return bestCandidate ?? GenerateRandomPointInsideZone(zones[Rng.Next(zones.Count)], forbiddenZones, settings);
+        }
+
+        /// <summary>
+        /// Samples one valid crane setup point inside a specific allowed zone.
+        /// The output respects the simplified crane footprint and forbidden zones.
+        /// </summary>
+        private DomainPoint3D GenerateRandomPointInsideZone(
+            GreenAreaZone zone,
+            List<GreenAreaZone> forbiddenZones,
+            GASettings settings)
         {
             var bbox = GetBoundingBox(zone.Vertices);
 
-            while (true)
+            int attempts = Math.Max(1, settings.PositionSamplingAttempts);
+            for (int attempt = 0; attempt < attempts; attempt++)
             {
                 double x = bbox.minX + Rng.NextDouble() * (bbox.maxX - bbox.minX);
                 double y = bbox.minY + Rng.NextDouble() * (bbox.maxY - bbox.minY);
 
                 var point = SnapPointToGrid(new DomainPoint3D(x, y, 0), settings.GridStep);
 
-                if (IsPointInsidePolygon(point, zone.Vertices))
+                if (CranePlacementConstraintService.IsValidSetupPoint(point, new[] { zone }, forbiddenZones, settings))
                     return point;
             }
+
+            var fallback = new DomainPoint3D(
+                zone.Vertices.Average(v => v.X),
+                zone.Vertices.Average(v => v.Y),
+                0);
+
+            return SnapPointToGrid(fallback, settings.GridStep);
         }
 
         private DomainPoint3D SnapPointToGrid(DomainPoint3D point, double gridStep)

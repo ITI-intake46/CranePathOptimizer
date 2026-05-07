@@ -160,6 +160,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 Math.Min(radiusStdDev / settings.MaxRadiusForNormalisation, 1.0) : 0;
             double radiusStdDevPenalty = settings.RadiusStdDevPenaltyWeight * normalizedStdDev;
 
+            // Similar setup points are not real engineering relocations.
+            // Penalize near-duplicate crane positions so the GA cannot treat
+            // 1-2 meter adjustments as independent setup locations.
+            double similarPositionPenalty =
+                CranePlacementConstraintService.CalculateSimilarityPenalty(
+                    solution.Chromosome.CranePositions,
+                    settings);
+
+            // Movement distance is a proxy for mobilization/travel effort.
+            // This complements the existing relocation-count penalty.
+            double relocationDistancePenalty =
+                CranePlacementConstraintService.CalculateNormalizedRelocationDistance(
+                    solution.Chromosome.CranePositions,
+                    settings);
+
             // ══════════════════════════════════════════════════════
             // 6. FINAL FITNESS
             // ══════════════════════════════════════════════════════
@@ -173,7 +188,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 - SpecialCasePenaltyWeight * normSpecialCase
                 - settings.RadiusPenaltyWeight * radiusQualityPenalty
                 - balancePenalty
-                - radiusStdDevPenalty;
+                - radiusStdDevPenalty
+                - settings.SimilarPositionPenaltyWeight * similarPositionPenalty
+                - settings.RelocationDistancePenaltyWeight * relocationDistancePenalty;
 
             fitness = Math.Max(0, fitness);
 
@@ -189,6 +206,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             breakdown.RadiusPenalty = normOutOfRadius;
             breakdown.OverweightPenalty = normOverweight;
             breakdown.HeightPenalty = normHeightFail;
+            breakdown.SimilarPositionPenalty = similarPositionPenalty;
+            breakdown.RelocationDistancePenalty = relocationDistancePenalty;
 
             return breakdown;
         }

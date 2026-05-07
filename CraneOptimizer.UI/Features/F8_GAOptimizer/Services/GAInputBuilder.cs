@@ -51,15 +51,20 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             var sceneZones = _sceneService.GetZones();
             var zones = new List<GreenAreaZone>(sceneZones.Count);
+            var forbiddenZones = new List<GreenAreaZone>();
 
             for (int i = 0; i < sceneZones.Count; i++)
             {
                 var zone = sceneZones[i];
-                if (zone.Type != ZoneType.Allowed)
+                if (zone.Type != ZoneType.Allowed && zone.Type != ZoneType.Forbidden)
                     continue;
 
                 ValidateZone(zone);
-                zones.Add(_coordinateService.NormalizeZoneToMeters(zone));
+                var normalizedZone = _coordinateService.NormalizeZoneToMeters(zone);
+                if (zone.Type == ZoneType.Allowed)
+                    zones.Add(normalizedZone);
+                else
+                    forbiddenZones.Add(normalizedZone);
             }
 
             if (zones.Count == 0)
@@ -80,9 +85,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             if (settings.MaxRadiusForNormalisation <= 0)
                 settings.MaxRadiusForNormalisation = craneSpec.MaxRadius;
 
+            settings.CraneFootprintRadius = CalculateCraneFootprintRadius(selectedCrane);
+
             return new PlacementInput
             {
                 Zones = zones,
+                ForbiddenZones = forbiddenZones,
                 Elements = elements,
                 Assignment = new Dictionary<int, List<string>>(),
                 CraneSpec = craneSpec,
@@ -118,6 +126,23 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 if (!_coordinateService.IsValidPoint(zone.Vertices[i]))
                     throw new InvalidOperationException($"Allowed zone '{zone.Name}' contains invalid coordinates.");
             }
+        }
+
+        /// <summary>
+        /// Calculates a simplified circular crane footprint in meters from the selected crane.
+        /// The input crane dimensions are stored in millimeters; the output uses the larger
+        /// of vehicle body size and outrigger span so GA setup points keep practical clearance
+        /// from allowed-zone boundaries and forbidden zones.
+        /// </summary>
+        private double CalculateCraneFootprintRadius(Crane selectedCrane)
+        {
+            double maxBodyDimension = Math.Max(selectedCrane.VehicleLength, selectedCrane.VehicleWidth);
+            double maxOutriggerDimension = Math.Max(
+                selectedCrane.OutriggerLength ?? 0,
+                selectedCrane.OutriggerWidth ?? 0);
+
+            double footprintDiameterMillimeters = Math.Max(maxBodyDimension, maxOutriggerDimension);
+            return _coordinateService.NormalizeLength(footprintDiameterMillimeters) / 2.0;
         }
     }
 }

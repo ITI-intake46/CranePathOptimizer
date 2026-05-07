@@ -117,5 +117,45 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// Higher values prefer balanced crane-position utilization.
         /// </summary>
         public double BalancePenaltyWeight { get; set; } = 2.0;
+
+        /// <summary>
+        /// Minimum meaningful distance in meters between crane setup points.
+        /// Points closer than this are treated as setup adjustments, not real relocations.
+        /// </summary>
+        public double MinimumRelocationDistance { get; set; } = 10.0;
+
+        /// <summary>
+        /// Distance in meters under which two points are considered near-duplicates.
+        /// This threshold supports de-duplication before final results are shown.
+        /// </summary>
+        public double DuplicatePositionDistance { get; set; } = 3.0;
+
+        /// <summary>
+        /// Penalty weight for crane positions that are too close to be operationally distinct.
+        /// </summary>
+        public double SimilarPositionPenaltyWeight { get; set; } = 8.0;
+
+        /// <summary>
+        /// Penalty weight for total movement distance between sequential crane setup points.
+        /// This models travel/mobilization effort in addition to setup count.
+        /// </summary>
+        public double RelocationDistancePenaltyWeight { get; set; } = 1.5;
+
+        /// <summary>
+        /// Multiplier applied to mutation scale to avoid overly local search.
+        /// Higher values increase spatial exploration while preserving the existing mutation model.
+        /// </summary>
+        public double MutationExplorationMultiplier { get; set; } = 2.0;
+
+        /// <summary>
+        /// Number of attempts used when sampling valid and spatially separated setup points.
+        /// </summary>
+        public int PositionSamplingAttempts { get; set; } = 80;
+
+        /// <summary>
+        /// Approximate crane footprint radius in meters.
+        /// This is set by the GA input builder from crane body/outrigger dimensions.
+        /// </summary>
+        public double CraneFootprintRadius { get; set; }
     }
 }
