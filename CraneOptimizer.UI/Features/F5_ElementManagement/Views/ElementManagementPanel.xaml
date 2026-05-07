@@ -2,162 +2,263 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:views="clr-namespace:CraneOptimizer.UI.Features.F5_ElementManagement.Views"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d">
-    <Border
-        Background="{DynamicResource SurfaceBrush}"
-        BorderBrush="{DynamicResource BorderBrush}"
-        BorderThickness="0,0,1,0">
+
+    <UserControl.Resources>
+        <views:ElementDisplayNameConverter x:Key="ElementDisplayNameConverter" />
+        <views:ElementWeightDisplayConverter x:Key="ElementWeightDisplayConverter" />
+
+        <Style x:Key="PropertyHeaderText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{StaticResource FontSizeXS}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Padding" Value="8,0" />
+        </Style>
+
+        <Style x:Key="PropertyCellText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{StaticResource FontSizeXS}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Padding" Value="8,0" />
+        </Style>
+
+        <Style x:Key="PropertyCellBorder" TargetType="Border">
+            <Setter Property="MinHeight" Value="23" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,1,1" />
+        </Style>
+
+        <DataTemplate x:Key="PropertyRowTemplate">
+            <Grid MinHeight="23">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="42*" />
+                    <ColumnDefinition Width="58*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource PropertyCellBorder}">
+                    <TextBlock Style="{StaticResource PropertyCellText}" Text="{Binding Name}" />
+                </Border>
+
+                <Border Grid.Column="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+                    <TextBlock Style="{StaticResource PropertyCellText}" Text="{Binding Value}" />
+                </Border>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Border Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="0,0,1,0">
         <Grid>
             <Grid.RowDefinitions>
+                <RowDefinition Height="190" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
- 
-            <Border
-                Grid.Row="0"
-                Height="30"
-                Padding="10,0"
-                Background="{DynamicResource SurfaceElevatedBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,0,0,1">
-                <TextBlock VerticalAlignment="Center" Style="{StaticResource PanelSectionHeader}" Text="ELEMENT DETAILS" />
+
+            <Border Grid.Row="0"
+                    Margin="12"
+                    Background="{DynamicResource SurfaceElevatedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="32" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Background="{DynamicResource SurfaceBrush}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Margin="10,0"
+                                   VerticalAlignment="Center"
+                                   Style="{StaticResource PanelSectionHeader}"
+                                   Text="ELEMENTS" />
+
+                        <Button Grid.Column="1"
+                                Height="22"
+                                Margin="0,0,8,0"
+                                Padding="10,0"
+                                Command="{Binding ShowFilterDialogCommand}"
+                                Content="Filter"
+                                FontSize="{StaticResource FontSizeXS}" />
+                    </Grid>
+
+                    <Grid Grid.Row="1" Margin="8,6,8,6">
+                        <TextBox Height="26"
+                                 Padding="8,2"
+                                 VerticalContentAlignment="Center"
+                                 FontSize="{StaticResource FontSizeXS}"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" />
+                        <TextBlock Margin="12,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   IsHitTestVisible="False"
+                                   Text="Search Elements...">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SearchText}" Value="">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+
+                    <DataGrid Grid.Row="2"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              GridLinesVisibility="Horizontal"
+                              HeadersVisibility="Column"
+                              ItemsSource="{Binding FilteredElements}"
+                              SelectedItem="{Binding SelectedElement, Mode=TwoWay}"
+                              SelectionMode="Single">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Width="2*" Header="Name">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Converter={StaticResource ElementDisplayNameConverter}}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="90" Header="Weight">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Converter={StaticResource ElementWeightDisplayConverter}}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Width="80" Binding="{Binding ElementLength, StringFormat={}{0:F1} m}" Header="Length" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
             </Border>
- 
-            <ScrollViewer
-                Grid.Row="1"
-                HorizontalScrollBarVisibility="Disabled"
-                VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <!--  Element ID Hero Section  -->
-                    <Border
-                        Padding="16,20"
-                        Background="{DynamicResource SurfaceElevatedBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="0,0,0,1">
-                        <StackPanel>
-                            <TextBlock
-                                Margin="0,0,0,4"
-                                FontSize="{StaticResource FontSizeXS}"
-                                FontWeight="Bold"
-                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                Text="ELEMENT ID" />
-                            <TextBlock
-                                FontSize="{StaticResource FontSizeLG}"
-                                FontWeight="SemiBold"
-                                Foreground="{StaticResource PrimaryBrush}"
-                                Text="{Binding SelectedElement.ElementID, FallbackValue='N/A'}" />
-                            <TextBlock
-                                Margin="0,4,0,0"
-                                FontSize="{StaticResource FontSizeXS}"
-                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                Text="{Binding SelectedElement.ElementType, FallbackValue='No Selection'}" />
-                        </StackPanel>
-                    </Border>
- 
-                    <StackPanel Margin="0,10,0,20">
-                        <StackPanel.Style>
-                            <Style TargetType="StackPanel">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedElement}" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </StackPanel.Style>
- 
-                        <!--  Geometry Section  -->
-                        <Border Margin="12,10,12,5" Style="{StaticResource PropertyRow}">
-                            <StackPanel>
-                                <TextBlock Margin="0,0,0,8" Style="{StaticResource PanelSectionHeader}" Text="GEOMETRY"/>
-                                <Grid Margin="0,4">
-                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Length" />
-                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementLength, StringFormat={}{0:F2} m}" />
-                                </Grid>
-                                <Grid Margin="0,4">
-                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Width" />
-                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementWidth, StringFormat={}{0:F2} m}" />
-                                </Grid>
-                                <Grid Margin="0,4">
-                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Height" />
-                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementHeight, StringFormat={}{0:F2} m}" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
- 
-                        <!--  Physical Properties  -->
-                        <Border Margin="12,10,12,5" Style="{StaticResource PropertyRow}">
-                            <StackPanel>
-                                <TextBlock Margin="0,0,0,8" Style="{StaticResource PanelSectionHeader}" Text="PHYSICAL"/>
-                                <Grid Margin="0,4">
-                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Weight" />
-                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="Bold" Text="{Binding SelectedElement.ElementWT, StringFormat={}{0:N0} kg}" />
-                                </Grid>
-                                <Grid Margin="0,4">
-                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Volume" />
-                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementVolume, StringFormat={}{0:F3} m³}" />
-                                </Grid>
-                                <Grid Margin="0,4">
-                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Material" />
-                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementMaterial, FallbackValue='-'}" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
- 
-                        <!--  Center of Gravity  -->
-                        <Border Margin="12,10,12,5" Style="{StaticResource PropertyRow}">
-                            <StackPanel>
-                                <TextBlock Margin="0,0,0,8" Style="{StaticResource PanelSectionHeader}" Text="COORDINATES (COG)"/>
-                                <Grid Margin="0,4">
-                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="X" />
-                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementCOG.X, StringFormat={}{0:F3}}" />
-                                </Grid>
-                                <Grid Margin="0,4">
-                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Y" />
-                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementCOG.Y, StringFormat={}{0:F3}}" />
-                                </Grid>
-                                <Grid Margin="0,4">
-                                    <TextBlock Style="{StaticResource PropertyLabel}" Text="Z" />
-                                    <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding SelectedElement.ElementCOG.Z, StringFormat={}{0:F3}}" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
+
+            <Border Grid.Row="1"
+                    Padding="8,6"
+                    Background="{DynamicResource SurfaceElevatedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,1,0,1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock VerticalAlignment="Center"
+                               FontSize="{StaticResource FontSizeXS}"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Text="{Binding SelectedElementName}" />
+
+                    <TextBox Grid.Column="1"
+                             Height="26"
+                             Margin="10,0,0,0"
+                             Padding="8,2"
+                             VerticalContentAlignment="Center"
+                             FontSize="{StaticResource FontSizeXS}"
+                             Text="{Binding PropertySearchText, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Grid.Column="2"
+                               Margin="12,0,0,0"
+                               VerticalAlignment="Center"
+                               FontSize="{StaticResource FontSizeXS}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Text="{Binding FilterStatus}" />
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="2">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding ElementProperties}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Expander Margin="0"
+                                          Background="{DynamicResource SurfaceBrush}"
+                                          BorderBrush="{DynamicResource BorderBrush}"
+                                          BorderThickness="0,0,0,1"
+                                          IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
+                                    <Expander.Header>
+                                        <TextBlock MinHeight="24"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="{StaticResource FontSizeXS}"
+                                                   FontWeight="Bold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   Text="{Binding Name}" />
+                                    </Expander.Header>
+
+                                    <Grid Background="{DynamicResource SurfaceElevatedBrush}">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="23" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <Grid Grid.Row="0" Background="{DynamicResource SurfaceBrush}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="42*" />
+                                                <ColumnDefinition Width="58*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Style="{StaticResource PropertyCellBorder}">
+                                                <TextBlock Style="{StaticResource PropertyHeaderText}" Text="Name" />
+                                            </Border>
+                                            <Border Grid.Column="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+                                                <TextBlock Style="{StaticResource PropertyHeaderText}" Text="Value" />
+                                            </Border>
+                                        </Grid>
+
+                                        <ItemsControl Grid.Row="1"
+                                                      ItemTemplate="{StaticResource PropertyRowTemplate}"
+                                                      ItemsSource="{Binding Children}" />
+                                    </Grid>
+                                </Expander>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <Border Margin="18,48"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Top"
+                        Background="{DynamicResource SurfaceBrush}">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedElement}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel>
+                        <TextBlock HorizontalAlignment="Center"
+                                   FontSize="{StaticResource FontSizeSM}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Text="No Element Selected" />
+                        <TextBlock Margin="0,6,0,0"
+                                   HorizontalAlignment="Center"
+                                   FontSize="{StaticResource FontSizeXS}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Text="Select an element to inspect its BIM properties."
+                                   TextAlignment="Center" />
                     </StackPanel>
- 
-                    <!--  Empty State  -->
-                    <Border Margin="20,60" VerticalAlignment="Center">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedElement}" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <StackPanel>
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                FontSize="48"
-                                Text="🔳" />
-                            <TextBlock
-                                Margin="0,15,0,5"
-                                HorizontalAlignment="Center"
-                                FontSize="{StaticResource FontSizeSM}"
-                                FontWeight="SemiBold"
-                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                Text="No Element Selected" />
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                FontSize="{StaticResource FontSizeXS}"
-                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                Text="Select an element in the 3D scene"
-                                TextAlignment="Center" />
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-            </ScrollViewer>
+                </Border>
+            </Grid>
         </Grid>
     </Border>
 </UserControl>
