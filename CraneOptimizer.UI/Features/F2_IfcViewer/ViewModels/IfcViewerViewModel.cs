@@ -187,6 +187,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             return new PrecastElement
             {
                 ElementID = element.ElementID,
+                ElementRevitId = element.ElementRevitId,
+                ElementMark = element.ElementMark,
                 ElementType = element.ElementType,
                 ElementLength = element.ElementLength,
                 ElementWidth = element.ElementWidth,

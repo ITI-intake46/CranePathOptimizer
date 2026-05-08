@@ -84,10 +84,19 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 foreach (var p in model.Instances.OfType<IIfcProduct>())
                 {
                     var gid = p.GlobalId.ToString();
-                    if (!string.IsNullOrEmpty(gid) && elementMap.ContainsKey(gid))
+                    var revitId = (p as IIfcElement)?.Tag?.ToString();
+
+                    // Check if either Revit ID or Global ID matches our element map
+                    var matchingKey = string.Empty;
+                    if (revitId != null && elementMap.ContainsKey(revitId))
+                        matchingKey = revitId;
+                    else if (!string.IsNullOrEmpty(gid) && elementMap.ContainsKey(gid))
+                        matchingKey = gid;
+
+                    if (!string.IsNullOrEmpty(matchingKey))
                     {
-                        labelToGid[p.EntityLabel] = gid;
-                        AddChildProductLabels(p, gid, labelToGid);
+                        labelToGid[p.EntityLabel] = matchingKey;
+                        AddChildProductLabels(p, matchingKey, labelToGid);
                     }
                 }
 

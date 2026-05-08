@@ -1,10 +1,14 @@
-﻿using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Common;
 
 namespace CraneOptimizer.Domain.Schemas
 {
     public class PrecastElement
     {
         public string ElementID { get; set; }
+
+        public string? ElementRevitId { get; set; }
+
+        public string? ElementMark { get; set; }
 
         public string ElementType { get; set; }
 
