@@ -4,8 +4,8 @@
         xmlns:conv="clr-namespace:CraneOptimizer.UI.Core.Converters"
         xmlns:convdx="clr-namespace:CraneOptimizer.UI.Core.Converters.DXF"
         Title="DXF Alignment"
-        Width="920" Height="660"
-        MinWidth="720" MinHeight="520"
+        Width="420" SizeToContent="Height"
+        MinWidth="360"
         WindowStartupLocation="CenterOwner"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -15,15 +15,47 @@
 
     <Window.Resources>
         <conv:BoolToVisibilityConverter  x:Key="BoolToVisibilityConverter"/>
-        <convdx:NullToCollapsedConverter  x:Key="NullToCollapsedConverter"/>
-        <convdx:HexStringToColorConverter x:Key="HexStringToColorConverter"/>
+        <convdx:NullToCollapsedConverter x:Key="NullToCollapsedConverter"/>
+        <Style x:Key="DxfDialogGroupBox" TargetType="GroupBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="0.35"/>
+            <Setter Property="Padding" Value="6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GroupBox">
+                        <Grid SnapsToDevicePixels="True">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Margin="8,0,0,-1"
+                                       Padding="4,0"
+                                       Background="{DynamicResource BackgroundBrush}"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="{StaticResource FontSizeXS}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Text="{TemplateBinding Header}"/>
+                            <Border Grid.RowSpan="2"
+                                    Margin="0,8,0,0"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="3"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
-    <!--  Use Shadow3 from Elevation.xaml instead of inline DropShadowEffect  -->
     <Border Background="{DynamicResource BackgroundBrush}"
             BorderBrush="{DynamicResource BorderBrush}"
-            BorderThickness="1"
-            CornerRadius="6"
+            BorderThickness="0,0,0,0"
+            CornerRadius="4"
             Effect="{StaticResource Shadow3}">
 
         <Grid>
@@ -33,10 +65,10 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <!-- ── Title bar ─────────────────────────────────────────── -->
+            <!-- ── Title bar ─────────────────────────────────────────────── -->
             <Border Grid.Row="0"
                     Background="{DynamicResource SurfaceBrush}"
-                    CornerRadius="6,6,0,0"
+                    CornerRadius="4,4,0,0"
                     MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -60,7 +92,6 @@
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal"
                                 VerticalAlignment="Center" Margin="0,0,6,0">
-                        <!--  TitleBarButton and CloseButton from ShellStyles.xaml  -->
                         <Button Style="{StaticResource TitleBarButton}" Content="—"
                                 FontSize="{StaticResource FontSizeXS}"
                                 Click="MinimizeButton_Click" ToolTip="Minimise"/>
@@ -72,309 +103,282 @@
             <Border Grid.Row="0" Height="1" VerticalAlignment="Bottom"
                     Background="{DynamicResource BorderBrush}"/>
 
-            <!-- ── Main content ──────────────────────────────────────── -->
-            <Grid Grid.Row="1">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="1"/>
-                    <ColumnDefinition Width="295"/>
-                </Grid.ColumnDefinitions>
+            <!-- ── Main controls panel ──────────────────────────────────── -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                          Background="{DynamicResource BackgroundBrush}"
+                          Padding="12,12,12,8">
+                <StackPanel>
 
-                <!-- Canvas preview -->
-                <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" ClipToBounds="True">
-                    <Grid>
-                        <Canvas x:Name="DxfCanvas" Background="Transparent" ClipToBounds="True"/>
+                    <!-- DXF FILE -->
+                    <GroupBox Header="DXF FILE" Style="{StaticResource DxfDialogGroupBox}" Margin="0,0,0,10">
+                        <StackPanel>
+                            <Button Content="📂  Load DXF…"
+                                    Command="{Binding LoadDxfCommand}"
+                                    Style="{StaticResource ButtonPrimary}"
+                                    HorizontalAlignment="Stretch" Margin="0,0,0,6"/>
 
-                        <!-- Loading overlay -->
-                        <Border Background="#AA000000"
-                                Visibility="{Binding IsDxfLoading, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <!-- Loading indicator -->
                             <TextBlock Text="⏳  Loading DXF…"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        FontFamily="{StaticResource FontPrimary}"
-                                       FontSize="{StaticResource FontSizeSM}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-
-                        <!-- Empty state -->
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
-                                    Visibility="{Binding DxfFileName, Converter={StaticResource NullToCollapsedConverter}}">
-                            <TextBlock Text="📂"
-                                       FontSize="36"
-                                       HorizontalAlignment="Center" Margin="0,0,0,10"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
-                            <TextBlock Text="No DXF loaded"
+                                       FontSize="{StaticResource FontSizeXS}"
                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Visibility="{Binding IsDxfLoading, Converter={StaticResource BoolToVisibilityConverter}}"
+                                       Margin="0,0,0,4"/>
+
+                            <TextBlock Text="{Binding DxfFileName}"
                                        FontFamily="{StaticResource FontPrimary}"
                                        FontSize="{StaticResource FontSizeSM}"
                                        FontWeight="SemiBold"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="Click 'Load DXF…' in the panel to begin."
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       TextTrimming="CharacterEllipsis"
+                                       Visibility="{Binding DxfFileName, Converter={StaticResource NullToCollapsedConverter}}"/>
+                            <TextBlock Text="{Binding DxfInfo}"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="{StaticResource FontSizeXS}"
+                                       Margin="0,3,0,0"
                                        Foreground="{DynamicResource TextSecondaryBrush}"
-                                       FontFamily="{StaticResource FontPrimary}"
-                                       FontSize="{StaticResource FontSizeXS}"
-                                       HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                       TextWrapping="Wrap"
+                                       Visibility="{Binding DxfInfo, Converter={StaticResource NullToCollapsedConverter}}"/>
                         </StackPanel>
+                    </GroupBox>
 
-                        <!-- Zoom hint badge -->
-                        <Border VerticalAlignment="Bottom" HorizontalAlignment="Right"
-                                Background="{DynamicResource SurfaceElevatedBrush}"
-                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                                CornerRadius="3" Padding="6,2" Margin="0,0,8,8">
-                            <TextBlock Text="Scroll to zoom  ·  Drag to pan"
-                                       FontFamily="{StaticResource FontPrimary}"
-                                       FontSize="{StaticResource FontSizeXS}"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
-                        </Border>
-                    </Grid>
-                </Border>
-
-                <Border Grid.Column="1" Background="{DynamicResource BorderBrush}"/>
-
-                <!-- Controls panel -->
-                <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
-                              Background="{DynamicResource BackgroundBrush}" Padding="10,10,10,6">
-                    <StackPanel>
-
-                        <!-- DXF FILE -->
-                        <GroupBox Header="DXF FILE" Margin="0,0,0,10">
-                            <StackPanel>
-                                <Button Content="📂  Load DXF…"
-                                        Command="{Binding LoadDxfCommand}"
-                                        Style="{StaticResource ButtonPrimary}"
-                                        HorizontalAlignment="Stretch" Margin="0,0,0,6"/>
-                                <TextBlock Text="{Binding DxfFileName}"
-                                           FontFamily="{StaticResource FontPrimary}"
-                                           FontSize="{StaticResource FontSizeSM}"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="{Binding DxfInfo}"
-                                           FontFamily="{StaticResource FontPrimary}"
-                                           FontSize="{StaticResource FontSizeXS}"
-                                           Margin="0,3,0,0"
-                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                           TextWrapping="Wrap"/>
+                    <!-- REFERENCE POINT -->
+                    <GroupBox Header="REFERENCE POINT" Style="{StaticResource DxfDialogGroupBox}" Margin="0,0,0,10">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,2">
+                                <TextBlock Text="DXF unit"
+                                           Style="{StaticResource PropertyLabel}"/>
+                                <Border Width="14"
+                                        Height="14"
+                                        Margin="6,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Background="Transparent"
+                                        BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="7">
+                                    <Border.ToolTip>
+                                        <ToolTip MaxWidth="280">
+                                            <TextBlock Text="Default uses the DXF file unit. Reference X/Y values are shown in the selected unit and convert when this unit changes. Scale multiplies after unit conversion."
+                                                       TextWrapping="Wrap"/>
+                                        </ToolTip>
+                                    </Border.ToolTip>
+                                    <TextBlock Text="i"
+                                               FontFamily="{StaticResource FontPrimary}"
+                                               FontSize="9"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Margin="0,-1,0,0"/>
+                                </Border>
                             </StackPanel>
-                        </GroupBox>
+                            <ComboBox ItemsSource="{Binding DxfUnitOptions}"
+                                      SelectedItem="{Binding SelectedDxfUnit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Margin="0,0,0,6"/>
 
-                        <!-- POINT MATCH -->
-                        <GroupBox Header="POINT MATCH" Margin="0,0,0,10">
-                            <StackPanel>
-                                <TextBlock Text="DXF reference point (world units):"
-                                           Style="{StaticResource PropertyLabel}" Margin="0,5,0,2"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="18"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="18"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="X"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                               FontFamily="{StaticResource FontPrimary}"
-                                               FontSize="{StaticResource FontSizeXS}"
-                                               VerticalAlignment="Center"/>
-                                    <TextBox Grid.Column="1"
-                                             Text="{Binding DxfRefXText, UpdateSourceTrigger=PropertyChanged}"
-                                             Margin="0,0,6,0"/>
-                                    <TextBlock Grid.Column="2" Text="Y"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                               FontFamily="{StaticResource FontPrimary}"
-                                               FontSize="{StaticResource FontSizeXS}"
-                                               VerticalAlignment="Center"/>
-                                    <TextBox Grid.Column="3"
-                                             Text="{Binding DxfRefYText, UpdateSourceTrigger=PropertyChanged}"/>
-                                </Grid>
-                                <TextBlock Text="IFC reference point (metres):"
-                                           Style="{StaticResource PropertyLabel}" Margin="0,5,0,2"/>
-                                <Grid Margin="0,0,0,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="18"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="18"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="X"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                               FontFamily="{StaticResource FontPrimary}"
-                                               FontSize="{StaticResource FontSizeXS}"
-                                               VerticalAlignment="Center"/>
-                                    <TextBox Grid.Column="1"
-                                             Text="{Binding IfcRefXText, UpdateSourceTrigger=PropertyChanged}"
-                                             Margin="0,0,6,0"/>
-                                    <TextBlock Grid.Column="2" Text="Y"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                               FontFamily="{StaticResource FontPrimary}"
-                                               FontSize="{StaticResource FontSizeXS}"
-                                               VerticalAlignment="Center"/>
-                                    <TextBox Grid.Column="3"
-                                             Text="{Binding IfcRefYText, UpdateSourceTrigger=PropertyChanged}"/>
-                                </Grid>
-                                <Button Content="Apply Point Match"
-                                        Command="{Binding ApplyPointMatchCommand}"
-                                        Style="{StaticResource ButtonOutlined}"
-                                        HorizontalAlignment="Stretch"/>
-                                <TextBlock Style="{StaticResource TextCaption}"
-                                           Foreground="{StaticResource DestructiveBrush}"
-                                           Text="{Binding ValidationError}"
-                                           TextWrapping="Wrap" Margin="0,2,0,0"
-                                           Visibility="{Binding ValidationError, Converter={StaticResource NullToCollapsedConverter}}"/>
-                            </StackPanel>
-                        </GroupBox>
+                            <!-- DXF original reference -->
+                            <CheckBox Content="Use DXF original reference point"
+                                      IsChecked="{Binding UseDetectedDxfReference, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Margin="0,4,0,4"/>
+                            <TextBlock Text="{Binding DxfOriginalReferenceSummary}"
+                                       Style="{StaticResource TextCaption}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="30,0,0,4"/>
+                            <TextBlock Text="{Binding DxfOriginalGeometryReferenceSummary}"
+                                       Style="{StaticResource TextCaption}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="30,0,0,8"/>
 
-                        <!-- MANUAL TRANSFORM -->
-                        <GroupBox Header="MANUAL TRANSFORM" Margin="0,0,0,10">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,4">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="6"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Offset X (m)" Style="{StaticResource PropertyLabel}" Margin="0,5,0,2"/>
-                                        <TextBox Text="{Binding OffsetXText, UpdateSourceTrigger=PropertyChanged}"/>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="Offset Y (m)" Style="{StaticResource PropertyLabel}" Margin="0,5,0,2"/>
-                                        <TextBox Text="{Binding OffsetYText, UpdateSourceTrigger=PropertyChanged}"/>
-                                    </StackPanel>
-                                </Grid>
-                                <Grid Margin="0,0,0,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="6"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Scale" Style="{StaticResource PropertyLabel}" Margin="0,5,0,2"/>
-                                        <TextBox Text="{Binding ScaleText, UpdateSourceTrigger=PropertyChanged}"/>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="Rotation (°, CW)" Style="{StaticResource PropertyLabel}" Margin="0,5,0,2"/>
-                                        <TextBox Text="{Binding RotationText, UpdateSourceTrigger=PropertyChanged}"/>
-                                    </StackPanel>
-                                </Grid>
-                                <TextBlock Foreground="{StaticResource DestructiveBrush}"
-                                           Style="{StaticResource TextCaption}"
-                                           Text="{Binding ValidationError}"
-                                           TextWrapping="Wrap" Margin="0,2,0,4"
-                                           Visibility="{Binding ValidationError, Converter={StaticResource NullToCollapsedConverter}}"/>
-                                <UniformGrid Columns="2" Rows="2" Margin="0,4,0,0">
-                                    <Button Content="✔  Apply"    Style="{StaticResource ButtonPrimary}"   Command="{Binding ApplyManualCommand}" Margin="0,0,3,3"/>
-                                    <Button Content="⇱  Auto-Fit" Style="{StaticResource ButtonOutlined}"  Command="{Binding AutoFitCommand}"      Margin="3,0,0,3"/>
-                                    <Button Content="↩  Undo"     Style="{StaticResource ButtonOutlined}"  Command="{Binding UndoCommand}"         Margin="0,3,3,0"/>
-                                    <Button Content="⊗  Reset"    Style="{StaticResource ButtonOutlined}"  Command="{Binding ResetCommand}"        Margin="3,3,0,0"/>
-                                </UniformGrid>
-                            </StackPanel>
-                        </GroupBox>
-
-                        <!-- OVERLAY OPACITY -->
-                        <GroupBox Header="OVERLAY OPACITY" Margin="0,0,0,10">
+                            <CheckBox Content="Use custom DXF reference point"
+                                      IsChecked="{Binding UseCustomDxfReference, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Margin="0,0,0,4"/>
+                            <TextBlock Text="Reference point"
+                                       Style="{StaticResource PropertyLabel}"
+                                       Margin="0,0,0,2"/>
+                            <ComboBox ItemsSource="{Binding DxfReferenceAnchorOptions}"
+                                      SelectedItem="{Binding SelectedDxfReferenceAnchor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      IsEnabled="{Binding IsCustomDxfReferenceEnabled}"
+                                      Margin="0,0,0,6"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="58"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="58"/>
+                                    <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Slider Grid.Column="0"
-                                        Minimum="0.1" Maximum="1.0"
-                                        Value="{Binding Opacity}"
-                                        VerticalAlignment="Center"/>
-                                <Border Grid.Column="1"
-                                        Background="{DynamicResource SurfaceBrush}"
-                                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                                        CornerRadius="3" Padding="6,2" Margin="8,0,0,0">
-                                    <TextBlock Text="{Binding Opacity, StringFormat={}{0:P0}}"
-                                               FontFamily="{StaticResource FontPrimary}"
-                                               FontSize="{StaticResource FontSizeXS}"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                               Width="36" TextAlignment="Center"/>
-                                </Border>
-                            </Grid>
-                        </GroupBox>
-
-                        <!-- CURRENT TRANSFORM -->
-                        <GroupBox Header="CURRENT TRANSFORM" Margin="0,0,0,10">
-                            <Border Background="{DynamicResource SurfaceBrush}"
-                                    BorderBrush="{DynamicResource BorderBrush}"
-                                    BorderThickness="1" CornerRadius="3" Padding="8,6">
-                                <TextBlock Text="{Binding TransformSummary}"
+                                <TextBlock Grid.Column="0" Text="{Binding DxfReferenceXLabel}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
                                            FontFamily="{StaticResource FontPrimary}"
                                            FontSize="{StaticResource FontSizeXS}"
+                                           VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding DxfRefXText, UpdateSourceTrigger=PropertyChanged}"
+                                         IsEnabled="{Binding IsCustomDxfReferenceEnabled}"
+                                         Margin="0,0,0,0"/>
+                                <TextBlock Grid.Column="3" Text="{Binding DxfReferenceYLabel}"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
-                                           TextWrapping="Wrap"/>
+                                           FontFamily="{StaticResource FontPrimary}"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="4"
+                                         Text="{Binding DxfRefYText, UpdateSourceTrigger=PropertyChanged}"
+                                         IsEnabled="{Binding IsCustomDxfReferenceEnabled}"/>
+                            </Grid>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- TRANSFORM -->
+                    <GroupBox Header="TRANSFORM" Style="{StaticResource DxfDialogGroupBox}" Margin="0,0,0,10">
+                        <StackPanel>
+                            <!-- Scale / Rotation side by side -->
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Scale" Style="{StaticResource PropertyLabel}" Margin="0,4,0,2"/>
+                                    <TextBox Text="{Binding ScaleText, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Rotation (°, CW)" Style="{StaticResource PropertyLabel}" Margin="0,4,0,2"/>
+                                    <TextBox Text="{Binding RotationText, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Validation error -->
+                            <TextBlock Foreground="{StaticResource DestructiveBrush}"
+                                       Style="{StaticResource TextCaption}"
+                                       Text="{Binding ValidationError}"
+                                       TextWrapping="Wrap" Margin="0,2,0,6"
+                                       Visibility="{Binding ValidationError, Converter={StaticResource NullToCollapsedConverter}}"/>
+
+                            <Button Content="⊗  Reset"
+                                    Style="{StaticResource ButtonOutlined}"
+                                    Visibility="Collapsed"
+                                    Command="{Binding ResetCommand}"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- GLOBAL OFFSET -->
+                    <GroupBox Header="GLOBAL OFFSET" Style="{StaticResource DxfDialogGroupBox}" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Text="Offset unit"
+                                       Style="{StaticResource PropertyLabel}" Margin="0,4,0,2"/>
+                            <ComboBox ItemsSource="{Binding UnitOptions}"
+                                      SelectedItem="{Binding SelectedGlobalOffsetUnit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Margin="0,0,0,6"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="22"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="22"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="X"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           FontFamily="{StaticResource FontPrimary}"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding GlobalOffsetXText, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBlock Grid.Column="3" Text="Y"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           FontFamily="{StaticResource FontPrimary}"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="4"
+                                         Text="{Binding GlobalOffsetYText, UpdateSourceTrigger=PropertyChanged}"/>
+                            </Grid>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- OVERLAY OPACITY -->
+                    <GroupBox Header="OVERLAY OPACITY" Style="{StaticResource DxfDialogGroupBox}" Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider Grid.Column="0"
+                                    Minimum="0.1" Maximum="1.0"
+                                    Value="{Binding Opacity}"
+                                    VerticalAlignment="Center"/>
+                            <Border Grid.Column="1"
+                                    Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0.5"
+                                    CornerRadius="3" Padding="6,2" Margin="8,0,0,0">
+                                <TextBlock Text="{Binding Opacity, StringFormat={}{0:P0}}"
+                                           FontFamily="{StaticResource FontPrimary}"
+                                           FontSize="{StaticResource FontSizeXS}"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           Width="36" TextAlignment="Center"/>
                             </Border>
-                        </GroupBox>
+                        </Grid>
+                    </GroupBox>
 
-                        <!-- LAYERS -->
-                        <GroupBox Header="LAYERS" Margin="0,0,0,10"
-                                  Visibility="{Binding Layers.Count, Converter={StaticResource NullToCollapsedConverter}}">
-                            <ListBox ItemsSource="{Binding Layers}" MaxHeight="170"
-                                     BorderThickness="0" Background="Transparent">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal">
-                                            <CheckBox IsChecked="{Binding IsVisible}" Margin="0,0,6,0"/>
-                                            <Rectangle Width="12" Height="12" VerticalAlignment="Center" Margin="0,0,6,0">
-                                                <Rectangle.Fill>
-                                                    <SolidColorBrush Color="{Binding ColorHex, Converter={StaticResource HexStringToColorConverter}}"/>
-                                                </Rectangle.Fill>
-                                            </Rectangle>
-                                            <TextBlock Text="{Binding Name}"
-                                                       FontFamily="{StaticResource FontPrimary}"
-                                                       FontSize="{StaticResource FontSizeXS}"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                                       VerticalAlignment="Center"/>
-                                            <TextBlock Text="{Binding EntityCount, StringFormat=' ({0})'}"
-                                                       FontFamily="{StaticResource FontPrimary}"
-                                                       FontSize="{StaticResource FontSizeXS}"
-                                                       Margin="2,0,0,0"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </GroupBox>
+                    <!-- CURRENT TRANSFORM -->
+                    <GroupBox Header="CURRENT TRANSFORM" Style="{StaticResource DxfDialogGroupBox}" Margin="0,0,0,6">
+                        <Border Background="{DynamicResource SurfaceBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="0.5" CornerRadius="3" Padding="8,6">
+                            <TextBlock Text="{Binding TransformSummary}"
+                                       FontFamily="{StaticResource FontPrimary}"
+                                       FontSize="{StaticResource FontSizeXS}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </Border>
+                    </GroupBox>
 
-                    </StackPanel>
-                </ScrollViewer>
-            </Grid>
+                </StackPanel>
+            </ScrollViewer>
 
-            <!-- ── Status bar ────────────────────────────────────────── -->
+            <!-- ── Status bar / footer ───────────────────────────────────── -->
             <Border Grid.Row="2"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="0,1,0,0" CornerRadius="0,0,6,6">
+                    BorderThickness="0,1,0,0" CornerRadius="0,0,4,4">
                 <Grid Margin="12,7,12,7">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Grid Grid.Column="0" Margin="0,0,12,0" VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
                         <TextBlock Text="●"
                                    FontSize="{StaticResource FontSizeXS}"
                                    VerticalAlignment="Center" Margin="0,0,6,0"
                                    Foreground="{DynamicResource PrimaryBrush}"/>
-                        <TextBlock Text="{Binding StatusMessage}"
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding StatusMessage}"
                                    FontFamily="{StaticResource FontPrimary}"
                                    FontSize="{StaticResource FontSizeSM}"
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"
                                    Foreground="{DynamicResource TextSecondaryBrush}"/>
-                    </StackPanel>
+                    </Grid>
 
-                    <StackPanel Grid.Column="1" Orientation="Horizontal">
-                        <Button Content="✔  Apply"
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="Reset"
                                 Style="{StaticResource ButtonOutlined}"
-                                Click="Apply_Click" Margin="0,0,6,0"
-                                ToolTip="Apply the current transform and keep the dialog open"/>
-                        <Button Content="✔  Apply &amp; Close" IsDefault="True"
+                                Command="{Binding ResetCommand}"
+                                Margin="0,0,6,0"
+                                ToolTip="Reset the current transform"/>
+                        <Button Content="✔  Apply" IsDefault="True"
                                 Style="{StaticResource ButtonPrimary}"
-                                Click="ApplyAndClose_Click" Margin="0,0,6,0"
-                                ToolTip="Apply the current transform and close"/>
+                                Click="Apply_Click" Margin="0,0,6,0"
+                                ToolTip="Apply the current transform"/>
                         <Button Content="Close"
                                 Style="{StaticResource ButtonOutlined}"
                                 Click="Cancel_Click"/>

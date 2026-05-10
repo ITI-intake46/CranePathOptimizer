@@ -25,7 +25,6 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
     public partial class DxfAlignmentDialog : Window
     {
         private readonly DxfAlignmentViewModel _vm;
-        private readonly DxfCanvasRenderer _renderer;
 
         // ── Constructors ──────────────────────────────────────────────────────
 
@@ -41,9 +40,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         {
             InitializeComponent();
 
-            _vm       = new DxfAlignmentViewModel(uploader);
-            _renderer = new DxfCanvasRenderer();
-
+            _vm = new DxfAlignmentViewModel(uploader);
             DataContext = _vm;
         }
 
@@ -51,7 +48,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
 
         /// <summary>
         /// Restores previously saved transform values into the dialog so the user
-        /// sees the same offset / scale / rotation they last entered.
+        /// sees the same scale / rotation they last entered.
         /// Must be called BEFORE Show().
         /// </summary>
         public void RestoreTransform(double[]? arr)
@@ -62,14 +59,27 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             _vm.Transform.OffsetY         = arr[1];
             _vm.Transform.Scale           = arr[2];
             _vm.Transform.RotationDegrees = arr[3];
-            _vm.RefreshTextBoxes();          // sync text boxes to new model values
+            if (arr.Length >= 8)
+            {
+                _vm.Transform.DxfRefX = arr[4];
+                _vm.Transform.DxfRefY = arr[5];
+                _vm.Transform.IfcRefX = arr[6];
+                _vm.Transform.IfcRefY = arr[7];
+                _vm.RefreshReferenceTextBoxes();
+            }
+            if (arr.Length >= 12)
+            {
+                _vm.Transform.GlobalOffsetX = arr[8];
+                _vm.Transform.GlobalOffsetY = arr[9];
+                _vm.Transform.DxfUnitIndex = (int)Math.Round(arr[10]);
+                _vm.Transform.GlobalOffsetUnitIndex = (int)Math.Round(arr[11]);
+            }
+            _vm.RefreshTextBoxes();
 
-            // Push restored values to the 3-D uploader immediately
-            if (_vm.ApplyManualCommand.CanExecute(null))
-                _vm.ApplyManualCommand.Execute(null);
+            _vm.PushCurrentTransformToUploader();
         }
 
-        /// <summary>Snapshot of [OffsetX, OffsetY, Scale, RotationDegrees] to persist.</summary>
+        /// <summary>Snapshot of transform and reference-point values to persist.</summary>
         public double[] GetTransformArray() => _vm.Transform.ToArray();
 
         /// <summary>Returns the 4×4 alignment Matrix3D (for reading back the transform).</summary>
@@ -82,13 +92,12 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            _renderer.Attach(DxfCanvas, _vm.Transform);
-            _vm.SetRenderer(_renderer);
+            // No canvas renderer needed — canvas panel has been removed.
         }
 
         private void Window_Closed(object sender, EventArgs e)
         {
-            _renderer.Detach();
+            // Nothing to detach.
         }
 
         // ── Chrome handlers ───────────────────────────────────────────────────

@@ -3,6 +3,7 @@ using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Features.F11_DXF.Views;
 using HelixToolkit.Wpf;
 using Microsoft.Win32;
+using System;
 using System.IO;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
@@ -30,7 +31,8 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
         // ── Alignment dialog state ───────────────────────────────────────────
         // Persisted between sessions so the user’s last offset/scale/rotation
         // is restored when the dialog is re-opened.
-        private double[] _savedTransformArray = { 0, 0, 1.0, 0 };
+        private double[] _savedTransformArray = { 0, 0, 1.0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+        private bool _hasSavedTransformForLoadedFile;
 
         // Non-modal dialog reference — reuse if already open
         private DxfAlignmentDialog? _openDialog;
@@ -124,6 +126,13 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
 
             if (picker.ShowDialog() != true) return;
 
+            bool isDifferentFile = !string.Equals(_loadedFilePath, picker.FileName, StringComparison.OrdinalIgnoreCase);
+            if (isDifferentFile)
+            {
+                _savedTransformArray = new[] { 0, 0, 1.0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+                _hasSavedTransformForLoadedFile = false;
+            }
+
             _loadedFilePath = picker.FileName;
             LoadedFileName  = Path.GetFileName(picker.FileName);
             StatusMessage   = $"Loading: {LoadedFileName}...";
@@ -189,12 +198,15 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
                 dlg.Owner = System.Windows.Application.Current.MainWindow;
 
                 // Restore the values the user entered last time
-                dlg.RestoreTransform(_savedTransformArray);
+                if (_hasSavedTransformForLoadedFile)
+                    dlg.RestoreTransform(_savedTransformArray);
 
                 // Save transform + clear reference when user closes the dialog
                 dlg.Closed += (s, e) =>
                 {
                     _savedTransformArray = dlg.GetTransformArray();
+                    _hasSavedTransformForLoadedFile = true;
+                    PendingTransform = dlg.GetResultTransform();
                     _openDialog = null;
                     StatusMessage = $"Aligned: {LoadedFileName}";
                 };
