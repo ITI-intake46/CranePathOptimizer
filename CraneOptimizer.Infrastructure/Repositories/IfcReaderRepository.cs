@@ -16,11 +16,11 @@ namespace CraneOptimizer.Infrastructure.Repositories
     {
         private const double DefaultLengthToMillimetersFactor = 1000d;
         private const double CubicMillimetersPerCubicMeter = 1_000_000_000d;
-        private const double ConcreteDensityTonPerCubicMeter = 2.4d;
-        private const double SteelDensityTonPerCubicMeter = 7.85d;
-        private const double AluminumDensityTonPerCubicMeter = 2.7d;
-        private const double GlassDensityTonPerCubicMeter = 2.5d;
-        private const double TimberDensityTonPerCubicMeter = 0.6d;
+        private const double ConcreteDensityKgPerCubicMeter = 2500d;
+        private const double SteelDensityKgPerCubicMeter = 7850d;
+        private const double AluminumDensityKgPerCubicMeter = 2700d;
+        private const double GlassDensityKgPerCubicMeter = 2500d;
+        private const double TimberDensityKgPerCubicMeter = 600d;
 
         public IfcStore? CurrentModel { get; private set; }
         public Xbim3DModelContext? GeometryContext { get; private set; }
@@ -294,16 +294,30 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     GetQuantity(product, "height") ??
                     GetPropertyDouble(product, "height")) ?? bboxHeight;
 
-                var volume = ConvertVolume(GetQuantity(product, "volume") ?? GetPropertyDouble(product, "volume"));
+                var volume = ConvertVolume(
+                    GetQuantity(product, "netvolume") ??
+                    GetQuantity(product, "volume") ??
+                    GetPropertyDouble(product, "netvolume") ??
+                    GetPropertyDouble(product, "volume"));
                 var material = GetMaterial(product);
                 var weight = GetWeight(product);
+                
+                // Fallback: If Weight is 0 or missing, use Volume * 2500
+                if ((weight ?? 0) <= 0 && (volume ?? 0) > 0)
+                {
+                    weight = (volume.Value / CubicMillimetersPerCubicMeter) * ConcreteDensityKgPerCubicMeter;
+                }
+
+                var revitId = GetRevitId(product);
+                var rawName = GetMark(product) ?? product.Name?.ToString();
+                var cleanedName = CleanElementName(rawName ?? string.Empty);
 
                 if (!weight.HasValue && volume.HasValue)
                     weight = EstimateWeightFromMaterial(material, volume.Value);
 
                 return new SourceElementSnapshot(
                     product.EntityLabel,
-                    product.GlobalId.ToString(),
+                    revitId ?? product.GlobalId.ToString(),
                     product.ExpressType?.Name ?? product.GetType().Name,
                     material,
                     weight,
@@ -311,7 +325,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     geometry,
                     elementLength,
                     elementWidth,
-                    elementHeight);
+                    elementHeight,
+                    revitId,
+                    cleanedName);
             }
 
             private AggregateSnapshot? BuildAggregateSnapshot(
@@ -337,9 +353,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var geometry = ResolveAggregateGeometry(parentSnapshot, childSnapshots, totalWeight);
                 var material = ResolveAggregateMaterial(parentSnapshot, childSnapshots);
 
+                var revitId = GetRevitId(assembly);
+                var rawName = GetMark(assembly) ?? assembly.Name?.ToString();
+                var cleanedName = CleanElementName(rawName ?? string.Empty);
+
                 var aggregate = new AggregateSnapshot(
                     assembly.EntityLabel,
-                    assembly.GlobalId.ToString(),
+                    revitId ?? assembly.GlobalId.ToString(),
                     assembly.ExpressType?.Name ?? assembly.GetType().Name,
                     material,
                     totalWeight,
@@ -347,7 +367,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     geometry,
                     geometry?.Length,
                     geometry?.Width,
-                    geometry?.Height);
+                    geometry?.Height,
+                    revitId,
+                    cleanedName);
 
                 _aggregateCache[assembly.EntityLabel] = aggregate;
                 return aggregate;
@@ -618,10 +640,82 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             private double? GetWeight(IIfcProduct product)
             {
-                // Note: "weight" already matches "grossweight" / "netweight" via Contains,
-                // so explicit extra keywords are not needed.
                 return GetQuantity(product, "weight", "mass")
                     ?? GetPropertyDouble(product, "weight", "mass");
+            }
+
+            private static string? GetRevitId(IIfcProduct product)
+            {
+                var tag = (product as IIfcElement)?.Tag?.ToString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(tag))
+                    return tag;
+
+                var propertySets = product.IsDefinedBy
+                    .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
+                    .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition);
+
+                foreach (var pset in propertySets)
+                {
+                    if (!pset.Name.ToString().Contains("Revit_Identity", StringComparison.OrdinalIgnoreCase) &&
+                        !pset.Name.ToString().Equals("Pset_Revit_Identity Data", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    foreach (var prop in pset.HasProperties.OfType<IIfcPropertySingleValue>())
+                    {
+                        var pname = prop.Name.ToString();
+                        if (pname.Equals("Id", StringComparison.OrdinalIgnoreCase) ||
+                            pname.Equals("ElementId", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var val = prop.NominalValue?.ToString()?.Trim();
+                            if (!string.IsNullOrWhiteSpace(val))
+                                return val;
+                        }
+                    }
+                }
+
+                return null;
+            }
+
+            private static string? GetMark(IIfcProduct product)
+            {
+                var propertySets = product.IsDefinedBy
+                    .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
+                    .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition)
+                    .ToList();
+
+                var psetNames = new[] { "Pset_Revit_Identity Data", "Pset_ConcreteElementGeneral" };
+
+                foreach (var targetName in psetNames)
+                {
+                    foreach (var pset in propertySets)
+                    {
+                        if (!pset.Name.ToString().Contains(targetName, StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        foreach (var prop in pset.HasProperties.OfType<IIfcPropertySingleValue>())
+                        {
+                            if (!prop.Name.ToString().Equals("Mark", StringComparison.OrdinalIgnoreCase))
+                                continue;
+
+                            var val = prop.NominalValue?.ToString()?.Trim();
+                            if (!string.IsNullOrWhiteSpace(val))
+                                return val;
+                        }
+                    }
+                }
+
+                var productName = product.Name?.ToString()?.Trim();
+                return string.IsNullOrWhiteSpace(productName) ? null : productName;
+            }
+
+            private static string CleanElementName(string rawName)
+            {
+                if (string.IsNullOrWhiteSpace(rawName)) return "-";
+                
+                return rawName.Replace("- Assembly", "")
+                             .Replace(" Assembly", "")
+                             .Replace(" : ", " - ")
+                             .Trim();
             }
 
             private double? GetQuantity(IIfcProduct product, params string[] keywords)
@@ -705,23 +799,16 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             private static double? EstimateWeightFromMaterial(string? material, double volumeInCubicMillimeters)
             {
-                if (string.IsNullOrWhiteSpace(material))
-                    return null;
+                var name = string.IsNullOrWhiteSpace(material) ? string.Empty : material.ToUpperInvariant();
 
-                var name = material.ToUpperInvariant();
+                double densityKgPerCubicMeter =
+                    name.ContainsAny("STEEL", "REBAR", "METAL") ? SteelDensityKgPerCubicMeter :
+                    name.ContainsAny("ALUMIN") ? AluminumDensityKgPerCubicMeter :
+                    name.ContainsAny("GLASS") ? GlassDensityKgPerCubicMeter :
+                    name.ContainsAny("TIMBER", "WOOD") ? TimberDensityKgPerCubicMeter :
+                    ConcreteDensityKgPerCubicMeter;
 
-                double? densityTonPerCubicMeter =
-                    name.ContainsAny("STEEL", "REBAR", "METAL") ? SteelDensityTonPerCubicMeter :
-                    name.ContainsAny("ALUMIN") ? AluminumDensityTonPerCubicMeter :
-                    name.ContainsAny("GLASS") ? GlassDensityTonPerCubicMeter :
-                    name.ContainsAny("TIMBER", "WOOD") ? TimberDensityTonPerCubicMeter :
-                    name.ContainsAny("CONCRETE", "PRECAST") ? ConcreteDensityTonPerCubicMeter :
-                    null;
-
-                if (!densityTonPerCubicMeter.HasValue)
-                    return null;
-
-                return (volumeInCubicMillimeters / CubicMillimetersPerCubicMeter) * densityTonPerCubicMeter.Value;
+                return (volumeInCubicMillimeters / CubicMillimetersPerCubicMeter) * densityKgPerCubicMeter;
             }
 
             // -------------------------------------------------------------------------
@@ -798,6 +885,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return new PrecastElement
                 {
                     ElementID = snapshot.ElementId,
+                    ElementRevitId = snapshot.RevitId,
+                    ElementMark = snapshot.Mark,
                     ElementType = snapshot.ElementType,
                     ElementLength = snapshot.ElementLength,
                     ElementWidth = snapshot.ElementWidth,
@@ -820,6 +909,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private interface IEngineeringSnapshot
         {
             string ElementId { get; }
+            string? RevitId { get; }
+            string? Mark { get; }
             string ElementType { get; }
             string? Material { get; }
             double? Weight { get; }
@@ -841,7 +932,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
             GeometrySnapshot? Geometry,
             double? ElementLength,
             double? ElementWidth,
-            double? ElementHeight) : IEngineeringSnapshot
+            double? ElementHeight,
+            string? RevitId,
+            string? Mark) : IEngineeringSnapshot
         {
             public bool HasEngineeringData =>
                 Geometry?.HasBounds == true ||
@@ -862,7 +955,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
             GeometrySnapshot? Geometry,
             double? ElementLength,
             double? ElementWidth,
-            double? ElementHeight) : IEngineeringSnapshot
+            double? ElementHeight,
+            string? RevitId,
+            string? Mark) : IEngineeringSnapshot
         {
             public DomainPoint3D CenterOfGravity =>
                 Geometry?.Center ?? new DomainPoint3D();
@@ -877,7 +972,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     parent.Geometry,
                     parent.ElementLength,
                     parent.ElementWidth,
-                    parent.ElementHeight);
+                    parent.ElementHeight,
+                    parent.RevitId,
+                    parent.Mark);
         }
 
         private sealed record GeometrySnapshot(
