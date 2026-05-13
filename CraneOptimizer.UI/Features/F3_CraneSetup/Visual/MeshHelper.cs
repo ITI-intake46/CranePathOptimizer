@@ -33,6 +33,51 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
             return mesh;
         }
 
+        public static MeshGeometry3D CreateChamferedBox(
+            Point3D center,
+            double sizeX,
+            double sizeY,
+            double sizeZ,
+            double chamfer)
+        {
+            double x = sizeX / 2.0;
+            double y = sizeY / 2.0;
+            double z = sizeZ / 2.0;
+            double c = Math.Clamp(chamfer, 0.0, Math.Min(sizeY, sizeZ) * 0.45);
+            var mesh = new MeshGeometry3D();
+
+            var section = new (double Y, double Z)[]
+            {
+                (-y + c, -z),
+                ( y - c, -z),
+                ( y, -z + c),
+                ( y,  z - c),
+                ( y - c, z),
+                (-y + c, z),
+                (-y, z - c),
+                (-y, -z + c)
+            };
+
+            var front = section
+                .Select(p => new Point3D(center.X - x, center.Y + p.Y, center.Z + p.Z))
+                .ToArray();
+            var back = section
+                .Select(p => new Point3D(center.X + x, center.Y + p.Y, center.Z + p.Z))
+                .ToArray();
+
+            for (int i = 0; i < section.Length; i++)
+            {
+                int n = (i + 1) % section.Length;
+                AddQuadAuto(mesh, front[i], front[n], back[n], back[i]);
+            }
+
+            AddCap(mesh, front, new Vector3D(-1, 0, 0), reverseWinding: true);
+            AddCap(mesh, back, new Vector3D(1, 0, 0));
+
+            mesh.Freeze();
+            return mesh;
+        }
+
         public static MeshGeometry3D CreateCylinder(Point3D start, Point3D end, double radius, int thetaDiv)
         {
             var mesh = new MeshGeometry3D();
@@ -285,6 +330,41 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
             mesh.TriangleIndices.Add(start);
             mesh.TriangleIndices.Add(start + 2);
             mesh.TriangleIndices.Add(start + 3);
+        }
+
+        private static void AddQuadAuto(MeshGeometry3D mesh, Point3D p0, Point3D p1, Point3D p2, Point3D p3)
+        {
+            var normal = Vector3D.CrossProduct(p1 - p0, p2 - p0);
+            if (normal.LengthSquared > 0)
+                normal.Normalize();
+
+            AddQuad(mesh, normal, p0, p1, p2, p3);
+        }
+
+        private static void AddCap(MeshGeometry3D mesh, Point3D[] points, Vector3D normal, bool reverseWinding = false)
+        {
+            int start = mesh.Positions.Count;
+            foreach (var point in points)
+            {
+                mesh.Positions.Add(point);
+                mesh.Normals.Add(normal);
+            }
+
+            for (int i = 1; i < points.Length - 1; i++)
+            {
+                if (reverseWinding)
+                {
+                    mesh.TriangleIndices.Add(start);
+                    mesh.TriangleIndices.Add(start + i + 1);
+                    mesh.TriangleIndices.Add(start + i);
+                }
+                else
+                {
+                    mesh.TriangleIndices.Add(start);
+                    mesh.TriangleIndices.Add(start + i);
+                    mesh.TriangleIndices.Add(start + i + 1);
+                }
+            }
         }
 
         private static int NormalizeRadialSegments(int requested)
