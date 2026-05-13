@@ -28,7 +28,7 @@ namespace CraneOptimizer.UI.Core.Services
             _layers.Clear();
             _viewport.Children.Clear();
 
-            SetupUltraLighting();
+            SetupPhongLighting();
             AddGrid(DefaultGridSizeMillimeters, DefaultGridSizeMillimeters);
             _viewport.Children.Add(new CoordinateSystemVisual3D());
         }
@@ -163,61 +163,51 @@ namespace CraneOptimizer.UI.Core.Services
             };
         }
 
-        private void SetupUltraLighting()
+        private void SetupPhongLighting()
         {
             if (_viewport == null) return;
 
             var lg = new Model3DGroup();
 
-            // 1 — KEY: warm afternoon sun, upper-right-front
-            lg.Children.Add(new DirectionalLight
-            {
-                Color = Color.FromRgb(255, 242, 210),
-                Direction = new Vector3D(-0.55, -0.75, -0.45)
-            });
+            // Key light: warm, high and directional enough to produce crisp specular highlights.
+            lg.Children.Add(CreateDirectionalLight(
+                Color.FromRgb(255, 238, 205),
+                new Vector3D(-0.45, -0.65, -0.62)));
 
-            // 2 — FILL: cool open sky, upper-left, ~38% of key
-            lg.Children.Add(new DirectionalLight
-            {
-                Color = Color.FromRgb(130, 165, 215),
-                Direction = new Vector3D(0.75, -0.55, 0.35)
-            });
+            // Fill light: cool sky contribution that preserves form without flattening shadows.
+            lg.Children.Add(CreateDirectionalLight(
+                Color.FromRgb(100, 132, 178),
+                new Vector3D(0.75, -0.25, -0.32)));
 
-            // 3 — RIM: neutral back-separation, behind & slightly below
-            lg.Children.Add(new DirectionalLight
-            {
-                Color = Color.FromRgb(170, 178, 185),
-                Direction = new Vector3D(0.15, 0.35, 0.92)
-            });
+            // Rim light: separates the boom and counterweight edges from dense model views.
+            lg.Children.Add(CreateDirectionalLight(
+                Color.FromRgb(150, 160, 170),
+                new Vector3D(0.25, 0.72, -0.18)));
 
-            // 4 — TOP-DOWN: simulates overcast sky dome contribution
-            lg.Children.Add(new DirectionalLight
-            {
-                Color = Color.FromRgb(95, 115, 145),
-                Direction = new Vector3D(0.0, -1.0, 0.0)
-            });
-
-            // 5 — AMBIENT: absolute minimum so no face is pure black
+            // Ambient floor: contributes the low, non-directional term in the Phong model.
             lg.Children.Add(new AmbientLight
             {
-                Color = Color.FromRgb(38, 46, 58)
+                Color = Color.FromRgb(42, 48, 58)
             });
 
-            // 6 — GROUND BOUNCE: warm floor reflection
-            lg.Children.Add(new DirectionalLight
-            {
-                Color = Color.FromRgb(90, 72, 48),
-                Direction = new Vector3D(0.05, 1.0, 0.05)
-            });
-
-            // 7 — SECONDARY BOUNCE: subtle side warm-orange (interior walls)
-            lg.Children.Add(new DirectionalLight
-            {
-                Color = Color.FromRgb(60, 48, 35),
-                Direction = new Vector3D(-1.0, 0.2, 0.0)
-            });
+            // Ground bounce: weak warm return light from the site plane.
+            lg.Children.Add(CreateDirectionalLight(
+                Color.FromRgb(70, 56, 38),
+                new Vector3D(0.08, 0.15, 0.98)));
 
             _viewport.Children.Insert(0, new ModelVisual3D { Content = lg });
+        }
+
+        private static DirectionalLight CreateDirectionalLight(Color color, Vector3D direction)
+        {
+            if (direction.LengthSquared > 0)
+                direction.Normalize();
+
+            return new DirectionalLight
+            {
+                Color = color,
+                Direction = direction
+            };
         }
 
         // =========================
@@ -339,7 +329,7 @@ namespace CraneOptimizer.UI.Core.Services
             _viewport!.Children.Clear();
             _layers.Clear();
 
-            SetupUltraLighting();
+            SetupPhongLighting();
             AddGrid(DefaultGridSizeMillimeters, DefaultGridSizeMillimeters);
             _viewport.Children.Add(new CoordinateSystemVisual3D());
         }

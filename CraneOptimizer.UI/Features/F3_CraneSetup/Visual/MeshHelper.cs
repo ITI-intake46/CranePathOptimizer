@@ -4,32 +4,75 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
 {
     internal static class MeshHelper
     {
+        private const int MinimumRadialSegments = 24;
+        private const double DegenerateLength = 1e-10;
+
         public static MeshGeometry3D CreateBox(Point3D center, double sizeX, double sizeY, double sizeZ)
         {
             double x = sizeX / 2.0, y = sizeY / 2.0, z = sizeZ / 2.0;
             var mesh = new MeshGeometry3D();
 
-            mesh.Positions.Add(new Point3D(center.X - x, center.Y - y, center.Z - z));
-            mesh.Positions.Add(new Point3D(center.X + x, center.Y - y, center.Z - z));
-            mesh.Positions.Add(new Point3D(center.X + x, center.Y + y, center.Z - z));
-            mesh.Positions.Add(new Point3D(center.X - x, center.Y + y, center.Z - z));
-            mesh.Positions.Add(new Point3D(center.X - x, center.Y - y, center.Z + z));
-            mesh.Positions.Add(new Point3D(center.X + x, center.Y - y, center.Z + z));
-            mesh.Positions.Add(new Point3D(center.X + x, center.Y + y, center.Z + z));
-            mesh.Positions.Add(new Point3D(center.X - x, center.Y + y, center.Z + z));
+            var p000 = new Point3D(center.X - x, center.Y - y, center.Z - z);
+            var p100 = new Point3D(center.X + x, center.Y - y, center.Z - z);
+            var p110 = new Point3D(center.X + x, center.Y + y, center.Z - z);
+            var p010 = new Point3D(center.X - x, center.Y + y, center.Z - z);
+            var p001 = new Point3D(center.X - x, center.Y - y, center.Z + z);
+            var p101 = new Point3D(center.X + x, center.Y - y, center.Z + z);
+            var p111 = new Point3D(center.X + x, center.Y + y, center.Z + z);
+            var p011 = new Point3D(center.X - x, center.Y + y, center.Z + z);
 
-            int[] faces =
+            // Boxes need hard edges, so every face owns its four vertices and a flat normal.
+            AddQuad(mesh, new Vector3D(0, 0, -1), p000, p100, p110, p010, reverseWinding: true);
+            AddQuad(mesh, new Vector3D(0, 0, 1), p001, p101, p111, p011);
+            AddQuad(mesh, new Vector3D(0, -1, 0), p000, p100, p101, p001);
+            AddQuad(mesh, new Vector3D(0, 1, 0), p110, p010, p011, p111);
+            AddQuad(mesh, new Vector3D(-1, 0, 0), p010, p000, p001, p011);
+            AddQuad(mesh, new Vector3D(1, 0, 0), p100, p110, p111, p101);
+
+            mesh.Freeze();
+            return mesh;
+        }
+
+        public static MeshGeometry3D CreateChamferedBox(
+            Point3D center,
+            double sizeX,
+            double sizeY,
+            double sizeZ,
+            double chamfer)
+        {
+            double x = sizeX / 2.0;
+            double y = sizeY / 2.0;
+            double z = sizeZ / 2.0;
+            double c = Math.Clamp(chamfer, 0.0, Math.Min(sizeY, sizeZ) * 0.45);
+            var mesh = new MeshGeometry3D();
+
+            var section = new (double Y, double Z)[]
             {
-                0,2,1, 0,3,2,
-                4,5,6, 4,6,7,
-                0,1,5, 0,5,4,
-                2,3,7, 2,7,6,
-                3,0,4, 3,4,7,
-                1,2,6, 1,6,5
+                (-y + c, -z),
+                ( y - c, -z),
+                ( y, -z + c),
+                ( y,  z - c),
+                ( y - c, z),
+                (-y + c, z),
+                (-y, z - c),
+                (-y, -z + c)
             };
 
-            foreach (var i in faces)
-                mesh.TriangleIndices.Add(i);
+            var front = section
+                .Select(p => new Point3D(center.X - x, center.Y + p.Y, center.Z + p.Z))
+                .ToArray();
+            var back = section
+                .Select(p => new Point3D(center.X + x, center.Y + p.Y, center.Z + p.Z))
+                .ToArray();
+
+            for (int i = 0; i < section.Length; i++)
+            {
+                int n = (i + 1) % section.Length;
+                AddQuadAuto(mesh, front[i], front[n], back[n], back[i]);
+            }
+
+            AddCap(mesh, front, new Vector3D(-1, 0, 0), reverseWinding: true);
+            AddCap(mesh, back, new Vector3D(1, 0, 0));
 
             mesh.Freeze();
             return mesh;
@@ -39,41 +82,68 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
         {
             var mesh = new MeshGeometry3D();
             var axis = end - start;
-            if (axis.Length < 1e-10)
+            if (axis.Length < DegenerateLength || radius <= 0)
                 return mesh;
 
             axis.Normalize();
-            var perp = Math.Abs(axis.Z) < 0.9
-                ? Vector3D.CrossProduct(axis, new Vector3D(0, 0, 1))
-                : Vector3D.CrossProduct(axis, new Vector3D(1, 0, 0));
-            perp.Normalize();
-            var perp2 = Vector3D.CrossProduct(axis, perp);
+            CreateBasis(axis, out var perp, out var perp2);
+            int t = NormalizeRadialSegments(thetaDiv);
 
-            for (int i = 0; i < thetaDiv; i++)
+            for (int i = 0; i < t; i++)
             {
-                double a = 2 * Math.PI * i / thetaDiv;
-                var off = radius * (Math.Cos(a) * perp + Math.Sin(a) * perp2);
+                var radial = GetRadialVector(i, t, perp, perp2);
+                var off = radius * radial;
                 mesh.Positions.Add(start + off);
+                mesh.Normals.Add(radial);
             }
 
-            for (int i = 0; i < thetaDiv; i++)
+            for (int i = 0; i < t; i++)
             {
-                double a = 2 * Math.PI * i / thetaDiv;
-                var off = radius * (Math.Cos(a) * perp + Math.Sin(a) * perp2);
+                var radial = GetRadialVector(i, t, perp, perp2);
+                var off = radius * radial;
                 mesh.Positions.Add(end + off);
+                mesh.Normals.Add(radial);
             }
 
-            mesh.Positions.Add(start);
-            mesh.Positions.Add(end);
-
-            int t = thetaDiv;
             for (int i = 0; i < t; i++)
             {
                 int n = (i + 1) % t;
                 mesh.TriangleIndices.Add(i); mesh.TriangleIndices.Add(t + i); mesh.TriangleIndices.Add(t + n);
                 mesh.TriangleIndices.Add(i); mesh.TriangleIndices.Add(t + n); mesh.TriangleIndices.Add(n);
-                mesh.TriangleIndices.Add(2 * t); mesh.TriangleIndices.Add(n); mesh.TriangleIndices.Add(i);
-                mesh.TriangleIndices.Add(2 * t + 1); mesh.TriangleIndices.Add(t + i); mesh.TriangleIndices.Add(t + n);
+            }
+
+            int bottomStart = mesh.Positions.Count;
+            for (int i = 0; i < t; i++)
+            {
+                var off = radius * GetRadialVector(i, t, perp, perp2);
+                mesh.Positions.Add(start + off);
+                mesh.Normals.Add(-axis);
+            }
+            mesh.Positions.Add(start);
+            mesh.Normals.Add(-axis);
+            int bottomCenter = mesh.Positions.Count - 1;
+
+            for (int i = 0; i < t; i++)
+            {
+                int n = (i + 1) % t;
+                mesh.TriangleIndices.Add(bottomCenter); mesh.TriangleIndices.Add(bottomStart + n); mesh.TriangleIndices.Add(bottomStart + i);
+            }
+
+            int topStart = mesh.Positions.Count;
+            for (int i = 0; i < t; i++)
+            {
+                var off = radius * GetRadialVector(i, t, perp, perp2);
+                mesh.Positions.Add(end + off);
+                mesh.Normals.Add(axis);
+            }
+            mesh.Positions.Add(end);
+            mesh.Normals.Add(axis);
+            int topCenter = mesh.Positions.Count - 1;
+
+            for (int i = 0; i < t; i++)
+            {
+                int n = (i + 1) % t;
+                mesh.TriangleIndices.Add(topCenter); mesh.TriangleIndices.Add(topStart + i); mesh.TriangleIndices.Add(topStart + n);
             }
 
             mesh.Freeze();
@@ -83,26 +153,38 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
         public static MeshGeometry3D CreateSphere(Point3D center, double radius, int thetaDiv, int phiDiv)
         {
             var mesh = new MeshGeometry3D();
-            for (int pi = 0; pi <= phiDiv; pi++)
+            if (radius <= 0)
+                return mesh;
+
+            int t = NormalizeRadialSegments(thetaDiv);
+            int p = Math.Max(phiDiv, t / 2);
+
+            for (int pi = 0; pi <= p; pi++)
             {
-                double phi = Math.PI * pi / phiDiv;
-                for (int ti = 0; ti <= thetaDiv; ti++)
+                double phi = Math.PI * pi / p;
+                for (int ti = 0; ti <= t; ti++)
                 {
-                    double theta = 2 * Math.PI * ti / thetaDiv;
+                    double theta = 2 * Math.PI * ti / t;
+                    var normal = new Vector3D(
+                        Math.Sin(phi) * Math.Cos(theta),
+                        Math.Sin(phi) * Math.Sin(theta),
+                        Math.Cos(phi));
+
                     mesh.Positions.Add(new Point3D(
-                        center.X + radius * Math.Sin(phi) * Math.Cos(theta),
-                        center.Y + radius * Math.Sin(phi) * Math.Sin(theta),
-                        center.Z + radius * Math.Cos(phi)));
+                        center.X + radius * normal.X,
+                        center.Y + radius * normal.Y,
+                        center.Z + radius * normal.Z));
+                    mesh.Normals.Add(normal);
                 }
             }
 
-            for (int pi = 0; pi < phiDiv; pi++)
+            for (int pi = 0; pi < p; pi++)
             {
-                for (int ti = 0; ti < thetaDiv; ti++)
+                for (int ti = 0; ti < t; ti++)
                 {
-                    int i0 = pi * (thetaDiv + 1) + ti;
-                    mesh.TriangleIndices.Add(i0); mesh.TriangleIndices.Add(i0 + thetaDiv + 1); mesh.TriangleIndices.Add(i0 + 1);
-                    mesh.TriangleIndices.Add(i0 + 1); mesh.TriangleIndices.Add(i0 + thetaDiv + 1); mesh.TriangleIndices.Add(i0 + thetaDiv + 2);
+                    int i0 = pi * (t + 1) + ti;
+                    mesh.TriangleIndices.Add(i0); mesh.TriangleIndices.Add(i0 + t + 1); mesh.TriangleIndices.Add(i0 + 1);
+                    mesh.TriangleIndices.Add(i0 + 1); mesh.TriangleIndices.Add(i0 + t + 1); mesh.TriangleIndices.Add(i0 + t + 2);
                 }
             }
 
@@ -116,45 +198,195 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
         {
             var mesh = new MeshGeometry3D();
             var axis = end - start;
-            if (axis.Length < 1e-10)
+            if (axis.Length < DegenerateLength || outerRadius <= 0 || innerRadius < 0 || innerRadius >= outerRadius)
                 return mesh;
 
             axis.Normalize();
-            var perp = Math.Abs(axis.Z) < 0.9
-                ? Vector3D.CrossProduct(axis, new Vector3D(0, 0, 1))
-                : Vector3D.CrossProduct(axis, new Vector3D(1, 0, 0));
-            perp.Normalize();
-            var perp2 = Vector3D.CrossProduct(axis, perp);
-            int t = thetaDiv;
+            CreateBasis(axis, out var perp, out var perp2);
+            int t = NormalizeRadialSegments(thetaDiv);
 
+            int outerSideStart = mesh.Positions.Count;
             for (int i = 0; i < t; i++)
             {
-                double a = 2 * Math.PI * i / t;
-                var oOff = outerRadius * (Math.Cos(a) * perp + Math.Sin(a) * perp2);
-                var iOff = innerRadius * (Math.Cos(a) * perp + Math.Sin(a) * perp2);
+                var radial = GetRadialVector(i, t, perp, perp2);
+                var oOff = outerRadius * radial;
                 mesh.Positions.Add(start + oOff);
+                mesh.Normals.Add(radial);
                 mesh.Positions.Add(end + oOff);
-                mesh.Positions.Add(start + iOff);
-                mesh.Positions.Add(end + iOff);
+                mesh.Normals.Add(radial);
             }
 
             for (int i = 0; i < t; i++)
             {
                 int n = (i + 1) % t;
-                int os0 = 4 * i, oe0 = 4 * i + 1, is0 = 4 * i + 2, ie0 = 4 * i + 3;
-                int os1 = 4 * n, oe1 = 4 * n + 1, is1 = 4 * n + 2, ie1 = 4 * n + 3;
+                int os0 = outerSideStart + 2 * i;
+                int oe0 = outerSideStart + 2 * i + 1;
+                int os1 = outerSideStart + 2 * n;
+                int oe1 = outerSideStart + 2 * n + 1;
                 mesh.TriangleIndices.Add(os0); mesh.TriangleIndices.Add(oe0); mesh.TriangleIndices.Add(oe1);
                 mesh.TriangleIndices.Add(os0); mesh.TriangleIndices.Add(oe1); mesh.TriangleIndices.Add(os1);
+            }
+
+            int innerSideStart = mesh.Positions.Count;
+            for (int i = 0; i < t; i++)
+            {
+                var radial = GetRadialVector(i, t, perp, perp2);
+                var iOff = innerRadius * radial;
+                mesh.Positions.Add(start + iOff);
+                mesh.Normals.Add(-radial);
+                mesh.Positions.Add(end + iOff);
+                mesh.Normals.Add(-radial);
+            }
+
+            for (int i = 0; i < t; i++)
+            {
+                int n = (i + 1) % t;
+                int is0 = innerSideStart + 2 * i;
+                int ie0 = innerSideStart + 2 * i + 1;
+                int is1 = innerSideStart + 2 * n;
+                int ie1 = innerSideStart + 2 * n + 1;
                 mesh.TriangleIndices.Add(is0); mesh.TriangleIndices.Add(is1); mesh.TriangleIndices.Add(ie1);
                 mesh.TriangleIndices.Add(is0); mesh.TriangleIndices.Add(ie1); mesh.TriangleIndices.Add(ie0);
+            }
+
+            int startCapStart = mesh.Positions.Count;
+            for (int i = 0; i < t; i++)
+            {
+                var radial = GetRadialVector(i, t, perp, perp2);
+                mesh.Positions.Add(start + outerRadius * radial);
+                mesh.Normals.Add(-axis);
+                mesh.Positions.Add(start + innerRadius * radial);
+                mesh.Normals.Add(-axis);
+            }
+
+            for (int i = 0; i < t; i++)
+            {
+                int n = (i + 1) % t;
+                int os0 = startCapStart + 2 * i;
+                int is0 = startCapStart + 2 * i + 1;
+                int os1 = startCapStart + 2 * n;
+                int is1 = startCapStart + 2 * n + 1;
                 mesh.TriangleIndices.Add(os0); mesh.TriangleIndices.Add(os1); mesh.TriangleIndices.Add(is1);
                 mesh.TriangleIndices.Add(os0); mesh.TriangleIndices.Add(is1); mesh.TriangleIndices.Add(is0);
+            }
+
+            int endCapStart = mesh.Positions.Count;
+            for (int i = 0; i < t; i++)
+            {
+                var radial = GetRadialVector(i, t, perp, perp2);
+                mesh.Positions.Add(end + outerRadius * radial);
+                mesh.Normals.Add(axis);
+                mesh.Positions.Add(end + innerRadius * radial);
+                mesh.Normals.Add(axis);
+            }
+
+            for (int i = 0; i < t; i++)
+            {
+                int n = (i + 1) % t;
+                int oe0 = endCapStart + 2 * i;
+                int ie0 = endCapStart + 2 * i + 1;
+                int oe1 = endCapStart + 2 * n;
+                int ie1 = endCapStart + 2 * n + 1;
                 mesh.TriangleIndices.Add(oe0); mesh.TriangleIndices.Add(ie0); mesh.TriangleIndices.Add(ie1);
                 mesh.TriangleIndices.Add(oe0); mesh.TriangleIndices.Add(ie1); mesh.TriangleIndices.Add(oe1);
             }
 
             mesh.Freeze();
             return mesh;
+        }
+
+        private static void AddQuad(
+            MeshGeometry3D mesh,
+            Vector3D normal,
+            Point3D p0,
+            Point3D p1,
+            Point3D p2,
+            Point3D p3,
+            bool reverseWinding = false)
+        {
+            int start = mesh.Positions.Count;
+            mesh.Positions.Add(p0);
+            mesh.Positions.Add(p1);
+            mesh.Positions.Add(p2);
+            mesh.Positions.Add(p3);
+
+            for (int i = 0; i < 4; i++)
+                mesh.Normals.Add(normal);
+
+            if (reverseWinding)
+            {
+                mesh.TriangleIndices.Add(start);
+                mesh.TriangleIndices.Add(start + 2);
+                mesh.TriangleIndices.Add(start + 1);
+                mesh.TriangleIndices.Add(start);
+                mesh.TriangleIndices.Add(start + 3);
+                mesh.TriangleIndices.Add(start + 2);
+                return;
+            }
+
+            mesh.TriangleIndices.Add(start);
+            mesh.TriangleIndices.Add(start + 1);
+            mesh.TriangleIndices.Add(start + 2);
+            mesh.TriangleIndices.Add(start);
+            mesh.TriangleIndices.Add(start + 2);
+            mesh.TriangleIndices.Add(start + 3);
+        }
+
+        private static void AddQuadAuto(MeshGeometry3D mesh, Point3D p0, Point3D p1, Point3D p2, Point3D p3)
+        {
+            var normal = Vector3D.CrossProduct(p1 - p0, p2 - p0);
+            if (normal.LengthSquared > 0)
+                normal.Normalize();
+
+            AddQuad(mesh, normal, p0, p1, p2, p3);
+        }
+
+        private static void AddCap(MeshGeometry3D mesh, Point3D[] points, Vector3D normal, bool reverseWinding = false)
+        {
+            int start = mesh.Positions.Count;
+            foreach (var point in points)
+            {
+                mesh.Positions.Add(point);
+                mesh.Normals.Add(normal);
+            }
+
+            for (int i = 1; i < points.Length - 1; i++)
+            {
+                if (reverseWinding)
+                {
+                    mesh.TriangleIndices.Add(start);
+                    mesh.TriangleIndices.Add(start + i + 1);
+                    mesh.TriangleIndices.Add(start + i);
+                }
+                else
+                {
+                    mesh.TriangleIndices.Add(start);
+                    mesh.TriangleIndices.Add(start + i);
+                    mesh.TriangleIndices.Add(start + i + 1);
+                }
+            }
+        }
+
+        private static int NormalizeRadialSegments(int requested)
+            => Math.Max(MinimumRadialSegments, requested);
+
+        private static void CreateBasis(Vector3D axis, out Vector3D perp, out Vector3D perp2)
+        {
+            perp = Math.Abs(axis.Z) < 0.9
+                ? Vector3D.CrossProduct(axis, new Vector3D(0, 0, 1))
+                : Vector3D.CrossProduct(axis, new Vector3D(1, 0, 0));
+            perp.Normalize();
+
+            perp2 = Vector3D.CrossProduct(axis, perp);
+            perp2.Normalize();
+        }
+
+        private static Vector3D GetRadialVector(int index, int radialSegments, Vector3D perp, Vector3D perp2)
+        {
+            double angle = 2 * Math.PI * index / radialSegments;
+            var radial = Math.Cos(angle) * perp + Math.Sin(angle) * perp2;
+            radial.Normalize();
+            return radial;
         }
     }
 }
