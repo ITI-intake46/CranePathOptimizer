@@ -11,24 +11,56 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
         private const double SceneUnitsPerMeter = 1000.0;
         private readonly MobileCraneParameters _params;
 
-        private static Material CreatePhongMaterial(Color color, Color specularColor, double specularPower = 60.0)
+        private static Material CreatePhongMaterial(
+            Color diffuseColor,
+            double ambientStrength,
+            Color specularColor,
+            double specularStrength,
+            double specularPower)
         {
+            var diffuseBrush = new SolidColorBrush(diffuseColor);
+            diffuseBrush.Freeze();
+
+            var specularBrush = new SolidColorBrush(WithAlpha(specularColor, specularStrength));
+            specularBrush.Freeze();
+
+            // WPF combines DiffuseMaterial, AmbientLight/AmbientColor and SpecularMaterial
+            // into a Phong-style response driven by the normals generated in MeshHelper.
             var group = new MaterialGroup();
-            group.Children.Add(new DiffuseMaterial(new SolidColorBrush(color)));
-            group.Children.Add(new SpecularMaterial(new SolidColorBrush(specularColor), specularPower));
+            group.Children.Add(new DiffuseMaterial(diffuseBrush)
+            {
+                AmbientColor = ScaleRgb(diffuseColor, ambientStrength)
+            });
+            group.Children.Add(new SpecularMaterial(specularBrush, specularPower));
+            group.Freeze();
             return group;
         }
 
-        private static readonly Material YellowMat      = CreatePhongMaterial(Color.FromRgb(255, 190, 0), Colors.White, 70);
-        private static readonly Material OrangePadMat   = CreatePhongMaterial(Color.FromRgb(214, 138, 86), Colors.DarkGray, 30);
-        private static readonly Material DarkGrayMat    = CreatePhongMaterial(Color.FromRgb(50,  50,  50), Colors.White, 40);
-        private static readonly Material LightGrayMat   = CreatePhongMaterial(Color.FromRgb(150, 150, 150), Colors.White, 80);
-        private static readonly Material RedMat         = CreatePhongMaterial(Color.FromRgb(200, 50,  50), Colors.White, 60);
-        private static readonly Material WhiteStripeMat = CreatePhongMaterial(Color.FromRgb(240, 240, 240), Colors.White, 50);
-        private static readonly Material BlackMat       = CreatePhongMaterial(Color.FromRgb(25,  25,  25), Colors.DimGray, 20);
-        private static readonly Material WindowMat      = CreatePhongMaterial(Color.FromRgb(80,  120, 160), Colors.White, 100);
+        private static readonly Material YellowMat      = CreatePhongMaterial(Color.FromRgb(245, 185, 26), 0.34, Color.FromRgb(255, 245, 210), 0.56, 88);
+        private static readonly Material OrangePadMat   = CreatePhongMaterial(Color.FromRgb(204, 126, 70), 0.30, Color.FromRgb(245, 220, 190), 0.28, 38);
+        private static readonly Material DarkGrayMat    = CreatePhongMaterial(Color.FromRgb(44, 48, 52), 0.28, Color.FromRgb(225, 230, 235), 0.42, 72);
+        private static readonly Material LightGrayMat   = CreatePhongMaterial(Color.FromRgb(160, 166, 170), 0.32, Color.FromRgb(255, 255, 255), 0.72, 118);
+        private static readonly Material RedMat         = CreatePhongMaterial(Color.FromRgb(195, 45, 42), 0.28, Color.FromRgb(255, 230, 220), 0.42, 72);
+        private static readonly Material WhiteStripeMat = CreatePhongMaterial(Color.FromRgb(238, 238, 230), 0.45, Color.FromRgb(255, 255, 255), 0.38, 70);
+        private static readonly Material BlackMat       = CreatePhongMaterial(Color.FromRgb(22, 22, 22), 0.22, Color.FromRgb(170, 170, 170), 0.18, 28);
+        private static readonly Material WindowMat      = CreatePhongMaterial(Color.FromRgb(65, 105, 145), 0.24, Color.FromRgb(235, 250, 255), 0.92, 142);
         private static readonly Material SwingMat       = MaterialHelper.CreateMaterial(Color.FromArgb(80, 52, 152, 219));
         private static readonly Material ExclusionMat   = MaterialHelper.CreateMaterial(Color.FromArgb(100, 214, 138, 86));
+
+        private static Color ScaleRgb(Color color, double strength)
+        {
+            strength = Math.Clamp(strength, 0.0, 1.0);
+            return Color.FromRgb(
+                ToByte(color.R * strength),
+                ToByte(color.G * strength),
+                ToByte(color.B * strength));
+        }
+
+        private static Color WithAlpha(Color color, double alpha)
+            => Color.FromArgb(ToByte(255 * Math.Clamp(alpha, 0.0, 1.0)), color.R, color.G, color.B);
+
+        private static byte ToByte(double value)
+            => (byte)Math.Clamp(Math.Round(value), 0, 255);
 
         public CraneParametersBase Parameters => _params;
         public MobileCraneParameters MobileParams => _params;
