@@ -49,31 +49,62 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
             perp.Normalize();
             var perp2 = Vector3D.CrossProduct(axis, perp);
 
+            // 1. Side vertices
+            for (int i = 0; i < thetaDiv; i++)
+            {
+                double a = 2 * Math.PI * i / thetaDiv;
+                var off = radius * (Math.Cos(a) * perp + Math.Sin(a) * perp2);
+                mesh.Positions.Add(start + off); // index i
+            }
+
+            for (int i = 0; i < thetaDiv; i++)
+            {
+                double a = 2 * Math.PI * i / thetaDiv;
+                var off = radius * (Math.Cos(a) * perp + Math.Sin(a) * perp2);
+                mesh.Positions.Add(end + off); // index thetaDiv + i
+            }
+
+            int t = thetaDiv;
+            // Side triangles
+            for (int i = 0; i < t; i++)
+            {
+                int n = (i + 1) % t;
+                mesh.TriangleIndices.Add(i); mesh.TriangleIndices.Add(t + i); mesh.TriangleIndices.Add(t + n);
+                mesh.TriangleIndices.Add(i); mesh.TriangleIndices.Add(t + n); mesh.TriangleIndices.Add(n);
+            }
+
+            // 2. Bottom cap vertices (separate to prevent smooth shading across the 90-deg edge)
+            int bottomStart = mesh.Positions.Count;
             for (int i = 0; i < thetaDiv; i++)
             {
                 double a = 2 * Math.PI * i / thetaDiv;
                 var off = radius * (Math.Cos(a) * perp + Math.Sin(a) * perp2);
                 mesh.Positions.Add(start + off);
             }
+            mesh.Positions.Add(start); // center
+            int bottomCenter = mesh.Positions.Count - 1;
 
+            for (int i = 0; i < t; i++)
+            {
+                int n = (i + 1) % t;
+                mesh.TriangleIndices.Add(bottomCenter); mesh.TriangleIndices.Add(bottomStart + n); mesh.TriangleIndices.Add(bottomStart + i);
+            }
+
+            // 3. Top cap vertices
+            int topStart = mesh.Positions.Count;
             for (int i = 0; i < thetaDiv; i++)
             {
                 double a = 2 * Math.PI * i / thetaDiv;
                 var off = radius * (Math.Cos(a) * perp + Math.Sin(a) * perp2);
                 mesh.Positions.Add(end + off);
             }
+            mesh.Positions.Add(end); // center
+            int topCenter = mesh.Positions.Count - 1;
 
-            mesh.Positions.Add(start);
-            mesh.Positions.Add(end);
-
-            int t = thetaDiv;
             for (int i = 0; i < t; i++)
             {
                 int n = (i + 1) % t;
-                mesh.TriangleIndices.Add(i); mesh.TriangleIndices.Add(t + i); mesh.TriangleIndices.Add(t + n);
-                mesh.TriangleIndices.Add(i); mesh.TriangleIndices.Add(t + n); mesh.TriangleIndices.Add(n);
-                mesh.TriangleIndices.Add(2 * t); mesh.TriangleIndices.Add(n); mesh.TriangleIndices.Add(i);
-                mesh.TriangleIndices.Add(2 * t + 1); mesh.TriangleIndices.Add(t + i); mesh.TriangleIndices.Add(t + n);
+                mesh.TriangleIndices.Add(topCenter); mesh.TriangleIndices.Add(topStart + i); mesh.TriangleIndices.Add(topStart + n);
             }
 
             mesh.Freeze();

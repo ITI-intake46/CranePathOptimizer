@@ -11,14 +11,22 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
         private const double SceneUnitsPerMeter = 1000.0;
         private readonly MobileCraneParameters _params;
 
-        private static readonly Material YellowMat      = MaterialHelper.CreateMaterial(Color.FromRgb(255, 190, 0));
-        private static readonly Material OrangePadMat   = MaterialHelper.CreateMaterial(Color.FromRgb(214, 138, 86));
-        private static readonly Material DarkGrayMat    = MaterialHelper.CreateMaterial(Color.FromRgb(50,  50,  50));
-        private static readonly Material LightGrayMat   = MaterialHelper.CreateMaterial(Color.FromRgb(130, 130, 130));
-        private static readonly Material RedMat         = MaterialHelper.CreateMaterial(Color.FromRgb(200, 50,  50));
-        private static readonly Material WhiteStripeMat = MaterialHelper.CreateMaterial(Color.FromRgb(240, 240, 240));
-        private static readonly Material BlackMat       = MaterialHelper.CreateMaterial(Color.FromRgb(25,  25,  25));
-        private static readonly Material WindowMat      = MaterialHelper.CreateMaterial(Color.FromRgb(80,  120, 160));
+        private static Material CreatePhongMaterial(Color color, Color specularColor, double specularPower = 60.0)
+        {
+            var group = new MaterialGroup();
+            group.Children.Add(new DiffuseMaterial(new SolidColorBrush(color)));
+            group.Children.Add(new SpecularMaterial(new SolidColorBrush(specularColor), specularPower));
+            return group;
+        }
+
+        private static readonly Material YellowMat      = CreatePhongMaterial(Color.FromRgb(255, 190, 0), Colors.White, 70);
+        private static readonly Material OrangePadMat   = CreatePhongMaterial(Color.FromRgb(214, 138, 86), Colors.DarkGray, 30);
+        private static readonly Material DarkGrayMat    = CreatePhongMaterial(Color.FromRgb(50,  50,  50), Colors.White, 40);
+        private static readonly Material LightGrayMat   = CreatePhongMaterial(Color.FromRgb(150, 150, 150), Colors.White, 80);
+        private static readonly Material RedMat         = CreatePhongMaterial(Color.FromRgb(200, 50,  50), Colors.White, 60);
+        private static readonly Material WhiteStripeMat = CreatePhongMaterial(Color.FromRgb(240, 240, 240), Colors.White, 50);
+        private static readonly Material BlackMat       = CreatePhongMaterial(Color.FromRgb(25,  25,  25), Colors.DimGray, 20);
+        private static readonly Material WindowMat      = CreatePhongMaterial(Color.FromRgb(80,  120, 160), Colors.White, 100);
         private static readonly Material SwingMat       = MaterialHelper.CreateMaterial(Color.FromArgb(80, 52, 152, 219));
         private static readonly Material ExclusionMat   = MaterialHelper.CreateMaterial(Color.FromArgb(100, 214, 138, 86));
 
@@ -374,20 +382,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
                     new Point3D(boomEnd.X,  0.35, boomEnd.Z),
                     0.25, 16), LightGrayMat));
 
-            // Luffing cylinder
-            var cylBase = new Point3D(pivot.X - 1.5, 0, baseZ - 0.3);
-            double cylLen   = boomLen * 0.35;
-            double cylAngle = boomAngleRad + 0.3;
-            var cylEnd = new Point3D(
-                cylBase.X + cylLen * Math.Cos(cylAngle), 0,
-                cylBase.Z + cylLen * Math.Sin(cylAngle));
-            g.Children.Add(new GeometryModel3D(
-                MeshHelper.CreateCylinder(cylBase, cylEnd, 0.15, 12), LightGrayMat));
-            g.Children.Add(new GeometryModel3D(
-                MeshHelper.CreateCylinder(
-                    cylBase,
-                    new Point3D(cylBase.X + 0.3, 0, cylBase.Z + 0.2),
-                    0.2, 12), YellowMat));
+
 
             // Hook and cable
             double hookZ = boomEnd.Z - Math.Max(_params.CableLength, 1.0);
