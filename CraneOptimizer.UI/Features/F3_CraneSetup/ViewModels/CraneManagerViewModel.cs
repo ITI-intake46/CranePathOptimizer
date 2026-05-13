@@ -182,12 +182,22 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
                 return;
             }
 
-            if (e.PropertyName == nameof(MobileCraneParameters.SlewAngle))
+            if (e.PropertyName == nameof(MobileCraneParameters.BodyAngle))
             {
-                if (NearlyEqual(selected.Rotation, p.SlewAngle))
+                if (NearlyEqual(selected.Rotation, p.BodyAngle))
                     return;
 
-                selected.Rotation = p.SlewAngle;
+                selected.Rotation = p.BodyAngle;
+                _scene.UpdateCrane(selected);
+                return;
+            }
+
+            if (e.PropertyName == nameof(MobileCraneParameters.SlewAngle))
+            {
+                if (NearlyEqual(selected.SlewAngle, p.SlewAngle))
+                    return;
+
+                selected.SlewAngle = p.SlewAngle;
                 _scene.UpdateCrane(selected);
                 return;
             }

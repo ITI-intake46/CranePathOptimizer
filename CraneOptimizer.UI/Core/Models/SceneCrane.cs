@@ -12,6 +12,7 @@ namespace CraneOptimizer.UI.Core.Models
         // Truck center in scene coordinates (meters)
         public DomainPoint3D Position { get; set; } = new();
         public double Rotation { get; set; } // truck heading deg
+        public double SlewAngle { get; set; } // boom heading relative to truck deg
 
         // Kinematics
         public DomainPoint3D PivotOffset { get; set; } = new(0, 0, 1.5);
@@ -42,7 +43,7 @@ namespace CraneOptimizer.UI.Core.Models
         {
             var pivot = GetBoomPivotWorld();
 
-            var heading = Rotation * Math.PI / 180.0;
+            var heading = (Rotation + SlewAngle) * Math.PI / 180.0;
             var elev = BoomAngle * Math.PI / 180.0;
 
             var horizontal = BoomLength * Math.Cos(elev);
