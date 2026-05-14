@@ -111,7 +111,10 @@
                         Style="{StaticResource GroupLabel}"
                         Text="FILTER" />
 
-                    <Button Width="84" Style="{StaticResource RibbonLargeBtn}">
+                    <Button
+                        Width="84"
+                        Command="{Binding ElementManagement.ShowFilterDialogCommand}"
+                        Style="{StaticResource RibbonLargeBtn}">
 
                         <StackPanel HorizontalAlignment="Center">
 

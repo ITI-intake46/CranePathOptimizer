@@ -1,12 +1,16 @@
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
+using CraneOptimizer.UI.Core.Converters;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F5_ElementManagement.Services;
-using CraneOptimizer.UI.Features.F5_ElementManagement.Views;
+using CraneOptimizer.UI.Features.F16_Filter.Models;
+using CraneOptimizer.UI.Features.F16_Filter.Services;
+using CraneOptimizer.UI.Features.F16_Filter.Views;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
@@ -19,20 +23,30 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
     {
         private readonly ISceneService _scene;
         private readonly IElementGridSizingService _gridSizingService;
+        private readonly IElementVisibilityFilterService _visibilityFilterService;
         private string _selectedElementName = "No element selected";
         private PrecastElement? _selectedElement;
         private double _minWeight;
         private double _maxWeight = 50000;
         private List<string> _selectedTypes = new();
+        private List<string> _selectedMaterials = new();
+        private List<string> _selectedStoreys = new();
+        private HashSet<string>? _includedElementIds;
+        private string _sortBy = "Name";
+        private bool _sortDescending;
         private string _searchText = "";
         private string _propertySearchText = "";
         private bool _showOnlySelected;
         private bool _isSyncingSelectionFromScene;
 
-        public ElementManagementViewModel(ISceneService scene, IElementGridSizingService gridSizing)
+        public ElementManagementViewModel(
+            ISceneService scene,
+            IElementGridSizingService gridSizing,
+            IElementVisibilityFilterService visibilityFilterService)
         {
             _scene = scene;
             _gridSizingService = gridSizing;
+            _visibilityFilterService = visibilityFilterService;
             _scene.ElementsChanged += OnElementsChanged;
             _scene.ElementsSelectionChanged += OnElementsSelectionChanged;
             ShowFilterDialogCommand = new RelayCommand(ShowFilterDialog);
@@ -139,9 +153,17 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         public void ApplyFilterCriteria(FilterCriteria criteria)
         {
             _selectedTypes = criteria.SelectedTypes ?? new List<string>();
+            _selectedMaterials = criteria.SelectedMaterials ?? new List<string>();
+            _selectedStoreys = criteria.SelectedStoreys ?? new List<string>();
+            _includedElementIds = criteria.IncludedElementIds == null
+                ? null
+                : new HashSet<string>(criteria.IncludedElementIds.Where(id => !string.IsNullOrWhiteSpace(id)), StringComparer.OrdinalIgnoreCase);
+            _sortBy = string.IsNullOrWhiteSpace(criteria.SortBy) ? "Name" : criteria.SortBy;
+            _sortDescending = criteria.SortDescending;
             MinWeight = criteria.MinWeight;
             MaxWeight = criteria.MaxWeight;
             ApplySearchFilter();
+            ApplyViewerFilterCriteria(criteria);
         }
 
         public void LoadElementProperties()
@@ -224,11 +246,23 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 if (element == null) return false;
 
                 // Weight filter
-                var weight = element.ElementWT ?? 0;
-                if (weight < MinWeight * 1000 || weight > MaxWeight * 1000) return false;
+                var weight = ElementWeightCalculator.GetWeightKg(element);
+                if (weight < MinWeight || weight > MaxWeight) return false;
 
                 // Type filter
                 if (_selectedTypes.Count > 0 && !_selectedTypes.Contains(element.ElementType))
+                    return false;
+
+                if (_selectedMaterials.Count > 0 && !_selectedMaterials.Contains(NormalizeMaterial(element.ElementMaterial)))
+                    return false;
+
+                if (_selectedStoreys.Count > 0 && !_selectedStoreys.Contains(_visibilityFilterService.GetStorey(element)))
+                    return false;
+
+                if (_includedElementIds != null
+                    && (!string.IsNullOrWhiteSpace(element.ElementID)
+                        ? !_includedElementIds.Contains(element.ElementID)
+                        : true))
                     return false;
 
                 // Search filter
@@ -250,7 +284,17 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             };
 
             view.Refresh();
+            ApplySort(view);
             OnPropertyChanged(nameof(FilterStatus));
+        }
+
+        private void ApplySort(ICollectionView view)
+        {
+            if (view is not ListCollectionView listView)
+                return;
+
+            listView.CustomSort = new ElementListSortComparer(_sortBy, _sortDescending, _visibilityFilterService);
+            listView.Refresh();
         }
 
         private static List<PropertyItem> BuildPropertyGroups(PrecastElement element)
@@ -315,20 +359,10 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
         private static string GetWeightDisplay(PrecastElement e)
         {
-            if (e.ElementWT.HasValue && e.ElementWT.Value > 0)
-            {
-                var weight = e.ElementWT.Value;
-                return weight >= 1000 ? $"{weight/1000:N2} t" : $"{weight:N0} kg";
-            }
-
-            if (e.ElementVolume.HasValue && e.ElementVolume.Value > 0)
-            {
-                var volumeM3 = e.ElementVolume.Value / 1_000_000_000d;
-                var calc = volumeM3 * 2500;
-                return calc >= 1000 ? $"~{calc/1000:N2} t" : $"~{calc:N0} kg";
-            }
-
-            return "-";
+            var weight = ElementWeightCalculator.GetWeightKg(e);
+            return weight > 0d
+                ? ElementWeightCalculator.FormatWeight(weight, ElementWeightCalculator.IsEstimated(e), CultureInfo.CurrentCulture)
+                : "-";
         }
 
         private static string GetWeightUnit() => "kg";
@@ -407,13 +441,8 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         // Kept for backward compatibility (not used in BuildPropertyGroups anymore)
         private static string GetWeightDisplayValue(PrecastElement element)
         {
-            if (element.ElementWT.HasValue && element.ElementWT.Value > 0)
-                return $"{element.ElementWT.Value:N0} kg";
-
-            if (element.ElementVolume.HasValue && element.ElementVolume.Value > 0)
-                return $"{element.ElementVolume.Value * 2500:N0} kg";
-
-            return string.Empty;
+            var weight = ElementWeightCalculator.GetWeightKg(element);
+            return weight > 0d ? $"{weight:N0} kg" : string.Empty;
         }
 
         private static string? GetStringProperty(object source, string propertyName)
@@ -447,12 +476,35 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             var view = CollectionViewSource.GetDefaultView(FilteredElements);
             return view?.Cast<object>().Count() ?? FilteredElements.Count;
         }
+
+        private void ApplyViewerFilterCriteria(FilterCriteria criteria)
+        {
+            _visibilityFilterService.ResetFilters();
+            _visibilityFilterService.SetSearchText(SearchText);
+            _visibilityFilterService.SetWeightRange(criteria.MinWeight, criteria.MaxWeight);
+
+            var selectedTypes = new HashSet<string>(
+                criteria.SelectedTypes ?? new List<string>(),
+                StringComparer.OrdinalIgnoreCase);
+            var selectedMaterials = new HashSet<string>(
+                criteria.SelectedMaterials ?? new List<string>(),
+                StringComparer.OrdinalIgnoreCase);
+            var selectedStoreys = new HashSet<string>(
+                criteria.SelectedStoreys ?? new List<string>(),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var type in _visibilityFilterService.ElementTypes)
+                _visibilityFilterService.SetTypeEnabled(type, selectedTypes.Contains(type));
+
+            foreach (var material in _visibilityFilterService.Materials)
+                _visibilityFilterService.SetMaterialEnabled(material, selectedMaterials.Contains(material));
+
+            foreach (var storey in _visibilityFilterService.Storeys)
+                _visibilityFilterService.SetStoreyEnabled(storey, selectedStoreys.Contains(storey));
+        }
+
+        private static string NormalizeMaterial(string? material) =>
+            string.IsNullOrWhiteSpace(material) ? "Unspecified" : material.Trim();
     }
 
-    public class FilterCriteria
-    {
-        public double MinWeight { get; set; } = 0;
-        public double MaxWeight { get; set; } = 50000;
-        public List<string> SelectedTypes { get; set; } = new();
-    }
 }
