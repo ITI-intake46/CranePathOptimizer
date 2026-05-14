@@ -5,6 +5,7 @@ using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F3_CraneSetup;
+using CraneOptimizer.UI.Features.F16_Filter.Services;
 using System.Diagnostics;
 
 namespace CraneOptimizer.UI.Core.Services
@@ -15,6 +16,7 @@ namespace CraneOptimizer.UI.Core.Services
         private readonly IRenderingService _rendering;
         private readonly IIfcReaderRepository _ifcReader;
         private readonly ICraneValidationService _craneValidation;
+        private readonly IElementVisibilityFilterService _filterService;
         private readonly List<PrecastElement> _sceneElements = new();
         // Persistent builder so per-crane MobileCraneVisual3D and the
         // INotifyPropertyChanged -> Rebuild plumbing survive across renders.
@@ -22,21 +24,25 @@ namespace CraneOptimizer.UI.Core.Services
         private SceneRenderingContext? _context;
         private bool _disposed;
         private bool _showCraneRadius = true;
+        private bool _isSyncingSceneElements;
 
         public SceneRenderingManager(
             ISceneService scene,
             IRenderingService rendering,
             IIfcReaderRepository ifcReader,
             ICraneValidationService craneValidation,
-            CraneVisualBuilder craneBuilder)
+            CraneVisualBuilder craneBuilder,
+            IElementVisibilityFilterService filterService)
         {
             _scene = scene;
             _rendering = rendering;
             _ifcReader = ifcReader;
             _craneValidation = craneValidation;
             _craneBuilder = craneBuilder;
+            _filterService = filterService;
 
             _scene.ElementsChanged += OnElementsChanged;
+            _filterService.StateChanged += OnFilterStateChanged;
             _scene.CraneAdded += OnCraneChanged;
             _scene.CraneMoved += OnCraneChanged;
             _scene.CraneUpdated += OnCraneChanged;
@@ -76,10 +82,12 @@ namespace CraneOptimizer.UI.Core.Services
 
             _rendering.ClearLayer("Elements");
 
-            if (_sceneElements.Count == 0)
+            var visibleElements = _filterService.VisibleElements;
+
+            if (_sceneElements.Count == 0 || visibleElements.Count == 0)
                 return;
 
-            Debug.WriteLine("Rendering Elements: " + _sceneElements.Count);
+            Debug.WriteLine("Rendering Elements: " + visibleElements.Count);
 
             var statusMap = _context.GetLiftResults()
                 ?.Where(result => !string.IsNullOrWhiteSpace(result.ElementId))
@@ -91,7 +99,7 @@ namespace CraneOptimizer.UI.Core.Services
             var placementOffset = _context.GetPlacementOffset();
 
             _rendering.Render(
-                _sceneElements.Select(element =>
+                visibleElements.Select(element =>
                 {
                     LiftStatus? status = null;
                     if (statusMap != null && statusMap.TryGetValue(element.ElementID, out var liftStatus))
@@ -128,6 +136,15 @@ namespace CraneOptimizer.UI.Core.Services
 
             _sceneElements.Clear();
             _sceneElements.AddRange(elements);
+            _isSyncingSceneElements = true;
+            try
+            {
+                _filterService.SetElements(_sceneElements);
+            }
+            finally
+            {
+                _isSyncingSceneElements = false;
+            }
 
             if (_sceneElements.Count == 0)
             {
@@ -138,6 +155,12 @@ namespace CraneOptimizer.UI.Core.Services
 
             ElementsChanged?.Invoke(_sceneElements);
             ReRenderElements();
+        }
+
+        private void OnFilterStateChanged()
+        {
+            if (!_isSyncingSceneElements)
+                ReRenderElements();
         }
 
         private void OnCraneChanged(SceneCrane _) => ReRenderCranes();
@@ -156,6 +179,7 @@ namespace CraneOptimizer.UI.Core.Services
 
             _disposed = true;
             _scene.ElementsChanged -= OnElementsChanged;
+            _filterService.StateChanged -= OnFilterStateChanged;
             _scene.CraneAdded -= OnCraneChanged;
             _scene.CraneMoved -= OnCraneChanged;
             _scene.CraneUpdated -= OnCraneChanged;

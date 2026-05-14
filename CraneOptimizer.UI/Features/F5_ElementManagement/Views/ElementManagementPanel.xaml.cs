@@ -24,5 +24,16 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.Views
 
         private ElementManagementViewModel? VM => DataContext as ElementManagementViewModel;
 
+        private void ElementsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_sceneService == null)
+                return;
+
+            var selected = ElementsGrid.SelectedItems
+                .OfType<PrecastElement>()
+                .ToList();
+
+            _sceneService.SetSelectedElements(selected);
+        }
     }
 }

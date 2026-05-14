@@ -23,6 +23,7 @@ using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
+using CraneOptimizer.UI.Features.F16_Filter.Services;
 using CraneOptimizer.UI.F10_ProjectManagement.Views;
 using CraneOptimizer.UI.Shell.Services;
 using CraneOptimizer.UI.Shell.ViewModels;
@@ -85,6 +86,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IDialogService, DialogService>();
             services.AddSingleton<IStatusService, StatusService>();
             services.AddSingleton<IElementGridSizingService, ElementGridSizingService>();
+            services.AddSingleton<IElementVisibilityFilterService, ElementVisibilityFilterService>();
 
             // =========================
             // F10 Project Management

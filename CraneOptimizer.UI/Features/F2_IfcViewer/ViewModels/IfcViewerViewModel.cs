@@ -5,6 +5,7 @@ using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Models;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
+using CraneOptimizer.UI.Features.F16_Filter.Services;
 using System.Diagnostics;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
@@ -20,7 +21,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly IViewportInteractionService _interaction;
         private readonly IViewportHitTestService _hitTest;
         private readonly ICameraService _camera;
+        private readonly IElementVisibilityFilterService _filterService;
         private List<PrecastElement>? _pendingIfcElements;
+        private IfcFilterOptions? _pendingFilterOptions;
 
         public ICommand LoadIfcCommand { get; }
         public ICommand CancelPlacementCommand { get; }
@@ -76,7 +79,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IIfcOptionsDialogService dialogService,
             IViewportInteractionService interaction,
             IViewportHitTestService hitTest,
-            ICameraService camera)
+            ICameraService camera,
+            IElementVisibilityFilterService filterService)
         {
             _ifcReader = ifcReader;
             _scene = scene;
@@ -85,6 +89,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _interaction = interaction;
             _hitTest = hitTest;
             _camera = camera;
+            _filterService = filterService;
 
             LoadIfcCommand = new RelayCommand(async () => await LoadIfcAsync(), () => !IsLoading);
             CancelPlacementCommand = new RelayCommand(CancelPlacement, () => IsPlacementMode);
@@ -123,12 +128,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     return;
                 }
 
-                Status = "Filtering...";
-                var visible = ApplyFilter(all, filter);
-
-                Debug.WriteLine("IFC Visible Elements: " + visible.Count);
-
-                _pendingIfcElements = visible;
+                _pendingIfcElements = all;
+                _pendingFilterOptions = filter;
                 PendingPlacementPoint = null;
                 IsPlacementMode = true;
 
@@ -139,7 +140,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     () => _camera.UpdateClipping(_scene.GetElements())));
 
                 Progress = 100;
-                Status = $"Loaded {visible.Count} elements. Click to place IFC.";
+                Status = $"Loaded {all.Count} elements. Click to place IFC.";
             }
             catch (Exception ex)
             {
@@ -166,16 +167,20 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
             Debug.WriteLine($"IFC Placed At: {insertionPoint.X:F3}, {insertionPoint.Y:F3}, {insertionPoint.Z:F3}");
             _scene.SetElements(placedElements);
+            if (_pendingFilterOptions != null)
+                _filterService.ApplyLoadOptions(_pendingFilterOptions);
 
             _pendingIfcElements = null;
+            _pendingFilterOptions = null;
             IsPlacementMode = false;
-            Status = $"Placed {placedElements.Count} elements";
+            Status = $"Placed {_filterService.ShowingCount} of {placedElements.Count} elements";
             return true;
         }
 
         private void CancelPlacement()
         {
             _pendingIfcElements = null;
+            _pendingFilterOptions = null;
             PendingPlacementPoint = null;
             IsPlacementMode = false;
             Progress = 0;
