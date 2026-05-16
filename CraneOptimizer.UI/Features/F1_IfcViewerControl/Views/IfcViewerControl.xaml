@@ -255,7 +255,7 @@
                         FontSize="{StaticResource FontSizeSM}"
                         FontWeight="SemiBold"
                         Foreground="{DynamicResource TextPrimaryBrush}"
-                        Text="Click to place IFC. Press Esc to cancel." />
+                        Text="{Binding IfcViewer.PlacementPrompt}" />
                 </Border>
 
             </Grid>
@@ -267,112 +267,34 @@
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,1,0,0">
                 <DockPanel LastChildFill="False">
-                    <Button
-                        x:Name="RenderQualityDropBtn"
-                        Padding="0"
+                    <StackPanel
+                        Margin="2,0,0,0"
                         VerticalAlignment="Center"
-                        Click="RenderQualityDropBtn_Click"
                         DockPanel.Dock="Left"
-                        Style="{StaticResource ToolbarButton}"
-                        ToolTip="Click to change Render Quality">
-                        <Border
-                            Margin="2,0"
-                            Padding="7,1"
-                            Background="{DynamicResource SurfaceElevatedBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="3">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    FontFamily="{StaticResource FontPrimary}"
-                                    FontSize="{StaticResource FontSizeXS}"
-                                    Foreground="{DynamicResource TextSecondaryBrush}"
-                                    Text="{Binding RenderQualityLabel, FallbackValue='STD'}" />
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    FontFamily="{StaticResource FontPrimary}"
-                                    FontSize="{StaticResource FontSizeXS}"
-                                    Foreground="{DynamicResource TextSecondaryBrush}"
-                                    Text=" ▾" />
-                            </StackPanel>
-                        </Border>
-                    </Button>
-
-                    <Popup
-                        x:Name="RenderQualityPopup"
-                        AllowsTransparency="True"
-                        Placement="Top"
-                        PlacementTarget="{Binding ElementName=RenderQualityDropBtn}"
-                        StaysOpen="False"
-                        VerticalOffset="-4">
-                        <Border
-                            MinWidth="190"
-                            Background="{DynamicResource SurfaceElevatedBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="4">
-                            <StackPanel>
-                                <Border
-                                    Padding="10,7"
-                                    Background="{DynamicResource SurfaceBrush}"
-                                    BorderBrush="{DynamicResource BorderBrush}"
-                                    BorderThickness="0,0,0,1"
-                                    CornerRadius="4,4,0,0">
-                                    <TextBlock
-                                        FontFamily="{StaticResource FontPrimary}"
-                                        FontSize="{StaticResource FontSizeXS}"
-                                        FontWeight="Bold"
-                                        Foreground="{DynamicResource TextSecondaryBrush}"
-                                        Text="RENDER QUALITY" />
-                                </Border>
-                                <Border
-                                    Padding="10,8"
-                                    BorderBrush="{DynamicResource BorderBrush}"
-                                    BorderThickness="0,0,0,1">
-                                    <StackPanel>
-                                        <RadioButton
-                                            x:Name="rbRenderStandard"
-                                            Checked="RenderQuality_Changed"
-                                            Content="Standard"
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeSM}"
-                                            FontWeight="SemiBold"
-                                            Foreground="{DynamicResource TextPrimaryBrush}"
-                                            GroupName="RenderQualityGroup"
-                                            IsChecked="True"
-                                            ToolTip="Standard WPF rendering" />
-                                        <TextBlock
-                                            Margin="18,3,0,0"
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeXS}"
-                                            Foreground="{DynamicResource TextDisabledBrush}"
-                                        Text="Fast loading - normal smoothness" />
-                                    </StackPanel>
-                                </Border>
-                                <Border Padding="10,8,10,10">
-                                    <StackPanel>
-                                        <RadioButton
-                                            x:Name="rbRenderHigh"
-                                            Checked="RenderQuality_Changed"
-                                            Content="High Quality"
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeSM}"
-                                            FontWeight="SemiBold"
-                                            Foreground="{StaticResource PrimaryBrush}"
-                                            GroupName="RenderQualityGroup"
-                                            ToolTip="High Quality: smoother curves" />
-                                        <TextBlock
-                                            Margin="18,3,0,0"
-                                            FontFamily="{StaticResource FontPrimary}"
-                                            FontSize="{StaticResource FontSizeXS}"
-                                            Foreground="{DynamicResource TextDisabledBrush}"
-                                            Text="Smoother curves and pipes - reloads model" />
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-                        </Border>
-                    </Popup>
+                        Orientation="Horizontal">
+                        <TextBlock
+                            Margin="0,0,6,0"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource FontPrimary}"
+                            FontSize="{StaticResource FontSizeXS}"
+                            FontWeight="SemiBold"
+                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            Text="Render Quality" />
+                        <ComboBox
+                            x:Name="RenderQualityCombo"
+                            Width="112"
+                            Height="24"
+                            VerticalAlignment="Center"
+                            ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                            SelectedIndex="1"
+                            SelectionChanged="RenderQualityCombo_SelectionChanged"
+                            Style="{StaticResource DarkComboBox}"
+                            ToolTip="High: detailed IFC meshes. Medium: simplified meshes. Low: batched boxes for large models.">
+                            <ComboBoxItem Content="High" Tag="High" ToolTip="Full detailed IFC meshes with best visual quality." />
+                            <ComboBoxItem Content="Medium" Tag="Medium" ToolTip="Simplified IFC meshes with reduced geometry complexity." />
+                            <ComboBoxItem Content="Low" Tag="Low" ToolTip="Lightweight batched bounding boxes for maximum performance." />
+                        </ComboBox>
+                    </StackPanel>
 
                     <Rectangle
                         Width="1"

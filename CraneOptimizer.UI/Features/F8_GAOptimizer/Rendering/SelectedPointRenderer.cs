@@ -11,6 +11,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
     internal static class SelectedPointRenderer
     {
         public const string PointLayer = "GA_SelectedPoint";
+        public const string StatusOverlayLayer = "GA_StatusOverlay";
 
         private const double MarkerRadius = 200.0;
         private const double MarkerElevationOffset = 500.0;
@@ -21,6 +22,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
         public static void Clear(IRenderingService renderingService)
         {
             renderingService.ClearLayer(PointLayer);
+            renderingService.ClearLayer(StatusOverlayLayer);
         }
 
         public static void RenderPlacementPoint(IRenderingService renderingService, DomainPoint3D point)
@@ -58,8 +60,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
         }
 
         /// <summary>
-        /// Renders the blue sphere marker at the point location and
-        /// re-renders all IFC elements with their actual GA LiftStatus colors.
+        /// Renders the blue sphere marker and a lightweight status overlay.
+        /// The base IFC mesh is intentionally left intact to avoid rebuilding
+        /// heavy geometry every time the selected GA point changes.
         /// </summary>
         public static void Render(
             IRenderingService renderingService,
@@ -89,14 +92,23 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
                 LiftStatus? status = null;
                 if (statusMap.TryGetValue(element.ElementID, out var s))
                     status = s;
- 
+  
                 return (element, status, false);
             });
- 
-            renderingService.Render(
-                elementsWithStatus,
-                new ElementVisualBuilder(ifcReader, origin, placementOffset),
-                "Elements");
+
+            var previousQuality = ElementVisualBuilder.CurrentQuality;
+            try
+            {
+                ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.Low;
+                renderingService.Render(
+                    elementsWithStatus,
+                    new ElementVisualBuilder(null, origin, placementOffset, renderOnlyStatusElements: true, statusAlpha: 125),
+                    StatusOverlayLayer);
+            }
+            finally
+            {
+                ElementVisualBuilder.CurrentQuality = previousQuality;
+            }
         }
     }
 }
