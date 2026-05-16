@@ -36,16 +36,18 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.Services
             if (minX == double.MaxValue)
                 return (DefaultGridSizeMeters, DefaultGridSizeMeters, 0d, 0d);
 
-            var buildingWidthMeters = Math.Max(0d, (maxX - minX) / 1000.0);
-            var buildingLengthMeters = Math.Max(0d, (maxY - minY) / 1000.0);
-            var centerXMillimeters = (minX + maxX) * 0.5;
-            var centerYMillimeters = (minY + maxY) * 0.5;
+            // The grid is a site/world reference, so auto sizing must not re-center it
+            // around the inserted IFC. Grow around world origin instead.
+            var maxAbsX = Math.Max(Math.Abs(minX), Math.Abs(maxX));
+            var maxAbsY = Math.Max(Math.Abs(minY), Math.Abs(maxY));
+            var buildingWidthMeters = Math.Max(0d, (maxAbsX * 2d) / 1000.0);
+            var buildingLengthMeters = Math.Max(0d, (maxAbsY * 2d) / 1000.0);
 
             return (
                 CalculateGridAxisMeters(buildingWidthMeters),
                 CalculateGridAxisMeters(buildingLengthMeters),
-                centerXMillimeters,
-                centerYMillimeters);
+                0d,
+                0d);
         }
 
         private static double CalculateGridAxisMeters(double buildingAxisMeters)

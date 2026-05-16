@@ -21,7 +21,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly IDialogService _dialog;
         private readonly IViewportInteractionService _interaction;
         private readonly IViewportHitTestService _hitTest;
-        private readonly ICameraService _camera;
         private readonly IElementVisibilityFilterService _filterService;
         private readonly IIfcSceneOperationService _ifcSceneOperations;
         private List<PrecastElement>? _pendingIfcElements;
@@ -68,8 +67,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         }
 
         public string PlacementPrompt => _isMovingExistingIfc
-            ? "Click where the building bottom-left corner should move. Press Esc to cancel."
-            : "Click where the building bottom-left corner should be placed. Press Esc to cancel.";
+            ? "Click the new IFC origin location. Press Esc to cancel."
+            : "Click to place IFC origin. Press Esc to cancel.";
 
         private Point3D? _pendingPlacementPoint;
         public Point3D? PendingPlacementPoint
@@ -89,7 +88,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IIfcOptionsDialogService dialogService,
             IViewportInteractionService interaction,
             IViewportHitTestService hitTest,
-            ICameraService camera,
             IElementVisibilityFilterService filterService,
             IIfcSceneOperationService ifcSceneOperations)
         {
@@ -99,7 +97,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _dialogService = dialogService;
             _interaction = interaction;
             _hitTest = hitTest;
-            _camera = camera;
             _filterService = filterService;
             _ifcSceneOperations = ifcSceneOperations;
 
@@ -154,11 +151,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 _interaction.PushMode(new Interaction.IfcPlacementMode(
                     this,
                     _hitTest,
-                    _interaction,
-                    () => _camera.UpdateClipping(_ifcSceneOperations.GetElements())));
+                    _interaction));
 
                 Progress = 100;
-                Status = $"Loaded {all.Count} elements. Click to place IFC.";
+                Status = $"Loaded {all.Count} elements. Click to place IFC origin.";
             }
             catch (Exception ex)
             {
@@ -175,11 +171,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             if (!IsPlacementMode || _pendingIfcElements == null || _pendingIfcElements.Count == 0)
                 return false;
 
-            var boundsAnchor = CalculateBoundsAnchor(_pendingIfcElements);
-            var placementOffset = new Point3D(
-                insertionPoint.X - boundsAnchor.X,
-                insertionPoint.Y - boundsAnchor.Y,
-                insertionPoint.Z - boundsAnchor.Z);
+            var placementOffset = new Point3D(insertionPoint.X, insertionPoint.Y, insertionPoint.Z);
 
             PendingPlacementPoint = placementOffset;
 
@@ -187,7 +179,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 _pendingIfcElements,
                 new DomainPoint3D(placementOffset.X, placementOffset.Y, placementOffset.Z));
 
-            Debug.WriteLine($"IFC Placed Bottom-Left Anchor At: {insertionPoint.X:F3}, {insertionPoint.Y:F3}, {insertionPoint.Z:F3}");
+            Debug.WriteLine($"IFC Origin Placed At: {insertionPoint.X:F3}, {insertionPoint.Y:F3}, {insertionPoint.Z:F3}");
             _ifcSceneOperations.ReplaceIfcModel(placedElements);
             if (_pendingFilterOptions != null)
                 _filterService.ApplyLoadOptions(_pendingFilterOptions);
@@ -197,7 +189,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _isMovingExistingIfc = false;
             IsPlacementMode = false;
             OnPropertyChanged(nameof(PlacementPrompt));
-            Status = $"Placed {_filterService.ShowingCount} of {placedElements.Count} elements from bottom-left anchor";
+            Status = $"Placed {_filterService.ShowingCount} of {placedElements.Count} elements";
             return true;
         }
 
@@ -210,25 +202,20 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             if (elements.Count == 0)
                 return false;
 
-            var currentBoundsAnchor = CalculateBoundsAnchor(elements);
-            var delta = new Point3D(
-                insertionPoint.X - currentBoundsAnchor.X,
-                insertionPoint.Y - currentBoundsAnchor.Y,
-                insertionPoint.Z - currentBoundsAnchor.Z);
-
-            var movedElements = _ifcSceneOperations.MoveIfcModel(new DomainPoint3D(delta.X, delta.Y, delta.Z));
-
             var currentOffset = PendingPlacementPoint ?? new Point3D(0, 0, 0);
-            PendingPlacementPoint = new Point3D(
-                currentOffset.X + delta.X,
-                currentOffset.Y + delta.Y,
-                currentOffset.Z + delta.Z);
-            _camera.UpdateClipping(movedElements);
+            var delta = new Point3D(
+                insertionPoint.X - currentOffset.X,
+                insertionPoint.Y - currentOffset.Y,
+                insertionPoint.Z - currentOffset.Z);
+
+            _ifcSceneOperations.MoveIfcModel(new DomainPoint3D(delta.X, delta.Y, delta.Z));
+
+            PendingPlacementPoint = new Point3D(insertionPoint.X, insertionPoint.Y, insertionPoint.Z);
 
             _isMovingExistingIfc = false;
             IsPlacementMode = false;
             OnPropertyChanged(nameof(PlacementPrompt));
-            Status = $"Moved IFC bottom-left anchor to {insertionPoint.X:F2}, {insertionPoint.Y:F2}, {insertionPoint.Z:F2}";
+            Status = $"Moved IFC origin to {insertionPoint.X:F2}, {insertionPoint.Y:F2}, {insertionPoint.Z:F2}";
             return true;
         }
 
@@ -259,10 +246,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _interaction.PushMode(new Interaction.IfcMoveMode(
                 this,
                 _hitTest,
-                _interaction,
-                () => _camera.UpdateClipping(_ifcSceneOperations.GetElements())));
+                _interaction));
 
-            Status = "Click a new location for the IFC model.";
+            Status = "Click a new origin location for the IFC model.";
         }
 
         private void DeleteIfc()
@@ -292,26 +278,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private void OnSceneElementsChanged(List<PrecastElement> elements)
         {
             CommandManager.InvalidateRequerySuggested();
-        }
-
-        private static Point3D CalculateBoundsAnchor(IReadOnlyList<PrecastElement> elements)
-        {
-            if (elements.Count == 0)
-                return new Point3D();
-
-            var minX = elements.Min(element => element.ElementCOG.X - GetHalfDimension(element.BBoxLength ?? element.ElementLength));
-            var minY = elements.Min(element => element.ElementCOG.Y - GetHalfDimension(element.BBoxWidth ?? element.ElementWidth));
-            var minZ = elements.Min(element => element.ElementCOG.Z - GetHalfDimension(element.BBoxHeight ?? element.ElementHeight));
-
-            return new Point3D(minX, minY, minZ);
-        }
-
-        private static double GetHalfDimension(double? value)
-        {
-            if (!value.HasValue || double.IsNaN(value.Value) || double.IsInfinity(value.Value) || value.Value <= 0)
-                return 0d;
-
-            return value.Value / 2d;
         }
 
         private static List<PrecastElement> ApplyFilter(

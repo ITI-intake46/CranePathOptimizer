@@ -11,18 +11,15 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.Interaction
         private readonly IfcViewerViewModel _vm;
         private readonly IViewportHitTestService _hitTest;
         private readonly IViewportInteractionService _interactionService;
-        private readonly Action _updateCameraClipping;
 
         public IfcPlacementMode(
             IfcViewerViewModel vm,
             IViewportHitTestService hitTest,
-            IViewportInteractionService interactionService,
-            Action updateCameraClipping)
+            IViewportInteractionService interactionService)
         {
             _vm = vm;
             _hitTest = hitTest;
             _interactionService = interactionService;
-            _updateCameraClipping = updateCameraClipping;
         }
 
         public void OnMouseDown(HelixViewport3D viewport, MouseButtonEventArgs e)
@@ -35,8 +32,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.Interaction
 
             if (_vm.PlacePendingIfc(placementPoint))
             {
-                viewport.UpdateLayout();
-                _updateCameraClipping();
                 _interactionService.PopMode();
                 e.Handled = true;
             }
