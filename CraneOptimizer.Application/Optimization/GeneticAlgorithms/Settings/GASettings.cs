@@ -31,15 +31,38 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public double CrossoverRate { get; set; } = 0.8;
 
         /// <summary>
-        /// Additional rigging length used during lifting calculations.
-        /// Default value is typically around 2 meters.
+        /// Additional wire/hoist rope length (m) that increases required hook height.
         /// </summary>
-        public double RiggingLength { get; set; } = 2.0;
+        public double WireLength { get; set; } = 2.0;
 
         /// <summary>
-        /// Safety factor applied to crane lifting capacity.
+        /// Additional lifting weight (tons) for hook block and accessories.
+        /// Added to element weight before capacity validation.
         /// </summary>
-        public double SafetyFactor { get; set; } = 0.9;
+        public double AdditionalWt { get; set; } = 0.0;
+
+        /// <summary>
+        /// Capacity derating ratio applied to load-chart capacities.
+        /// Use values in (0, 1]; lower values reduce effective crane capacity.
+        /// </summary>
+        public double DeratingRatio { get; set; } = 0.9;
+
+        /// <summary>
+        /// User-defined operational safety limit applied after derating.
+        /// Use values in [0, 1]; lower values are more conservative.
+        /// </summary>
+        public double SafetyFactor { get; set; } = 0.95;
+
+        /// <summary>
+        /// Backward-compatible alias for legacy configuration payloads.
+        /// Prefer WireLength.
+        /// </summary>
+        [Obsolete("Use WireLength instead.")]
+        public double RiggingLength
+        {
+            get => WireLength;
+            set => WireLength = value;
+        }
 
         /// <summary>
         /// Maximum number of crane setup positions allowed in a chromosome.

@@ -112,9 +112,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
             try
             {
+                var options = CaptureOptions();
+                var settingsPreview = _workflow.BuildSettings(options);
+
                 var result = await _workflow.RunOptimizationAsync(
                     selectedCrane,
-                    CaptureOptions(),
+                    options,
                     _runCts.Token);
 
                 LatestResult = result;
@@ -130,6 +133,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtStatus.Text = result.Positions.Any()
                     ? "Optimization completed."
                     : "Optimization completed with no valid positions.";
+                TxtStopReason.Text =
+                    $"Capacity factors: DeratingRatio={settingsPreview.DeratingRatio:F2}, " +
+                    $"SafetyFactor={settingsPreview.SafetyFactor:F2}, " +
+                    $"Combined={(settingsPreview.DeratingRatio * settingsPreview.SafetyFactor):F2}";
                 ProgBar.IsIndeterminate = false;
                 ProgBar.Value = 100;
 
@@ -300,8 +307,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             return new CraneOptimizerDialogOptions(
                 TxtCoverageWeight.Text,
                 TxtRelocationWeight.Text,
+                TxtWireLength.Text,
+                TxtAdditionalWt.Text,
+                TxtDeratingRatio.Text,
                 TxtSafetyFactor.Text,
-                TxtRiggingLength.Text,
                 TxtMaxCranePositions.Text,
                 TxtEarlyStopping.Text,
                 TxtGridStep.Text,
@@ -309,6 +318,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtBalancePenaltyWeight.Text,
                 TxtOverweightPenaltyWeight.Text,
                 TxtHeightPenaltyWeight.Text,
+                TxtRadiusStdDevPenaltyWeight.Text,
+                TxtSimilarPositionPenaltyWeight.Text,
+                TxtRelocationDistancePenaltyWeight.Text,
+                TxtMinimumRelocationDistance.Text,
+                TxtDuplicatePositionDistance.Text,
+                TxtMutationExplorationMultiplier.Text,
+                TxtPositionSamplingAttempts.Text,
+                TxtMaxRadiusForNormalisation.Text,
+                TxtPopulationSize.Text,
+                TxtMaxGenerations.Text,
                 TxtDevMutationRate.Text,
                 TxtDevMutationSigma.Text,
                 TxtDevCrossoverRate.Text,

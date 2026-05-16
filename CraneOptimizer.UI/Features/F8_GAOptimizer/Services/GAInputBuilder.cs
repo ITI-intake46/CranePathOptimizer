@@ -85,6 +85,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             if (settings.MaxRadiusForNormalisation <= 0)
                 settings.MaxRadiusForNormalisation = craneSpec.MaxRadius;
 
+            if (craneSpec.DeratingRatio.HasValue
+                && craneSpec.DeratingRatio.Value > 0
+                && craneSpec.DeratingRatio.Value <= 1.0
+                && Math.Abs(settings.DeratingRatio - 0.9) < 0.0001)
+            {
+                settings.DeratingRatio = craneSpec.DeratingRatio.Value;
+            }
+
             settings.CraneFootprintRadius = CalculateCraneFootprintRadius(selectedCrane);
 
             return new PlacementInput

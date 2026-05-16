@@ -30,8 +30,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
         ///   Reason: the element footprint is small in plan — the COG is the
         ///           correct reference point and no length offset is needed.
         ///
-        /// Note: RiggingLength is NOT added here.
-        ///       Rigging (slings/chains) runs vertically, so it affects
+        /// Note: WireLength is NOT added here.
+        ///       Hoist wire/sling length runs vertically, so it affects
         ///       lift height only — see CalculateLiftHeight.
         /// </summary>
         public static double CalculateRadius(
@@ -82,11 +82,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
         /// Calculates the required vertical lift height.
         ///
         /// Formula:
-        ///   height = COG.Z + halfElementHeight + RiggingLength
+        ///   height = COG.Z + halfElementHeight + WireLength
         ///
         ///   COG.Z            → elevation of element center
         ///   halfElementHeight → from COG to the top of the element
-        ///   RiggingLength    → vertical sling/chain length above the element
+        ///   WireLength       → vertical wire/sling length allowance above the element
         ///
         /// This gives the required hook height above ground.
         /// </summary>
@@ -98,7 +98,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
 
             return element.ElementCOG.Z
                    + elementHalfHeight
-                   + settings.RiggingLength;
+                   + settings.WireLength;
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -158,7 +158,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
             if (candidate == null)
                 return 0;
 
-            return candidate.Capacity * settings.SafetyFactor;
+            return candidate.Capacity * settings.DeratingRatio * settings.SafetyFactor;
         }
 
         // ══════════════════════════════════════════════════════════════

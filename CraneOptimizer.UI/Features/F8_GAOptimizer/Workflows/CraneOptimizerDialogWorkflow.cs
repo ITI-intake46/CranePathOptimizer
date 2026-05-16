@@ -72,8 +72,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
             {
                 CoverageWeight = ParseDouble(options.CoverageWeightText, 10.0),
                 RelocationWeight = ParseDouble(options.RelocationWeightText, 5.0),
-                SafetyFactor = ParseDouble(options.SafetyFactorText, 0.9),
-                RiggingLength = ParseDouble(options.RiggingLengthText, 2.0),
+                WireLength = ParseDouble(options.WireLengthText, 2.0),
+                AdditionalWt = ParseDouble(options.AdditionalWtText, 0.0),
+                DeratingRatio = Clamp(ParseDouble(options.DeratingRatioText, 0.9), 0.0, 1.0),
+                SafetyFactor = Clamp(ParseDouble(options.SafetyFactorText, 0.95), 0.0, 1.0),
                 MaxCranePositions = ParseInt(options.MaxCranePositionsText, 1),
                 EarlyStoppingGenerations = ParseInt(options.EarlyStoppingGenerationsText, 20),
                 GridStep = ParseDouble(options.GridStepText, 0.0),
@@ -81,14 +83,29 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 BalancePenaltyWeight = ParseDouble(options.BalancePenaltyWeightText, 2.0),
                 OverweightPenaltyWeight = ParseDouble(options.OverweightPenaltyWeightText, 10.0),
                 HeightPenaltyWeight = ParseDouble(options.HeightPenaltyWeightText, 5.0),
+                RadiusStdDevPenaltyWeight = ParseDouble(options.RadiusStdDevPenaltyWeightText, 2.0),
+                SimilarPositionPenaltyWeight = ParseDouble(options.SimilarPositionPenaltyWeightText, 8.0),
+                RelocationDistancePenaltyWeight = ParseDouble(options.RelocationDistancePenaltyWeightText, 1.5),
+                MinimumRelocationDistance = ParseDouble(options.MinimumRelocationDistanceText, 10.0),
+                DuplicatePositionDistance = ParseDouble(options.DuplicatePositionDistanceText, 3.0),
+                MutationExplorationMultiplier = ParseDouble(options.MutationExplorationMultiplierText, 2.0),
+                PositionSamplingAttempts = ParseInt(options.PositionSamplingAttemptsText, 80),
+                MaxRadiusForNormalisation = ParseDouble(options.MaxRadiusForNormalisationText, 50.0),
                 MutationRate = ParseDouble(options.DevMutationRateText, 0.1),
                 MutationSigma = ParseDouble(options.DevMutationSigmaText, 0.05),
                 CrossoverRate = ParseDouble(options.DevCrossoverRateText, 0.8),
                 RandomSeed = ParseNullableInt(options.DevRandomSeedText, 42),
                 ConvergenceThresholdPercent = ParseDouble(options.DevConvergenceText, 0.0),
-                PopulationSize = 30,
-                MaxGenerations = 30
+                PopulationSize = ParseInt(options.PopulationSizeText, 30),
+                MaxGenerations = ParseInt(options.MaxGenerationsText, 30)
             };
+        }
+
+        private static double Clamp(double value, double min, double max)
+        {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
         }
 
         internal static string FormatPointCoordinates(CranePositionResult point)
@@ -118,8 +135,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
     public sealed record CraneOptimizerDialogOptions(
         string? CoverageWeightText,
         string? RelocationWeightText,
+        string? WireLengthText,
+        string? AdditionalWtText,
+        string? DeratingRatioText,
         string? SafetyFactorText,
-        string? RiggingLengthText,
         string? MaxCranePositionsText,
         string? EarlyStoppingGenerationsText,
         string? GridStepText,
@@ -127,6 +146,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         string? BalancePenaltyWeightText,
         string? OverweightPenaltyWeightText,
         string? HeightPenaltyWeightText,
+        string? RadiusStdDevPenaltyWeightText,
+        string? SimilarPositionPenaltyWeightText,
+        string? RelocationDistancePenaltyWeightText,
+        string? MinimumRelocationDistanceText,
+        string? DuplicatePositionDistanceText,
+        string? MutationExplorationMultiplierText,
+        string? PositionSamplingAttemptsText,
+        string? MaxRadiusForNormalisationText,
+        string? PopulationSizeText,
+        string? MaxGenerationsText,
         string? DevMutationRateText,
         string? DevMutationSigmaText,
         string? DevCrossoverRateText,
