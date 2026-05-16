@@ -3,7 +3,6 @@ using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Converters;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Features.F5_ElementManagement.Services;
 using CraneOptimizer.UI.Features.F16_Filter.Models;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
 using CraneOptimizer.UI.Features.F16_Filter.Views;
@@ -22,7 +21,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
     public class ElementManagementViewModel : ViewModelBase
     {
         private readonly ISceneService _scene;
-        private readonly IElementGridSizingService _gridSizingService;
+        private readonly ISceneGridSizingService _gridSizingService;
         private readonly IElementVisibilityFilterService _visibilityFilterService;
         private string _selectedElementName = "No element selected";
         private PrecastElement? _selectedElement;
@@ -41,7 +40,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
         public ElementManagementViewModel(
             ISceneService scene,
-            IElementGridSizingService gridSizing,
+            ISceneGridSizingService gridSizing,
             IElementVisibilityFilterService visibilityFilterService)
         {
             _scene = scene;

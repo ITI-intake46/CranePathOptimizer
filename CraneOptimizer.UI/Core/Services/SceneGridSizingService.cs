@@ -1,8 +1,9 @@
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.UI.Core.Interfaces;
 
-namespace CraneOptimizer.UI.Features.F5_ElementManagement.Services
+namespace CraneOptimizer.UI.Core.Services
 {
-    public sealed class ElementGridSizingService : IElementGridSizingService
+    public sealed class SceneGridSizingService : ISceneGridSizingService
     {
         private const double DefaultGridSizeMeters = 50d;
         private const double GridPaddingFactor = 1.2d;
