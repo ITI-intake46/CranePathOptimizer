@@ -36,8 +36,6 @@ namespace CraneOptimizer.UI.Shell.Interaction
 
                 if (_vm.IfcViewer.PlacePendingIfc(placementPoint))
                 {
-                    viewport.UpdateLayout();
-                    _updateCameraClipping();
                     e.Handled = true;
                 }
                 return;

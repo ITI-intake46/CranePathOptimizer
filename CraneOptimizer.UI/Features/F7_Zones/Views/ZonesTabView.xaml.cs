@@ -30,6 +30,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Views
             Unloaded += ZonesTabView_Unloaded;
         }
 
+
         private void ZonesTabView_Loaded(object sender, RoutedEventArgs e)
         {
             Keyboard.Focus(this);

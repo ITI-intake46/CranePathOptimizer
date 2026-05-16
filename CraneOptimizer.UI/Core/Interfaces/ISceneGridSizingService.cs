@@ -1,8 +1,8 @@
 using CraneOptimizer.Domain.Schemas;
 
-namespace CraneOptimizer.UI.Features.F5_ElementManagement.Services
+namespace CraneOptimizer.UI.Core.Interfaces
 {
-    public interface IElementGridSizingService
+    public interface ISceneGridSizingService
     {
         (double widthMeters, double lengthMeters, double centerXMillimeters, double centerYMillimeters)
             CalculateGridSizeMeters(IReadOnlyList<PrecastElement> elements);

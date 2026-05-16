@@ -18,7 +18,6 @@ using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
-using CraneOptimizer.UI.Features.F5_ElementManagement.Services;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
@@ -85,7 +84,7 @@ namespace CraneOptimizer.UI
             // =========================
             services.AddSingleton<IDialogService, DialogService>();
             services.AddSingleton<IStatusService, StatusService>();
-            services.AddSingleton<IElementGridSizingService, ElementGridSizingService>();
+            services.AddSingleton<ISceneGridSizingService, SceneGridSizingService>();
             services.AddSingleton<IElementVisibilityFilterService, ElementVisibilityFilterService>();
             services.AddSingleton<IIfcSceneOperationService, IfcSceneOperationService>();
 

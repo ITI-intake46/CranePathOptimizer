@@ -15,7 +15,6 @@ using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Views;
-using CraneOptimizer.UI.Features.F5_ElementManagement.Services;
 using CraneOptimizer.UI.Features.F7_Zones;
 using CraneOptimizer.UI.Shell.Interaction;
 using CraneOptimizer.UI.Shell.ViewModels;
@@ -26,7 +25,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
     {
         private readonly IRenderingService _renderingService = null!;
         private readonly ISceneService _sceneService = null!;
-        private readonly IElementGridSizingService _elementGridSizingService = null!;
+        private readonly ISceneGridSizingService _sceneGridSizingService = null!;
         private readonly IViewportInteractionService _interactionService = null!;
         private readonly IViewportHitTestService _hitTestService = null!;
         private readonly ICameraService _cameraService = null!;
@@ -52,7 +51,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
             _renderingService = App.ServiceProvider.GetRequiredService<IRenderingService>();
             _sceneService = App.ServiceProvider.GetRequiredService<ISceneService>();
-            _elementGridSizingService = App.ServiceProvider.GetRequiredService<IElementGridSizingService>();
+            _sceneGridSizingService = App.ServiceProvider.GetRequiredService<ISceneGridSizingService>();
             _interactionService = App.ServiceProvider.GetRequiredService<IViewportInteractionService>();
             _hitTestService = App.ServiceProvider.GetRequiredService<IViewportHitTestService>();
             _cameraService = App.ServiceProvider.GetRequiredService<ICameraService>();
@@ -137,7 +136,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             if (!_manualGridSize)
             {
                 var (widthMeters, lengthMeters, centerXMillimeters, centerYMillimeters) =
-                    _elementGridSizingService.CalculateGridSizeMeters(elements);
+                    _sceneGridSizingService.CalculateGridSizeMeters(elements);
                 _gridCenterXMillimeters = centerXMillimeters;
                 _gridCenterYMillimeters = centerYMillimeters;
                 SetGridText(widthMeters, lengthMeters);

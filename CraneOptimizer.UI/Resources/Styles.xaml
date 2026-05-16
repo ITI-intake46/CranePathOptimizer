@@ -6,7 +6,96 @@
         Not loaded by App.xaml (WindowStyles.xaml in Shell/ handles Window defaults).
         Kept for reference. All values use design tokens.
     -->
+    <DrawingImage x:Key="SvgMapPinCheck">
+        <DrawingImage.Drawing>
+            <DrawingGroup ClipGeometry="M0,0 V24 H24 V0 Z">
 
+                <GeometryDrawing Geometry="M12,2 C7.5,2 4,5.5 4,10 C4,12.5 5.2,15 7.5,17.5 L12,22 L13.5,20.5">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource SuccessBrush}" Thickness="2" 
+                             StartLineCap="Round" EndLineCap="Round" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+
+                <GeometryDrawing Geometry="M12,13 C10.34,13 9,11.66 9,10 C9,8.34 10.34,7 12,7 C13.66,7 15,8.34 15,10 C15,11.66 13.66,13 12,13 Z">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource SuccessBrush}" Thickness="2"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+
+                <GeometryDrawing Geometry="M6,20 C4,20.5 3,21.2 3,22 C3,23.1 7,24 12,24 C14.3,24 16.5,23.8 18,23.4">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource SuccessBrush}" Thickness="2" 
+                             StartLineCap="Round" EndLineCap="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+
+                <GeometryDrawing Geometry="M16,14 L18.5,16.5 L22.5,11.5">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource SuccessBrush}" Thickness="2" 
+                             StartLineCap="Round" EndLineCap="Round" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+    <DrawingImage x:Key="SvgMapPinX">
+        <DrawingImage.Drawing>
+            <DrawingGroup ClipGeometry="M0,0 V24 H24 V0 Z">
+
+                <GeometryDrawing Geometry="M12,2 C7.5,2 4,5.5 4,10 C4,12.5 5.2,15 7.5,17.5 L12,22 L13.5,20.5">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource DestructiveBrush}" Thickness="2" 
+                             StartLineCap="Round" EndLineCap="Round" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+
+                <GeometryDrawing Geometry="M12,13 C10.34,13 9,11.66 9,10 C9,8.34 10.34,7 12,7 C13.66,7 15,8.34 15,10 C15,11.66 13.66,13 12,13 Z">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource DestructiveBrush}" Thickness="2"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+
+                <GeometryDrawing Geometry="M6,20 C4,20.5 3,21.2 3,22 C3,23.1 7,24 12,24 C14.3,24 16.5,23.8 18,23.4">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource DestructiveBrush}" Thickness="2" 
+                             StartLineCap="Round" EndLineCap="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+
+                <GeometryDrawing Geometry="M16,12 L22,18 M22,12 L16,18">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource DestructiveBrush}" Thickness="2" 
+                             StartLineCap="Round" EndLineCap="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+    <DrawingImage x:Key="SvgRuler">
+        <DrawingImage.Drawing>
+            <DrawingGroup ClipGeometry="M0,0 V24 H24 V0 Z">
+
+                <GeometryDrawing Geometry="M5,19 L19,5 C19.5,4.5 20.5,4.5 21,5 L22,6 C22.5,6.5 22.5,7.5 22,8 L8,22 C7.5,22.5 6.5,22.5 6,22 L5,21 C4.5,20.5 4.5,19.5 5,19 Z">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource TextPrimaryBrush}" Thickness="2" LineJoin="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+
+                <GeometryDrawing Geometry="M8,14 L10,16 M10,12 L12,14 M12,10 L14,12 M14,8 L16,10 M16,6 L18,8">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{DynamicResource TextPrimaryBrush}" Thickness="1.5" 
+                             StartLineCap="Round" EndLineCap="Round"/>
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
     <!-- Window -->
     <Style TargetType="Window">
         <Setter Property="Background" Value="{DynamicResource BackgroundBrush}"/>
