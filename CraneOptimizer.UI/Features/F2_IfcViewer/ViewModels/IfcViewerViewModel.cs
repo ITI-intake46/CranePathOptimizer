@@ -68,8 +68,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         }
 
         public string PlacementPrompt => _isMovingExistingIfc
-            ? "Click the new IFC location. Press Esc to cancel."
-            : "Click to place IFC. Press Esc to cancel.";
+            ? "Click where the building bottom-left corner should move. Press Esc to cancel."
+            : "Click where the building bottom-left corner should be placed. Press Esc to cancel.";
 
         private Point3D? _pendingPlacementPoint;
         public Point3D? PendingPlacementPoint
@@ -175,7 +175,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             if (!IsPlacementMode || _pendingIfcElements == null || _pendingIfcElements.Count == 0)
                 return false;
 
-            var placementOffset = new Point3D(insertionPoint.X, insertionPoint.Y, insertionPoint.Z);
+            var boundsAnchor = CalculateBoundsAnchor(_pendingIfcElements);
+            var placementOffset = new Point3D(
+                insertionPoint.X - boundsAnchor.X,
+                insertionPoint.Y - boundsAnchor.Y,
+                insertionPoint.Z - boundsAnchor.Z);
 
             PendingPlacementPoint = placementOffset;
 
@@ -183,7 +187,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 _pendingIfcElements,
                 new DomainPoint3D(placementOffset.X, placementOffset.Y, placementOffset.Z));
 
-            Debug.WriteLine($"IFC Placed At: {insertionPoint.X:F3}, {insertionPoint.Y:F3}, {insertionPoint.Z:F3}");
+            Debug.WriteLine($"IFC Placed Bottom-Left Anchor At: {insertionPoint.X:F3}, {insertionPoint.Y:F3}, {insertionPoint.Z:F3}");
             _ifcSceneOperations.ReplaceIfcModel(placedElements);
             if (_pendingFilterOptions != null)
                 _filterService.ApplyLoadOptions(_pendingFilterOptions);
@@ -193,7 +197,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _isMovingExistingIfc = false;
             IsPlacementMode = false;
             OnPropertyChanged(nameof(PlacementPrompt));
-            Status = $"Placed {_filterService.ShowingCount} of {placedElements.Count} elements";
+            Status = $"Placed {_filterService.ShowingCount} of {placedElements.Count} elements from bottom-left anchor";
             return true;
         }
 
@@ -206,21 +210,25 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             if (elements.Count == 0)
                 return false;
 
-            var currentOffset = PendingPlacementPoint ?? new Point3D(0, 0, 0);
+            var currentBoundsAnchor = CalculateBoundsAnchor(elements);
             var delta = new Point3D(
-                insertionPoint.X - currentOffset.X,
-                insertionPoint.Y - currentOffset.Y,
-                insertionPoint.Z - currentOffset.Z);
+                insertionPoint.X - currentBoundsAnchor.X,
+                insertionPoint.Y - currentBoundsAnchor.Y,
+                insertionPoint.Z - currentBoundsAnchor.Z);
 
             var movedElements = _ifcSceneOperations.MoveIfcModel(new DomainPoint3D(delta.X, delta.Y, delta.Z));
 
-            PendingPlacementPoint = new Point3D(insertionPoint.X, insertionPoint.Y, insertionPoint.Z);
+            var currentOffset = PendingPlacementPoint ?? new Point3D(0, 0, 0);
+            PendingPlacementPoint = new Point3D(
+                currentOffset.X + delta.X,
+                currentOffset.Y + delta.Y,
+                currentOffset.Z + delta.Z);
             _camera.UpdateClipping(movedElements);
 
             _isMovingExistingIfc = false;
             IsPlacementMode = false;
             OnPropertyChanged(nameof(PlacementPrompt));
-            Status = $"Moved IFC to {insertionPoint.X:F2}, {insertionPoint.Y:F2}, {insertionPoint.Z:F2}";
+            Status = $"Moved IFC bottom-left anchor to {insertionPoint.X:F2}, {insertionPoint.Y:F2}, {insertionPoint.Z:F2}";
             return true;
         }
 
@@ -284,6 +292,26 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private void OnSceneElementsChanged(List<PrecastElement> elements)
         {
             CommandManager.InvalidateRequerySuggested();
+        }
+
+        private static Point3D CalculateBoundsAnchor(IReadOnlyList<PrecastElement> elements)
+        {
+            if (elements.Count == 0)
+                return new Point3D();
+
+            var minX = elements.Min(element => element.ElementCOG.X - GetHalfDimension(element.BBoxLength ?? element.ElementLength));
+            var minY = elements.Min(element => element.ElementCOG.Y - GetHalfDimension(element.BBoxWidth ?? element.ElementWidth));
+            var minZ = elements.Min(element => element.ElementCOG.Z - GetHalfDimension(element.BBoxHeight ?? element.ElementHeight));
+
+            return new Point3D(minX, minY, minZ);
+        }
+
+        private static double GetHalfDimension(double? value)
+        {
+            if (!value.HasValue || double.IsNaN(value.Value) || double.IsInfinity(value.Value) || value.Value <= 0)
+                return 0d;
+
+            return value.Value / 2d;
         }
 
         private static List<PrecastElement> ApplyFilter(
