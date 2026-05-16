@@ -87,6 +87,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IStatusService, StatusService>();
             services.AddSingleton<IElementGridSizingService, ElementGridSizingService>();
             services.AddSingleton<IElementVisibilityFilterService, ElementVisibilityFilterService>();
+            services.AddSingleton<IIfcSceneOperationService, IfcSceneOperationService>();
 
             // =========================
             // F10 Project Management

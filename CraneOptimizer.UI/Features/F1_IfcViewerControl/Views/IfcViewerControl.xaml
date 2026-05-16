@@ -255,7 +255,7 @@
                         FontSize="{StaticResource FontSizeSM}"
                         FontWeight="SemiBold"
                         Foreground="{DynamicResource TextPrimaryBrush}"
-                        Text="Click to place IFC. Press Esc to cancel." />
+                        Text="{Binding IfcViewer.PlacementPrompt}" />
                 </Border>
 
             </Grid>
