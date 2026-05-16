@@ -14,24 +14,38 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.Services
             if (elements.Count == 0)
                 return (DefaultGridSizeMeters, DefaultGridSizeMeters, 0d, 0d);
 
-            var minX = elements.Min(e => e.ElementCOG.X - ((e.BBoxLength ?? 0d) / 2d));
-            var maxX = elements.Max(e => e.ElementCOG.X + ((e.BBoxLength ?? 0d) / 2d));
-            var minY = elements.Min(e => e.ElementCOG.Y - ((e.BBoxWidth ?? 0d) / 2d));
-            var maxY = elements.Max(e => e.ElementCOG.Y + ((e.BBoxWidth ?? 0d) / 2d));
+            var minX = double.MaxValue;
+            var minY = double.MaxValue;
+            var maxX = double.MinValue;
+            var maxY = double.MinValue;
 
-            // Use maximum absolute extent from origin so the grid
-            // is large enough to contain the building wherever it sits.
-            var maxAbsX = Math.Max(Math.Abs(minX), Math.Abs(maxX));
-            var maxAbsY = Math.Max(Math.Abs(minY), Math.Abs(maxY));
-            var buildingWidthMeters = Math.Max(0d, (maxAbsX * 2) / 1000.0);
-            var buildingLengthMeters = Math.Max(0d, (maxAbsY * 2) / 1000.0);
+            foreach (var element in elements)
+            {
+                var cog = element.ElementCOG;
+                if (!IsFinite(cog.X) || !IsFinite(cog.Y))
+                    continue;
 
-            // Grid always stays centered at the world origin (0, 0).
+                var halfLength = GetHalfExtent(element.BBoxLength);
+                var halfWidth = GetHalfExtent(element.BBoxWidth);
+                minX = Math.Min(minX, cog.X - halfLength);
+                maxX = Math.Max(maxX, cog.X + halfLength);
+                minY = Math.Min(minY, cog.Y - halfWidth);
+                maxY = Math.Max(maxY, cog.Y + halfWidth);
+            }
+
+            if (minX == double.MaxValue)
+                return (DefaultGridSizeMeters, DefaultGridSizeMeters, 0d, 0d);
+
+            var buildingWidthMeters = Math.Max(0d, (maxX - minX) / 1000.0);
+            var buildingLengthMeters = Math.Max(0d, (maxY - minY) / 1000.0);
+            var centerXMillimeters = (minX + maxX) * 0.5;
+            var centerYMillimeters = (minY + maxY) * 0.5;
+
             return (
                 CalculateGridAxisMeters(buildingWidthMeters),
                 CalculateGridAxisMeters(buildingLengthMeters),
-                0d,
-                0d);
+                centerXMillimeters,
+                centerYMillimeters);
         }
 
         private static double CalculateGridAxisMeters(double buildingAxisMeters)
@@ -42,5 +56,15 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.Services
             var padded = buildingAxisMeters * GridPaddingFactor;
             return Math.Ceiling(padded / GridRoundStepMeters) * GridRoundStepMeters;
         }
+
+        private static double GetHalfExtent(double? value)
+        {
+            if (!value.HasValue || !IsFinite(value.Value) || value.Value <= 0)
+                return 0d;
+
+            return value.Value * 0.5;
+        }
+
+        private static bool IsFinite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
     }
 }

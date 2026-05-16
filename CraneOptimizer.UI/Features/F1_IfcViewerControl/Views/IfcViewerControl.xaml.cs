@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
+using System.Windows.Threading;
 using HelixToolkit.Wpf;
 using Microsoft.Extensions.DependencyInjection;
 using CraneOptimizer.Domain.Schemas;
@@ -38,6 +39,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private double _gridCenterXMillimeters;
         private double _gridCenterYMillimeters;
         private string _lastElementSceneKey = string.Empty;
+        private bool _pendingWheelClipUpdate;
 
         private OsnapIndicator? _osnapIndicator;
 
@@ -198,6 +200,18 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private void IfcViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
             _cameraService.UpdateClipping(_sceneService.GetElements());
+
+            if (sender is HelixViewport3D viewport && !_pendingWheelClipUpdate)
+            {
+                _pendingWheelClipUpdate = true;
+                viewport.Dispatcher.BeginInvoke(
+                    DispatcherPriority.Background,
+                    new Action(() =>
+                    {
+                        _pendingWheelClipUpdate = false;
+                        _cameraService.UpdateClipping(_sceneService.GetElements());
+                    }));
+            }
         }
 
         private void ResetCamera_Click(object sender, RoutedEventArgs e)
