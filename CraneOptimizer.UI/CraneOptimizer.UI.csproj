@@ -39,10 +39,11 @@
   <ItemGroup>
     <None Remove="appsettings.json" />
     <None Remove="Data\crane.db" />
-    <None Remove="ICONS\restricted-area.png" />
-    <None Remove="ICONS\ruler.png" />
-    <None Remove="ICONS\safe-zone %281%29.png" />
-    <None Remove="ICONS\safe-zone.png" />
+    <None Remove="Resources\Icons\map-pin-check.png" />
+    <None Remove="Resources\Icons\map-pin-x.png" />
+    <None Remove="Resources\Icons\map-pin_check.png" />
+    <None Remove="Resources\Icons\map-pin_X.png" />
+    <None Remove="Resources\Icons\ruler.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -84,16 +85,19 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="ICONS\restricted-area.png">
+    <Resource Include="Resources\Icons\map-pin-check.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="ICONS\ruler.png">
+    <Resource Include="Resources\Icons\map-pin-x.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="ICONS\safe-zone (1).png">
+    <Resource Include="Resources\Icons\map-pin_check.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="ICONS\safe-zone.png">
+    <Resource Include="Resources\Icons\map-pin_X.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Icons\ruler.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
   </ItemGroup>
