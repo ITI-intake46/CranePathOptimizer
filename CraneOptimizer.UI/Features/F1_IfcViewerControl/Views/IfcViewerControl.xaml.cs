@@ -209,29 +209,52 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 _cameraService.ZoomToElements(elements);
         }
 
-        private void RenderQualityDropBtn_Click(object sender, RoutedEventArgs e)
+        private void RenderQualityCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            RenderQualityPopup.IsOpen = true;
-        }
+            if (RenderQualityCombo.SelectedItem is not ComboBoxItem item)
+                return;
 
-        private void RenderQuality_Changed(object sender, RoutedEventArgs e)
-        {
-            if (DataContext is not MainViewModel vm) return;
+            var selectedQuality = item.Tag?.ToString() switch
+            {
+                "High" => ElementVisualBuilder.MeshQuality.High,
+                "Low" => ElementVisualBuilder.MeshQuality.Low,
+                _ => ElementVisualBuilder.MeshQuality.Medium
+            };
 
-            if (rbRenderHigh.IsChecked == true)
-            {
-                ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.High;
-                vm.RenderQualityLabel = "HIGH";
-            }
-            else
-            {
-                ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.Standard;
-                vm.RenderQualityLabel = "STD";
-            }
+            var qualityChanged = ElementVisualBuilder.CurrentQuality != selectedQuality;
+            ElementVisualBuilder.CurrentQuality = selectedQuality;
+
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            vm.RenderQualityLabel = GetRenderQualityDisplayName(selectedQuality);
+
+            if (!qualityChanged)
+                return;
 
             vm.ReRenderElements();
             _cameraService.UpdateClipping(_sceneService.GetElements());
-            vm.StatusText = $"Render quality: {vm.RenderQualityLabel}";
+            vm.StatusText = $"Render quality: {GetRenderQualityDescription(selectedQuality)}";
+        }
+
+        private static string GetRenderQualityDisplayName(ElementVisualBuilder.MeshQuality quality)
+        {
+            return quality switch
+            {
+                ElementVisualBuilder.MeshQuality.High => "High",
+                ElementVisualBuilder.MeshQuality.Low => "Low",
+                _ => "Medium"
+            };
+        }
+
+        private static string GetRenderQualityDescription(ElementVisualBuilder.MeshQuality quality)
+        {
+            return quality switch
+            {
+                ElementVisualBuilder.MeshQuality.High => "High - detailed IFC meshes",
+                ElementVisualBuilder.MeshQuality.Low => "Low - batched bounding boxes",
+                _ => "Medium - simplified IFC meshes"
+            };
         }
 
         private void ApplyGridSize_Click(object sender, RoutedEventArgs e)
