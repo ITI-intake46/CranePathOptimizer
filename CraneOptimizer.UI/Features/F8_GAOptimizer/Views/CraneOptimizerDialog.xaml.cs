@@ -16,9 +16,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 {
     public partial class CraneOptimizerDialog : Window
     {
-        private const double CompactDialogWidth = 460;
-        private const double ExpandedDialogWidth = 780;
-        private const double AdvancedPanelWidth = 320;
+        private const double CompactDialogWidth = 560;
+        private const double ExpandedDialogWidth = 920;
+        private const double AdvancedPanelWidth = 360;
 
         private readonly IRenderingService _renderingService;
         private readonly IDialogService _dialogService;
