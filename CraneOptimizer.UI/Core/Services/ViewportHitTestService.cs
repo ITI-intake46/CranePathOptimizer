@@ -16,17 +16,6 @@ namespace CraneOptimizer.UI.Core.Services
 
             try
             {
-                var hit = viewport.FindNearestPoint(screenPt);
-                if (hit.HasValue)
-                {
-                    worldPoint = hit.Value;
-                    return true;
-                }
-            }
-            catch { }
-
-            try
-            {
                 bool ok = Viewport3DHelper.Point2DtoPoint3D(viewport.Viewport, screenPt, out Point3D near, out Point3D far);
                 if (!ok) return false;
 
@@ -43,21 +32,22 @@ namespace CraneOptimizer.UI.Core.Services
             }
             catch { }
 
+            try
+            {
+                var hit = viewport.FindNearestPoint(screenPt);
+                if (hit.HasValue)
+                {
+                    worldPoint = hit.Value;
+                    return true;
+                }
+            }
+            catch { }
+
             return false;
         }
 
         public bool TryGetPlacementPoint(HelixViewport3D viewport, Point screenPt, out Point3D worldPoint)
         {
-            worldPoint = new Point3D();
-
-            try
-            {
-                var hit = viewport.Viewport.FindHits(screenPt).FirstOrDefault();
-                if (hit != null)
-                    return TryGetWorldPoint(viewport, screenPt, out worldPoint);
-            }
-            catch { }
-
             return TryGetWorldPoint(viewport, screenPt, out worldPoint);
         }
 

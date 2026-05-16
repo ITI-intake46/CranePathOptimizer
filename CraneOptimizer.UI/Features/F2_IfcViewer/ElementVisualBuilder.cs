@@ -38,17 +38,20 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         private readonly DomainPoint3D? _origin;
         private readonly DomainPoint3D? _placementOffset;
         private readonly bool _renderOnlyStatusElements;
+        private readonly byte? _statusAlpha;
 
         public ElementVisualBuilder(
             IIfcReaderRepository? ifcReader = null,
             DomainPoint3D? origin = null,
             DomainPoint3D? placementOffset = null,
-            bool renderOnlyStatusElements = false)
+            bool renderOnlyStatusElements = false,
+            byte? statusAlpha = null)
         {
             _ifcReader = ifcReader;
             _origin = origin;
             _placementOffset = placementOffset;
             _renderOnlyStatusElements = renderOnlyStatusElements;
+            _statusAlpha = statusAlpha;
         }
 
         public Visual3D Build((PrecastElement element, LiftStatus? status, bool isSelected) item)
@@ -577,7 +580,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         {
             if (!status.HasValue) return Color.FromRgb(160, 160, 175); // Neutral Blueprint Gray
 
-            return status.Value switch
+            var color = status.Value switch
             {
                 // Premium High-Contrast Palette
                 LiftStatus.Liftable    => Color.FromRgb(46, 204, 113),  // Emerald Green
@@ -587,6 +590,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 LiftStatus.SpecialCase => Color.FromRgb(155, 89, 182),  // Amethyst Purple
                 _                      => Color.FromRgb(149, 165, 166)  // Asbestos Gray
             };
+
+            return _statusAlpha.HasValue
+                ? Color.FromArgb(_statusAlpha.Value, color.R, color.G, color.B)
+                : color;
         }
     }
 }

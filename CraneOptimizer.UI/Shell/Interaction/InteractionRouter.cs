@@ -131,13 +131,12 @@ namespace CraneOptimizer.UI.Shell.Interaction
 
         public void OnMouseMove(HelixViewport3D viewport, MouseEventArgs e)
         {
-            var screen = e.GetPosition(viewport);
-
-            if (!_hitTest.TryGetWorldPoint(viewport, screen, out var world))
-                return;
-
             if (_vm.IsDraggingCrane && e.LeftButton == MouseButtonState.Pressed)
             {
+                var screen = e.GetPosition(viewport);
+                if (!_hitTest.TryGetWorldPoint(viewport, screen, out var world))
+                    return;
+
                 _vm.DragCrane(new DomainPoint3D(world.X, world.Y, world.Z));
                 e.Handled = true;
                 return;
@@ -146,6 +145,10 @@ namespace CraneOptimizer.UI.Shell.Interaction
             var drawingVm = _vm.Drawing;
             if (drawingVm != null && drawingVm.IsDrawing)
             {
+                var screen = e.GetPosition(viewport);
+                if (!_hitTest.TryGetWorldPoint(viewport, screen, out var world))
+                    return;
+
                 drawingVm.SetHoverPoint(new DomainPoint3D(world.X, world.Y, world.Z));
             }
         }
