@@ -2,6 +2,9 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Schemas;
 using System.Threading;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
@@ -48,6 +51,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 
             var population = _initializer.InitializePopulation(
                 input.Zones,
+                input.ForbiddenZones,
                 input.Elements,
                 input.Settings.PopulationSize,
                 input.Settings.MaxCranePositions,
@@ -74,6 +78,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                         input.Settings);
 
                     solution.Fitness = fitness.FitnessScore;
+                    solution.CoverageRatio = fitness.CoverageRatio;
                 }
 
                 var currentBest = population.Individuals
@@ -121,13 +126,19 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                     {
                         var child1 = _crossover.Crossover(parents[i], parents[i + 1]);
                         var child2 = _crossover.Crossover(parents[i + 1], parents[i]);
+                        SanitizeSolution(child1, input);
+                        SanitizeSolution(child2, input);
                         children.Add(child1);
                         children.Add(child2);
                     }
                     else
                     {
-                        children.Add(parents[i].DeepCopy());
-                        children.Add(parents[i + 1].DeepCopy());
+                        var child1 = parents[i].DeepCopy();
+                        var child2 = parents[i + 1].DeepCopy();
+                        SanitizeSolution(child1, input);
+                        SanitizeSolution(child2, input);
+                        children.Add(child1);
+                        children.Add(child2);
                     }
                 }
 
@@ -136,7 +147,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                     cancellationToken.ThrowIfCancellationRequested();
 
                     if (GARandomManager.Instance.NextDouble() < input.Settings.MutationRate)
-                        _mutation.Mutate(child, input.Zones, input.Settings);
+                        _mutation.Mutate(child, input.Zones, input.ForbiddenZones, input.Settings);
+
+                    SanitizeSolution(child, input);
                 }
 
                 foreach (var child in children)
@@ -156,12 +169,63 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                         input.Settings);
 
                     child.Fitness = fitness.FitnessScore;
+                    child.CoverageRatio = fitness.CoverageRatio;
                 }
 
                 population = _replacement.Replace(population, children);
             }
 
             return bestSolution;
+        }
+
+        /// <summary>
+        /// Cleans a generated child solution before evaluation.
+        /// Inputs are a child solution and the current placement input; the output is an
+        /// in-place chromosome update that removes invalid, forbidden, or near-duplicate
+        /// setup points while preserving at least one valid fallback point where possible.
+        /// </summary>
+        private static void SanitizeSolution(CraneSolution solution, PlacementInput input)
+        {
+            var filtered = CranePlacementConstraintService.FilterDistinctValidPoints(
+                solution.Chromosome.CranePositions,
+                input.Zones,
+                input.ForbiddenZones,
+                input.Settings);
+
+            if (filtered.Count == 0)
+            {
+                var fallback = FindFirstValidZoneCentroid(input.Zones, input.ForbiddenZones, input.Settings);
+                if (fallback != null)
+                    filtered.Add(fallback);
+            }
+
+            solution.Chromosome.CranePositions = filtered;
+        }
+
+        /// <summary>
+        /// Finds a simple valid fallback point from allowed-zone centroids.
+        /// This keeps GA children evaluable if crossover or mutation removes every point.
+        /// </summary>
+        private static DomainPoint3D? FindFirstValidZoneCentroid(
+            IReadOnlyList<GreenAreaZone> zones,
+            IReadOnlyList<GreenAreaZone> forbiddenZones,
+            GASettings settings)
+        {
+            foreach (var zone in zones)
+            {
+                if (zone.Vertices.Count == 0)
+                    continue;
+
+                var candidate = new DomainPoint3D(
+                    zone.Vertices.Average(vertex => vertex.X),
+                    zone.Vertices.Average(vertex => vertex.Y),
+                    0);
+
+                if (CranePlacementConstraintService.IsValidSetupPoint(candidate, zones, forbiddenZones, settings))
+                    return candidate;
+            }
+
+            return null;
         }
     }
 }

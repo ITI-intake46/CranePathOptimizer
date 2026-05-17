@@ -71,7 +71,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 existingSpec.MinBoomLength = updatedSpec.MinBoomLength;
                 existingSpec.CounterWeight = updatedSpec.CounterWeight;
                 existingSpec.MachineRotation = updatedSpec.MachineRotation;
-                existingSpec.CraneDerating = updatedSpec.CraneDerating;
+                existingSpec.DeratingRatio = updatedSpec.DeratingRatio;
                 existingSpec.OutriggerConfig = updatedSpec.OutriggerConfig;
 
                 context.TargetPoints.RemoveRange(existingSpec.LoadChart);
@@ -136,7 +136,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                         MaxBoomLength = parsedChart.MaxBoomLength,
                         MinBoomLength = parsedChart.MinBoomLength,
                         CounterWeight = counterWeight,
-                        CraneDerating = null,
+                        DeratingRatio = null,
                         OutriggerConfig = outriggerConfig,
                         LoadChart = parsedChart.Points
                             .Select(point => new TargetPoint
@@ -162,7 +162,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 MinBoomLength = source.MinBoomLength,
                 CounterWeight = source.CounterWeight,
                 MachineRotation = source.MachineRotation,
-                CraneDerating = null,
+                DeratingRatio = source.DeratingRatio,
                 OutriggerConfig = source.OutriggerConfig,
                 LoadChart = source.LoadChart
                     .Select(point => new TargetPoint

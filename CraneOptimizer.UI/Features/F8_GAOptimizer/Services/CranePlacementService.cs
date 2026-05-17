@@ -110,9 +110,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     .ToList();
             }
 
-            finalResult.CoverageRatio = allElements.Count == 0
-                ? 0
-                : (double)coveredElements.Count / allElements.Count;
+            DeduplicateFinalPositions(finalResult, input.Settings);
+            RecalculateCoverage(finalResult, allElements.Count);
+
             finalResult.FitnessScore = finalResult.CoverageRatio;
             finalResult.Positions = finalResult.Positions
                 .OrderByDescending(position => position.NewLiftableCount)
@@ -192,6 +192,88 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     statistics.SpecialCase++;
                     break;
             }
+        }
+
+        /// <summary>
+        /// Filters final crane setup points so small adjustments are not presented
+        /// as separate crane relocations. Inputs are the optimization result and GA settings;
+        /// the output is an in-place list where near-identical points keep the stronger
+        /// coverage candidate and discard the weaker duplicate.
+        /// </summary>
+        private static void DeduplicateFinalPositions(
+            CranePlacementResult result,
+            GASettings settings)
+        {
+            if (result.Positions.Count < 2)
+                return;
+
+            double minimumDistanceMeters = Math.Max(
+                settings.DuplicatePositionDistance,
+                settings.MinimumRelocationDistance);
+
+            if (minimumDistanceMeters <= 0)
+                return;
+
+            double minimumDistance = minimumDistanceMeters * CoordinateService.MetersToMillimetersScale;
+
+            var filtered = new List<CranePositionResult>();
+
+            foreach (var candidate in result.Positions)
+            {
+                int nearIndex = filtered.FindIndex(existing =>
+                    Distance2D(existing, candidate) < minimumDistance);
+
+                if (nearIndex < 0)
+                {
+                    filtered.Add(candidate);
+                    continue;
+                }
+
+                var existing = filtered[nearIndex];
+                if (candidate.NewLiftableCount > existing.NewLiftableCount
+                    || (candidate.NewLiftableCount == existing.NewLiftableCount
+                        && candidate.LiftableCount > existing.LiftableCount))
+                {
+                    filtered[nearIndex] = candidate;
+                }
+            }
+
+            result.Positions = filtered;
+        }
+
+        /// <summary>
+        /// Recomputes total coverage and per-point new coverage after final de-duplication.
+        /// Inputs are the filtered result and original element count; outputs are updated
+        /// NewLiftableCount and CoverageRatio values consistent with displayed points.
+        /// </summary>
+        private static void RecalculateCoverage(CranePlacementResult result, int totalElementCount)
+        {
+            var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var position in result.Positions)
+            {
+                var newlyCovered = position.ElementResults
+                    .Where(item => item.Status == LiftStatus.Liftable && covered.Add(item.ElementId))
+                    .Count();
+
+                position.NewLiftableCount = newlyCovered;
+            }
+
+            result.CoverageRatio = totalElementCount == 0
+                ? 0
+                : (double)covered.Count / totalElementCount;
+        }
+
+        /// <summary>
+        /// Calculates horizontal distance between two displayed crane positions.
+        /// F8 result points are denormalized back to millimeters before display, so the
+        /// caller converts engineering thresholds from meters to millimeters first.
+        /// </summary>
+        private static double Distance2D(CranePositionResult a, CranePositionResult b)
+        {
+            double dx = a.X - b.X;
+            double dy = a.Y - b.Y;
+            return Math.Sqrt(dx * dx + dy * dy);
         }
     }
 }

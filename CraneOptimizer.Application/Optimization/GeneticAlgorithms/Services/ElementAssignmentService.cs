@@ -263,8 +263,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // Step 4 — Required boom length
             double boomLength = LiftCalculation.CalculateRequiredBoomLength(radius, height);
 
-            // Step 5 — Required capacity = element weight
-            double requiredCapacity = element.ElementWT ?? 0;
+            // Step 5 — Required capacity = element weight + lifting accessories
+            double requiredCapacity = (element.ElementWT ?? 0) + settings.AdditionalWt;
 
             // Step 6 — Determine full lift status
             LiftStatus status = LiftCalculation.DetermineLiftStatus(

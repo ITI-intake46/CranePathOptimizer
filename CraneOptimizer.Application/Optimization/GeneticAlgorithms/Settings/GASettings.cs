@@ -31,15 +31,38 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public double CrossoverRate { get; set; } = 0.8;
 
         /// <summary>
-        /// Additional rigging length used during lifting calculations.
-        /// Default value is typically around 2 meters.
+        /// Additional wire/hoist rope length (m) that increases required hook height.
         /// </summary>
-        public double RiggingLength { get; set; } = 2.0;
+        public double WireLength { get; set; } = 2.0;
 
         /// <summary>
-        /// Safety factor applied to crane lifting capacity.
+        /// Additional lifting weight (tons) for hook block and accessories.
+        /// Added to element weight before capacity validation.
         /// </summary>
-        public double SafetyFactor { get; set; } = 0.9;
+        public double AdditionalWt { get; set; } = 0.0;
+
+        /// <summary>
+        /// Capacity derating ratio applied to load-chart capacities.
+        /// Use values in (0, 1]; lower values reduce effective crane capacity.
+        /// </summary>
+        public double DeratingRatio { get; set; } = 0.9;
+
+        /// <summary>
+        /// User-defined operational safety limit applied after derating.
+        /// Use values in [0, 1]; lower values are more conservative.
+        /// </summary>
+        public double SafetyFactor { get; set; } = 0.95;
+
+        /// <summary>
+        /// Backward-compatible alias for legacy configuration payloads.
+        /// Prefer WireLength.
+        /// </summary>
+        [Obsolete("Use WireLength instead.")]
+        public double RiggingLength
+        {
+            get => WireLength;
+            set => WireLength = value;
+        }
 
         /// <summary>
         /// Maximum number of crane setup positions allowed in a chromosome.
@@ -117,5 +140,45 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// Higher values prefer balanced crane-position utilization.
         /// </summary>
         public double BalancePenaltyWeight { get; set; } = 2.0;
+
+        /// <summary>
+        /// Minimum meaningful distance in meters between crane setup points.
+        /// Points closer than this are treated as setup adjustments, not real relocations.
+        /// </summary>
+        public double MinimumRelocationDistance { get; set; } = 10.0;
+
+        /// <summary>
+        /// Distance in meters under which two points are considered near-duplicates.
+        /// This threshold supports de-duplication before final results are shown.
+        /// </summary>
+        public double DuplicatePositionDistance { get; set; } = 3.0;
+
+        /// <summary>
+        /// Penalty weight for crane positions that are too close to be operationally distinct.
+        /// </summary>
+        public double SimilarPositionPenaltyWeight { get; set; } = 8.0;
+
+        /// <summary>
+        /// Penalty weight for total movement distance between sequential crane setup points.
+        /// This models travel/mobilization effort in addition to setup count.
+        /// </summary>
+        public double RelocationDistancePenaltyWeight { get; set; } = 1.5;
+
+        /// <summary>
+        /// Multiplier applied to mutation scale to avoid overly local search.
+        /// Higher values increase spatial exploration while preserving the existing mutation model.
+        /// </summary>
+        public double MutationExplorationMultiplier { get; set; } = 2.0;
+
+        /// <summary>
+        /// Number of attempts used when sampling valid and spatially separated setup points.
+        /// </summary>
+        public int PositionSamplingAttempts { get; set; } = 80;
+
+        /// <summary>
+        /// Approximate crane footprint radius in meters.
+        /// This is set by the GA input builder from crane body/outrigger dimensions.
+        /// </summary>
+        public double CraneFootprintRadius { get; set; }
     }
 }
