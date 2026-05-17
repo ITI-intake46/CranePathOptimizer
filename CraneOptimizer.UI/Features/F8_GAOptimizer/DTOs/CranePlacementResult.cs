@@ -27,6 +27,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         /// Aggregated statistics of lift results.
         /// </summary>
         public LiftStatistics Statistics { get; set; } = new();
+
+        /// <summary>
+        /// CSV diagnostics generated for the latest GA run.
+        /// </summary>
+        public string? DebugReportPath { get; set; }
+
+        /// <summary>
+        /// Non-fatal error captured if writing the diagnostic report fails.
+        /// </summary>
+        public string? DebugReportError { get; set; }
     }
 
     /// <summary>
@@ -74,6 +84,30 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         public string ElementId { get; set; }
 
         /// <summary>
+        /// Element mark/name from the source model when available.
+        /// </summary>
+        public string? ElementMark { get; set; }
+
+        /// <summary>
+        /// Element type from the source model.
+        /// </summary>
+        public string? ElementType { get; set; }
+
+        /// <summary>
+        /// Element weight as imported from the model.
+        /// </summary>
+        public double? Weight { get; set; }
+
+        /// <summary>
+        /// Element center of gravity in scene/display coordinates.
+        /// </summary>
+        public double CogX { get; set; }
+
+        public double CogY { get; set; }
+
+        public double CogZ { get; set; }
+
+        /// <summary>
         /// Lift feasibility status.
         /// </summary>
         public LiftStatus Status { get; set; }
@@ -82,6 +116,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         /// Working radius between crane and element.
         /// </summary>
         public double Radius { get; set; }
+
+        /// <summary>
+        /// Required boom length for this evaluated lift.
+        /// </summary>
+        public double BoomLength { get; set; }
+
+        /// <summary>
+        /// Available capacity found in the selected crane load chart.
+        /// </summary>
+        public double AvailableCapacity { get; set; }
 
         /// <summary>
         /// Required lifting capacity for the element.

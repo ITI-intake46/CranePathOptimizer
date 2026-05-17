@@ -175,19 +175,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 candidates.Add(candidate);
             }
 
-            if (candidates.Count == 0)
-            {
-                return new ElementEvaluationResult
-                {
-                    ElementId = element.ElementID,
-                    AssignedCraneIndex = -1,
-                    Status = LiftStatus.SpecialCase,
-                    Radius = double.PositiveInfinity,
-                    BoomLength = double.PositiveInfinity,
-                    RequiredCapacity = element.ElementWT ?? 0
-                };
-            }
-
             // ── Pick the best result ───────────────────────────────
             return SelectBestCandidate(candidates);
         }
@@ -279,7 +266,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // Step 5 — Required capacity = element weight + lifting accessories
             double requiredCapacity = (element.ElementWT ?? 0) + settings.AdditionalWt;
 
-            // Step 6 — Determine full lift status
+            // Step 6 — Lookup chart capacity for debug/reporting
+            double availableCapacity = LiftCalculation.CraneCapacity(
+                craneSpec,
+                radius,
+                boomLength,
+                settings);
+
+            // Step 7 — Determine full lift status
             LiftStatus status = LiftCalculation.DetermineLiftStatus(
                 radius, boomLength, requiredCapacity, craneSpec, settings);
 
@@ -290,6 +284,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 Status = status,
                 Radius = radius,
                 BoomLength = boomLength,
+                AvailableCapacity = availableCapacity,
                 RequiredCapacity = requiredCapacity
             };
         }

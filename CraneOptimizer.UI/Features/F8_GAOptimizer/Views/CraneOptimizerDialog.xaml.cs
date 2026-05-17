@@ -133,10 +133,20 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtStatus.Text = result.Positions.Any()
                     ? "Optimization completed."
                     : "Optimization completed with no valid positions.";
+
+                var debugReportText = !string.IsNullOrWhiteSpace(result.DebugReportPath)
+                    ? $"Debug report: {result.DebugReportPath}"
+                    : !string.IsNullOrWhiteSpace(result.DebugReportError)
+                        ? $"Debug report failed: {result.DebugReportError}"
+                        : string.Empty;
+
                 TxtStopReason.Text =
                     $"Capacity factors: DeratingRatio={settingsPreview.DeratingRatio:F2}, " +
                     $"SafetyFactor={settingsPreview.SafetyFactor:F2}, " +
-                    $"Combined={(settingsPreview.DeratingRatio * settingsPreview.SafetyFactor):F2}";
+                    $"Combined={(settingsPreview.DeratingRatio * settingsPreview.SafetyFactor):F2}" +
+                    (string.IsNullOrWhiteSpace(debugReportText)
+                        ? string.Empty
+                        : $"{Environment.NewLine}{debugReportText}");
                 ProgBar.IsIndeterminate = false;
                 ProgBar.Value = 100;
 

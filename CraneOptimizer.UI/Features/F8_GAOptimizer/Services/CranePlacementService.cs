@@ -118,6 +118,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 .OrderByDescending(position => position.NewLiftableCount)
                 .ToList();
 
+            RecalculateCoverage(finalResult, allElements.Count);
+            WriteDebugReport(finalResult);
+
             return finalResult;
         }
 
@@ -132,6 +135,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 FitnessScore = solution.Fitness,
                 Positions = new List<CranePositionResult>(solution.Chromosome.CranePositions.Count)
             };
+
+            var elementLookup = elements
+                .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
+                .GroupBy(element => element.ElementID, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
             for (int i = 0; i < solution.Chromosome.CranePositions.Count; i++)
             {
@@ -148,13 +156,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     X = scenePoint.X,
                     Y = scenePoint.Y,
                     ElementResults = evaluations
-                        .Select(evaluation => new ElementLiftResult
-                        {
-                            ElementId = evaluation.ElementId,
-                            Status = evaluation.Status,
-                            Radius = evaluation.Radius,
-                            RequiredCapacity = evaluation.RequiredCapacity
-                        })
+                        .Select(evaluation => MapElementResult(evaluation, elementLookup))
                         .ToList()
                 };
 
@@ -170,6 +172,47 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 : (double)result.Statistics.Liftable / totalElements;
 
             return result;
+        }
+
+        private ElementLiftResult MapElementResult(
+            ElementEvaluationResult evaluation,
+            IReadOnlyDictionary<string, PrecastElement> elementLookup)
+        {
+            elementLookup.TryGetValue(evaluation.ElementId, out var element);
+
+            var sceneCog = element == null
+                ? new Domain.Common.DomainPoint3D()
+                : _coordinateService.DenormalizePoint(element.ElementCOG);
+
+            return new ElementLiftResult
+            {
+                ElementId = evaluation.ElementId,
+                ElementMark = element?.ElementMark,
+                ElementType = element?.ElementType,
+                Weight = element?.ElementWT,
+                CogX = sceneCog.X,
+                CogY = sceneCog.Y,
+                CogZ = sceneCog.Z,
+                Status = evaluation.Status,
+                Radius = evaluation.Radius,
+                BoomLength = evaluation.BoomLength,
+                AvailableCapacity = evaluation.AvailableCapacity,
+                RequiredCapacity = evaluation.RequiredCapacity
+            };
+        }
+
+        private static void WriteDebugReport(CranePlacementResult result)
+        {
+            try
+            {
+                result.DebugReportPath = GADebugReportWriter.Write(result);
+                result.DebugReportError = null;
+            }
+            catch (Exception ex)
+            {
+                result.DebugReportPath = null;
+                result.DebugReportError = ex.Message;
+            }
         }
 
         private static void UpdateStatistics(LiftStatistics statistics, LiftStatus status)
