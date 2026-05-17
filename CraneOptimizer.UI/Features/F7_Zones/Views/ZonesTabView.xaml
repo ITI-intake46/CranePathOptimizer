@@ -42,7 +42,7 @@
                                 <Button Command="{Binding StartAllowedCommand}" 
                                 Style="{StaticResource RibbonLargeBtn}" Height="95">
                                     <StackPanel HorizontalAlignment="Center">
-                                        <Image Source="/CraneOptimizer.UI;component/Resources/Icons/map-pin_check.png" 
+                                        <Image Source="/CraneOptimizer.UI;component/Resources/Icons/map-pin-check (1)_white.png" 
                                                Width="32" Height="32" Margin="0,6,0,4"
                                                RenderOptions.BitmapScalingMode="HighQuality"
                                                Opacity="0.8"/>
@@ -68,7 +68,7 @@
                                 <Button Command="{Binding StartForbiddenCommand}" 
                                 Style="{StaticResource RibbonLargeBtn}" Height="95">
                                     <StackPanel HorizontalAlignment="Center">
-                                        <Image Source="/CraneOptimizer.UI;component/Resources/Icons/map-pin_x.png" 
+                                        <Image Source="/CraneOptimizer.UI;component/Resources/Icons/map-pin-x (1)_white.png" 
                                                Width="32" Height="32" Margin="0,6,0,4"
                                                RenderOptions.BitmapScalingMode="HighQuality"
                                                Opacity="0.8"/>
