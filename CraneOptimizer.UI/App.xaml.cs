@@ -109,6 +109,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<CoordinateService>();
             services.AddSingleton<ICoordinateTransformService, CoordinateTransformService>();
             services.AddSingleton<ICraneValidationService, CraneValidationService>();
+            services.AddSingleton<IElementLiftStateService, ElementLiftStateService>();
 
             // =========================
             // GA

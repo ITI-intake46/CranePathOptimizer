@@ -3,6 +3,8 @@ using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Converters;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Core.Models;
+using CraneOptimizer.UI.Features.F5_ElementManagement.Services;
 using CraneOptimizer.UI.Features.F16_Filter.Models;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
 using CraneOptimizer.UI.Features.F16_Filter.Views;
@@ -23,6 +25,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         private readonly ISceneService _scene;
         private readonly ISceneGridSizingService _gridSizingService;
         private readonly IElementVisibilityFilterService _visibilityFilterService;
+        private readonly IElementLiftStateService _liftStateService;
         private string _selectedElementName = "No element selected";
         private PrecastElement? _selectedElement;
         private double _minWeight;
@@ -40,14 +43,17 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
         public ElementManagementViewModel(
             ISceneService scene,
+            IElementLiftStateService liftStateService,
             ISceneGridSizingService gridSizing,
             IElementVisibilityFilterService visibilityFilterService)
         {
             _scene = scene;
             _gridSizingService = gridSizing;
             _visibilityFilterService = visibilityFilterService;
+            _liftStateService = liftStateService;
             _scene.ElementsChanged += OnElementsChanged;
             _scene.ElementsSelectionChanged += OnElementsSelectionChanged;
+            _liftStateService.StateChanged += OnLiftStateChanged;
             ShowFilterDialogCommand = new RelayCommand(ShowFilterDialog);
             ApplyFilterCommand = new RelayCommand(ApplyFilters);
         }
@@ -172,7 +178,8 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             if (SelectedElement == null)
                 return;
 
-            var groups = BuildPropertyGroups(SelectedElement);
+            var panelDto = BuildElementPanelDto(SelectedElement);
+            var groups = BuildPropertyGroups(panelDto);
             var filter = PropertySearchText?.Trim();
 
             foreach (var group in groups)
@@ -231,6 +238,8 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 ApplySearchFilter();
             }
         }
+
+        private void OnLiftStateChanged() => LoadElementProperties();
 
         private void ShowFilterDialog() => new ElementFilterDialog(this).ShowDialog();
 
@@ -296,31 +305,89 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             listView.Refresh();
         }
 
-        private static List<PropertyItem> BuildPropertyGroups(PrecastElement element)
+        private ElementPanelDto BuildElementPanelDto(PrecastElement element)
+        {
+            var liftState = _liftStateService.GetState(element.ElementID);
+
+            return new ElementPanelDto(
+                BuildLiftStateDto(liftState),
+                GetElementID(element),
+                GetPrecastDisplayName(element),
+                CleanElementType(element.ElementType),
+                element.ElementMaterial ?? "Concrete",
+                element.ElementLength,
+                element.ElementWidth,
+                element.ElementHeight,
+                GetWeightDisplay(element),
+                element.ElementVolume,
+                element.ElementCOG.X,
+                element.ElementCOG.Y,
+                element.ElementCOG.Z);
+        }
+
+        private ElementPanelLiftStateDto BuildLiftStateDto(ElementLiftStateDto? liftState)
+        {
+            return new ElementPanelLiftStateDto(
+                GetLiftStateDisplay(liftState),
+                GetCranePositionDisplay(liftState),
+                liftState?.Radius,
+                liftState?.RequiredCapacity);
+        }
+
+        private static List<PropertyItem> BuildPropertyGroups(ElementPanelDto panel)
         {
             return new List<PropertyItem>
             {
+                CreateLiftStateGroup(panel.LiftState),
+
                 // Identity (Expanded)
                 CreateGroup("Identity", true,
-                    CreateProperty("ID", GetElementID(element), ""),
-                    CreateProperty("Name", GetPrecastDisplayName(element), ""),
-                    CreateProperty("Type", CleanElementType(element.ElementType), ""),
-                    CreateProperty("Material", element.ElementMaterial ?? "Concrete", "")),
+                    CreateProperty("ID", panel.Id, ""),
+                    CreateProperty("Name", panel.Name, ""),
+                    CreateProperty("Type", panel.Type, ""),
+                    CreateProperty("Material", panel.Material, "")),
 
                 // Geometry (Expanded)
                 CreateGroup("Geometry", true,
-                    CreateProperty("Length", element.ElementLength, "mm"),
-                    CreateProperty("Width", element.ElementWidth, "mm"),
-                    CreateProperty("Height", element.ElementHeight, "mm"),
-                    CreateProperty("Weight", GetWeightDisplay(element), ""),
-                    CreateProperty("Volume", element.ElementVolume, "m\u00b3")),
+                    CreateProperty("Length", panel.Length, "mm"),
+                    CreateProperty("Width", panel.Width, "mm"),
+                    CreateProperty("Height", panel.Height, "mm"),
+                    CreateProperty("Weight", panel.Weight, ""),
+                    CreateProperty("Volume", panel.Volume, "m\u00b3")),
 
                 // Location (Expanded)
                 CreateGroup("Location", true,
-                    CreateProperty("X (COG)", element.ElementCOG.X, "mm"),
-                    CreateProperty("Y (COG)", element.ElementCOG.Y, "mm"),
-                    CreateProperty("Z (COG)", element.ElementCOG.Z, "mm"))
+                    CreateProperty("X (COG)", panel.CenterX, "mm"),
+                    CreateProperty("Y (COG)", panel.CenterY, "mm"),
+                    CreateProperty("Z (COG)", panel.CenterZ, "mm"))
             };
+        }
+
+        private static PropertyItem CreateLiftStateGroup(ElementPanelLiftStateDto liftState)
+        {
+            return CreateGroup("Lift State", true,
+                CreateProperty("State", liftState.State, ""),
+                CreateProperty("Crane Position", liftState.CranePosition, ""),
+                CreateProperty("Radius", liftState.Radius, "mm"),
+                CreateProperty("Required Capacity", liftState.RequiredCapacity, "kg"));
+        }
+
+        private string GetLiftStateDisplay(ElementLiftStateDto? liftState)
+        {
+            if (!_liftStateService.HasCurrentState)
+                return "Not evaluated";
+
+            if (liftState == null)
+                return "No result for selected GA point";
+
+            return liftState.State;
+        }
+
+        private static string GetCranePositionDisplay(ElementLiftStateDto? liftState)
+        {
+            return liftState?.CraneX == null || liftState.CraneY == null
+                ? "-"
+                : string.Create(CultureInfo.CurrentCulture, $"X {liftState.CraneX.Value:N0}, Y {liftState.CraneY.Value:N0}");
         }
 
         // Revit Integer ID
