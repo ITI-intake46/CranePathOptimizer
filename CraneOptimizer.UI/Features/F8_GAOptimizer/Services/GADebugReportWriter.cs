@@ -1,7 +1,6 @@
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Mappers;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -14,6 +13,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
         public static string Write(CranePlacementResult result)
         {
+            var report = result.ToDebugReportDto();
             var reportDirectory = Path.Combine(AppContext.BaseDirectory, "Data", "GAReports");
             Directory.CreateDirectory(reportDirectory);
 
@@ -30,49 +30,39 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 "Element ID",
                 "Element Mark",
                 "Element Type",
-                "Weight Raw",
+                "Weight",
                 "COG X",
                 "COG Y",
                 "COG Z",
-                "Radius m",
-                "Boom m",
-                "Required Capacity Raw",
-                "Available Capacity Chart",
+                "Radius",
+                "Boom",
+                "Required Capacity",
+                "Available Capacity",
                 "Status",
                 "Newly Covered At Point"
             }));
 
-            var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            for (int pointIndex = 0; pointIndex < result.Positions.Count; pointIndex++)
+            foreach (var row in report.Rows)
             {
-                var position = result.Positions[pointIndex];
-
-                foreach (var element in position.ElementResults)
+                writer.WriteLine(string.Join(",", new[]
                 {
-                    bool newlyCovered = element.Status == LiftStatus.Liftable
-                        && covered.Add(element.ElementId);
-
-                    writer.WriteLine(string.Join(",", new[]
-                    {
-                        Format(pointIndex + 1),
-                        Format(position.X),
-                        Format(position.Y),
-                        Escape(element.ElementId),
-                        Escape(element.ElementMark),
-                        Escape(element.ElementType),
-                        Format(element.Weight),
-                        Format(element.CogX),
-                        Format(element.CogY),
-                        Format(element.CogZ),
-                        Format(element.Radius),
-                        Format(element.BoomLength),
-                        Format(element.RequiredCapacity),
-                        Format(element.AvailableCapacity),
-                        Escape(element.Status.ToString()),
-                        newlyCovered ? "Yes" : "No"
-                    }));
-                }
+                    Format(row.PointNumber),
+                    Format(row.PointX),
+                    Format(row.PointY),
+                    Escape(row.ElementId),
+                    Escape(row.ElementMark),
+                    Escape(row.ElementType),
+                    Format(row.Weight),
+                    Format(row.CogX),
+                    Format(row.CogY),
+                    Format(row.CogZ),
+                    FormatWithUnit(row.Radius, "m"),
+                    FormatWithUnit(row.BoomLength, "m"),
+                    FormatWithUnit(row.RequiredCapacity, "raw"),
+                    FormatWithUnit(row.AvailableCapacity, "raw"),
+                    Escape(row.Status),
+                    row.NewlyCovered ? "Yes" : "No"
+                }));
             }
 
             return path;
@@ -84,6 +74,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
         private static string Format(double? value) =>
             value.HasValue ? Format(value.Value) : string.Empty;
+
+        private static string FormatWithUnit(double value, string unit)
+        {
+            var text = Format(value);
+            return string.IsNullOrWhiteSpace(unit) ? text : $"{text} {unit}";
+        }
 
         private static string Escape(string? value)
         {
