@@ -17,6 +17,7 @@ using System.Linq;
 using System.Reflection;
 using System.Windows.Data;
 using System.Windows.Input;
+using CraneOptimizer.UI.Features.F5_ElementManagement.DTOs;
 
 namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 {

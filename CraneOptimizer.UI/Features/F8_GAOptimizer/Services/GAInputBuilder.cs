@@ -1,4 +1,5 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
@@ -95,6 +96,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             settings.CraneFootprintRadius = CalculateCraneFootprintRadius(selectedCrane);
 
+            if (!HasValidCraneSetupPoint(zones, forbiddenZones, settings))
+            {
+                throw new InvalidOperationException(
+                    "No valid crane setup point was found inside the allowed green area. " +
+                    "The allowed zone may be too small/narrow for the selected crane footprint, " +
+                    "or it may be blocked by forbidden zones. Draw a larger allowed zone or choose a smaller crane.");
+            }
+
             return new PlacementInput
             {
                 Zones = zones,
@@ -151,6 +160,58 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             double footprintDiameterMillimeters = Math.Max(maxBodyDimension, maxOutriggerDimension);
             return _coordinateService.NormalizeLength(footprintDiameterMillimeters) / 2.0;
+        }
+
+        private static bool HasValidCraneSetupPoint(
+            IReadOnlyList<GreenAreaZone> zones,
+            IReadOnlyList<GreenAreaZone> forbiddenZones,
+            GASettings settings)
+        {
+            foreach (var zone in zones)
+            {
+                if (zone.Vertices.Count < 3)
+                    continue;
+
+                var centroid = new Domain.Common.DomainPoint3D(
+                    zone.Vertices.Average(vertex => vertex.X),
+                    zone.Vertices.Average(vertex => vertex.Y),
+                    0);
+
+                if (CranePlacementConstraintService.IsValidSetupPoint(centroid, zones, forbiddenZones, settings))
+                    return true;
+
+                if (HasValidSamplePoint(zone, zones, forbiddenZones, settings))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool HasValidSamplePoint(
+            GreenAreaZone zone,
+            IReadOnlyList<GreenAreaZone> zones,
+            IReadOnlyList<GreenAreaZone> forbiddenZones,
+            GASettings settings)
+        {
+            var minX = zone.Vertices.Min(vertex => vertex.X);
+            var maxX = zone.Vertices.Max(vertex => vertex.X);
+            var minY = zone.Vertices.Min(vertex => vertex.Y);
+            var maxY = zone.Vertices.Max(vertex => vertex.Y);
+
+            const int samplesPerAxis = 7;
+            for (int ix = 1; ix < samplesPerAxis; ix++)
+            {
+                var x = minX + (maxX - minX) * ix / samplesPerAxis;
+                for (int iy = 1; iy < samplesPerAxis; iy++)
+                {
+                    var y = minY + (maxY - minY) * iy / samplesPerAxis;
+                    var point = new Domain.Common.DomainPoint3D(x, y, 0);
+                    if (CranePlacementConstraintService.IsValidSetupPoint(point, zones, forbiddenZones, settings))
+                        return true;
+                }
+            }
+
+            return false;
         }
     }
 }

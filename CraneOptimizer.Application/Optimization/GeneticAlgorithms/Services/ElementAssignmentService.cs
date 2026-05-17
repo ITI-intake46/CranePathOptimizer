@@ -175,6 +175,19 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 candidates.Add(candidate);
             }
 
+            if (candidates.Count == 0)
+            {
+                return new ElementEvaluationResult
+                {
+                    ElementId = element.ElementID,
+                    AssignedCraneIndex = -1,
+                    Status = LiftStatus.SpecialCase,
+                    Radius = double.PositiveInfinity,
+                    BoomLength = double.PositiveInfinity,
+                    RequiredCapacity = element.ElementWT ?? 0
+                };
+            }
+
             // ── Pick the best result ───────────────────────────────
             return SelectBestCandidate(candidates);
         }

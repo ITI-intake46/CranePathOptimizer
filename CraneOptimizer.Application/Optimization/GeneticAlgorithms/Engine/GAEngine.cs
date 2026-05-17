@@ -57,6 +57,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                 input.Settings.MaxCranePositions,
                 input.Settings);
 
+            if (population.Individuals.Count == 0)
+                throw new InvalidOperationException("The optimizer could not create an initial population. Check allowed zones and GA population settings.");
+
             for (int generation = 0; generation < input.Settings.MaxGenerations; generation++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -174,6 +177,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
 
                 population = _replacement.Replace(population, children);
             }
+
+            if (bestSolution == null)
+                throw new InvalidOperationException("The optimizer could not find a valid crane placement. Check allowed zones, forbidden zones, and crane footprint.");
 
             return bestSolution;
         }
