@@ -80,6 +80,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 EarlyStoppingGenerations = ParseInt(options.EarlyStoppingGenerationsText, 20),
                 GridStep = ParseDouble(options.GridStepText, 0.0),
                 RadiusPenaltyWeight = ParseDouble(options.RadiusPenaltyWeightText, 3.0),
+                // Issue 8 fix: RadiusQualityPenaltyWeight is separate from RadiusPenaltyWeight.
+                // Default 1.0 keeps it lightweight relative to the out-of-radius count penalty.
+                RadiusQualityPenaltyWeight = ParseDouble(options.RadiusQualityPenaltyWeightText, 1.0),
                 BalancePenaltyWeight = ParseDouble(options.BalancePenaltyWeightText, 2.0),
                 OverweightPenaltyWeight = ParseDouble(options.OverweightPenaltyWeightText, 10.0),
                 HeightPenaltyWeight = ParseDouble(options.HeightPenaltyWeightText, 5.0),
@@ -143,6 +146,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         string? EarlyStoppingGenerationsText,
         string? GridStepText,
         string? RadiusPenaltyWeightText,
+        string? RadiusQualityPenaltyWeightText,
         string? BalancePenaltyWeightText,
         string? OverweightPenaltyWeightText,
         string? HeightPenaltyWeightText,
@@ -172,7 +176,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         public CranePositionResult Point { get; }
 
         public string DisplayText =>
-            $"Point {CraneOptimizerDialogWorkflow.FormatPointCoordinates(Point)} - liftable {Point.LiftableCount} elements (+{Point.NewLiftableCount} new)";
+            // Issue 7: Clarify that liftable count is per-position (standalone),
+            // not the cumulative multi-crane global coverage.
+            $"Point {CraneOptimizerDialogWorkflow.FormatPointCoordinates(Point)}" +
+            $" — {Point.LiftableCount} liftable (standalone)" +
+            (Point.NewLiftableCount > 0 ? $" — +{Point.NewLiftableCount} new" : string.Empty);
     }
 
     public sealed record CraneOptimizerPointSummary(

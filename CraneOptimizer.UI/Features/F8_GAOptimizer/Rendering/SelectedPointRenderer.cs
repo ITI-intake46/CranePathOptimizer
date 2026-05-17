@@ -100,9 +100,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
             try
             {
                 ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.Low;
+                // Issue 3 fix: pass null for placementOffset because elements
+                // from the scene have already had the placementOffset applied
+                // to their ElementCOG.
                 renderingService.Render(
                     elementsWithStatus,
-                    new ElementVisualBuilder(null, origin, placementOffset, renderOnlyStatusElements: true, statusAlpha: 125),
+                    new ElementVisualBuilder(null, origin, null, renderOnlyStatusElements: true, statusAlpha: 125),
                     StatusOverlayLayer);
             }
             finally

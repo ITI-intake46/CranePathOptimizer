@@ -197,13 +197,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private void ShowPoint(CranePositionResult point)
         {
             // Color all elements by their GA status for this position
+            // Issue 3 fix: pass null for placementOffset because elements
+            // from the scene have already had the placementOffset applied
+            // to their ElementCOG.
             SelectedPointRenderer.Render(
                 _renderingService,
                 _cachedElements,
                 point,
                 _ifcReader,
                 _origin,
-                _placementOffset);
+                null);
 
             // Move the persistent scene crane to this GA position (creates it if needed)
             if (CboCrane.SelectedItem is Crane crane)
@@ -325,6 +328,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtEarlyStopping.Text,
                 TxtGridStep.Text,
                 TxtRadiusPenaltyWeight.Text,
+                "1.0", // RadiusQualityPenaltyWeightText (not yet in UI, defaulting to 1.0)
                 TxtBalancePenaltyWeight.Text,
                 TxtOverweightPenaltyWeight.Text,
                 TxtHeightPenaltyWeight.Text,
