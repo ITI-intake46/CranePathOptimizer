@@ -20,15 +20,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
         /// Calculates the working radius between the crane position
         /// and the element center of gravity (COG).
         ///
-        /// For horizontal elements (slabs, beams laid flat):
-        ///   radius = horizontal distance + halfElementLength
-        ///   Reason: the crane must reach the far edge of a horizontal element,
-        ///           not just its COG.
+        /// For all elements, the working radius is measured to the
+        /// element center of gravity (COG).
         ///
-        /// For vertical elements (columns, walls standing upright):
-        ///   radius = horizontal distance only
-        ///   Reason: the element footprint is small in plan — the COG is the
-        ///           correct reference point and no length offset is needed.
+        /// This matches actual hook radius conventions used by crane load
+        /// charts: the lift point is referenced to the object center instead
+        /// of the far edge of the object geometry.
         ///
         /// Note: WireLength is NOT added here.
         ///       Hoist wire/sling length runs vertically, so it affects
@@ -41,37 +38,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
             double dx = cranePosition.X - element.ElementCOG.X;
             double dy = cranePosition.Y - element.ElementCOG.Y;
 
-            double horizontalDistance = Math.Sqrt(dx * dx + dy * dy);
-
-            // Only add half-length offset for horizontal elements.
-            // An element is considered horizontal when its plan footprint
-            // (length or width) is larger than its height.
-            double lengthOffset = IsHorizontalElement(element)
-                ? (element.ElementLength ?? 0) / 2.0
-                : 0.0;
-
-            return horizontalDistance + lengthOffset;
-        }
-
-        /// <summary>
-        /// Determines whether an element is oriented horizontally in plan.
-        ///
-        /// Horizontal elements (slabs, beams) have their longest dimension
-        /// in the X-Y plane → their plan length or width exceeds their height.
-        ///
-        /// Vertical elements (columns, walls) have height > plan dimensions.
-        /// </summary>
-        private static bool IsHorizontalElement(PrecastElement element)
-        {
-            double length = element.ElementLength ?? 0;
-            double height = element.ElementHeight ?? 0;
-
-            // If height data is missing, fall back to treating as horizontal
-            // (conservative choice — adds the length offset).
-            if (height <= 0)
-                return true;
-
-            return length > height;
+            return Math.Sqrt(dx * dx + dy * dy);
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -129,13 +96,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
         /// for the given radius and boom length.
         ///
         /// Strategy — conservative interpolation:
-        ///   Find the nearest chart entry where BOTH:
-        ///     tp.Radius    >= actual radius
-        ///     tp.BoomLength >= actual boom length
-        ///   Then take the entry with the SMALLEST values (closest to actual).
+        ///   Use the smallest chart radius row that covers the required radius,
+        ///   then interpolate capacity along boom length for the requested boom.
         ///
-        /// This ensures we never use a capacity that was rated for a
-        /// shorter radius or shorter boom than reality.
+        /// This keeps the estimate conservative while avoiding abrupt drops
+        /// when the requested boom length falls between chart rows.
         ///
         /// Returns 0 if no valid entry exists in the chart.
         /// Callers must distinguish between 0 (no data) and OutOfRadius —
@@ -147,18 +112,82 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
             double boomLength,
             GASettings settings)
         {
-            var candidate = craneSpec.LoadChart
-                .Where(tp =>
-                    tp.Radius >= radius &&
-                    tp.BoomLength >= boomLength)
-                .OrderBy(tp => tp.Radius)
-                .ThenBy(tp => tp.BoomLength)
-                .FirstOrDefault();
-
-            if (candidate == null)
+            if (craneSpec.LoadChart == null || craneSpec.LoadChart.Count == 0)
                 return 0;
 
-            return candidate.Capacity * settings.DeratingRatio * settings.SafetyFactor;
+            double? capacity = InterpolateCapacityFromChart(craneSpec, radius, boomLength);
+            if (capacity == null || capacity <= 0)
+                return 0;
+
+            return capacity.Value * settings.DeratingRatio * settings.SafetyFactor;
+        }
+
+        private static double? InterpolateCapacityFromChart(
+            CraneSpecification craneSpec,
+            double radius,
+            double boomLength)
+        {
+            var matchingRows = craneSpec.LoadChart
+                .Where(tp => tp.Radius >= radius && tp.BoomLength >= boomLength)
+                .ToList();
+
+            if (matchingRows.Count == 0)
+                return null;
+
+            var nearestRadius = matchingRows
+                .Select(tp => tp.Radius)
+                .Distinct()
+                .OrderBy(r => r)
+                .FirstOrDefault();
+
+            var radiusRow = matchingRows
+                .Where(tp => tp.Radius == nearestRadius)
+                .OrderBy(tp => tp.BoomLength)
+                .ToList();
+
+            if (radiusRow.Count == 0)
+                return null;
+
+            return InterpolateCapacityAlongBoom(radiusRow, boomLength);
+        }
+
+        private static double? InterpolateCapacityAlongBoom(
+            IReadOnlyList<TargetPoint> radiusRow,
+            double boomLength)
+        {
+            var exactMatch = radiusRow.FirstOrDefault(tp => tp.BoomLength == boomLength);
+            if (exactMatch != null)
+                return exactMatch.Capacity;
+
+            var lower = radiusRow.LastOrDefault(tp => tp.BoomLength < boomLength);
+            var higher = radiusRow.FirstOrDefault(tp => tp.BoomLength > boomLength);
+
+            if (higher == null)
+                return null;
+
+            if (lower == null)
+                return higher.Capacity;
+
+            return Interpolate(
+                boomLength,
+                lower.BoomLength,
+                lower.Capacity,
+                higher.BoomLength,
+                higher.Capacity);
+        }
+
+        private static double Interpolate(
+            double value,
+            double x0,
+            double y0,
+            double x1,
+            double y1)
+        {
+            if (Math.Abs(x1 - x0) < double.Epsilon)
+                return y0;
+
+            double fraction = (value - x0) / (x1 - x0);
+            return y0 + fraction * (y1 - y0);
         }
 
         // ══════════════════════════════════════════════════════════════
