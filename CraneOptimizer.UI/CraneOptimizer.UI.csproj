@@ -39,7 +39,9 @@
   <ItemGroup>
     <None Remove="appsettings.json" />
     <None Remove="Data\crane.db" />
+    <None Remove="Resources\Icons\map-pin-check %281%29_white.png" />
     <None Remove="Resources\Icons\map-pin-check.png" />
+    <None Remove="Resources\Icons\map-pin-x %281%29_white.png" />
     <None Remove="Resources\Icons\map-pin-x.png" />
     <None Remove="Resources\Icons\map-pin_check.png" />
     <None Remove="Resources\Icons\map-pin_X.png" />
@@ -86,7 +88,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Resources\Icons\map-pin-check (1)_white.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
     <Resource Include="Resources\Icons\map-pin-check.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Icons\map-pin-x (1)_white.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
     <Resource Include="Resources\Icons\map-pin-x.png">
