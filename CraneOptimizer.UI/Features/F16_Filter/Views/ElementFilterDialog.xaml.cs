@@ -1,7 +1,7 @@
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Converters;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Features.F16_Filter.Models;
+using CraneOptimizer.UI.Features.F16_Filter.DTOs;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
 using CraneOptimizer.UI.Features.F16_Filter.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
@@ -287,7 +287,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                 return;
 
             _viewModel.SearchText = TxtSearch.Text;
-            _viewModel.ApplyFilterCriteria(new FilterCriteria
+            _viewModel.ApplyFilterCriteria(new FilterCriteriaDto
             {
                 MinWeight = ParseDouble(TxtWeightMin.Text, 0),
                 MaxWeight = ParseDouble(TxtWeightMax.Text, double.MaxValue),

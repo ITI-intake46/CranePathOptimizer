@@ -2,7 +2,7 @@ using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Converters;
-using CraneOptimizer.UI.Features.F2_IfcViewer.Models;
+using CraneOptimizer.UI.Features.F2_IfcViewer.DTOs;
 using Xbim.Ifc4.Interfaces;
 
 namespace CraneOptimizer.UI.Features.F16_Filter.Services
@@ -136,7 +136,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             Recalculate();
         }
 
-        public void ApplyLoadOptions(IfcFilterOptions options)
+        public void ApplyLoadOptions(IfcLoadOptionsDto options)
         {
             ResetFilters();
 

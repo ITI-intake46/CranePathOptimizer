@@ -1,5 +1,5 @@
-using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Infrastructure.Contexts;
+using CraneOptimizer.UI.Features.F4_LoadChart.DTOs;
 using CraneOptimizer.UI.Features.F4_LoadChart.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +17,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
     public partial class LoadChartImportDialog : Window
     {
         private readonly LoadChartCatalogService _catalogService;
-        private readonly Crane? _existingCrane;
+        private readonly LoadChartCraneDto? _existingCrane;
         private ParsedLoadChart? _nominalChart;
         private List<string> _gridHeaders = new();
         private double _vehicleLengthMm;
@@ -26,7 +26,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         private double? _outriggerWidthMm;
         private double? _outriggerLengthMm;
 
-        public LoadChartImportDialog(Crane? craneToEdit = null)
+        public LoadChartImportDialog(LoadChartCraneDto? craneToEdit = null)
         {
             InitializeComponent();
 
@@ -39,39 +39,34 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 LoadExistingCrane(_existingCrane);
         }
 
-        private void LoadExistingCrane(Crane crane)
+        private void LoadExistingCrane(LoadChartCraneDto crane)
         {
             TxtHeader.Text = "Edit Crane Load Chart";
             TxtModel.Text = crane.Name;
             TxtMfg.Text = crane.Manufacturer;
-
-            var spec = crane.Specifications?.FirstOrDefault();
-            if (spec == null)
-                return;
-
-            SelectOutriggerConfig(spec.OutriggerConfig);
-            TxtCounterweight.Text = spec.CounterWeight.ToString(CultureInfo.InvariantCulture);
-            TxtMaxRadius.Text = spec.MaxRadius.ToString(CultureInfo.InvariantCulture);
-            _vehicleLengthMm = crane.VehicleLength;
-            _vehicleHeightMm = crane.VehicleHeight;
-            _vehicleWidthMm = crane.VehicleWidth;
-            _outriggerWidthMm = crane.OutriggerWidth;
-            _outriggerLengthMm = crane.OutriggerLength;
+            SelectOutriggerConfig(crane.OutriggerConfig);
+            TxtCounterweight.Text = crane.Counterweight.ToString(CultureInfo.InvariantCulture);
+            TxtMaxRadius.Text = crane.MaxRadius.ToString(CultureInfo.InvariantCulture);
+            _vehicleLengthMm = crane.VehicleLengthMm;
+            _vehicleHeightMm = crane.VehicleHeightMm;
+            _vehicleWidthMm = crane.VehicleWidthMm;
+            _outriggerWidthMm = crane.OutriggerWidthMm;
+            _outriggerLengthMm = crane.OutriggerLengthMm;
             RefreshDimensionsSummary();
 
-            SetNominalChart(LoadChartCsvService.ParseRawGrid(BuildRawGridFromSpecification(spec)));
+            SetNominalChart(LoadChartCsvService.ParseRawGrid(BuildRawGridFromDto(crane)));
             TxtStatus.Text = $"Editing saved crane '{crane.Name}'.";
         }
 
-        private static List<List<string>> BuildRawGridFromSpecification(CraneSpecification specification)
+        private static List<List<string>> BuildRawGridFromDto(LoadChartCraneDto crane)
         {
-            var booms = specification.LoadChart
+            var booms = crane.Points
                 .Select(point => point.BoomLength)
                 .Distinct()
                 .OrderBy(value => value)
                 .ToList();
 
-            var radii = specification.LoadChart
+            var radii = crane.Points
                 .Select(point => point.Radius)
                 .Distinct()
                 .OrderBy(value => value)
@@ -89,7 +84,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
                 for (int i = 0; i < booms.Count; i++)
                 {
-                    var point = specification.LoadChart
+                    var point = crane.Points
                         .FirstOrDefault(item => Math.Abs(item.Radius - radius) < 0.0001 && Math.Abs(item.BoomLength - booms[i]) < 0.0001);
 
                     row.Add(point == null || point.Capacity == 0d
@@ -235,7 +230,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 if (TryParseOptionalNumber(TxtMaxRadius.Text, "Max Radius", out double manualMaxRadius))
                     chartForSave = CopyChartWith(chartForSave, maxRadius: manualMaxRadius);
 
-                var crane = LoadChartCatalogService.BuildCrane(
+                var crane = LoadChartCatalogService.BuildCraneDto(
                     TxtModel.Text.Trim(),
                     TxtMfg.Text.Trim(),
                     GetSelectedOutriggerConfig(),
@@ -350,7 +345,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         private static ParsedLoadChart CopyChartWith(
             ParsedLoadChart source,
             DataTable? previewTable = null,
-            List<TargetPoint>? points = null,
+            List<CraneOptimizer.Domain.Entities.TargetPoint>? points = null,
             double? maxCapacity = null,
             double? maxRadius = null)
         {
@@ -359,7 +354,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 PreviewTable = previewTable ?? source.PreviewTable.Copy(),
                 PreviewHeaders = source.PreviewHeaders.ToList(),
                 Points = points ?? source.Points
-                    .Select(point => new TargetPoint
+                    .Select(point => new CraneOptimizer.Domain.Entities.TargetPoint
                     {
                         Radius = point.Radius,
                         BoomLength = point.BoomLength,

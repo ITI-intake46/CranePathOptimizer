@@ -38,10 +38,20 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             if (sceneElements == null || sceneElements.Count == 0)
                 throw new InvalidOperationException("No elements found in the scene.");
 
-            var elements = new List<PrecastElement>(sceneElements.Count);
-            for (int i = 0; i < sceneElements.Count; i++)
+            var selectedElementTypes = CreateElementTypeSet(settings.TargetElementTypes);
+            var candidateElements = selectedElementTypes == null
+                ? sceneElements
+                : sceneElements
+                    .Where(element => selectedElementTypes.Contains(NormalizeElementType(element.ElementType)))
+                    .ToList();
+
+            if (candidateElements.Count == 0)
+                throw new InvalidOperationException("No scene elements match the selected GA target element types.");
+
+            var elements = new List<PrecastElement>(candidateElements.Count);
+            for (int i = 0; i < candidateElements.Count; i++)
             {
-                var element = sceneElements[i];
+                var element = candidateElements[i];
 
                 if (!_coordinateService.IsValidPoint(element.ElementCOG))
                     throw new InvalidOperationException($"Invalid coordinates found for element '{element.ElementID}'.");
@@ -151,6 +161,26 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             double footprintDiameterMillimeters = Math.Max(maxBodyDimension, maxOutriggerDimension);
             return _coordinateService.NormalizeLength(footprintDiameterMillimeters) / 2.0;
+        }
+
+        private static HashSet<string>? CreateElementTypeSet(IReadOnlyCollection<string>? elementTypes)
+        {
+            if (elementTypes == null || elementTypes.Count == 0)
+                return null;
+
+            var result = elementTypes
+                .Select(NormalizeElementType)
+                .Where(type => !string.IsNullOrWhiteSpace(type))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            return result.Count == 0 ? null : result;
+        }
+
+        private static string NormalizeElementType(string? elementType)
+        {
+            return string.IsNullOrWhiteSpace(elementType)
+                ? "Unknown"
+                : elementType.Trim();
         }
     }
 }

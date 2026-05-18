@@ -17,8 +17,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
     public partial class CraneOptimizerDialog : Window
     {
         private const double CompactDialogWidth = 560;
-        private const double ExpandedDialogWidth = 920;
-        private const double AdvancedPanelWidth = 360;
+        private const double SidePanelWidth = 360;
 
         private readonly IRenderingService _renderingService;
         private readonly IDialogService _dialogService;
@@ -33,7 +32,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private CancellationTokenSource? _runCts;
         private bool _isRunning;
         private bool _isAdvancedPanelOpen;
+        private bool _isTargetPanelOpen;
         private List<PrecastElement> _cachedElements = new();
+        private List<ElementTypeFilterOption> _targetElementTypes = new();
 
         /// <summary>
         /// The single SceneCrane that lives in the scene while the dialog is open.
@@ -113,6 +114,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             try
             {
                 var options = CaptureOptions();
+                if (options.TargetElementTypes.Count == 0)
+                {
+                    TxtStatus.Text = "Select at least one target type.";
+                    ProgBar.IsIndeterminate = false;
+                    ProgBar.Value = 0;
+                    _dialogService.ShowMessage("Please select at least one target element type for GA.");
+                    return;
+                }
+
                 var settingsPreview = _workflow.BuildSettings(options);
 
                 var result = await _workflow.RunOptimizationAsync(
@@ -133,10 +143,20 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtStatus.Text = result.Positions.Any()
                     ? "Optimization completed."
                     : "Optimization completed with no valid positions.";
+
+                var debugReportText = !string.IsNullOrWhiteSpace(result.DebugReportPath)
+                    ? $"Debug report: {result.DebugReportPath}"
+                    : !string.IsNullOrWhiteSpace(result.DebugReportError)
+                        ? $"Debug report failed: {result.DebugReportError}"
+                        : string.Empty;
+
                 TxtStopReason.Text =
                     $"Capacity factors: DeratingRatio={settingsPreview.DeratingRatio:F2}, " +
                     $"SafetyFactor={settingsPreview.SafetyFactor:F2}, " +
-                    $"Combined={(settingsPreview.DeratingRatio * settingsPreview.SafetyFactor):F2}";
+                    $"Combined={(settingsPreview.DeratingRatio * settingsPreview.SafetyFactor):F2}" +
+                    (string.IsNullOrWhiteSpace(debugReportText)
+                        ? string.Empty
+                        : $"{Environment.NewLine}{debugReportText}");
                 ProgBar.IsIndeterminate = false;
                 ProgBar.Value = 100;
 
@@ -187,13 +207,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private void ShowPoint(CranePositionResult point)
         {
             // Color all elements by their GA status for this position
+            // Issue 3 fix: pass null for placementOffset because elements
+            // from the scene have already had the placementOffset applied
+            // to their ElementCOG.
             SelectedPointRenderer.Render(
                 _renderingService,
                 _cachedElements,
                 point,
                 _ifcReader,
                 _origin,
-                _placementOffset);
+                null);
 
             // Move the persistent scene crane to this GA position (creates it if needed)
             if (CboCrane.SelectedItem is Crane crane)
@@ -264,7 +287,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             PanelResults.Visibility = Visibility.Visible;
 
             TxtScore.Text = $"Fitness: {result.FitnessScore:F2}";
-            TxtCoverage.Text = $"Total Coverage: {result.CoverageRatio:P0}";
+            TxtCoverage.Text = $"Total Lifted: {result.LiftedElementCount} / {result.TotalElementCount}";
 
             if (!result.Positions.Any())
             {
@@ -286,7 +309,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             TxtCountL.Text = summary.LiftableCount.ToString();
             TxtCountNL.Text = summary.NonLiftableCount.ToString();
             TxtCountUR.Text = summary.UnreachableCount.ToString();
-            TxtCoverage.Text = summary.CoverageText;
         }
 
         private void ClearResultPanel()
@@ -315,6 +337,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtEarlyStopping.Text,
                 TxtGridStep.Text,
                 TxtRadiusPenaltyWeight.Text,
+                "1.0", // RadiusQualityPenaltyWeightText (not yet in UI, defaulting to 1.0)
                 TxtBalancePenaltyWeight.Text,
                 TxtOverweightPenaltyWeight.Text,
                 TxtHeightPenaltyWeight.Text,
@@ -332,29 +355,112 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtDevMutationSigma.Text,
                 TxtDevCrossoverRate.Text,
                 TxtDevRandomSeed.Text,
-                TxtDevConvergence.Text);
+                TxtDevConvergence.Text,
+                GetSelectedTargetElementTypes());
         }
 
         private void RefreshSceneCache()
         {
             _cachedElements = _sceneService.GetElements() ?? new List<PrecastElement>();
+            RefreshTargetElementTypes();
+        }
+
+        private void RefreshTargetElementTypes()
+        {
+            var previousSelection = _targetElementTypes
+                .Where(option => option.IsSelected)
+                .Select(option => option.TypeName)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            bool hadPreviousTypes = _targetElementTypes.Count > 0;
+
+            _targetElementTypes = _cachedElements
+                .GroupBy(element => NormalizeElementType(element.ElementType), StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new ElementTypeFilterOption(
+                    group.Key,
+                    group.Count(),
+                    !hadPreviousTypes || previousSelection.Contains(group.Key)))
+                .ToList();
+
+            TargetElementTypesList.ItemsSource = _targetElementTypes;
+            UpdateTargetElementSummary();
+        }
+
+        private IReadOnlyCollection<string> GetSelectedTargetElementTypes()
+        {
+            return _targetElementTypes
+                .Where(option => option.IsSelected)
+                .Select(option => option.TypeName)
+                .ToList();
+        }
+
+        private static string NormalizeElementType(string? elementType)
+        {
+            return string.IsNullOrWhiteSpace(elementType)
+                ? "Unknown"
+                : elementType.Trim();
+        }
+
+        private void SetAllTargetElementTypes(bool isSelected)
+        {
+            foreach (var option in _targetElementTypes)
+                option.IsSelected = isSelected;
+
+            TargetElementTypesList.Items.Refresh();
+            UpdateTargetElementSummary();
+        }
+
+        private void UpdateTargetElementSummary()
+        {
+            int selectedTypeCount = _targetElementTypes.Count(option => option.IsSelected);
+            int selectedElementCount = _targetElementTypes
+                .Where(option => option.IsSelected)
+                .Sum(option => option.Count);
+            int totalElementCount = _targetElementTypes.Sum(option => option.Count);
+
+            TxtTargetElementSummary.Text = _targetElementTypes.Count == 0
+                ? "No element types found"
+                : $"{selectedTypeCount}/{_targetElementTypes.Count} types, {selectedElementCount}/{totalElementCount} elements";
         }
 
         private void BtnAdvancedToggle_Click(object sender, RoutedEventArgs e)
         {
             _isAdvancedPanelOpen = !_isAdvancedPanelOpen;
+            UpdateSidePanels();
+        }
+
+        private void BtnTargetElementsToggle_Click(object sender, RoutedEventArgs e)
+        {
+            _isTargetPanelOpen = !_isTargetPanelOpen;
+            UpdateSidePanels();
+        }
+
+        private void UpdateSidePanels()
+        {
+            TargetColumn.Width = _isTargetPanelOpen
+                ? new GridLength(SidePanelWidth)
+                : new GridLength(0);
 
             AdvancedColumn.Width = _isAdvancedPanelOpen
-                ? new GridLength(AdvancedPanelWidth)
+                ? new GridLength(SidePanelWidth)
                 : new GridLength(0);
+
+            PanelTargetElements.Visibility = _isTargetPanelOpen
+                ? Visibility.Visible
+                : Visibility.Collapsed;
 
             PanelAdvanced.Visibility = _isAdvancedPanelOpen
                 ? Visibility.Visible
                 : Visibility.Collapsed;
 
-            Width = _isAdvancedPanelOpen
-                ? ExpandedDialogWidth
-                : CompactDialogWidth;
+            Width = CompactDialogWidth
+                + (_isTargetPanelOpen ? SidePanelWidth : 0)
+                + (_isAdvancedPanelOpen ? SidePanelWidth : 0);
+
+            BtnTargetElementsToggle.Content = _isTargetPanelOpen
+                ? "Hide Targets"
+                : "Target Elements";
 
             BtnAdvancedToggle.Content = _isAdvancedPanelOpen
                 ? "Hide Advanced"
@@ -407,10 +513,33 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             SelectedPointRenderer.Clear(_renderingService);
         }
 
-        private void BtnIncludeAll_Click(object sender, RoutedEventArgs e) { }
-        private void BtnExcludeAll_Click(object sender, RoutedEventArgs e) { }
+        private void BtnIncludeAll_Click(object sender, RoutedEventArgs e) => SetAllTargetElementTypes(true);
+        private void BtnExcludeAll_Click(object sender, RoutedEventArgs e) => SetAllTargetElementTypes(false);
         private void BtnNoSlabs_Click(object sender, RoutedEventArgs e) { }
         private void BtnNoStairs_Click(object sender, RoutedEventArgs e) { }
         private void BtnNoRoofs_Click(object sender, RoutedEventArgs e) { }
+
+        private void TargetElementType_Changed(object sender, RoutedEventArgs e)
+        {
+            if (sender is CheckBox checkBox && checkBox.DataContext is ElementTypeFilterOption option)
+                option.IsSelected = checkBox.IsChecked == true;
+
+            UpdateTargetElementSummary();
+        }
+
+        private sealed class ElementTypeFilterOption
+        {
+            public ElementTypeFilterOption(string typeName, int count, bool isSelected)
+            {
+                TypeName = typeName;
+                Count = count;
+                IsSelected = isSelected;
+            }
+
+            public string TypeName { get; }
+            public int Count { get; }
+            public bool IsSelected { get; set; }
+            public string DisplayText => $"{TypeName} ({Count})";
+        }
     }
 }

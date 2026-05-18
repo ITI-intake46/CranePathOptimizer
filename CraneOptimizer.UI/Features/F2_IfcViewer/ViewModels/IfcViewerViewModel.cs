@@ -3,7 +3,7 @@ using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Features.F2_IfcViewer.Models;
+using CraneOptimizer.UI.Features.F2_IfcViewer.DTOs;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
 using CraneOptimizer.Domain.Common;
@@ -24,7 +24,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly IElementVisibilityFilterService _filterService;
         private readonly IIfcSceneOperationService _ifcSceneOperations;
         private List<PrecastElement>? _pendingIfcElements;
-        private IfcFilterOptions? _pendingFilterOptions;
+        private IfcLoadOptionsDto? _pendingFilterOptions;
         private bool _isMovingExistingIfc;
 
         public ICommand LoadIfcCommand { get; }
@@ -282,7 +282,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
         private static List<PrecastElement> ApplyFilter(
             List<PrecastElement> elements,
-            IfcFilterOptions options)
+            IfcLoadOptionsDto options)
         {
             return elements.Where(e =>
             {

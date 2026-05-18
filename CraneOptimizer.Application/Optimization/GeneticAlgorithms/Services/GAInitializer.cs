@@ -169,30 +169,56 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             };
         }
 
-        // ══════════════════════════════════════════════════════════════
-        // CLUSTERING — Split elements into spatial groups
-        // ══════════════════════════════════════════════════════════════
-
         /// <summary>
-        /// Splits elements into k clusters based on X-axis spatial ordering.
+        /// Splits elements into k clusters based on 2D spatial proximity
+        /// using a Morton (Z-order) curve sort.
         ///
-        /// Simple approach: sort elements by X coordinate, divide evenly.
-        /// This is a fast approximation — not full K-Means — but sufficient
-        /// to produce spatially meaningful cluster centroids for seeding.
+        /// Issue 9 fix — replaces the previous X-only sort:
+        ///   The old approach sorted by X then Y, which groups elements in
+        ///   horizontal strips. For L-shaped, multi-wing, or rotated buildings
+        ///   this produced poor centroids that are far from any actual element.
+        ///
+        /// Morton-order sort interleaves the bits of normalized X and Y integer
+        /// coordinates so that elements that are close in 2D space also appear
+        /// close in the sort order. Dividing this sorted sequence into k chunks
+        /// therefore produces spatially compact clusters rather than horizontal
+        /// bands, resulting in better crane position seeds for the GA.
+        ///
+        /// Implementation note:
+        ///   Coordinates are normalized to [0, 1023] (10 bits each) so that
+        ///   X-range and Y-range are on the same scale even if the building
+        ///   footprint is not square. The resulting Morton key is a 20-bit value.
         /// </summary>
         private List<List<PrecastElement>> ClusterElements(
             List<PrecastElement> elements,
             int k)
         {
-            // Sort by X coordinate for a simple spatial split
+            if (elements.Count == 0)
+                return Enumerable.Range(0, k).Select(_ => new List<PrecastElement>()).ToList();
+
+            // Normalize COG coordinates to [0, 1023] integer range
+            double minX = elements.Min(e => e.ElementCOG.X);
+            double maxX = elements.Max(e => e.ElementCOG.X);
+            double minY = elements.Min(e => e.ElementCOG.Y);
+            double maxY = elements.Max(e => e.ElementCOG.Y);
+
+            double rangeX = maxX - minX;
+            double rangeY = maxY - minY;
+
+            // Avoid division by zero for degenerate (single-point) cases
+            if (rangeX < double.Epsilon) rangeX = 1;
+            if (rangeY < double.Epsilon) rangeY = 1;
+
             var sorted = elements
-                .OrderBy(e => e.ElementCOG.X)
-                .ThenBy(e => e.ElementCOG.Y)
+                .OrderBy(e =>
+                {
+                    uint ix = (uint)Math.Round((e.ElementCOG.X - minX) / rangeX * 1023);
+                    uint iy = (uint)Math.Round((e.ElementCOG.Y - minY) / rangeY * 1023);
+                    return MortonEncode(ix, iy);
+                })
                 .ToList();
 
             var clusters = new List<List<PrecastElement>>();
-
-            // Divide sorted elements evenly into k groups
             int chunkSize = (int)Math.Ceiling((double)sorted.Count / k);
 
             for (int i = 0; i < k; i++)
@@ -207,6 +233,29 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
             return clusters;
         }
+
+        /// <summary>
+        /// Encodes two 10-bit integers into a 20-bit Morton code (Z-order curve)
+        /// by interleaving their bits: x0 y0 x1 y1 x2 y2 … x9 y9.
+        /// Elements with similar Morton codes are close in 2D space.
+        /// </summary>
+        private static uint MortonEncode(uint x, uint y)
+        {
+            // Spread the 10 bits of x into even bit positions
+            x &= 0x3FF;                // keep only 10 bits
+            x = (x | (x << 10)) & 0x000F_83FF;
+            x = (x | (x <<  4)) & 0x0007_E1F;
+            x = (x | (x <<  2)) & 0x0055_5555;
+
+            // Spread the 10 bits of y into even bit positions
+            y &= 0x3FF;
+            y = (y | (y << 10)) & 0x000F_83FF;
+            y = (y | (y <<  4)) & 0x0007_E1F;
+            y = (y | (y <<  2)) & 0x0055_5555;
+
+            return x | (y << 1);
+        }
+
 
         // ══════════════════════════════════════════════════════════════
         // CENTROID — Compute spatial center of a cluster

@@ -2,6 +2,8 @@ using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F7_Zones.DTOs;
+using CraneOptimizer.UI.Features.F7_Zones.Mappers;
 using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -56,10 +58,12 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 
         private void DeleteSelected()
         {
-            if (SelectedZone?.Zone == null)
+            if (SelectedZone?.ZoneData == null)
                 return;
 
-            _scene.RemoveZone(SelectedZone.Zone);
+            var zone = _scene.GetZones().FirstOrDefault(item => item.ZoneId == SelectedZone.ZoneData.ZoneId);
+            if (zone != null)
+                _scene.RemoveZone(zone);
         }
 
         private void Export()
@@ -79,15 +83,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
                 return;
 
             var exportModel = Zones
-                .Where(z => z.Zone != null)
-                .Select(z => new
-                {
-                    z.Name,
-                    Type = z.ZoneType,
-                    z.MinHeight,
-                    z.MaxHeight,
-                    Vertices = z.Zone!.Vertices.Select(v => new { v.X, v.Y, v.Z }).ToList()
-                })
+                .Where(z => z.ZoneData != null)
+                .Select(z => z.ZoneData!.ToExportDto())
                 .ToList();
 
             var json = JsonSerializer.Serialize(exportModel, new JsonSerializerOptions
@@ -108,14 +105,15 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             double? minHeight = null,
             double? maxHeight = null)
         {
-            var existing = Zones.FirstOrDefault(z => z.Zone?.ZoneId == zone.ZoneId);
+            var dto = zone.ToZoneDto(minHeight ?? 0, maxHeight ?? 999);
+            var existing = Zones.FirstOrDefault(z => z.ZoneData?.ZoneId == zone.ZoneId);
             if (existing == null)
             {
-                Zones.Add(ZoneItemViewModel.FromZone(zone, minHeight, maxHeight));
+                Zones.Add(ZoneItemViewModel.FromDto(dto));
                 return;
             }
 
-            existing.ApplyZone(zone, minHeight, maxHeight);
+            existing.ApplyDto(dto);
         }
 
         private void SyncFromScene()
@@ -123,7 +121,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             Zones.Clear();
             foreach (var zone in _scene.GetZones())
             {
-                Zones.Add(ZoneItemViewModel.FromZone(zone));
+                Zones.Add(ZoneItemViewModel.FromDto(zone.ToZoneDto()));
             }
         }
 
@@ -131,7 +129,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 
         private void OnZoneRemoved(GreenAreaZone zone)
         {
-            var existing = Zones.FirstOrDefault(z => z.Zone?.ZoneId == zone.ZoneId);
+            var existing = Zones.FirstOrDefault(z => z.ZoneData?.ZoneId == zone.ZoneId);
             if (existing != null)
             {
                 Zones.Remove(existing);
@@ -153,7 +151,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         private double _minHeight;
         private double _maxHeight = 999;
 
-        public GreenAreaZone? Zone { get; private set; }
+        public ZoneDto? ZoneData { get; private set; }
 
         public string Name
         {
@@ -185,26 +183,20 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             set { _isVisible = value; OnPropertyChanged(); }
         }
 
-        public static ZoneItemViewModel FromZone(
-            GreenAreaZone zone,
-            double? minHeight = null,
-            double? maxHeight = null)
+        public static ZoneItemViewModel FromDto(ZoneDto dto)
         {
             var vm = new ZoneItemViewModel();
-            vm.ApplyZone(zone, minHeight, maxHeight);
+            vm.ApplyDto(dto);
             return vm;
         }
 
-        public void ApplyZone(
-            GreenAreaZone zone,
-            double? minHeight = null,
-            double? maxHeight = null)
+        public void ApplyDto(ZoneDto dto)
         {
-            Zone = zone;
-            Name = string.IsNullOrWhiteSpace(zone.Name) ? $"Zone {zone.ZoneId.ToString()[..8]}" : zone.Name;
-            ZoneType = zone.Type.ToString();
-            if (minHeight.HasValue) MinHeight = minHeight.Value;
-            if (maxHeight.HasValue) MaxHeight = maxHeight.Value;
+            ZoneData = dto;
+            Name = dto.Name;
+            ZoneType = dto.ZoneType;
+            MinHeight = dto.MinHeight;
+            MaxHeight = dto.MaxHeight;
         }
     }
 }

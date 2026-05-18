@@ -413,9 +413,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 matrix.M11, matrix.M12, matrix.M13, matrix.M14,
                 matrix.M21, matrix.M22, matrix.M23, matrix.M24,
                 matrix.M31, matrix.M32, matrix.M33, matrix.M34,
-                matrix.OffsetX * scale + placementOffset.X - origin.X,
-                matrix.OffsetY * scale + placementOffset.Y - origin.Y,
-                matrix.OffsetZ * scale + placementOffset.Z - origin.Z,
+                matrix.OffsetX * scale - origin.X + placementOffset.X,
+                matrix.OffsetY * scale - origin.Y + placementOffset.Y,
+                matrix.OffsetZ * scale - origin.Z + placementOffset.Z,
                 matrix.M44);
 
             var transform = new MatrixTransform3D(wpfMatrix);
@@ -441,9 +441,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             {
                 var worldPoint = matrix.Transform(new XbimPoint3D(v.X, v.Y, v.Z));
                 return new Point3D(
-                    worldPoint.X / oneMeter * 1000.0 + placementOffset.X - origin.X,
-                    worldPoint.Y / oneMeter * 1000.0 + placementOffset.Y - origin.Y,
-                    worldPoint.Z / oneMeter * 1000.0 + placementOffset.Z - origin.Z);
+                    worldPoint.X / oneMeter * 1000.0 - origin.X + placementOffset.X,
+                    worldPoint.Y / oneMeter * 1000.0 - origin.Y + placementOffset.Y,
+                    worldPoint.Z / oneMeter * 1000.0 - origin.Z + placementOffset.Z);
             }).ToArray();
 
             var positions = new Point3DCollection();

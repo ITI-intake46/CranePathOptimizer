@@ -51,19 +51,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 r.Status == LiftStatus.SpecialCase);
             int unreachable = point.ElementResults.Count(r => r.Status == LiftStatus.OutOfRadius);
 
-            int total = point.ElementResults.Count;
-            double coverage = total == 0 ? 0 : (double)liftable / total;
-
-            string coverageText = point.NewLiftableCount > 0
-                ? $"Point Coverage: {coverage:P0}  (+{point.NewLiftableCount} newly covered)"
-                : $"Point Coverage: {coverage:P0}";
-
             return new CraneOptimizerPointSummary(
                 FormatPointCoordinates(point),
                 liftable,
                 nonLiftable,
-                unreachable,
-                coverageText);
+                unreachable);
         }
 
         public GASettings BuildSettings(CraneOptimizerDialogOptions options)
@@ -80,6 +72,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 EarlyStoppingGenerations = ParseInt(options.EarlyStoppingGenerationsText, 20),
                 GridStep = ParseDouble(options.GridStepText, 0.0),
                 RadiusPenaltyWeight = ParseDouble(options.RadiusPenaltyWeightText, 3.0),
+                // Issue 8 fix: RadiusQualityPenaltyWeight is separate from RadiusPenaltyWeight.
+                // Default 1.0 keeps it lightweight relative to the out-of-radius count penalty.
+                RadiusQualityPenaltyWeight = ParseDouble(options.RadiusQualityPenaltyWeightText, 1.0),
                 BalancePenaltyWeight = ParseDouble(options.BalancePenaltyWeightText, 2.0),
                 OverweightPenaltyWeight = ParseDouble(options.OverweightPenaltyWeightText, 10.0),
                 HeightPenaltyWeight = ParseDouble(options.HeightPenaltyWeightText, 5.0),
@@ -97,7 +92,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 RandomSeed = ParseNullableInt(options.DevRandomSeedText, 42),
                 ConvergenceThresholdPercent = ParseDouble(options.DevConvergenceText, 0.0),
                 PopulationSize = ParseInt(options.PopulationSizeText, 30),
-                MaxGenerations = ParseInt(options.MaxGenerationsText, 30)
+                MaxGenerations = ParseInt(options.MaxGenerationsText, 30),
+                TargetElementTypes = options.TargetElementTypes
             };
         }
 
@@ -143,6 +139,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         string? EarlyStoppingGenerationsText,
         string? GridStepText,
         string? RadiusPenaltyWeightText,
+        string? RadiusQualityPenaltyWeightText,
         string? BalancePenaltyWeightText,
         string? OverweightPenaltyWeightText,
         string? HeightPenaltyWeightText,
@@ -160,7 +157,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         string? DevMutationSigmaText,
         string? DevCrossoverRateText,
         string? DevRandomSeedText,
-        string? DevConvergenceText);
+        string? DevConvergenceText,
+        IReadOnlyCollection<string> TargetElementTypes);
 
     public sealed class CraneOptimizerPointListItem
     {
@@ -172,13 +170,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         public CranePositionResult Point { get; }
 
         public string DisplayText =>
-            $"Point {CraneOptimizerDialogWorkflow.FormatPointCoordinates(Point)} - liftable {Point.LiftableCount} elements (+{Point.NewLiftableCount} new)";
+            $"Point {CraneOptimizerDialogWorkflow.FormatPointCoordinates(Point)}" +
+            $" — {Point.NewLiftableCount} lifted";
     }
 
     public sealed record CraneOptimizerPointSummary(
         string PositionText,
         int LiftableCount,
         int NonLiftableCount,
-        int UnreachableCount,
-        string CoverageText);
+        int UnreachableCount);
 }

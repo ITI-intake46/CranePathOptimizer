@@ -1,4 +1,5 @@
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.DTOs;
 using System;
 using System.IO;
 using System.Text.Json;
@@ -29,8 +30,8 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
                 if (File.Exists(SettingsPath))
                 {
                     var json = File.ReadAllText(SettingsPath);
-                    var loaded = JsonSerializer.Deserialize<OsnapSettings>(json, _jsonOptions);
-                    if (loaded != null) return loaded;
+                    var loaded = JsonSerializer.Deserialize<OsnapSettingsDto>(json, _jsonOptions);
+                    if (loaded != null) return ToModel(loaded);
                 }
             }
             catch (Exception ex)
@@ -47,13 +48,55 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-                var json = JsonSerializer.Serialize(settings, _jsonOptions);
+                var json = JsonSerializer.Serialize(ToDto(settings), _jsonOptions);
                 File.WriteAllText(SettingsPath, json);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[OsnapSettingsService] Save failed: {ex.Message}");
             }
+        }
+
+        private static OsnapSettings ToModel(OsnapSettingsDto dto)
+        {
+            return new OsnapSettings
+            {
+                MasterEnabled = dto.MasterEnabled,
+                SnapEndpoint = dto.SnapEndpoint,
+                SnapMidpoint = dto.SnapMidpoint,
+                SnapIntersection = dto.SnapIntersection,
+                SnapPerpendicular = dto.SnapPerpendicular,
+                SnapNearest = dto.SnapNearest,
+                SnapGrid = dto.SnapGrid,
+                SnapCenter = dto.SnapCenter,
+                SnapQuadrant = dto.SnapQuadrant,
+                SnapRadiusPx = dto.SnapRadiusPx,
+                GridSpacing = dto.GridSpacing,
+                MaxEdgesForIntersection = dto.MaxEdgesForIntersection,
+                SnapToDxf = dto.SnapToDxf,
+                SnapToIfc = dto.SnapToIfc
+            };
+        }
+
+        private static OsnapSettingsDto ToDto(OsnapSettings settings)
+        {
+            return new OsnapSettingsDto
+            {
+                MasterEnabled = settings.MasterEnabled,
+                SnapEndpoint = settings.SnapEndpoint,
+                SnapMidpoint = settings.SnapMidpoint,
+                SnapIntersection = settings.SnapIntersection,
+                SnapPerpendicular = settings.SnapPerpendicular,
+                SnapNearest = settings.SnapNearest,
+                SnapGrid = settings.SnapGrid,
+                SnapCenter = settings.SnapCenter,
+                SnapQuadrant = settings.SnapQuadrant,
+                SnapRadiusPx = settings.SnapRadiusPx,
+                GridSpacing = settings.GridSpacing,
+                MaxEdgesForIntersection = settings.MaxEdgesForIntersection,
+                SnapToDxf = settings.SnapToDxf,
+                SnapToIfc = settings.SnapToIfc
+            };
         }
     }
 }

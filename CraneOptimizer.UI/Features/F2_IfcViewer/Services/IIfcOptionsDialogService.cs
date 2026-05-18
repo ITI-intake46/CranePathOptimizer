@@ -1,9 +1,9 @@
-﻿using CraneOptimizer.UI.Features.F2_IfcViewer.Models;
+using CraneOptimizer.UI.Features.F2_IfcViewer.DTOs;
 
 namespace CraneOptimizer.UI.Features.F2_IfcViewer.Services
 {
     public interface IIfcOptionsDialogService
     {
-        IfcFilterOptions? Show(string filePath);
+        IfcLoadOptionsDto? Show(string filePath);
     }
 }

@@ -92,9 +92,20 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public double RelocationWeight { get; set; } = 5;
 
         /// <summary>
-        /// Weight applied to large working radius penalty.
+        /// Weight applied to the out-of-radius element count penalty.
+        /// Higher values more aggressively reject positions that leave many
+        /// elements unreachable.
         /// </summary>
         public double RadiusPenaltyWeight { get; set; } = 3;
+
+        /// <summary>
+        /// Weight applied to the average working-radius quality penalty.
+        /// Independently controls how much the fitness function discourages
+        /// solutions that use unnecessarily large working radii.
+        /// Kept separate from RadiusPenaltyWeight to avoid double-penalising
+        /// the same dimension with the same coefficient.
+        /// </summary>
+        public double RadiusQualityPenaltyWeight { get; set; } = 1.0;
 
         /// <summary>
         /// Weight applied when elements exceed crane capacity.
@@ -180,5 +191,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// This is set by the GA input builder from crane body/outrigger dimensions.
         /// </summary>
         public double CraneFootprintRadius { get; set; }
+
+        /// <summary>
+        /// Optional element type allow-list. When populated, only matching IFC element
+        /// types are included in the optimization target set.
+        /// </summary>
+        public IReadOnlyCollection<string>? TargetElementTypes { get; set; }
     }
 }
