@@ -191,5 +191,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// This is set by the GA input builder from crane body/outrigger dimensions.
         /// </summary>
         public double CraneFootprintRadius { get; set; }
+
+        /// <summary>
+        /// Optional element type allow-list. When populated, only matching IFC element
+        /// types are included in the optimization target set.
+        /// </summary>
+        public IReadOnlyCollection<string>? TargetElementTypes { get; set; }
     }
 }

@@ -49,11 +49,97 @@
 
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="TargetColumn" Width="0" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition x:Name="AdvancedColumn" Width="0" />
             </Grid.ColumnDefinitions>
 
-            <Grid Grid.Column="0">
+            <Border
+                x:Name="PanelTargetElements"
+                Grid.Column="0"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,1,0"
+                Visibility="Collapsed">
+                <ScrollViewer
+                    CanContentScroll="False"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="{StaticResource Space4}">
+                        <TextBlock
+                            Style="{StaticResource PanelSectionHeader}"
+                            Text="TARGET ELEMENTS" />
+
+                        <TextBlock
+                            Margin="{StaticResource Space1}"
+                            FontSize="{StaticResource FontSizeXS}"
+                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            Text="Choose which imported IFC element types are included in the GA run."
+                            TextWrapping="Wrap" />
+
+                        <Grid Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock
+                                x:Name="TxtTargetElementSummary"
+                                Grid.Column="0"
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeXS}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                TextWrapping="Wrap" />
+
+                            <Button
+                                Grid.Column="2"
+                                MinHeight="28"
+                                Click="BtnIncludeAll_Click"
+                                Content="All"
+                                Style="{StaticResource ButtonSecondary}" />
+
+                            <Button
+                                Grid.Column="4"
+                                MinHeight="28"
+                                Click="BtnExcludeAll_Click"
+                                Content="None"
+                                Style="{StaticResource ButtonSecondary}" />
+                        </Grid>
+
+                        <Border
+                            Margin="{StaticResource Space1}"
+                            Padding="{StaticResource Space2}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="{StaticResource CardCornerRadius}">
+                            <ScrollViewer
+                                MaxHeight="440"
+                                HorizontalScrollBarVisibility="Disabled"
+                                VerticalScrollBarVisibility="Auto">
+                                <ItemsControl x:Name="TargetElementTypesList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox
+                                                Margin="0,3"
+                                                VerticalContentAlignment="Center"
+                                                Content="{Binding DisplayText}"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                Checked="TargetElementType_Changed"
+                                                Unchecked="TargetElementType_Changed" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Grid Grid.Column="1">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="12" />
@@ -64,12 +150,20 @@
 
                 <Grid Grid.Row="0">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock
+                    <Button
+                        x:Name="BtnTargetElementsToggle"
                         Grid.Column="0"
+                        Click="BtnTargetElementsToggle_Click"
+                        Content="Target Elements"
+                        Style="{StaticResource ButtonSecondary}" />
+
+                    <TextBlock
+                        Grid.Column="1"
                         FontSize="{StaticResource FontSizeLG}"
                         FontWeight="SemiBold"
                         Foreground="{DynamicResource TextPrimaryBrush}"
@@ -78,7 +172,7 @@
 
                     <Button
                         x:Name="BtnAdvancedToggle"
-                        Grid.Column="1"
+                        Grid.Column="2"
                         Click="BtnAdvancedToggle_Click"
                         Content="Advanced Options"
                         Style="{StaticResource ButtonSecondary}" />
@@ -323,7 +417,7 @@
 
             <Border
                 x:Name="PanelAdvanced"
-                Grid.Column="1"
+                Grid.Column="2"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1,0,0,0"

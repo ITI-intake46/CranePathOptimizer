@@ -100,7 +100,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 RandomSeed = ParseNullableInt(options.DevRandomSeedText, 42),
                 ConvergenceThresholdPercent = ParseDouble(options.DevConvergenceText, 0.0),
                 PopulationSize = ParseInt(options.PopulationSizeText, 30),
-                MaxGenerations = ParseInt(options.MaxGenerationsText, 30)
+                MaxGenerations = ParseInt(options.MaxGenerationsText, 30),
+                TargetElementTypes = options.TargetElementTypes
             };
         }
 
@@ -164,7 +165,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         string? DevMutationSigmaText,
         string? DevCrossoverRateText,
         string? DevRandomSeedText,
-        string? DevConvergenceText);
+        string? DevConvergenceText,
+        IReadOnlyCollection<string> TargetElementTypes);
 
     public sealed class CraneOptimizerPointListItem
     {
