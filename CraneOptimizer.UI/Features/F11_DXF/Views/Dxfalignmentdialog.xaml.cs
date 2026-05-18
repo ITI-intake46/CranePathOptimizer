@@ -74,6 +74,8 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                 _vm.Transform.DxfUnitIndex = (int)Math.Round(arr[10]);
                 _vm.Transform.GlobalOffsetUnitIndex = (int)Math.Round(arr[11]);
             }
+            if (arr.Length >= 13)
+                _vm.Transform.ShowText = arr[12] >= 0.5;
             _vm.RefreshTextBoxes();
 
             _vm.PushCurrentTransformToUploader();

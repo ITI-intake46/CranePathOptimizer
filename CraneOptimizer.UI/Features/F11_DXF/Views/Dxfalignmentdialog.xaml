@@ -139,6 +139,10 @@
                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"
                                        Visibility="{Binding DxfInfo, Converter={StaticResource NullToCollapsedConverter}}"/>
+
+                            <CheckBox Content="Keep DXF text"
+                                      IsChecked="{Binding KeepText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Margin="0,8,0,0"/>
                         </StackPanel>
                     </GroupBox>
 

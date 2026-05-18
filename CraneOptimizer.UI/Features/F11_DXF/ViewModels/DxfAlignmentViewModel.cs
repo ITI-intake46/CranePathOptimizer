@@ -313,6 +313,19 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
             set { Transform.Opacity = value; OnPropertyChanged(); PushToUploader(); }
         }
 
+        public bool KeepText
+        {
+            get => Transform.ShowText;
+            set
+            {
+                if (Transform.ShowText == value) return;
+                Transform.ShowText = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(TransformSummary));
+                PushToUploader();
+            }
+        }
+
         // ═════════════════════════════════════════════════════════════════════
         //  Bindable properties — computed / read-only
         // ═════════════════════════════════════════════════════════════════════
@@ -409,14 +422,19 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
                 DxfFilePath = dlg.FileName;
                 DxfFileName = Path.GetFileName(dlg.FileName);
 
+                int textTotal = CountDxfTextEntities(doc);
                 int total =
                     doc.Entities.Lines.Count() +
                     doc.Entities.Polylines2D.Count() +
                     doc.Entities.Arcs.Count() +
-                    doc.Entities.Circles.Count();
+                    doc.Entities.Circles.Count() +
+                    doc.Entities.Ellipses.Count() +
+                    textTotal;
 
                 long fileSizeKb = new FileInfo(dlg.FileName).Length / 1024;
                 DxfInfo = $"{total:N0} entities  •  {doc.Layers.Count} layers  •  {fileSizeKb:F0} KB";
+
+                DxfInfo = $"{total:N0} entities - {doc.Layers.Count} layers - {fileSizeKb:F0} KB - text {textTotal:N0}";
 
                 // Compute DXF bounds so the locked DXF reference can use the drawing centre.
                 ApplyDxfDocumentUnit(doc);
@@ -520,6 +538,14 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
             {
                 Expand(c.Center.X - c.Radius, c.Center.Y - c.Radius);
                 Expand(c.Center.X + c.Radius, c.Center.Y + c.Radius);
+            }
+            foreach (var e in doc.Entities.Ellipses)
+            {
+                for (int i = 0; i < 36; i++)
+                {
+                    var point = GetEllipsePoint(e, i * 10.0);
+                    Expand(point.X, point.Y);
+                }
             }
 
             _dxfBounds = hasPoints
@@ -683,6 +709,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
             OnPropertyChanged(nameof(GlobalOffsetXText));
             OnPropertyChanged(nameof(GlobalOffsetYText));
             OnPropertyChanged(nameof(SelectedDxfUnit));
+            OnPropertyChanged(nameof(KeepText));
             RaiseDxfReferenceUnitChanged();
             OnPropertyChanged(nameof(SelectedGlobalOffsetUnit));
         }
@@ -705,21 +732,25 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
 
             DxfFilePath = _uploader.LoadedFilePath;
             DxfFileName = Path.GetFileName(_uploader.LoadedFilePath);
+            Transform.ShowText = _uploader.ShowText;
 
             try
             {
-                var doc = DxfDocument.Load(_uploader.LoadedFilePath);
+                var doc = _uploader.LoadedDocument ?? DxfDocument.Load(_uploader.LoadedFilePath);
                 if (doc == null) return;
 
                 _loadedDocument = doc;
+                int textTotal = CountDxfTextEntities(doc);
                 int total =
                     doc.Entities.Lines.Count() +
                     doc.Entities.Polylines2D.Count() +
                     doc.Entities.Arcs.Count() +
-                    doc.Entities.Circles.Count();
+                    doc.Entities.Circles.Count() +
+                    doc.Entities.Ellipses.Count() +
+                    textTotal;
 
                 long fileSizeKb = new FileInfo(_uploader.LoadedFilePath).Length / 1024;
-                DxfInfo = $"{total:N0} entities - {doc.Layers.Count} layers - {fileSizeKb:F0} KB";
+                DxfInfo = $"{total:N0} entities - {doc.Layers.Count} layers - {fileSizeKb:F0} KB - text {textTotal:N0}";
                 ApplyDxfDocumentUnit(doc);
                 ComputeDxfBounds(doc);
                 ApplyDxfOriginalReferencePoint(doc);
@@ -845,6 +876,84 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
         private static double SceneMillimetersToUnit(double sceneMillimeters, int unitIndex)
             => sceneMillimeters / DxfTransformModel.UnitScaleToSceneMillimeters(unitIndex);
 
+        private static int CountDxfTextEntities(DxfDocument doc)
+        {
+            int count = doc.Entities.Texts.Count(t => t.IsVisible && !string.IsNullOrWhiteSpace(t.Value)) +
+                        doc.Entities.MTexts.Count(t => t.IsVisible && !string.IsNullOrWhiteSpace(t.Value));
+
+            foreach (var insert in doc.Entities.Inserts)
+                count += CountInsertTextEntities(insert, depth: 0);
+
+            foreach (var dimension in doc.Entities.Dimensions)
+                count += CountDimensionTextEntities(dimension);
+
+            return count;
+        }
+
+        private static int CountDimensionTextEntities(netDxf.Entities.Dimension dimension)
+        {
+            if (!dimension.IsVisible)
+                return 0;
+
+            int count = 0;
+            if (dimension.Block != null)
+            {
+                count += dimension.Block.Entities.OfType<netDxf.Entities.Text>()
+                    .Count(t => t.IsVisible && !string.IsNullOrWhiteSpace(t.Value));
+                count += dimension.Block.Entities.OfType<netDxf.Entities.MText>()
+                    .Count(t => t.IsVisible && !string.IsNullOrWhiteSpace(t.Value));
+            }
+
+            if (count > 0)
+                return count;
+
+            return string.Equals(dimension.UserText, " ", StringComparison.Ordinal)
+                ? 0
+                : 1;
+        }
+
+        private static int CountInsertTextEntities(netDxf.Entities.Insert insert, int depth)
+        {
+            if (depth > 8 || !insert.IsVisible)
+                return 0;
+
+            int count = 0;
+            count += insert.Attributes.Count(a => a.IsVisible && !string.IsNullOrWhiteSpace(a.Value));
+
+            try
+            {
+                count += insert.Block.Entities.OfType<netDxf.Entities.Text>()
+                    .Count(t => t.IsVisible && !string.IsNullOrWhiteSpace(t.Value));
+                count += insert.Block.Entities.OfType<netDxf.Entities.MText>()
+                    .Count(t => t.IsVisible && !string.IsNullOrWhiteSpace(t.Value));
+
+                foreach (var nestedInsert in insert.Block.Entities.OfType<netDxf.Entities.Insert>())
+                    count += CountInsertTextEntities(nestedInsert, depth + 1);
+            }
+            catch
+            {
+                // Some malformed block references can fail while counting; the loader still handles top-level geometry.
+            }
+
+            return count;
+        }
+
+        private static (double X, double Y) GetEllipsePoint(netDxf.Entities.Ellipse ellipse, double angleDegrees)
+        {
+            double majorRadius = ellipse.MajorAxis / 2.0;
+            double minorRadius = ellipse.MinorAxis / 2.0;
+            double angle = angleDegrees * Math.PI / 180.0;
+            double rotation = ellipse.Rotation * Math.PI / 180.0;
+            double localX = majorRadius * Math.Cos(angle);
+            double localY = minorRadius * Math.Sin(angle);
+            double cos = Math.Cos(rotation);
+            double sin = Math.Sin(rotation);
+
+            return (
+                ellipse.Center.X + localX * cos - localY * sin,
+                ellipse.Center.Y + localX * sin + localY * cos);
+        }
+
         private void PushUndoSnapshot()
         {
             if (_undoStack.Count >= MaxUndoDepth) return;
@@ -856,18 +965,18 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
         private void PushToUploader()
         {
             if (_uploader == null) return;
-            _uploader.AlignmentTransform = GetResultTransform();
-            _uploader.Opacity = Opacity;
 
             if (!string.IsNullOrEmpty(DxfFilePath) &&
                 !string.Equals(DxfFilePath, _uploader.LoadedFilePath, StringComparison.OrdinalIgnoreCase))
             {
-                _uploader.LoadDxf(DxfFilePath);
+                _uploader.AlignmentTransform = GetResultTransform();
+                _uploader.Opacity = Opacity;
+                _uploader.LoadDxf(DxfFilePath, KeepText);
                 return;
             }
 
             if (!string.IsNullOrEmpty(_uploader.LoadedFilePath))
-                _uploader.ReApplyTransform();
+                _uploader.ApplyDisplayState(GetResultTransform(), Opacity, KeepText);
         }
     }
 }

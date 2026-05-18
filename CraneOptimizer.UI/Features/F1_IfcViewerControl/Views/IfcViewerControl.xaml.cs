@@ -33,6 +33,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private readonly OsnapPanelViewModel _osnapVm = null!;
         private readonly OsnapGeometryBridge _osnapBridge = null!;
         private Window? _ownerWindow;
+        private MainViewModel? _osnapDxfSource;
 
         private bool _manualGridSize;
         private double _gridCenterXMillimeters;
@@ -91,6 +92,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                     _hitTestService,
                     () => _cameraService.UpdateClipping(_sceneService.GetElements())));
                 vm.Dxf.Initialize(IfcViewer);
+                AttachDxfSnapBridge(vm);
             }
 
             SetGridText(50d, 50d);
@@ -113,6 +115,29 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _sceneService.ZoneRemoved -= OnZoneChanged;
             _sceneService.ZoneUpdated -= OnZoneChanged;
             _sceneService.ZonesCleared -= OnZonesCleared;
+            DetachDxfSnapBridge();
+        }
+
+        private void AttachDxfSnapBridge(MainViewModel vm)
+        {
+            if (!ReferenceEquals(_osnapDxfSource, vm))
+            {
+                DetachDxfSnapBridge();
+                _osnapDxfSource = vm;
+                vm.Dxf.DxfLoaded += _osnapBridge.RefreshDxf;
+            }
+
+            if (vm.Dxf.CurrentUploader?.IsLoaded == true)
+                _osnapBridge.RefreshDxf(vm.Dxf.CurrentUploader);
+        }
+
+        private void DetachDxfSnapBridge()
+        {
+            if (_osnapDxfSource == null)
+                return;
+
+            _osnapDxfSource.Dxf.DxfLoaded -= _osnapBridge.RefreshDxf;
+            _osnapDxfSource = null;
         }
 
         private void OwnerWindow_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -176,12 +201,24 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
             if (_osnapIndicator != null)
             {
-                var result = _osnapService.Snap(screen, viewport);
-                _osnapIndicator.Update(result);
+                if (IsCameraOrDragMouseMove(e))
+                {
+                    _osnapIndicator.Hide();
+                }
+                else
+                {
+                    var result = _osnapService.Snap(screen, viewport);
+                    _osnapIndicator.Update(result);
+                }
             }
 
             _interactionService.HandleMouseMove(viewport, e);
         }
+
+        private static bool IsCameraOrDragMouseMove(MouseEventArgs e)
+            => e.LeftButton == MouseButtonState.Pressed ||
+               e.MiddleButton == MouseButtonState.Pressed ||
+               e.RightButton == MouseButtonState.Pressed;
 
         private void IfcViewer_MouseDown(object sender, MouseButtonEventArgs e)
         {

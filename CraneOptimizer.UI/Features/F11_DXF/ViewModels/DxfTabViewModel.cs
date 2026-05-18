@@ -31,7 +31,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
         // ── Alignment dialog state ───────────────────────────────────────────
         // Persisted between sessions so the user’s last offset/scale/rotation
         // is restored when the dialog is re-opened.
-        private double[] _savedTransformArray = { 0, 0, 1.0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+        private double[] _savedTransformArray = { 0, 0, 1.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
         private bool _hasSavedTransformForLoadedFile;
 
         // Non-modal dialog reference — reuse if already open
@@ -54,6 +54,8 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
         /// </summary>
         public event Action<DxfUploader>? DxfLoaded;
 
+        public DxfUploader? CurrentUploader => _uploader;
+
         // ── Constructor ───────────────────────────────────────────────────
         public DxfTabViewModel()
         {
@@ -74,6 +76,9 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
         /// </summary>
         public void Initialize(HelixViewport3D viewport)
         {
+            if (_uploader != null)
+                return;
+
             _uploader = new DxfUploader(viewport);
         }
 
@@ -129,7 +134,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
             bool isDifferentFile = !string.Equals(_loadedFilePath, picker.FileName, StringComparison.OrdinalIgnoreCase);
             if (isDifferentFile)
             {
-                _savedTransformArray = new[] { 0, 0, 1.0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+                _savedTransformArray = new[] { 0, 0, 1.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
                 _hasSavedTransformForLoadedFile = false;
             }
 
