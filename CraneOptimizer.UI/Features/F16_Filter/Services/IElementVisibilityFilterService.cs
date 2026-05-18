@@ -1,5 +1,5 @@
 using CraneOptimizer.Domain.Schemas;
-using CraneOptimizer.UI.Features.F2_IfcViewer.Models;
+using CraneOptimizer.UI.Features.F2_IfcViewer.DTOs;
 
 namespace CraneOptimizer.UI.Features.F16_Filter.Services
 {
@@ -32,7 +32,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         void ShowAll();
         void HideElements(IEnumerable<PrecastElement> elements);
         void IsolateElements(IEnumerable<PrecastElement> elements);
-        void ApplyLoadOptions(IfcFilterOptions options);
+        void ApplyLoadOptions(IfcLoadOptionsDto options);
         string GetStorey(PrecastElement element);
         bool IsTypeEnabled(string type);
         bool IsMaterialEnabled(string material);

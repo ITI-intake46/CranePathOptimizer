@@ -68,7 +68,7 @@
     <Folder Include="Features\F4_LoadChart\Services\" />
     <Folder Include="Features\F4_LoadChart\ViewModels\" />
     <Folder Include="Features\F5_ElementManagement\" />
-    <Folder Include="Features\F9_Settings\" />
+    <Folder Include="Features\F9_UserSettings\" />
     <Folder Include="Features\F16_Filter\" />
     <Folder Include="Shared\Assets\" />
     <Folder Include="Shell\ViewModels\" />

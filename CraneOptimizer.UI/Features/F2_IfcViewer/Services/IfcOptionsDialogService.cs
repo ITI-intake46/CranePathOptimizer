@@ -1,18 +1,18 @@
-﻿using CraneOptimizer.UI.Features.F2_IfcViewer.Models;
+using CraneOptimizer.UI.Features.F2_IfcViewer.DTOs;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Views;
 
 namespace CraneOptimizer.UI.Features.F2_IfcViewer.Services
 {
     public class IfcOptionsDialogService : IIfcOptionsDialogService
     {
-        public IfcFilterOptions? Show(string filePath)
+        public IfcLoadOptionsDto? Show(string filePath)
         {
             var dialog = new IFCLoadOptionsDialog(filePath);
 
             if (dialog.ShowDialog() != true)
                 return null;
 
-            return new IfcFilterOptions
+            return new IfcLoadOptionsDto
             {
                 HideGrids = dialog.HideGrids,
                 HideLevels = dialog.HideLevels,

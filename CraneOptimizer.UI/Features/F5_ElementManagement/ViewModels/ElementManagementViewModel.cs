@@ -5,7 +5,7 @@ using CraneOptimizer.UI.Core.Converters;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F5_ElementManagement.Services;
-using CraneOptimizer.UI.Features.F16_Filter.Models;
+using CraneOptimizer.UI.Features.F16_Filter.DTOs;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
 using CraneOptimizer.UI.Features.F16_Filter.Views;
 using System;
@@ -156,7 +156,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             }
         }
 
-        public void ApplyFilterCriteria(FilterCriteria criteria)
+        public void ApplyFilterCriteria(FilterCriteriaDto criteria)
         {
             _selectedTypes = criteria.SelectedTypes ?? new List<string>();
             _selectedMaterials = criteria.SelectedMaterials ?? new List<string>();
@@ -544,7 +544,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             return view?.Cast<object>().Count() ?? FilteredElements.Count;
         }
 
-        private void ApplyViewerFilterCriteria(FilterCriteria criteria)
+        private void ApplyViewerFilterCriteria(FilterCriteriaDto criteria)
         {
             _visibilityFilterService.ResetFilters();
             _visibilityFilterService.SetSearchText(SearchText);
