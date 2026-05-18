@@ -107,10 +107,7 @@ namespace CraneOptimizer.UI.Core.Services
 
                     return (element, status, element.ElementID == selectedElementId);
                 }),
-                // Issue 3 fix: pass null for placementOffset because elements
-                // in the scene have already been translated. Passing it here
-                // causes a double-translation offset.
-                new ElementVisualBuilder(_ifcReader, origin, null),
+                new ElementVisualBuilder(_ifcReader, origin, placementOffset),
                 "Elements");
         }
 
