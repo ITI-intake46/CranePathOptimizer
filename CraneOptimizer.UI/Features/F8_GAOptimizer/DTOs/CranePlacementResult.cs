@@ -24,6 +24,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         public double CoverageRatio { get; set; }
 
         /// <summary>
+        /// Number of unique target elements lifted by the final displayed positions.
+        /// </summary>
+        public int LiftedElementCount { get; set; }
+
+        /// <summary>
+        /// Number of target elements included in this GA run after element-type filtering.
+        /// </summary>
+        public int TotalElementCount { get; set; }
+
+        /// <summary>
         /// Aggregated statistics of lift results.
         /// </summary>
         public LiftStatistics Statistics { get; set; } = new();

@@ -51,19 +51,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 r.Status == LiftStatus.SpecialCase);
             int unreachable = point.ElementResults.Count(r => r.Status == LiftStatus.OutOfRadius);
 
-            int total = point.ElementResults.Count;
-            double coverage = total == 0 ? 0 : (double)liftable / total;
-
-            string coverageText = point.NewLiftableCount > 0
-                ? $"Point Coverage: {coverage:P0}  (+{point.NewLiftableCount} newly covered)"
-                : $"Point Coverage: {coverage:P0}";
-
             return new CraneOptimizerPointSummary(
                 FormatPointCoordinates(point),
                 liftable,
                 nonLiftable,
-                unreachable,
-                coverageText);
+                unreachable);
         }
 
         public GASettings BuildSettings(CraneOptimizerDialogOptions options)
@@ -178,17 +170,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         public CranePositionResult Point { get; }
 
         public string DisplayText =>
-            // Issue 7: Clarify that liftable count is per-position (standalone),
-            // not the cumulative multi-crane global coverage.
             $"Point {CraneOptimizerDialogWorkflow.FormatPointCoordinates(Point)}" +
-            $" — {Point.LiftableCount} liftable (standalone)" +
-            (Point.NewLiftableCount > 0 ? $" — +{Point.NewLiftableCount} new" : string.Empty);
+            $" — {Point.NewLiftableCount} lifted";
     }
 
     public sealed record CraneOptimizerPointSummary(
         string PositionText,
         int LiftableCount,
         int NonLiftableCount,
-        int UnreachableCount,
-        string CoverageText);
+        int UnreachableCount);
 }

@@ -302,6 +302,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 position.NewLiftableCount = newlyCovered;
             }
 
+            result.LiftedElementCount = covered.Count;
+            result.TotalElementCount = totalElementCount;
             result.CoverageRatio = totalElementCount == 0
                 ? 0
                 : (double)covered.Count / totalElementCount;

@@ -287,7 +287,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             PanelResults.Visibility = Visibility.Visible;
 
             TxtScore.Text = $"Fitness: {result.FitnessScore:F2}";
-            TxtCoverage.Text = $"Total Coverage: {result.CoverageRatio:P0}";
+            TxtCoverage.Text = $"Total Lifted: {result.LiftedElementCount} / {result.TotalElementCount}";
 
             if (!result.Positions.Any())
             {
@@ -309,7 +309,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             TxtCountL.Text = summary.LiftableCount.ToString();
             TxtCountNL.Text = summary.NonLiftableCount.ToString();
             TxtCountUR.Text = summary.UnreachableCount.ToString();
-            TxtCoverage.Text = summary.CoverageText;
         }
 
         private void ClearResultPanel()

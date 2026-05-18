@@ -31,6 +31,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public IReadOnlyList<CranePositionResult> Positions => _result.Positions;
         public double FitnessScore => _result.FitnessScore;
         public double CoverageRatio => _result.CoverageRatio;
+        public string TotalLiftedText => $"Total Lifted: {_result.LiftedElementCount} / {_result.TotalElementCount}";
 
         public CranePositionResult? SelectedPoint
         {
