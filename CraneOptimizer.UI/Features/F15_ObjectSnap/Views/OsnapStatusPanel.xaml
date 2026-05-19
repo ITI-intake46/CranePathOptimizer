@@ -251,52 +251,6 @@
                             </StackPanel>
                         </ToggleButton>
 
-                        <ToggleButton IsChecked="{Binding SnapPerpendicular, Mode=TwoWay}"
-                                      Margin="0,0,0,2" Style="{StaticResource OsnTypeToggle}"
-                                      ToolTip="Snap perpendicular to nearest edge">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="⊾" FontSize="{StaticResource FontSizeXS}"
-                                           VerticalAlignment="Center" Margin="0,0,5,0"
-                                           Foreground="#66FF88"/>
-                                <TextBlock Text="Perpendicular" FontWeight="SemiBold"/>
-                                <TextBlock Margin="5,0,0,0" VerticalAlignment="Center"
-                                           FontSize="{StaticResource FontSizeXS}"
-                                           Foreground="{DynamicResource TextDisabledBrush}"
-                                           Text="PER"/>
-                            </StackPanel>
-                        </ToggleButton>
-
-                        <ToggleButton IsChecked="{Binding SnapGrid, Mode=TwoWay}"
-                                      Margin="0,0,3,2" Style="{StaticResource OsnTypeToggle}"
-                                      ToolTip="Snap to grid intersections">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="+" FontSize="{StaticResource FontSizeXS}"
-                                           FontWeight="Bold" VerticalAlignment="Center"
-                                           Margin="0,0,5,0"
-                                           Foreground="{DynamicResource TextDisabledBrush}"/>
-                                <TextBlock Text="Grid" FontWeight="SemiBold"/>
-                                <TextBlock Margin="5,0,0,0" VerticalAlignment="Center"
-                                           FontSize="{StaticResource FontSizeXS}"
-                                           Foreground="{DynamicResource TextDisabledBrush}"
-                                           Text="GRID"/>
-                            </StackPanel>
-                        </ToggleButton>
-
-                        <ToggleButton IsChecked="{Binding SnapNearest, Mode=TwoWay}"
-                                      Margin="0,0,0,2" Style="{StaticResource OsnTypeToggle}"
-                                      ToolTip="Snap to nearest point on any edge">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="◇" FontSize="{StaticResource FontSizeXS}"
-                                           VerticalAlignment="Center" Margin="0,0,5,0"
-                                           Foreground="{StaticResource PrimaryBrush}"/>
-                                <TextBlock Text="Nearest" FontWeight="SemiBold"/>
-                                <TextBlock Margin="5,0,0,0" VerticalAlignment="Center"
-                                           FontSize="{StaticResource FontSizeXS}"
-                                           Foreground="{DynamicResource TextDisabledBrush}"
-                                           Text="NEA"/>
-                            </StackPanel>
-                        </ToggleButton>
-
                         <ToggleButton IsChecked="{Binding SnapCenter, Mode=TwoWay}"
                                       Margin="0,0,3,2" Style="{StaticResource OsnTypeToggle}"
                                       ToolTip="Snap to arc / circle center">

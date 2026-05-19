@@ -30,8 +30,12 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
                 if (File.Exists(SettingsPath))
                 {
                     var json = File.ReadAllText(SettingsPath);
-                    var loaded = JsonSerializer.Deserialize<OsnapSettingsDto>(json, _jsonOptions);
-                    if (loaded != null) return ToModel(loaded);
+                    var loaded = JsonSerializer.Deserialize<OsnapSettings>(json, _jsonOptions);
+                    if (loaded != null)
+                    {
+                        NormalizeLoadedSettings(loaded);
+                        return loaded;
+                    }
                 }
             }
             catch (Exception ex)
@@ -40,6 +44,23 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             }
 
             return new OsnapSettings(); // default values
+        }
+
+        private static void NormalizeLoadedSettings(OsnapSettings settings)
+        {
+            // Older settings stored grid spacing as "1.0" while the scene is in
+            // millimetres, causing a visible grid snap candidate almost everywhere.
+            if (settings.GridSpacing < 10.0)
+                settings.GridSpacing = 1000.0;
+
+            // Nearest snaps anywhere along an edge. Keep it off so object snap
+            // stays focused on explicit points such as END, MID, CEN, and QUA.
+            settings.SnapNearest = false;
+            settings.SnapPerpendicular = false;
+            settings.SnapGrid = false;
+            settings.SnapMidpoint = true;
+            settings.SnapIntersection = true;
+            settings.SnapQuadrant = true;
         }
 
         /// <summary>Persists the current settings to disk.</summary>

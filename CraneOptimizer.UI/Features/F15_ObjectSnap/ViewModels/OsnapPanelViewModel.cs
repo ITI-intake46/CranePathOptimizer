@@ -82,21 +82,21 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels
         public bool SnapPerpendicular
         {
             get => _snapPerpendicular;
-            set { _snapPerpendicular = value; _snapService.SetSnapEnabled(OsnapType.Perpendicular, value); OnPropertyChanged(); OnPropertyChanged(nameof(IsAnySnapActive)); }
+            set { _snapPerpendicular = false; _snapService.SetSnapEnabled(OsnapType.Perpendicular, false); OnPropertyChanged(); OnPropertyChanged(nameof(IsAnySnapActive)); }
         }
 
         private bool _snapNearest;
         public bool SnapNearest
         {
             get => _snapNearest;
-            set { _snapNearest = value; _snapService.SetSnapEnabled(OsnapType.Nearest, value); OnPropertyChanged(); OnPropertyChanged(nameof(IsAnySnapActive)); }
+            set { _snapNearest = false; _snapService.SetSnapEnabled(OsnapType.Nearest, false); OnPropertyChanged(); OnPropertyChanged(nameof(IsAnySnapActive)); }
         }
 
         private bool _snapGrid;
         public bool SnapGrid
         {
             get => _snapGrid;
-            set { _snapGrid = value; _snapService.SetSnapEnabled(OsnapType.Grid, value); OnPropertyChanged(); OnPropertyChanged(nameof(IsAnySnapActive)); }
+            set { _snapGrid = false; _snapService.SetSnapEnabled(OsnapType.Grid, false); OnPropertyChanged(); OnPropertyChanged(nameof(IsAnySnapActive)); }
         }
 
         private bool _snapCenter;
@@ -133,7 +133,6 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels
         public bool IsAnySnapActive =>
             MasterEnabled &&
             (SnapEndpoint || SnapMidpoint || SnapIntersection ||
-             SnapPerpendicular || SnapNearest || SnapGrid ||
              SnapCenter || SnapQuadrant);
 
         // ─── Tuning ────────────────────────────────────────────────────────────
@@ -160,9 +159,9 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels
                 case OsnapType.Endpoint:      SnapEndpoint      = enabled; break;
                 case OsnapType.Midpoint:      SnapMidpoint      = enabled; break;
                 case OsnapType.Intersection:  SnapIntersection  = enabled; break;
-                case OsnapType.Perpendicular: SnapPerpendicular = enabled; break;
-                case OsnapType.Nearest:       SnapNearest       = enabled; break;
-                case OsnapType.Grid:          SnapGrid          = enabled; break;
+                case OsnapType.Perpendicular: SnapPerpendicular = false; break;
+                case OsnapType.Nearest:       SnapNearest       = false; break;
+                case OsnapType.Grid:          SnapGrid          = false; break;
                 case OsnapType.Center:        SnapCenter        = enabled; break;
                 case OsnapType.Quadrant:      SnapQuadrant      = enabled; break;
             }
@@ -186,9 +185,12 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels
             _snapEndpoint       = s.SnapEndpoint;
             _snapMidpoint       = s.SnapMidpoint;
             _snapIntersection   = s.SnapIntersection;
-            _snapPerpendicular  = s.SnapPerpendicular;
-            _snapNearest        = s.SnapNearest;
-            _snapGrid           = s.SnapGrid;
+            _snapPerpendicular  = false;
+            s.SnapPerpendicular = false;
+            _snapNearest        = false;
+            s.SnapNearest       = false;
+            _snapGrid           = false;
+            s.SnapGrid          = false;
             _snapCenter         = s.SnapCenter;
             _snapQuadrant       = s.SnapQuadrant;
             _snapToDxf          = s.SnapToDxf;
@@ -203,9 +205,9 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels
             SnapEndpoint       = s.SnapEndpoint;
             SnapMidpoint       = s.SnapMidpoint;
             SnapIntersection   = s.SnapIntersection;
-            SnapPerpendicular  = s.SnapPerpendicular;
-            SnapNearest        = s.SnapNearest;
-            SnapGrid           = s.SnapGrid;
+            SnapPerpendicular  = false;
+            SnapNearest        = false;
+            SnapGrid           = false;
             SnapCenter         = s.SnapCenter;
             SnapQuadrant       = s.SnapQuadrant;
             SnapToDxf          = s.SnapToDxf;

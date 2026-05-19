@@ -135,6 +135,18 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Models
             }
         }
 
+        private bool _showText = true;
+        public bool ShowText
+        {
+            get => _showText;
+            set
+            {
+                if (_showText == value) return;
+                _showText = value;
+                OnPropertyChanged();
+            }
+        }
+
         private bool _showGrid = true;
         public bool ShowGrid
         {
@@ -267,7 +279,8 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Models
             GlobalOffsetX,
             GlobalOffsetY,
             DxfUnitIndex,
-            GlobalOffsetUnitIndex
+            GlobalOffsetUnitIndex,
+            ShowText ? 1.0 : 0.0
         };
 
         /// <summary>Restore from a flat double array produced by <see cref="ToArray"/>.</summary>
@@ -300,6 +313,9 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Models
                 model.GlobalOffsetUnitIndex = (int)Math.Round(arr[11]);
             }
 
+            if (arr.Length >= 13)
+                model.ShowText = arr[12] >= 0.5;
+
             return model;
         }
 
@@ -319,6 +335,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Models
             DxfDocumentUnitIndex = DxfDocumentUnitIndex,
             GlobalOffsetUnitIndex = GlobalOffsetUnitIndex,
             Opacity = Opacity,
+            ShowText = ShowText,
             ShowGrid = ShowGrid,
             SnapToGrid = SnapToGrid,
             GridSpacing = GridSpacing
@@ -330,6 +347,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Models
             GlobalOffsetX = GlobalOffsetY = 0;
             DxfUnitIndex = DefaultUnitIndex;
             GlobalOffsetUnitIndex = 0;
+            ShowText = true;
             Scale = 1.0;
             RotationDegrees = 0;
         }
