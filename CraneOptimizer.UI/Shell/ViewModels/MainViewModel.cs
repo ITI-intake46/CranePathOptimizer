@@ -2,6 +2,7 @@ using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
@@ -29,6 +30,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly IStatusService _status;
         private readonly IOriginService _originService;
         private readonly ICraneSceneInteractionService _craneSceneInteraction;
+        private readonly IUnitSettingsService _unitSettings;
         private readonly CraneVisualBuilder _craneVisualBuilder;
 
         private Crane? _selectedCrane;
@@ -55,6 +57,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IOriginService originService,
             ICraneSceneInteractionService craneSceneInteraction,
             CraneManagerViewModel craneManager,
+            IUnitSettingsService unitSettings,
             CraneVisualBuilder craneVisualBuilder)
         {
             Scene = scene;
@@ -75,6 +78,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _status = status;
             _originService = originService;
             _craneSceneInteraction = craneSceneInteraction;
+            _unitSettings = unitSettings;
             _craneVisualBuilder = craneVisualBuilder;
 
             _status.StatusChanged += OnStatusChanged;
@@ -82,6 +86,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _originService.OriginChanged += OnOriginChanged;
             _originService.PickingChanged += OnOriginPickingChanged;
             _craneSceneInteraction.StateChanged += OnCraneInteractionStateChanged;
+            _unitSettings.SettingsChanged += OnUnitSettingsChanged;
 
             // When any crane is built/re-rendered, push its parameters to the right panel.
             _craneVisualBuilder.CraneParametersReady += (scene, p) =>
@@ -261,18 +266,150 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             set { _renderQualityLabel = value; OnPropertyChanged(); }
         }
 
+        // ── Unit selector ──────────────────────────────────────────────
+
+        public IReadOnlyList<string> AvailableUnits { get; } = new[] { "m", "mm" };
+
+        private string _selectedUnit = "m";
+        public string SelectedUnit
+        {
+            get => _selectedUnit;
+            set
+            {
+                if (_selectedUnit == value) return;
+                _selectedUnit = value;
+                OnPropertyChanged();
+                ApplySelectedUnit();
+            }
+        }
+
+        // ── Building info (populated after IFC load) ───────────────────
+
+        private double _buildingArea;
+        public double BuildingArea
+        {
+            get => _buildingArea;
+            private set { _buildingArea = value; OnPropertyChanged(); }
+        }
+
+        private double _buildingHeight;
+        public double BuildingHeight
+        {
+            get => _buildingHeight;
+            private set { _buildingHeight = value; OnPropertyChanged(); }
+        }
+
+        private string _areaUnit = "m²";
+        public string AreaUnit
+        {
+            get => _areaUnit;
+            private set { _areaUnit = value; OnPropertyChanged(); }
+        }
+
+        private string _buildingName = "No Building Loaded";
+        public string BuildingName
+        {
+            get => _buildingName;
+            private set { _buildingName = value; OnPropertyChanged(); }
+        }
+
+        private void ApplySelectedUnit()
+        {
+            var lengthUnit = _selectedUnit == "mm" ? LengthUnit.Millimeter : LengthUnit.Meter;
+            var current = _unitSettings.Current;
+
+            if (current.DisplayLengthUnit == lengthUnit)
+                return;
+
+            var updated = current.Clone();
+            updated.DisplayLengthUnit = lengthUnit;
+            _unitSettings.ApplyRuntimeSettings(updated);
+        }
+
+        private void OnUnitSettingsChanged(object? sender, UnitSettings settings)
+        {
+            // Sync the ComboBox selection with the service state
+            var symbol = UnitSystem.LengthSymbol(settings.DisplayLengthUnit);
+            if (_selectedUnit != symbol)
+            {
+                _selectedUnit = symbol;
+                OnPropertyChanged(nameof(SelectedUnit));
+            }
+
+            AreaUnit = UnitSystem.AreaSymbol(settings.DisplayAreaUnit);
+
+            // Re-format building metrics with new units
+            RefreshBuildingMetrics();
+        }
+
+        /// <summary>
+        /// Computes building bounding-box area (footprint) and height from loaded elements.
+        /// </summary>
+        public void RefreshBuildingMetrics()
+        {
+            var elements = Scene.GetElements();
+            if (elements == null || elements.Count == 0)
+            {
+                BuildingArea = 0;
+                BuildingHeight = 0;
+                return;
+            }
+
+            double minX = double.MaxValue, maxX = double.MinValue;
+            double minY = double.MaxValue, maxY = double.MinValue;
+            double minZ = double.MaxValue, maxZ = double.MinValue;
+
+            foreach (var el in elements)
+            {
+                var cog = el.ElementCOG;
+                var hL = (el.BBoxLength ?? 0) / 2.0;
+                var hW = (el.BBoxWidth ?? 0) / 2.0;
+                var hH = (el.BBoxHeight ?? 0) / 2.0;
+
+                minX = Math.Min(minX, cog.X - hL);
+                maxX = Math.Max(maxX, cog.X + hL);
+                minY = Math.Min(minY, cog.Y - hW);
+                maxY = Math.Max(maxY, cog.Y + hW);
+                minZ = Math.Min(minZ, cog.Z - hH);
+                maxZ = Math.Max(maxZ, cog.Z + hH);
+            }
+
+            var settings = _unitSettings.Current;
+
+            double areaM2 = (maxX - minX) * (maxY - minY);
+            BuildingArea = UnitSystem.FromSquareMeters(areaM2, settings.DisplayAreaUnit);
+            AreaUnit = UnitSystem.AreaSymbol(settings.DisplayAreaUnit);
+
+            double heightM = maxZ - minZ;
+            BuildingHeight = UnitSystem.FromMeters(heightM, settings.DisplayLengthUnit);
+        }
+
         public void OpenProject(Guid projectId, string projectName, string? ifcFilePath)
         {
             CurrentProjectId = projectId;
             CurrentProjectName = projectName;
             CurrentProjectIfcPath = ifcFilePath;
+            _ = LoadProjectUnitsAsync(projectId);
             _status.Set($"Project opened: {projectName}", "Load IFC when needed.");
+        }
+
+        private async Task LoadProjectUnitsAsync(Guid projectId)
+        {
+            try
+            {
+                await _unitSettings.LoadProjectSettingsAsync(projectId);
+            }
+            catch (Exception ex)
+            {
+                _status.Set($"Project opened, but unit settings could not be loaded: {ex.Message}");
+            }
         }
 
         public void SetCoordinates(double x, double y)
         {
-            CoordX = $"{x:F2}M";
-            CoordY = $"{y:F2}M";
+            var settings = _unitSettings.Current;
+            CoordX = UnitSystem.FormatLength(x, settings);
+            CoordY = UnitSystem.FormatLength(y, settings);
         }
 
         private void OnStatusChanged() => OnPropertyChanged(nameof(StatusText));
