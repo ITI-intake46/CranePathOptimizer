@@ -80,16 +80,16 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
         {
             if (model == null) throw new ArgumentNullException(nameof(model));
 
-            double s = model.Scale;
+            double s = model.EffectiveScale;
             double rad = -model.RotationRadians;
             double cos = Math.Cos(rad);
             double sin = Math.Sin(rad);
 
-            double worldX = s * (cos * dxfRef.X - sin * dxfRef.Y);
-            double worldY = s * (sin * dxfRef.X + cos * dxfRef.Y);
+            double worldX = s * (cos * dxfRef.X + sin * dxfRef.Y);
+            double worldY = s * (-sin * dxfRef.X + cos * dxfRef.Y);
 
-            model.OffsetX = ifcRef.X - worldX;
-            model.OffsetY = ifcRef.Y - worldY;
+            model.OffsetX = ifcRef.X - worldX + model.GlobalOffsetX;
+            model.OffsetY = ifcRef.Y - worldY + model.GlobalOffsetY;
         }
 
         // =====================================================================
@@ -98,19 +98,19 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
 
         /// <summary>
         /// Suggests a scale factor that fits the DXF drawing inside a square
-        /// canvas of <paramref name="targetSizeMetres"/> metres on each side.
+        /// canvas of <paramref name="targetSizeSceneUnits"/> scene units on each side.
         /// </summary>
-        public double SuggestScale(DxfBounds bounds, double targetSizeMetres)
+        public double SuggestScale(DxfBounds bounds, double targetSizeSceneUnits)
         {
-            if (bounds == null || bounds.IsEmpty || targetSizeMetres <= 0)
+            if (bounds == null || bounds.IsEmpty || targetSizeSceneUnits <= 0)
                 return 1.0;
 
             double maxExtent = Math.Max(bounds.Width, bounds.Height);
-            return maxExtent <= 0 ? 1.0 : targetSizeMetres / maxExtent;
+            return maxExtent <= 0 ? 1.0 : targetSizeSceneUnits / maxExtent;
         }
 
         /// <summary>
-        /// Suggests translation offsets (metres) so the scaled DXF is centred
+        /// Suggests translation offsets (scene units) so the scaled DXF is centred
         /// on the given world origin.
         /// </summary>
         public (double Tx, double Ty) SuggestCenterOffset(
@@ -153,6 +153,11 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
             model.DxfRefY = saved.DxfRefY;
             model.IfcRefX = saved.IfcRefX;
             model.IfcRefY = saved.IfcRefY;
+            model.GlobalOffsetX = saved.GlobalOffsetX;
+            model.GlobalOffsetY = saved.GlobalOffsetY;
+            model.DxfUnitIndex = saved.DxfUnitIndex;
+            model.DxfDocumentUnitIndex = saved.DxfDocumentUnitIndex;
+            model.GlobalOffsetUnitIndex = saved.GlobalOffsetUnitIndex;
             model.Opacity = saved.Opacity;
             model.ShowGrid = saved.ShowGrid;
             model.SnapToGrid = saved.SnapToGrid;

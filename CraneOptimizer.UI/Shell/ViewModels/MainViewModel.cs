@@ -254,7 +254,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             set { _isModelLoaded = value; OnPropertyChanged(); }
         }
 
-        private string _renderQualityLabel = "STD";
+        private string _renderQualityLabel = "Medium";
         public string RenderQualityLabel
         {
             get => _renderQualityLabel;

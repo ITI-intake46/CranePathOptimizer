@@ -572,12 +572,18 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         private bool CanUndo() => IsDrawing && PointCount > 0;
         private bool CanStartMeasure() => !IsDrawing;
         private bool CanDeleteSelectedZone() =>
-            !IsDrawing && !IsMeasuring && (_zoneList.SelectedZone?.Zone != null || _scene.SelectedZone != null);
+            !IsDrawing && !IsMeasuring && (_zoneList.SelectedZone?.ZoneData != null || _scene.SelectedZone != null);
         private bool CanDeleteAllZones() => !IsDrawing && !IsMeasuring && _zoneList.ZoneCount > 0;
 
         private void DeleteSelectedZone()
         {
-            var selected = _zoneList.SelectedZone?.Zone ?? _scene.SelectedZone;
+            var selected = _scene.SelectedZone;
+            if (selected == null && _zoneList.SelectedZone?.ZoneData != null)
+            {
+                selected = _scene.GetZones()
+                    .FirstOrDefault(zone => zone.ZoneId == _zoneList.SelectedZone.ZoneData.ZoneId);
+            }
+
             if (selected != null) _scene.RemoveZone(selected);
         }
 

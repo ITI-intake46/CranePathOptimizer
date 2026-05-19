@@ -15,7 +15,9 @@ namespace CraneOptimizer.UI.Core.Services
         private readonly IRenderingService _renderingService;
 
         private const double MinNearPlane = 1d;
-        private const double FarPlanePaddingFactor = 1.4;
+        private const double MaxNearPlane = 1_000d;
+        private const double FarPlanePaddingFactor = 4.0;
+        private const double MinFarPlane = 2_000_000d;
         private const double DefaultGridViewSize = 50_000d;
         private static readonly Duration CameraAnimationDuration = new(TimeSpan.FromMilliseconds(420));
 
@@ -89,7 +91,7 @@ namespace CraneOptimizer.UI.Core.Services
             if (source == null || source.Count == 0)
             {
                 camera.NearPlaneDistance = MinNearPlane;
-                camera.FarPlaneDistance = 2_000_000;
+                camera.FarPlaneDistance = MinFarPlane;
                 return;
             }
 
@@ -97,8 +99,11 @@ namespace CraneOptimizer.UI.Core.Services
             var radius = Math.Max(1000d, size * 0.5);
 
             var cameraDistance = (camera.Position - center).Length;
-            camera.NearPlaneDistance = Math.Max(MinNearPlane, Math.Min(radius * 0.02, cameraDistance * 0.1));
-            camera.FarPlaneDistance = Math.Max(camera.NearPlaneDistance * 1000, (cameraDistance + radius) * FarPlanePaddingFactor);
+            var nearPlane = Math.Min(MaxNearPlane, Math.Min(radius * 0.005, cameraDistance * 0.01));
+            camera.NearPlaneDistance = Math.Max(MinNearPlane, nearPlane);
+            camera.FarPlaneDistance = Math.Max(
+                MinFarPlane,
+                Math.Max(camera.NearPlaneDistance * 10_000d, (cameraDistance + radius) * FarPlanePaddingFactor));
         }
 
         private void SetCameraView(Point3D center, double sceneSize, double elevationFactor, double distanceFactor)
@@ -243,12 +248,33 @@ namespace CraneOptimizer.UI.Core.Services
 
         private static (Point3D center, double size) CalculateBounds(IReadOnlyList<PrecastElement> source)
         {
-            var minX = source.Min(e => e.ElementCOG.X - ((e.BBoxLength ?? 0d) / 2d));
-            var maxX = source.Max(e => e.ElementCOG.X + ((e.BBoxLength ?? 0d) / 2d));
-            var minY = source.Min(e => e.ElementCOG.Y - ((e.BBoxWidth ?? 0d) / 2d));
-            var maxY = source.Max(e => e.ElementCOG.Y + ((e.BBoxWidth ?? 0d) / 2d));
-            var minZ = source.Min(e => e.ElementCOG.Z - ((e.BBoxHeight ?? 0d) / 2d));
-            var maxZ = source.Max(e => e.ElementCOG.Z + ((e.BBoxHeight ?? 0d) / 2d));
+            var minX = double.MaxValue;
+            var minY = double.MaxValue;
+            var minZ = double.MaxValue;
+            var maxX = double.MinValue;
+            var maxY = double.MinValue;
+            var maxZ = double.MinValue;
+
+            foreach (var element in source)
+            {
+                var cog = element.ElementCOG;
+                if (!IsFinite(cog.X) || !IsFinite(cog.Y) || !IsFinite(cog.Z))
+                    continue;
+
+                var halfLength = GetHalfExtent(element.BBoxLength);
+                var halfWidth = GetHalfExtent(element.BBoxWidth);
+                var halfHeight = GetHalfExtent(element.BBoxHeight);
+
+                minX = Math.Min(minX, cog.X - halfLength);
+                maxX = Math.Max(maxX, cog.X + halfLength);
+                minY = Math.Min(minY, cog.Y - halfWidth);
+                maxY = Math.Max(maxY, cog.Y + halfWidth);
+                minZ = Math.Min(minZ, cog.Z - halfHeight);
+                maxZ = Math.Max(maxZ, cog.Z + halfHeight);
+            }
+
+            if (minX == double.MaxValue)
+                return (new Point3D(0, 0, 0), DefaultGridViewSize);
 
             var center = new Point3D((minX + maxX) * 0.5, (minY + maxY) * 0.5, (minZ + maxZ) * 0.5);
             var dx = maxX - minX;
@@ -257,5 +283,15 @@ namespace CraneOptimizer.UI.Core.Services
             var size = Math.Max(1_000d, Math.Sqrt(dx * dx + dy * dy + dz * dz));
             return (center, size);
         }
+
+        private static double GetHalfExtent(double? value)
+        {
+            if (!value.HasValue || !IsFinite(value.Value) || value.Value <= 0)
+                return 0d;
+
+            return value.Value * 0.5;
+        }
+
+        private static bool IsFinite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
     }
 }

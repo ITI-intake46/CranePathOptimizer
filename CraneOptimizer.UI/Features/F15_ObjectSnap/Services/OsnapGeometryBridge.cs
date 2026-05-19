@@ -81,33 +81,12 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 
         private void OnElementsChanged(List<PrecastElement> elements)
         {
-            // Use actual 3D Z so screen projection matches visible geometry
-            var origins = elements
-                .Where(e => e.ElementCOG != null)
-                .Select(e => new Point3D(e.ElementCOG.X, e.ElementCOG.Y, e.ElementCOG.Z));
+            _snap.SetIfcSnapGeometry(BuildElementSnapGeometry(elements));
 
-            // Use bounding box corners with actual Z from element COG + BBoxHeight
-            var boxes = elements
-                .Where(e => e.ElementCOG != null
-                            && e.BBoxLength.HasValue
-                            && e.BBoxWidth.HasValue)
-                .Select(e =>
-                {
-                    double hL = (e.BBoxLength!.Value / 2.0);
-                    double hW = (e.BBoxWidth!.Value  / 2.0);
-                    double z  = e.ElementCOG.Z;
-                    double hH = (e.BBoxHeight ?? 0) / 2.0;
-                    var min = new Point3D(e.ElementCOG.X - hL, e.ElementCOG.Y - hW, z - hH);
-                    var max = new Point3D(e.ElementCOG.X + hL, e.ElementCOG.Y + hW, z + hH);
-                    return (min, max);
-                });
-
-            var vertices = IfcSnapExtractor.Extract(origins, boxes);
-            _snap.SetIfcSnapPoints(vertices);
-
-            // Upgrade IFC snaps to match what is actually rendered (includes origin shifts).
+            // Upgrade IFC snaps to rendered-space bounds (includes origin shifts).
             // Rendering happens in response to the same ElementsChanged event, so we defer
-            // extraction to allow visuals to be created first.
+            // extraction to allow visuals to be created first. Keep this intentionally light:
+            // dense mesh-edge extraction makes large IFC models too slow during snap prep.
             var vp = _viewport;
             if (vp == null) return;
 
@@ -117,16 +96,9 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
                 if (gen != _ifcExtractGeneration) return; // a newer scene update arrived
                 try
                 {
-                    var dense = IfcMeshSnapExtractor.ExtractFromViewport(
-                        vp,
-                        new IfcMeshSnapExtractor.Options(MaxTotalPoints: 30_000, MaxPointsPerMesh: 2_000, MinStride: 2));
-                    if (dense.Count > 0)
-                    {
-                        // Union coarse + dense so we always keep key corners (slabs/foundations)
-                        // even if mesh decimation misses them at some camera angles.
-                        dense.AddRange(vertices);
-                        _snap.SetIfcSnapPoints(Dedup(dense, 0.01));
-                    }
+                    var rendered = IfcMeshSnapExtractor.ExtractElementBoundsFromViewport(vp);
+                    if (rendered.Count > 0)
+                        _snap.SetIfcSnapGeometry(rendered);
                 }
                 catch
                 {
@@ -135,20 +107,63 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             }));
         }
 
-        private static List<Point3D> Dedup(List<Point3D> points, double cellSize)
+        private static List<IfcSnapGeometry> BuildElementSnapGeometry(IEnumerable<PrecastElement> elements)
         {
-            var seen = new HashSet<(long, long, long)>();
-            var result = new List<Point3D>(points.Count);
-            foreach (var p in points)
+            var result = new List<IfcSnapGeometry>();
+            foreach (var element in elements)
             {
-                long gx = (long)Math.Round(p.X / cellSize);
-                long gy = (long)Math.Round(p.Y / cellSize);
-                long gz = (long)Math.Round(p.Z / cellSize);
-                if (seen.Add((gx, gy, gz)))
-                    result.Add(p);
+                if (string.IsNullOrWhiteSpace(element.ElementID) ||
+                    element.ElementCOG == null ||
+                    !element.BBoxLength.HasValue ||
+                    !element.BBoxWidth.HasValue)
+                {
+                    continue;
+                }
+
+                double hL = element.BBoxLength.Value / 2.0;
+                double hW = element.BBoxWidth.Value / 2.0;
+                double hH = (element.BBoxHeight ?? 0) / 2.0;
+                double z = element.ElementCOG.Z;
+                var min = new Point3D(element.ElementCOG.X - hL, element.ElementCOG.Y - hW, z - hH);
+                var max = new Point3D(element.ElementCOG.X + hL, element.ElementCOG.Y + hW, z + hH);
+                var vertices = BuildBoxVertices(min, max);
+                var segments = BuildBoxSegments(vertices);
+
+                result.Add(new IfcSnapGeometry(element.ElementID, vertices, segments));
             }
+
             return result;
         }
+
+        private static List<Point3D> BuildBoxVertices(Point3D min, Point3D max)
+            => new()
+            {
+                new Point3D(min.X, min.Y, min.Z),
+                new Point3D(max.X, min.Y, min.Z),
+                new Point3D(max.X, max.Y, min.Z),
+                new Point3D(min.X, max.Y, min.Z),
+                new Point3D(min.X, min.Y, max.Z),
+                new Point3D(max.X, min.Y, max.Z),
+                new Point3D(max.X, max.Y, max.Z),
+                new Point3D(min.X, max.Y, max.Z),
+            };
+
+        private static List<(Point3D A, Point3D B)> BuildBoxSegments(IReadOnlyList<Point3D> vertices)
+            => new()
+            {
+                (vertices[0], vertices[1]),
+                (vertices[1], vertices[2]),
+                (vertices[2], vertices[3]),
+                (vertices[3], vertices[0]),
+                (vertices[4], vertices[5]),
+                (vertices[5], vertices[6]),
+                (vertices[6], vertices[7]),
+                (vertices[7], vertices[4]),
+                (vertices[0], vertices[4]),
+                (vertices[1], vertices[5]),
+                (vertices[2], vertices[6]),
+                (vertices[3], vertices[7]),
+            };
 
         // ─── DXF feed (called externally when DXF loads) ───────────────────────
 
@@ -191,7 +206,8 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
                 uploader.SnapPoints,
                 uploader.SnapSegments,
                 uploader.SnapCenters,
-                uploader.SnapQuadrants);
+                uploader.SnapQuadrants,
+                uploader.SnapMidpointSegments);
         }
 
         /// <summary>Clears the DXF snap data (called when DXF is unloaded).</summary>

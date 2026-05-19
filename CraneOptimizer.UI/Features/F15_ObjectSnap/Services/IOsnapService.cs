@@ -17,8 +17,11 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
         void SetDxfSnapPoints(IEnumerable<Point3D> endpoints,
                               IEnumerable<(Point3D A, Point3D B)> segments,
                               IEnumerable<Point3D>? centers = null,
-                              IEnumerable<Point3D>? quadrants = null);
-        void SetIfcSnapPoints(IEnumerable<Point3D> vertices);
+                              IEnumerable<Point3D>? quadrants = null,
+                              IEnumerable<(Point3D A, Point3D B)>? midpointSegments = null);
+        void SetIfcSnapPoints(IEnumerable<Point3D> vertices,
+                              IEnumerable<(Point3D A, Point3D B)>? segments = null);
+        void SetIfcSnapGeometry(IEnumerable<IfcSnapGeometry> geometry);
 
         /// <summary>
         /// Returns the best snap result for the given screen-space cursor position,

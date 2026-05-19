@@ -3,10 +3,10 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Crane Position Optimizer"
-    Width="460"
-    Height="650"
-    MinWidth="460"
-    MinHeight="620"
+    Width="560"
+    Height="690"
+    MinWidth="560"
+    MinHeight="650"
     Background="{DynamicResource BackgroundBrush}"
     FontFamily="{StaticResource FontPrimary}"
     FontSize="{StaticResource FontSizeBase}"
@@ -15,6 +15,24 @@
     WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <Style x:Key="InfoIconBorder" TargetType="Border">
+            <Setter Property="Width" Value="16" />
+            <Setter Property="Height" Value="16" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="InfoIconText" TargetType="TextBlock">
+            <Setter Property="Text" Value="!" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
     </Window.Resources>
 
 
@@ -31,11 +49,97 @@
 
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="TargetColumn" Width="0" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition x:Name="AdvancedColumn" Width="0" />
             </Grid.ColumnDefinitions>
 
-            <Grid Grid.Column="0">
+            <Border
+                x:Name="PanelTargetElements"
+                Grid.Column="0"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,1,0"
+                Visibility="Collapsed">
+                <ScrollViewer
+                    CanContentScroll="False"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="{StaticResource Space4}">
+                        <TextBlock
+                            Style="{StaticResource PanelSectionHeader}"
+                            Text="TARGET ELEMENTS" />
+
+                        <TextBlock
+                            Margin="{StaticResource Space1}"
+                            FontSize="{StaticResource FontSizeXS}"
+                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            Text="Choose which imported IFC element types are included in the GA run."
+                            TextWrapping="Wrap" />
+
+                        <Grid Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock
+                                x:Name="TxtTargetElementSummary"
+                                Grid.Column="0"
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeXS}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                TextWrapping="Wrap" />
+
+                            <Button
+                                Grid.Column="2"
+                                MinHeight="28"
+                                Click="BtnIncludeAll_Click"
+                                Content="All"
+                                Style="{StaticResource ButtonSecondary}" />
+
+                            <Button
+                                Grid.Column="4"
+                                MinHeight="28"
+                                Click="BtnExcludeAll_Click"
+                                Content="None"
+                                Style="{StaticResource ButtonSecondary}" />
+                        </Grid>
+
+                        <Border
+                            Margin="{StaticResource Space1}"
+                            Padding="{StaticResource Space2}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="{StaticResource CardCornerRadius}">
+                            <ScrollViewer
+                                MaxHeight="440"
+                                HorizontalScrollBarVisibility="Disabled"
+                                VerticalScrollBarVisibility="Auto">
+                                <ItemsControl x:Name="TargetElementTypesList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox
+                                                Margin="0,3"
+                                                VerticalContentAlignment="Center"
+                                                Content="{Binding DisplayText}"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                Checked="TargetElementType_Changed"
+                                                Unchecked="TargetElementType_Changed" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Grid Grid.Column="1">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="12" />
@@ -46,12 +150,20 @@
 
                 <Grid Grid.Row="0">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock
+                    <Button
+                        x:Name="BtnTargetElementsToggle"
                         Grid.Column="0"
+                        Click="BtnTargetElementsToggle_Click"
+                        Content="Target Elements"
+                        Style="{StaticResource ButtonSecondary}" />
+
+                    <TextBlock
+                        Grid.Column="1"
                         FontSize="{StaticResource FontSizeLG}"
                         FontWeight="SemiBold"
                         Foreground="{DynamicResource TextPrimaryBrush}"
@@ -60,7 +172,7 @@
 
                     <Button
                         x:Name="BtnAdvancedToggle"
-                        Grid.Column="1"
+                        Grid.Column="2"
                         Click="BtnAdvancedToggle_Click"
                         Content="Advanced Options"
                         Style="{StaticResource ButtonSecondary}" />
@@ -80,7 +192,9 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="4" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="4" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="6" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
@@ -99,9 +213,92 @@
                             ItemContainerStyle="{StaticResource DarkComboBoxItem}"
                             Style="{StaticResource DarkComboBox}" />
 
+                        <StackPanel Grid.Row="6" Orientation="Vertical">
+                            <TextBlock
+                                Margin="0,0,0,6"
+                                FontSize="{StaticResource FontSizeXS}"
+                                FontWeight="SemiBold"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="CRITICAL LIFT INPUTS" />
+
+                            <Grid Margin="{StaticResource Space1}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="120" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="8" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="8" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal">
+                                    <TextBlock VerticalAlignment="Center" FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Wire Length (m)" />
+                                    <Border Style="{StaticResource InfoIconBorder}">
+                                        <TextBlock Style="{StaticResource InfoIconText}" ToolTip="Extra hoist wire length added to required lift height.&#10;Important for accurate boom-height feasibility.&#10;Higher value increases height demand; lower value decreases it." />
+                                    </Border>
+                                </StackPanel>
+                                <TextBox
+                                    x:Name="TxtWireLength"
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    MinHeight="{StaticResource InputHeight}"
+                                    VerticalAlignment="Center"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"
+                                    Text="2.0" />
+
+                                <StackPanel
+                                    Grid.Row="2"
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal">
+                                    <TextBlock VerticalAlignment="Center" FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Hook Weight (t)" />
+                                    <Border Style="{StaticResource InfoIconBorder}">
+                                        <TextBlock Style="{StaticResource InfoIconText}" ToolTip="Hook block and accessory weight added to each element load.&#10;Important because accessories consume crane capacity.&#10;Higher value increases overweight risk; lower value increases liftability." />
+                                    </Border>
+                                </StackPanel>
+                                <TextBox
+                                    x:Name="TxtAdditionalWt"
+                                    Grid.Row="2"
+                                    Grid.Column="1"
+                                    MinHeight="{StaticResource InputHeight}"
+                                    VerticalAlignment="Center"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"
+                                    Text="0.0" />
+
+                                <StackPanel
+                                    Grid.Row="4"
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal">
+                                    <TextBlock VerticalAlignment="Center" FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Derating" />
+                                    <Border Style="{StaticResource InfoIconBorder}">
+                                        <TextBlock Style="{StaticResource InfoIconText}" ToolTip="Represents crane condition and maintenance efficiency reduction.&#10;Important because degraded condition lowers real crane capacity.&#10;Increase toward 1.0 raises effective capacity; decrease lowers it." />
+                                    </Border>
+                                </StackPanel>
+                                <TextBox
+                                    x:Name="TxtDeratingRatio"
+                                    Grid.Row="4"
+                                    Grid.Column="1"
+                                    MinHeight="{StaticResource InputHeight}"
+                                    VerticalAlignment="Center"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"
+                                    Text="0.9" />
+                            </Grid>
+                        </StackPanel>
+
                         <TextBlock
                             x:Name="TxtChartStatus"
-                            Grid.Row="6"
+                            Grid.Row="8"
                             FontSize="{StaticResource FontSizeXS}"
                             Foreground="{StaticResource SuccessBrush}"
                             TextWrapping="Wrap" />
@@ -220,7 +417,7 @@
 
             <Border
                 x:Name="PanelAdvanced"
-                Grid.Column="1"
+                Grid.Column="2"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1,0,0,0"
@@ -233,6 +430,13 @@
                         <TextBlock
                             Style="{StaticResource PanelSectionHeader}"
                             Text="ADVANCED OPTIONS" />
+
+                        <TextBlock
+                            Margin="{StaticResource Space1}"
+                            FontSize="{StaticResource FontSizeXS}"
+                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            Text="Fine-tune optimization behavior, engineering conservatism, and search performance."
+                            TextWrapping="Wrap" />
 
                         <TextBlock
                             Margin="{StaticResource Space1}"
@@ -289,11 +493,16 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="120" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                FontSize="{StaticResource FontSizeSM}"
-                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                Text="Safety Factor" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="{StaticResource FontSizeSM}"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    Text="Operational Safety Limit" />
+                                <Border Style="{StaticResource InfoIconBorder}">
+                                    <TextBlock Style="{StaticResource InfoIconText}" ToolTip="User-defined operational safety limit independent from crane condition.&#10;Important to enforce conservative lifting strategy on site.&#10;Increase toward 1.0 allows more chart capacity; decrease uses a stricter limit." />
+                                </Border>
+                            </StackPanel>
                             <TextBox
                                 x:Name="TxtSafetyFactor"
                                 Grid.Column="1"
@@ -301,27 +510,7 @@
                                 VerticalAlignment="Center"
                                 HorizontalContentAlignment="Center"
                                 VerticalContentAlignment="Center"
-                                Text="0.90" />
-                        </Grid>
-
-                        <Grid Margin="{StaticResource Space1}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="120" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                FontSize="{StaticResource FontSizeSM}"
-                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                Text="Rigging Length (m)" />
-                            <TextBox
-                                x:Name="TxtRiggingLength"
-                                Grid.Column="1"
-                                MinHeight="{StaticResource InputHeight}"
-                                VerticalAlignment="Center"
-                                HorizontalContentAlignment="Center"
-                                VerticalContentAlignment="Center"
-                                Text="2.0" />
+                                Text="0.95" />
                         </Grid>
 
                         <TextBlock
@@ -479,6 +668,171 @@
                                 Text="5" />
                         </Grid>
 
+                        <Grid Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Radius StdDev Weight" />
+                            <TextBox
+                                x:Name="TxtRadiusStdDevPenaltyWeight"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                VerticalAlignment="Center"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Text="2" />
+                        </Grid>
+
+                        <Grid Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Similar Position Weight" />
+                            <TextBox
+                                x:Name="TxtSimilarPositionPenaltyWeight"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                VerticalAlignment="Center"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Text="8" />
+                        </Grid>
+
+                        <Grid Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Relocation Dist Weight" />
+                            <TextBox
+                                x:Name="TxtRelocationDistancePenaltyWeight"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                VerticalAlignment="Center"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Text="1.5" />
+                        </Grid>
+
+                        <TextBlock
+                            Margin="{StaticResource Space1}"
+                            Style="{StaticResource PanelSectionHeader}"
+                            Text="SPATIAL CONSTRAINTS" />
+
+                        <Grid Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Min Relocation Dist (m)" />
+                            <TextBox
+                                x:Name="TxtMinimumRelocationDistance"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                VerticalAlignment="Center"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Text="10" />
+                        </Grid>
+
+                        <Grid Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Duplicate Dist (m)" />
+                            <TextBox
+                                x:Name="TxtDuplicatePositionDistance"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                VerticalAlignment="Center"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Text="3" />
+                        </Grid>
+
+                        <Grid Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Mutation Explore Mult" />
+                            <TextBox
+                                x:Name="TxtMutationExplorationMultiplier"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                VerticalAlignment="Center"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Text="2" />
+                        </Grid>
+
+                        <Grid Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Sampling Attempts" />
+                            <TextBox
+                                x:Name="TxtPositionSamplingAttempts"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                VerticalAlignment="Center"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Text="80" />
+                        </Grid>
+
+                        <Grid Margin="{StaticResource Space1}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Max Radius Norm (m)" />
+                            <TextBox
+                                x:Name="TxtMaxRadiusForNormalisation"
+                                Grid.Column="1"
+                                MinHeight="{StaticResource InputHeight}"
+                                VerticalAlignment="Center"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                Text="50" />
+                        </Grid>
+
                         <!-- Developer options are isolated here so the full block can be removed later. -->
                         <Expander
                             Margin="{StaticResource Space1}"
@@ -537,6 +891,24 @@
                                     <TextBlock VerticalAlignment="Center" FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Convergence (%)" ToolTip="0 = always run full generations" />
                                     <TextBox x:Name="TxtDevConvergence" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0" />
                                 </Grid>
+
+                                <Grid Margin="{StaticResource Space1}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="120" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock VerticalAlignment="Center" FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Population Size" />
+                                    <TextBox x:Name="TxtPopulationSize" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="30" />
+                                </Grid>
+
+                                <Grid Margin="{StaticResource Space1}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="120" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock VerticalAlignment="Center" FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Max Generations" />
+                                    <TextBox x:Name="TxtMaxGenerations" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="30" />
+                                </Grid>
                             </StackPanel>
                         </Expander>
                     </StackPanel>
@@ -554,23 +926,24 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="8" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="8" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
                 <Button
                     x:Name="BtnRun"
-                    Grid.Column="1"
+                    Grid.Column="0"
+                    MinHeight="{StaticResource InputHeight}"
                     Click="BtnRun_Click"
                     Content="Run"
                     Style="{StaticResource ButtonPrimary}" />
 
                 <Button
                     x:Name="BtnCancel"
-                    Grid.Column="3"
+                    Grid.Column="2"
+                    MinHeight="{StaticResource InputHeight}"
                     Click="BtnCancelRun_Click"
                     Content="Cancel"
                     IsEnabled="False"
@@ -578,7 +951,8 @@
 
                 <Button
                     x:Name="BtnApply"
-                    Grid.Column="5"
+                    Grid.Column="4"
+                    MinHeight="{StaticResource InputHeight}"
                     Click="BtnApply_Click"
                     Content="Apply"
                     IsEnabled="False"

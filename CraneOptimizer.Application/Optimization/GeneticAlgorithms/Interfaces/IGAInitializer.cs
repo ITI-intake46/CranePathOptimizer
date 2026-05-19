@@ -41,6 +41,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
         /// </returns>
         Population InitializePopulation(
             List<GreenAreaZone> zones,
+            List<GreenAreaZone> forbiddenZones,
             List<PrecastElement> elements,
             int populationSize,
             int maxCranePositions,

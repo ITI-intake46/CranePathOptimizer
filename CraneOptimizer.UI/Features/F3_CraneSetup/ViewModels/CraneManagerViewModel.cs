@@ -3,6 +3,8 @@ using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F3_CraneSetup.DTOs;
+using CraneOptimizer.UI.Features.F3_CraneSetup.Mappers;
 using CraneOptimizer.UI.Features.F3_CraneSetup.Parameters;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.ObjectModel;
@@ -16,13 +18,14 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
         // ── Active parameters (bound to the right-panel sliders) ──────────
         private readonly ISceneService _scene;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly Dictionary<int, Crane> _availableCraneLookup = new();
         private bool _suppressDatabaseSelection;
         private MobileCraneParameters? _activeParams;
-        private Crane? _selectedDatabaseCrane;
+        private CranePickerDto? _selectedDatabaseCrane;
 
-        public ObservableCollection<Crane> AvailableCranes { get; } = new();
+        public ObservableCollection<CranePickerDto> AvailableCranes { get; } = new();
 
-        public Crane? SelectedDatabaseCrane
+        public CranePickerDto? SelectedDatabaseCrane
         {
             get => _selectedDatabaseCrane;
             set
@@ -107,9 +110,13 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
             var repo = scope.ServiceProvider.GetRequiredService<ICraneRepository>();
             var cranes = await repo.GetAllWithSpecsAsync();
 
+            _availableCraneLookup.Clear();
             AvailableCranes.Clear();
             foreach (var crane in cranes)
-                AvailableCranes.Add(crane);
+            {
+                _availableCraneLookup[crane.Id] = crane;
+                AvailableCranes.Add(crane.ToCranePickerDto());
+            }
 
             SyncSelectedDatabaseCrane();
         }
@@ -126,18 +133,21 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
             _suppressDatabaseSelection = false;
         }
 
-        private void ApplyDatabaseCrane(Crane databaseCrane)
+        private void ApplyDatabaseCrane(CranePickerDto databaseCrane)
         {
+            if (!_availableCraneLookup.TryGetValue(databaseCrane.Id, out var craneEntity))
+                return;
+
             var selected = _scene.SelectedCrane;
             if (selected == null)
                 return;
 
-            selected.CraneDefinition = databaseCrane;
-            selected.ActiveSpecification = ChooseActiveSpecification(databaseCrane);
+            selected.CraneDefinition = craneEntity;
+            selected.ActiveSpecification = ChooseActiveSpecification(craneEntity);
             selected.PivotOffset = new Domain.Common.DomainPoint3D(
                 0,
                 0,
-                Math.Max(1.2, ToMeters(databaseCrane.VehicleHeight, 1.5)));
+                Math.Max(1.2, ToMeters(craneEntity.VehicleHeight, 1.5)));
 
             if (selected.ActiveSpecification != null)
             {
@@ -182,12 +192,22 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
                 return;
             }
 
-            if (e.PropertyName == nameof(MobileCraneParameters.SlewAngle))
+            if (e.PropertyName == nameof(MobileCraneParameters.BodyAngle))
             {
-                if (NearlyEqual(selected.Rotation, p.SlewAngle))
+                if (NearlyEqual(selected.Rotation, p.BodyAngle))
                     return;
 
-                selected.Rotation = p.SlewAngle;
+                selected.Rotation = p.BodyAngle;
+                _scene.UpdateCrane(selected);
+                return;
+            }
+
+            if (e.PropertyName == nameof(MobileCraneParameters.SlewAngle))
+            {
+                if (NearlyEqual(selected.SlewAngle, p.SlewAngle))
+                    return;
+
+                selected.SlewAngle = p.SlewAngle;
                 _scene.UpdateCrane(selected);
                 return;
             }

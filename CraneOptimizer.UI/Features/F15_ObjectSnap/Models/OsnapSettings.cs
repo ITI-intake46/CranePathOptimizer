@@ -19,19 +19,20 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Models
         // ─── Individual snap-type flags ───────────────────────────────────────
         public bool SnapEndpoint     { get; set; } = true;
         public bool SnapMidpoint     { get; set; } = true;
-        public bool SnapIntersection { get; set; } = false;
+        public bool SnapIntersection { get; set; } = true;
+        // Retired snap modes are kept only so old settings files can deserialize safely.
         public bool SnapPerpendicular{ get; set; } = false;
         public bool SnapNearest      { get; set; } = false;
-        public bool SnapGrid         { get; set; } = true;
+        public bool SnapGrid         { get; set; } = false;
         public bool SnapCenter       { get; set; } = true;
-        public bool SnapQuadrant     { get; set; } = false;
+        public bool SnapQuadrant     { get; set; } = true;
 
         // ─── Tuning ───────────────────────────────────────────────────────────
         /// <summary>Screen-space snap capture radius in WPF device-independent pixels.</summary>
         public double SnapRadiusPx { get; set; } = 25.0;
 
-        /// <summary>Grid cell size in model-space metres.</summary>
-        public double GridSpacing { get; set; } = 1.0;
+        /// <summary>Grid cell size in scene units. The viewport uses millimetres.</summary>
+        public double GridSpacing { get; set; } = 1000.0;
 
         /// <summary>
         /// Maximum number of edges compared for Intersection snap (O(n²) guard).
@@ -61,9 +62,6 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Models
                 if (SnapEndpoint)      set.Add(OsnapType.Endpoint);
                 if (SnapMidpoint)      set.Add(OsnapType.Midpoint);
                 if (SnapIntersection)  set.Add(OsnapType.Intersection);
-                if (SnapPerpendicular) set.Add(OsnapType.Perpendicular);
-                if (SnapNearest)       set.Add(OsnapType.Nearest);
-                if (SnapGrid)          set.Add(OsnapType.Grid);
                 if (SnapCenter)        set.Add(OsnapType.Center);
                 if (SnapQuadrant)      set.Add(OsnapType.Quadrant);
                 return set;

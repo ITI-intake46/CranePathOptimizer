@@ -1,5 +1,6 @@
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Infrastructure.Contexts;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -38,29 +39,20 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             await context.Projects.AddAsync(project, cancellationToken);
             await context.SaveChangesAsync(cancellationToken);
 
-            return ToCard(project, project.IfcFiles.FirstOrDefault());
+            return project.ToProjectCardDto().ToModel();
         }
 
         public async Task<IReadOnlyList<ProjectCardModel>> GetRecentProjectsAsync(CancellationToken cancellationToken)
         {
             await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-            return await QueryProjects(context)
+            var projects = await QueryProjects(context)
                 .OrderByDescending(project => project.LastOpenedDate)
-                .Select(project => new ProjectCardModel
-                {
-                    Id = project.Id,
-                    Name = project.Name,
-                    IfcFilePath = project.IfcFiles
-                        .OrderBy(file => file.FileName)
-                        .Select(file => file.FilePath)
-                        .FirstOrDefault(),
-                    CreatedDate = project.CreatedDate,
-                    LastOpenedDate = project.LastOpenedDate,
-                    LastModifiedDate = project.LastModifiedDate,
-                    IsFavorite = project.IsFavorite,
-                    Notes = project.Notes
-                })
-                .ToListAsync(cancellationToken);
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            return projects
+                .Select(project => project.ToProjectCardDto().ToModel())
+                .ToList();
         }
 
         public async Task<ProjectCardModel?> OpenProjectAsync(Guid projectId, CancellationToken cancellationToken)
@@ -78,7 +70,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             project.LastModifiedDate = now;
             await context.SaveChangesAsync(cancellationToken);
 
-            return ToCard(project, project.IfcFiles.FirstOrDefault());
+            return project.ToProjectCardDto().ToModel();
         }
 
         public async Task DeleteProjectAsync(Guid projectId, CancellationToken cancellationToken)
@@ -128,23 +120,14 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                     project.IfcFiles.Any(file => file.FileName.Contains(term) || file.FilePath.Contains(term)));
             }
 
-            return await query
+            var projects = await query
                 .OrderByDescending(project => project.LastOpenedDate)
-                .Select(project => new ProjectCardModel
-                {
-                    Id = project.Id,
-                    Name = project.Name,
-                    IfcFilePath = project.IfcFiles
-                        .OrderBy(file => file.FileName)
-                        .Select(file => file.FilePath)
-                        .FirstOrDefault(),
-                    CreatedDate = project.CreatedDate,
-                    LastOpenedDate = project.LastOpenedDate,
-                    LastModifiedDate = project.LastModifiedDate,
-                    IsFavorite = project.IsFavorite,
-                    Notes = project.Notes
-                })
-                .ToListAsync(cancellationToken);
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            return projects
+                .Select(project => project.ToProjectCardDto().ToModel())
+                .ToList();
         }
 
         private IQueryable<Project> QueryProjects(CraneDbContext context)
@@ -152,21 +135,6 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             return context.Projects
                 .AsNoTracking()
                 .Include(project => project.IfcFiles);
-        }
-
-        private static ProjectCardModel ToCard(Project project, ProjectIfcFile? ifcFile)
-        {
-            return new ProjectCardModel
-            {
-                Id = project.Id,
-                Name = project.Name,
-                IfcFilePath = ifcFile?.FilePath,
-                CreatedDate = project.CreatedDate,
-                LastOpenedDate = project.LastOpenedDate,
-                LastModifiedDate = project.LastModifiedDate,
-                IsFavorite = project.IsFavorite,
-                Notes = project.Notes
-            };
         }
     }
 }

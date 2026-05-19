@@ -19,7 +19,6 @@
         <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <StackPanel Margin="6,0" Orientation="Horizontal">
 
-                <!-- DRAW MODE -->
                 <Border Padding="8,6,8,0" Width="190">
                     <DockPanel Width="220">
                         <TextBlock DockPanel.Dock="Bottom" 
@@ -27,7 +26,6 @@
                            Text="DRAW MODE" Width="106" />
 
                         <StackPanel Orientation="Horizontal" Width="175">
-                            <!-- Allowed Zone -->
                             <Border Margin="0,0,8,0">
                                 <Border.Style>
                                     <Style TargetType="Border">
@@ -44,15 +42,16 @@
                                 <Button Command="{Binding StartAllowedCommand}" 
                                 Style="{StaticResource RibbonLargeBtn}" Height="95">
                                     <StackPanel HorizontalAlignment="Center">
-                                        <Image Source="/CraneOptimizer.UI;component/ICONS/safe-zone (1).png" 
-                                       Width="46" Height="46" Margin="0,4,0,4"/>
-                                         <TextBlock Text="Allowed" FontWeight="SemiBold" FontSize="{StaticResource FontSizeSM}"/>
-                                         <TextBlock Text="Zone" FontSize="{StaticResource FontSizeXS}" Opacity="0.85"/>
+                                        <Image Source="/CraneOptimizer.UI;component/Resources/Icons/map-pin-check (1)_white.png" 
+                                               Width="32" Height="32" Margin="0,6,0,4"
+                                               RenderOptions.BitmapScalingMode="HighQuality"
+                                               Opacity="0.8"/>
+                                        <TextBlock Text="Allowed" FontWeight="SemiBold" FontSize="{StaticResource FontSizeSM}"/>
+                                        <TextBlock Text="Zone" FontSize="{StaticResource FontSizeXS}" Opacity="0.85"/>
                                     </StackPanel>
                                 </Button>
                             </Border>
 
-                            <!-- Forbidden Zone -->
                             <Border>
                                 <Border.Style>
                                     <Style TargetType="Border">
@@ -69,10 +68,12 @@
                                 <Button Command="{Binding StartForbiddenCommand}" 
                                 Style="{StaticResource RibbonLargeBtn}" Height="95">
                                     <StackPanel HorizontalAlignment="Center">
-                                        <Image Source="/CraneOptimizer.UI;component/ICONS/restricted-area.png" 
-                                       Width="46" Height="46" Margin="0,4,0,4"/>
-                                         <TextBlock Text="Forbidden" FontWeight="SemiBold" FontSize="{StaticResource FontSizeSM}"/>
-                                         <TextBlock Text="Zone" FontSize="{StaticResource FontSizeXS}" Opacity="0.85"/>
+                                        <Image Source="/CraneOptimizer.UI;component/Resources/Icons/map-pin-x (1)_white.png" 
+                                               Width="32" Height="32" Margin="0,6,0,4"
+                                               RenderOptions.BitmapScalingMode="HighQuality"
+                                               Opacity="0.8"/>
+                                        <TextBlock Text="Forbidden" FontWeight="SemiBold" FontSize="{StaticResource FontSizeSM}"/>
+                                        <TextBlock Text="Zone" FontSize="{StaticResource FontSizeXS}" Opacity="0.85"/>
                                     </StackPanel>
                                 </Button>
                             </Border>
@@ -82,14 +83,12 @@
 
                 <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
-                <!-- MEASURE -->
                 <Border Padding="8,6,8,0">
                     <DockPanel Width="90">
                         <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource GroupLabel}" Text="MEASURE" />
                         <Button Command="{Binding StartMeasureCommand}" Style="{StaticResource RibbonLargeBtn}">
                             <StackPanel HorizontalAlignment="Center">
-                                <Image Source="/CraneOptimizer.UI;component/ICONS/ruler.png" 
-                               Width="50" Height="48" Margin="0,6,0,4"/>
+                                <TextBlock Margin="0,8,0,2" FontSize="40" Text="📏" />
                                 <TextBlock Text="Measure" />
                             </StackPanel>
                         </Button>
@@ -98,7 +97,6 @@
 
                 <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
-                <!-- ACTIONS -->
                 <Border Padding="8,6,8,0">
                     <DockPanel Width="160">
                         <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource GroupLabel}" Text="ACTIONS" />
@@ -126,7 +124,6 @@
 
                 <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
-                <!-- MANAGE -->
                 <Border Padding="8,6,8,0">
                     <DockPanel Width="165">
                         <TextBlock DockPanel.Dock="Bottom"

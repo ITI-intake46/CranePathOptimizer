@@ -3,8 +3,10 @@ using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Features.F2_IfcViewer.Models;
+using CraneOptimizer.UI.Features.F2_IfcViewer.DTOs;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
+using CraneOptimizer.UI.Features.F16_Filter.Services;
+using CraneOptimizer.Domain.Common;
 using System.Diagnostics;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
@@ -19,11 +21,17 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly IDialogService _dialog;
         private readonly IViewportInteractionService _interaction;
         private readonly IViewportHitTestService _hitTest;
-        private readonly ICameraService _camera;
+        private readonly IElementVisibilityFilterService _filterService;
+        private readonly IIfcSceneOperationService _ifcSceneOperations;
         private List<PrecastElement>? _pendingIfcElements;
+        private IfcLoadOptionsDto? _pendingFilterOptions;
+        private bool _isMovingExistingIfc;
 
         public ICommand LoadIfcCommand { get; }
+        public ICommand MergeIfcCommand { get; }
         public ICommand CancelPlacementCommand { get; }
+        public ICommand MoveIfcCommand { get; }
+        public ICommand DeleteIfcCommand { get; }
 
         private bool _isLoading;
         public bool IsLoading
@@ -58,6 +66,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             }
         }
 
+        public string PlacementPrompt => _isMovingExistingIfc
+            ? "Click the new IFC origin location. Press Esc to cancel."
+            : "Click to place IFC origin. Press Esc to cancel.";
+
         private Point3D? _pendingPlacementPoint;
         public Point3D? PendingPlacementPoint
         {
@@ -76,7 +88,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IIfcOptionsDialogService dialogService,
             IViewportInteractionService interaction,
             IViewportHitTestService hitTest,
-            ICameraService camera)
+            IElementVisibilityFilterService filterService,
+            IIfcSceneOperationService ifcSceneOperations)
         {
             _ifcReader = ifcReader;
             _scene = scene;
@@ -84,10 +97,15 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _dialogService = dialogService;
             _interaction = interaction;
             _hitTest = hitTest;
-            _camera = camera;
+            _filterService = filterService;
+            _ifcSceneOperations = ifcSceneOperations;
 
-            LoadIfcCommand = new RelayCommand(async () => await LoadIfcAsync(), () => !IsLoading);
+            LoadIfcCommand = new RelayCommand(async () => await LoadIfcAsync(), () => !IsLoading && !IsPlacementMode);
+            MergeIfcCommand = new RelayCommand(ShowMergeIfcPlaceholder, () => !IsLoading && !IsPlacementMode);
             CancelPlacementCommand = new RelayCommand(CancelPlacement, () => IsPlacementMode);
+            MoveIfcCommand = new RelayCommand(StartMoveIfc, CanEditPlacedIfc);
+            DeleteIfcCommand = new RelayCommand(DeleteIfc, CanEditPlacedIfc);
+            _scene.ElementsChanged += OnSceneElementsChanged;
         }
 
         private async Task LoadIfcAsync()
@@ -123,23 +141,20 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     return;
                 }
 
-                Status = "Filtering...";
-                var visible = ApplyFilter(all, filter);
-
-                Debug.WriteLine("IFC Visible Elements: " + visible.Count);
-
-                _pendingIfcElements = visible;
+                _pendingIfcElements = all;
+                _pendingFilterOptions = filter;
+                _isMovingExistingIfc = false;
                 PendingPlacementPoint = null;
                 IsPlacementMode = true;
+                OnPropertyChanged(nameof(PlacementPrompt));
 
                 _interaction.PushMode(new Interaction.IfcPlacementMode(
                     this,
                     _hitTest,
-                    _interaction,
-                    () => _camera.UpdateClipping(_scene.GetElements())));
+                    _interaction));
 
                 Progress = 100;
-                Status = $"Loaded {visible.Count} elements. Click to place IFC.";
+                Status = $"Loaded {all.Count} elements. Click to place IFC origin.";
             }
             catch (Exception ex)
             {
@@ -160,53 +175,114 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
             PendingPlacementPoint = placementOffset;
 
-            var placedElements = _pendingIfcElements
-                .Select(element => TranslateElement(element, placementOffset))
-                .ToList();
+            var placedElements = _ifcSceneOperations.TranslateElements(
+                _pendingIfcElements,
+                new DomainPoint3D(placementOffset.X, placementOffset.Y, placementOffset.Z));
 
-            Debug.WriteLine($"IFC Placed At: {insertionPoint.X:F3}, {insertionPoint.Y:F3}, {insertionPoint.Z:F3}");
-            _scene.SetElements(placedElements);
+            Debug.WriteLine($"IFC Origin Placed At: {insertionPoint.X:F3}, {insertionPoint.Y:F3}, {insertionPoint.Z:F3}");
+            _ifcSceneOperations.ReplaceIfcModel(placedElements);
+            if (_pendingFilterOptions != null)
+                _filterService.ApplyLoadOptions(_pendingFilterOptions);
 
             _pendingIfcElements = null;
+            _pendingFilterOptions = null;
+            _isMovingExistingIfc = false;
             IsPlacementMode = false;
-            Status = $"Placed {placedElements.Count} elements";
+            OnPropertyChanged(nameof(PlacementPrompt));
+            Status = $"Placed {_filterService.ShowingCount} of {placedElements.Count} elements";
+            return true;
+        }
+
+        public bool MovePlacedIfc(Point3D insertionPoint)
+        {
+            if (!IsPlacementMode || !_isMovingExistingIfc)
+                return false;
+
+            var elements = _ifcSceneOperations.GetElements();
+            if (elements.Count == 0)
+                return false;
+
+            var currentOffset = PendingPlacementPoint ?? new Point3D(0, 0, 0);
+            var delta = new Point3D(
+                insertionPoint.X - currentOffset.X,
+                insertionPoint.Y - currentOffset.Y,
+                insertionPoint.Z - currentOffset.Z);
+
+            _ifcSceneOperations.MoveIfcModel(new DomainPoint3D(delta.X, delta.Y, delta.Z));
+
+            PendingPlacementPoint = new Point3D(insertionPoint.X, insertionPoint.Y, insertionPoint.Z);
+
+            _isMovingExistingIfc = false;
+            IsPlacementMode = false;
+            OnPropertyChanged(nameof(PlacementPrompt));
+            Status = $"Moved IFC origin to {insertionPoint.X:F2}, {insertionPoint.Y:F2}, {insertionPoint.Z:F2}";
             return true;
         }
 
         private void CancelPlacement()
         {
             _pendingIfcElements = null;
-            PendingPlacementPoint = null;
+            _pendingFilterOptions = null;
+            if (!_isMovingExistingIfc)
+                PendingPlacementPoint = null;
+            _isMovingExistingIfc = false;
             IsPlacementMode = false;
+            OnPropertyChanged(nameof(PlacementPrompt));
             Progress = 0;
             Status = "IFC placement cancelled";
         }
 
-        private static PrecastElement TranslateElement(PrecastElement element, Point3D insertionPoint)
+        private void StartMoveIfc()
         {
-            return new PrecastElement
-            {
-                ElementID = element.ElementID,
-                ElementType = element.ElementType,
-                ElementLength = element.ElementLength,
-                ElementWidth = element.ElementWidth,
-                ElementHeight = element.ElementHeight,
-                ElementMaterial = element.ElementMaterial,
-                ElementWT = element.ElementWT,
-                ElementVolume = element.ElementVolume,
-                ElementCOG = new Domain.Common.DomainPoint3D(
-                    element.ElementCOG.X + insertionPoint.X,
-                    element.ElementCOG.Y + insertionPoint.Y,
-                    element.ElementCOG.Z + insertionPoint.Z),
-                BBoxLength = element.BBoxLength,
-                BBoxWidth = element.BBoxWidth,
-                BBoxHeight = element.BBoxHeight
-            };
+            if (!CanEditPlacedIfc())
+                return;
+
+            _pendingIfcElements = null;
+            _pendingFilterOptions = null;
+            _isMovingExistingIfc = true;
+            IsPlacementMode = true;
+            OnPropertyChanged(nameof(PlacementPrompt));
+
+            _interaction.PushMode(new Interaction.IfcMoveMode(
+                this,
+                _hitTest,
+                _interaction));
+
+            Status = "Click a new origin location for the IFC model.";
+        }
+
+        private void DeleteIfc()
+        {
+            if (!CanEditPlacedIfc())
+                return;
+
+            _pendingIfcElements = null;
+            _pendingFilterOptions = null;
+            _isMovingExistingIfc = false;
+            PendingPlacementPoint = null;
+            IsPlacementMode = false;
+            OnPropertyChanged(nameof(PlacementPrompt));
+
+            _ifcSceneOperations.DeleteIfcModel();
+            Progress = 0;
+            Status = "IFC model deleted";
+        }
+
+        private void ShowMergeIfcPlaceholder()
+        {
+            Status = "Merge IFC is available in the ribbon for multi-building workflow, but shared multi-model geometry loading is not implemented yet.";
+        }
+
+        private bool CanEditPlacedIfc() => !IsLoading && !IsPlacementMode && _ifcSceneOperations.HasIfcModel;
+
+        private void OnSceneElementsChanged(List<PrecastElement> elements)
+        {
+            CommandManager.InvalidateRequerySuggested();
         }
 
         private static List<PrecastElement> ApplyFilter(
             List<PrecastElement> elements,
-            IfcFilterOptions options)
+            IfcLoadOptionsDto options)
         {
             return elements.Where(e =>
             {

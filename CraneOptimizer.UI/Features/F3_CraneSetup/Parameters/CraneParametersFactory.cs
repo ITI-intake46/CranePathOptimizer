@@ -27,7 +27,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
                 PositionX = scene.Position.X,
                 PositionY = scene.Position.Y,
                 PositionZ = scene.Position.Z,
-                SlewAngle = scene.Rotation,
+                SlewAngle = scene.SlewAngle,
                 IsVisible = true,
                 ShowSwingRadius = true,
                 ExclusionRadiusM = 0.0,
@@ -41,7 +41,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
                 OutriggerPadSize = 2.0,
                 ShowOutriggerPads = true,
                 TravelWidthM = ToMeters(crane.VehicleWidth, 3.0),
-                BodyAngle = 0.0,
+                BodyAngle = scene.Rotation,
                 BoomSections = 4,
                 BoomBaseWidth = 0.8,
 

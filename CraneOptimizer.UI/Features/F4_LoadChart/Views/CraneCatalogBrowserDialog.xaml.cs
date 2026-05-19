@@ -1,5 +1,5 @@
-using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Infrastructure.Contexts;
+using CraneOptimizer.UI.Features.F4_LoadChart.DTOs;
 using CraneOptimizer.UI.Features.F4_LoadChart.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,7 +13,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
     public partial class CraneCatalogBrowserDialog : Window
     {
         private readonly LoadChartCatalogService _catalogService;
-        private List<Crane> _allCranes = new();
+        private List<LoadChartCraneDto> _allCranes = new();
 
         public CraneCatalogBrowserDialog()
         {
@@ -46,13 +46,13 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                     .ToList();
 
             LstCranes.ItemsSource = filtered;
-            if (LstCranes.SelectedItem is not Crane selectedCrane || !filtered.Contains(selectedCrane))
+            if (LstCranes.SelectedItem is not LoadChartCraneDto selectedCrane || !filtered.Contains(selectedCrane))
                 LstCranes.SelectedItem = filtered.FirstOrDefault();
         }
 
         private void LstCranes_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (LstCranes.SelectedItem is not Crane crane)
+            if (LstCranes.SelectedItem is not LoadChartCraneDto crane)
             {
                 DetailModel.Text = "Select a crane";
                 DetailMfg.Text = string.Empty;
@@ -64,25 +64,24 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 return;
             }
 
-            var spec = crane.Specifications?.FirstOrDefault();
             DetailModel.Text = crane.Name;
             DetailMfg.Text = crane.Manufacturer;
             DetailDimensions.Text = BuildDimensionSummary(crane);
-            DetailOutrigger.Text = spec?.OutriggerConfig ?? "-";
-            DetailCounterweight.Text = $"{spec?.CounterWeight.ToString("F0", CultureInfo.InvariantCulture) ?? "0"} kg";
-            DetailPointCount.Text = spec?.LoadChart.Count.ToString(CultureInfo.InvariantCulture) ?? "0";
-            MiniGrid.ItemsSource = spec == null ? null : BuildPreviewTable(spec).DefaultView;
+            DetailOutrigger.Text = crane.OutriggerConfig;
+            DetailCounterweight.Text = $"{crane.Counterweight.ToString("F0", CultureInfo.InvariantCulture)} kg";
+            DetailPointCount.Text = crane.Points.Count.ToString(CultureInfo.InvariantCulture);
+            MiniGrid.ItemsSource = BuildPreviewTable(crane).DefaultView;
         }
 
-        private static DataTable BuildPreviewTable(CraneSpecification specification)
+        private static DataTable BuildPreviewTable(LoadChartCraneDto crane)
         {
-            var booms = specification.LoadChart
+            var booms = crane.Points
                 .Select(point => point.BoomLength)
                 .Distinct()
                 .OrderBy(value => value)
                 .ToList();
 
-            var radii = specification.LoadChart
+            var radii = crane.Points
                 .Select(point => point.Radius)
                 .Distinct()
                 .OrderBy(value => value)
@@ -100,7 +99,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
                 for (int i = 0; i < booms.Count; i++)
                 {
-                    var point = specification.LoadChart
+                    var point = crane.Points
                         .FirstOrDefault(item => Math.Abs(item.Radius - radius) < 0.0001 && Math.Abs(item.BoomLength - booms[i]) < 0.0001);
 
                     row[i + 1] = point == null || point.Capacity == 0d
@@ -114,20 +113,20 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             return table;
         }
 
-        private static string BuildDimensionSummary(Crane crane)
+        private static string BuildDimensionSummary(LoadChartCraneDto crane)
         {
             var parts = new List<string>();
 
-            if (crane.VehicleLength > 0 || crane.VehicleWidth > 0 || crane.VehicleHeight > 0)
+            if (crane.VehicleLengthMm > 0 || crane.VehicleWidthMm > 0 || crane.VehicleHeightMm > 0)
             {
                 parts.Add(
-                    $"Transport L {FormatMillimetres(crane.VehicleLength)}  W {FormatMillimetres(crane.VehicleWidth)}  H {FormatMillimetres(crane.VehicleHeight)}");
+                    $"Transport L {FormatMillimetres(crane.VehicleLengthMm)}  W {FormatMillimetres(crane.VehicleWidthMm)}  H {FormatMillimetres(crane.VehicleHeightMm)}");
             }
 
-            if (crane.OutriggerWidth.HasValue || crane.OutriggerLength.HasValue)
+            if (crane.OutriggerWidthMm.HasValue || crane.OutriggerLengthMm.HasValue)
             {
                 parts.Add(
-                    $"Outriggers W {FormatMillimetres(crane.OutriggerWidth)}  B {FormatMillimetres(crane.OutriggerLength)}");
+                    $"Outriggers W {FormatMillimetres(crane.OutriggerWidthMm)}  B {FormatMillimetres(crane.OutriggerLengthMm)}");
             }
 
             return parts.Count > 0 ? string.Join("   |   ", parts) : "No crane dimensions saved.";
@@ -142,7 +141,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
         private async void BtnEdit_Click(object sender, RoutedEventArgs e)
         {
-            if (LstCranes.SelectedItem is not Crane crane)
+            if (LstCranes.SelectedItem is not LoadChartCraneDto crane)
             {
                 TxtStatus.Text = "Select a crane to edit.";
                 return;
@@ -155,7 +154,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
         private async void BtnDelete_Click(object sender, RoutedEventArgs e)
         {
-            if (LstCranes.SelectedItem is not Crane crane)
+            if (LstCranes.SelectedItem is not LoadChartCraneDto crane)
             {
                 TxtStatus.Text = "Select a crane to delete.";
                 return;

@@ -33,6 +33,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
         public Population InitializePopulation(
             List<GreenAreaZone> zones,
+            List<GreenAreaZone> forbiddenZones,
             List<PrecastElement> elements,
             int populationSize,
             int maxCranePositions,
@@ -47,14 +48,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // ── 70% Pure Random ────────────────────────────────────
             for (int i = 0; i < randomCount; i++)
             {
-                var solution = CreateRandomSolution(zones, maxCranePositions, settings);
+                var solution = CreateRandomSolution(zones, forbiddenZones, maxCranePositions, settings);
                 population.Individuals.Add(solution);
             }
 
             // ── 30% Heuristic (element-centroid guided) ────────────
             for (int i = 0; i < heuristicCount; i++)
             {
-                var solution = CreateHeuristicSolution(zones, elements, maxCranePositions, settings);
+                var solution = CreateHeuristicSolution(zones, forbiddenZones, elements, maxCranePositions, settings);
                 population.Individuals.Add(solution);
             }
 
@@ -71,6 +72,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// </summary>
         private CraneSolution CreateRandomSolution(
             List<GreenAreaZone> zones,
+            List<GreenAreaZone> forbiddenZones,
             int maxCranePositions,
             GASettings settings)
         {
@@ -81,8 +83,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
             for (int j = 0; j < craneCount; j++)
             {
-                var zone = zones[Rng.Next(zones.Count)];
-                var point = GenerateRandomPointInsideZone(zone, settings);
+                var point = GenerateDiversePointInsideZones(
+                    zones,
+                    forbiddenZones,
+                    chromosome.CranePositions,
+                    settings);
+
                 chromosome.CranePositions.Add(point);
             }
 
@@ -111,6 +117,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// </summary>
         private CraneSolution CreateHeuristicSolution(
             List<GreenAreaZone> zones,
+            List<GreenAreaZone> forbiddenZones,
             List<PrecastElement> elements,
             int maxCranePositions,
             GASettings settings)
@@ -131,7 +138,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 var centroid = CalculateCentroid(cluster);
 
                 // Step 3 — Find nearest valid crane position inside zones
-                var point = FindNearestValidPoint(centroid, zones, settings);
+                var point = FindNearestValidPoint(
+                    centroid,
+                    zones,
+                    forbiddenZones,
+                    chromosome.CranePositions,
+                    settings);
 
                 chromosome.CranePositions.Add(point);
             }
@@ -139,8 +151,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // Fallback: if heuristic failed to produce positions, add one random
             if (chromosome.CranePositions.Count == 0)
             {
-                var zone = zones[Rng.Next(zones.Count)];
-                var point = GenerateRandomPointInsideZone(zone, settings);
+                var point = GenerateDiversePointInsideZones(
+                    zones,
+                    forbiddenZones,
+                    chromosome.CranePositions,
+                    settings);
+
                 chromosome.CranePositions.Add(point);
             }
 
@@ -153,30 +169,56 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             };
         }
 
-        // ══════════════════════════════════════════════════════════════
-        // CLUSTERING — Split elements into spatial groups
-        // ══════════════════════════════════════════════════════════════
-
         /// <summary>
-        /// Splits elements into k clusters based on X-axis spatial ordering.
+        /// Splits elements into k clusters based on 2D spatial proximity
+        /// using a Morton (Z-order) curve sort.
         ///
-        /// Simple approach: sort elements by X coordinate, divide evenly.
-        /// This is a fast approximation — not full K-Means — but sufficient
-        /// to produce spatially meaningful cluster centroids for seeding.
+        /// Issue 9 fix — replaces the previous X-only sort:
+        ///   The old approach sorted by X then Y, which groups elements in
+        ///   horizontal strips. For L-shaped, multi-wing, or rotated buildings
+        ///   this produced poor centroids that are far from any actual element.
+        ///
+        /// Morton-order sort interleaves the bits of normalized X and Y integer
+        /// coordinates so that elements that are close in 2D space also appear
+        /// close in the sort order. Dividing this sorted sequence into k chunks
+        /// therefore produces spatially compact clusters rather than horizontal
+        /// bands, resulting in better crane position seeds for the GA.
+        ///
+        /// Implementation note:
+        ///   Coordinates are normalized to [0, 1023] (10 bits each) so that
+        ///   X-range and Y-range are on the same scale even if the building
+        ///   footprint is not square. The resulting Morton key is a 20-bit value.
         /// </summary>
         private List<List<PrecastElement>> ClusterElements(
             List<PrecastElement> elements,
             int k)
         {
-            // Sort by X coordinate for a simple spatial split
+            if (elements.Count == 0)
+                return Enumerable.Range(0, k).Select(_ => new List<PrecastElement>()).ToList();
+
+            // Normalize COG coordinates to [0, 1023] integer range
+            double minX = elements.Min(e => e.ElementCOG.X);
+            double maxX = elements.Max(e => e.ElementCOG.X);
+            double minY = elements.Min(e => e.ElementCOG.Y);
+            double maxY = elements.Max(e => e.ElementCOG.Y);
+
+            double rangeX = maxX - minX;
+            double rangeY = maxY - minY;
+
+            // Avoid division by zero for degenerate (single-point) cases
+            if (rangeX < double.Epsilon) rangeX = 1;
+            if (rangeY < double.Epsilon) rangeY = 1;
+
             var sorted = elements
-                .OrderBy(e => e.ElementCOG.X)
-                .ThenBy(e => e.ElementCOG.Y)
+                .OrderBy(e =>
+                {
+                    uint ix = (uint)Math.Round((e.ElementCOG.X - minX) / rangeX * 1023);
+                    uint iy = (uint)Math.Round((e.ElementCOG.Y - minY) / rangeY * 1023);
+                    return MortonEncode(ix, iy);
+                })
                 .ToList();
 
             var clusters = new List<List<PrecastElement>>();
-
-            // Divide sorted elements evenly into k groups
             int chunkSize = (int)Math.Ceiling((double)sorted.Count / k);
 
             for (int i = 0; i < k; i++)
@@ -191,6 +233,29 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
             return clusters;
         }
+
+        /// <summary>
+        /// Encodes two 10-bit integers into a 20-bit Morton code (Z-order curve)
+        /// by interleaving their bits: x0 y0 x1 y1 x2 y2 … x9 y9.
+        /// Elements with similar Morton codes are close in 2D space.
+        /// </summary>
+        private static uint MortonEncode(uint x, uint y)
+        {
+            // Spread the 10 bits of x into even bit positions
+            x &= 0x3FF;                // keep only 10 bits
+            x = (x | (x << 10)) & 0x000F_83FF;
+            x = (x | (x <<  4)) & 0x0007_E1F;
+            x = (x | (x <<  2)) & 0x0055_5555;
+
+            // Spread the 10 bits of y into even bit positions
+            y &= 0x3FF;
+            y = (y | (y << 10)) & 0x000F_83FF;
+            y = (y | (y <<  4)) & 0x0007_E1F;
+            y = (y | (y <<  2)) & 0x0055_5555;
+
+            return x | (y << 1);
+        }
+
 
         // ══════════════════════════════════════════════════════════════
         // CENTROID — Compute spatial center of a cluster
@@ -224,18 +289,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         private DomainPoint3D FindNearestValidPoint(
             DomainPoint3D centroid,
             List<GreenAreaZone> zones,
+            List<GreenAreaZone> forbiddenZones,
+            List<DomainPoint3D> existingPoints,
             GASettings settings)
         {
             // Case 1: centroid falls inside one of the zones
-            foreach (var zone in zones)
+            if (CranePlacementConstraintService.IsValidSetupPoint(centroid, zones, forbiddenZones, settings)
+                && CranePlacementConstraintService.IsMeaningfullySeparated(centroid, existingPoints, settings))
             {
-                if (IsPointInsidePolygon(centroid, zone.Vertices))
-                {
-                    var snappedCentroid = SnapPointToGrid(centroid, settings.GridStep);
-                    return IsPointInsidePolygon(snappedCentroid, zone.Vertices)
-                        ? snappedCentroid
-                        : centroid;
-                }
+                var snappedCentroid = SnapPointToGrid(centroid, settings.GridStep);
+                return CranePlacementConstraintService.IsValidSetupPoint(snappedCentroid, zones, forbiddenZones, settings)
+                    ? snappedCentroid
+                    : centroid;
             }
 
             // Case 2: find the closest zone and sample inside it
@@ -243,7 +308,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 .OrderBy(z => DistanceToZoneCentroid(centroid, z))
                 .First();
 
-            return GenerateRandomPointInsideZone(closestZone, settings);
+            var sampled = GenerateRandomPointInsideZone(closestZone, forbiddenZones, settings);
+            return CranePlacementConstraintService.IsMeaningfullySeparated(sampled, existingPoints, settings)
+                ? sampled
+                : GenerateDiversePointInsideZones(zones, forbiddenZones, existingPoints, settings);
         }
 
         /// <summary>
@@ -269,20 +337,72 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// Generates a random point inside a polygon zone.
         /// Uses bounding box rejection sampling with ray-casting validation.
         /// </summary>
-        private DomainPoint3D GenerateRandomPointInsideZone(GreenAreaZone zone, GASettings settings)
+        /// <summary>
+        /// Samples a spatially diverse setup point from allowed zones.
+        /// Inputs are allowed zones, forbidden zones, existing chromosome points, and GA settings.
+        /// The output is a valid setup point that maximizes distance from existing points when
+        /// the minimum relocation threshold cannot be satisfied immediately.
+        /// </summary>
+        private DomainPoint3D GenerateDiversePointInsideZones(
+            List<GreenAreaZone> zones,
+            List<GreenAreaZone> forbiddenZones,
+            List<DomainPoint3D> existingPoints,
+            GASettings settings)
+        {
+            DomainPoint3D? bestCandidate = null;
+            double bestDistance = double.MinValue;
+            int attempts = Math.Max(1, settings.PositionSamplingAttempts);
+
+            for (int i = 0; i < attempts; i++)
+            {
+                var zone = zones[Rng.Next(zones.Count)];
+                var candidate = GenerateRandomPointInsideZone(zone, forbiddenZones, settings);
+                double nearestDistance = existingPoints.Count == 0
+                    ? double.MaxValue
+                    : existingPoints.Min(point => CranePlacementConstraintService.Distance2D(point, candidate));
+
+                if (CranePlacementConstraintService.IsMeaningfullySeparated(candidate, existingPoints, settings))
+                    return candidate;
+
+                if (nearestDistance > bestDistance)
+                {
+                    bestDistance = nearestDistance;
+                    bestCandidate = candidate;
+                }
+            }
+
+            return bestCandidate ?? GenerateRandomPointInsideZone(zones[Rng.Next(zones.Count)], forbiddenZones, settings);
+        }
+
+        /// <summary>
+        /// Samples one valid crane setup point inside a specific allowed zone.
+        /// The output respects the simplified crane footprint and forbidden zones.
+        /// </summary>
+        private DomainPoint3D GenerateRandomPointInsideZone(
+            GreenAreaZone zone,
+            List<GreenAreaZone> forbiddenZones,
+            GASettings settings)
         {
             var bbox = GetBoundingBox(zone.Vertices);
 
-            while (true)
+            int attempts = Math.Max(1, settings.PositionSamplingAttempts);
+            for (int attempt = 0; attempt < attempts; attempt++)
             {
                 double x = bbox.minX + Rng.NextDouble() * (bbox.maxX - bbox.minX);
                 double y = bbox.minY + Rng.NextDouble() * (bbox.maxY - bbox.minY);
 
                 var point = SnapPointToGrid(new DomainPoint3D(x, y, 0), settings.GridStep);
 
-                if (IsPointInsidePolygon(point, zone.Vertices))
+                if (CranePlacementConstraintService.IsValidSetupPoint(point, new[] { zone }, forbiddenZones, settings))
                     return point;
             }
+
+            var fallback = new DomainPoint3D(
+                zone.Vertices.Average(v => v.X),
+                zone.Vertices.Average(v => v.Y),
+                0);
+
+            return SnapPointToGrid(fallback, settings.GridStep);
         }
 
         private DomainPoint3D SnapPointToGrid(DomainPoint3D point, double gridStep)

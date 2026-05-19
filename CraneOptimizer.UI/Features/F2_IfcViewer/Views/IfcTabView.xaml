@@ -10,7 +10,7 @@
 
             <!--  ── Load Model ─────────────────────────  -->
             <Border Padding="4,4,0,0">
-                <DockPanel Width="210" LastChildFill="False">
+                <DockPanel Width="360" LastChildFill="False">
 
                     <TextBlock
                         DockPanel.Dock="Bottom"
@@ -30,8 +30,8 @@
                             </StackPanel>
                         </Button>
 
-                        <!--  Merge IFC (placeholder)  -->
-                        <Button Style="{StaticResource RibbonLargeBtn}">
+                        <!--  Merge IFC  -->
+                        <Button Command="{Binding IfcViewer.MergeIfcCommand}" Style="{StaticResource RibbonLargeBtn}">
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock
                                     Margin="0,8,0,2"
@@ -41,14 +41,36 @@
                             </StackPanel>
                         </Button>
 
-                        <!--  Clear  -->
-                        <Button Style="{StaticResource RibbonLargeBtn}">
+                        <!--  Move IFC  -->
+                        <Button Command="{Binding IfcViewer.MoveIfcCommand}" Style="{StaticResource RibbonLargeBtn}">
+                            <StackPanel HorizontalAlignment="Center">
+                                <Viewbox
+                                    Width="30"
+                                    Height="30"
+                                    Margin="0,8,0,2"
+                                    Stretch="Uniform">
+                                    <Canvas Width="32" Height="32">
+                                        <Path
+                                            Data="M16,3 L16,29 M16,3 L9,10 M16,3 L23,10 M16,29 L9,22 M16,29 L23,22 M3,16 L29,16 M3,16 L10,9 M3,16 L10,23 M29,16 L22,9 M29,16 L22,23"
+                                            Stroke="{StaticResource PrimaryBrush}"
+                                            StrokeEndLineCap="Round"
+                                            StrokeLineJoin="Round"
+                                            StrokeStartLineCap="Round"
+                                            StrokeThickness="3.4" />
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock Text="Move IFC" />
+                            </StackPanel>
+                        </Button>
+
+                        <!--  Delete IFC  -->
+                        <Button Command="{Binding IfcViewer.DeleteIfcCommand}" Style="{StaticResource RibbonLargeBtn}">
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock
                                     Margin="0,8,0,2"
                                     FontSize="26"
                                     Text="🗑" />
-                                <TextBlock Text="Clear" />
+                                <TextBlock Text="Delete IFC" />
                             </StackPanel>
                         </Button>
 
@@ -111,7 +133,10 @@
                         Style="{StaticResource GroupLabel}"
                         Text="FILTER" />
 
-                    <Button Width="84" Style="{StaticResource RibbonLargeBtn}">
+                    <Button
+                        Width="84"
+                        Command="{Binding ElementManagement.ShowFilterDialogCommand}"
+                        Style="{StaticResource RibbonLargeBtn}">
 
                         <StackPanel HorizontalAlignment="Center">
 

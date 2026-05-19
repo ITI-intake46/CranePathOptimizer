@@ -1,8 +1,6 @@
 using CraneOptimizer.Domain.Schemas;
 using System;
 using System.Globalization;
-using System.Linq;
-using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Windows.Data;
 
@@ -23,48 +21,25 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.Views
 
         public static string GetDisplayName(PrecastElement element)
         {
-            var explicitName = GetStringProperty(element, "ElementName")
-                ?? GetStringProperty(element, "Name")
-                ?? GetStringProperty(element, "Tag");
+            var type = CleanIfcType(element.ElementType);
+            var rawName = string.Empty;
 
-            if (IsMeaningfulName(explicitName))
-                return explicitName!;
+            if (!string.IsNullOrWhiteSpace(element.ElementMark))
+                rawName = $"{element.ElementMark} - {type}";
+            else if (!string.IsNullOrWhiteSpace(element.ElementRevitId))
+                rawName = string.IsNullOrWhiteSpace(type) ? element.ElementRevitId : $"{type}-{element.ElementRevitId}";
+            else
+                rawName = string.IsNullOrWhiteSpace(type) ? "Precast Element" : type;
 
-            var typeName = CleanIfcType(element.ElementType);
-            var materialName = CleanMaterial(element.ElementMaterial);
-
-            if (!string.IsNullOrWhiteSpace(materialName) && !string.IsNullOrWhiteSpace(typeName))
-                return $"{materialName} {typeName}";
-
-            if (!string.IsNullOrWhiteSpace(typeName))
-                return typeName;
-
-            if (!string.IsNullOrWhiteSpace(materialName))
-                return materialName;
-
-            return "Precast Element";
+            return CleanElementName(rawName);
         }
 
-        private static string? GetStringProperty(object source, string propertyName)
+        private static string CleanElementName(string rawName)
         {
-            var property = source.GetType().GetProperty(
-                propertyName,
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
-
-            var value = property?.GetValue(source)?.ToString();
-            return string.IsNullOrWhiteSpace(value) ? null : value;
-        }
-
-        private static bool IsMeaningfulName(string? value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-                return false;
-
-            var trimmed = value.Trim();
-            if (trimmed.Length > 18 && Regex.IsMatch(trimmed, "^[A-Za-z0-9_$-]+$"))
-                return false;
-
-            return !trimmed.StartsWith("IfcElement", StringComparison.OrdinalIgnoreCase);
+            return rawName.Replace("- Assembly", "")
+                          .Replace(" Assembly", "")
+                          .Replace(" : ", " - ")
+                          .Trim();
         }
 
         private static string CleanIfcType(string? value)
@@ -83,30 +58,6 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.Views
             type = type.Replace("Standard Case", "", StringComparison.OrdinalIgnoreCase).Trim();
 
             return string.IsNullOrWhiteSpace(type) ? "Precast Element" : type;
-        }
-
-        private static string CleanMaterial(string? value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-                return string.Empty;
-
-            var material = value.Trim()
-                .Replace("_", " ")
-                .Replace("-", " ");
-
-            material = Regex.Replace(material, @"\s+", " ").Trim();
-            if (material.Length == 0)
-                return string.Empty;
-
-            var words = material.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                .Where(word => !word.Equals("QCC", StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-
-            material = string.Join(" ", words);
-            if (material.Equals("Concrete Precast", StringComparison.OrdinalIgnoreCase))
-                return "Precast Concrete";
-
-            return CultureInfo.CurrentCulture.TextInfo.ToTitleCase(material.ToLower(CultureInfo.CurrentCulture));
         }
     }
 }

@@ -77,7 +77,7 @@
                                     VerticalAlignment="Center"
                                     FontWeight="Bold"
                                     Foreground="{StaticResource PrimaryBrush}"
-                                    Text="{Binding LiftableCount, StringFormat={}{0} liftable}" />
+                                    Text="{Binding NewLiftableCount, StringFormat={}{0} lifted}" />
                             </Grid>
                         </Border>
                     </DataTemplate>
@@ -98,7 +98,7 @@
                     HorizontalAlignment="Center"
                     FontWeight="Bold"
                     Foreground="{StaticResource SuccessBrush}"
-                    Text="{Binding FitnessScore, StringFormat=Score: {0:F2}}" />
+                    Text="{Binding TotalLiftedText}" />
 
                 <TextBlock
                     HorizontalAlignment="Center"

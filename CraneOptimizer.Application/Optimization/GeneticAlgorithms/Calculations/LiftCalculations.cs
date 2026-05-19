@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
@@ -13,6 +13,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
     public static class LiftCalculation
     {
         // ══════════════════════════════════════════════════════════════
+        // CONSTANTS
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Engineering tolerance (tons) applied to the capacity comparison.
+        /// Prevents false Overweight results caused by floating-point rounding
+        /// when an element weight is extremely close to the chart capacity.
+        /// 0.001 t = 1 kg — well below measurement precision.
+        /// </summary>
+        private const double CapacityToleranceTons = 0.001;
+
+        // ══════════════════════════════════════════════════════════════
         // RADIUS CALCULATION
         // ══════════════════════════════════════════════════════════════
 
@@ -20,18 +32,15 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
         /// Calculates the working radius between the crane position
         /// and the element center of gravity (COG).
         ///
-        /// For horizontal elements (slabs, beams laid flat):
-        ///   radius = horizontal distance + halfElementLength
-        ///   Reason: the crane must reach the far edge of a horizontal element,
-        ///           not just its COG.
+        /// For all elements, the working radius is measured to the
+        /// element center of gravity (COG).
         ///
-        /// For vertical elements (columns, walls standing upright):
-        ///   radius = horizontal distance only
-        ///   Reason: the element footprint is small in plan — the COG is the
-        ///           correct reference point and no length offset is needed.
+        /// This matches actual hook radius conventions used by crane load
+        /// charts: the lift point is referenced to the object center instead
+        /// of the far edge of the object geometry.
         ///
-        /// Note: RiggingLength is NOT added here.
-        ///       Rigging (slings/chains) runs vertically, so it affects
+        /// Note: WireLength is NOT added here.
+        ///       Hoist wire/sling length runs vertically, so it affects
         ///       lift height only — see CalculateLiftHeight.
         /// </summary>
         public static double CalculateRadius(
@@ -41,37 +50,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
             double dx = cranePosition.X - element.ElementCOG.X;
             double dy = cranePosition.Y - element.ElementCOG.Y;
 
-            double horizontalDistance = Math.Sqrt(dx * dx + dy * dy);
-
-            // Only add half-length offset for horizontal elements.
-            // An element is considered horizontal when its plan footprint
-            // (length or width) is larger than its height.
-            double lengthOffset = IsHorizontalElement(element)
-                ? (element.ElementLength ?? 0) / 2.0
-                : 0.0;
-
-            return horizontalDistance + lengthOffset;
-        }
-
-        /// <summary>
-        /// Determines whether an element is oriented horizontally in plan.
-        ///
-        /// Horizontal elements (slabs, beams) have their longest dimension
-        /// in the X-Y plane → their plan length or width exceeds their height.
-        ///
-        /// Vertical elements (columns, walls) have height > plan dimensions.
-        /// </summary>
-        private static bool IsHorizontalElement(PrecastElement element)
-        {
-            double length = element.ElementLength ?? 0;
-            double height = element.ElementHeight ?? 0;
-
-            // If height data is missing, fall back to treating as horizontal
-            // (conservative choice — adds the length offset).
-            if (height <= 0)
-                return true;
-
-            return length > height;
+            return Math.Sqrt(dx * dx + dy * dy);
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -82,11 +61,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
         /// Calculates the required vertical lift height.
         ///
         /// Formula:
-        ///   height = COG.Z + halfElementHeight + RiggingLength
+        ///   height = COG.Z + halfElementHeight + WireLength
         ///
         ///   COG.Z            → elevation of element center
         ///   halfElementHeight → from COG to the top of the element
-        ///   RiggingLength    → vertical sling/chain length above the element
+        ///   WireLength       → vertical wire/sling length allowance above the element
         ///
         /// This gives the required hook height above ground.
         /// </summary>
@@ -98,7 +77,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
 
             return element.ElementCOG.Z
                    + elementHalfHeight
-                   + settings.RiggingLength;
+                   + settings.WireLength;
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -128,14 +107,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
         /// Looks up the available crane capacity from the load chart
         /// for the given radius and boom length.
         ///
-        /// Strategy — conservative interpolation:
-        ///   Find the nearest chart entry where BOTH:
-        ///     tp.Radius    >= actual radius
-        ///     tp.BoomLength >= actual boom length
-        ///   Then take the entry with the SMALLEST values (closest to actual).
+        /// Strategy — bilinear interpolation (Issue 5 + 6 fix):
+        ///   1. Find the two radius rows that bracket the required radius.
+        ///   2. For each row, interpolate capacity along the boom dimension.
+        ///   3. Linearly interpolate the two capacity values across the radius gap.
         ///
-        /// This ensures we never use a capacity that was rated for a
-        /// shorter radius or shorter boom than reality.
+        ///   If only one side of the radius bracket exists, use that side
+        ///   conservatively (no extrapolation beyond the outer radius row).
+        ///
+        ///   If the required radius exceeds the largest chart radius, the
+        ///   caller's OutOfRadius check will already have fired first —
+        ///   this method returns 0 to signal no-data only for genuine gaps.
         ///
         /// Returns 0 if no valid entry exists in the chart.
         /// Callers must distinguish between 0 (no data) and OutOfRadius —
@@ -147,18 +129,178 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
             double boomLength,
             GASettings settings)
         {
-            var candidate = craneSpec.LoadChart
-                .Where(tp =>
-                    tp.Radius >= radius &&
-                    tp.BoomLength >= boomLength)
-                .OrderBy(tp => tp.Radius)
-                .ThenBy(tp => tp.BoomLength)
-                .FirstOrDefault();
-
-            if (candidate == null)
+            if (craneSpec.LoadChart == null || craneSpec.LoadChart.Count == 0)
                 return 0;
 
-            return candidate.Capacity * settings.SafetyFactor;
+            double? capacity = InterpolateCapacityFromChart(craneSpec, radius, boomLength);
+            if (capacity == null || capacity <= 0)
+                return 0;
+
+            return capacity.Value * settings.DeratingRatio * settings.SafetyFactor;
+        }
+
+        /// <summary>
+        /// Performs bilinear interpolation over the load chart.
+        ///
+        /// Step 1 — Radius bracketing (Issue 5 fix):
+        ///   Select chart rows independently of boom length.
+        ///   Find the largest radius row ≤ required (lowerRadius) and
+        ///   the smallest radius row ≥ required (upperRadius).
+        ///   This avoids rejecting valid radius rows simply because
+        ///   their boom entries don't satisfy boom constraints.
+        ///
+        /// Step 2 — Boom interpolation per radius row (Issue 6 fix):
+        ///   For each bracketing radius row, interpolate capacity along
+        ///   the boom dimension. When the boom request exceeds all chart
+        ///   entries for that row, use the maximum entry (conservative)
+        ///   rather than returning null (which would produce SpecialCase).
+        ///
+        /// Step 3 — Radius interpolation (Issue 6 enhancement):
+        ///   Linearly interpolate the two boom-interpolated capacities
+        ///   across the radius gap.
+        /// </summary>
+        private static double? InterpolateCapacityFromChart(
+            CraneSpecification craneSpec,
+            double radius,
+            double boomLength)
+        {
+            // Collect all distinct radius values present in the chart
+            var distinctRadii = craneSpec.LoadChart
+                .Select(tp => tp.Radius)
+                .Distinct()
+                .OrderBy(r => r)
+                .ToList();
+
+            if (distinctRadii.Count == 0)
+                return null;
+
+            // ── Step 1: Find radius brackets ──────────────────────────
+            double? lowerRadius = null;
+            double? upperRadius = null;
+
+            foreach (var r in distinctRadii)
+            {
+                if (r <= radius)
+                    lowerRadius = r;
+                else if (upperRadius == null)
+                    upperRadius = r;
+            }
+
+            // No chart data covers this radius range at all
+            if (lowerRadius == null && upperRadius == null)
+                return null;
+
+            // ── Step 2: Interpolate boom for each bracketing row ──────
+
+            double? lowerCapacity = null;
+            double? upperCapacity = null;
+
+            if (lowerRadius.HasValue)
+            {
+                var lowerRow = craneSpec.LoadChart
+                    .Where(tp => tp.Radius == lowerRadius.Value)
+                    .OrderBy(tp => tp.BoomLength)
+                    .ToList();
+                lowerCapacity = InterpolateCapacityAlongBoom(lowerRow, boomLength);
+            }
+
+            if (upperRadius.HasValue)
+            {
+                var upperRow = craneSpec.LoadChart
+                    .Where(tp => tp.Radius == upperRadius.Value)
+                    .OrderBy(tp => tp.BoomLength)
+                    .ToList();
+                upperCapacity = InterpolateCapacityAlongBoom(upperRow, boomLength);
+            }
+
+            // ── Step 3: Interpolate across radius ────────────────────
+
+            // Both sides available → linear interpolation
+            if (lowerRadius.HasValue && upperRadius.HasValue
+                && lowerCapacity.HasValue && upperCapacity.HasValue)
+            {
+                double fraction = (radius - lowerRadius.Value)
+                                / (upperRadius.Value - lowerRadius.Value);
+
+                // Capacity decreases with radius, so interpolate conservatively
+                return lowerCapacity.Value + fraction * (upperCapacity.Value - lowerCapacity.Value);
+            }
+
+            // Only upper bracket — radius is below the smallest chart radius.
+            // Use upper capacity (we are closer than the smallest documented radius,
+            // which is typically safe but use the nearest documented value).
+            if (upperCapacity.HasValue)
+                return upperCapacity.Value;
+
+            // Only lower bracket — radius is beyond all chart rows.
+            // The OutOfRadius check in DetermineLiftStatus fires first for
+            // radii beyond craneSpec.MaxRadius, so reaching here means the
+            // chart is just sparse at the outer boundary.
+            if (lowerCapacity.HasValue)
+                return lowerCapacity.Value;
+
+            return null;
+        }
+
+        /// <summary>
+        /// Interpolates crane capacity along the boom length dimension
+        /// within a single radius row.
+        ///
+        /// Issue 6 fix — upper-bound behaviour:
+        ///   When the requested boom length exceeds all entries in the row,
+        ///   return the capacity at the maximum boom entry rather than null.
+        ///   Returning null would cause SpecialCase for valid (if marginal)
+        ///   configurations. The MaxBoomLength geometric check in
+        ///   DetermineLiftStatus already guards against over-length booms.
+        ///
+        ///   When the requested boom is below the minimum chart entry,
+        ///   return the minimum entry (conservative — shorter boom at same
+        ///   radius typically has equal or better capacity).
+        /// </summary>
+        private static double? InterpolateCapacityAlongBoom(
+            IReadOnlyList<TargetPoint> radiusRow,
+            double boomLength)
+        {
+            if (radiusRow.Count == 0)
+                return null;
+
+            // Exact match
+            var exactMatch = radiusRow.FirstOrDefault(tp => tp.BoomLength == boomLength);
+            if (exactMatch != null)
+                return exactMatch.Capacity;
+
+            var lower = radiusRow.LastOrDefault(tp => tp.BoomLength < boomLength);
+            var higher = radiusRow.FirstOrDefault(tp => tp.BoomLength > boomLength);
+
+            // Boom exceeds all chart entries — use maximum entry (Issue 6 fix)
+            if (higher == null)
+                return radiusRow[^1].Capacity;
+
+            // Boom is below all chart entries — use minimum entry (conservative)
+            if (lower == null)
+                return radiusRow[0].Capacity;
+
+            // Standard linear interpolation
+            return Interpolate(
+                boomLength,
+                lower.BoomLength,
+                lower.Capacity,
+                higher.BoomLength,
+                higher.Capacity);
+        }
+
+        private static double Interpolate(
+            double value,
+            double x0,
+            double y0,
+            double x1,
+            double y1)
+        {
+            if (Math.Abs(x1 - x0) < double.Epsilon)
+                return y0;
+
+            double fraction = (value - x0) / (x1 - x0);
+            return y0 + fraction * (y1 - y0);
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -176,6 +318,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
         ///   3. NoChartData  → crane spec has no load chart entry for this
         ///                     radius/boom combination (gap in manufacturer data)
         ///   4. Overweight   → element weight exceeds available chart capacity
+        ///                     (with CapacityToleranceTons tolerance for FP rounding)
         ///   5. Liftable     → all checks passed
         ///
         /// The distinction between OutOfRadius and NoChartData is intentional:
@@ -206,8 +349,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
                 // This is a data gap, not a geometric failure.
                 return LiftStatus.SpecialCase;
 
-            // ── 4. Capacity check ──────────────────────────────────
-            if (requiredCapacity > available)
+            // ── 4. Capacity check (with FP tolerance) ─────────────
+            // Issue 4 fix: use a small tolerance to avoid false Overweight
+            // results when element weight equals chart capacity to within
+            // floating-point precision.
+            if (requiredCapacity > available + CapacityToleranceTons)
                 return LiftStatus.Overweight;
 
             // ── 5. All checks passed ───────────────────────────────

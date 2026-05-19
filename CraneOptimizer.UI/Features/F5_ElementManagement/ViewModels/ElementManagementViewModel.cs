@@ -1,40 +1,60 @@
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
+using CraneOptimizer.UI.Core.Converters;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F5_ElementManagement.Services;
-using CraneOptimizer.UI.Features.F5_ElementManagement.Views;
+using CraneOptimizer.UI.Features.F16_Filter.DTOs;
+using CraneOptimizer.UI.Features.F16_Filter.Services;
+using CraneOptimizer.UI.Features.F16_Filter.Views;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Windows.Data;
 using System.Windows.Input;
+using CraneOptimizer.UI.Features.F5_ElementManagement.DTOs;
 
 namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 {
     public class ElementManagementViewModel : ViewModelBase
     {
         private readonly ISceneService _scene;
-        private readonly IElementGridSizingService _gridSizingService;
+        private readonly ISceneGridSizingService _gridSizingService;
+        private readonly IElementVisibilityFilterService _visibilityFilterService;
+        private readonly IElementLiftStateService _liftStateService;
         private string _selectedElementName = "No element selected";
         private PrecastElement? _selectedElement;
         private double _minWeight;
         private double _maxWeight = 50000;
         private List<string> _selectedTypes = new();
+        private List<string> _selectedMaterials = new();
+        private List<string> _selectedStoreys = new();
+        private HashSet<string>? _includedElementIds;
+        private string _sortBy = "Name";
+        private bool _sortDescending;
         private string _searchText = "";
         private string _propertySearchText = "";
         private bool _showOnlySelected;
         private bool _isSyncingSelectionFromScene;
 
-        public ElementManagementViewModel(ISceneService scene, IElementGridSizingService gridSizing)
+        public ElementManagementViewModel(
+            ISceneService scene,
+            IElementLiftStateService liftStateService,
+            ISceneGridSizingService gridSizing,
+            IElementVisibilityFilterService visibilityFilterService)
         {
             _scene = scene;
             _gridSizingService = gridSizing;
+            _visibilityFilterService = visibilityFilterService;
+            _liftStateService = liftStateService;
             _scene.ElementsChanged += OnElementsChanged;
             _scene.ElementsSelectionChanged += OnElementsSelectionChanged;
+            _liftStateService.StateChanged += OnLiftStateChanged;
             ShowFilterDialogCommand = new RelayCommand(ShowFilterDialog);
             ApplyFilterCommand = new RelayCommand(ApplyFilters);
         }
@@ -136,12 +156,20 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             }
         }
 
-        public void ApplyFilterCriteria(FilterCriteria criteria)
+        public void ApplyFilterCriteria(FilterCriteriaDto criteria)
         {
             _selectedTypes = criteria.SelectedTypes ?? new List<string>();
+            _selectedMaterials = criteria.SelectedMaterials ?? new List<string>();
+            _selectedStoreys = criteria.SelectedStoreys ?? new List<string>();
+            _includedElementIds = criteria.IncludedElementIds == null
+                ? null
+                : new HashSet<string>(criteria.IncludedElementIds.Where(id => !string.IsNullOrWhiteSpace(id)), StringComparer.OrdinalIgnoreCase);
+            _sortBy = string.IsNullOrWhiteSpace(criteria.SortBy) ? "Name" : criteria.SortBy;
+            _sortDescending = criteria.SortDescending;
             MinWeight = criteria.MinWeight;
             MaxWeight = criteria.MaxWeight;
             ApplySearchFilter();
+            ApplyViewerFilterCriteria(criteria);
         }
 
         public void LoadElementProperties()
@@ -151,7 +179,8 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             if (SelectedElement == null)
                 return;
 
-            var groups = BuildPropertyGroups(SelectedElement);
+            var panelDto = BuildElementPanelDto(SelectedElement);
+            var groups = BuildPropertyGroups(panelDto);
             var filter = PropertySearchText?.Trim();
 
             foreach (var group in groups)
@@ -211,6 +240,8 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             }
         }
 
+        private void OnLiftStateChanged() => LoadElementProperties();
+
         private void ShowFilterDialog() => new ElementFilterDialog(this).ShowDialog();
 
         private void ApplyFilters() => ApplySearchFilter();
@@ -223,49 +254,185 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 var element = obj as PrecastElement;
                 if (element == null) return false;
 
-                var weight = element.ElementWT ?? 0;
+                // Weight filter
+                var weight = ElementWeightCalculator.GetWeightKg(element);
                 if (weight < MinWeight || weight > MaxWeight) return false;
 
-                if (_selectedTypes.Count > 0 && !_selectedTypes.Contains(element.ElementType)) return false;
-
-                if (!string.IsNullOrEmpty(SearchText) &&
-                    !Matches(element.ElementID, SearchText) &&
-                    !Matches(GetElementDisplayName(element), SearchText))
-                {
+                // Type filter
+                if (_selectedTypes.Count > 0 && !_selectedTypes.Contains(element.ElementType))
                     return false;
+
+                if (_selectedMaterials.Count > 0 && !_selectedMaterials.Contains(NormalizeMaterial(element.ElementMaterial)))
+                    return false;
+
+                if (_selectedStoreys.Count > 0 && !_selectedStoreys.Contains(_visibilityFilterService.GetStorey(element)))
+                    return false;
+
+                if (_includedElementIds != null
+                    && (!string.IsNullOrWhiteSpace(element.ElementID)
+                        ? !_includedElementIds.Contains(element.ElementID)
+                        : true))
+                    return false;
+
+                // Search filter
+                if (!string.IsNullOrEmpty(SearchText))
+                {
+                    var displayName = GetPrecastDisplayName(element);
+                    if (!displayName.Contains(SearchText, StringComparison.OrdinalIgnoreCase) &&
+                        !(element.ElementID ?? string.Empty).Contains(SearchText, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
                 }
 
-                if (ShowOnlySelected && !_scene.GetSelectedElements().Contains(element)) return false;
+                // Selected only
+                if (ShowOnlySelected && !_scene.GetSelectedElements().Contains(element))
+                    return false;
 
                 return true;
             };
 
             view.Refresh();
+            ApplySort(view);
             OnPropertyChanged(nameof(FilterStatus));
         }
 
-        private static List<PropertyItem> BuildPropertyGroups(PrecastElement element)
+        private void ApplySort(ICollectionView view)
+        {
+            if (view is not ListCollectionView listView)
+                return;
+
+            listView.CustomSort = new ElementListSortComparer(_sortBy, _sortDescending, _visibilityFilterService);
+            listView.Refresh();
+        }
+
+        private ElementPanelDto BuildElementPanelDto(PrecastElement element)
+        {
+            var liftState = _liftStateService.GetState(element.ElementID);
+
+            return new ElementPanelDto(
+                BuildLiftStateDto(liftState),
+                GetElementID(element),
+                GetPrecastDisplayName(element),
+                CleanElementType(element.ElementType),
+                element.ElementMaterial ?? "Concrete",
+                element.ElementLength,
+                element.ElementWidth,
+                element.ElementHeight,
+                GetWeightDisplay(element),
+                element.ElementVolume,
+                element.ElementCOG.X,
+                element.ElementCOG.Y,
+                element.ElementCOG.Z);
+        }
+
+        private ElementPanelLiftStateDto BuildLiftStateDto(ElementLiftStateDto? liftState)
+        {
+            return new ElementPanelLiftStateDto(
+                GetLiftStateDisplay(liftState),
+                GetCranePositionDisplay(liftState),
+                liftState?.Radius,
+                liftState?.RequiredCapacity);
+        }
+
+        private static List<PropertyItem> BuildPropertyGroups(ElementPanelDto panel)
         {
             return new List<PropertyItem>
             {
+                CreateLiftStateGroup(panel.LiftState),
+
+                // Identity (Expanded)
                 CreateGroup("Identity", true,
-                    CreateProperty("Name", GetElementDisplayName(element), ""),
-                    CreateProperty("Object Type", GetStringProperty(element, "ObjectType") ?? element.ElementType, ""),
-                    CreateProperty("Material", element.ElementMaterial, "")),
+                    CreateProperty("ID", panel.Id, ""),
+                    CreateProperty("Name", panel.Name, ""),
+                    CreateProperty("Type", panel.Type, ""),
+                    CreateProperty("Material", panel.Material, "")),
 
+                // Geometry (Expanded)
                 CreateGroup("Geometry", true,
-                    CreateProperty("Length", element.ElementLength, "m"),
-                    CreateProperty("Width", element.ElementWidth, "m"),
-                    CreateProperty("Height", element.ElementHeight, "m"),
-                    CreateProperty("Weight", GetWeightDisplayValue(element), ""),
-                    CreateProperty("Volume", element.ElementVolume, "m3")),
+                    CreateProperty("Length", panel.Length, "mm"),
+                    CreateProperty("Width", panel.Width, "mm"),
+                    CreateProperty("Height", panel.Height, "mm"),
+                    CreateProperty("Weight", panel.Weight, ""),
+                    CreateProperty("Volume", panel.Volume, "m\u00b3")),
 
+                // Location (Expanded)
                 CreateGroup("Location", true,
-                    CreateProperty("X (COG)", element.ElementCOG.X, "mm"),
-                    CreateProperty("Y (COG)", element.ElementCOG.Y, "mm"),
-                    CreateProperty("Z (COG)", element.ElementCOG.Z, "mm"))
+                    CreateProperty("X (COG)", panel.CenterX, "mm"),
+                    CreateProperty("Y (COG)", panel.CenterY, "mm"),
+                    CreateProperty("Z (COG)", panel.CenterZ, "mm"))
             };
         }
+
+        private static PropertyItem CreateLiftStateGroup(ElementPanelLiftStateDto liftState)
+        {
+            return CreateGroup("Lift State", true,
+                CreateProperty("State", liftState.State, ""),
+                CreateProperty("Crane Position", liftState.CranePosition, ""),
+                CreateProperty("Radius", liftState.Radius, "mm"),
+                CreateProperty("Required Capacity", liftState.RequiredCapacity, "kg"));
+        }
+
+        private string GetLiftStateDisplay(ElementLiftStateDto? liftState)
+        {
+            if (!_liftStateService.HasCurrentState)
+                return "Not evaluated";
+
+            if (liftState == null)
+                return "No result for selected GA point";
+
+            return liftState.State;
+        }
+
+        private static string GetCranePositionDisplay(ElementLiftStateDto? liftState)
+        {
+            return liftState?.CraneX == null || liftState.CraneY == null
+                ? "-"
+                : string.Create(CultureInfo.CurrentCulture, $"X {liftState.CraneX.Value:N0}, Y {liftState.CraneY.Value:N0}");
+        }
+
+        // Revit Integer ID
+        private static string GetElementID(PrecastElement e) =>
+            !string.IsNullOrEmpty(e.ElementID) ? e.ElementID : "-";
+
+        private static string GetPrecastDisplayName(PrecastElement e)
+        {
+            return CleanElementName(ElementDisplayNameConverter.GetDisplayName(e));
+        }
+
+        private static string CleanElementName(string? rawName)
+        {
+            if (string.IsNullOrWhiteSpace(rawName)) return "-";
+            
+            return rawName.Replace("- Assembly", "")
+                         .Replace(" Assembly", "")
+                         .Replace(" : ", " - ")
+                         .Trim();
+        }
+
+        private static string CleanElementType(string? type)
+        {
+            if (string.IsNullOrWhiteSpace(type)) return "Element";
+            
+            var cleaned = type.Replace("Ifc", "").Replace("StandardCase", "")
+                .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                .FirstOrDefault() ?? "Element";
+
+            if (cleaned.Equals("ElementAssembly", StringComparison.OrdinalIgnoreCase))
+                return "Assembly";
+
+            return cleaned;
+        }
+
+        private static string GetWeightDisplay(PrecastElement e)
+        {
+            var weight = ElementWeightCalculator.GetWeightKg(e);
+            return weight > 0d
+                ? ElementWeightCalculator.FormatWeight(weight, ElementWeightCalculator.IsEstimated(e), CultureInfo.CurrentCulture)
+                : "-";
+        }
+
+        private static string GetWeightUnit() => "kg";
 
         private static PropertyItem CreateGroup(string category, bool isExpanded, params PropertyItem[] children)
         {
@@ -338,15 +505,11 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             return ElementDisplayNameConverter.GetDisplayName(element);
         }
 
+        // Kept for backward compatibility (not used in BuildPropertyGroups anymore)
         private static string GetWeightDisplayValue(PrecastElement element)
         {
-            if (element.ElementWT.HasValue && element.ElementWT.Value > 0)
-                return $"{element.ElementWT.Value:N0} kg";
-
-            if (element.ElementVolume.HasValue && element.ElementVolume.Value > 0)
-                return $"{element.ElementVolume.Value * 2500:N0} kg";
-
-            return string.Empty;
+            var weight = ElementWeightCalculator.GetWeightKg(element);
+            return weight > 0d ? $"{weight:N0} kg" : string.Empty;
         }
 
         private static string? GetStringProperty(object source, string propertyName)
@@ -380,12 +543,35 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             var view = CollectionViewSource.GetDefaultView(FilteredElements);
             return view?.Cast<object>().Count() ?? FilteredElements.Count;
         }
+
+        private void ApplyViewerFilterCriteria(FilterCriteriaDto criteria)
+        {
+            _visibilityFilterService.ResetFilters();
+            _visibilityFilterService.SetSearchText(SearchText);
+            _visibilityFilterService.SetWeightRange(criteria.MinWeight, criteria.MaxWeight);
+
+            var selectedTypes = new HashSet<string>(
+                criteria.SelectedTypes ?? new List<string>(),
+                StringComparer.OrdinalIgnoreCase);
+            var selectedMaterials = new HashSet<string>(
+                criteria.SelectedMaterials ?? new List<string>(),
+                StringComparer.OrdinalIgnoreCase);
+            var selectedStoreys = new HashSet<string>(
+                criteria.SelectedStoreys ?? new List<string>(),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var type in _visibilityFilterService.ElementTypes)
+                _visibilityFilterService.SetTypeEnabled(type, selectedTypes.Contains(type));
+
+            foreach (var material in _visibilityFilterService.Materials)
+                _visibilityFilterService.SetMaterialEnabled(material, selectedMaterials.Contains(material));
+
+            foreach (var storey in _visibilityFilterService.Storeys)
+                _visibilityFilterService.SetStoreyEnabled(storey, selectedStoreys.Contains(storey));
+        }
+
+        private static string NormalizeMaterial(string? material) =>
+            string.IsNullOrWhiteSpace(material) ? "Unspecified" : material.Trim();
     }
 
-    public class FilterCriteria
-    {
-        public double MinWeight { get; set; } = 0;
-        public double MaxWeight { get; set; } = 50000;
-        public List<string> SelectedTypes { get; set; } = new();
-    }
 }

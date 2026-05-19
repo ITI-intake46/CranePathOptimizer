@@ -1,4 +1,6 @@
-﻿namespace CraneOptimizer.Domain.Entities
+﻿using System.ComponentModel.DataAnnotations.Schema;
+
+namespace CraneOptimizer.Domain.Entities
 {
     public class CraneSpecification : BaseEntity
     {
@@ -20,6 +22,13 @@
 
 
         #region Configurable load-chart CSV
+        [NotMapped]
+        public double? DeratingRatio
+        {
+            get => CraneDerating;
+            set => CraneDerating = value;
+        }
+
         public double? CraneDerating { get; set; }
 
         public string? OutriggerConfig { get; set; } 

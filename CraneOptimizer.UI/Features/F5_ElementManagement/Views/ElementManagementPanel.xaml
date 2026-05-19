@@ -83,13 +83,6 @@
                                    Style="{StaticResource PanelSectionHeader}"
                                    Text="ELEMENTS" />
 
-                        <Button Grid.Column="1"
-                                Height="22"
-                                Margin="0,0,8,0"
-                                Padding="10,0"
-                                Command="{Binding ShowFilterDialogCommand}"
-                                Content="Filter"
-                                FontSize="{StaticResource FontSizeXS}" />
                     </Grid>
 
                     <Grid Grid.Row="1" Margin="8,6,8,6">
@@ -116,14 +109,16 @@
                         </TextBlock>
                     </Grid>
 
-                    <DataGrid Grid.Row="2"
+                    <DataGrid x:Name="ElementsGrid"
+                              Grid.Row="2"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
                               GridLinesVisibility="Horizontal"
                               HeadersVisibility="Column"
                               ItemsSource="{Binding FilteredElements}"
+                              SelectionChanged="ElementsGrid_SelectionChanged"
                               SelectedItem="{Binding SelectedElement, Mode=TwoWay}"
-                              SelectionMode="Single">
+                              SelectionMode="Extended">
                         <DataGrid.Columns>
                             <DataGridTemplateColumn Width="2*" Header="Name">
                                 <DataGridTemplateColumn.CellTemplate>
@@ -141,7 +136,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Width="80" Binding="{Binding ElementLength, StringFormat={}{0:F1} m}" Header="Length" />
+                            <DataGridTextColumn Width="80" Binding="{Binding ElementLength, StringFormat={}{0:F0} mm}" Header="Length" />
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

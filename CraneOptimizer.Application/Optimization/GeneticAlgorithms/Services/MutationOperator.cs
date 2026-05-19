@@ -14,7 +14,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     {
         private Random _random => GARandomManager.Instance;
 
-        public void Mutate(CraneSolution solution, List<GreenAreaZone> zones, GASettings settings)
+        /// <summary>
+        /// Mutates one crane setup point while preserving engineering constraints.
+        /// Inputs are the candidate solution, allowed zones, forbidden zones, and GA settings.
+        /// The output is an in-place position update only when the mutated point is valid,
+        /// outside forbidden zones, and meaningfully separated from the other setup points.
+        /// </summary>
+        public void Mutate(
+            CraneSolution solution,
+            List<GreenAreaZone> zones,
+            List<GreenAreaZone> forbiddenZones,
+            GASettings settings)
         {
             var positions = solution.Chromosome.CranePositions;
 
@@ -25,17 +35,31 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             var point = positions[index];
 
             double sigma = ResolveMutationSigma(settings);
-            double deltaX = NextGaussian() * sigma;
-            double deltaY = NextGaussian() * sigma;
+            var otherPositions = positions
+                .Where((_, positionIndex) => positionIndex != index)
+                .ToList();
 
-            var mutated = new DomainPoint3D(
-                SnapToGrid(point.X + deltaX, settings.GridStep),
-                SnapToGrid(point.Y + deltaY, settings.GridStep),
-                point.Z
-            );
+            int attempts = Math.Max(1, settings.PositionSamplingAttempts / 4);
+            for (int attempt = 0; attempt < attempts; attempt++)
+            {
+                double deltaX = NextGaussian() * sigma;
+                double deltaY = NextGaussian() * sigma;
 
-            if (IsInsideAnyZone(mutated, zones))
+                var mutated = new DomainPoint3D(
+                    SnapToGrid(point.X + deltaX, settings.GridStep),
+                    SnapToGrid(point.Y + deltaY, settings.GridStep),
+                    point.Z
+                );
+
+                if (!CranePlacementConstraintService.IsValidSetupPoint(mutated, zones, forbiddenZones, settings))
+                    continue;
+
+                if (!CranePlacementConstraintService.IsMeaningfullySeparated(mutated, otherPositions, settings))
+                    continue;
+
                 positions[index] = mutated;
+                return;
+            }
         }
 
         private double ResolveMutationSigma(GASettings settings)
@@ -43,10 +67,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             if (settings.MutationSigma <= 0)
                 return 5.0;
 
-            if (settings.MutationSigma <= 1.0)
-                return settings.MutationSigma * settings.MaxRadiusForNormalisation;
+            double sigma = settings.MutationSigma <= 1.0
+                ? settings.MutationSigma * settings.MaxRadiusForNormalisation
+                : settings.MutationSigma;
 
-            return settings.MutationSigma;
+            return Math.Max(1.0, sigma * Math.Max(1.0, settings.MutationExplorationMultiplier));
         }
 
         private double NextGaussian()
@@ -64,29 +89,5 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             return Math.Round(value / gridStep) * gridStep;
         }
 
-        private bool IsInsideAnyZone(DomainPoint3D point, List<GreenAreaZone> zones)
-        {
-            return zones.Any(zone => IsPointInsidePolygon(point, zone.Vertices));
-        }
-
-        private bool IsPointInsidePolygon(DomainPoint3D point, List<DomainPoint3D> polygon)
-        {
-            bool inside = false;
-
-            for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
-            {
-                var pi = polygon[i];
-                var pj = polygon[j];
-
-                bool intersect =
-                    ((pi.Y > point.Y) != (pj.Y > point.Y)) &&
-                    (point.X < (pj.X - pi.X) * (point.Y - pi.Y) / (pj.Y - pi.Y) + pi.X);
-
-                if (intersect)
-                    inside = !inside;
-            }
-
-            return inside;
-        }
     }
 }

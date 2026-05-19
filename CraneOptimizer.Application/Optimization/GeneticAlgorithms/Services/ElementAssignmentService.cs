@@ -263,10 +263,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // Step 4 — Required boom length
             double boomLength = LiftCalculation.CalculateRequiredBoomLength(radius, height);
 
-            // Step 5 — Required capacity = element weight
-            double requiredCapacity = element.ElementWT ?? 0;
+            // Step 5 — Required capacity = element weight + lifting accessories
+            double requiredCapacity = (element.ElementWT ?? 0) + settings.AdditionalWt;
 
-            // Step 6 — Determine full lift status
+            // Step 6 — Lookup chart capacity for debug/reporting
+            double availableCapacity = LiftCalculation.CraneCapacity(
+                craneSpec,
+                radius,
+                boomLength,
+                settings);
+
+            // Step 7 — Determine full lift status
             LiftStatus status = LiftCalculation.DetermineLiftStatus(
                 radius, boomLength, requiredCapacity, craneSpec, settings);
 
@@ -277,6 +284,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 Status = status,
                 Radius = radius,
                 BoomLength = boomLength,
+                AvailableCapacity = availableCapacity,
                 RequiredCapacity = requiredCapacity
             };
         }
@@ -288,23 +296,37 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// <summary>
         /// Computes summary statistics from all element evaluation results.
         ///
-        /// Populates AssignedElements:
+        /// Populates AssignedElements (all assigned, including failures) and
+        /// AssignedLiftableElements (only confirmed Liftable results).
+        ///
         ///   Key   = crane position index
         ///   Value = list of element IDs assigned to that crane
         ///
-        /// These statistics are used by the FitnessEvaluator.
+        /// Keeping both dictionaries allows the FitnessEvaluator to use
+        /// AssignedLiftableElements for balance scoring, avoiding penalising
+        /// cranes that merely attract nearby elements they cannot lift.
         /// </summary>
         private void UpdateAssignmentSummary(AssignmentResult result)
         {
             result.AssignedElements.Clear();
+            result.AssignedLiftableElements.Clear();
 
             foreach (var eval in result.EvaluationResults)
             {
-                // Build AssignedElements dictionary for all results
+                // All assigned elements (regardless of status)
                 if (!result.AssignedElements.ContainsKey(eval.AssignedCraneIndex))
                     result.AssignedElements[eval.AssignedCraneIndex] = new List<string>();
 
                 result.AssignedElements[eval.AssignedCraneIndex].Add(eval.ElementId);
+
+                // Liftable-only elements for balance penalty (Issue 10 fix)
+                if (eval.Status == LiftStatus.Liftable)
+                {
+                    if (!result.AssignedLiftableElements.ContainsKey(eval.AssignedCraneIndex))
+                        result.AssignedLiftableElements[eval.AssignedCraneIndex] = new List<string>();
+
+                    result.AssignedLiftableElements[eval.AssignedCraneIndex].Add(eval.ElementId);
+                }
             }
         }
     }
