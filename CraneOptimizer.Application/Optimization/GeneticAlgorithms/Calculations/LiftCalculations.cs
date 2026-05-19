@@ -61,7 +61,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
         /// Calculates the required vertical lift height.
         ///
         /// Formula:
-        ///   height = COG.Z + halfElementHeight + WireLength
+        ///   height = max(0, COG.Z + halfElementHeight - CraneGroundZ) + WireLength
         ///
         ///   COG.Z            → elevation of element center
         ///   halfElementHeight → from COG to the top of the element
@@ -71,13 +71,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
         /// </summary>
         public static double CalculateLiftHeight(
             PrecastElement element,
+            DomainPoint3D cranePosition,
             GASettings settings)
         {
             double elementHalfHeight = (element.ElementHeight ?? 0) / 2.0;
+            double relativeTopElevation = element.ElementCOG.Z + elementHalfHeight - cranePosition.Z;
 
-            return element.ElementCOG.Z
-                   + elementHalfHeight
-                   + settings.WireLength;
+            return Math.Max(0d, relativeTopElevation) + settings.WireLength;
         }
 
         // ══════════════════════════════════════════════════════════════

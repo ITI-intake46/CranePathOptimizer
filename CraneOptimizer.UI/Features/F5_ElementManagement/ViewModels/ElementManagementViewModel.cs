@@ -1,4 +1,5 @@
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Converters;
@@ -27,6 +28,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         private readonly ISceneGridSizingService _gridSizingService;
         private readonly IElementVisibilityFilterService _visibilityFilterService;
         private readonly IElementLiftStateService _liftStateService;
+        private readonly IUnitSettingsService _unitSettingsService;
         private string _selectedElementName = "No element selected";
         private PrecastElement? _selectedElement;
         private double _minWeight;
@@ -46,15 +48,18 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             ISceneService scene,
             IElementLiftStateService liftStateService,
             ISceneGridSizingService gridSizing,
-            IElementVisibilityFilterService visibilityFilterService)
+            IElementVisibilityFilterService visibilityFilterService,
+            IUnitSettingsService unitSettingsService)
         {
             _scene = scene;
             _gridSizingService = gridSizing;
             _visibilityFilterService = visibilityFilterService;
             _liftStateService = liftStateService;
+            _unitSettingsService = unitSettingsService;
             _scene.ElementsChanged += OnElementsChanged;
             _scene.ElementsSelectionChanged += OnElementsSelectionChanged;
             _liftStateService.StateChanged += OnLiftStateChanged;
+            _unitSettingsService.SettingsChanged += OnUnitSettingsChanged;
             ShowFilterDialogCommand = new RelayCommand(ShowFilterDialog);
             ApplyFilterCommand = new RelayCommand(ApplyFilters);
         }
@@ -63,7 +68,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         public ObservableCollection<PrecastElement> FilteredElements { get; } = new();
         public ObservableCollection<PropertyItem> ElementProperties { get; } = new();
 
-        public (double widthMeters, double lengthMeters, double centerXMillimeters, double centerYMillimeters) GridSize =>
+        public (double widthMeters, double lengthMeters, double centerXMeters, double centerYMeters) GridSize =>
             _gridSizingService.CalculateGridSizeMeters(Elements.ToList());
 
         public ICommand ShowFilterDialogCommand { get; }
@@ -335,7 +340,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 liftState?.RequiredCapacity);
         }
 
-        private static List<PropertyItem> BuildPropertyGroups(ElementPanelDto panel)
+        private List<PropertyItem> BuildPropertyGroups(ElementPanelDto panel)
         {
             return new List<PropertyItem>
             {
@@ -350,27 +355,27 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
                 // Geometry (Expanded)
                 CreateGroup("Geometry", true,
-                    CreateProperty("Length", panel.Length, "mm"),
-                    CreateProperty("Width", panel.Width, "mm"),
-                    CreateProperty("Height", panel.Height, "mm"),
-                    CreateProperty("Weight", panel.Weight, ""),
-                    CreateProperty("Volume", panel.Volume, "m\u00b3")),
+                    CreateDisplayProperty("Length", FormatLength(panel.Length)),
+                    CreateDisplayProperty("Width", FormatLength(panel.Width)),
+                    CreateDisplayProperty("Height", FormatLength(panel.Height)),
+                    CreateDisplayProperty("Weight", panel.Weight),
+                    CreateDisplayProperty("Volume", FormatVolume(panel.Volume))),
 
                 // Location (Expanded)
                 CreateGroup("Location", true,
-                    CreateProperty("X (COG)", panel.CenterX, "mm"),
-                    CreateProperty("Y (COG)", panel.CenterY, "mm"),
-                    CreateProperty("Z (COG)", panel.CenterZ, "mm"))
+                    CreateDisplayProperty("X (COG)", FormatLength(panel.CenterX)),
+                    CreateDisplayProperty("Y (COG)", FormatLength(panel.CenterY)),
+                    CreateDisplayProperty("Z (COG)", FormatLength(panel.CenterZ)))
             };
         }
 
-        private static PropertyItem CreateLiftStateGroup(ElementPanelLiftStateDto liftState)
+        private PropertyItem CreateLiftStateGroup(ElementPanelLiftStateDto liftState)
         {
             return CreateGroup("Lift State", true,
-                CreateProperty("State", liftState.State, ""),
-                CreateProperty("Crane Position", liftState.CranePosition, ""),
-                CreateProperty("Radius", liftState.Radius, "mm"),
-                CreateProperty("Required Capacity", liftState.RequiredCapacity, "kg"));
+                CreateDisplayProperty("State", liftState.State),
+                CreateDisplayProperty("Crane Position", liftState.CranePosition),
+                CreateDisplayProperty("Radius", FormatLength(liftState.Radius)),
+                CreateDisplayProperty("Required Capacity", FormatMass(liftState.RequiredCapacity)));
         }
 
         private string GetLiftStateDisplay(ElementLiftStateDto? liftState)
@@ -384,11 +389,11 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             return liftState.State;
         }
 
-        private static string GetCranePositionDisplay(ElementLiftStateDto? liftState)
+        private string GetCranePositionDisplay(ElementLiftStateDto? liftState)
         {
             return liftState?.CraneX == null || liftState.CraneY == null
                 ? "-"
-                : string.Create(CultureInfo.CurrentCulture, $"X {liftState.CraneX.Value:N0}, Y {liftState.CraneY.Value:N0}");
+                : $"X {FormatLength(liftState.CraneX)}, Y {FormatLength(liftState.CraneY)}";
         }
 
         // Revit Integer ID
@@ -424,15 +429,13 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             return cleaned;
         }
 
-        private static string GetWeightDisplay(PrecastElement e)
+        private string GetWeightDisplay(PrecastElement e)
         {
-            var weight = ElementWeightCalculator.GetWeightKg(e);
+            var weight = ElementWeightCalculator.GetWeightTons(e);
             return weight > 0d
-                ? ElementWeightCalculator.FormatWeight(weight, ElementWeightCalculator.IsEstimated(e), CultureInfo.CurrentCulture)
+                ? ElementWeightCalculator.FormatWeight(weight, _unitSettingsService.Current, ElementWeightCalculator.IsEstimated(e), CultureInfo.CurrentCulture)
                 : "-";
         }
-
-        private static string GetWeightUnit() => "kg";
 
         private static PropertyItem CreateGroup(string category, bool isExpanded, params PropertyItem[] children)
         {
@@ -463,6 +466,16 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                     ? formattedValue
                     : $"{formattedValue} {unit}",
                 Unit = unit
+            };
+        }
+
+        private static PropertyItem CreateDisplayProperty(string name, string? value)
+        {
+            return new PropertyItem
+            {
+                Name = name,
+                Value = value ?? string.Empty,
+                Unit = string.Empty
             };
         }
 
@@ -508,8 +521,39 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         // Kept for backward compatibility (not used in BuildPropertyGroups anymore)
         private static string GetWeightDisplayValue(PrecastElement element)
         {
-            var weight = ElementWeightCalculator.GetWeightKg(element);
-            return weight > 0d ? $"{weight:N0} kg" : string.Empty;
+            var weight = ElementWeightCalculator.GetWeightTons(element);
+            return weight > 0d ? $"{weight:N2} t" : string.Empty;
+        }
+
+        private string FormatLength(double? value)
+        {
+            return value.HasValue
+                ? UnitSystem.FormatLength(value.Value, _unitSettingsService.Current, CultureInfo.CurrentCulture)
+                : string.Empty;
+        }
+
+        private string FormatVolume(double? value)
+        {
+            if (!value.HasValue) return string.Empty;
+            
+            var settings = _unitSettingsService.Current;
+            var vol = UnitSystem.FromMeters(UnitSystem.FromMeters(UnitSystem.FromMeters(value.Value, settings.DisplayLengthUnit), settings.DisplayLengthUnit), settings.DisplayLengthUnit);
+            var symbol = UnitSystem.LengthSymbol(settings.DisplayLengthUnit);
+            
+            return $"{vol.ToString("N" + Math.Clamp(settings.DecimalPlaces, 0, 6), CultureInfo.CurrentCulture)} {symbol}\u00b3";
+        }
+
+        private string FormatMass(double? value)
+        {
+            return value.HasValue
+                ? UnitSystem.FormatMass(value.Value, _unitSettingsService.Current, CultureInfo.CurrentCulture)
+                : string.Empty;
+        }
+
+        private void OnUnitSettingsChanged(object? sender, UnitSettings settings)
+        {
+            LoadElementProperties();
+            OnPropertyChanged(nameof(GridSize));
         }
 
         private static string? GetStringProperty(object source, string propertyName)

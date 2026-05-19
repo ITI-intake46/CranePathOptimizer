@@ -171,7 +171,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             if (!IsPlacementMode || _pendingIfcElements == null || _pendingIfcElements.Count == 0)
                 return false;
 
-            var placementOffset = new Point3D(insertionPoint.X, insertionPoint.Y, insertionPoint.Z);
+            var placementOffset = CalculatePlacementOffset(_pendingIfcElements, insertionPoint);
 
             PendingPlacementPoint = placementOffset;
 
@@ -203,14 +203,18 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 return false;
 
             var currentOffset = PendingPlacementPoint ?? new Point3D(0, 0, 0);
+            var currentGround = CalculateModelBaseElevation(elements);
             var delta = new Point3D(
                 insertionPoint.X - currentOffset.X,
                 insertionPoint.Y - currentOffset.Y,
-                insertionPoint.Z - currentOffset.Z);
+                insertionPoint.Z - currentGround);
 
             _ifcSceneOperations.MoveIfcModel(new DomainPoint3D(delta.X, delta.Y, delta.Z));
 
-            PendingPlacementPoint = new Point3D(insertionPoint.X, insertionPoint.Y, insertionPoint.Z);
+            PendingPlacementPoint = new Point3D(
+                currentOffset.X + delta.X,
+                currentOffset.Y + delta.Y,
+                currentOffset.Z + delta.Z);
 
             _isMovingExistingIfc = false;
             IsPlacementMode = false;
@@ -298,6 +302,61 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                 return true;
             }).ToList();
+        }
+
+        private Point3D CalculatePlacementOffset(
+            IReadOnlyList<PrecastElement> sourceElements,
+            Point3D insertionPoint)
+        {
+            var anchor = CalculatePlacementAnchor(sourceElements);
+            return new Point3D(
+                insertionPoint.X - anchor.X,
+                insertionPoint.Y - anchor.Y,
+                insertionPoint.Z - anchor.Z);
+        }
+
+        private DomainPoint3D CalculatePlacementAnchor(IReadOnlyList<PrecastElement> sourceElements)
+        {
+            var bounds = CalculateBounds(sourceElements);
+            var centerX = (bounds.MinX + bounds.MaxX) * 0.5;
+            var centerY = (bounds.MinY + bounds.MaxY) * 0.5;
+            var extent = Math.Max(bounds.MaxX - bounds.MinX, bounds.MaxY - bounds.MinY);
+            var distanceFromOrigin = Math.Sqrt(centerX * centerX + centerY * centerY);
+            var horizontalAnchor = distanceFromOrigin > Math.Max(1000d, extent * 10d)
+                ? new DomainPoint3D(centerX, centerY, 0d)
+                : new DomainPoint3D(0d, 0d, 0d);
+
+            var groundZ = _ifcReader.ModelGroundElevation ?? bounds.MinZ;
+            return new DomainPoint3D(horizontalAnchor.X, horizontalAnchor.Y, groundZ);
+        }
+
+        private static double CalculateModelBaseElevation(IReadOnlyList<PrecastElement> elements)
+            => CalculateBounds(elements).MinZ;
+
+        private static (double MinX, double MinY, double MinZ, double MaxX, double MaxY, double MaxZ)
+            CalculateBounds(IReadOnlyList<PrecastElement> elements)
+        {
+            double minX = double.MaxValue, minY = double.MaxValue, minZ = double.MaxValue;
+            double maxX = double.MinValue, maxY = double.MinValue, maxZ = double.MinValue;
+
+            foreach (var element in elements)
+            {
+                var cog = element.ElementCOG;
+                var halfLength = (element.BBoxLength ?? element.ElementLength ?? 0d) / 2d;
+                var halfWidth = (element.BBoxWidth ?? element.ElementWidth ?? 0d) / 2d;
+                var halfHeight = (element.BBoxHeight ?? element.ElementHeight ?? 0d) / 2d;
+
+                minX = Math.Min(minX, cog.X - halfLength);
+                maxX = Math.Max(maxX, cog.X + halfLength);
+                minY = Math.Min(minY, cog.Y - halfWidth);
+                maxY = Math.Max(maxY, cog.Y + halfWidth);
+                minZ = Math.Min(minZ, cog.Z - halfHeight);
+                maxZ = Math.Max(maxZ, cog.Z + halfHeight);
+            }
+
+            return minX == double.MaxValue
+                ? (0d, 0d, 0d, 0d, 0d, 0d)
+                : (minX, minY, minZ, maxX, maxY, maxZ);
         }
     }
 }

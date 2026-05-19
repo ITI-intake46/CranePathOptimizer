@@ -55,11 +55,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             existingCrane.CraneType = Enum.TryParse<CraneType>(updatedCrane.CraneType, true, out var craneType)
                 ? craneType
                 : existingCrane.CraneType;
-            existingCrane.VehicleLength = updatedCrane.VehicleLengthMm;
-            existingCrane.VehicleWidth = updatedCrane.VehicleWidthMm;
-            existingCrane.VehicleHeight = updatedCrane.VehicleHeightMm;
-            existingCrane.OutriggerLength = updatedCrane.OutriggerLengthMm;
-            existingCrane.OutriggerWidth = updatedCrane.OutriggerWidthMm;
+            existingCrane.VehicleLength = updatedCrane.VehicleLengthMeters;
+            existingCrane.VehicleWidth = updatedCrane.VehicleWidthMeters;
+            existingCrane.VehicleHeight = updatedCrane.VehicleHeightMeters;
+            existingCrane.OutriggerLength = updatedCrane.OutriggerLengthMeters;
+            existingCrane.OutriggerWidth = updatedCrane.OutriggerWidthMeters;
 
             existingCrane.Specifications ??= new List<CraneSpecification>();
             var existingSpec = existingCrane.Specifications.FirstOrDefault();

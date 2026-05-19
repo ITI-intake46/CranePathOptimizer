@@ -87,6 +87,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 {
                     X = bestPoint.X,
                     Y = bestPoint.Y,
+                    Z = bestPoint.Z,
                     NewLiftableCount = newElements.Count,
                     ElementResults = bestPoint.ElementResults
                 });
@@ -155,6 +156,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 {
                     X = scenePoint.X,
                     Y = scenePoint.Y,
+                    Z = scenePoint.Z,
                     ElementResults = evaluations
                         .Select(evaluation => MapElementResult(evaluation, elementLookup))
                         .ToList()
@@ -257,7 +259,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             if (minimumDistanceMeters <= 0)
                 return;
 
-            double minimumDistance = minimumDistanceMeters * CoordinateService.MetersToMillimetersScale;
+            double minimumDistance = minimumDistanceMeters;
 
             var filtered = new List<CranePositionResult>();
 
@@ -310,9 +312,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         }
 
         /// <summary>
-        /// Calculates horizontal distance between two displayed crane positions.
-        /// F8 result points are denormalized back to millimeters before display, so the
-        /// caller converts engineering thresholds from meters to millimeters first.
+        /// Calculates horizontal distance between two displayed crane positions in meters.
         /// </summary>
         private static double Distance2D(CranePositionResult a, CranePositionResult b)
         {

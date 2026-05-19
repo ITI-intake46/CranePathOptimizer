@@ -95,7 +95,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
             if (value <= 0.0)
                 return fallback;
 
-            return value > 100.0 ? value / 1000.0 : value;
+            return value;
         }
 
         private static double ToMeters(double? value, double fallback)

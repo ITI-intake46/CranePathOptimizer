@@ -106,6 +106,15 @@ namespace CraneOptimizer.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("DisplayAreaUnit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DisplayLengthUnit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DisplayMassUnit")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("INTEGER");
 
@@ -127,6 +136,9 @@ namespace CraneOptimizer.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(4000)
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("UnitDecimalPlaces")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 

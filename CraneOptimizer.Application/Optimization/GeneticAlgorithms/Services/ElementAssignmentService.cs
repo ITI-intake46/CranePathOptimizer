@@ -258,7 +258,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             double radius = LiftCalculation.CalculateRadius(cranePosition, element);
 
             // Step 3 — Vertical lift height
-            double height = LiftCalculation.CalculateLiftHeight(element, settings);
+            double height = LiftCalculation.CalculateLiftHeight(element, cranePosition, settings);
 
             // Step 4 — Required boom length
             double boomLength = LiftCalculation.CalculateRequiredBoomLength(radius, height);

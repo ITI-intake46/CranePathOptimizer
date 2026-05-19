@@ -1,4 +1,5 @@
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Units;
 using System;
 using System.Globalization;
 
@@ -6,14 +7,13 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
 {
     internal static class ElementWeightCalculator
     {
-        private const double CubicMillimetersPerCubicMeter = 1_000_000_000d;
         private const double ConcreteDensityKgPerCubicMeter = 2500d;
         private const double SteelDensityKgPerCubicMeter = 7850d;
         private const double AluminumDensityKgPerCubicMeter = 2700d;
         private const double GlassDensityKgPerCubicMeter = 2500d;
         private const double TimberDensityKgPerCubicMeter = 600d;
 
-        public static double GetWeightKg(PrecastElement element)
+        public static double GetWeightTons(PrecastElement element)
         {
             if (element.ElementWT.HasValue && element.ElementWT.Value > 0d)
                 return element.ElementWT.Value;
@@ -22,35 +22,43 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             if (volumeM3 <= 0d)
                 return 0d;
 
-            return volumeM3 * GetDensityKgPerCubicMeter(element);
+            return UnitSystem.ToTons(volumeM3 * GetDensityKgPerCubicMeter(element), MassUnit.Kilogram);
         }
+
+        public static double GetWeightKg(PrecastElement element) =>
+            UnitSystem.FromTons(GetWeightTons(element), MassUnit.Kilogram);
 
         public static bool IsEstimated(PrecastElement element) =>
             !(element.ElementWT.HasValue && element.ElementWT.Value > 0d)
-            && GetWeightKg(element) > 0d;
+            && GetWeightTons(element) > 0d;
 
         public static string FormatWeight(PrecastElement element, CultureInfo? culture = null)
         {
-            var weight = GetWeightKg(element);
+            var weight = GetWeightTons(element);
             if (weight <= 0d)
-                return "0 kg";
+                return "0 t";
 
             return FormatWeight(weight, IsEstimated(element), culture);
         }
 
-        public static string FormatWeight(double weightKg, bool estimated = false, CultureInfo? culture = null)
+        public static string FormatWeight(double weightTons, bool estimated = false, CultureInfo? culture = null)
+            => FormatWeight(weightTons, UnitSettings.Default, estimated, culture);
+
+        public static string FormatWeight(
+            double weightTons,
+            UnitSettings settings,
+            bool estimated = false,
+            CultureInfo? culture = null)
         {
             culture ??= CultureInfo.CurrentCulture;
             var prefix = estimated ? "~" : string.Empty;
-            return weightKg >= 1000d
-                ? $"{prefix}{(weightKg / 1000d).ToString("N2", culture)} t"
-                : $"{prefix}{weightKg.ToString("N0", culture)} kg";
+            return $"{prefix}{UnitSystem.FormatMass(weightTons, settings, culture)}";
         }
 
         private static double GetVolumeCubicMeters(PrecastElement element)
         {
             if (element.ElementVolume.HasValue && element.ElementVolume.Value > 0d)
-                return element.ElementVolume.Value / CubicMillimetersPerCubicMeter;
+                return element.ElementVolume.Value;
 
             if ((element.BBoxLength ?? 0d) <= 0d
                 || (element.BBoxWidth ?? 0d) <= 0d
@@ -59,8 +67,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
 
             return element.BBoxLength!.Value
                 * element.BBoxWidth!.Value
-                * element.BBoxHeight!.Value
-                / CubicMillimetersPerCubicMeter;
+                * element.BBoxHeight!.Value;
         }
 
         private static double GetDensityKgPerCubicMeter(PrecastElement element)

@@ -293,21 +293,25 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             List<DomainPoint3D> existingPoints,
             GASettings settings)
         {
-            // Case 1: centroid falls inside one of the zones
-            if (CranePlacementConstraintService.IsValidSetupPoint(centroid, zones, forbiddenZones, settings)
-                && CranePlacementConstraintService.IsMeaningfullySeparated(centroid, existingPoints, settings))
-            {
-                var snappedCentroid = SnapPointToGrid(centroid, settings.GridStep);
-                return CranePlacementConstraintService.IsValidSetupPoint(snappedCentroid, zones, forbiddenZones, settings)
-                    ? snappedCentroid
-                    : centroid;
-            }
-
-            // Case 2: find the closest zone and sample inside it
             var closestZone = zones
                 .OrderBy(z => DistanceToZoneCentroid(centroid, z))
                 .First();
+            var groundedCentroid = new DomainPoint3D(
+                centroid.X,
+                centroid.Y,
+                GetZoneElevation(closestZone));
 
+            // Case 1: centroid falls inside one of the zones
+            if (CranePlacementConstraintService.IsValidSetupPoint(groundedCentroid, zones, forbiddenZones, settings)
+                && CranePlacementConstraintService.IsMeaningfullySeparated(groundedCentroid, existingPoints, settings))
+            {
+                var snappedCentroid = SnapPointToGrid(groundedCentroid, settings.GridStep);
+                return CranePlacementConstraintService.IsValidSetupPoint(snappedCentroid, zones, forbiddenZones, settings)
+                    ? snappedCentroid
+                    : groundedCentroid;
+            }
+
+            // Case 2: find the closest zone and sample inside it
             var sampled = GenerateRandomPointInsideZone(closestZone, forbiddenZones, settings);
             return CranePlacementConstraintService.IsMeaningfullySeparated(sampled, existingPoints, settings)
                 ? sampled
@@ -391,7 +395,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 double x = bbox.minX + Rng.NextDouble() * (bbox.maxX - bbox.minX);
                 double y = bbox.minY + Rng.NextDouble() * (bbox.maxY - bbox.minY);
 
-                var point = SnapPointToGrid(new DomainPoint3D(x, y, 0), settings.GridStep);
+                var point = SnapPointToGrid(new DomainPoint3D(x, y, GetZoneElevation(zone)), settings.GridStep);
 
                 if (CranePlacementConstraintService.IsValidSetupPoint(point, new[] { zone }, forbiddenZones, settings))
                     return point;
@@ -400,7 +404,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             var fallback = new DomainPoint3D(
                 zone.Vertices.Average(v => v.X),
                 zone.Vertices.Average(v => v.Y),
-                0);
+                GetZoneElevation(zone));
 
             return SnapPointToGrid(fallback, settings.GridStep);
         }
@@ -428,6 +432,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 vertices.Min(v => v.Y),
                 vertices.Max(v => v.Y)
             );
+        }
+
+        private static double GetZoneElevation(GreenAreaZone zone)
+        {
+            return zone.Vertices.Count == 0
+                ? 0d
+                : zone.Vertices.Average(vertex => vertex.Z);
         }
 
         /// <summary>

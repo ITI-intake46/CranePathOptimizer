@@ -1,5 +1,7 @@
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Globalization;
 using System.Windows.Data;
@@ -13,9 +15,10 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.Views
             if (value is not PrecastElement element)
                 return "-";
 
-            var weight = ElementWeightCalculator.GetWeightKg(element);
+            var weight = ElementWeightCalculator.GetWeightTons(element);
+            var settings = App.ServiceProvider.GetService<IUnitSettingsService>()?.Current ?? UnitSettings.Default;
             return weight > 0d
-                ? ElementWeightCalculator.FormatWeight(weight, ElementWeightCalculator.IsEstimated(element), culture)
+                ? ElementWeightCalculator.FormatWeight(weight, settings, ElementWeightCalculator.IsEstimated(element), culture)
                 : "-";
         }
 

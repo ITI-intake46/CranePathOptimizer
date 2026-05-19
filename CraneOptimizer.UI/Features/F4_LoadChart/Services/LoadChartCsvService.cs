@@ -1,4 +1,5 @@
 using CraneOptimizer.Domain.Entities;
+using CraneOptimizer.Domain.Units;
 using System.Data;
 using System.Globalization;
 using System.IO;
@@ -82,14 +83,17 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 for (int i = 0; i < boomLengths.Count; i++)
                 {
                     double boomLength = boomLengths[i];
-                    string capacityText = NormalizeGridNumber(row[i + 1]?.ToString());
+                    string rawCapacityText = row[i + 1]?.ToString() ?? string.Empty;
+                    string capacityText = NormalizeGridNumber(rawCapacityText);
                     double capacity = 0d;
 
                     if (!string.IsNullOrWhiteSpace(capacityText))
                     {
                         if (TryParseFlexibleNumber(capacityText, out capacity))
                         {
-                            maxCapacity = !maxCapacity.HasValue || capacity > maxCapacity.Value ? capacity : maxCapacity;
+                            var normalizedCapacity = NormalizeCapacityToTons(rawCapacityText, capacity);
+                            capacity = normalizedCapacity;
+                            maxCapacity = !maxCapacity.HasValue || normalizedCapacity > maxCapacity.Value ? normalizedCapacity : maxCapacity;
                         }
                         else
                         {
@@ -532,6 +536,17 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             }
 
             return clean.Trim();
+        }
+
+        private static double NormalizeCapacityToTons(string rawValue, double value)
+        {
+            if (Regex.IsMatch(rawValue, @"(?i)\bkg\b"))
+                return UnitSystem.ToTons(value, MassUnit.Kilogram);
+
+            if (Regex.IsMatch(rawValue, @"(?i)\b(t|ton|tons|tonne|tonnes)\b"))
+                return value;
+
+            return value > 100d ? UnitSystem.ToTons(value, MassUnit.Kilogram) : value;
         }
 
         private static string NormalizeGridNumber(string? value)

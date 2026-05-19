@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Units Settings"
     Width="480"
-    Height="420"
+    Height="460"
     Background="{DynamicResource BackgroundBrush}"
     FontFamily="{StaticResource FontPrimary}"
     FontSize="{StaticResource FontSizeBase}"
@@ -71,6 +71,16 @@
                 <TextBlock Style="{StaticResource PropertyLabel}" Width="130" Text="Area unit:" />
                 <ComboBox
                     x:Name="CboArea"
+                    Width="280"
+                    ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                    SelectionChanged="OnAnyComboChanged"
+                    Style="{StaticResource DarkComboBox}" />
+            </StackPanel>
+
+            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                <TextBlock Style="{StaticResource PropertyLabel}" Width="130" Text="Weight unit:" />
+                <ComboBox
+                    x:Name="CboMass"
                     Width="280"
                     ItemContainerStyle="{StaticResource DarkComboBoxItem}"
                     SelectionChanged="OnAnyComboChanged"

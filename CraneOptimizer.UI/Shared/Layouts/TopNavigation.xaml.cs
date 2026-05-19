@@ -22,6 +22,7 @@ namespace CraneOptimizer.UI.Shared.Layouts
             PanelCranes.Visibility  = Visibility.Collapsed;
             PanelZones.Visibility   = Visibility.Collapsed;
             PanelAnalyze.Visibility = Visibility.Collapsed;
+            PanelSettings.Visibility = Visibility.Collapsed;
 
             // Show the selected panel
             if (sender == TabHome)    PanelHome.Visibility    = Visibility.Visible;
@@ -30,6 +31,7 @@ namespace CraneOptimizer.UI.Shared.Layouts
             if (sender == TabCranes)  PanelCranes.Visibility  = Visibility.Visible;
             if (sender == TabZones)   PanelZones.Visibility   = Visibility.Visible;
             if (sender == TabAnalyze) PanelAnalyze.Visibility = Visibility.Visible;
+            if (sender == TabSettings) PanelSettings.Visibility = Visibility.Visible;
         }
     }
 }

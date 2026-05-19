@@ -33,12 +33,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// <summary>
         /// Additional wire/hoist rope length (m) that increases required hook height.
         /// </summary>
+        /// <remarks>Unit: Meters (SI length)</remarks>
         public double WireLength { get; set; } = 2.0;
 
         /// <summary>
         /// Additional lifting weight (tons) for hook block and accessories.
         /// Added to element weight before capacity validation.
         /// </summary>
+        /// <remarks>Unit: Metric Tons (SI mass)</remarks>
         public double AdditionalWt { get; set; } = 0.0;
 
         /// <summary>
@@ -121,6 +123,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// Normalisation factor for working radius penalty.
         /// Converts raw radius values into a [0, 1] scale for consistent fitness evaluation.
         /// </summary>
+        /// <remarks>Unit: Meters (SI length)</remarks>
         public double MaxRadiusForNormalisation { get; set; } = 50;
 
         /// <summary>

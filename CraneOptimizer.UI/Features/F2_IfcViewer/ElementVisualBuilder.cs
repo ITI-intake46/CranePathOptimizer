@@ -408,7 +408,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
         private static Transform3D CreateInstanceTransform(XbimMatrix3D matrix, double oneMeter, DomainPoint3D origin, DomainPoint3D placementOffset)
         {
-            var scale = 1000.0 / oneMeter;
+            var scale = 1.0 / oneMeter;
             var wpfMatrix = new Matrix3D(
                 matrix.M11, matrix.M12, matrix.M13, matrix.M14,
                 matrix.M21, matrix.M22, matrix.M23, matrix.M24,
@@ -441,9 +441,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             {
                 var worldPoint = matrix.Transform(new XbimPoint3D(v.X, v.Y, v.Z));
                 return new Point3D(
-                    worldPoint.X / oneMeter * 1000.0 - origin.X + placementOffset.X,
-                    worldPoint.Y / oneMeter * 1000.0 - origin.Y + placementOffset.Y,
-                    worldPoint.Z / oneMeter * 1000.0 - origin.Z + placementOffset.Z);
+                    worldPoint.X / oneMeter - origin.X + placementOffset.X,
+                    worldPoint.Y / oneMeter - origin.Y + placementOffset.Y,
+                    worldPoint.Z / oneMeter - origin.Z + placementOffset.Z);
             }).ToArray();
 
             var positions = new Point3DCollection();
@@ -495,7 +495,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             var xbimMesh = br.ReadShapeTriangulation();
             if (xbimMesh == null) return null;
 
-            var scale = 1000.0 / oneMeter;
+            var scale = 1.0 / oneMeter;
             var positions = new Point3DCollection(xbimMesh.Vertices.Select(v => new Point3D(v.X * scale, v.Y * scale, v.Z * scale)));
             var triIndices = new Int32Collection();
             var normalAccumulator = new Vector3D[positions.Count];

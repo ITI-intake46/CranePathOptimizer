@@ -4,7 +4,7 @@ namespace CraneOptimizer.UI.Core.Interfaces
 {
     public interface ISceneGridSizingService
     {
-        (double widthMeters, double lengthMeters, double centerXMillimeters, double centerYMillimeters)
+        (double widthMeters, double lengthMeters, double centerXMeters, double centerYMeters)
             CalculateGridSizeMeters(IReadOnlyList<PrecastElement> elements);
     }
 }

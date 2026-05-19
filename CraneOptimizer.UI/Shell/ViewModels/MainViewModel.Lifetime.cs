@@ -14,6 +14,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _originService.OriginChanged -= OnOriginChanged;
             _originService.PickingChanged -= OnOriginPickingChanged;
             _craneSceneInteraction.StateChanged -= OnCraneInteractionStateChanged;
+            _unitSettings.SettingsChanged -= OnUnitSettingsChanged;
             _sceneRendering.ElementsCleared -= OnSceneElementsCleared;
             _sceneRendering.ElementsChanged -= OnSceneElementsChanged;
         }

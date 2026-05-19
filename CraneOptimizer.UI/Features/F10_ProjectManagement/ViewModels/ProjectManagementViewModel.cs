@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
@@ -16,6 +17,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
         private readonly IProjectNavigationService _navigationService;
         private readonly IProjectShellService _shellService;
         private readonly IDialogService _dialogService;
+        private readonly IUnitSettingsService _unitSettingsService;
         private readonly CancellationTokenSource _lifetime = new();
         private string _searchText = string.Empty;
         private bool _favoritesOnly;
@@ -26,12 +28,14 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             IProjectService projectService,
             IProjectNavigationService navigationService,
             IProjectShellService shellService,
-            IDialogService dialogService)
+            IDialogService dialogService,
+            IUnitSettingsService unitSettingsService)
         {
             _projectService = projectService;
             _navigationService = navigationService;
             _shellService = shellService;
             _dialogService = dialogService;
+            _unitSettingsService = unitSettingsService;
 
             RefreshCommand = new AsyncRelayCommand(RefreshAsync);
             CreateProjectCommand = new AsyncRelayCommand(CreateProjectAsync);
@@ -165,6 +169,12 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
                 IsBusy = true;
                 var project = await _projectService.CreateProjectAsync(
                     createViewModel.ProjectName,
+                    _lifetime.Token);
+
+                // Persist the unit settings chosen in the Create Project dialog
+                await _unitSettingsService.SaveProjectSettingsAsync(
+                    project.Id,
+                    createViewModel.BuildUnitSettings(),
                     _lifetime.Token);
 
                 _navigationService.OpenMainWindow(project);

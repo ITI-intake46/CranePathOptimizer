@@ -8,7 +8,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
 {
     internal sealed class MobileCraneVisual3D : ModelVisual3D, ICraneVisual
     {
-        private const double SceneUnitsPerMeter = 1000.0;
+        private const double SceneUnitsPerMeter = 1.0;
         private readonly MobileCraneParameters _params;
 
         private static Material CreatePhongMaterial(

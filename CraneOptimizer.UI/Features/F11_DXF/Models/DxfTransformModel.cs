@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using CraneOptimizer.Domain.Units;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -11,10 +12,10 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Models
     /// <summary>
     /// Serialisable snapshot of how a DXF coordinate system maps onto the
   /// IFC / world coordinate system.  Offset values are stored in Helix scene
-  /// units, which this UI uses as millimetres.
+  /// units, which this UI uses as normalized meters.
   ///
   /// Transform order applied to every DXF vertex:
-  ///   1. Convert from the selected DXF unit to scene millimetres
+  ///   1. Convert from the selected DXF unit to scene meters
   ///   2. Apply user scale about the DXF origin
   ///   3. Rotate clockwise about Z (degrees)
   ///   4. Translate by the final offset, including the user global offset
@@ -25,13 +26,13 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Models
         public static readonly string[] UnitLabels = { "mm", "cm", "m", "in", "ft" };
         public static readonly string[] DxfUnitLabels = { "Default", "mm", "cm", "m", "in", "ft" };
 
-        public static double UnitScaleToSceneMillimeters(int unitIndex) => ClampUnitIndex(unitIndex) switch
+        public static double UnitScaleToSceneMeters(int unitIndex) => ClampUnitIndex(unitIndex) switch
         {
-            0 => 1.0,
-            1 => 10.0,
-            2 => 1000.0,
-            3 => 25.4,
-            4 => 304.8,
+            0 => UnitSystem.ToMeters(1.0, LengthUnit.Millimeter),
+            1 => UnitSystem.ToMeters(1.0, LengthUnit.Centimeter),
+            2 => UnitSystem.ToMeters(1.0, LengthUnit.Meter),
+            3 => UnitSystem.ToMeters(1.0, LengthUnit.Inch),
+            4 => UnitSystem.ToMeters(1.0, LengthUnit.Foot),
             _ => 1.0
         };
 
@@ -185,7 +186,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Models
         /// <summary>Rotation in radians (negate when passing to Math.Cos/Sin for CW→CCW).</summary>
         public double RotationRadians => RotationDegrees * Math.PI / 180.0;
 
-        public double EffectiveScale => Scale * UnitScaleToSceneMillimeters(ResolvedDxfUnitIndex);
+        public double EffectiveScale => Scale * UnitScaleToSceneMeters(ResolvedDxfUnitIndex);
 
         // -- Unit and post-alignment offset parameters -------------------------
 

@@ -47,11 +47,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Mappers
                 CraneType = Enum.TryParse<CraneType>(dto.CraneType, true, out var craneType)
                     ? craneType
                     : CraneType.Mobile,
-                VehicleLength = dto.VehicleLengthMm,
-                VehicleWidth = dto.VehicleWidthMm,
-                VehicleHeight = dto.VehicleHeightMm,
-                OutriggerWidth = dto.OutriggerWidthMm,
-                OutriggerLength = dto.OutriggerLengthMm,
+                VehicleLength = dto.VehicleLengthMeters,
+                VehicleWidth = dto.VehicleWidthMeters,
+                VehicleHeight = dto.VehicleHeightMeters,
+                OutriggerWidth = dto.OutriggerWidthMeters,
+                OutriggerLength = dto.OutriggerLengthMeters,
                 Specifications =
                 {
                     new CraneSpecification

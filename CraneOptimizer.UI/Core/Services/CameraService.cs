@@ -15,10 +15,10 @@ namespace CraneOptimizer.UI.Core.Services
         private readonly IRenderingService _renderingService;
 
         private const double MinNearPlane = 1d;
-        private const double MaxNearPlane = 1_000d;
+        private const double MaxNearPlane = 10d;
         private const double FarPlanePaddingFactor = 4.0;
-        private const double MinFarPlane = 2_000_000d;
-        private const double DefaultGridViewSize = 50_000d;
+        private const double MinFarPlane = 2_000d;
+        private const double DefaultGridViewSize = 50d;
         private static readonly Duration CameraAnimationDuration = new(TimeSpan.FromMilliseconds(420));
 
         public CameraService(IRenderingService renderingService)
@@ -96,14 +96,14 @@ namespace CraneOptimizer.UI.Core.Services
             }
 
             var (center, size) = CalculateBounds(source);
-            var radius = Math.Max(1000d, size * 0.5);
+            var radius = Math.Max(1d, size * 0.5);
 
             var cameraDistance = (camera.Position - center).Length;
             var nearPlane = Math.Min(MaxNearPlane, Math.Min(radius * 0.005, cameraDistance * 0.01));
             camera.NearPlaneDistance = Math.Max(MinNearPlane, nearPlane);
             camera.FarPlaneDistance = Math.Max(
                 MinFarPlane,
-                Math.Max(camera.NearPlaneDistance * 10_000d, (cameraDistance + radius) * FarPlanePaddingFactor));
+                Math.Max(camera.NearPlaneDistance * 1_000d, (cameraDistance + radius) * FarPlanePaddingFactor));
         }
 
         private void SetCameraView(Point3D center, double sceneSize, double elevationFactor, double distanceFactor)
@@ -112,8 +112,8 @@ namespace CraneOptimizer.UI.Core.Services
             if (viewport == null)
                 return;
 
-            var distance = Math.Max(25_000d, sceneSize * distanceFactor);
-            var elevation = Math.Max(12_000d, sceneSize * elevationFactor);
+            var distance = Math.Max(25d, sceneSize * distanceFactor);
+            var elevation = Math.Max(12d, sceneSize * elevationFactor);
             var position = new Point3D(
                 center.X + distance,
                 center.Y - distance,
@@ -139,8 +139,8 @@ namespace CraneOptimizer.UI.Core.Services
             if (viewport == null)
                 return;
 
-            var distance = Math.Max(25_000d, sceneSize * 1.55);
-            var elevation = Math.Max(12_000d, sceneSize * 0.55);
+            var distance = Math.Max(25d, sceneSize * 1.55);
+            var elevation = Math.Max(12d, sceneSize * 0.55);
             var position = new Point3D(
                 center.X,
                 center.Y - distance,
@@ -280,7 +280,7 @@ namespace CraneOptimizer.UI.Core.Services
             var dx = maxX - minX;
             var dy = maxY - minY;
             var dz = maxZ - minZ;
-            var size = Math.Max(1_000d, Math.Sqrt(dx * dx + dy * dy + dz * dz));
+            var size = Math.Max(1d, Math.Sqrt(dx * dx + dy * dy + dz * dz));
             return (center, size);
         }
 

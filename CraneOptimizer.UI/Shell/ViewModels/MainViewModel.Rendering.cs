@@ -78,6 +78,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _originService.ClearOrigin();
             _originService.CancelPicking();
             IsModelLoaded = false;
+            BuildingArea = 0;
+            BuildingHeight = 0;
+            BuildingName = "No Building Loaded";
             StatusText = "Model cleared";
         }
 
@@ -86,6 +89,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _originService.ClearOrigin();
             _originService.CancelPicking();
             IsModelLoaded = true;
+            RefreshBuildingMetrics();
+            BuildingName = CurrentProjectName;
             StatusText = $"Model loaded ({elements.Count} elements).";
         }
 

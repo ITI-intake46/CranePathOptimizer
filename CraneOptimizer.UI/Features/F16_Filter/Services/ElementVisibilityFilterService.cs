@@ -256,7 +256,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
                 return;
 
             var elevations = _allElements
-                .Select(GetBaseElevationMillimeters)
+                .Select(GetBaseElevationMeters)
                 .Distinct()
                 .OrderBy(z => z)
                 .ToList();
@@ -265,14 +265,14 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
                 .Select((z, index) => new
                 {
                     Elevation = z,
-                    Label = $"Level {index + 1} ({z / 1000d:0.##} m)"
+                    Label = $"Level {index + 1} ({z:0.##} m)"
                 })
                 .ToDictionary(x => x.Elevation, x => x.Label);
 
             foreach (var element in _allElements)
             {
                 if (!string.IsNullOrWhiteSpace(element.ElementID))
-                    _storeyByElementId[element.ElementID] = labels[GetBaseElevationMillimeters(element)];
+                    _storeyByElementId[element.ElementID] = labels[GetBaseElevationMeters(element)];
             }
         }
 
@@ -341,13 +341,13 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
                 yield return name;
         }
 
-        private static int GetBaseElevationMillimeters(PrecastElement element)
+        private static double GetBaseElevationMeters(PrecastElement element)
         {
             var z = element.ElementCOG?.Z ?? 0d;
             var halfHeight = (element.BBoxHeight ?? element.ElementHeight ?? 0d) / 2d;
             var baseZ = z - halfHeight;
 
-            return (int)(Math.Round(baseZ / 1000d) * 1000d);
+            return Math.Round(baseZ, 0);
         }
 
         private static IReadOnlyList<string> BuildOptions(IEnumerable<string> values) =>
