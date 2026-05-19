@@ -1,6 +1,7 @@
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Units;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -14,8 +15,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 {
     public class IfcReaderRepository : IIfcReaderRepository
     {
-        private const double DefaultLengthToMillimetersFactor = 1000d;
-        private const double CubicMillimetersPerCubicMeter = 1_000_000_000d;
+        private const double DefaultLengthToMetersFactor = 1d;
         private const double ConcreteDensityKgPerCubicMeter = 2500d;
         private const double SteelDensityKgPerCubicMeter = 7850d;
         private const double AluminumDensityKgPerCubicMeter = 2700d;
@@ -87,7 +87,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 GeometryContext = new Xbim3DModelContext(CurrentModel);
                 GeometryContext.CreateContext();
 
-                ModelLengthFactor = GetLengthToMillimetersFactor(CurrentModel);
+                ModelLengthFactor = GetLengthToMetersFactor(CurrentModel);
 
                 var extractor = new IfcEngineeringExtractor(
                     CurrentModel,
@@ -107,33 +107,33 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
         }
 
-        private static double GetLengthToMillimetersFactor(IfcStore model)
+        private static double GetLengthToMetersFactor(IfcStore model)
         {
             var project = model.Instances.OfType<IIfcProject>().FirstOrDefault();
             var units = project?.UnitsInContext?.Units;
 
             if (units == null)
-                return DefaultLengthToMillimetersFactor;
+                return DefaultLengthToMetersFactor;
 
             foreach (var unit in units)
             {
                 if (unit is IIfcSIUnit siUnit &&
                     siUnit.UnitType.ToString().Contains("LENGTH", StringComparison.OrdinalIgnoreCase))
                 {
-                    return GetSiUnitToMillimetersFactor(siUnit);
+                    return GetSiUnitToMetersFactor(siUnit);
                 }
 
                 if (unit is IIfcConversionBasedUnit conversionUnit &&
                     conversionUnit.UnitType.ToString().Contains("LENGTH", StringComparison.OrdinalIgnoreCase))
                 {
-                    return GetConversionUnitToMillimetersFactor(conversionUnit);
+                    return GetConversionUnitToMetersFactor(conversionUnit);
                 }
             }
 
-            return DefaultLengthToMillimetersFactor;
+            return DefaultLengthToMetersFactor;
         }
 
-        private static double GetSiUnitToMillimetersFactor(IIfcSIUnit siUnit)
+        private static double GetSiUnitToMetersFactor(IIfcSIUnit siUnit)
         {
             var name = siUnit.Name.ToString();
             var prefix = siUnit.Prefix?.ToString() ?? string.Empty;
@@ -141,41 +141,49 @@ namespace CraneOptimizer.Infrastructure.Repositories
             if (!name.Contains("METRE", StringComparison.OrdinalIgnoreCase) &&
                 !name.Contains("METER", StringComparison.OrdinalIgnoreCase))
             {
-                return DefaultLengthToMillimetersFactor;
+                return DefaultLengthToMetersFactor;
             }
 
             if (prefix.Contains("MILLI", StringComparison.OrdinalIgnoreCase))
-                return 1d;
+                return 0.001d;
 
             if (prefix.Contains("CENTI", StringComparison.OrdinalIgnoreCase))
-                return 10d;
+                return 0.01d;
 
             if (prefix.Contains("DECI", StringComparison.OrdinalIgnoreCase))
-                return 100d;
+                return 0.1d;
 
-            return DefaultLengthToMillimetersFactor;
+            return DefaultLengthToMetersFactor;
         }
 
-        private static double GetConversionUnitToMillimetersFactor(IIfcConversionBasedUnit conversionUnit)
+        private static double GetConversionUnitToMetersFactor(IIfcConversionBasedUnit conversionUnit)
         {
             var unitName = conversionUnit.Name.ToString();
 
             if (unitName.Contains("MILLIMET", StringComparison.OrdinalIgnoreCase))
-                return 1d;
+                return 0.001d;
 
             if (unitName.Contains("CENTIMET", StringComparison.OrdinalIgnoreCase))
-                return 10d;
+                return 0.01d;
+
+            // Explicit imperial handling — common in Revit-exported IFC files
+            if (unitName.Contains("FOOT", StringComparison.OrdinalIgnoreCase) ||
+                unitName.Contains("FEET", StringComparison.OrdinalIgnoreCase))
+                return 0.3048d;
+
+            if (unitName.Contains("INCH", StringComparison.OrdinalIgnoreCase))
+                return 0.0254d;
 
             if (unitName.Contains("MET", StringComparison.OrdinalIgnoreCase))
-                return DefaultLengthToMillimetersFactor;
+                return DefaultLengthToMetersFactor;
 
             var valueComponent = conversionUnit.ConversionFactor?.ValueComponent?.ToString();
             if (!double.TryParse(valueComponent, NumberStyles.Any, CultureInfo.InvariantCulture, out var factorToBase))
-                return DefaultLengthToMillimetersFactor;
+                return DefaultLengthToMetersFactor;
 
-            var baseFactor = DefaultLengthToMillimetersFactor;
+            var baseFactor = DefaultLengthToMetersFactor;
             if (conversionUnit.ConversionFactor?.UnitComponent is IIfcSIUnit baseSiUnit)
-                baseFactor = GetSiUnitToMillimetersFactor(baseSiUnit);
+                baseFactor = GetSiUnitToMetersFactor(baseSiUnit);
 
             return factorToBase * baseFactor;
         }
@@ -188,8 +196,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
         {
             private readonly IfcStore _model;
             private readonly Xbim3DModelContext _geometryContext;
-            private readonly double _lengthToMillimetersFactor;
-            private readonly double _volumeToCubicMillimetersFactor;
+            private readonly double _lengthToMetersFactor;
+            private readonly double _volumeToCubicMetersFactor;
 
             private readonly Dictionary<int, SourceElementSnapshot> _sourceCache = new();
             private readonly Dictionary<int, AggregateSnapshot> _aggregateCache = new();
@@ -197,12 +205,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
             public IfcEngineeringExtractor(
                 IfcStore model,
                 Xbim3DModelContext geometryContext,
-                double lengthToMillimetersFactor)
+                double lengthToMetersFactor)
             {
                 _model = model;
                 _geometryContext = geometryContext;
-                _lengthToMillimetersFactor = lengthToMillimetersFactor;
-                _volumeToCubicMillimetersFactor = Math.Pow(lengthToMillimetersFactor, 3);
+                _lengthToMetersFactor = lengthToMetersFactor;
+                _volumeToCubicMetersFactor = Math.Pow(lengthToMetersFactor, 3);
             }
 
             public List<PrecastElement> Extract(IProgress<double>? progress, CancellationToken cancellationToken)
@@ -305,7 +313,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 // Fallback: If Weight is 0 or missing, use Volume * 2500
                 if ((weight ?? 0) <= 0 && (volume ?? 0) > 0)
                 {
-                    weight = (volume.Value / CubicMillimetersPerCubicMeter) * ConcreteDensityKgPerCubicMeter;
+                    weight = (volume.Value * ConcreteDensityKgPerCubicMeter) / UnitSystem.KilogramsPerTon;
                 }
 
                 var revitId = GetRevitId(product);
@@ -638,6 +646,18 @@ namespace CraneOptimizer.Infrastructure.Repositories
             // Property / Quantity readers
             // -------------------------------------------------------------------------
 
+            /// <summary>
+            /// Reads weight/mass from IFC quantity sets or property sets.
+            /// </summary>
+            /// <remarks>
+            /// IFC 4 standard stores IIfcQuantityWeight values in kilograms.
+            /// The result is converted to metric tons by the caller via
+            /// <c>/ UnitSystem.KilogramsPerTon</c>.
+            ///
+            /// LIMITATION: If a non-standard IFC file encodes mass in a
+            /// different unit (e.g. lbs) via IfcPropertySingleValue, the
+            /// value will be misinterpreted. Such files are rare but exist.
+            /// </remarks>
             private double? GetWeight(IIfcProduct product)
             {
                 return GetQuantity(product, "weight", "mass")
@@ -741,6 +761,17 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return null;
             }
 
+            /// <summary>
+            /// Searches property sets for a numeric property matching the keywords.
+            /// </summary>
+            /// <remarks>
+            /// Returns the raw numeric value without any unit conversion.
+            /// This works for dimensionless properties and standard IFC files
+            /// where property values follow the project's declared unit context.
+            /// If a property stores a value in a non-standard unit (e.g. a
+            /// "weight" property in tons instead of kg), the caller will
+            /// receive an unconverted raw number.
+            /// </remarks>
             private double? GetPropertyDouble(IIfcProduct product, params string[] keywords)
             {
                 var propertySets = product.IsDefinedBy
@@ -797,7 +828,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }
             }
 
-            private static double? EstimateWeightFromMaterial(string? material, double volumeInCubicMillimeters)
+            private static double? EstimateWeightFromMaterial(string? material, double volumeInCubicMeters)
             {
                 var name = string.IsNullOrWhiteSpace(material) ? string.Empty : material.ToUpperInvariant();
 
@@ -808,7 +839,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     name.ContainsAny("TIMBER", "WOOD") ? TimberDensityKgPerCubicMeter :
                     ConcreteDensityKgPerCubicMeter;
 
-                return (volumeInCubicMillimeters / CubicMillimetersPerCubicMeter) * densityKgPerCubicMeter;
+                return (volumeInCubicMeters * densityKgPerCubicMeter) / UnitSystem.KilogramsPerTon;
             }
 
             // -------------------------------------------------------------------------
@@ -830,13 +861,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
             // Conversion helpers
             // -------------------------------------------------------------------------
 
-            private double ConvertLength(double rawLength) => rawLength * _lengthToMillimetersFactor;
+            private double ConvertLength(double rawLength) => rawLength * _lengthToMetersFactor;
 
             private double? ConvertLength(double? rawLength) =>
                 rawLength.HasValue ? ConvertLength(rawLength.Value) : null;
 
             private double? ConvertVolume(double? rawVolume) =>
-                rawVolume.HasValue ? rawVolume.Value * _volumeToCubicMillimetersFactor : null;
+                rawVolume.HasValue ? rawVolume.Value * _volumeToCubicMetersFactor : null;
 
             // -------------------------------------------------------------------------
             // Static helpers
