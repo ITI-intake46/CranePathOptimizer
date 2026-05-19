@@ -3,6 +3,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Interfaces;
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
@@ -35,6 +36,7 @@ using System.Windows;
 using System.Windows.Threading;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels;
+using CraneOptimizer.UI.Features.F9_Settings.Views;
 using CraneOptimizer.UI.F90_CraneSeedData.Services;
 
 namespace CraneOptimizer.UI
@@ -78,6 +80,7 @@ namespace CraneOptimizer.UI
             services.AddScoped<ICraneRepository, CraneRepository>();
             services.AddSingleton<IIfcReaderRepository, IfcReaderRepository>();
             services.AddScoped<IProjectRepository, ProjectRepository>();
+            services.AddSingleton<IUnitSettingsService, UnitSettingsService>();
 
             // =========================
             // Core Services
@@ -161,6 +164,7 @@ namespace CraneOptimizer.UI
             // Views
             // =========================
             services.AddTransient<MainWindow>();
+            services.AddTransient<UnitsSettingsDialog>();
             services.AddScoped<CraneSeedService>();
 
             ServiceProvider = services.BuildServiceProvider();

@@ -9,7 +9,7 @@ namespace CraneOptimizer.UI.Core.Services
         private const double GridPaddingFactor = 1.2d;
         private const double GridRoundStepMeters = 10d;
 
-        public (double widthMeters, double lengthMeters, double centerXMillimeters, double centerYMillimeters)
+        public (double widthMeters, double lengthMeters, double centerXMeters, double centerYMeters)
             CalculateGridSizeMeters(IReadOnlyList<PrecastElement> elements)
         {
             if (elements.Count == 0)
@@ -41,8 +41,8 @@ namespace CraneOptimizer.UI.Core.Services
             // around the inserted IFC. Grow around world origin instead.
             var maxAbsX = Math.Max(Math.Abs(minX), Math.Abs(maxX));
             var maxAbsY = Math.Max(Math.Abs(minY), Math.Abs(maxY));
-            var buildingWidthMeters = Math.Max(0d, (maxAbsX * 2d) / 1000.0);
-            var buildingLengthMeters = Math.Max(0d, (maxAbsY * 2d) / 1000.0);
+            var buildingWidthMeters = Math.Max(0d, maxAbsX * 2d);
+            var buildingLengthMeters = Math.Max(0d, maxAbsY * 2d);
 
             return (
                 CalculateGridAxisMeters(buildingWidthMeters),
