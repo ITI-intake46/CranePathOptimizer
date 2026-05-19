@@ -219,7 +219,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                 var candidate = new DomainPoint3D(
                     zone.Vertices.Average(vertex => vertex.X),
                     zone.Vertices.Average(vertex => vertex.Y),
-                    0);
+                    zone.Vertices.Average(vertex => vertex.Z));
 
                 if (CranePlacementConstraintService.IsValidSetupPoint(candidate, zones, forbiddenZones, settings))
                     return candidate;

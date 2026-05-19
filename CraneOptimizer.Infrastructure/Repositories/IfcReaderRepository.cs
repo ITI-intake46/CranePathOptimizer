@@ -25,6 +25,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
         public IfcStore? CurrentModel { get; private set; }
         public Xbim3DModelContext? GeometryContext { get; private set; }
         public double ModelLengthFactor { get; private set; } = 1.0;
+        public double? ModelGroundElevation { get; private set; }
 
         public void ClearData()
         {
@@ -34,6 +35,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 CurrentModel = null;
             }
             GeometryContext = null;
+            ModelGroundElevation = null;
         }
 
         public void Dispose()
@@ -88,6 +90,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 GeometryContext.CreateContext();
 
                 ModelLengthFactor = GetLengthToMetersFactor(CurrentModel);
+                ModelGroundElevation = GetModelGroundElevation(CurrentModel, ModelLengthFactor);
 
                 var extractor = new IfcEngineeringExtractor(
                     CurrentModel,
@@ -187,6 +190,38 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             return factorToBase * baseFactor;
         }
+
+        private static double? GetModelGroundElevation(IfcStore model, double lengthToMetersFactor)
+        {
+            var elevations = model.Instances
+                .OfType<IIfcBuildingStorey>()
+                .Select(storey => storey.Elevation.HasValue
+                    ? storey.Elevation.Value * lengthToMetersFactor
+                    : (double?)null)
+                .Where(value => value.HasValue && IsFinite(value.Value))
+                .Select(value => value!.Value)
+                .Distinct()
+                .OrderBy(value => value)
+                .ToList();
+
+            if (elevations.Count == 0)
+                return null;
+
+            const double zeroToleranceMeters = 0.05;
+            if (elevations.Any(value => Math.Abs(value) <= zeroToleranceMeters))
+                return 0d;
+
+            var nonNegative = elevations.FirstOrDefault(value => value > 0d);
+            if (nonNegative > 0d)
+                return nonNegative;
+
+            return elevations
+                .OrderBy(value => Math.Abs(value))
+                .First();
+        }
+
+        private static bool IsFinite(double value) =>
+            !double.IsNaN(value) && !double.IsInfinity(value);
 
         // -------------------------------------------------------------------------
         // Extractor
@@ -311,7 +346,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var weight = GetWeight(product);
                 
                 // Fallback: If Weight is 0 or missing, use Volume * 2500
-                if ((weight ?? 0) <= 0 && (volume ?? 0) > 0)
+                if ((weight ?? 0) <= 0 && volume.HasValue && volume.Value > 0)
                 {
                     weight = (volume.Value * ConcreteDensityKgPerCubicMeter) / UnitSystem.KilogramsPerTon;
                 }
@@ -651,8 +686,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
             /// </summary>
             /// <remarks>
             /// IFC 4 standard stores IIfcQuantityWeight values in kilograms.
-            /// The result is converted to metric tons by the caller via
-            /// <c>/ UnitSystem.KilogramsPerTon</c>.
+            /// Runtime element weights are canonical metric tons, matching crane
+            /// load charts and GA capacity checks.
             ///
             /// LIMITATION: If a non-standard IFC file encodes mass in a
             /// different unit (e.g. lbs) via IfcPropertySingleValue, the
@@ -660,8 +695,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
             /// </remarks>
             private double? GetWeight(IIfcProduct product)
             {
-                return GetQuantity(product, "weight", "mass")
-                    ?? GetPropertyDouble(product, "weight", "mass");
+                return GetQuantityWeightTons(product, "weight", "mass")
+                    ?? GetPropertyWeightTons(product, "weight", "mass");
             }
 
             private static string? GetRevitId(IIfcProduct product)
@@ -761,6 +796,26 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return null;
             }
 
+            private double? GetQuantityWeightTons(IIfcProduct product, params string[] keywords)
+            {
+                var quantitySets = product.IsDefinedBy
+                    .Where(r => r.RelatingPropertyDefinition is IIfcElementQuantity)
+                    .Select(r => (IIfcElementQuantity)r.RelatingPropertyDefinition);
+
+                foreach (var quantitySet in quantitySets)
+                {
+                    foreach (var quantity in quantitySet.Quantities.OfType<IIfcQuantityWeight>())
+                    {
+                        if (!ContainsAny(quantity.Name.ToString(), keywords))
+                            continue;
+
+                        return UnitSystem.ToTons(quantity.WeightValue, MassUnit.Kilogram);
+                    }
+                }
+
+                return null;
+            }
+
             /// <summary>
             /// Searches property sets for a numeric property matching the keywords.
             /// </summary>
@@ -797,6 +852,59 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }
 
                 return null;
+            }
+
+            private double? GetPropertyWeightTons(IIfcProduct product, params string[] keywords)
+            {
+                var propertySets = product.IsDefinedBy
+                    .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
+                    .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition);
+
+                foreach (var propertySet in propertySets)
+                {
+                    foreach (var property in propertySet.HasProperties.OfType<IIfcPropertySingleValue>())
+                    {
+                        var propertyName = property.Name.ToString();
+                        if (!ContainsAny(propertyName, keywords))
+                            continue;
+
+                        if (!double.TryParse(
+                            property.NominalValue?.ToString(),
+                            NumberStyles.Any,
+                            CultureInfo.InvariantCulture,
+                            out var parsed))
+                        {
+                            continue;
+                        }
+
+                        return ConvertWeightPropertyToTons(parsed, propertyName, property.Unit?.ToString());
+                    }
+                }
+
+                return null;
+            }
+
+            private static double ConvertWeightPropertyToTons(double value, string propertyName, string? unitName)
+            {
+                var source = $"{propertyName} {unitName}".Trim();
+
+                if (source.Contains("kg", StringComparison.OrdinalIgnoreCase) ||
+                    source.Contains("kilo", StringComparison.OrdinalIgnoreCase))
+                {
+                    return UnitSystem.ToTons(value, MassUnit.Kilogram);
+                }
+
+                if (source.Contains("ton", StringComparison.OrdinalIgnoreCase) ||
+                    source.Contains("tonne", StringComparison.OrdinalIgnoreCase))
+                {
+                    return value;
+                }
+
+                // Tekla often writes plain numeric "Weight" properties in kilograms.
+                // Smaller values are kept as tons to avoid changing hand-authored data.
+                return value > 100d
+                    ? UnitSystem.ToTons(value, MassUnit.Kilogram)
+                    : value;
             }
 
             private string? GetMaterial(IIfcProduct product)

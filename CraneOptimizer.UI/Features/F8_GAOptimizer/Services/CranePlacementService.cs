@@ -87,6 +87,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 {
                     X = bestPoint.X,
                     Y = bestPoint.Y,
+                    Z = bestPoint.Z,
                     NewLiftableCount = newElements.Count,
                     ElementResults = bestPoint.ElementResults
                 });
@@ -155,6 +156,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 {
                     X = scenePoint.X,
                     Y = scenePoint.Y,
+                    Z = scenePoint.Z,
                     ElementResults = evaluations
                         .Select(evaluation => MapElementResult(evaluation, elementLookup))
                         .ToList()

@@ -218,9 +218,21 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             double offsetX = (maxX - minX) * 0.1 + 10; // 10% of model width + 10m offset
             double craneX = maxX + offsetX;
             double craneY = (minY + maxY) / 2.0; // Center of model in Y
-            double craneZ = minZ; // Ground level
+            double craneZ = CalculateSceneGroundElevation();
 
             return new DomainPoint3D(craneX, craneY, craneZ);
+        }
+
+        private double CalculateSceneGroundElevation()
+        {
+            var zoneVertices = Scene.GetZones()
+                .Where(zone => zone.Vertices.Count > 0)
+                .SelectMany(zone => zone.Vertices)
+                .ToList();
+
+            return zoneVertices.Count > 0
+                ? zoneVertices.Average(vertex => vertex.Z)
+                : 0d;
         }
 
         public CraneSpecification? SelectedCraneSpec =>

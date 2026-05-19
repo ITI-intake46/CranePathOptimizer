@@ -106,7 +106,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
 
         internal static string FormatPointCoordinates(CranePositionResult point)
         {
-            return $"({point.X:F0}, {point.Y:F0})";
+            return Math.Abs(point.Z) > 0.005
+                ? $"({point.X:F0}, {point.Y:F0}, Z {point.Z:F2})"
+                : $"({point.X:F0}, {point.Y:F0})";
         }
 
         private static int ParseInt(string? value, int fallback)

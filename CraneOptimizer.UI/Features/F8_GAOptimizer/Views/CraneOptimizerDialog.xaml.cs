@@ -241,7 +241,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                              activeSpec.MaxBoomLength)
                 : 20;
 
-            var position = new DomainPoint3D(point.X, point.Y, 0);
+            var position = new DomainPoint3D(point.X, point.Y, point.Z);
             var pivotOffset = new DomainPoint3D(0, 0, Math.Max(1.2, crane.VehicleHeight));
 
             // Check whether our tracked crane is still in the scene
@@ -500,7 +500,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
             // Sync position into CraneSetupViewModel (for compatibility with F3 UI)
             // Guard against null in case the service was not fully injected.
-            _craneSetup?.LockPosition(new DomainPoint3D(item.Point.X, item.Point.Y, 0));
+            _craneSetup?.LockPosition(new DomainPoint3D(item.Point.X, item.Point.Y, item.Point.Z));
 
             // The scene crane is already at the correct position (moved by ShowPoint).
             // Just close — the crane persists in the scene.

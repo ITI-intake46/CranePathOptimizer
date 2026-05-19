@@ -65,6 +65,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         public double Y { get; set; }
 
         /// <summary>
+        /// Ground elevation of the crane setup point in scene/display coordinates.
+        /// </summary>
+        public double Z { get; set; }
+
+        /// <summary>
         /// Number of elements newly lifted by this crane that were not
         /// covered by any earlier crane position. Used for display ordering.
         /// </summary>

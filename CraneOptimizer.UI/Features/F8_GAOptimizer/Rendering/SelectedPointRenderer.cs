@@ -77,7 +77,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
             if (point == null)
                 return;
 
-            RenderPoint(renderingService, point.X, point.Y, MarkerElevationOffset);
+            RenderPoint(renderingService, point.X, point.Y, point.Z + MarkerElevationOffset);
 
             if (elements == null || ifcReader == null)
                 return;

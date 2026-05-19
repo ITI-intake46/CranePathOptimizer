@@ -8,6 +8,7 @@ namespace CraneOptimizer.Domain.Interfaces
         List<PrecastElement> ReadElements(string path, IProgress<double> progress);
         
         double ModelLengthFactor { get; }
+        double? ModelGroundElevation { get; }
         
         void ClearData();
     }
