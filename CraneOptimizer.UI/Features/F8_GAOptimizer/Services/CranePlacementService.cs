@@ -110,13 +110,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     .ToList();
             }
 
-            finalResult.CoverageRatio = allElements.Count == 0
-                ? 0
-                : (double)coveredElements.Count / allElements.Count;
+            DeduplicateFinalPositions(finalResult, input.Settings);
+            RecalculateCoverage(finalResult, allElements.Count);
+
             finalResult.FitnessScore = finalResult.CoverageRatio;
             finalResult.Positions = finalResult.Positions
                 .OrderByDescending(position => position.NewLiftableCount)
                 .ToList();
+
+            RecalculateCoverage(finalResult, allElements.Count);
+            WriteDebugReport(finalResult);
 
             return finalResult;
         }
@@ -133,6 +136,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 Positions = new List<CranePositionResult>(solution.Chromosome.CranePositions.Count)
             };
 
+            var elementLookup = elements
+                .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
+                .GroupBy(element => element.ElementID, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
             for (int i = 0; i < solution.Chromosome.CranePositions.Count; i++)
             {
                 var scenePoint = _coordinateService.DenormalizePoint(solution.Chromosome.CranePositions[i]);
@@ -148,13 +156,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     X = scenePoint.X,
                     Y = scenePoint.Y,
                     ElementResults = evaluations
-                        .Select(evaluation => new ElementLiftResult
-                        {
-                            ElementId = evaluation.ElementId,
-                            Status = evaluation.Status,
-                            Radius = evaluation.Radius,
-                            RequiredCapacity = evaluation.RequiredCapacity
-                        })
+                        .Select(evaluation => MapElementResult(evaluation, elementLookup))
                         .ToList()
                 };
 
@@ -170,6 +172,47 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 : (double)result.Statistics.Liftable / totalElements;
 
             return result;
+        }
+
+        private ElementLiftResult MapElementResult(
+            ElementEvaluationResult evaluation,
+            IReadOnlyDictionary<string, PrecastElement> elementLookup)
+        {
+            elementLookup.TryGetValue(evaluation.ElementId, out var element);
+
+            var sceneCog = element == null
+                ? new Domain.Common.DomainPoint3D()
+                : _coordinateService.DenormalizePoint(element.ElementCOG);
+
+            return new ElementLiftResult
+            {
+                ElementId = evaluation.ElementId,
+                ElementMark = element?.ElementMark,
+                ElementType = element?.ElementType,
+                Weight = element?.ElementWT,
+                CogX = sceneCog.X,
+                CogY = sceneCog.Y,
+                CogZ = sceneCog.Z,
+                Status = evaluation.Status,
+                Radius = evaluation.Radius,
+                BoomLength = evaluation.BoomLength,
+                AvailableCapacity = evaluation.AvailableCapacity,
+                RequiredCapacity = evaluation.RequiredCapacity
+            };
+        }
+
+        private static void WriteDebugReport(CranePlacementResult result)
+        {
+            try
+            {
+                result.DebugReportPath = GADebugReportWriter.Write(result);
+                result.DebugReportError = null;
+            }
+            catch (Exception ex)
+            {
+                result.DebugReportPath = null;
+                result.DebugReportError = ex.Message;
+            }
         }
 
         private static void UpdateStatistics(LiftStatistics statistics, LiftStatus status)
@@ -192,6 +235,90 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     statistics.SpecialCase++;
                     break;
             }
+        }
+
+        /// <summary>
+        /// Filters final crane setup points so small adjustments are not presented
+        /// as separate crane relocations. Inputs are the optimization result and GA settings;
+        /// the output is an in-place list where near-identical points keep the stronger
+        /// coverage candidate and discard the weaker duplicate.
+        /// </summary>
+        private static void DeduplicateFinalPositions(
+            CranePlacementResult result,
+            GASettings settings)
+        {
+            if (result.Positions.Count < 2)
+                return;
+
+            double minimumDistanceMeters = Math.Max(
+                settings.DuplicatePositionDistance,
+                settings.MinimumRelocationDistance);
+
+            if (minimumDistanceMeters <= 0)
+                return;
+
+            double minimumDistance = minimumDistanceMeters * CoordinateService.MetersToMillimetersScale;
+
+            var filtered = new List<CranePositionResult>();
+
+            foreach (var candidate in result.Positions)
+            {
+                int nearIndex = filtered.FindIndex(existing =>
+                    Distance2D(existing, candidate) < minimumDistance);
+
+                if (nearIndex < 0)
+                {
+                    filtered.Add(candidate);
+                    continue;
+                }
+
+                var existing = filtered[nearIndex];
+                if (candidate.NewLiftableCount > existing.NewLiftableCount
+                    || (candidate.NewLiftableCount == existing.NewLiftableCount
+                        && candidate.LiftableCount > existing.LiftableCount))
+                {
+                    filtered[nearIndex] = candidate;
+                }
+            }
+
+            result.Positions = filtered;
+        }
+
+        /// <summary>
+        /// Recomputes total coverage and per-point new coverage after final de-duplication.
+        /// Inputs are the filtered result and original element count; outputs are updated
+        /// NewLiftableCount and CoverageRatio values consistent with displayed points.
+        /// </summary>
+        private static void RecalculateCoverage(CranePlacementResult result, int totalElementCount)
+        {
+            var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var position in result.Positions)
+            {
+                var newlyCovered = position.ElementResults
+                    .Where(item => item.Status == LiftStatus.Liftable && covered.Add(item.ElementId))
+                    .Count();
+
+                position.NewLiftableCount = newlyCovered;
+            }
+
+            result.LiftedElementCount = covered.Count;
+            result.TotalElementCount = totalElementCount;
+            result.CoverageRatio = totalElementCount == 0
+                ? 0
+                : (double)covered.Count / totalElementCount;
+        }
+
+        /// <summary>
+        /// Calculates horizontal distance between two displayed crane positions.
+        /// F8 result points are denormalized back to millimeters before display, so the
+        /// caller converts engineering thresholds from meters to millimeters first.
+        /// </summary>
+        private static double Distance2D(CranePositionResult a, CranePositionResult b)
+        {
+            double dx = a.X - b.X;
+            double dy = a.Y - b.Y;
+            return Math.Sqrt(dx * dx + dy * dy);
         }
     }
 }

@@ -40,6 +40,16 @@
         public double HeightPenalty { get; set; }
 
         /// <summary>
+        /// Penalty applied when setup points are closer than the engineering relocation threshold.
+        /// </summary>
+        public double SimilarPositionPenalty { get; set; }
+
+        /// <summary>
+        /// Penalty applied for cumulative movement distance between sequential setup points.
+        /// </summary>
+        public double RelocationDistancePenalty { get; set; }
+
+        /// <summary>
         /// Number of elements successfully assigned to crane positions.
         /// </summary>
         public int LiftableElements { get; set; }

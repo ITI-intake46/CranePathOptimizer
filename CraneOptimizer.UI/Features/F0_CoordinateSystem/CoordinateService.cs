@@ -47,6 +47,8 @@ namespace CraneOptimizer.UI.Features.F0_CoordinateSystem
             return new PrecastElement
             {
                 ElementID = element.ElementID,
+                ElementRevitId = element.ElementRevitId,
+                ElementMark = element.ElementMark,
                 ElementType = element.ElementType,
                 ElementLength = NormalizeNullableLength(element.ElementLength),
                 ElementWidth = NormalizeNullableLength(element.ElementWidth),

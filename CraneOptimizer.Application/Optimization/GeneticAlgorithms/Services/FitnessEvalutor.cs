@@ -40,21 +40,31 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     ///     tournament selection and elitism implementations.
     ///     We clamp the final value at 0.
     ///
-    ///  7. NEW — Duplicate coverage is penalised.
+    ///  7. Duplicate coverage is penalised.
     ///     If multiple crane positions lift the SAME element,
     ///     only one counts toward coverage; the rest are penalised.
     ///     This forces GA to distribute lifting across positions.
     ///
+    ///  8. RadiusPenaltyWeight and RadiusQualityPenaltyWeight are kept
+    ///     separate (Issue 8 fix). RadiusPenaltyWeight penalises the count
+    ///     of out-of-radius elements; RadiusQualityPenaltyWeight penalises
+    ///     the average working-radius magnitude independently.
+    ///
+    ///  9. Balance penalty uses liftable-only counts per crane (Issue 10 fix).
+    ///     Cranes that attract many elements they cannot lift are not
+    ///     counted as "busy" — only confirmed Liftable assignments matter.
+    ///
     /// ── Fitness formula ──────────────────────────────────────────────
     ///
     ///   fitness =
-    ///       CoverageWeight        * coverageRatio
-    ///     - RelocationWeight      * relocationPenalty
-    ///     - RadiusPenaltyWeight   * outOfRadius
-    ///     - OverweightWeight      * overweight
-    ///     - HeightPenaltyWeight   * heightFail
-    ///     - SpecialCaseWeight     * specialCase
-    ///     - DuplicationWeight     * duplicationPenalty   ← NEW
+    ///       CoverageWeight             * coverageRatio
+    ///     - RelocationWeight           * relocationPenalty
+    ///     - RadiusPenaltyWeight        * outOfRadiusFraction
+    ///     - OverweightWeight           * overweightFraction
+    ///     - HeightPenaltyWeight        * heightFailFraction
+    ///     - SpecialCaseWeight          * specialCaseFraction
+    ///     - RadiusQualityPenaltyWeight * avgRadiusQuality  ← uses own weight
+    ///     - BalancePenaltyWeight       * liftableVariance  ← liftable only
     ///
     /// </summary>
     public class FitnessEvaluator : IFitnessEvaluator
@@ -147,11 +157,23 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // 5. BALANCE & RADIUS STD-DEV PENALTIES
             // ══════════════════════════════════════════════════════
 
-            var countsPerCrane = assignment.AssignedElements.Select(kv => kv.Value.Count).ToList();
-            double variance = countsPerCrane.Count > 1 ? 
-                countsPerCrane.Average(c => Math.Pow(c - countsPerCrane.Average(), 2)) : 0;
-            double normalizedVariance = total > 0 ? Math.Min(variance / total, 1.0) : 0;
-            double balancePenalty = settings.BalancePenaltyWeight * normalizedVariance;
+            // Issue 10 fix: use AssignedLiftableElements (only confirmed
+            // Liftable results) so that cranes with many nearby-but-failed
+            // elements are not mistakenly counted as "busy" and do not
+            // incorrectly inflate the balance signal.
+            var liftableCountsPerCrane = assignment.AssignedLiftableElements
+                .Select(kv => kv.Value.Count)
+                .ToList();
+
+            // If no crane has any liftable elements, variance is zero.
+            double balancePenalty = 0;
+            if (liftableCountsPerCrane.Count > 1)
+            {
+                double avgLiftable = liftableCountsPerCrane.Average();
+                double variance = liftableCountsPerCrane.Average(c => Math.Pow(c - avgLiftable, 2));
+                double normalizedVariance = total > 0 ? Math.Min(variance / total, 1.0) : 0;
+                balancePenalty = settings.BalancePenaltyWeight * normalizedVariance;
+            }
 
             var liftableRadii = results.Where(r => r.Status == LiftStatus.Liftable).Select(r => r.Radius).ToList();
             double radiusStdDev = liftableRadii.Count > 1 ? 
@@ -159,6 +181,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             double normalizedStdDev = settings.MaxRadiusForNormalisation > 0 ? 
                 Math.Min(radiusStdDev / settings.MaxRadiusForNormalisation, 1.0) : 0;
             double radiusStdDevPenalty = settings.RadiusStdDevPenaltyWeight * normalizedStdDev;
+
+            // Similar setup points are not real engineering relocations.
+            // Penalize near-duplicate crane positions so the GA cannot treat
+            // 1-2 meter adjustments as independent setup locations.
+            double similarPositionPenalty =
+                CranePlacementConstraintService.CalculateSimilarityPenalty(
+                    solution.Chromosome.CranePositions,
+                    settings);
+
+            // Movement distance is a proxy for mobilization/travel effort.
+            // This complements the existing relocation-count penalty.
+            double relocationDistancePenalty =
+                CranePlacementConstraintService.CalculateNormalizedRelocationDistance(
+                    solution.Chromosome.CranePositions,
+                    settings);
 
             // ══════════════════════════════════════════════════════
             // 6. FINAL FITNESS
@@ -171,9 +208,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 - settings.OverweightPenaltyWeight * normOverweight
                 - settings.HeightPenaltyWeight * normHeightFail
                 - SpecialCasePenaltyWeight * normSpecialCase
-                - settings.RadiusPenaltyWeight * radiusQualityPenalty
+                // Issue 8 fix: use RadiusQualityPenaltyWeight (not RadiusPenaltyWeight)
+                // for the working-radius magnitude penalty, so these two independent
+                // sub-penalties don't share the same coefficient.
+                - settings.RadiusQualityPenaltyWeight * radiusQualityPenalty
                 - balancePenalty
-                - radiusStdDevPenalty;
+                - radiusStdDevPenalty
+                - settings.SimilarPositionPenaltyWeight * similarPositionPenalty
+                - settings.RelocationDistancePenaltyWeight * relocationDistancePenalty;
 
             fitness = Math.Max(0, fitness);
 
@@ -189,6 +231,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             breakdown.RadiusPenalty = normOutOfRadius;
             breakdown.OverweightPenalty = normOverweight;
             breakdown.HeightPenalty = normHeightFail;
+            breakdown.SimilarPositionPenalty = similarPositionPenalty;
+            breakdown.RelocationDistancePenalty = relocationDistancePenalty;
 
             return breakdown;
         }

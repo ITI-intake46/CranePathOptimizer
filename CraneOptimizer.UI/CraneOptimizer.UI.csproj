@@ -39,10 +39,13 @@
   <ItemGroup>
     <None Remove="appsettings.json" />
     <None Remove="Data\crane.db" />
-    <None Remove="ICONS\restricted-area.png" />
-    <None Remove="ICONS\ruler.png" />
-    <None Remove="ICONS\safe-zone %281%29.png" />
-    <None Remove="ICONS\safe-zone.png" />
+    <None Remove="Resources\Icons\map-pin-check %281%29_white.png" />
+    <None Remove="Resources\Icons\map-pin-check.png" />
+    <None Remove="Resources\Icons\map-pin-x %281%29_white.png" />
+    <None Remove="Resources\Icons\map-pin-x.png" />
+    <None Remove="Resources\Icons\map-pin_check.png" />
+    <None Remove="Resources\Icons\map-pin_X.png" />
+    <None Remove="Resources\Icons\ruler.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -65,7 +68,7 @@
     <Folder Include="Features\F4_LoadChart\Services\" />
     <Folder Include="Features\F4_LoadChart\ViewModels\" />
     <Folder Include="Features\F5_ElementManagement\" />
-    <Folder Include="Features\F9_Settings\" />
+    <Folder Include="Features\F9_UserSettings\" />
     <Folder Include="Features\F16_Filter\" />
     <Folder Include="Shared\Assets\" />
     <Folder Include="Shell\ViewModels\" />
@@ -85,16 +88,25 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="ICONS\restricted-area.png">
+    <Resource Include="Resources\Icons\map-pin-check (1)_white.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="ICONS\ruler.png">
+    <Resource Include="Resources\Icons\map-pin-check.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="ICONS\safe-zone (1).png">
+    <Resource Include="Resources\Icons\map-pin-x (1)_white.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="ICONS\safe-zone.png">
+    <Resource Include="Resources\Icons\map-pin-x.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Icons\map-pin_check.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Icons\map-pin_X.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Icons\ruler.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
   </ItemGroup>

@@ -13,6 +13,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
         /// <summary>
         /// Mutates the solution position slightly.
         /// </summary>
-        void Mutate(CraneSolution solution, List<GreenAreaZone> zones, GASettings settings);
+        void Mutate(
+            CraneSolution solution,
+            List<GreenAreaZone> zones,
+            List<GreenAreaZone> forbiddenZones,
+            GASettings settings);
     }
 }

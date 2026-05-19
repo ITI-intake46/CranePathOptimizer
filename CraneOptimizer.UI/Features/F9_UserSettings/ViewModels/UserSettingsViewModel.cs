@@ -1,5 +1,6 @@
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
+using CraneOptimizer.UI.Features.F9_Settings.DTOs;
 using System.Windows.Input;
 
 namespace CraneOptimizer.UI.Features.F9_Settings.ViewModels
@@ -16,6 +17,14 @@ namespace CraneOptimizer.UI.Features.F9_Settings.ViewModels
         public UserSettingsViewModel()
         {
             LogoutCommand = new RelayCommand(Logout);
+        }
+
+        public void ApplySettings(UserSettingsDto settings)
+        {
+            UserId = settings.UserId;
+            UserName = settings.UserName;
+            OfflineUntil = settings.OfflineUntil;
+            LicenceName = settings.LicenceName;
         }
 
         private void Logout()

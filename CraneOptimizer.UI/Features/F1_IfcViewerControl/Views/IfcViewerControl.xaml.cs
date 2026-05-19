@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
+using System.Windows.Threading;
 using HelixToolkit.Wpf;
 using Microsoft.Extensions.DependencyInjection;
 using CraneOptimizer.Domain.Schemas;
@@ -14,7 +15,6 @@ using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Views;
-using CraneOptimizer.UI.Features.F5_ElementManagement.Services;
 using CraneOptimizer.UI.Features.F7_Zones;
 using CraneOptimizer.UI.Shell.Interaction;
 using CraneOptimizer.UI.Shell.ViewModels;
@@ -25,7 +25,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
     {
         private readonly IRenderingService _renderingService = null!;
         private readonly ISceneService _sceneService = null!;
-        private readonly IElementGridSizingService _elementGridSizingService = null!;
+        private readonly ISceneGridSizingService _sceneGridSizingService = null!;
         private readonly IViewportInteractionService _interactionService = null!;
         private readonly IViewportHitTestService _hitTestService = null!;
         private readonly ICameraService _cameraService = null!;
@@ -39,6 +39,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private double _gridCenterXMillimeters;
         private double _gridCenterYMillimeters;
         private string _lastElementSceneKey = string.Empty;
+        private bool _pendingWheelClipUpdate;
 
         private OsnapIndicator? _osnapIndicator;
 
@@ -51,7 +52,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
             _renderingService = App.ServiceProvider.GetRequiredService<IRenderingService>();
             _sceneService = App.ServiceProvider.GetRequiredService<ISceneService>();
-            _elementGridSizingService = App.ServiceProvider.GetRequiredService<IElementGridSizingService>();
+            _sceneGridSizingService = App.ServiceProvider.GetRequiredService<ISceneGridSizingService>();
             _interactionService = App.ServiceProvider.GetRequiredService<IViewportInteractionService>();
             _hitTestService = App.ServiceProvider.GetRequiredService<IViewportHitTestService>();
             _cameraService = App.ServiceProvider.GetRequiredService<ICameraService>();
@@ -160,7 +161,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             if (!_manualGridSize)
             {
                 var (widthMeters, lengthMeters, centerXMillimeters, centerYMillimeters) =
-                    _elementGridSizingService.CalculateGridSizeMeters(elements);
+                    _sceneGridSizingService.CalculateGridSizeMeters(elements);
                 _gridCenterXMillimeters = centerXMillimeters;
                 _gridCenterYMillimeters = centerYMillimeters;
                 SetGridText(widthMeters, lengthMeters);
@@ -235,6 +236,18 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private void IfcViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
             _cameraService.UpdateClipping(_sceneService.GetElements());
+
+            if (sender is HelixViewport3D viewport && !_pendingWheelClipUpdate)
+            {
+                _pendingWheelClipUpdate = true;
+                viewport.Dispatcher.BeginInvoke(
+                    DispatcherPriority.Background,
+                    new Action(() =>
+                    {
+                        _pendingWheelClipUpdate = false;
+                        _cameraService.UpdateClipping(_sceneService.GetElements());
+                    }));
+            }
         }
 
         private void ResetCamera_Click(object sender, RoutedEventArgs e)
@@ -246,29 +259,52 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 _cameraService.ZoomToElements(elements);
         }
 
-        private void RenderQualityDropBtn_Click(object sender, RoutedEventArgs e)
+        private void RenderQualityCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            RenderQualityPopup.IsOpen = true;
-        }
+            if (RenderQualityCombo.SelectedItem is not ComboBoxItem item)
+                return;
 
-        private void RenderQuality_Changed(object sender, RoutedEventArgs e)
-        {
-            if (DataContext is not MainViewModel vm) return;
+            var selectedQuality = item.Tag?.ToString() switch
+            {
+                "High" => ElementVisualBuilder.MeshQuality.High,
+                "Low" => ElementVisualBuilder.MeshQuality.Low,
+                _ => ElementVisualBuilder.MeshQuality.Medium
+            };
 
-            if (rbRenderHigh.IsChecked == true)
-            {
-                ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.High;
-                vm.RenderQualityLabel = "HIGH";
-            }
-            else
-            {
-                ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.Standard;
-                vm.RenderQualityLabel = "STD";
-            }
+            var qualityChanged = ElementVisualBuilder.CurrentQuality != selectedQuality;
+            ElementVisualBuilder.CurrentQuality = selectedQuality;
+
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            vm.RenderQualityLabel = GetRenderQualityDisplayName(selectedQuality);
+
+            if (!qualityChanged)
+                return;
 
             vm.ReRenderElements();
             _cameraService.UpdateClipping(_sceneService.GetElements());
-            vm.StatusText = $"Render quality: {vm.RenderQualityLabel}";
+            vm.StatusText = $"Render quality: {GetRenderQualityDescription(selectedQuality)}";
+        }
+
+        private static string GetRenderQualityDisplayName(ElementVisualBuilder.MeshQuality quality)
+        {
+            return quality switch
+            {
+                ElementVisualBuilder.MeshQuality.High => "High",
+                ElementVisualBuilder.MeshQuality.Low => "Low",
+                _ => "Medium"
+            };
+        }
+
+        private static string GetRenderQualityDescription(ElementVisualBuilder.MeshQuality quality)
+        {
+            return quality switch
+            {
+                ElementVisualBuilder.MeshQuality.High => "High - detailed IFC meshes",
+                ElementVisualBuilder.MeshQuality.Low => "Low - batched bounding boxes",
+                _ => "Medium - simplified IFC meshes"
+            };
         }
 
         private void ApplyGridSize_Click(object sender, RoutedEventArgs e)

@@ -34,6 +34,12 @@
         public double BoomLength { get; set; }
 
         /// <summary>
+        /// Available crane capacity from the load chart at the evaluated radius and boom length.
+        /// Uses the same derating and safety factors as lift-status determination.
+        /// </summary>
+        public double AvailableCapacity { get; set; }
+
+        /// <summary>
         /// Required lifting capacity to lift the element.
         /// </summary>
         public double RequiredCapacity { get; set; }
