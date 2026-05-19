@@ -364,8 +364,8 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                 .Select(e => e.ElementHeight ?? e.BBoxHeight ?? 0d)
                 .Where(height => height > 0)
                 .ToList();
-            var min = heights.Count == 0 ? 0 : heights.Min() / 1000d;
-            var max = heights.Count == 0 ? 0 : heights.Max() / 1000d;
+            var min = heights.Count == 0 ? 0 : heights.Min();
+            var max = heights.Count == 0 ? 0 : heights.Max();
             TxtHeightChip.Text = $"Height: {min:0.##} - {max:0.##} m";
         }
 
@@ -519,10 +519,11 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                         foreach (var element in orderedElements)
                         {
                             var weightKg = ElementWeightCalculator.GetWeightKg(element);
+                            var weightTons = ElementWeightCalculator.GetWeightTons(element);
                             parent.Children.Add(FilterHierarchyNode.CreateElement(
                                 element,
                                 ElementDisplayNameConverter.GetDisplayName(element),
-                                ElementWeightCalculator.FormatWeight(weightKg, ElementWeightCalculator.IsEstimated(element)),
+                                ElementWeightCalculator.FormatWeight(weightTons, ElementWeightCalculator.IsEstimated(element)),
                                 weightKg,
                                 element.ElementMaterial,
                                 _visibilityFilter?.IsElementIncluded(element) ?? true,

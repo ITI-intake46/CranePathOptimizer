@@ -25,6 +25,43 @@
                        Foreground="{DynamicResource TextSecondaryBrush}"
                        Margin="16,0,0,40"/>
 
+            <TextBlock Text="Project units"
+                       FontSize="{StaticResource FontSizeLG}"
+                       FontWeight="SemiBold"
+                       FontFamily="{StaticResource FontPrimary}"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       Margin="0,0,0,15"/>
+
+            <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="6" Padding="25" Margin="0,0,0,30">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Units"
+                                   FontFamily="{StaticResource FontPrimary}"
+                                   FontSize="{StaticResource FontSizeLG}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,0,0,4"/>
+                        <TextBlock Text="Controls how dimensions and weights are displayed. Calculations and storage stay normalized."
+                                   FontFamily="{StaticResource FontPrimary}"
+                                   FontSize="{StaticResource FontSizeXS}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            Width="140"
+                            Height="36"
+                            Content="Units..."
+                            Style="{StaticResource ButtonPrimary}"
+                            Click="OpenUnits_Click"/>
+                </Grid>
+            </Border>
+
             <!-- User information -->
             <TextBlock Text="User information"
                        FontSize="{StaticResource FontSizeLG}"

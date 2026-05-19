@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.UI.Features.F4_LoadChart.DTOs;
 using CraneOptimizer.UI.Features.F4_LoadChart.Services;
@@ -18,13 +19,15 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
     {
         private readonly LoadChartCatalogService _catalogService;
         private readonly LoadChartCraneDto? _existingCrane;
+        private readonly IUnitSettingsService _unitSettingsService;
+        private UnitSettings _unitSettings;
         private ParsedLoadChart? _nominalChart;
         private List<string> _gridHeaders = new();
-        private double _vehicleLengthMm;
-        private double _vehicleHeightMm;
-        private double _vehicleWidthMm;
-        private double? _outriggerWidthMm;
-        private double? _outriggerLengthMm;
+        private double _vehicleLengthMeters;
+        private double _vehicleHeightMeters;
+        private double _vehicleWidthMeters;
+        private double? _outriggerWidthMeters;
+        private double? _outriggerLengthMeters;
 
         public LoadChartImportDialog(LoadChartCraneDto? craneToEdit = null)
         {
@@ -32,7 +35,10 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
             var factory = App.ServiceProvider.GetRequiredService<IDbContextFactory<CraneDbContext>>();
             _catalogService = new LoadChartCatalogService(factory);
+            _unitSettingsService = App.ServiceProvider.GetRequiredService<IUnitSettingsService>();
+            _unitSettings = _unitSettingsService.Current;
             _existingCrane = craneToEdit;
+            ApplyUnitLabels();
             RefreshDimensionsSummary();
 
             if (_existingCrane != null)
@@ -45,13 +51,13 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             TxtModel.Text = crane.Name;
             TxtMfg.Text = crane.Manufacturer;
             SelectOutriggerConfig(crane.OutriggerConfig);
-            TxtCounterweight.Text = crane.Counterweight.ToString(CultureInfo.InvariantCulture);
-            TxtMaxRadius.Text = crane.MaxRadius.ToString(CultureInfo.InvariantCulture);
-            _vehicleLengthMm = crane.VehicleLengthMm;
-            _vehicleHeightMm = crane.VehicleHeightMm;
-            _vehicleWidthMm = crane.VehicleWidthMm;
-            _outriggerWidthMm = crane.OutriggerWidthMm;
-            _outriggerLengthMm = crane.OutriggerLengthMm;
+            TxtCounterweight.Text = FormatMassInput(crane.Counterweight);
+            TxtMaxRadius.Text = FormatLengthInput(crane.MaxRadius);
+            _vehicleLengthMeters = crane.VehicleLengthMeters;
+            _vehicleHeightMeters = crane.VehicleHeightMeters;
+            _vehicleWidthMeters = crane.VehicleWidthMeters;
+            _outriggerWidthMeters = crane.OutriggerWidthMeters;
+            _outriggerLengthMeters = crane.OutriggerLengthMeters;
             RefreshDimensionsSummary();
 
             SetNominalChart(LoadChartCsvService.ParseRawGrid(BuildRawGridFromDto(crane)));
@@ -141,7 +147,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 if (string.IsNullOrWhiteSpace(TxtModel.Text))
                     TxtModel.Text = Path.GetFileNameWithoutExtension(path);
 
-                TxtMaxRadius.Text = _nominalChart?.MaxRadius.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+                TxtMaxRadius.Text = _nominalChart == null ? string.Empty : FormatLengthInput(_nominalChart.MaxRadius);
 
                 TxtStatus.Text = $"Loaded {Path.GetFileName(path)}.";
             }
@@ -184,11 +190,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         private void BtnToggleDimensions_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new CraneDimensionsDialog(
-                _vehicleLengthMm,
-                _vehicleHeightMm,
-                _vehicleWidthMm,
-                _outriggerWidthMm,
-                _outriggerLengthMm)
+                _vehicleLengthMeters,
+                _vehicleHeightMeters,
+                _vehicleWidthMeters,
+                _outriggerWidthMeters,
+                _outriggerLengthMeters)
             {
                 Owner = this
             };
@@ -196,11 +202,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             if (dialog.ShowDialog() != true)
                 return;
 
-            _vehicleLengthMm = dialog.VehicleLengthMm;
-            _vehicleHeightMm = dialog.VehicleHeightMm;
-            _vehicleWidthMm = dialog.VehicleWidthMm;
-            _outriggerWidthMm = dialog.OutriggerWidthMm;
-            _outriggerLengthMm = dialog.OutriggerLengthMm;
+            _vehicleLengthMeters = dialog.VehicleLengthMeters;
+            _vehicleHeightMeters = dialog.VehicleHeightMeters;
+            _vehicleWidthMeters = dialog.VehicleWidthMeters;
+            _outriggerWidthMeters = dialog.OutriggerWidthMeters;
+            _outriggerLengthMeters = dialog.OutriggerLengthMeters;
             RefreshDimensionsSummary();
             TxtStatus.Text = "Crane dimensions updated.";
         }
@@ -225,21 +231,21 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 var chartForSave = LoadChartCsvService.ParseTable(dataView.Table, _gridHeaders);
 
                 if (TryParseOptionalNumber(TxtMaxCap.Text, "Max Capacity", out double manualMaxCapacity))
-                    chartForSave = CopyChartWith(chartForSave, maxCapacity: manualMaxCapacity);
+                    chartForSave = CopyChartWith(chartForSave, maxCapacity: UnitSystem.ToTons(manualMaxCapacity, _unitSettings.DisplayMassUnit));
 
                 if (TryParseOptionalNumber(TxtMaxRadius.Text, "Max Radius", out double manualMaxRadius))
-                    chartForSave = CopyChartWith(chartForSave, maxRadius: manualMaxRadius);
+                    chartForSave = CopyChartWith(chartForSave, maxRadius: UnitSystem.ToMeters(manualMaxRadius, _unitSettings.DisplayLengthUnit));
 
                 var crane = LoadChartCatalogService.BuildCraneDto(
                     TxtModel.Text.Trim(),
                     TxtMfg.Text.Trim(),
                     GetSelectedOutriggerConfig(),
-                    ParseNumberOrZero(TxtCounterweight.Text, "Counterweight"),
-                    _vehicleLengthMm,
-                    _vehicleHeightMm,
-                    _vehicleWidthMm,
-                    _outriggerWidthMm,
-                    _outriggerLengthMm,
+                    UnitSystem.ToTons(ParseNumberOrZero(TxtCounterweight.Text, "Counterweight"), _unitSettings.DisplayMassUnit),
+                    _vehicleLengthMeters,
+                    _vehicleHeightMeters,
+                    _vehicleWidthMeters,
+                    _outriggerWidthMeters,
+                    _outriggerLengthMeters,
                     chartForSave,
                     _existingCrane?.Id ?? 0);
 
@@ -292,23 +298,23 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         private void UpdateGridStats(ParsedLoadChart parsedChart)
         {
             TxtGridStats.Text =
-                $"{parsedChart.PreviewTable.Rows.Count} radii | {parsedChart.PreviewTable.Columns.Count - 1} booms | max {FormatCapacity(parsedChart.MaxCapacity)} t";
+                $"{parsedChart.PreviewTable.Rows.Count} radii | {parsedChart.PreviewTable.Columns.Count - 1} booms | max {UnitSystem.FormatMass(parsedChart.MaxCapacity, _unitSettings)}";
         }
 
         private void RefreshDimensionsSummary()
         {
             var parts = new List<string>();
 
-            if (_vehicleLengthMm > 0 || _vehicleWidthMm > 0 || _vehicleHeightMm > 0)
+            if (_vehicleLengthMeters > 0 || _vehicleWidthMeters > 0 || _vehicleHeightMeters > 0)
             {
                 parts.Add(
-                    $"Transport L {FormatMillimetres(_vehicleLengthMm)}  W {FormatMillimetres(_vehicleWidthMm)}  H {FormatMillimetres(_vehicleHeightMm)}");
+                    $"Transport L {FormatLength(_vehicleLengthMeters)}  W {FormatLength(_vehicleWidthMeters)}  H {FormatLength(_vehicleHeightMeters)}");
             }
 
-            if (_outriggerWidthMm.HasValue || _outriggerLengthMm.HasValue)
+            if (_outriggerWidthMeters.HasValue || _outriggerLengthMeters.HasValue)
             {
                 parts.Add(
-                    $"Outriggers W {FormatMillimetres(_outriggerWidthMm)}  B {FormatMillimetres(_outriggerLengthMm)}");
+                    $"Outriggers W {FormatLength(_outriggerWidthMeters)}  B {FormatLength(_outriggerLengthMeters)}");
             }
 
             TxtDimensionsSummary.Text = parts.Count > 0
@@ -335,7 +341,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         private void ShowChart(ParsedLoadChart chart)
         {
             _gridHeaders = chart.PreviewHeaders.ToList();
-            TxtMaxCap.Text = FormatCapacity(chart.MaxCapacity);
+            TxtMaxCap.Text = FormatMassInput(chart.MaxCapacity);
 
             ConfigureChartGrid(chart.PreviewTable, _gridHeaders);
             ChartGrid.ItemsSource = chart.PreviewTable.DefaultView;
@@ -369,9 +375,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             };
         }
 
-        private static string FormatCapacity(double value)
+        private void ApplyUnitLabels()
         {
-            return value.ToString("0.##", CultureInfo.InvariantCulture);
+            LblCounterweight.Text = $"Counterweight ({UnitSystem.MassSymbol(_unitSettings.DisplayMassUnit)})";
+            LblMaxCapacity.Text = $"Max Capacity ({UnitSystem.MassSymbol(_unitSettings.DisplayMassUnit)})";
+            LblMaxRadius.Text = $"Max Radius ({UnitSystem.LengthSymbol(_unitSettings.DisplayLengthUnit)})";
         }
 
         private void ConfigureChartGrid(DataTable table, IReadOnlyList<string> headers)
@@ -425,11 +433,23 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             throw new FormatException($"{fieldName} value '{text}' is invalid.");
         }
 
-        private static string FormatMillimetres(double? value)
+        private string FormatLength(double? value)
         {
             return value.HasValue && value.Value > 0
-                ? $"{value.Value.ToString("F0", CultureInfo.InvariantCulture)} mm"
+                ? UnitSystem.FormatLength(value.Value, _unitSettings, CultureInfo.InvariantCulture)
                 : "-";
+        }
+
+        private string FormatLengthInput(double value)
+        {
+            return UnitSystem.FromMeters(value, _unitSettings.DisplayLengthUnit)
+                .ToString("0.###", CultureInfo.InvariantCulture);
+        }
+
+        private string FormatMassInput(double value)
+        {
+            return UnitSystem.FromTons(value, _unitSettings.DisplayMassUnit)
+                .ToString("0.###", CultureInfo.InvariantCulture);
         }
     }
 }

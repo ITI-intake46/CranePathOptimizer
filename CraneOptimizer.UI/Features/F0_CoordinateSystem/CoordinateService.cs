@@ -1,21 +1,29 @@
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Units;
 
 namespace CraneOptimizer.UI.Features.F0_CoordinateSystem
 {
     public class CoordinateService
     {
-        public const double MillimetersToMetersScale = 0.001;
-        public const double MetersToMillimetersScale = 1000.0;
-
-        public double NormalizeLength(double lengthInMillimeters)
+        public double NormalizeLength(double length)
         {
-            return lengthInMillimeters * MillimetersToMetersScale;
+            return length;
         }
 
-        public double DenormalizeLength(double lengthInMeters)
+        public double DenormalizeLength(double length)
         {
-            return lengthInMeters * MetersToMillimetersScale;
+            return length;
+        }
+
+        public double NormalizeLength(double length, LengthUnit sourceUnit)
+        {
+            return UnitSystem.ToMeters(length, sourceUnit);
+        }
+
+        public double DenormalizeLength(double lengthInMeters, LengthUnit targetUnit)
+        {
+            return UnitSystem.FromMeters(lengthInMeters, targetUnit);
         }
 
         public DomainPoint3D NormalizePoint(DomainPoint3D point)
@@ -77,7 +85,7 @@ namespace CraneOptimizer.UI.Features.F0_CoordinateSystem
                 ZoneId = zone.ZoneId,
                 Name = zone.Name,
                 Type = zone.Type,
-                Area = zone.Area * MillimetersToMetersScale * MillimetersToMetersScale,
+                Area = zone.Area,
                 Vertices = normalizedVertices
             };
         }

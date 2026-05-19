@@ -9,6 +9,7 @@ using System.Windows.Threading;
 using HelixToolkit.Wpf;
 using Microsoft.Extensions.DependencyInjection;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
@@ -32,12 +33,15 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private readonly IOsnapService _osnapService = null!;
         private readonly OsnapPanelViewModel _osnapVm = null!;
         private readonly OsnapGeometryBridge _osnapBridge = null!;
+        private readonly IUnitSettingsService _unitSettingsService = null!;
         private Window? _ownerWindow;
         private MainViewModel? _osnapDxfSource;
 
         private bool _manualGridSize;
-        private double _gridCenterXMillimeters;
-        private double _gridCenterYMillimeters;
+        private double _gridCenterXMeters;
+        private double _gridCenterYMeters;
+        private double _gridWidthMeters = 50d;
+        private double _gridLengthMeters = 50d;
         private string _lastElementSceneKey = string.Empty;
         private bool _pendingWheelClipUpdate;
 
@@ -59,6 +63,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _osnapService = App.ServiceProvider.GetRequiredService<IOsnapService>();
             _osnapVm = App.ServiceProvider.GetRequiredService<OsnapPanelViewModel>();
             _osnapBridge = App.ServiceProvider.GetRequiredService<OsnapGeometryBridge>();
+            _unitSettingsService = App.ServiceProvider.GetRequiredService<IUnitSettingsService>();
 
             OsnapPanel.DataContext = _osnapVm;
             _osnapIndicator = new OsnapIndicator(OsnapOverlayCanvas);
@@ -85,6 +90,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _sceneService.ZoneRemoved += OnZoneChanged;
             _sceneService.ZoneUpdated += OnZoneChanged;
             _sceneService.ZonesCleared += OnZonesCleared;
+            _unitSettingsService.SettingsChanged += OnUnitSettingsChanged;
 
             if (DataContext is MainViewModel vm)
             {
@@ -116,6 +122,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _sceneService.ZoneRemoved -= OnZoneChanged;
             _sceneService.ZoneUpdated -= OnZoneChanged;
             _sceneService.ZonesCleared -= OnZonesCleared;
+            _unitSettingsService.SettingsChanged -= OnUnitSettingsChanged;
             DetachDxfSnapBridge();
         }
 
@@ -160,16 +167,16 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         {
             if (!_manualGridSize)
             {
-                var (widthMeters, lengthMeters, centerXMillimeters, centerYMillimeters) =
+                var (widthMeters, lengthMeters, centerXMeters, centerYMeters) =
                     _sceneGridSizingService.CalculateGridSizeMeters(elements);
-                _gridCenterXMillimeters = centerXMillimeters;
-                _gridCenterYMillimeters = centerYMillimeters;
+                _gridCenterXMeters = centerXMeters;
+                _gridCenterYMeters = centerYMeters;
                 SetGridText(widthMeters, lengthMeters);
                 _renderingService.SetGridSize(
-                    widthMeters * 1000.0,
-                    lengthMeters * 1000.0,
-                    _gridCenterXMillimeters,
-                    _gridCenterYMillimeters);
+                    widthMeters,
+                    lengthMeters,
+                    _gridCenterXMeters,
+                    _gridCenterYMeters);
             }
 
             _cameraService.UpdateClipping(elements);
@@ -320,14 +327,15 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
             _manualGridSize = true;
             _renderingService.SetGridSize(
-                widthMeters * 1000.0,
-                lengthMeters * 1000.0,
-                _gridCenterXMillimeters,
-                _gridCenterYMillimeters);
+                widthMeters,
+                lengthMeters,
+                _gridCenterXMeters,
+                _gridCenterYMeters);
+            SetGridText(widthMeters, lengthMeters);
 
             if (DataContext is MainViewModel mainVm)
             {
-                mainVm.StatusText = $"Grid size set to {widthMeters:F0}m x {lengthMeters:F0}m.";
+                mainVm.StatusText = $"Grid size set to {FormatGridLength(widthMeters)} x {FormatGridLength(lengthMeters)}.";
             }
         }
 
@@ -347,13 +355,32 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             var hasWidth = double.TryParse(GridSizeXTextBox.Text, out widthMeters);
             var hasLength = double.TryParse(GridSizeYTextBox.Text, out lengthMeters);
 
+            if (hasWidth)
+                widthMeters = UnitSystem.ToMeters(widthMeters, _unitSettingsService.Current.DisplayLengthUnit);
+            if (hasLength)
+                lengthMeters = UnitSystem.ToMeters(lengthMeters, _unitSettingsService.Current.DisplayLengthUnit);
+
             return hasWidth && hasLength && widthMeters > 0 && lengthMeters > 0;
         }
 
         private void SetGridText(double widthMeters, double lengthMeters)
         {
-            GridSizeXTextBox.Text = widthMeters.ToString("0");
-            GridSizeYTextBox.Text = lengthMeters.ToString("0");
+            _gridWidthMeters = widthMeters;
+            _gridLengthMeters = lengthMeters;
+            var settings = _unitSettingsService.Current;
+            GridUnitLabel.Text = $"GRID {UnitSystem.LengthSymbol(settings.DisplayLengthUnit)}";
+            GridSizeXTextBox.ToolTip = $"Grid size on X axis in {UnitSystem.LengthSymbol(settings.DisplayLengthUnit)}";
+            GridSizeYTextBox.ToolTip = $"Grid size on Y axis in {UnitSystem.LengthSymbol(settings.DisplayLengthUnit)}";
+            GridSizeXTextBox.Text = UnitSystem.FromMeters(widthMeters, settings.DisplayLengthUnit).ToString("0.###");
+            GridSizeYTextBox.Text = UnitSystem.FromMeters(lengthMeters, settings.DisplayLengthUnit).ToString("0.###");
+        }
+
+        private string FormatGridLength(double meters)
+            => UnitSystem.FormatLength(meters, _unitSettingsService.Current);
+
+        private void OnUnitSettingsChanged(object? sender, UnitSettings settings)
+        {
+            SetGridText(_gridWidthMeters, _gridLengthMeters);
         }
 
         private static string BuildElementSceneKey(IReadOnlyList<PrecastElement> elements)

@@ -58,8 +58,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     Format(row.CogZ),
                     FormatWithUnit(row.Radius, "m"),
                     FormatWithUnit(row.BoomLength, "m"),
-                    FormatWithUnit(row.RequiredCapacity, "raw"),
-                    FormatWithUnit(row.AvailableCapacity, "raw"),
+                    FormatWithUnit(row.RequiredCapacity, "t"),
+                    FormatWithUnit(row.AvailableCapacity, "t"),
                     Escape(row.Status),
                     row.NewlyCovered ? "Yes" : "No"
                 }));

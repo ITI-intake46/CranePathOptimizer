@@ -481,8 +481,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         // ============================
         // HELPERS
         // ============================
-        private double CalculateMarkerRadius() => 200;
-        private double CalculateMarkerZ(double r) => 500;
+        private double CalculateMarkerRadius() => 0.2;
+        private double CalculateMarkerZ(double r) => 0.5;
 
         private void CboCrane_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
         private void RbExclusion_Checked(object sender, RoutedEventArgs e) { }

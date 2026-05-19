@@ -148,9 +148,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
         /// <summary>
         /// Calculates a simplified circular crane footprint in meters from the selected crane.
-        /// The input crane dimensions are stored in millimeters; the output uses the larger
-        /// of vehicle body size and outrigger span so GA setup points keep practical clearance
-        /// from allowed-zone boundaries and forbidden zones.
+        /// Crane dimensions are stored in normalized meters.
         /// </summary>
         private double CalculateCraneFootprintRadius(Crane selectedCrane)
         {
@@ -159,8 +157,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 selectedCrane.OutriggerLength ?? 0,
                 selectedCrane.OutriggerWidth ?? 0);
 
-            double footprintDiameterMillimeters = Math.Max(maxBodyDimension, maxOutriggerDimension);
-            return _coordinateService.NormalizeLength(footprintDiameterMillimeters) / 2.0;
+            double footprintDiameterMeters = Math.Max(maxBodyDimension, maxOutriggerDimension);
+            return _coordinateService.NormalizeLength(footprintDiameterMeters) / 2.0;
         }
 
         private static HashSet<string>? CreateElementTypeSet(IReadOnlyCollection<string>? elementTypes)

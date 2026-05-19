@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.UI.Features.F4_LoadChart.DTOs;
 using CraneOptimizer.UI.Features.F4_LoadChart.Services;
@@ -13,6 +14,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
     public partial class CraneCatalogBrowserDialog : Window
     {
         private readonly LoadChartCatalogService _catalogService;
+        private readonly IUnitSettingsService _unitSettingsService;
         private List<LoadChartCraneDto> _allCranes = new();
 
         public CraneCatalogBrowserDialog()
@@ -20,6 +22,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             InitializeComponent();
             var factory = App.ServiceProvider.GetRequiredService<IDbContextFactory<CraneDbContext>>();
             _catalogService = new LoadChartCatalogService(factory);
+            _unitSettingsService = App.ServiceProvider.GetRequiredService<IUnitSettingsService>();
             Loaded += async (_, _) => await LoadCranesAsync();
         }
 
@@ -66,9 +69,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
             DetailModel.Text = crane.Name;
             DetailMfg.Text = crane.Manufacturer;
-            DetailDimensions.Text = BuildDimensionSummary(crane);
+            DetailDimensions.Text = BuildDimensionSummary(crane, _unitSettingsService.Current);
             DetailOutrigger.Text = crane.OutriggerConfig;
-            DetailCounterweight.Text = $"{crane.Counterweight.ToString("F0", CultureInfo.InvariantCulture)} kg";
+            DetailCounterweight.Text = UnitSystem.FormatMass(crane.Counterweight, _unitSettingsService.Current, CultureInfo.InvariantCulture);
             DetailPointCount.Text = crane.Points.Count.ToString(CultureInfo.InvariantCulture);
             MiniGrid.ItemsSource = BuildPreviewTable(crane).DefaultView;
         }
@@ -113,29 +116,29 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             return table;
         }
 
-        private static string BuildDimensionSummary(LoadChartCraneDto crane)
+        private static string BuildDimensionSummary(LoadChartCraneDto crane, UnitSettings settings)
         {
             var parts = new List<string>();
 
-            if (crane.VehicleLengthMm > 0 || crane.VehicleWidthMm > 0 || crane.VehicleHeightMm > 0)
+            if (crane.VehicleLengthMeters > 0 || crane.VehicleWidthMeters > 0 || crane.VehicleHeightMeters > 0)
             {
                 parts.Add(
-                    $"Transport L {FormatMillimetres(crane.VehicleLengthMm)}  W {FormatMillimetres(crane.VehicleWidthMm)}  H {FormatMillimetres(crane.VehicleHeightMm)}");
+                    $"Transport L {FormatLength(crane.VehicleLengthMeters, settings)}  W {FormatLength(crane.VehicleWidthMeters, settings)}  H {FormatLength(crane.VehicleHeightMeters, settings)}");
             }
 
-            if (crane.OutriggerWidthMm.HasValue || crane.OutriggerLengthMm.HasValue)
+            if (crane.OutriggerWidthMeters.HasValue || crane.OutriggerLengthMeters.HasValue)
             {
                 parts.Add(
-                    $"Outriggers W {FormatMillimetres(crane.OutriggerWidthMm)}  B {FormatMillimetres(crane.OutriggerLengthMm)}");
+                    $"Outriggers W {FormatLength(crane.OutriggerWidthMeters, settings)}  B {FormatLength(crane.OutriggerLengthMeters, settings)}");
             }
 
             return parts.Count > 0 ? string.Join("   |   ", parts) : "No crane dimensions saved.";
         }
 
-        private static string FormatMillimetres(double? value)
+        private static string FormatLength(double? value, UnitSettings settings)
         {
             return value.HasValue && value.Value > 0
-                ? $"{value.Value.ToString("F0", CultureInfo.InvariantCulture)} mm"
+                ? UnitSystem.FormatLength(value.Value, settings, CultureInfo.InvariantCulture)
                 : "-";
         }
 

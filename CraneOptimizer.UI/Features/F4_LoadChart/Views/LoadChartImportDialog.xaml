@@ -183,13 +183,13 @@
                                 <ComboBoxItem Content="On Rubber"/>
                             </ComboBox>
 
-                            <TextBlock Text="Counterweight (kg)" Style="{StaticResource PropertyLabel}"/>
+                            <TextBlock x:Name="LblCounterweight" Text="Counterweight (t)" Style="{StaticResource PropertyLabel}"/>
                             <TextBox x:Name="TxtCounterweight" Margin="0,0,0,8"/>
 
-                            <TextBlock Text="Max Capacity (t)" Style="{StaticResource PropertyLabel}"/>
+                            <TextBlock x:Name="LblMaxCapacity" Text="Max Capacity (t)" Style="{StaticResource PropertyLabel}"/>
                             <TextBox x:Name="TxtMaxCap" Margin="0,0,0,8"/>
 
-                            <TextBlock Text="Max Radius (m)" Style="{StaticResource PropertyLabel}"/>
+                            <TextBlock x:Name="LblMaxRadius" Text="Max Radius (m)" Style="{StaticResource PropertyLabel}"/>
                             <TextBox x:Name="TxtMaxRadius" Margin="0,0,0,8"/>
 
                             <Button x:Name="BtnToggleDimensions"

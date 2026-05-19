@@ -13,8 +13,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
         public const string PointLayer = "GA_SelectedPoint";
         public const string StatusOverlayLayer = "GA_StatusOverlay";
 
-        private const double MarkerRadius = 200.0;
-        private const double MarkerElevationOffset = 500.0;
+        private const double MarkerRadius = 0.2;
+        private const double MarkerElevationOffset = 0.5;
 
         private static readonly BestPointVisualBuilder PointBuilder = new(MarkerRadius);
 
