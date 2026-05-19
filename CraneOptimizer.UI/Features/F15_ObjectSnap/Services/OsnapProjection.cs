@@ -39,6 +39,29 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             => viewport != null && viewport.Viewport != null && IsFinite(world) &&
                TryProjectFromCamera(viewport, world, out screen);
 
+        public static bool TryGetCameraDepth(HelixViewport3D viewport, Point3D world, out double depth)
+        {
+            depth = default;
+            if (viewport == null || !IsFinite(world))
+                return false;
+
+            ProjectionCamera? camera = viewport.Camera switch
+            {
+                PerspectiveCamera perspective => perspective,
+                OrthographicCamera orthographic => orthographic,
+                _ => null
+            };
+
+            if (camera == null ||
+                !TryBuildCameraBasis(camera.LookDirection, camera.UpDirection, out _, out _, out var forward))
+            {
+                return false;
+            }
+
+            depth = Vector3D.DotProduct(world - camera.Position, forward);
+            return double.IsFinite(depth);
+        }
+
         public static bool TryUnprojectZ0(HelixViewport3D viewport, Point screenPt, out Point3D worldPt)
         {
             worldPt = default;
@@ -181,9 +204,27 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 
             forward.Normalize();
             var requestedUp = upDirection;
-            requestedUp.Normalize();
+            if (requestedUp.LengthSquared < 1e-12)
+                requestedUp = ChooseFallbackUp(forward);
+            else
+                requestedUp.Normalize();
 
-            right = Vector3D.CrossProduct(forward, requestedUp);
+            up = RemoveForwardComponent(requestedUp, forward);
+            if (up.LengthSquared < 1e-10)
+                up = ChooseFallbackUp(forward);
+
+            if (up.LengthSquared < 1e-12)
+                return false;
+
+            up.Normalize();
+
+            right = Vector3D.CrossProduct(forward, up);
+            if (right.LengthSquared < 1e-12)
+            {
+                up = ChooseFallbackUp(forward);
+                right = Vector3D.CrossProduct(forward, up);
+            }
+
             if (right.LengthSquared < 1e-12)
                 return false;
 
@@ -194,6 +235,43 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 
             up.Normalize();
             return true;
+        }
+
+        private static Vector3D RemoveForwardComponent(Vector3D vector, Vector3D forward)
+        {
+            double dot = Vector3D.DotProduct(vector, forward);
+            return new Vector3D(
+                vector.X - forward.X * dot,
+                vector.Y - forward.Y * dot,
+                vector.Z - forward.Z * dot);
+        }
+
+        private static Vector3D ChooseFallbackUp(Vector3D forward)
+        {
+            Vector3D[] axes =
+            {
+                new(0, 0, 1),
+                new(0, 1, 0),
+                new(1, 0, 0)
+            };
+
+            Vector3D best = default;
+            double bestLength = -1.0;
+            foreach (var axis in axes)
+            {
+                var candidate = RemoveForwardComponent(axis, forward);
+                double length = candidate.LengthSquared;
+                if (length <= bestLength)
+                    continue;
+
+                best = candidate;
+                bestLength = length;
+            }
+
+            if (best.LengthSquared > 1e-12)
+                best.Normalize();
+
+            return best;
         }
 
         private static bool IsFinite(Point3D point)

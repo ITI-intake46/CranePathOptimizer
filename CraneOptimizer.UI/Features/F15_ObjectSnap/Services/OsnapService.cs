@@ -163,7 +163,7 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
                 DxfSnapResolver.TryQuadrants(snap, dxfIndex);
 
             if (enabled.Contains(OsnapType.Intersection))
-                TryIntersections(snap, viewport, dxfIndex, ifcIndex);
+                TryIntersections(snap, viewport, dxfIndex);
 
             var result = snap.ToResult();
             if (logThisFrame)
@@ -232,8 +232,7 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
         private void TryIntersections(
             SnapAccumulator snap,
             HelixViewport3D viewport,
-            DxfSnapScreenIndex? dxfIndex,
-            IfcSnapScreenIndex? ifcIndex)
+            DxfSnapScreenIndex? dxfIndex)
         {
             var candidates = new List<ProjectedSegment>();
             double intersectionSearchRadius = Math.Max(Settings.SnapRadiusPx * 2.5, Settings.SnapRadiusPx + 24.0);
@@ -241,9 +240,6 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 
             if (dxfIndex != null)
                 AddDxfProjectedSegments(candidates, snap, dxfIndex, intersectionSearchRadius);
-
-            if (ifcIndex != null)
-                AddIfcProjectedSegments(candidates, snap, ifcIndex, intersectionSearchRadius);
 
             if (candidates.Count < 2)
                 return;
@@ -309,23 +305,6 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
                     segment.ScreenA,
                     segment.ScreenB,
                     OsnapSource.Dxf));
-            }
-        }
-
-        private static void AddIfcProjectedSegments(
-            List<ProjectedSegment> sink,
-            SnapAccumulator snap,
-            IfcSnapScreenIndex index,
-            double radius)
-        {
-            foreach (var segment in index.QuerySegments(snap.ScreenCursor, radius))
-            {
-                sink.Add(new ProjectedSegment(
-                    segment.WorldA,
-                    segment.WorldB,
-                    segment.ScreenA,
-                    segment.ScreenB,
-                    OsnapSource.Ifc));
             }
         }
 

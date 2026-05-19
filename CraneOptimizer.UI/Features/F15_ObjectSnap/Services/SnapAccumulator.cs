@@ -8,12 +8,16 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 {
     internal sealed class SnapAccumulator
     {
+        private const double DistanceTieTolerancePx = 0.75;
+        private const double DepthTieTolerance = 1e-6;
+
         private readonly Point _screenCursor;
         private readonly HelixViewport3D _viewport;
         private readonly double _snapRadiusPx;
 
         private Point3D? _bestWorld;
         private Point? _bestScreen;
+        private double? _bestViewDepth;
         private double _bestDistance = double.MaxValue;
         private OsnapType _bestType = OsnapType.Endpoint;
         private OsnapSource _bestSource = OsnapSource.Zone;
@@ -28,6 +32,7 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
         public bool HasResult => _bestWorld.HasValue;
         public double BestDistance => _bestDistance;
         public OsnapSource? BestSource => _bestWorld.HasValue ? _bestSource : null;
+        public HelixViewport3D Viewport => _viewport;
         public Point ScreenCursor => _screenCursor;
         public double SnapRadiusPx => _snapRadiusPx;
 
@@ -40,7 +45,10 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             if (!OsnapProjection.TryProject(_viewport, world, out var screen))
                 return;
 
-            TryKnownScreenPoint(world, screen, source, type, accept);
+            double? viewDepth = OsnapProjection.TryGetCameraDepth(_viewport, world, out var depth)
+                ? depth
+                : null;
+            TryKnownScreenPoint(world, screen, source, type, accept, viewDepth);
         }
 
         public void TryKnownScreenPoint(
@@ -48,13 +56,14 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             Point screen,
             OsnapSource source,
             OsnapType type,
-            Func<Point3D, Point, bool>? accept = null)
+            Func<Point3D, Point, bool>? accept = null,
+            double? viewDepth = null)
         {
             if (!IsFinite(world) || !IsFinite(screen))
                 return;
 
             double distance = PixelDistance(_screenCursor, screen);
-            if (distance > _snapRadiusPx || distance >= _bestDistance)
+            if (distance > _snapRadiusPx || !IsBetterCandidate(distance, viewDepth))
                 return;
 
             if (accept != null && !accept(world, screen))
@@ -62,6 +71,7 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 
             _bestWorld = world;
             _bestScreen = screen;
+            _bestViewDepth = viewDepth;
             _bestDistance = distance;
             _bestType = type;
             _bestSource = source;
@@ -90,7 +100,10 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             double t = Math.Clamp(((_screenCursor.X - sa.X) * dx + (_screenCursor.Y - sa.Y) * dy) / lenSq, 0, 1);
             var screen = new Point(sa.X + t * dx, sa.Y + t * dy);
             var world = Lerp(a, b, t);
-            TryKnownScreenPoint(world, screen, source, type, accept);
+            double? viewDepth = OsnapProjection.TryGetCameraDepth(_viewport, world, out var depth)
+                ? depth
+                : null;
+            TryKnownScreenPoint(world, screen, source, type, accept, viewDepth);
         }
 
         public void TryPerpendicular(
@@ -115,7 +128,10 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 
             var screen = new Point(sa.X + t * dx, sa.Y + t * dy);
             var world = Lerp(a, b, t);
-            TryKnownScreenPoint(world, screen, source, OsnapType.Perpendicular, accept);
+            double? viewDepth = OsnapProjection.TryGetCameraDepth(_viewport, world, out var depth)
+                ? depth
+                : null;
+            TryKnownScreenPoint(world, screen, source, OsnapType.Perpendicular, accept, viewDepth);
         }
 
         public OsnapResult? ToResult()
@@ -131,6 +147,32 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             double dx = a.X - b.X;
             double dy = a.Y - b.Y;
             return Math.Sqrt(dx * dx + dy * dy);
+        }
+
+        private bool IsBetterCandidate(double distance, double? viewDepth)
+        {
+            if (!_bestWorld.HasValue)
+                return true;
+
+            if (distance < _bestDistance - DistanceTieTolerancePx)
+                return true;
+
+            if (distance > _bestDistance + DistanceTieTolerancePx)
+                return false;
+
+            if (viewDepth.HasValue && _bestViewDepth.HasValue &&
+                viewDepth.Value < _bestViewDepth.Value - DepthTieTolerance)
+            {
+                return true;
+            }
+
+            if (viewDepth.HasValue && !_bestViewDepth.HasValue &&
+                distance <= _bestDistance + DepthTieTolerance)
+            {
+                return true;
+            }
+
+            return distance < _bestDistance - 1e-9;
         }
 
         private static Point3D Lerp(Point3D a, Point3D b, double t)

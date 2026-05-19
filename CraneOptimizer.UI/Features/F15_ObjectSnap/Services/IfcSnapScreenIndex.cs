@@ -34,7 +34,13 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
                 foreach (var vertex in geometry.Vertices)
                 {
                     if (OsnapProjection.TryProject(viewport, vertex, out var screen))
-                        AddPoint(index._endpoints, new SnapPoint(geometry.ElementId, vertex, screen));
+                    {
+                        AddPoint(index._endpoints, new SnapPoint(
+                            geometry.ElementId,
+                            vertex,
+                            screen,
+                            GetViewDepth(viewport, vertex)));
+                    }
                 }
 
                 foreach (var (a, b) in geometry.Segments)
@@ -45,12 +51,18 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
                         continue;
                     }
 
-                    var segment = new SnapSegment(geometry.ElementId, a, b, sa, sb);
+                    var depthA = GetViewDepth(viewport, a);
+                    var depthB = GetViewDepth(viewport, b);
+                    var segment = new SnapSegment(geometry.ElementId, a, b, sa, sb, depthA, depthB);
                     AddSegment(index._segments, segment);
 
                     var midpoint = new Point3D((a.X + b.X) / 2.0, (a.Y + b.Y) / 2.0, (a.Z + b.Z) / 2.0);
                     var midScreen = new Point((sa.X + sb.X) / 2.0, (sa.Y + sb.Y) / 2.0);
-                    AddPoint(index._midpoints, new SnapPoint(geometry.ElementId, midpoint, midScreen));
+                    AddPoint(index._midpoints, new SnapPoint(
+                        geometry.ElementId,
+                        midpoint,
+                        midScreen,
+                        InterpolateDepth(depthA, depthB, 0.5)));
                 }
             }
 
@@ -99,14 +111,31 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
         public IEnumerable<SnapSegment> QuerySegments(Point cursor, double radius)
             => QueryCells(_segments, cursor, radius)
                 .DistinctBy(segment => segment.Id)
-                .Where(segment => DistanceToSegment(cursor, segment.ScreenA, segment.ScreenB) <= radius);
+                .Select(segment => new
+                {
+                    Segment = segment,
+                    Distance = DistanceToSegment(cursor, segment.ScreenA, segment.ScreenB),
+                    Depth = segment.ClosestDepth(cursor)
+                })
+                .Where(item => item.Distance <= radius)
+                .OrderBy(item => item.Distance)
+                .ThenBy(item => item.Depth ?? double.PositiveInfinity)
+                .Select(item => item.Segment);
 
         private static IEnumerable<SnapPoint> QueryPoints(
             Dictionary<(int X, int Y), List<SnapPoint>> grid,
             Point cursor,
             double radius)
             => QueryCells(grid, cursor, radius)
-                .Where(point => SnapAccumulator.PixelDistance(cursor, point.Screen) <= radius);
+                .Select(point => new
+                {
+                    Point = point,
+                    Distance = SnapAccumulator.PixelDistance(cursor, point.Screen)
+                })
+                .Where(item => item.Distance <= radius)
+                .OrderBy(item => item.Distance)
+                .ThenBy(item => item.Point.ViewDepth ?? double.PositiveInfinity)
+                .Select(item => item.Point);
 
         private static IEnumerable<T> QueryCells<T>(
             Dictionary<(int X, int Y), List<T>> grid,
@@ -183,16 +212,47 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             return SnapAccumulator.PixelDistance(p, closest);
         }
 
-        public readonly record struct SnapPoint(string ElementId, Point3D World, Point Screen);
+        private static double? GetViewDepth(HelixViewport3D viewport, Point3D world)
+            => OsnapProjection.TryGetCameraDepth(viewport, world, out var depth) ? depth : null;
+
+        private static double? InterpolateDepth(double? a, double? b, double t)
+        {
+            if (!a.HasValue || !b.HasValue)
+                return null;
+
+            return a.Value + t * (b.Value - a.Value);
+        }
+
+        public readonly record struct SnapPoint(string ElementId, Point3D World, Point Screen, double? ViewDepth);
 
         public readonly record struct SnapSegment(
             string ElementId,
             Point3D WorldA,
             Point3D WorldB,
             Point ScreenA,
-            Point ScreenB)
+            Point ScreenB,
+            double? DepthA,
+            double? DepthB)
         {
             public string Id => $"{ElementId}:{WorldA.X:F2},{WorldA.Y:F2},{WorldA.Z:F2}>{WorldB.X:F2},{WorldB.Y:F2},{WorldB.Z:F2}";
+
+            public double? InterpolateDepth(double t)
+                => IfcSnapScreenIndex.InterpolateDepth(DepthA, DepthB, t);
+
+            public double? ClosestDepth(Point cursor)
+            {
+                if (!DepthA.HasValue || !DepthB.HasValue)
+                    return null;
+
+                double dx = ScreenB.X - ScreenA.X;
+                double dy = ScreenB.Y - ScreenA.Y;
+                double lenSq = dx * dx + dy * dy;
+                if (lenSq < 1e-6)
+                    return Math.Min(DepthA.Value, DepthB.Value);
+
+                double t = Math.Clamp(((cursor.X - ScreenA.X) * dx + (cursor.Y - ScreenA.Y) * dy) / lenSq, 0, 1);
+                return InterpolateDepth(t);
+            }
         }
     }
 }
