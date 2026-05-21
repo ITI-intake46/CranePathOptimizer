@@ -14,6 +14,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers
             return new ProjectCardDto(
                 project.Id,
                 project.Name,
+                project.ProjectFolderPath,
                 project.IfcFiles
                     .OrderBy(file => file.FileName)
                     .Select(file => file.FilePath)
@@ -31,6 +32,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers
             {
                 Id = dto.Id,
                 Name = dto.Name,
+                ProjectFolderPath = dto.ProjectFolderPath,
                 IfcFilePath = dto.IfcFilePath,
                 CreatedDate = dto.CreatedDateUtc,
                 LastOpenedDate = dto.LastOpenedDateUtc,

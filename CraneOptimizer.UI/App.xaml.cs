@@ -94,6 +94,7 @@ namespace CraneOptimizer.UI
             // =========================
             // F10 Project Management
             // =========================
+            services.AddSingleton<IProjectWorkspaceService, ProjectWorkspaceService>();
             services.AddTransient<IProjectService, ProjectService>();
             services.AddSingleton<IProjectShellService, ProjectShellService>();
             services.AddSingleton<IProjectNavigationService, ProjectNavigationService>();

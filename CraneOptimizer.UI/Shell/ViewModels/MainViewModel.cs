@@ -14,6 +14,7 @@ using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 
@@ -38,6 +39,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private Guid? _currentProjectId;
         private string _currentProjectName = string.Empty;
         private string? _currentProjectIfcPath;
+        private string _currentProjectFolderPath = string.Empty;
+        private string _currentProjectDatabasePath = string.Empty;
 
         public MainViewModel(
             ISceneService scene,
@@ -161,6 +164,26 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             private set
             {
                 _currentProjectIfcPath = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string CurrentProjectFolderPath
+        {
+            get => _currentProjectFolderPath;
+            private set
+            {
+                _currentProjectFolderPath = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string CurrentProjectDatabasePath
+        {
+            get => _currentProjectDatabasePath;
+            private set
+            {
+                _currentProjectDatabasePath = value;
                 OnPropertyChanged();
             }
         }
@@ -403,6 +426,17 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CurrentProjectIfcPath = ifcFilePath;
             _ = LoadProjectUnitsAsync(projectId);
             _status.Set($"Project opened: {projectName}", "Load IFC when needed.");
+        }
+
+        public void OpenProject(ProjectSession session)
+        {
+            CurrentProjectId = session.ProjectId;
+            CurrentProjectName = session.ProjectName;
+            CurrentProjectFolderPath = session.ProjectFolderPath;
+            CurrentProjectDatabasePath = session.ProjectDatabasePath;
+            CurrentProjectIfcPath = session.ProjectCard.IfcFilePath;
+            _ = LoadProjectUnitsAsync(session.ProjectId);
+            _status.Set($"Project opened: {session.ProjectName}", "Load IFC when needed.");
         }
 
         private async Task LoadProjectUnitsAsync(Guid projectId)

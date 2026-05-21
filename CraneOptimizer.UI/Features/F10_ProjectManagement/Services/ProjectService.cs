@@ -1,4 +1,5 @@
 using CraneOptimizer.Domain.Entities;
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
@@ -9,10 +10,14 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
     public sealed class ProjectService : IProjectService
     {
         private readonly IDbContextFactory<CraneDbContext> _contextFactory;
+        private readonly IProjectWorkspaceService _workspaceService;
 
-        public ProjectService(IDbContextFactory<CraneDbContext> contextFactory)
+        public ProjectService(
+            IDbContextFactory<CraneDbContext> contextFactory,
+            IProjectWorkspaceService workspaceService)
         {
             _contextFactory = contextFactory;
+            _workspaceService = workspaceService;
         }
 
         public async Task<ProjectCardModel> CreateProjectAsync(
@@ -22,24 +27,12 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Project name is required.", nameof(name));
 
-            var now = DateTime.UtcNow;
-            var project = new Project
-            {
-                Id = Guid.NewGuid(),
-                Name = name.Trim(),
-                CreatedDate = now,
-                LastOpenedDate = now,
-                LastModifiedDate = now,
-                Notes = string.Empty,
-                IsFavorite = false,
-                IsDeleted = false
-            };
+            var session = await _workspaceService.CreateProjectAsync(
+                name,
+                UnitSettings.Default.Clone(),
+                cancellationToken).ConfigureAwait(false);
 
-            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-            await context.Projects.AddAsync(project, cancellationToken);
-            await context.SaveChangesAsync(cancellationToken);
-
-            return project.ToProjectCardDto().ToModel();
+            return session.ProjectCard;
         }
 
         public async Task<IReadOnlyList<ProjectCardModel>> GetRecentProjectsAsync(CancellationToken cancellationToken)
@@ -57,20 +50,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
         public async Task<ProjectCardModel?> OpenProjectAsync(Guid projectId, CancellationToken cancellationToken)
         {
-            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-            var project = await context.Projects
-                .Include(project => project.IfcFiles)
-                .FirstOrDefaultAsync(project => project.Id == projectId, cancellationToken);
-
-            if (project == null)
-                return null;
-
-            var now = DateTime.UtcNow;
-            project.LastOpenedDate = now;
-            project.LastModifiedDate = now;
-            await context.SaveChangesAsync(cancellationToken);
-
-            return project.ToProjectCardDto().ToModel();
+            var session = await _workspaceService.OpenProjectAsync(projectId, cancellationToken).ConfigureAwait(false);
+            return session?.ProjectCard;
         }
 
         public async Task DeleteProjectAsync(Guid projectId, CancellationToken cancellationToken)

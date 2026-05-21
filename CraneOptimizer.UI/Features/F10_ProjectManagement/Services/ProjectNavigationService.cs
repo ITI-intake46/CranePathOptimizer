@@ -14,12 +14,12 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             _serviceProvider = serviceProvider;
         }
 
-        public void OpenMainWindow(ProjectCardModel project)
+        public void OpenMainWindow(ProjectSession session)
         {
             var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
 
             if (mainWindow.DataContext is MainViewModel viewModel)
-                viewModel.OpenProject(project.Id, project.Name, project.IfcFilePath);
+                viewModel.OpenProject(session);
 
             System.Windows.Application.Current.MainWindow = mainWindow;
             mainWindow.Show();

@@ -14,10 +14,10 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
     public sealed class ProjectManagementViewModel : ViewModelBase
     {
         private readonly IProjectService _projectService;
+        private readonly IProjectWorkspaceService _workspaceService;
         private readonly IProjectNavigationService _navigationService;
         private readonly IProjectShellService _shellService;
         private readonly IDialogService _dialogService;
-        private readonly IUnitSettingsService _unitSettingsService;
         private readonly CancellationTokenSource _lifetime = new();
         private string _searchText = string.Empty;
         private bool _favoritesOnly;
@@ -26,16 +26,16 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
 
         public ProjectManagementViewModel(
             IProjectService projectService,
+            IProjectWorkspaceService workspaceService,
             IProjectNavigationService navigationService,
             IProjectShellService shellService,
-            IDialogService dialogService,
-            IUnitSettingsService unitSettingsService)
+            IDialogService dialogService)
         {
             _projectService = projectService;
+            _workspaceService = workspaceService;
             _navigationService = navigationService;
             _shellService = shellService;
             _dialogService = dialogService;
-            _unitSettingsService = unitSettingsService;
 
             RefreshCommand = new AsyncRelayCommand(RefreshAsync);
             CreateProjectCommand = new AsyncRelayCommand(CreateProjectAsync);
@@ -167,17 +167,12 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             try
             {
                 IsBusy = true;
-                var project = await _projectService.CreateProjectAsync(
+                var session = await _workspaceService.CreateProjectAsync(
                     createViewModel.ProjectName,
-                    _lifetime.Token);
-
-                // Persist the unit settings chosen in the Create Project dialog
-                await _unitSettingsService.SaveProjectSettingsAsync(
-                    project.Id,
                     createViewModel.BuildUnitSettings(),
                     _lifetime.Token);
 
-                _navigationService.OpenMainWindow(project);
+                _navigationService.OpenMainWindow(session);
                 CloseEntryWindow();
             }
             catch (Exception ex)
@@ -198,16 +193,16 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             try
             {
                 IsBusy = true;
-                var project = await _projectService.OpenProjectAsync(card.Id, _lifetime.Token);
+                var session = await _workspaceService.OpenProjectAsync(card.Id, _lifetime.Token);
 
-                if (project == null)
+                if (session == null)
                 {
                     _dialogService.ShowMessage("Project was not found.");
                     await RefreshAsync();
                     return;
                 }
 
-                _navigationService.OpenMainWindow(project);
+                _navigationService.OpenMainWindow(session);
                 CloseEntryWindow();
             }
             catch (Exception ex)
@@ -264,13 +259,13 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             if (card == null)
                 return;
 
-            if (string.IsNullOrWhiteSpace(card.IfcFilePath) || !File.Exists(card.IfcFilePath))
+            if (string.IsNullOrWhiteSpace(card.ProjectFolderPath) || !Directory.Exists(card.ProjectFolderPath))
             {
-                _dialogService.ShowMessage("No IFC file is linked to this project.");
+                _dialogService.ShowMessage("Project folder was not found.");
                 return;
             }
 
-            _shellService.ShowFileInFolder(card.IfcFilePath);
+            _shellService.ShowFileInFolder(card.ProjectFolderPath);
         }
 
         private static void CloseEntryWindow()

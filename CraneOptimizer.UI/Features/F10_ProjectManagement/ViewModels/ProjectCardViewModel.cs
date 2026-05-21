@@ -12,6 +12,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
         {
             Id = model.Id;
             Name = model.Name;
+            ProjectFolderPath = model.ProjectFolderPath;
             IfcFilePath = model.IfcFilePath;
             LastOpenedDate = model.LastOpenedDate;
             _isFavorite = model.IsFavorite;
@@ -19,6 +20,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
 
         public Guid Id { get; }
         public string Name { get; }
+        public string ProjectFolderPath { get; }
         public string? IfcFilePath { get; }
         public DateTime LastOpenedDate { get; }
 
