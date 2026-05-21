@@ -16,6 +16,10 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             Guid projectId,
             CancellationToken cancellationToken);
 
+        Task<ProjectSession> OpenProjectFolderAsync(
+            string projectFolderPath,
+            CancellationToken cancellationToken);
+
         Task DeleteProjectAsync(Guid projectId, CancellationToken cancellationToken);
 
         Task ToggleFavoriteAsync(Guid projectId, bool isFavorite, CancellationToken cancellationToken);

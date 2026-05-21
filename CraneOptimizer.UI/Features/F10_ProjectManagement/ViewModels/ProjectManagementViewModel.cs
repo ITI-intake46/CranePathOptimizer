@@ -37,6 +37,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
 
             RefreshCommand = new AsyncRelayCommand(RefreshAsync);
             CreateProjectCommand = new AsyncRelayCommand(CreateProjectAsync);
+            OpenProjectFolderCommand = new AsyncRelayCommand(OpenProjectFolderAsync);
             OpenProjectCommand = new AsyncRelayCommand<ProjectCardViewModel>(OpenProjectAsync, project => project != null);
             DeleteProjectCommand = new AsyncRelayCommand<ProjectCardViewModel>(DeleteProjectAsync, project => project != null);
             ToggleFavoriteCommand = new AsyncRelayCommand<ProjectCardViewModel>(ToggleFavoriteAsync, project => project != null);
@@ -101,6 +102,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
 
         public ICommand RefreshCommand { get; }
         public ICommand CreateProjectCommand { get; }
+        public ICommand OpenProjectFolderCommand { get; }
         public ICommand OpenProjectCommand { get; }
         public ICommand DeleteProjectCommand { get; }
         public ICommand ToggleFavoriteCommand { get; }
@@ -211,6 +213,37 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             catch (Exception ex)
             {
                 _dialogService.ShowNonBlockingError(ex.Message, "Open Project Error");
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
+        private async Task OpenProjectFolderAsync()
+        {
+            var picker = new OpenFolderDialog
+            {
+                Title = "Open Project Folder",
+                Multiselect = false
+            };
+
+            if (picker.ShowDialog(System.Windows.Application.Current.MainWindow) != true)
+                return;
+
+            try
+            {
+                IsBusy = true;
+                var session = await _workspaceService.OpenProjectFolderAsync(
+                    picker.FolderName,
+                    _lifetime.Token);
+
+                _navigationService.OpenMainWindow(session);
+                CloseEntryWindow();
+            }
+            catch (Exception ex)
+            {
+                _dialogService.ShowNonBlockingError(ex.Message, "Open Project Folder Error");
             }
             finally
             {

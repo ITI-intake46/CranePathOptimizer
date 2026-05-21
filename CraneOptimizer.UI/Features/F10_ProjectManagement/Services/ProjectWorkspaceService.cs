@@ -78,6 +78,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 projectFolderPath,
                 request.UnitSettings,
                 now,
+                updateUnitSettings: true,
                 cancellationToken).ConfigureAwait(false);
 
             CurrentSession = CreateSession(project, projectInfo, projectFolderPath);
@@ -124,6 +125,57 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             await globalContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             CurrentSession = CreateSession(project, projectInfo, project.ProjectFolderPath);
+            return CurrentSession;
+        }
+
+        public async Task<ProjectSession> OpenProjectFolderAsync(
+            string projectFolderPath,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(projectFolderPath))
+                throw new ArgumentException("Project folder path is required.", nameof(projectFolderPath));
+
+            var normalizedProjectFolderPath = projectFolderPath.Trim();
+            if (!Directory.Exists(normalizedProjectFolderPath))
+                throw new DirectoryNotFoundException($"Project folder was not found: {normalizedProjectFolderPath}");
+
+            var projectDatabasePath = CreatedProjectDbContextFactory.GetDatabasePath(normalizedProjectFolderPath);
+            if (!File.Exists(projectDatabasePath))
+                throw new FileNotFoundException("The selected folder does not contain project.db.", projectDatabasePath);
+
+            var now = DateTime.UtcNow;
+
+            await using var projectContext = CreatedProjectDbContextFactory.Create(normalizedProjectFolderPath);
+            await projectContext.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
+
+            var projectInfo = await projectContext.ProjectInfo
+                .OrderBy(x => x.Id)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (projectInfo == null)
+                throw new InvalidOperationException($"Project database does not contain ProjectInfo: {projectDatabasePath}");
+
+            var projectId = ResolveProjectId(projectInfo);
+            var projectName = string.IsNullOrWhiteSpace(projectInfo.Name)
+                ? Path.GetFileName(normalizedProjectFolderPath)
+                : projectInfo.Name.Trim();
+
+            projectInfo.LastOpenedAtUtc = now;
+            await projectContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            await using var globalContext = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            var project = await UpsertGlobalProjectAsync(
+                globalContext,
+                projectId,
+                projectName,
+                normalizedProjectFolderPath,
+                UnitSettings.Default.Clone(),
+                now,
+                updateUnitSettings: false,
+                cancellationToken).ConfigureAwait(false);
+
+            CurrentSession = CreateSession(project, projectInfo, normalizedProjectFolderPath);
             return CurrentSession;
         }
 
@@ -207,9 +259,11 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             string projectFolderPath,
             UnitSettings unitSettings,
             DateTime now,
+            bool updateUnitSettings,
             CancellationToken cancellationToken)
         {
             var project = await context.Projects
+                .IgnoreQueryFilters()
                 .Include(x => x.IfcFiles)
                 .FirstOrDefaultAsync(x => x.Id == projectId, cancellationToken)
                 .ConfigureAwait(false);
@@ -222,7 +276,11 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                     CreatedDate = now,
                     Notes = string.Empty,
                     IsFavorite = false,
-                    IsDeleted = false
+                    IsDeleted = false,
+                    DisplayLengthUnit = (int)unitSettings.DisplayLengthUnit,
+                    DisplayMassUnit = (int)unitSettings.DisplayMassUnit,
+                    DisplayAreaUnit = (int)unitSettings.DisplayAreaUnit,
+                    UnitDecimalPlaces = unitSettings.DecimalPlaces
                 };
 
                 await context.Projects.AddAsync(project, cancellationToken).ConfigureAwait(false);
@@ -230,15 +288,31 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
             project.Name = name;
             project.ProjectFolderPath = projectFolderPath;
+            project.IsDeleted = false;
             project.LastOpenedDate = now;
             project.LastModifiedDate = now;
-            project.DisplayLengthUnit = (int)unitSettings.DisplayLengthUnit;
-            project.DisplayMassUnit = (int)unitSettings.DisplayMassUnit;
-            project.DisplayAreaUnit = (int)unitSettings.DisplayAreaUnit;
-            project.UnitDecimalPlaces = unitSettings.DecimalPlaces;
+
+            if (updateUnitSettings)
+            {
+                project.DisplayLengthUnit = (int)unitSettings.DisplayLengthUnit;
+                project.DisplayMassUnit = (int)unitSettings.DisplayMassUnit;
+                project.DisplayAreaUnit = (int)unitSettings.DisplayAreaUnit;
+                project.UnitDecimalPlaces = unitSettings.DecimalPlaces;
+            }
 
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return project;
+        }
+
+        private static Guid ResolveProjectId(ProjectInfoEntity projectInfo)
+        {
+            if (Guid.TryParseExact(projectInfo.ProjectGuid, "N", out var compactGuid))
+                return compactGuid;
+
+            if (Guid.TryParse(projectInfo.ProjectGuid, out var guid))
+                return guid;
+
+            throw new InvalidOperationException($"ProjectInfo.ProjectGuid is not a valid Guid: {projectInfo.ProjectGuid}");
         }
 
         private static IQueryable<Project> QueryProjects(CraneDbContext context)
