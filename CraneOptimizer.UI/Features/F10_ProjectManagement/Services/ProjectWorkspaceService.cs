@@ -8,7 +8,6 @@ using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
 using System.Reflection;
-using System.Text.RegularExpressions;
 
 namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 {
@@ -32,17 +31,22 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
         public ProjectSession? CurrentSession { get; private set; }
 
         public async Task<ProjectSession> CreateProjectAsync(
-            string name,
-            UnitSettings unitSettings,
+            CreateProjectRequest request,
             CancellationToken cancellationToken)
         {
-            if (string.IsNullOrWhiteSpace(name))
-                throw new ArgumentException("Project name is required.", nameof(name));
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
+
+            if (string.IsNullOrWhiteSpace(request.ProjectName))
+                throw new ArgumentException("Project name is required.", nameof(request));
+
+            if (string.IsNullOrWhiteSpace(request.ParentFolderPath))
+                throw new ArgumentException("Project location is required.", nameof(request));
 
             var projectId = Guid.NewGuid();
-            var trimmedName = name.Trim();
+            var trimmedName = request.ProjectName.Trim();
             var now = DateTime.UtcNow;
-            var projectFolderPath = BuildProjectFolderPath(projectId, trimmedName);
+            var projectFolderPath = BuildProjectFolderPath(request.ParentFolderPath, trimmedName);
 
             CreateProjectFolders(projectFolderPath);
 
@@ -72,7 +76,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 projectId,
                 trimmedName,
                 projectFolderPath,
-                unitSettings,
+                request.UnitSettings,
                 now,
                 cancellationToken).ConfigureAwait(false);
 
@@ -123,6 +127,79 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             return CurrentSession;
         }
 
+        public async Task<IReadOnlyList<ProjectCardModel>> GetRecentProjectsAsync(CancellationToken cancellationToken)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            var projects = await QueryProjects(context)
+                .OrderByDescending(project => project.LastOpenedDate)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            return projects
+                .Select(project => project.ToProjectCardDto().ToModel())
+                .ToList();
+        }
+
+        public async Task DeleteProjectAsync(Guid projectId, CancellationToken cancellationToken)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            var project = await context.Projects
+                .FirstOrDefaultAsync(project => project.Id == projectId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (project == null)
+                return;
+
+            project.IsDeleted = true;
+            project.LastModifiedDate = DateTime.UtcNow;
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task ToggleFavoriteAsync(Guid projectId, bool isFavorite, CancellationToken cancellationToken)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            var project = await context.Projects
+                .FirstOrDefaultAsync(project => project.Id == projectId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (project == null)
+                return;
+
+            project.IsFavorite = isFavorite;
+            project.LastModifiedDate = DateTime.UtcNow;
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<IReadOnlyList<ProjectCardModel>> SearchProjectsAsync(
+            string searchText,
+            bool favoritesOnly,
+            CancellationToken cancellationToken)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            var query = QueryProjects(context);
+
+            if (favoritesOnly)
+                query = query.Where(project => project.IsFavorite);
+
+            if (!string.IsNullOrWhiteSpace(searchText))
+            {
+                var term = searchText.Trim();
+                query = query.Where(project =>
+                    project.Name.Contains(term) ||
+                    project.ProjectFolderPath.Contains(term) ||
+                    project.IfcFiles.Any(file => file.FileName.Contains(term) || file.FilePath.Contains(term)));
+            }
+
+            var projects = await query
+                .OrderByDescending(project => project.LastOpenedDate)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            return projects
+                .Select(project => project.ToProjectCardDto().ToModel())
+                .ToList();
+        }
+
         private static async Task<Project> UpsertGlobalProjectAsync(
             CraneDbContext context,
             Guid projectId,
@@ -164,6 +241,13 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             return project;
         }
 
+        private static IQueryable<Project> QueryProjects(CraneDbContext context)
+        {
+            return context.Projects
+                .AsNoTracking()
+                .Include(project => project.IfcFiles);
+        }
+
         private static ProjectSession CreateSession(
             Project project,
             ProjectInfoEntity projectInfo,
@@ -190,29 +274,22 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 Directory.CreateDirectory(Path.Combine(projectFolderPath, subfolder));
         }
 
-        private static string BuildProjectFolderPath(Guid projectId, string name)
+        private static string BuildProjectFolderPath(string parentFolderPath, string name)
         {
-            var root = Path.Combine(AppContext.BaseDirectory, "Data", "Projects");
-            Directory.CreateDirectory(root);
+            var trimmedParent = parentFolderPath.Trim();
 
-            var folderName = $"{SanitizeFolderName(name)}_{projectId:N}";
-            return Path.Combine(root, folderName);
-        }
+            if (!Directory.Exists(trimmedParent))
+                throw new DirectoryNotFoundException($"Project location was not found: {trimmedParent}");
 
-        private static string SanitizeFolderName(string value)
-        {
-            var invalid = new string(Path.GetInvalidFileNameChars());
-            var pattern = $"[{Regex.Escape(invalid)}]+";
-            var sanitized = Regex.Replace(value, pattern, "_").Trim();
-            sanitized = Regex.Replace(sanitized, "\\s+", "_");
+            var invalidCharacters = Path.GetInvalidFileNameChars();
+            if (name.IndexOfAny(invalidCharacters) >= 0)
+                throw new ArgumentException("Project name contains characters that cannot be used in a folder name.", nameof(name));
 
-            if (sanitized.Length == 0)
-                return "Project";
+            var projectFolderPath = Path.Combine(trimmedParent, name);
+            if (Directory.Exists(projectFolderPath) && Directory.EnumerateFileSystemEntries(projectFolderPath).Any())
+                throw new IOException($"Project folder already exists and is not empty: {projectFolderPath}");
 
-            const int maxNameLength = 80;
-            return sanitized.Length <= maxNameLength
-                ? sanitized
-                : sanitized[..maxNameLength];
+            return projectFolderPath;
         }
     }
 }

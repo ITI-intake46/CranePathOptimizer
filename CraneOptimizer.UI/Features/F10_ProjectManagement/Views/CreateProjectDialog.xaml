@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Create Project"
         Width="520"
-        Height="420"
+        Height="500"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="{DynamicResource BackgroundBrush}"
@@ -11,6 +11,7 @@
         Foreground="{DynamicResource TextPrimaryBrush}">
     <Grid Margin="24">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -34,14 +35,36 @@
                      Padding="8,4" />
         </StackPanel>
 
+        <!--  Project Location  -->
+        <StackPanel Grid.Row="2" Margin="0,14,0,0">
+            <TextBlock Text="Project Location"
+                       Style="{StaticResource PropertyLabel}" />
+            <Grid Margin="0,6,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="94" />
+                </Grid.ColumnDefinitions>
+
+                <TextBox Text="{Binding ParentFolderPath, UpdateSourceTrigger=PropertyChanged}"
+                         Height="34"
+                         Padding="8,4" />
+                <Button Grid.Column="2"
+                        Content="Browse"
+                        Height="34"
+                        Style="{StaticResource ButtonSecondary}"
+                        Command="{Binding BrowseLocationCommand}" />
+            </Grid>
+        </StackPanel>
+
         <!--  Separator  -->
-        <Rectangle Grid.Row="2"
+        <Rectangle Grid.Row="3"
                    Height="1"
                    Margin="0,18,0,0"
                    Fill="{DynamicResource BorderBrush}" />
 
         <!--  Default Units  -->
-        <StackPanel Grid.Row="3" Margin="0,12,0,0">
+        <StackPanel Grid.Row="4" Margin="0,12,0,0">
             <TextBlock Text="DEFAULT UNITS"
                        Style="{StaticResource PanelSectionHeader}" />
 
@@ -97,7 +120,7 @@
         </StackPanel>
 
         <!--  Buttons  -->
-        <StackPanel Grid.Row="4"
+        <StackPanel Grid.Row="5"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right">
             <Button Content="Cancel"
