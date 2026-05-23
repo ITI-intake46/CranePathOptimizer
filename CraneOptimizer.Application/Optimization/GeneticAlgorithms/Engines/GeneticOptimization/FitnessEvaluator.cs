@@ -1,8 +1,10 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using System;
+using System.Linq;
 
-namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
+namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization
 {
     /// <summary>
     /// Computes the fitness value of a GA solution

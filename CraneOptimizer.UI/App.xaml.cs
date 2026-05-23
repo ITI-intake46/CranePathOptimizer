@@ -1,6 +1,6 @@
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Units;

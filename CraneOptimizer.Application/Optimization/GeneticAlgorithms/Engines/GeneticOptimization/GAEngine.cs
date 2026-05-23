@@ -1,13 +1,15 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 
-namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
+namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization
 {
     /// <summary>
     /// Main orchestration engine for the Genetic Algorithm.

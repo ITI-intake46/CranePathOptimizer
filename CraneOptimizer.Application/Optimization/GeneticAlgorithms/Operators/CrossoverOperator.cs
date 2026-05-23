@@ -1,7 +1,9 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization;
+using System;
 
-namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
+namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators
 {
     /// <summary>
     /// Default crossover operator for crane chromosomes.
@@ -20,20 +22,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             {
                 Chromosome = new CraneChromosome()
             };
-
-            // TODO:
-            // 1️⃣ Choose crossover strategy
-            // Example: single-point crossover
-
-            // TODO:
-            // 2️⃣ Copy some crane positions from parent1
-
-            // TODO:
-            // 3️⃣ Copy remaining positions from parent2
-
-            // TODO:
-            // 4️⃣ Ensure resulting chromosome is valid
-            // (no empty chromosome, positions remain inside zones)
 
             var p1 = parent1.Chromosome.CranePositions;
             var p2 = parent2.Chromosome.CranePositions;

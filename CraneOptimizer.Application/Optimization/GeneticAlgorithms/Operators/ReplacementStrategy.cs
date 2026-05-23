@@ -1,7 +1,10 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
-namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
+namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators
 {
     /// <summary>
     /// Replacement strategy used to build the next generation.
@@ -14,15 +17,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// </summary>
         public Population Replace(Population oldPopulation, List<CraneSolution> children)
         {
-            // TODO:
-            // 1️⃣ Combine old population with children
-
-            // 2️⃣ Sort individuals by fitness
-
-            // 3️⃣ Keep best individuals up to population size
-
-            // 4️⃣ Create new population object
-
             int populationSize = oldPopulation.Individuals.Count;
 
             // 1. Calculate elite count (10%)

@@ -1,7 +1,11 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
-namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
+namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators
 {
     /// <summary>
     /// Tournament selection strategy.

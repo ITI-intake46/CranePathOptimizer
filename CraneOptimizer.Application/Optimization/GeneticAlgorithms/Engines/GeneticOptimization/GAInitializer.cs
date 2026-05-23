@@ -9,7 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
+namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization
 {
     /// <summary>
     /// Default implementation of the GA population initializer.
@@ -241,9 +241,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             return clusters;
         }
 
-
-
-
         // ══════════════════════════════════════════════════════════════
         // CENTROID — Compute spatial center of a cluster
         // ══════════════════════════════════════════════════════════════
@@ -318,10 +315,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         // GEOMETRY HELPERS
         // ══════════════════════════════════════════════════════════════
 
-        /// <summary>
-        /// Generates a random point inside a polygon zone.
-        /// Uses bounding box rejection sampling with ray-casting validation.
-        /// </summary>
         /// <summary>
         /// Samples a spatially diverse setup point from allowed zones.
         /// Inputs are allowed zones, forbidden zones, existing chromosome points, and GA settings.

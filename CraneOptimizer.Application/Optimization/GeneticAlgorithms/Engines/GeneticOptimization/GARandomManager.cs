@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 
-namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
+namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization
 {
     /// <summary>
     /// Provides a thread-safe, centralized Random instance for the entire GA execution flow.

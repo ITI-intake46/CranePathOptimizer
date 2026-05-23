@@ -4,8 +4,11 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
-namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
+namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization
 {
     /// <summary>
     /// Evaluates whether building elements can be lifted
@@ -34,6 +37,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             _liftingEngine = liftingEngine;
             _configEngine = configEngine;
         }
+
         // ══════════════════════════════════════════════════════════════
         // PUBLIC ENTRY POINT
         // ══════════════════════════════════════════════════════════════
