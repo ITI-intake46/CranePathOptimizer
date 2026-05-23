@@ -16,6 +16,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
                 _sceneRendering.ShowCraneRadius = value;
                 OnPropertyChanged();
+                QueueProjectStateSave();
             }
         }
 
@@ -97,6 +98,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private void OnOriginChanged()
         {
             OnPropertyChanged(nameof(OriginPoint));
+            QueueProjectStateSave();
         }
 
         private void OnOriginPickingChanged()

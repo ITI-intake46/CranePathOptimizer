@@ -16,6 +16,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
         private static readonly string[] ProjectSubfolders =
         {
             "Models",
+            Path.Combine("Models", "IFC"),
+            Path.Combine("Models", "DXF"),
             "Reports",
             "Exports",
             "Logs"

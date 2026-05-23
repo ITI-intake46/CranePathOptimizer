@@ -298,6 +298,9 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                     b.Property<DateTime?>("LastWriteUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("NumberOfStoreys")
                         .HasColumnType("INTEGER");
 
@@ -313,8 +316,16 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("SchemaVersion")
                         .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TransformJson")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -452,6 +463,240 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                     b.ToTable("ProjectInfo", (string)null);
                 });
 
+            modelBuilder.Entity("CraneOptimizer.Domain.CreatedProject.ProjectState.CraneSetupEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("BoomAngle")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("BoomLength")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("ConfigurationJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CraneName")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CraneType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("CurrentCapacity")
+                        .HasColumnType("REAL");
+
+                    b.Property<double?>("CurrentRadius")
+                        .HasColumnType("REAL");
+
+                    b.Property<bool>("IsSelected")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsValidPlacement")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("PivotOffsetX")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("PivotOffsetY")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("PivotOffsetZ")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("PositionX")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("PositionY")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("PositionZ")
+                        .HasColumnType("REAL");
+
+                    b.Property<int>("ProjectInfoId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("Rotation")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("SceneCraneGuid")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("SlewAngle")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("SourceCraneId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("SourceCraneSpecificationId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectInfoId");
+
+                    b.HasIndex("SourceCraneId");
+
+                    b.ToTable("CraneSetups", (string)null);
+                });
+
+            modelBuilder.Entity("CraneOptimizer.Domain.CreatedProject.ProjectState.ProjectModelFileEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FileType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ImportedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastWriteUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OriginalFullPath")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ProjectInfoId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RelativePath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TransformJson")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectInfoId");
+
+                    b.HasIndex("RelativePath");
+
+                    b.HasIndex("ProjectInfoId", "FileType", "Role");
+
+                    b.ToTable("ProjectModelFiles", (string)null);
+                });
+
+            modelBuilder.Entity("CraneOptimizer.Domain.CreatedProject.ProjectState.ProjectViewportStateEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CameraJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("OriginX")
+                        .HasColumnType("REAL");
+
+                    b.Property<double?>("OriginY")
+                        .HasColumnType("REAL");
+
+                    b.Property<double?>("OriginZ")
+                        .HasColumnType("REAL");
+
+                    b.Property<int>("ProjectInfoId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RenderQualityLabel")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("ShowCraneRadius")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StateKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectInfoId", "StateKey")
+                        .IsUnique();
+
+                    b.ToTable("ProjectViewportStates", (string)null);
+                });
+
+            modelBuilder.Entity("CraneOptimizer.Domain.CreatedProject.ProjectState.SiteZoneEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("Area")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ProjectInfoId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("VerticesJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ZoneGuid")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ZoneType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectInfoId");
+
+                    b.HasIndex("ZoneGuid");
+
+                    b.ToTable("SiteZones", (string)null);
+                });
+
             modelBuilder.Entity("CraneOptimizer.Domain.CreatedProject.CraneFiles.ProjectCraneLoadChartSnapshotEntity", b =>
                 {
                     b.HasOne("CraneOptimizer.Domain.CreatedProject.CraneFiles.ProjectCraneSnapshotEntity", "CraneSnapshot")
@@ -522,6 +767,50 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                     b.Navigation("ProjectInfo");
                 });
 
+            modelBuilder.Entity("CraneOptimizer.Domain.CreatedProject.ProjectState.CraneSetupEntity", b =>
+                {
+                    b.HasOne("CraneOptimizer.Domain.CreatedProject.ProjectInfoEntity", "ProjectInfo")
+                        .WithMany("CraneSetups")
+                        .HasForeignKey("ProjectInfoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProjectInfo");
+                });
+
+            modelBuilder.Entity("CraneOptimizer.Domain.CreatedProject.ProjectState.ProjectModelFileEntity", b =>
+                {
+                    b.HasOne("CraneOptimizer.Domain.CreatedProject.ProjectInfoEntity", "ProjectInfo")
+                        .WithMany("ModelFiles")
+                        .HasForeignKey("ProjectInfoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProjectInfo");
+                });
+
+            modelBuilder.Entity("CraneOptimizer.Domain.CreatedProject.ProjectState.ProjectViewportStateEntity", b =>
+                {
+                    b.HasOne("CraneOptimizer.Domain.CreatedProject.ProjectInfoEntity", "ProjectInfo")
+                        .WithMany("ViewportStates")
+                        .HasForeignKey("ProjectInfoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProjectInfo");
+                });
+
+            modelBuilder.Entity("CraneOptimizer.Domain.CreatedProject.ProjectState.SiteZoneEntity", b =>
+                {
+                    b.HasOne("CraneOptimizer.Domain.CreatedProject.ProjectInfoEntity", "ProjectInfo")
+                        .WithMany("SiteZones")
+                        .HasForeignKey("ProjectInfoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProjectInfo");
+                });
+
             modelBuilder.Entity("CraneOptimizer.Domain.CreatedProject.CraneFiles.ProjectCraneSnapshotEntity", b =>
                 {
                     b.Navigation("LoadChartRows");
@@ -536,13 +825,21 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
 
             modelBuilder.Entity("CraneOptimizer.Domain.CreatedProject.ProjectInfoEntity", b =>
                 {
+                    b.Navigation("CraneSetups");
+
                     b.Navigation("CraneSnapshots");
 
                     b.Navigation("IfcElements");
 
                     b.Navigation("IfcFiles");
 
+                    b.Navigation("ModelFiles");
+
                     b.Navigation("OptimizationRuns");
+
+                    b.Navigation("SiteZones");
+
+                    b.Navigation("ViewportStates");
                 });
 #pragma warning restore 612, 618
         }

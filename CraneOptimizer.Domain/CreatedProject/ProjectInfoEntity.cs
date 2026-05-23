@@ -1,6 +1,7 @@
 ﻿using CraneOptimizer.Domain.CreatedProject.CraneFiles;
 using CraneOptimizer.Domain.CreatedProject.IfcFiles;
 using CraneOptimizer.Domain.CreatedProject.OptimizationFiles;
+using CraneOptimizer.Domain.CreatedProject.ProjectState;
 
 namespace CraneOptimizer.Domain.CreatedProject
 {
@@ -39,6 +40,14 @@ namespace CraneOptimizer.Domain.CreatedProject
         public List<ProjectSettingEntity> Settings { get; set; } = new();
 
         public List<ProjectIfcFileEntity> IfcFiles { get; set; } = new();
+
+        public List<ProjectModelFileEntity> ModelFiles { get; set; } = new();
+
+        public List<SiteZoneEntity> SiteZones { get; set; } = new();
+
+        public List<CraneSetupEntity> CraneSetups { get; set; } = new();
+
+        public List<ProjectViewportStateEntity> ViewportStates { get; set; } = new();
 
         public List<ProjectIfcElementEntity> IfcElements { get; set; } = new();
 
