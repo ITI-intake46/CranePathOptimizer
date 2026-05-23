@@ -9,5 +9,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
         double CraneCapacity(CraneSpecification craneSpec, double radius, double boomLength, GASettings settings);
         bool ExceedsMaxRadius(double radius, CraneSpecification craneSpec);
         bool ExceedsMaxBoomLength(double boomLength, CraneSpecification craneSpec);
+        void ClearCache();
     }
 }

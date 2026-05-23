@@ -18,22 +18,27 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
         private readonly IGeneticAlgorithmEngine _gaEngine;
         private readonly IElementAssignmentService _assignmentService;
         private readonly ICoverageEngine _coverageEngine;
+        private readonly ICraneConfigurationEngine _configEngine;
 
         public CranePlacementEngine(
             IGeneticAlgorithmEngine gaEngine,
             IElementAssignmentService assignmentService,
-            ICoverageEngine coverageEngine)
+            ICoverageEngine coverageEngine,
+            ICraneConfigurationEngine configEngine)
         {
             _gaEngine = gaEngine;
             _assignmentService = assignmentService;
             _coverageEngine = coverageEngine;
+            _configEngine = configEngine;
         }
 
         public PlacementResult RunOptimization(
             PlacementInput input,
             CancellationToken cancellationToken = default)
         {
+            GAProfiler.Enabled = input.Settings.EnableProfiling;
             GAProfiler.Reset();
+            _configEngine.ClearCache();
 
             using (new GAProfiler.ProfileScope("CranePlacementEngine.TotalRun"))
             {

@@ -53,12 +53,32 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             {
                 var result = new AssignmentResult();
 
+                // ── Optimization: pre-process assignment list into dictionary lookup ──
+                Dictionary<string, int>? assignmentLookup = null;
+                if (assignment != null && assignment.Count > 0)
+                {
+                    assignmentLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var entry in assignment)
+                    {
+                        if (entry.Value != null)
+                        {
+                            foreach (var id in entry.Value)
+                            {
+                                if (id != null)
+                                {
+                                    assignmentLookup[id] = entry.Key;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 foreach (var element in elements)
                 {
                     ElementEvaluationResult evaluation;
 
                     // ── Check for user-defined assignment ─────────────────
-                    int? userAssignedIndex = ResolveUserAssignment(element, assignment);
+                    int? userAssignedIndex = ResolveUserAssignment(element, assignmentLookup);
 
                     if (userAssignedIndex.HasValue)
                     {
@@ -68,7 +88,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                             solution,
                             userAssignedIndex.Value,
                             craneSpec,
-                            settings);
+                            settings,
+                            assignmentLookup);
                     }
                     else
                     {
@@ -115,24 +136,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         /// Checks whether the user has manually assigned this element
         /// to a specific crane index.
         ///
-        /// The assignment dictionary maps:
-        ///   Key   = crane position index in the chromosome
-        ///   Value = list of ElementIDs assigned to that crane
-        ///
         /// Returns the crane index if found, null if no assignment exists.
         /// </summary>
         private int? ResolveUserAssignment(
             PrecastElement element,
-            Dictionary<int, List<string>> assignment)
+            Dictionary<string, int>? assignmentLookup)
         {
-            if (assignment == null || assignment.Count == 0)
-                return null;
-
-            foreach (var entry in assignment)
-            {
-                if (entry.Value.Contains(element.ElementID))
-                    return entry.Key;
-            }
+            if (assignmentLookup != null && assignmentLookup.TryGetValue(element.ElementID, out int index))
+                return index;
 
             return null;
         }
@@ -153,7 +164,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             CraneSolution solution,
             int craneIndex,
             CraneSpecification craneSpec,
-            GASettings settings)
+            GASettings settings,
+            Dictionary<string, int>? assignmentLookup)
         {
             // Guard: if craneIndex is out of range, fall back to best-position
             if (craneIndex >= solution.Chromosome.CranePositions.Count)
@@ -169,14 +181,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         /// <summary>
         /// Tries all crane positions in the chromosome for this element
         /// and selects the best feasible one.
-        ///
-        /// Selection priority:
-        ///   1. Prefer Liftable over any failure status
-        ///   2. Among Liftable positions, prefer the smallest radius
-        ///      (smaller radius = safer lift, less stress on crane)
-        ///   3. If no Liftable position exists, return the least-bad failure:
-        ///      Overweight > HeightFail > SpecialCase > OutOfRadius
-        ///      (Overweight is closest to liftable — just too heavy at this position)
         /// </summary>
         private ElementEvaluationResult EvaluateBestPosition(
             PrecastElement element,
@@ -184,7 +188,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             CraneSpecification craneSpec,
             GASettings settings)
         {
-            var candidates = new List<ElementEvaluationResult>();
+            ElementEvaluationResult? best = null;
 
             // ── Evaluate all crane positions ───────────────────────
             for (int i = 0; i < solution.Chromosome.CranePositions.Count; i++)
@@ -192,45 +196,51 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 var candidate = ComputeEvaluationResult(
                     element, solution, i, craneSpec, settings);
 
-                candidates.Add(candidate);
+                if (best == null || IsBetterThan(candidate, best))
+                {
+                    best = candidate;
+                }
             }
 
-            // ── Pick the best result ───────────────────────────────
-            return SelectBestCandidate(candidates);
+            return best!;
         }
 
-        /// <summary>
-        /// Selects the best evaluation result from a list of candidates.
-        ///
-        /// Step 1: Find all Liftable candidates.
-        ///         If any exist → return the one with the smallest radius.
-        ///
-        /// Step 2: No Liftable candidates → return the least-bad failure.
-        ///         Failure ranking (higher = closer to liftable):
-        ///           Overweight  = 3   (can reach, just too heavy here)
-        ///           HeightFail  = 2   (can reach horizontally, boom too short)
-        ///           SpecialCase = 1   (no chart data, unknown)
-        ///           OutOfRadius = 0   (geometrically unreachable)
-        /// </summary>
-        private ElementEvaluationResult SelectBestCandidate(
-            List<ElementEvaluationResult> candidates)
+        private bool IsBetterThan(ElementEvaluationResult candidate, ElementEvaluationResult best)
         {
-            // ── Priority 1: any Liftable position ─────────────────
-            var liftable = candidates
-                .Where(c => c.Status == LiftStatus.Liftable)
-                .OrderBy(c => c.Radius)
-                .ThenBy(c => c.AssignedCraneIndex) // Deterministic tie-breaking
-                .FirstOrDefault();
+            if (candidate.Status == LiftStatus.Liftable && best.Status != LiftStatus.Liftable)
+                return true;
 
-            if (liftable != null)
-                return liftable;
+            if (candidate.Status != LiftStatus.Liftable && best.Status == LiftStatus.Liftable)
+                return false;
 
-            // ── Priority 2: least-bad failure ─────────────────────
-            return candidates
-                .OrderByDescending(c => GetFailureRank(c.Status))
-                .ThenBy(c => c.Radius)
-                .ThenBy(c => c.AssignedCraneIndex) // Deterministic tie-breaking
-                .First();
+            if (candidate.Status == LiftStatus.Liftable && best.Status == LiftStatus.Liftable)
+            {
+                // Both are liftable: prefer smaller radius
+                if (candidate.Radius < best.Radius)
+                    return true;
+                if (candidate.Radius > best.Radius)
+                    return false;
+                
+                // Tie breaker: smaller crane index
+                return candidate.AssignedCraneIndex < best.AssignedCraneIndex;
+            }
+
+            // Both are failures: prefer higher failure rank
+            int rankCand = GetFailureRank(candidate.Status);
+            int rankBest = GetFailureRank(best.Status);
+            if (rankCand > rankBest)
+                return true;
+            if (rankCand < rankBest)
+                return false;
+
+            // Same failure rank: prefer smaller radius
+            if (candidate.Radius < best.Radius)
+                return true;
+            if (candidate.Radius > best.Radius)
+                return false;
+
+            // Tie breaker: smaller crane index
+            return candidate.AssignedCraneIndex < best.AssignedCraneIndex;
         }
 
         /// <summary>

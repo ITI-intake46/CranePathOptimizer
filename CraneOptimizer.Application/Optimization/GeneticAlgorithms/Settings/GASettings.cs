@@ -206,5 +206,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// If not specified, falls back to %LocalAppData%/CraneOptimizer/Logs/GA/.
         /// </summary>
         public string? ProfilingLogDirectory { get; set; }
+
+        /// <summary>
+        /// Enables high-resolution timing and profiling for the Genetic Algorithm pipeline.
+        /// </summary>
+        public bool EnableProfiling { get; set; } = true;
     }
 }

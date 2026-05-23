@@ -217,7 +217,8 @@ namespace CraneOptimizer.Application.Tests
             var placementEngine = new CranePlacementEngine(
                 gaEngine,
                 assignmentService,
-                coverageEngine
+                coverageEngine,
+                configEngine
             );
 
             var settings = new GASettings
@@ -243,7 +244,8 @@ namespace CraneOptimizer.Application.Tests
                 HeightPenaltyWeight = 30.0,
                 RadiusQualityPenaltyWeight = 10.0,
                 SimilarPositionPenaltyWeight = 10.0,
-                RelocationDistancePenaltyWeight = 15.0
+                RelocationDistancePenaltyWeight = 15.0,
+                EnableProfiling = true
             };
 
             var craneSpec = new CraneSpecification

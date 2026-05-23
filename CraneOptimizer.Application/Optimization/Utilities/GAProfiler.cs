@@ -12,7 +12,10 @@ namespace CraneOptimizer.Application.Optimization.Utilities
     /// </summary>
     public static class GAProfiler
     {
-        public static bool Enabled { get; set; } = true;
+        public static bool Enabled { get; set; } = false;
+
+        public static long CapacityCacheHits;
+        public static long CapacityCacheMisses;
 
         private static readonly ConcurrentDictionary<string, long> Accumulators = new ConcurrentDictionary<string, long>();
         private static readonly ConcurrentDictionary<string, long> HitCounts = new ConcurrentDictionary<string, long>();
@@ -24,6 +27,8 @@ namespace CraneOptimizer.Application.Optimization.Utilities
         {
             Accumulators.Clear();
             HitCounts.Clear();
+            CapacityCacheHits = 0;
+            CapacityCacheMisses = 0;
         }
 
         /// <summary>
@@ -65,6 +70,10 @@ namespace CraneOptimizer.Application.Optimization.Utilities
                 sb.AppendLine($"║ {key.PadRight(34)} │ {hits.ToString().PadLeft(10)} │ {totalMs.ToString("F3").PadLeft(15)} │ {avgMs.ToString("F5").PadLeft(17)} ║");
             }
 
+            sb.AppendLine("╠═══════════════════════════════════════════════════════════════════════════════════════╣");
+            long totalLookups = CapacityCacheHits + CapacityCacheMisses;
+            double hitRatio = totalLookups > 0 ? (double)CapacityCacheHits / totalLookups * 100.0 : 0.0;
+            sb.AppendLine($"║ CraneCapacity Cache Hits: {CapacityCacheHits.ToString().PadRight(10)} │ Misses: {CapacityCacheMisses.ToString().PadRight(10)} │ Hit Ratio: {hitRatio.ToString("F2").PadLeft(6)}%          ║");
             sb.AppendLine("╚═══════════════════════════════════════════════════════════════════════════════════════╝");
             return sb.ToString();
         }
