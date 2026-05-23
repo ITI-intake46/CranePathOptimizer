@@ -312,6 +312,9 @@ namespace CraneOptimizer.UI
         {
             services.AddScoped<IGeneticAlgorithmEngine, GAEngine>();
 
+            services.AddScoped<ICraneConfigurationEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.CraneConfiguration.CraneConfigurationEngine>();
+            services.AddScoped<ILiftingCalculationEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.LiftingCalculation.LiftingCalculationEngine>();
+
             services.AddScoped<IGAInitializer, GAInitializer>();
             services.AddScoped<IElementAssignmentService, ElementAssignmentService>();
             services.AddScoped<IFitnessEvaluator, FitnessEvaluator>();

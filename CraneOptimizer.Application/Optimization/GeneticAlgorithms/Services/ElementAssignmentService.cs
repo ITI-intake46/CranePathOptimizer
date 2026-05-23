@@ -24,6 +24,16 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     /// </summary>
     public class ElementAssignmentService : IElementAssignmentService
     {
+        private readonly ILiftingCalculationEngine _liftingEngine;
+        private readonly ICraneConfigurationEngine _configEngine;
+
+        public ElementAssignmentService(
+            ILiftingCalculationEngine liftingEngine,
+            ICraneConfigurationEngine configEngine)
+        {
+            _liftingEngine = liftingEngine;
+            _configEngine = configEngine;
+        }
         // ══════════════════════════════════════════════════════════════
         // PUBLIC ENTRY POINT
         // ══════════════════════════════════════════════════════════════
@@ -255,27 +265,52 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             var cranePosition = solution.Chromosome.CranePositions[craneIndex];
 
             // Step 2 — Working radius (orientation-aware)
-            double radius = LiftCalculation.CalculateRadius(cranePosition, element);
+            double radius = _liftingEngine.CalculateRadius(cranePosition, element);
 
             // Step 3 — Vertical lift height
-            double height = LiftCalculation.CalculateLiftHeight(element, cranePosition, settings);
+            double height = _liftingEngine.CalculateLiftHeight(element, cranePosition, settings);
 
             // Step 4 — Required boom length
-            double boomLength = LiftCalculation.CalculateRequiredBoomLength(radius, height);
+            double boomLength = _configEngine.CalculateRequiredBoomLength(radius, height);
 
             // Step 5 — Required capacity = element weight + lifting accessories
-            double requiredCapacity = (element.ElementWT ?? 0) + settings.AdditionalWt;
+            double requiredCapacity = _liftingEngine.CalculateRequiredWeight(element, settings);
 
             // Step 6 — Lookup chart capacity for debug/reporting
-            double availableCapacity = LiftCalculation.CraneCapacity(
+            double availableCapacity = _configEngine.CraneCapacity(
                 craneSpec,
                 radius,
                 boomLength,
                 settings);
 
             // Step 7 — Determine full lift status
-            LiftStatus status = LiftCalculation.DetermineLiftStatus(
+            LiftStatus status = _liftingEngine.DetermineLiftStatus(
                 radius, boomLength, requiredCapacity, craneSpec, settings);
+
+            // ══════════════════════════════════════════════════════════════
+            // GOLDEN MASTER COMPARISON (Phase 2 Verification)
+            // ══════════════════════════════════════════════════════════════
+            double legacyRadius = LiftCalculationLegacy.CalculateRadius(cranePosition, element);
+            double legacyHeight = LiftCalculationLegacy.CalculateLiftHeight(element, cranePosition, settings);
+            double legacyBoomLength = LiftCalculationLegacy.CalculateRequiredBoomLength(legacyRadius, legacyHeight);
+            double legacyCapacity = LiftCalculationLegacy.CraneCapacity(craneSpec, legacyRadius, legacyBoomLength, settings);
+            LiftStatus legacyStatus = LiftCalculationLegacy.DetermineLiftStatus(legacyRadius, legacyBoomLength, requiredCapacity, craneSpec, settings);
+
+            if (Math.Abs(radius - legacyRadius) > 1e-9)
+                throw new InvalidOperationException($"Radius mismatch! New: {radius}, Legacy: {legacyRadius}");
+
+            if (Math.Abs(height - legacyHeight) > 1e-9)
+                throw new InvalidOperationException($"Height mismatch! New: {height}, Legacy: {legacyHeight}");
+
+            if (Math.Abs(boomLength - legacyBoomLength) > 1e-9)
+                throw new InvalidOperationException($"Boom length mismatch! New: {boomLength}, Legacy: {legacyBoomLength}");
+
+            if (Math.Abs(availableCapacity - legacyCapacity) > 1e-9)
+                throw new InvalidOperationException($"Capacity mismatch! New: {availableCapacity}, Legacy: {legacyCapacity}");
+
+            if (status != legacyStatus)
+                throw new InvalidOperationException($"Status mismatch! New: {status}, Legacy: {legacyStatus}");
+            // ══════════════════════════════════════════════════════════════
 
             return new ElementEvaluationResult
             {
