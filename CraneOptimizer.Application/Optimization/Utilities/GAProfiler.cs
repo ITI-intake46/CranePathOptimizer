@@ -93,6 +93,18 @@ namespace CraneOptimizer.Application.Optimization.Utilities
         }
 
         /// <summary>
+        /// Gets accumulated milliseconds for a specific profiling key.
+        /// </summary>
+        public static double GetElapsedTimeMs(string key)
+        {
+            if (Accumulators.TryGetValue(key, out long ticks))
+            {
+                return (ticks / (double)Stopwatch.Frequency) * 1000.0;
+            }
+            return 0.0;
+        }
+
+        /// <summary>
         /// Formats and logs the cumulative performance profile to Debug output.
         /// </summary>
         public static string GetSummaryReport()

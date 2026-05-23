@@ -19,17 +19,20 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
         private readonly IElementAssignmentService _assignmentService;
         private readonly ICoverageEngine _coverageEngine;
         private readonly ICraneConfigurationEngine _configEngine;
+        private readonly IGACsvDiagnosticsService _diagnosticsService;
 
         public CranePlacementEngine(
             IGeneticAlgorithmEngine gaEngine,
             IElementAssignmentService assignmentService,
             ICoverageEngine coverageEngine,
-            ICraneConfigurationEngine configEngine)
+            ICraneConfigurationEngine configEngine,
+            IGACsvDiagnosticsService diagnosticsService)
         {
             _gaEngine = gaEngine;
             _assignmentService = assignmentService;
             _coverageEngine = coverageEngine;
             _configEngine = configEngine;
+            _diagnosticsService = diagnosticsService;
         }
 
         public PlacementResult RunOptimization(
@@ -213,6 +216,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                     // Keep Console and Debug output optional (do not add console spam)
                     Console.WriteLine(summary);
                     Debug.WriteLine(summary);
+                }
+
+                // Generate project-scoped diagnostics reports post-run (Phase 8)
+                try
+                {
+                    input.Elements = allElements;
+                    finalResult.DiagnosticsReportPath = _diagnosticsService.GenerateDiagnostics(input, finalResult);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to generate GA CSV diagnostics: {ex.Message}");
+                    Console.WriteLine($"Failed to generate GA CSV diagnostics: {ex.Message}");
                 }
 
                 return finalResult;

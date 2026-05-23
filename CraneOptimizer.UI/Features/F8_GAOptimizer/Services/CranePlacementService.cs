@@ -102,6 +102,17 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             }
             settings.ProfilingLogDirectory = logsDir;
 
+            // Determine diagnostics reports folder path from ProjectWorkspaceService (Phase 8)
+            string reportsDir;
+            if (!string.IsNullOrWhiteSpace(projectFolder))
+            {
+                reportsDir = System.IO.Path.Combine(projectFolder, "Reports", "GA");
+            }
+            else
+            {
+                reportsDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Reports", "GA");
+            }
+
             // Build input in normalized meters
             var input = _inputBuilder.Build(settings, crane, elements, zones);
 
@@ -109,6 +120,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             input.ProjectName = _workspaceService?.CurrentSession?.ProjectName;
             input.ProjectFolderPath = _workspaceService?.CurrentSession?.ProjectFolderPath;
             input.TotalElementsCount = sceneElements?.Count ?? 0;
+            input.DiagnosticsReportsDirectory = reportsDir;
 
             string? ifcFileName = null;
             if (_workspaceService?.CurrentSession?.ProjectCard != null && !string.IsNullOrWhiteSpace(_workspaceService.CurrentSession.ProjectCard.IfcFilePath))
@@ -129,8 +141,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             // Map results back to UI DTOs
             var finalResult = MapPlacementResult(appResult, sceneElements, input.CraneSpec, input.Settings);
 
-            // Write debug report
-            WriteDebugReport(finalResult);
+            // Map the newly generated per-project diagnostics path to DebugReportPath
+            // (Note: This now points to the project-scoped GA diagnostics CSV instead of the old global one)
+            finalResult.DebugReportPath = appResult.DiagnosticsReportPath;
+            finalResult.DebugReportError = null;
 
             return finalResult;
         }

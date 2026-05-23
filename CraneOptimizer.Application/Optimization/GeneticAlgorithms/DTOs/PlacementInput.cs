@@ -16,5 +16,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public string? ProjectFolderPath { get; set; }
         public string? IfcFileName { get; set; }
         public int TotalElementsCount { get; set; }
+        public string? DiagnosticsReportsDirectory { get; set; }
     }
 }

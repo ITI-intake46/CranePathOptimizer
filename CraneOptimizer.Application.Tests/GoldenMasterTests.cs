@@ -214,11 +214,13 @@ namespace CraneOptimizer.Application.Tests
                 constraintEngine
             );
 
+            var diagnosticsService = new CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GACsvDiagnosticsService(liftingEngine, configEngine);
             var placementEngine = new CranePlacementEngine(
                 gaEngine,
                 assignmentService,
                 coverageEngine,
-                configEngine
+                configEngine,
+                diagnosticsService
             );
 
             var settings = new GASettings
@@ -339,11 +341,13 @@ namespace CraneOptimizer.Application.Tests
                 constraintEngine
             );
 
+            var diagnosticsService = new CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GACsvDiagnosticsService(liftingEngine, configEngine);
             var placementEngine = new CranePlacementEngine(
                 gaEngine,
                 assignmentService,
                 coverageEngine,
-                configEngine
+                configEngine,
+                diagnosticsService
             );
 
             var settings = new GASettings
@@ -485,6 +489,179 @@ namespace CraneOptimizer.Application.Tests
                 IfcFileName = $"{scenarioName.Replace(" ", "_")}.ifc",
                 TotalElementsCount = elements.Count
             };
+        }
+
+        [Fact]
+        public void TestGACsvDiagnosticsAndScenarios()
+        {
+            var configEngine = new CraneConfigurationEngine();
+            var liftingEngine = new LiftingCalculationEngine(configEngine);
+            var constraintEngine = new ConstraintEngine();
+            var coverageEngine = new CoverageEngine();
+
+            var initializer = new GAInitializer(constraintEngine);
+            var assignmentService = new ElementAssignmentService(liftingEngine, configEngine);
+            var fitnessEvaluator = new FitnessEvaluator(constraintEngine);
+            var selection = new TournamentSelection();
+            var crossover = new CrossoverOperator();
+            var mutation = new MutationOperator(constraintEngine);
+            var replacement = new ReplacementStrategy();
+
+            var gaEngine = new GAEngine(
+                initializer,
+                assignmentService,
+                fitnessEvaluator,
+                selection,
+                crossover,
+                mutation,
+                replacement,
+                constraintEngine
+            );
+
+            var diagnosticsService = new CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GACsvDiagnosticsService(liftingEngine, configEngine);
+
+            var placementEngine = new CranePlacementEngine(
+                gaEngine,
+                assignmentService,
+                coverageEngine,
+                configEngine,
+                diagnosticsService
+            );
+
+            var settings = new GASettings
+            {
+                WireLength = 3.0,
+                DeratingRatio = 0.85,
+                SafetyFactor = 0.90,
+                PopulationSize = 10,
+                MaxGenerations = 5,
+                MaxCranePositions = 4,
+                RandomSeed = 42,
+                CraneFootprintRadius = 2.0,
+                MinimumRelocationDistance = 5.0,
+                MaxRadiusForNormalisation = 40.0,
+                EnableProfiling = true
+            };
+
+            var craneSpec = new CraneSpecification
+            {
+                Id = 1,
+                MaxRadius = 40,
+                MaxBoomLength = 50,
+                LoadChart = new List<TargetPoint>
+                {
+                    new TargetPoint { Radius = 10, BoomLength = 20, Capacity = 50 },
+                    new TargetPoint { Radius = 20, BoomLength = 30, Capacity = 30 }
+                }
+            };
+
+            var allowedZone = new GreenAreaZone
+            {
+                Vertices = new List<DomainPoint3D>
+                {
+                    new DomainPoint3D(-100, -100, 0),
+                    new DomainPoint3D(100, -100, 0),
+                    new DomainPoint3D(100, 100, 0),
+                    new DomainPoint3D(-100, 100, 0)
+                }
+            };
+
+            var forbiddenZone = new GreenAreaZone
+            {
+                Vertices = new List<DomainPoint3D>()
+            };
+
+            // Setup temporary project directory for testing
+            string tempProjectFolder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "CraneOptimizer_TestProject_" + Guid.NewGuid().ToString("N"));
+            System.IO.Directory.CreateDirectory(tempProjectFolder);
+
+            // Record old global directory state
+            string oldGlobalDir = System.IO.Path.Combine(AppContext.BaseDirectory, "Data", "GAReports");
+            int oldGlobalFileCount = System.IO.Directory.Exists(oldGlobalDir) ? System.IO.Directory.GetFiles(oldGlobalDir).Length : 0;
+
+            try
+            {
+                // Scenario 1: High Coverage Scenario (10 extremely light elements)
+                var lightElements = new List<PrecastElement>();
+                for (int i = 0; i < 10; i++)
+                {
+                    lightElements.Add(new PrecastElement
+                    {
+                        ElementID = $"Light-{i + 1}",
+                        ElementCOG = new DomainPoint3D(5.0 + i, 5.0, 1.0),
+                        ElementWT = 1.0 // extremely light
+                    });
+                }
+                var inputHigh = CreateInput("High Coverage Project", lightElements, allowedZone, forbiddenZone, craneSpec, settings);
+                inputHigh.ProjectFolderPath = tempProjectFolder;
+                inputHigh.DiagnosticsReportsDirectory = System.IO.Path.Combine(tempProjectFolder, "Reports", "GA");
+
+                var resultHigh = placementEngine.RunOptimization(inputHigh);
+
+                // Verify files exist and are correct
+                string reportsFolder = inputHigh.DiagnosticsReportsDirectory;
+                string historyPath = System.IO.Path.Combine(reportsFolder, "ga_run_history.csv");
+                Assert.True(System.IO.File.Exists(historyPath), "ga_run_history.csv should be created.");
+                Assert.True(System.IO.File.Exists(resultHigh.DiagnosticsReportPath), "Detailed diagnostics CSV should be created.");
+
+                string historyText = System.IO.File.ReadAllText(historyPath);
+                Assert.Contains("High Coverage Project", historyText);
+                Assert.Contains("Excellent", historyText); // health should be Excellent since coverage >= 90%
+
+                // Scenario 2: Low Coverage Scenario (10 extremely heavy elements)
+                var heavyElements = new List<PrecastElement>();
+                for (int i = 0; i < 10; i++)
+                {
+                    heavyElements.Add(new PrecastElement
+                    {
+                        ElementID = $"Heavy-{i + 1}",
+                        ElementCOG = new DomainPoint3D(5.0 + i, 5.0, 1.0),
+                        ElementWT = 500.0 // extremely heavy, cannot lift
+                    });
+                }
+                var inputLow = CreateInput("Low Coverage Project", heavyElements, allowedZone, forbiddenZone, craneSpec, settings);
+                inputLow.ProjectFolderPath = tempProjectFolder;
+                inputLow.DiagnosticsReportsDirectory = System.IO.Path.Combine(tempProjectFolder, "Reports", "GA");
+
+                var resultLow = placementEngine.RunOptimization(inputLow);
+
+                string historyTextLow = System.IO.File.ReadAllText(historyPath);
+                Assert.Contains("Low Coverage Project", historyTextLow);
+                Assert.Contains("Critical", historyTextLow); // health should be Critical since coverage < 40%
+
+                // Scenario 3: Large Selected Element Set (100 elements)
+                var largeElements = GenerateMockElements(100);
+                var inputLarge = CreateInput("Large Selected Project", largeElements, allowedZone, forbiddenZone, craneSpec, settings);
+                inputLarge.ProjectFolderPath = tempProjectFolder;
+                inputLarge.DiagnosticsReportsDirectory = System.IO.Path.Combine(tempProjectFolder, "Reports", "GA");
+
+                var resultLarge = placementEngine.RunOptimization(inputLarge);
+
+                // Verify failure breakdown CSV
+                Assert.NotNull(resultLarge.DiagnosticsReportPath);
+                string detailedCsvName = System.IO.Path.GetFileName(resultLarge.DiagnosticsReportPath)!;
+                Assert.NotNull(detailedCsvName);
+                string breakdownCsvName = detailedCsvName.Replace("ga_diagnostics_", "ga_failure_breakdown_");
+                string breakdownCsvPath = System.IO.Path.Combine(reportsFolder!, breakdownCsvName);
+
+                Assert.True(System.IO.File.Exists(breakdownCsvPath), "Failure breakdown CSV should be created.");
+                string breakdownText = System.IO.File.ReadAllText(breakdownCsvPath);
+                Assert.Contains("OutOfRadius", breakdownText);
+                Assert.Contains("Overweight", breakdownText);
+
+                // Verify old global folder is NOT updated
+                int newGlobalFileCount = System.IO.Directory.Exists(oldGlobalDir) ? System.IO.Directory.GetFiles(oldGlobalDir).Length : 0;
+                Assert.Equal(oldGlobalFileCount, newGlobalFileCount);
+            }
+            finally
+            {
+                // Cleanup temporary folder
+                try
+                {
+                    System.IO.Directory.Delete(tempProjectFolder, true);
+                }
+                catch {}
+            }
         }
     }
 }

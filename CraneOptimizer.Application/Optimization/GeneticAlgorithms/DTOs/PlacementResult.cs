@@ -21,6 +21,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public int TotalElementCount { get; set; }
 
         public LiftStatistics Statistics { get; set; } = new();
+        public string? DiagnosticsReportPath { get; set; }
     }
 
     /// <summary>
