@@ -1,5 +1,4 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Domain.Common;
@@ -12,26 +11,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
 {
     public class ConstraintEngine : IConstraintEngine
     {
-        private const double ComparisonTolerance = 1e-7;
-
         public bool IsValidSetupPoint(
-            DomainPoint3D point,
-            IReadOnlyList<GreenAreaZone> allowedZones,
-            IReadOnlyList<GreenAreaZone> forbiddenZones,
-            GASettings settings)
-        {
-            bool result = ExecuteIsValidSetupPoint(point, allowedZones, forbiddenZones, settings);
-
-#if DEBUG
-            bool legacyResult = CranePlacementConstraintServiceLegacy.IsValidSetupPoint(point, allowedZones, forbiddenZones, settings);
-            if (result != legacyResult)
-                throw new InvalidOperationException($"IsValidSetupPoint mismatch! New: {result}, Legacy: {legacyResult}");
-#endif
-
-            return result;
-        }
-
-        private bool ExecuteIsValidSetupPoint(
             DomainPoint3D point,
             IReadOnlyList<GreenAreaZone> allowedZones,
             IReadOnlyList<GreenAreaZone> forbiddenZones,
@@ -50,22 +30,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
         }
 
         public bool IsMeaningfullySeparated(
-            DomainPoint3D candidate,
-            IReadOnlyList<DomainPoint3D> existingPoints,
-            GASettings settings)
-        {
-            bool result = ExecuteIsMeaningfullySeparated(candidate, existingPoints, settings);
-
-#if DEBUG
-            bool legacyResult = CranePlacementConstraintServiceLegacy.IsMeaningfullySeparated(candidate, existingPoints, settings);
-            if (result != legacyResult)
-                throw new InvalidOperationException($"IsMeaningfullySeparated mismatch! New: {result}, Legacy: {legacyResult}");
-#endif
-
-            return result;
-        }
-
-        private bool ExecuteIsMeaningfullySeparated(
             DomainPoint3D candidate,
             IReadOnlyList<DomainPoint3D> existingPoints,
             GASettings settings)
@@ -98,36 +62,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
                 result.Add(point);
             }
 
-#if DEBUG
-            var legacyResult = CranePlacementConstraintServiceLegacy.FilterDistinctValidPoints(points, allowedZones, forbiddenZones, settings);
-            if (result.Count != legacyResult.Count)
-                throw new InvalidOperationException($"FilterDistinctValidPoints mismatch on count! New: {result.Count}, Legacy: {legacyResult.Count}");
-            for (int i = 0; i < result.Count; i++)
-            {
-                if (SpatialMath.Distance2D(result[i], legacyResult[i]) > ComparisonTolerance)
-                    throw new InvalidOperationException($"FilterDistinctValidPoints mismatch at index {i}!");
-            }
-#endif
-
             return result;
         }
 
         public double CalculateSimilarityPenalty(
-            IReadOnlyList<DomainPoint3D> points,
-            GASettings settings)
-        {
-            double result = ExecuteCalculateSimilarityPenalty(points, settings);
-
-#if DEBUG
-            double legacyResult = CranePlacementConstraintServiceLegacy.CalculateSimilarityPenalty(points, settings);
-            if (Math.Abs(result - legacyResult) > ComparisonTolerance)
-                throw new InvalidOperationException($"CalculateSimilarityPenalty mismatch! New: {result}, Legacy: {legacyResult}");
-#endif
-
-            return result;
-        }
-
-        private double ExecuteCalculateSimilarityPenalty(
             IReadOnlyList<DomainPoint3D> points,
             GASettings settings)
         {
@@ -156,21 +94,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
         }
 
         public double CalculateNormalizedRelocationDistance(
-            IReadOnlyList<DomainPoint3D> points,
-            GASettings settings)
-        {
-            double result = ExecuteCalculateNormalizedRelocationDistance(points, settings);
-
-#if DEBUG
-            double legacyResult = CranePlacementConstraintServiceLegacy.CalculateNormalizedRelocationDistance(points, settings);
-            if (Math.Abs(result - legacyResult) > ComparisonTolerance)
-                throw new InvalidOperationException($"CalculateNormalizedRelocationDistance mismatch! New: {result}, Legacy: {legacyResult}");
-#endif
-
-            return result;
-        }
-
-        private double ExecuteCalculateNormalizedRelocationDistance(
             IReadOnlyList<DomainPoint3D> points,
             GASettings settings)
         {

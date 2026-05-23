@@ -7,7 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations
+namespace CraneOptimizer.Application.Tests.Legacy
 {
     /// <summary>
     /// Legacy engineering calculations preserved for Golden Master comparison.

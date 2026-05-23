@@ -5,7 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
+namespace CraneOptimizer.Application.Tests.Legacy
 {
     /// <summary>
     /// Legacy static crane placement constraints preserved for Golden Master comparison.

@@ -1,4 +1,3 @@
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Calculations;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
@@ -253,10 +252,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         ///
         /// Steps:
         ///   1. Retrieve crane position from chromosome
-        ///   2. Compute working radius       → LiftCalculation.CalculateRadius
-        ///   3. Compute lift height          → LiftCalculation.CalculateLiftHeight
-        ///   4. Compute required boom length → LiftCalculation.CalculateRequiredBoomLength
-        ///   5. Determine lift status        → LiftCalculation.DetermineLiftStatus
+        ///   2. Compute working radius       → ILiftingCalculationEngine.CalculateRadius
+        ///   3. Compute lift height          → ILiftingCalculationEngine.CalculateLiftHeight
+        ///   4. Compute required boom length → ICraneConfigurationEngine.CalculateRequiredBoomLength
+        ///   5. Determine lift status        → ILiftingCalculationEngine.DetermineLiftStatus
         /// </summary>
         private ElementEvaluationResult ComputeEvaluationResult(
             PrecastElement element,
@@ -291,30 +290,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             LiftStatus status = _liftingEngine.DetermineLiftStatus(
                 radius, boomLength, requiredCapacity, craneSpec, settings);
 
-            // ══════════════════════════════════════════════════════════════
-            // GOLDEN MASTER COMPARISON (Phase 2 Verification)
-            // ══════════════════════════════════════════════════════════════
-            double legacyRadius = LiftCalculationLegacy.CalculateRadius(cranePosition, element);
-            double legacyHeight = LiftCalculationLegacy.CalculateLiftHeight(element, cranePosition, settings);
-            double legacyBoomLength = LiftCalculationLegacy.CalculateRequiredBoomLength(legacyRadius, legacyHeight);
-            double legacyCapacity = LiftCalculationLegacy.CraneCapacity(craneSpec, legacyRadius, legacyBoomLength, settings);
-            LiftStatus legacyStatus = LiftCalculationLegacy.DetermineLiftStatus(legacyRadius, legacyBoomLength, requiredCapacity, craneSpec, settings);
 
-            if (Math.Abs(radius - legacyRadius) > 1e-9)
-                throw new InvalidOperationException($"Radius mismatch! New: {radius}, Legacy: {legacyRadius}");
-
-            if (Math.Abs(height - legacyHeight) > 1e-9)
-                throw new InvalidOperationException($"Height mismatch! New: {height}, Legacy: {legacyHeight}");
-
-            if (Math.Abs(boomLength - legacyBoomLength) > 1e-9)
-                throw new InvalidOperationException($"Boom length mismatch! New: {boomLength}, Legacy: {legacyBoomLength}");
-
-            if (Math.Abs(availableCapacity - legacyCapacity) > 1e-9)
-                throw new InvalidOperationException($"Capacity mismatch! New: {availableCapacity}, Legacy: {legacyCapacity}");
-
-            if (status != legacyStatus)
-                throw new InvalidOperationException($"Status mismatch! New: {status}, Legacy: {legacyStatus}");
-            // ══════════════════════════════════════════════════════════════
 
             return new ElementEvaluationResult
             {
