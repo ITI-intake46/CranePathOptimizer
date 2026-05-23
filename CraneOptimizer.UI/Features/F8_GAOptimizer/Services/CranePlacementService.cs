@@ -12,6 +12,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
+using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 {
@@ -23,6 +24,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         private readonly ISceneService _sceneService;
         private readonly CoordinateService _coordinateService;
         private readonly IProjectWorkspaceService _workspaceService;
+        private readonly IfcViewerViewModel _ifcViewer;
 
         public CranePlacementService(
             IOptimizationInputBuilder inputBuilder,
@@ -30,7 +32,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             IOptimizationScopeEngine scopeEngine,
             ISceneService sceneService,
             CoordinateService coordinateService,
-            IProjectWorkspaceService workspaceService)
+            IProjectWorkspaceService workspaceService,
+            IfcViewerViewModel ifcViewer)
         {
             _inputBuilder = inputBuilder;
             _placementEngine = placementEngine;
@@ -38,6 +41,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             _sceneService = sceneService;
             _coordinateService = coordinateService;
             _workspaceService = workspaceService;
+            _ifcViewer = ifcViewer;
         }
 
         public async Task<CranePlacementResult> RunOptimizationAsync(
@@ -100,6 +104,22 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             // Build input in normalized meters
             var input = _inputBuilder.Build(settings, crane, elements, zones);
+
+            // Populate benchmark metadata (Phase 7C)
+            input.ProjectName = _workspaceService?.CurrentSession?.ProjectName;
+            input.ProjectFolderPath = _workspaceService?.CurrentSession?.ProjectFolderPath;
+            input.TotalElementsCount = sceneElements?.Count ?? 0;
+
+            string? ifcFileName = null;
+            if (_workspaceService?.CurrentSession?.ProjectCard != null && !string.IsNullOrWhiteSpace(_workspaceService.CurrentSession.ProjectCard.IfcFilePath))
+            {
+                ifcFileName = System.IO.Path.GetFileName(_workspaceService.CurrentSession.ProjectCard.IfcFilePath);
+            }
+            if (string.IsNullOrWhiteSpace(ifcFileName) && _ifcViewer != null && !string.IsNullOrWhiteSpace(_ifcViewer.LoadedIfcFilePath))
+            {
+                ifcFileName = System.IO.Path.GetFileName(_ifcViewer.LoadedIfcFilePath);
+            }
+            input.IfcFileName = ifcFileName;
 
             // Run optimization in a Task
             var appResult = await Task.Run(

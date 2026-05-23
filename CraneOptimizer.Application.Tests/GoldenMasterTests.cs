@@ -311,5 +311,180 @@ namespace CraneOptimizer.Application.Tests
             string report = GAProfiler.GetSummaryReport();
             _output.WriteLine(report);
         }
+
+        [Fact]
+        public void RunBenchmarkScenarios()
+        {
+            var configEngine = new CraneConfigurationEngine();
+            var liftingEngine = new LiftingCalculationEngine(configEngine);
+            var constraintEngine = new ConstraintEngine();
+            var coverageEngine = new CoverageEngine();
+
+            var initializer = new GAInitializer(constraintEngine);
+            var assignmentService = new ElementAssignmentService(liftingEngine, configEngine);
+            var fitnessEvaluator = new FitnessEvaluator(constraintEngine);
+            var selection = new TournamentSelection();
+            var crossover = new CrossoverOperator();
+            var mutation = new MutationOperator(constraintEngine);
+            var replacement = new ReplacementStrategy();
+
+            var gaEngine = new GAEngine(
+                initializer,
+                assignmentService,
+                fitnessEvaluator,
+                selection,
+                crossover,
+                mutation,
+                replacement,
+                constraintEngine
+            );
+
+            var placementEngine = new CranePlacementEngine(
+                gaEngine,
+                assignmentService,
+                coverageEngine,
+                configEngine
+            );
+
+            var settings = new GASettings
+            {
+                WireLength = 3.0,
+                DeratingRatio = 0.85,
+                SafetyFactor = 0.90,
+                PopulationSize = 15,
+                MaxGenerations = 10,
+                MaxCranePositions = 4,
+                RandomSeed = 42,
+                CraneFootprintRadius = 2.0,
+                MinimumRelocationDistance = 5.0,
+                MaxRadiusForNormalisation = 40.0,
+                ConvergenceThresholdPercent = 0.05,
+                EarlyStoppingGenerations = 5,
+                PositionSamplingAttempts = 50,
+                GridStep = 0.5,
+                CoverageWeight = 100.0,
+                RelocationWeight = 20.0,
+                RadiusPenaltyWeight = 30.0,
+                OverweightPenaltyWeight = 30.0,
+                HeightPenaltyWeight = 30.0,
+                RadiusQualityPenaltyWeight = 10.0,
+                SimilarPositionPenaltyWeight = 10.0,
+                RelocationDistancePenaltyWeight = 15.0,
+                EnableProfiling = true
+            };
+
+            var craneSpec = new CraneSpecification
+            {
+                Id = 1,
+                MaxRadius = 40,
+                MaxBoomLength = 50,
+                LoadChart = new List<TargetPoint>
+                {
+                    new TargetPoint { Radius = 10, BoomLength = 20, Capacity = 50 },
+                    new TargetPoint { Radius = 10, BoomLength = 30, Capacity = 40 },
+                    new TargetPoint { Radius = 20, BoomLength = 20, Capacity = 30 },
+                    new TargetPoint { Radius = 20, BoomLength = 30, Capacity = 20 }
+                }
+            };
+
+            var allowedZone = new GreenAreaZone
+            {
+                Vertices = new List<DomainPoint3D>
+                {
+                    new DomainPoint3D(-100, -100, 0),
+                    new DomainPoint3D(100, -100, 0),
+                    new DomainPoint3D(100, 100, 0),
+                    new DomainPoint3D(-100, 100, 0)
+                }
+            };
+
+            var forbiddenZone = new GreenAreaZone
+            {
+                Vertices = new List<DomainPoint3D>
+                {
+                    new DomainPoint3D(-5, -5, 0),
+                    new DomainPoint3D(5, -5, 0),
+                    new DomainPoint3D(5, 5, 0),
+                    new DomainPoint3D(-5, 5, 0)
+                }
+            };
+
+            // Run Scenario 1: Small selected element set (10 elements)
+            _output.WriteLine("\n=== RUNNING BENCHMARK SCENARIO 1: SMALL SET (10 ELEMENTS) ===");
+            var smallElements = GenerateMockElements(10);
+            var inputSmall1 = CreateInput("Small Set (Scenario 1)", smallElements, allowedZone, forbiddenZone, craneSpec, settings);
+            var resultSmall1 = placementEngine.RunOptimization(inputSmall1);
+            _output.WriteLine(GAProfiler.GetSummaryReport());
+
+            var inputSmall2 = CreateInput("Small Set (Scenario 1)", smallElements, allowedZone, forbiddenZone, craneSpec, settings);
+            var resultSmall2 = placementEngine.RunOptimization(inputSmall2);
+            Assert.Equal(resultSmall1.FitnessScore, resultSmall2.FitnessScore, 7);
+
+            // Run Scenario 2: Medium selected element set (50 elements)
+            _output.WriteLine("\n=== RUNNING BENCHMARK SCENARIO 2: MEDIUM SET (50 ELEMENTS) ===");
+            var mediumElements = GenerateMockElements(50);
+            var inputMed1 = CreateInput("Medium Set (Scenario 2)", mediumElements, allowedZone, forbiddenZone, craneSpec, settings);
+            var resultMed1 = placementEngine.RunOptimization(inputMed1);
+            _output.WriteLine(GAProfiler.GetSummaryReport());
+
+            var inputMed2 = CreateInput("Medium Set (Scenario 2)", mediumElements, allowedZone, forbiddenZone, craneSpec, settings);
+            var resultMed2 = placementEngine.RunOptimization(inputMed2);
+            Assert.Equal(resultMed1.FitnessScore, resultMed2.FitnessScore, 7);
+
+            // Run Scenario 3: Full/Large selected element set (200 elements)
+            _output.WriteLine("\n=== RUNNING BENCHMARK SCENARIO 3: LARGE SET (200 ELEMENTS) ===");
+            var largeElements = GenerateMockElements(200);
+            var inputLarge1 = CreateInput("Large Set (Scenario 3)", largeElements, allowedZone, forbiddenZone, craneSpec, settings);
+            var resultLarge1 = placementEngine.RunOptimization(inputLarge1);
+            _output.WriteLine(GAProfiler.GetSummaryReport());
+
+            var inputLarge2 = CreateInput("Large Set (Scenario 3)", largeElements, allowedZone, forbiddenZone, craneSpec, settings);
+            var resultLarge2 = placementEngine.RunOptimization(inputLarge2);
+            Assert.Equal(resultLarge1.FitnessScore, resultLarge2.FitnessScore, 7);
+        }
+
+        private List<PrecastElement> GenerateMockElements(int count)
+        {
+            var list = new List<PrecastElement>();
+            var random = new Random(42);
+            for (int i = 0; i < count; i++)
+            {
+                double angle = (double)i / count * 2.0 * Math.PI;
+                double distance = 10.0 + random.NextDouble() * 30.0;
+                double x = distance * Math.Cos(angle);
+                double y = distance * Math.Sin(angle);
+                list.Add(new PrecastElement
+                {
+                    ElementID = $"EL-{i + 1}",
+                    ElementCOG = new DomainPoint3D(x, y, 1.0 + random.NextDouble() * 3.0),
+                    ElementHeight = 3.0 + random.NextDouble() * 2.0,
+                    ElementWT = 5.0 + random.NextDouble() * 15.0
+                });
+            }
+            return list;
+        }
+
+        private PlacementInput CreateInput(
+            string scenarioName,
+            List<PrecastElement> elements,
+            GreenAreaZone allowed,
+            GreenAreaZone forbidden,
+            CraneSpecification craneSpec,
+            GASettings settings)
+        {
+            return new PlacementInput
+            {
+                Zones = new List<GreenAreaZone> { allowed },
+                ForbiddenZones = new List<GreenAreaZone> { forbidden },
+                Elements = elements,
+                Assignment = new Dictionary<int, List<string>>(),
+                CraneSpec = craneSpec,
+                Settings = settings,
+                ProjectName = scenarioName,
+                ProjectFolderPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Benchmarks"),
+                IfcFileName = $"{scenarioName.Replace(" ", "_")}.ifc",
+                TotalElementsCount = elements.Count
+            };
+        }
     }
 }

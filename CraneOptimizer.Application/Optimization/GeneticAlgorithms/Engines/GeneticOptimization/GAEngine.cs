@@ -69,6 +69,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 {
                     using (new GAProfiler.ProfileScope("GAEngine.GenerationLoop"))
                     {
+                        if (GAProfiler.Enabled)
+                        {
+                            System.Threading.Interlocked.Increment(ref GAProfiler.ActualGenerationLoopCount);
+                        }
                         cancellationToken.ThrowIfCancellationRequested();
 
                         foreach (var solution in population.Individuals)

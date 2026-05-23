@@ -40,6 +40,24 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
             GAProfiler.Reset();
             _configEngine.ClearCache();
 
+            if (GAProfiler.Enabled)
+            {
+                GAProfiler.ProjectName = input.ProjectName;
+                GAProfiler.ProjectFolderPath = input.ProjectFolderPath;
+                GAProfiler.IfcFileName = input.IfcFileName;
+                GAProfiler.CraneNameOrId = input.CraneSpec?.Crane?.Name ?? (input.CraneSpec != null ? $"Spec ID: {input.CraneSpec.Id}" : null);
+                GAProfiler.TotalTargetElementsCount = input.TotalElementsCount;
+                GAProfiler.SelectedFilteredElementsCount = input.Elements?.Count ?? 0;
+                GAProfiler.PopulationSize = input.Settings.PopulationSize;
+                GAProfiler.ConfiguredGenerationCount = input.Settings.MaxGenerations;
+
+                // Capture managed memory and GC counts before optimization (approximate managed memory metrics)
+                GAProfiler.MemoryBeforeBytes = GC.GetTotalMemory(false);
+                GAProfiler.GcCount0Before = GC.CollectionCount(0);
+                GAProfiler.GcCount1Before = GC.CollectionCount(1);
+                GAProfiler.GcCount2Before = GC.CollectionCount(2);
+            }
+
             using (new GAProfiler.ProfileScope("CranePlacementEngine.TotalRun"))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -156,19 +174,35 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
 
                 if (GAProfiler.Enabled)
                 {
+                    // Capture managed memory and GC counts after optimization (approximate managed memory metrics)
+                    GAProfiler.MemoryAfterBytes = GC.GetTotalMemory(false);
+                    GAProfiler.GcCount0After = GC.CollectionCount(0);
+                    GAProfiler.GcCount1After = GC.CollectionCount(1);
+                    GAProfiler.GcCount2After = GC.CollectionCount(2);
+
+                    // Set remaining results metadata
+                    GAProfiler.GreedySetCoverIterationCount = iteration;
+                    GAProfiler.FinalCraneSetupCount = finalResult.Positions.Count;
+                    GAProfiler.LiftedElementCount = finalResult.LiftedElementCount;
+                    GAProfiler.CoverageRatio = finalResult.CoverageRatio;
+
+                    // Determine log file directory and file name
+                    string logDir = input.Settings.ProfilingLogDirectory;
+                    if (string.IsNullOrWhiteSpace(logDir))
+                    {
+                        logDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Logs", "GA");
+                    }
+                    System.IO.Directory.CreateDirectory(logDir);
+                    string fileName = $"ga_profile_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+                    string fullPath = System.IO.Path.Combine(logDir, fileName);
+
+                    GAProfiler.ProfilingLogPath = fullPath;
+
                     string summary = GAProfiler.GetSummaryReport();
 
                     // Main persisted profiling output: export final summary to a text file
                     try
                     {
-                        string logDir = input.Settings.ProfilingLogDirectory;
-                        if (string.IsNullOrWhiteSpace(logDir))
-                        {
-                            logDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Logs", "GA");
-                        }
-                        System.IO.Directory.CreateDirectory(logDir);
-                        string fileName = $"ga_profile_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
-                        string fullPath = System.IO.Path.Combine(logDir, fileName);
                         System.IO.File.WriteAllText(fullPath, summary, System.Text.Encoding.UTF8);
                     }
                     catch (Exception ex)
@@ -176,7 +210,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                         Debug.WriteLine($"Failed to write profiling log: {ex.Message}");
                     }
 
-                    // Keep Console and Debug output optional
+                    // Keep Console and Debug output optional (do not add console spam)
                     Console.WriteLine(summary);
                     Debug.WriteLine(summary);
                 }
