@@ -1,30 +1,38 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F0_CoordinateSystem;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 {
     public class CranePlacementService : ICranePlacementService
     {
-        private readonly GAInputBuilder _inputBuilder;
-        private readonly IGeneticAlgorithmEngine _gaEngine;
-        private readonly IElementAssignmentService _assignmentService;
+        private readonly IOptimizationInputBuilder _inputBuilder;
+        private readonly ICranePlacementEngine _placementEngine;
+        private readonly IOptimizationScopeEngine _scopeEngine;
+        private readonly ISceneService _sceneService;
         private readonly CoordinateService _coordinateService;
 
         public CranePlacementService(
-            GAInputBuilder inputBuilder,
-            IGeneticAlgorithmEngine gaEngine,
-            IElementAssignmentService assignmentService,
+            IOptimizationInputBuilder inputBuilder,
+            ICranePlacementEngine placementEngine,
+            IOptimizationScopeEngine scopeEngine,
+            ISceneService sceneService,
             CoordinateService coordinateService)
         {
             _inputBuilder = inputBuilder;
-            _gaEngine = gaEngine;
-            _assignmentService = assignmentService;
+            _placementEngine = placementEngine;
+            _scopeEngine = scopeEngine;
+            _sceneService = sceneService;
             _coordinateService = coordinateService;
         }
 
@@ -35,172 +43,126 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var input = await _inputBuilder.BuildAsync(settings, crane);
+            var sceneElements = _sceneService.GetElements();
+            if (sceneElements == null || sceneElements.Count == 0)
+                throw new InvalidOperationException("No elements found in the scene.");
 
-            var allElements = input.Elements;
-            var remainingElements = new List<PrecastElement>(allElements);
-            var coveredElements = new HashSet<string>();
-            var finalResult = new CranePlacementResult();
+            var sceneZones = _sceneService.GetZones();
 
-            double previousCoverage = 0;
-            int maxPoints = 4;
-            double targetCoverage = 0.95;
-            double minImprovement = 0.05;
-            int iteration = 0;
+            // Filter elements using OptimizationScopeEngine before normalizing
+            var selectedElements = _sceneService.GetSelectedElements();
+            var selectedIds = (selectedElements != null && selectedElements.Count > 0)
+                ? selectedElements.Select(e => e.ElementID).Where(id => !string.IsNullOrEmpty(id)).ToHashSet()
+                : null;
 
-            while (remainingElements.Count > 0 && iteration < maxPoints)
+            var filter = new OptimizationScopeFilter
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                iteration++;
+                SelectedElementIds = selectedIds
+            };
 
-                input.Elements = remainingElements;
+            var filteredElements = _scopeEngine.FilterElements(sceneElements, filter);
 
-                var solution = await Task.Run(
-                    () => _gaEngine.Run(input, cancellationToken),
-                    cancellationToken);
+            // Normalize elements to meters
+            var elements = new List<PrecastElement>(filteredElements.Count);
+            for (int i = 0; i < filteredElements.Count; i++)
+            {
+                var element = filteredElements[i];
 
-                var iterationResult = MapResult(
-                    solution,
-                    allElements,
-                    input.CraneSpec,
-                    input.Settings);
+                if (!_coordinateService.IsValidPoint(element.ElementCOG))
+                    throw new InvalidOperationException($"Invalid coordinates found for element '{element.ElementID}'.");
 
-                if (iterationResult.Positions.Count == 0)
-                    break;
-
-                var bestPoint = iterationResult.Positions
-                    .OrderByDescending(point => point.ElementResults.Count(result => result.Status == LiftStatus.Liftable && !coveredElements.Contains(result.ElementId)))
-                    .ThenByDescending(point => point.LiftableCount)
-                    .First();
-
-                var newElements = bestPoint.ElementResults
-                    .Where(result => result.Status == LiftStatus.Liftable && !coveredElements.Contains(result.ElementId))
-                    .ToList();
-
-                if (newElements.Count == 0)
-                    break;
-
-                foreach (var element in newElements)
-                    coveredElements.Add(element.ElementId);
-
-                finalResult.Positions.Add(new CranePositionResult
-                {
-                    X = bestPoint.X,
-                    Y = bestPoint.Y,
-                    Z = bestPoint.Z,
-                    NewLiftableCount = newElements.Count,
-                    ElementResults = bestPoint.ElementResults
-                });
-
-                double currentCoverage = allElements.Count == 0
-                    ? 0
-                    : (double)coveredElements.Count / allElements.Count;
-
-                double improvement = currentCoverage - previousCoverage;
-
-                if (currentCoverage >= targetCoverage)
-                    break;
-
-                if (improvement < minImprovement)
-                    break;
-
-                previousCoverage = currentCoverage;
-
-                remainingElements = allElements
-                    .Where(element => !coveredElements.Contains(element.ElementID))
-                    .ToList();
+                elements.Add(_coordinateService.NormalizeElementToMeters(element));
             }
 
-            DeduplicateFinalPositions(finalResult, input.Settings);
-            RecalculateCoverage(finalResult, allElements.Count);
+            // Normalize zones to meters
+            var zones = new List<GreenAreaZone>(sceneZones.Count);
+            for (int i = 0; i < sceneZones.Count; i++)
+            {
+                zones.Add(_coordinateService.NormalizeZoneToMeters(sceneZones[i]));
+            }
 
-            finalResult.FitnessScore = finalResult.CoverageRatio;
-            finalResult.Positions = finalResult.Positions
-                .OrderByDescending(position => position.NewLiftableCount)
-                .ToList();
+            // Build input in normalized meters
+            var input = _inputBuilder.Build(settings, crane, elements, zones);
 
-            RecalculateCoverage(finalResult, allElements.Count);
+            // Run optimization in a Task
+            var appResult = await Task.Run(
+                () => _placementEngine.RunOptimization(input, cancellationToken),
+                cancellationToken);
+
+            // Map results back to UI DTOs
+            var finalResult = MapPlacementResult(appResult, sceneElements, input.CraneSpec, input.Settings);
+
+            // Write debug report
             WriteDebugReport(finalResult);
 
             return finalResult;
         }
 
-        private CranePlacementResult MapResult(
-            CraneSolution solution,
-            List<PrecastElement> elements,
+        private CranePlacementResult MapPlacementResult(
+            PlacementResult appResult,
+            List<PrecastElement> allElements,
             CraneSpecification craneSpec,
             GASettings settings)
         {
             var result = new CranePlacementResult
             {
-                FitnessScore = solution.Fitness,
-                Positions = new List<CranePositionResult>(solution.Chromosome.CranePositions.Count)
+                FitnessScore = appResult.FitnessScore,
+                CoverageRatio = appResult.CoverageRatio,
+                LiftedElementCount = appResult.LiftedElementCount,
+                TotalElementCount = appResult.TotalElementCount,
+                Statistics = new DTOs.LiftStatistics
+                {
+                    Liftable = appResult.Statistics.Liftable,
+                    OutOfRadius = appResult.Statistics.OutOfRadius,
+                    Overweight = appResult.Statistics.Overweight,
+                    HeightFail = appResult.Statistics.HeightFail,
+                    SpecialCase = appResult.Statistics.SpecialCase
+                },
+                Positions = new List<DTOs.CranePositionResult>(appResult.Positions.Count)
             };
 
-            var elementLookup = elements
+            var elementLookup = allElements
                 .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
                 .GroupBy(element => element.ElementID, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
-            for (int i = 0; i < solution.Chromosome.CranePositions.Count; i++)
+            foreach (var appPos in appResult.Positions)
             {
-                var scenePoint = _coordinateService.DenormalizePoint(solution.Chromosome.CranePositions[i]);
-                var evaluations = _assignmentService.EvaluatePosition(
-                    solution,
-                    i,
-                    elements,
-                    craneSpec,
-                    settings);
-
-                var point = new CranePositionResult
+                var scenePoint = _coordinateService.DenormalizePoint(new Domain.Common.DomainPoint3D(appPos.X, appPos.Y, appPos.Z));
+                var posResult = new DTOs.CranePositionResult
                 {
                     X = scenePoint.X,
                     Y = scenePoint.Y,
                     Z = scenePoint.Z,
-                    ElementResults = evaluations
-                        .Select(evaluation => MapElementResult(evaluation, elementLookup))
-                        .ToList()
+                    NewLiftableCount = appPos.NewLiftableCount,
+                    ElementResults = appPos.ElementResults.Select(appElem =>
+                    {
+                        elementLookup.TryGetValue(appElem.ElementId, out var element);
+                        var sceneCog = element == null
+                            ? new Domain.Common.DomainPoint3D()
+                            : _coordinateService.DenormalizePoint(element.ElementCOG);
+
+                        return new DTOs.ElementLiftResult
+                        {
+                            ElementId = appElem.ElementId,
+                            ElementMark = appElem.ElementMark,
+                            ElementType = appElem.ElementType,
+                            Weight = appElem.Weight,
+                            CogX = sceneCog.X,
+                            CogY = sceneCog.Y,
+                            CogZ = sceneCog.Z,
+                            Status = appElem.Status,
+                            Radius = appElem.Radius,
+                            BoomLength = appElem.BoomLength,
+                            AvailableCapacity = appElem.AvailableCapacity,
+                            RequiredCapacity = appElem.RequiredCapacity
+                        };
+                    }).ToList()
                 };
-
-                result.Positions.Add(point);
-
-                foreach (var evaluation in evaluations)
-                    UpdateStatistics(result.Statistics, evaluation.Status);
+                result.Positions.Add(posResult);
             }
 
-            int totalElements = result.Positions.Sum(position => position.ElementResults.Count);
-            result.CoverageRatio = totalElements == 0
-                ? 0
-                : (double)result.Statistics.Liftable / totalElements;
-
             return result;
-        }
-
-        private ElementLiftResult MapElementResult(
-            ElementEvaluationResult evaluation,
-            IReadOnlyDictionary<string, PrecastElement> elementLookup)
-        {
-            elementLookup.TryGetValue(evaluation.ElementId, out var element);
-
-            var sceneCog = element == null
-                ? new Domain.Common.DomainPoint3D()
-                : _coordinateService.DenormalizePoint(element.ElementCOG);
-
-            return new ElementLiftResult
-            {
-                ElementId = evaluation.ElementId,
-                ElementMark = element?.ElementMark,
-                ElementType = element?.ElementType,
-                Weight = element?.ElementWT,
-                CogX = sceneCog.X,
-                CogY = sceneCog.Y,
-                CogZ = sceneCog.Z,
-                Status = evaluation.Status,
-                Radius = evaluation.Radius,
-                BoomLength = evaluation.BoomLength,
-                AvailableCapacity = evaluation.AvailableCapacity,
-                RequiredCapacity = evaluation.RequiredCapacity
-            };
         }
 
         private static void WriteDebugReport(CranePlacementResult result)
@@ -215,110 +177,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 result.DebugReportPath = null;
                 result.DebugReportError = ex.Message;
             }
-        }
-
-        private static void UpdateStatistics(LiftStatistics statistics, LiftStatus status)
-        {
-            switch (status)
-            {
-                case LiftStatus.Liftable:
-                    statistics.Liftable++;
-                    break;
-                case LiftStatus.OutOfRadius:
-                    statistics.OutOfRadius++;
-                    break;
-                case LiftStatus.Overweight:
-                    statistics.Overweight++;
-                    break;
-                case LiftStatus.HeightFail:
-                    statistics.HeightFail++;
-                    break;
-                case LiftStatus.SpecialCase:
-                    statistics.SpecialCase++;
-                    break;
-            }
-        }
-
-        /// <summary>
-        /// Filters final crane setup points so small adjustments are not presented
-        /// as separate crane relocations. Inputs are the optimization result and GA settings;
-        /// the output is an in-place list where near-identical points keep the stronger
-        /// coverage candidate and discard the weaker duplicate.
-        /// </summary>
-        private static void DeduplicateFinalPositions(
-            CranePlacementResult result,
-            GASettings settings)
-        {
-            if (result.Positions.Count < 2)
-                return;
-
-            double minimumDistanceMeters = Math.Max(
-                settings.DuplicatePositionDistance,
-                settings.MinimumRelocationDistance);
-
-            if (minimumDistanceMeters <= 0)
-                return;
-
-            double minimumDistance = minimumDistanceMeters;
-
-            var filtered = new List<CranePositionResult>();
-
-            foreach (var candidate in result.Positions)
-            {
-                int nearIndex = filtered.FindIndex(existing =>
-                    Distance2D(existing, candidate) < minimumDistance);
-
-                if (nearIndex < 0)
-                {
-                    filtered.Add(candidate);
-                    continue;
-                }
-
-                var existing = filtered[nearIndex];
-                if (candidate.NewLiftableCount > existing.NewLiftableCount
-                    || (candidate.NewLiftableCount == existing.NewLiftableCount
-                        && candidate.LiftableCount > existing.LiftableCount))
-                {
-                    filtered[nearIndex] = candidate;
-                }
-            }
-
-            result.Positions = filtered;
-        }
-
-        /// <summary>
-        /// Recomputes total coverage and per-point new coverage after final de-duplication.
-        /// Inputs are the filtered result and original element count; outputs are updated
-        /// NewLiftableCount and CoverageRatio values consistent with displayed points.
-        /// </summary>
-        private static void RecalculateCoverage(CranePlacementResult result, int totalElementCount)
-        {
-            var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var position in result.Positions)
-            {
-                var newlyCovered = position.ElementResults
-                    .Where(item => item.Status == LiftStatus.Liftable && covered.Add(item.ElementId))
-                    .Count();
-
-                position.NewLiftableCount = newlyCovered;
-            }
-
-            result.LiftedElementCount = covered.Count;
-            result.TotalElementCount = totalElementCount;
-            result.CoverageRatio = totalElementCount == 0
-                ? 0
-                : (double)covered.Count / totalElementCount;
-        }
-
-        /// <summary>
-        /// Calculates horizontal distance between two displayed crane positions in meters.
-        /// </summary>
-        private static double Distance2D(CranePositionResult a, CranePositionResult b)
-        {
-            double dx = a.X - b.X;
-            double dy = a.Y - b.Y;
-            return Math.Sqrt(dx * dx + dy * dy);
         }
     }
 }
