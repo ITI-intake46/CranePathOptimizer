@@ -69,7 +69,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     /// </summary>
     public class FitnessEvaluator : IFitnessEvaluator
     {
+        private readonly IConstraintEngine _constraintEngine;
         private const double SpecialCasePenaltyWeight = 1.0;
+
+        public FitnessEvaluator(IConstraintEngine constraintEngine)
+        {
+            _constraintEngine = constraintEngine;
+        }
 
         public FitnessBreakdown EvaluateFitness(
             CraneSolution solution,
@@ -186,14 +192,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // Penalize near-duplicate crane positions so the GA cannot treat
             // 1-2 meter adjustments as independent setup locations.
             double similarPositionPenalty =
-                CranePlacementConstraintService.CalculateSimilarityPenalty(
+                _constraintEngine.CalculateSimilarityPenalty(
                     solution.Chromosome.CranePositions,
                     settings);
 
             // Movement distance is a proxy for mobilization/travel effort.
             // This complements the existing relocation-count penalty.
             double relocationDistancePenalty =
-                CranePlacementConstraintService.CalculateNormalizedRelocationDistance(
+                _constraintEngine.CalculateNormalizedRelocationDistance(
                     solution.Chromosome.CranePositions,
                     settings);
 

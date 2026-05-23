@@ -12,7 +12,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     /// </summary>
     public class MutationOperator : IMutationOperator
     {
+        private readonly IConstraintEngine _constraintEngine;
         private Random _random => GARandomManager.Instance;
+
+        public MutationOperator(IConstraintEngine constraintEngine)
+        {
+            _constraintEngine = constraintEngine;
+        }
 
         /// <summary>
         /// Mutates one crane setup point while preserving engineering constraints.
@@ -51,10 +57,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     point.Z
                 );
 
-                if (!CranePlacementConstraintService.IsValidSetupPoint(mutated, zones, forbiddenZones, settings))
+                if (!_constraintEngine.IsValidSetupPoint(mutated, zones, forbiddenZones, settings))
                     continue;
 
-                if (!CranePlacementConstraintService.IsMeaningfullySeparated(mutated, otherPositions, settings))
+                if (!_constraintEngine.IsMeaningfullySeparated(mutated, otherPositions, settings))
                     continue;
 
                 positions[index] = mutated;

@@ -1,8 +1,13 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 {
@@ -21,10 +26,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     /// </summary>
     public class GAInitializer : IGAInitializer
     {
+        private readonly IConstraintEngine _constraintEngine;
         private Random Rng => GARandomManager.Instance;
 
-        public GAInitializer(GASettings settings)
+        public GAInitializer(IConstraintEngine constraintEngine)
         {
+            _constraintEngine = constraintEngine;
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -214,7 +221,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 {
                     uint ix = (uint)Math.Round((e.ElementCOG.X - minX) / rangeX * 1023);
                     uint iy = (uint)Math.Round((e.ElementCOG.Y - minY) / rangeY * 1023);
-                    return MortonEncode(ix, iy);
+                    return SpatialMath.MortonEncode(ix, iy);
                 })
                 .ToList();
 
@@ -234,27 +241,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             return clusters;
         }
 
-        /// <summary>
-        /// Encodes two 10-bit integers into a 20-bit Morton code (Z-order curve)
-        /// by interleaving their bits: x0 y0 x1 y1 x2 y2 … x9 y9.
-        /// Elements with similar Morton codes are close in 2D space.
-        /// </summary>
-        private static uint MortonEncode(uint x, uint y)
-        {
-            // Spread the 10 bits of x into even bit positions
-            x &= 0x3FF;                // keep only 10 bits
-            x = (x | (x << 10)) & 0x000F_83FF;
-            x = (x | (x <<  4)) & 0x0007_E1F;
-            x = (x | (x <<  2)) & 0x0055_5555;
 
-            // Spread the 10 bits of y into even bit positions
-            y &= 0x3FF;
-            y = (y | (y << 10)) & 0x000F_83FF;
-            y = (y | (y <<  4)) & 0x0007_E1F;
-            y = (y | (y <<  2)) & 0x0055_5555;
-
-            return x | (y << 1);
-        }
 
 
         // ══════════════════════════════════════════════════════════════
@@ -267,10 +254,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         /// </summary>
         private DomainPoint3D CalculateCentroid(List<PrecastElement> elements)
         {
-            double x = elements.Average(e => e.ElementCOG.X);
-            double y = elements.Average(e => e.ElementCOG.Y);
-
-            return new DomainPoint3D(x, y, 0);
+            return SpatialMath.Centroid(elements);
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -302,18 +286,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 GetZoneElevation(closestZone));
 
             // Case 1: centroid falls inside one of the zones
-            if (CranePlacementConstraintService.IsValidSetupPoint(groundedCentroid, zones, forbiddenZones, settings)
-                && CranePlacementConstraintService.IsMeaningfullySeparated(groundedCentroid, existingPoints, settings))
+            if (_constraintEngine.IsValidSetupPoint(groundedCentroid, zones, forbiddenZones, settings)
+                && _constraintEngine.IsMeaningfullySeparated(groundedCentroid, existingPoints, settings))
             {
                 var snappedCentroid = SnapPointToGrid(groundedCentroid, settings.GridStep);
-                return CranePlacementConstraintService.IsValidSetupPoint(snappedCentroid, zones, forbiddenZones, settings)
+                return _constraintEngine.IsValidSetupPoint(snappedCentroid, zones, forbiddenZones, settings)
                     ? snappedCentroid
                     : groundedCentroid;
             }
 
             // Case 2: find the closest zone and sample inside it
             var sampled = GenerateRandomPointInsideZone(closestZone, forbiddenZones, settings);
-            return CranePlacementConstraintService.IsMeaningfullySeparated(sampled, existingPoints, settings)
+            return _constraintEngine.IsMeaningfullySeparated(sampled, existingPoints, settings)
                 ? sampled
                 : GenerateDiversePointInsideZones(zones, forbiddenZones, existingPoints, settings);
         }
@@ -327,10 +311,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             double zx = zone.Vertices.Average(v => v.X);
             double zy = zone.Vertices.Average(v => v.Y);
 
-            double dx = point.X - zx;
-            double dy = point.Y - zy;
-
-            return Math.Sqrt(dx * dx + dy * dy);
+            return SpatialMath.Distance2D(point, new DomainPoint3D(zx, zy, 0));
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -363,9 +344,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 var candidate = GenerateRandomPointInsideZone(zone, forbiddenZones, settings);
                 double nearestDistance = existingPoints.Count == 0
                     ? double.MaxValue
-                    : existingPoints.Min(point => CranePlacementConstraintService.Distance2D(point, candidate));
+                    : existingPoints.Min(point => SpatialMath.Distance2D(point, candidate));
 
-                if (CranePlacementConstraintService.IsMeaningfullySeparated(candidate, existingPoints, settings))
+                if (_constraintEngine.IsMeaningfullySeparated(candidate, existingPoints, settings))
                     return candidate;
 
                 if (nearestDistance > bestDistance)
@@ -387,7 +368,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             List<GreenAreaZone> forbiddenZones,
             GASettings settings)
         {
-            var bbox = GetBoundingBox(zone.Vertices);
+            var bbox = SpatialMath.BoundingBox(zone.Vertices);
 
             int attempts = Math.Max(1, settings.PositionSamplingAttempts);
             for (int attempt = 0; attempt < attempts; attempt++)
@@ -397,7 +378,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
                 var point = SnapPointToGrid(new DomainPoint3D(x, y, GetZoneElevation(zone)), settings.GridStep);
 
-                if (CranePlacementConstraintService.IsValidSetupPoint(point, new[] { zone }, forbiddenZones, settings))
+                if (_constraintEngine.IsValidSetupPoint(point, new[] { zone }, forbiddenZones, settings))
                     return point;
             }
 
@@ -420,50 +401,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 point.Z);
         }
 
-        /// <summary>
-        /// Calculates the bounding box (min/max X and Y) of a polygon.
-        /// </summary>
-        private (double minX, double maxX, double minY, double maxY)
-            GetBoundingBox(List<DomainPoint3D> vertices)
-        {
-            return (
-                vertices.Min(v => v.X),
-                vertices.Max(v => v.X),
-                vertices.Min(v => v.Y),
-                vertices.Max(v => v.Y)
-            );
-        }
-
         private static double GetZoneElevation(GreenAreaZone zone)
         {
             return zone.Vertices.Count == 0
                 ? 0d
                 : zone.Vertices.Average(vertex => vertex.Z);
-        }
-
-        /// <summary>
-        /// Ray-casting algorithm to determine if a point lies inside a polygon.
-        /// Casts a horizontal ray from the point to the right and counts
-        /// how many polygon edges it crosses — odd = inside, even = outside.
-        /// </summary>
-        private bool IsPointInsidePolygon(DomainPoint3D point, List<DomainPoint3D> polygon)
-        {
-            bool inside = false;
-
-            for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
-            {
-                var pi = polygon[i];
-                var pj = polygon[j];
-
-                bool intersect =
-                    ((pi.Y > point.Y) != (pj.Y > point.Y)) &&
-                    (point.X < (pj.X - pi.X) * (point.Y - pi.Y) / (pj.Y - pi.Y) + pi.X);
-
-                if (intersect)
-                    inside = !inside;
-            }
-
-            return inside;
         }
     }
 }

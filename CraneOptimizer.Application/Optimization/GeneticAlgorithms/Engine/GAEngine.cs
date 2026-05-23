@@ -22,6 +22,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
         private readonly ICrossoverOperator _crossover;
         private readonly IMutationOperator _mutation;
         private readonly IReplacementStrategy _replacement;
+        private readonly IConstraintEngine _constraintEngine;
 
         public GAEngine(
             IGAInitializer initializer,
@@ -30,7 +31,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
             ISelectionStrategy selection,
             ICrossoverOperator crossover,
             IMutationOperator mutation,
-            IReplacementStrategy replacement)
+            IReplacementStrategy replacement,
+            IConstraintEngine constraintEngine)
         {
             _initializer = initializer;
             _assignmentService = assignmentService;
@@ -39,6 +41,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
             _crossover = crossover;
             _mutation = mutation;
             _replacement = replacement;
+            _constraintEngine = constraintEngine;
         }
 
         public CraneSolution Run(PlacementInput input, CancellationToken cancellationToken = default)
@@ -184,9 +187,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
         /// in-place chromosome update that removes invalid, forbidden, or near-duplicate
         /// setup points while preserving at least one valid fallback point where possible.
         /// </summary>
-        private static void SanitizeSolution(CraneSolution solution, PlacementInput input)
+        private void SanitizeSolution(CraneSolution solution, PlacementInput input)
         {
-            var filtered = CranePlacementConstraintService.FilterDistinctValidPoints(
+            var filtered = _constraintEngine.FilterDistinctValidPoints(
                 solution.Chromosome.CranePositions,
                 input.Zones,
                 input.ForbiddenZones,
@@ -206,7 +209,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
         /// Finds a simple valid fallback point from allowed-zone centroids.
         /// This keeps GA children evaluable if crossover or mutation removes every point.
         /// </summary>
-        private static DomainPoint3D? FindFirstValidZoneCentroid(
+        private DomainPoint3D? FindFirstValidZoneCentroid(
             IReadOnlyList<GreenAreaZone> zones,
             IReadOnlyList<GreenAreaZone> forbiddenZones,
             GASettings settings)
@@ -221,7 +224,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine
                     zone.Vertices.Average(vertex => vertex.Y),
                     zone.Vertices.Average(vertex => vertex.Z));
 
-                if (CranePlacementConstraintService.IsValidSetupPoint(candidate, zones, forbiddenZones, settings))
+                if (_constraintEngine.IsValidSetupPoint(candidate, zones, forbiddenZones, settings))
                     return candidate;
             }
 
