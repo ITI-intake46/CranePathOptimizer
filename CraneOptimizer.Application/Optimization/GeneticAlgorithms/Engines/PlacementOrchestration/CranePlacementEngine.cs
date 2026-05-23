@@ -6,8 +6,10 @@ using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+using CraneOptimizer.Application.Optimization.Utilities;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.PlacementOrchestration
 {
@@ -31,116 +33,151 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
             PlacementInput input,
             CancellationToken cancellationToken = default)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            GAProfiler.Reset();
 
-            var allElements = input.Elements;
-            var remainingElements = new List<PrecastElement>(allElements);
-            var coveredElements = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var finalResult = new PlacementResult();
-
-            double previousCoverage = 0;
-            int maxPoints = 4;
-            double targetCoverage = 0.95;
-            double minImprovement = 0.05;
-            int iteration = 0;
-
-            while (remainingElements.Count > 0 && iteration < maxPoints)
+            using (new GAProfiler.ProfileScope("CranePlacementEngine.TotalRun"))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                iteration++;
 
-                input.Elements = remainingElements;
+                var allElements = input.Elements;
+                var remainingElements = new List<PrecastElement>(allElements);
+                var coveredElements = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var finalResult = new PlacementResult();
 
-                var solution = _gaEngine.Run(input, cancellationToken);
+                double previousCoverage = 0;
+                int maxPoints = 4;
+                double targetCoverage = 0.95;
+                double minImprovement = 0.05;
+                int iteration = 0;
 
-                var iterationResult = MapResult(
-                    solution,
-                    allElements,
-                    input.CraneSpec,
-                    input.Settings);
-
-                if (iterationResult.Positions.Count == 0)
-                    break;
-
-                var bestPoint = iterationResult.Positions
-                    .OrderByDescending(point => point.ElementResults.Count(result => result.Status == LiftStatus.Liftable && !coveredElements.Contains(result.ElementId)))
-                    .ThenByDescending(point => point.LiftableCount)
-                    .First();
-
-                var newElements = bestPoint.ElementResults
-                    .Where(result => result.Status == LiftStatus.Liftable && !coveredElements.Contains(result.ElementId))
-                    .ToList();
-
-                if (newElements.Count == 0)
-                    break;
-
-                foreach (var element in newElements)
-                    coveredElements.Add(element.ElementId);
-
-                finalResult.Positions.Add(new CranePositionResult
+                while (remainingElements.Count > 0 && iteration < maxPoints)
                 {
-                    X = bestPoint.X,
-                    Y = bestPoint.Y,
-                    Z = bestPoint.Z,
-                    NewLiftableCount = newElements.Count,
-                    ElementResults = bestPoint.ElementResults
-                });
+                    using (new GAProfiler.ProfileScope("CranePlacementEngine.SetCoverIteration"))
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        iteration++;
 
-                double currentCoverage = allElements.Count == 0
-                    ? 0
-                    : (double)coveredElements.Count / allElements.Count;
+                        input.Elements = remainingElements;
 
-                double improvement = currentCoverage - previousCoverage;
+                        var solution = _gaEngine.Run(input, cancellationToken);
 
-                if (currentCoverage >= targetCoverage)
-                    break;
+                        var iterationResult = MapResult(
+                            solution,
+                            allElements,
+                            input.CraneSpec,
+                            input.Settings);
 
-                if (improvement < minImprovement)
-                    break;
+                        if (iterationResult.Positions.Count == 0)
+                            break;
 
-                previousCoverage = currentCoverage;
+                        var bestPoint = iterationResult.Positions
+                            .OrderByDescending(point => point.ElementResults.Count(result => result.Status == LiftStatus.Liftable && !coveredElements.Contains(result.ElementId)))
+                            .ThenByDescending(point => point.LiftableCount)
+                            .First();
 
-                remainingElements = _coverageEngine.FilterRemainingElements(allElements, coveredElements);
-            }
+                        var newElements = bestPoint.ElementResults
+                            .Where(result => result.Status == LiftStatus.Liftable && !coveredElements.Contains(result.ElementId))
+                            .ToList();
+
+                        if (newElements.Count == 0)
+                            break;
+
+                        foreach (var element in newElements)
+                            coveredElements.Add(element.ElementId);
+
+                        finalResult.Positions.Add(new CranePositionResult
+                        {
+                            X = bestPoint.X,
+                            Y = bestPoint.Y,
+                            Z = bestPoint.Z,
+                            NewLiftableCount = newElements.Count,
+                            ElementResults = bestPoint.ElementResults
+                        });
+
+                        double currentCoverage = allElements.Count == 0
+                            ? 0
+                            : (double)coveredElements.Count / allElements.Count;
+
+                        double improvement = currentCoverage - previousCoverage;
+
+                        if (currentCoverage >= targetCoverage)
+                            break;
+
+                        if (improvement < minImprovement)
+                            break;
+
+                        previousCoverage = currentCoverage;
+
+                        remainingElements = _coverageEngine.FilterRemainingElements(allElements, coveredElements);
+                    }
+                }
 
 #if DEBUG
-            // ══════════════════════════════════════════════════════════════
-            // GOLDEN MASTER COMPARISON (Phase 4 Verification)
-            // ══════════════════════════════════════════════════════════════
-            var cloneLegacy = ClonePlacementResult(finalResult);
-            var cloneNew = ClonePlacementResult(finalResult);
+                // ══════════════════════════════════════════════════════════════
+                // GOLDEN MASTER COMPARISON (Phase 4 Verification)
+                // ══════════════════════════════════════════════════════════════
+                var cloneLegacy = ClonePlacementResult(finalResult);
+                var cloneNew = ClonePlacementResult(finalResult);
 
-            LegacyDeduplicateFinalPositions(cloneLegacy, input.Settings);
-            LegacyRecalculateCoverage(cloneLegacy, allElements.Count);
+                LegacyDeduplicateFinalPositions(cloneLegacy, input.Settings);
+                LegacyRecalculateCoverage(cloneLegacy, allElements.Count);
 
-            _coverageEngine.DeduplicateFinalPositions(cloneNew, input.Settings);
-            _coverageEngine.RecalculateCoverage(cloneNew, allElements.Count);
+                _coverageEngine.DeduplicateFinalPositions(cloneNew, input.Settings);
+                _coverageEngine.RecalculateCoverage(cloneNew, allElements.Count);
 
-            if (cloneLegacy.LiftedElementCount != cloneNew.LiftedElementCount)
-                throw new InvalidOperationException($"LiftedElementCount mismatch! New: {cloneNew.LiftedElementCount}, Legacy: {cloneLegacy.LiftedElementCount}");
-            if (Math.Abs(cloneLegacy.CoverageRatio - cloneNew.CoverageRatio) > 1e-7)
-                throw new InvalidOperationException($"CoverageRatio mismatch! New: {cloneNew.CoverageRatio}, Legacy: {cloneLegacy.CoverageRatio}");
-            if (cloneLegacy.Positions.Count != cloneNew.Positions.Count)
-                throw new InvalidOperationException($"Deduplicated Positions Count mismatch! New: {cloneNew.Positions.Count}, Legacy: {cloneLegacy.Positions.Count}");
-            for (int i = 0; i < cloneLegacy.Positions.Count; i++)
-            {
-                if (cloneLegacy.Positions[i].NewLiftableCount != cloneNew.Positions[i].NewLiftableCount)
-                    throw new InvalidOperationException($"NewLiftableCount mismatch at index {i}! New: {cloneNew.Positions[i].NewLiftableCount}, Legacy: {cloneLegacy.Positions[i].NewLiftableCount}");
-            }
-            // ══════════════════════════════════════════════════════════════
+                if (cloneLegacy.LiftedElementCount != cloneNew.LiftedElementCount)
+                    throw new InvalidOperationException($"LiftedElementCount mismatch! New: {cloneNew.LiftedElementCount}, Legacy: {cloneLegacy.LiftedElementCount}");
+                if (Math.Abs(cloneLegacy.CoverageRatio - cloneNew.CoverageRatio) > 1e-7)
+                    throw new InvalidOperationException($"CoverageRatio mismatch! New: {cloneNew.CoverageRatio}, Legacy: {cloneLegacy.CoverageRatio}");
+                if (cloneLegacy.Positions.Count != cloneNew.Positions.Count)
+                    throw new InvalidOperationException($"Deduplicated Positions Count mismatch! New: {cloneNew.Positions.Count}, Legacy: {cloneLegacy.Positions.Count}");
+                for (int i = 0; i < cloneLegacy.Positions.Count; i++)
+                {
+                    if (cloneLegacy.Positions[i].NewLiftableCount != cloneNew.Positions[i].NewLiftableCount)
+                        throw new InvalidOperationException($"NewLiftableCount mismatch at index {i}! New: {cloneNew.Positions[i].NewLiftableCount}, Legacy: {cloneLegacy.Positions[i].NewLiftableCount}");
+                }
+                // ══════════════════════════════════════════════════════════════
 #endif
 
-            _coverageEngine.DeduplicateFinalPositions(finalResult, input.Settings);
-            _coverageEngine.RecalculateCoverage(finalResult, allElements.Count);
+                _coverageEngine.DeduplicateFinalPositions(finalResult, input.Settings);
+                _coverageEngine.RecalculateCoverage(finalResult, allElements.Count);
 
-            finalResult.FitnessScore = finalResult.CoverageRatio;
-            finalResult.Positions = finalResult.Positions
-                .OrderByDescending(position => position.NewLiftableCount)
-                .ToList();
+                finalResult.FitnessScore = finalResult.CoverageRatio;
+                finalResult.Positions = finalResult.Positions
+                    .OrderByDescending(position => position.NewLiftableCount)
+                    .ToList();
 
-            _coverageEngine.RecalculateCoverage(finalResult, allElements.Count);
+                _coverageEngine.RecalculateCoverage(finalResult, allElements.Count);
 
-            return finalResult;
+                if (GAProfiler.Enabled)
+                {
+                    string summary = GAProfiler.GetSummaryReport();
+
+                    // Main persisted profiling output: export final summary to a text file
+                    try
+                    {
+                        string logDir = input.Settings.ProfilingLogDirectory;
+                        if (string.IsNullOrWhiteSpace(logDir))
+                        {
+                            logDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Logs", "GA");
+                        }
+                        System.IO.Directory.CreateDirectory(logDir);
+                        string fileName = $"ga_profile_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+                        string fullPath = System.IO.Path.Combine(logDir, fileName);
+                        System.IO.File.WriteAllText(fullPath, summary, System.Text.Encoding.UTF8);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Failed to write profiling log: {ex.Message}");
+                    }
+
+                    // Keep Console and Debug output optional
+                    Console.WriteLine(summary);
+                    Debug.WriteLine(summary);
+                }
+
+                return finalResult;
+            }
         }
 
         private PlacementResult MapResult(

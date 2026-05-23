@@ -6,6 +6,7 @@ using CraneOptimizer.Domain.Schemas;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using CraneOptimizer.Application.Optimization.Utilities;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization
 {
@@ -48,41 +49,44 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             CraneSpecification craneSpec,
             GASettings settings)
         {
-            var result = new AssignmentResult();
-
-            foreach (var element in elements)
+            using (new GAProfiler.ProfileScope("ElementAssignmentService.EvaluateAssignment"))
             {
-                ElementEvaluationResult evaluation;
+                var result = new AssignmentResult();
 
-                // ── Check for user-defined assignment ─────────────────
-                int? userAssignedIndex = ResolveUserAssignment(element, assignment);
-
-                if (userAssignedIndex.HasValue)
+                foreach (var element in elements)
                 {
-                    // User forced this element to a specific crane position
-                    evaluation = EvaluateSinglePosition(
-                        element,
-                        solution,
-                        userAssignedIndex.Value,
-                        craneSpec,
-                        settings);
-                }
-                else
-                {
-                    // No user override → try all positions and pick the best
-                    evaluation = EvaluateBestPosition(
-                        element,
-                        solution,
-                        craneSpec,
-                        settings);
+                    ElementEvaluationResult evaluation;
+
+                    // ── Check for user-defined assignment ─────────────────
+                    int? userAssignedIndex = ResolveUserAssignment(element, assignment);
+
+                    if (userAssignedIndex.HasValue)
+                    {
+                        // User forced this element to a specific crane position
+                        evaluation = EvaluateSinglePosition(
+                            element,
+                            solution,
+                            userAssignedIndex.Value,
+                            craneSpec,
+                            settings);
+                    }
+                    else
+                    {
+                        // No user override → try all positions and pick the best
+                        evaluation = EvaluateBestPosition(
+                            element,
+                            solution,
+                            craneSpec,
+                            settings);
+                    }
+
+                    result.EvaluationResults.Add(evaluation);
                 }
 
-                result.EvaluationResults.Add(evaluation);
+                UpdateAssignmentSummary(result);
+
+                return result;
             }
-
-            UpdateAssignmentSummary(result);
-
-            return result;
         }
 
         public IReadOnlyList<ElementEvaluationResult> EvaluatePosition(
@@ -92,12 +96,15 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             CraneSpecification craneSpec,
             GASettings settings)
         {
-            if (solution.Chromosome.CranePositions.Count == 0 || craneIndex < 0 || craneIndex >= solution.Chromosome.CranePositions.Count)
-                return Array.Empty<ElementEvaluationResult>();
+            using (new GAProfiler.ProfileScope("ElementAssignmentService.EvaluatePosition"))
+            {
+                if (solution.Chromosome.CranePositions.Count == 0 || craneIndex < 0 || craneIndex >= solution.Chromosome.CranePositions.Count)
+                    return Array.Empty<ElementEvaluationResult>();
 
-            return elements
-                .Select(element => ComputeEvaluationResult(element, solution, craneIndex, craneSpec, settings))
-                .ToList();
+                return elements
+                    .Select(element => ComputeEvaluationResult(element, solution, craneIndex, craneSpec, settings))
+                    .ToList();
+            }
         }
 
         // ══════════════════════════════════════════════════════════════

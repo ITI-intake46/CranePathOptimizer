@@ -15,102 +15,114 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cove
     {
         public void RecalculateCoverage(PlacementResult result, int totalElementCount)
         {
-            var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var position in result.Positions)
+            using (new GAProfiler.ProfileScope("CoverageEngine.RecalculateCoverage"))
             {
-                var newlyCovered = position.ElementResults
-                    .Where(item => item.Status == LiftStatus.Liftable && covered.Add(item.ElementId))
-                    .Count();
+                var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                position.NewLiftableCount = newlyCovered;
+                foreach (var position in result.Positions)
+                {
+                    var newlyCovered = position.ElementResults
+                        .Where(item => item.Status == LiftStatus.Liftable && covered.Add(item.ElementId))
+                        .Count();
+
+                    position.NewLiftableCount = newlyCovered;
+                }
+
+                result.LiftedElementCount = covered.Count;
+                result.TotalElementCount = totalElementCount;
+                result.CoverageRatio = totalElementCount == 0
+                    ? 0
+                    : (double)covered.Count / totalElementCount;
             }
-
-            result.LiftedElementCount = covered.Count;
-            result.TotalElementCount = totalElementCount;
-            result.CoverageRatio = totalElementCount == 0
-                ? 0
-                : (double)covered.Count / totalElementCount;
         }
 
         public void DeduplicateFinalPositions(
             PlacementResult result,
             GASettings settings)
         {
-            if (result.Positions.Count < 2)
-                return;
-
-            double minimumDistanceMeters = Math.Max(
-                settings.DuplicatePositionDistance,
-                settings.MinimumRelocationDistance);
-
-            if (minimumDistanceMeters <= 0)
-                return;
-
-            double minimumDistance = minimumDistanceMeters;
-
-            var filtered = new List<CranePositionResult>();
-
-            foreach (var candidate in result.Positions)
+            using (new GAProfiler.ProfileScope("CoverageEngine.DeduplicateFinalPositions"))
             {
-                int nearIndex = filtered.FindIndex(existing =>
-                {
-                    var pExisting = new DomainPoint3D(existing.X, existing.Y, existing.Z);
-                    var pCandidate = new DomainPoint3D(candidate.X, candidate.Y, candidate.Z);
-                    return SpatialMath.Distance2D(pExisting, pCandidate) < minimumDistance;
-                });
+                if (result.Positions.Count < 2)
+                    return;
 
-                if (nearIndex < 0)
+                double minimumDistanceMeters = Math.Max(
+                    settings.DuplicatePositionDistance,
+                    settings.MinimumRelocationDistance);
+
+                if (minimumDistanceMeters <= 0)
+                    return;
+
+                double minimumDistance = minimumDistanceMeters;
+
+                var filtered = new List<CranePositionResult>();
+
+                foreach (var candidate in result.Positions)
                 {
-                    filtered.Add(candidate);
-                    continue;
+                    int nearIndex = filtered.FindIndex(existing =>
+                    {
+                        var pExisting = new DomainPoint3D(existing.X, existing.Y, existing.Z);
+                        var pCandidate = new DomainPoint3D(candidate.X, candidate.Y, candidate.Z);
+                        return SpatialMath.Distance2D(pExisting, pCandidate) < minimumDistance;
+                    });
+
+                    if (nearIndex < 0)
+                    {
+                        filtered.Add(candidate);
+                        continue;
+                    }
+
+                    var existing = filtered[nearIndex];
+                    if (candidate.NewLiftableCount > existing.NewLiftableCount
+                        || (candidate.NewLiftableCount == existing.NewLiftableCount
+                            && candidate.LiftableCount > existing.LiftableCount))
+                    {
+                        filtered[nearIndex] = candidate;
+                    }
                 }
 
-                var existing = filtered[nearIndex];
-                if (candidate.NewLiftableCount > existing.NewLiftableCount
-                    || (candidate.NewLiftableCount == existing.NewLiftableCount
-                        && candidate.LiftableCount > existing.LiftableCount))
-                {
-                    filtered[nearIndex] = candidate;
-                }
+                result.Positions = filtered;
             }
-
-            result.Positions = filtered;
         }
 
         public List<PrecastElement> FilterRemainingElements(
             IReadOnlyList<PrecastElement> allElements,
             HashSet<string> coveredElements)
         {
-            if (allElements == null)
-                return new List<PrecastElement>();
+            using (new GAProfiler.ProfileScope("CoverageEngine.FilterRemainingElements"))
+            {
+                if (allElements == null)
+                    return new List<PrecastElement>();
 
-            if (coveredElements == null || coveredElements.Count == 0)
-                return allElements.ToList();
+                if (coveredElements == null || coveredElements.Count == 0)
+                    return allElements.ToList();
 
-            return allElements
-                .Where(element => !coveredElements.Contains(element.ElementID))
-                .ToList();
+                return allElements
+                    .Where(element => !coveredElements.Contains(element.ElementID))
+                    .ToList();
+            }
         }
 
         public HashSet<string> GetCoveredElementIds(PlacementResult result)
         {
-            var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (result == null || result.Positions == null)
-                return covered;
-
-            foreach (var position in result.Positions)
+            using (new GAProfiler.ProfileScope("CoverageEngine.GetCoveredElementIds"))
             {
-                foreach (var item in position.ElementResults)
+                var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (result == null || result.Positions == null)
+                    return covered;
+
+                foreach (var position in result.Positions)
                 {
-                    if (item.Status == LiftStatus.Liftable)
+                    foreach (var item in position.ElementResults)
                     {
-                        covered.Add(item.ElementId);
+                        if (item.Status == LiftStatus.Liftable)
+                        {
+                            covered.Add(item.ElementId);
+                        }
                     }
                 }
-            }
 
-            return covered;
+                return covered;
+            }
         }
     }
 }

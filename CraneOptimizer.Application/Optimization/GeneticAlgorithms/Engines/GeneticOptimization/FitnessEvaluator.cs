@@ -3,6 +3,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using System;
 using System.Linq;
+using CraneOptimizer.Application.Optimization.Utilities;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization
 {
@@ -84,165 +85,168 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             AssignmentResult assignment,
             GASettings settings)
         {
-            var breakdown = new FitnessBreakdown();
-            var results = assignment.EvaluationResults;
-
-            // ── Guard: empty evaluation ────────────────────────────
-            if (results == null || results.Count == 0)
+            using (new GAProfiler.ProfileScope("FitnessEvaluator.EvaluateFitness"))
             {
-                breakdown.FitnessScore = 0;
-                return breakdown;
-            }
+                var breakdown = new FitnessBreakdown();
+                var results = assignment.EvaluationResults;
 
-            int total = results.Count;
-
-            // ══════════════════════════════════════════════════════
-            // NEW: TRACK UNIQUE COVERAGE + DUPLICATION
-            // ══════════════════════════════════════════════════════
-
-            // Unique elements lifted (true coverage)
-            int uniqueLiftableCount = results
-                .Where(r => r.Status == LiftStatus.Liftable)
-                .Select(r => r.ElementId)
-                .Distinct()
-                .Count();
-
-            double coverageRatio = (double)uniqueLiftableCount / total;
-
-            // ── Hard constraint: zero coverage → zero fitness ──────
-            if (uniqueLiftableCount == 0)
-            {
-                breakdown.FitnessScore = 0;
-                breakdown.CoverageRatio = 0;
-                breakdown.LiftableElements = 0;
-                breakdown.TotalElements = total;
-                return breakdown;
-            }
-
-            // ══════════════════════════════════════════════════════
-            // 2. RELOCATION PENALTY
-            // ══════════════════════════════════════════════════════
-
-            int craneCount = solution.Chromosome.CranePositions.Count;
-
-            double normalisedRelocation = settings.MaxCranePositions > 0
-                ? (double)craneCount / settings.MaxCranePositions
-                : 0;
-
-            // ══════════════════════════════════════════════════════
-            // 3. FAILURE PENALTIES
-            // ══════════════════════════════════════════════════════
-
-            int outOfRadiusCount = results.Count(r => r.Status == LiftStatus.OutOfRadius);
-            int overweightCount = results.Count(r => r.Status == LiftStatus.Overweight);
-            int heightFailCount = results.Count(r => r.Status == LiftStatus.HeightFail);
-            int specialCaseCount = results.Count(r => r.Status == LiftStatus.SpecialCase);
-
-            double normOutOfRadius = (double)outOfRadiusCount / total;
-            double normOverweight = (double)overweightCount / total;
-            double normHeightFail = (double)heightFailCount / total;
-            double normSpecialCase = (double)specialCaseCount / total;
-
-            // ══════════════════════════════════════════════════════
-            // 4. RADIUS QUALITY BONUS
-            // ══════════════════════════════════════════════════════
-
-            double radiusQualityPenalty = 0;
-
-            if (settings.MaxRadiusForNormalisation > 0)
-            {
-                var liftableResults = results.Where(r => r.Status == LiftStatus.Liftable).ToList();
-
-                if (liftableResults.Count > 0)
+                // ── Guard: empty evaluation ────────────────────────────
+                if (results == null || results.Count == 0)
                 {
-                    double avgRadius = liftableResults.Average(r => r.Radius);
-                    radiusQualityPenalty = avgRadius / settings.MaxRadiusForNormalisation;
-                    radiusQualityPenalty = Math.Min(radiusQualityPenalty, 1.0);
+                    breakdown.FitnessScore = 0;
+                    return breakdown;
                 }
+
+                int total = results.Count;
+
+                // ══════════════════════════════════════════════════════
+                // NEW: TRACK UNIQUE COVERAGE + DUPLICATION
+                // ══════════════════════════════════════════════════════
+
+                // Unique elements lifted (true coverage)
+                int uniqueLiftableCount = results
+                    .Where(r => r.Status == LiftStatus.Liftable)
+                    .Select(r => r.ElementId)
+                    .Distinct()
+                    .Count();
+
+                double coverageRatio = (double)uniqueLiftableCount / total;
+
+                // ── Hard constraint: zero coverage → zero fitness ──────
+                if (uniqueLiftableCount == 0)
+                {
+                    breakdown.FitnessScore = 0;
+                    breakdown.CoverageRatio = 0;
+                    breakdown.LiftableElements = 0;
+                    breakdown.TotalElements = total;
+                    return breakdown;
+                }
+
+                // ══════════════════════════════════════════════════════
+                // 2. RELOCATION PENALTY
+                // ══════════════════════════════════════════════════════
+
+                int craneCount = solution.Chromosome.CranePositions.Count;
+
+                double normalisedRelocation = settings.MaxCranePositions > 0
+                    ? (double)craneCount / settings.MaxCranePositions
+                    : 0;
+
+                // ══════════════════════════════════════════════════════
+                // 3. FAILURE PENALTIES
+                // ══════════════════════════════════════════════════════
+
+                int outOfRadiusCount = results.Count(r => r.Status == LiftStatus.OutOfRadius);
+                int overweightCount = results.Count(r => r.Status == LiftStatus.Overweight);
+                int heightFailCount = results.Count(r => r.Status == LiftStatus.HeightFail);
+                int specialCaseCount = results.Count(r => r.Status == LiftStatus.SpecialCase);
+
+                double normOutOfRadius = (double)outOfRadiusCount / total;
+                double normOverweight = (double)overweightCount / total;
+                double normHeightFail = (double)heightFailCount / total;
+                double normSpecialCase = (double)specialCaseCount / total;
+
+                // ══════════════════════════════════════════════════════
+                // 4. RADIUS QUALITY BONUS
+                // ══════════════════════════════════════════════════════
+
+                double radiusQualityPenalty = 0;
+
+                if (settings.MaxRadiusForNormalisation > 0)
+                {
+                    var liftableResults = results.Where(r => r.Status == LiftStatus.Liftable).ToList();
+
+                    if (liftableResults.Count > 0)
+                    {
+                        double avgRadius = liftableResults.Average(r => r.Radius);
+                        radiusQualityPenalty = avgRadius / settings.MaxRadiusForNormalisation;
+                        radiusQualityPenalty = Math.Min(radiusQualityPenalty, 1.0);
+                    }
+                }
+
+                // ══════════════════════════════════════════════════════
+                // 5. BALANCE & RADIUS STD-DEV PENALTIES
+                // ══════════════════════════════════════════════════════
+
+                // Issue 10 fix: use AssignedLiftableElements (only confirmed
+                // Liftable results) so that cranes with many nearby-but-failed
+                // elements are not mistakenly counted as "busy" and do not
+                // incorrectly inflate the balance signal.
+                var liftableCountsPerCrane = assignment.AssignedLiftableElements
+                    .Select(kv => kv.Value.Count)
+                    .ToList();
+
+                // If no crane has any liftable elements, variance is zero.
+                double balancePenalty = 0;
+                if (liftableCountsPerCrane.Count > 1)
+                {
+                    double avgLiftable = liftableCountsPerCrane.Average();
+                    double variance = liftableCountsPerCrane.Average(c => Math.Pow(c - avgLiftable, 2));
+                    double normalizedVariance = total > 0 ? Math.Min(variance / total, 1.0) : 0;
+                    balancePenalty = settings.BalancePenaltyWeight * normalizedVariance;
+                }
+
+                var liftableRadii = results.Where(r => r.Status == LiftStatus.Liftable).Select(r => r.Radius).ToList();
+                double radiusStdDev = liftableRadii.Count > 1 ? 
+                    Math.Sqrt(liftableRadii.Average(r => Math.Pow(r - liftableRadii.Average(), 2))) : 0;
+                double normalizedStdDev = settings.MaxRadiusForNormalisation > 0 ? 
+                    Math.Min(radiusStdDev / settings.MaxRadiusForNormalisation, 1.0) : 0;
+                double radiusStdDevPenalty = settings.RadiusStdDevPenaltyWeight * normalizedStdDev;
+
+                // Similar setup points are not real engineering relocations.
+                // Penalize near-duplicate crane positions so the GA cannot treat
+                // 1-2 meter adjustments as independent setup locations.
+                double similarPositionPenalty =
+                    _constraintEngine.CalculateSimilarityPenalty(
+                        solution.Chromosome.CranePositions,
+                        settings);
+
+                // Movement distance is a proxy for mobilization/travel effort.
+                // This complements the existing relocation-count penalty.
+                double relocationDistancePenalty =
+                    _constraintEngine.CalculateNormalizedRelocationDistance(
+                        solution.Chromosome.CranePositions,
+                        settings);
+
+                // ══════════════════════════════════════════════════════
+                // 6. FINAL FITNESS
+                // ══════════════════════════════════════════════════════
+
+                double fitness =
+                      settings.CoverageWeight * coverageRatio
+                    - settings.RelocationWeight * normalisedRelocation
+                    - settings.RadiusPenaltyWeight * normOutOfRadius
+                    - settings.OverweightPenaltyWeight * normOverweight
+                    - settings.HeightPenaltyWeight * normHeightFail
+                    - SpecialCasePenaltyWeight * normSpecialCase
+                    // Issue 8 fix: use RadiusQualityPenaltyWeight (not RadiusPenaltyWeight)
+                    // for the working-radius magnitude penalty, so these two independent
+                    // sub-penalties don't share the same coefficient.
+                    - settings.RadiusQualityPenaltyWeight * radiusQualityPenalty
+                    - balancePenalty
+                    - radiusStdDevPenalty
+                    - settings.SimilarPositionPenaltyWeight * similarPositionPenalty
+                    - settings.RelocationDistancePenaltyWeight * relocationDistancePenalty;
+
+                fitness = Math.Max(0, fitness);
+
+                // ══════════════════════════════════════════════════════
+                // 7. POPULATE BREAKDOWN
+                // ══════════════════════════════════════════════════════
+
+                breakdown.FitnessScore = fitness;
+                breakdown.CoverageRatio = coverageRatio;
+                breakdown.LiftableElements = uniqueLiftableCount;
+                breakdown.TotalElements = total;
+                breakdown.RelocationPenalty = normalisedRelocation;
+                breakdown.RadiusPenalty = normOutOfRadius;
+                breakdown.OverweightPenalty = normOverweight;
+                breakdown.HeightPenalty = normHeightFail;
+                breakdown.SimilarPositionPenalty = similarPositionPenalty;
+                breakdown.RelocationDistancePenalty = relocationDistancePenalty;
+
+                return breakdown;
             }
-
-            // ══════════════════════════════════════════════════════
-            // 5. BALANCE & RADIUS STD-DEV PENALTIES
-            // ══════════════════════════════════════════════════════
-
-            // Issue 10 fix: use AssignedLiftableElements (only confirmed
-            // Liftable results) so that cranes with many nearby-but-failed
-            // elements are not mistakenly counted as "busy" and do not
-            // incorrectly inflate the balance signal.
-            var liftableCountsPerCrane = assignment.AssignedLiftableElements
-                .Select(kv => kv.Value.Count)
-                .ToList();
-
-            // If no crane has any liftable elements, variance is zero.
-            double balancePenalty = 0;
-            if (liftableCountsPerCrane.Count > 1)
-            {
-                double avgLiftable = liftableCountsPerCrane.Average();
-                double variance = liftableCountsPerCrane.Average(c => Math.Pow(c - avgLiftable, 2));
-                double normalizedVariance = total > 0 ? Math.Min(variance / total, 1.0) : 0;
-                balancePenalty = settings.BalancePenaltyWeight * normalizedVariance;
-            }
-
-            var liftableRadii = results.Where(r => r.Status == LiftStatus.Liftable).Select(r => r.Radius).ToList();
-            double radiusStdDev = liftableRadii.Count > 1 ? 
-                Math.Sqrt(liftableRadii.Average(r => Math.Pow(r - liftableRadii.Average(), 2))) : 0;
-            double normalizedStdDev = settings.MaxRadiusForNormalisation > 0 ? 
-                Math.Min(radiusStdDev / settings.MaxRadiusForNormalisation, 1.0) : 0;
-            double radiusStdDevPenalty = settings.RadiusStdDevPenaltyWeight * normalizedStdDev;
-
-            // Similar setup points are not real engineering relocations.
-            // Penalize near-duplicate crane positions so the GA cannot treat
-            // 1-2 meter adjustments as independent setup locations.
-            double similarPositionPenalty =
-                _constraintEngine.CalculateSimilarityPenalty(
-                    solution.Chromosome.CranePositions,
-                    settings);
-
-            // Movement distance is a proxy for mobilization/travel effort.
-            // This complements the existing relocation-count penalty.
-            double relocationDistancePenalty =
-                _constraintEngine.CalculateNormalizedRelocationDistance(
-                    solution.Chromosome.CranePositions,
-                    settings);
-
-            // ══════════════════════════════════════════════════════
-            // 6. FINAL FITNESS
-            // ══════════════════════════════════════════════════════
-
-            double fitness =
-                  settings.CoverageWeight * coverageRatio
-                - settings.RelocationWeight * normalisedRelocation
-                - settings.RadiusPenaltyWeight * normOutOfRadius
-                - settings.OverweightPenaltyWeight * normOverweight
-                - settings.HeightPenaltyWeight * normHeightFail
-                - SpecialCasePenaltyWeight * normSpecialCase
-                // Issue 8 fix: use RadiusQualityPenaltyWeight (not RadiusPenaltyWeight)
-                // for the working-radius magnitude penalty, so these two independent
-                // sub-penalties don't share the same coefficient.
-                - settings.RadiusQualityPenaltyWeight * radiusQualityPenalty
-                - balancePenalty
-                - radiusStdDevPenalty
-                - settings.SimilarPositionPenaltyWeight * similarPositionPenalty
-                - settings.RelocationDistancePenaltyWeight * relocationDistancePenalty;
-
-            fitness = Math.Max(0, fitness);
-
-            // ══════════════════════════════════════════════════════
-            // 7. POPULATE BREAKDOWN
-            // ══════════════════════════════════════════════════════
-
-            breakdown.FitnessScore = fitness;
-            breakdown.CoverageRatio = coverageRatio;
-            breakdown.LiftableElements = uniqueLiftableCount;
-            breakdown.TotalElements = total;
-            breakdown.RelocationPenalty = normalisedRelocation;
-            breakdown.RadiusPenalty = normOutOfRadius;
-            breakdown.OverweightPenalty = normOverweight;
-            breakdown.HeightPenalty = normHeightFail;
-            breakdown.SimilarPositionPenalty = similarPositionPenalty;
-            breakdown.RelocationDistancePenalty = relocationDistancePenalty;
-
-            return breakdown;
         }
     }
 }

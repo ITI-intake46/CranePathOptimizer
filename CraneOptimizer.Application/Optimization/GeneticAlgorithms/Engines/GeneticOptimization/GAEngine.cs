@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using CraneOptimizer.Application.Optimization.Utilities;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization
 {
@@ -48,139 +49,145 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
 
         public CraneSolution Run(PlacementInput input, CancellationToken cancellationToken = default)
         {
-            int stagnantGenerations = 0;
-            double bestFitness = double.MinValue;
-            CraneSolution bestSolution = null!;
-
-            GARandomManager.Initialize(input.Settings.RandomSeed);
-
-            var population = _initializer.InitializePopulation(
-                input.Zones,
-                input.ForbiddenZones,
-                input.Elements,
-                input.Settings.PopulationSize,
-                input.Settings.MaxCranePositions,
-                input.Settings);
-
-            for (int generation = 0; generation < input.Settings.MaxGenerations; generation++)
+            using (new GAProfiler.ProfileScope("GAEngine.Run"))
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                int stagnantGenerations = 0;
+                double bestFitness = double.MinValue;
+                CraneSolution bestSolution = null!;
 
-                foreach (var solution in population.Individuals)
+                GARandomManager.Initialize(input.Settings.RandomSeed);
+
+                var population = _initializer.InitializePopulation(
+                    input.Zones,
+                    input.ForbiddenZones,
+                    input.Elements,
+                    input.Settings.PopulationSize,
+                    input.Settings.MaxCranePositions,
+                    input.Settings);
+
+                for (int generation = 0; generation < input.Settings.MaxGenerations; generation++)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    var evaluation = _assignmentService.EvaluateAssignment(
-                        solution,
-                        input.Elements,
-                        input.Assignment,
-                        input.CraneSpec,
-                        input.Settings);
-
-                    var fitness = _fitnessEvaluator.EvaluateFitness(
-                        solution,
-                        evaluation,
-                        input.Settings);
-
-                    solution.Fitness = fitness.FitnessScore;
-                    solution.CoverageRatio = fitness.CoverageRatio;
-                }
-
-                var currentBest = population.Individuals
-                    .OrderByDescending(s => s.Fitness)
-                    .First();
-
-                if (currentBest.Fitness > bestFitness)
-                {
-                    double improvementPercent = bestFitness <= 0
-                        ? double.MaxValue
-                        : ((currentBest.Fitness - bestFitness) / Math.Abs(bestFitness)) * 100.0;
-
-                    bestFitness = currentBest.Fitness;
-                    bestSolution = currentBest.DeepCopy();
-
-                    if (input.Settings.ConvergenceThresholdPercent > 0
-                        && improvementPercent < input.Settings.ConvergenceThresholdPercent)
+                    using (new GAProfiler.ProfileScope("GAEngine.GenerationLoop"))
                     {
-                        stagnantGenerations++;
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        foreach (var solution in population.Individuals)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+
+                            var evaluation = _assignmentService.EvaluateAssignment(
+                                solution,
+                                input.Elements,
+                                input.Assignment,
+                                input.CraneSpec,
+                                input.Settings);
+
+                            var fitness = _fitnessEvaluator.EvaluateFitness(
+                                solution,
+                                evaluation,
+                                input.Settings);
+
+                            solution.Fitness = fitness.FitnessScore;
+                            solution.CoverageRatio = fitness.CoverageRatio;
+                        }
+
+                        var currentBest = population.Individuals
+                            .OrderByDescending(s => s.Fitness)
+                            .First();
+
+                        if (currentBest.Fitness > bestFitness)
+                        {
+                            double improvementPercent = bestFitness <= 0
+                                ? double.MaxValue
+                                : ((currentBest.Fitness - bestFitness) / Math.Abs(bestFitness)) * 100.0;
+
+                            bestFitness = currentBest.Fitness;
+                            bestSolution = currentBest.DeepCopy();
+
+                            if (input.Settings.ConvergenceThresholdPercent > 0
+                                && improvementPercent < input.Settings.ConvergenceThresholdPercent)
+                            {
+                                stagnantGenerations++;
+                            }
+                            else
+                            {
+                                stagnantGenerations = 0;
+                            }
+                        }
+                        else
+                        {
+                            stagnantGenerations++;
+                        }
+
+                        if (stagnantGenerations >= input.Settings.EarlyStoppingGenerations)
+                            break;
+
+                        var parents = _selection.SelectParents(
+                            population,
+                            population.Individuals.Count);
+
+                        var children = new List<CraneSolution>();
+
+                        for (int i = 0; i < parents.Count - 1; i += 2)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+
+                            if (GARandomManager.Instance.NextDouble() < input.Settings.CrossoverRate)
+                            {
+                                var child1 = _crossover.Crossover(parents[i], parents[i + 1]);
+                                var child2 = _crossover.Crossover(parents[i + 1], parents[i]);
+                                SanitizeSolution(child1, input);
+                                SanitizeSolution(child2, input);
+                                children.Add(child1);
+                                children.Add(child2);
+                            }
+                            else
+                            {
+                                var child1 = parents[i].DeepCopy();
+                                var child2 = parents[i + 1].DeepCopy();
+                                SanitizeSolution(child1, input);
+                                SanitizeSolution(child2, input);
+                                children.Add(child1);
+                                children.Add(child2);
+                            }
+                        }
+
+                        foreach (var child in children)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+
+                            if (GARandomManager.Instance.NextDouble() < input.Settings.MutationRate)
+                                _mutation.Mutate(child, input.Zones, input.ForbiddenZones, input.Settings);
+
+                            SanitizeSolution(child, input);
+                        }
+
+                        foreach (var child in children)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+
+                            var evaluation = _assignmentService.EvaluateAssignment(
+                                child,
+                                input.Elements,
+                                input.Assignment,
+                                input.CraneSpec,
+                                input.Settings);
+
+                            var fitness = _fitnessEvaluator.EvaluateFitness(
+                                child,
+                                evaluation,
+                                input.Settings);
+
+                            child.Fitness = fitness.FitnessScore;
+                            child.CoverageRatio = fitness.CoverageRatio;
+                        }
+
+                        population = _replacement.Replace(population, children);
                     }
-                    else
-                    {
-                        stagnantGenerations = 0;
-                    }
-                }
-                else
-                {
-                    stagnantGenerations++;
                 }
 
-                if (stagnantGenerations >= input.Settings.EarlyStoppingGenerations)
-                    break;
-
-                var parents = _selection.SelectParents(
-                    population,
-                    population.Individuals.Count);
-
-                var children = new List<CraneSolution>();
-
-                for (int i = 0; i < parents.Count - 1; i += 2)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    if (GARandomManager.Instance.NextDouble() < input.Settings.CrossoverRate)
-                    {
-                        var child1 = _crossover.Crossover(parents[i], parents[i + 1]);
-                        var child2 = _crossover.Crossover(parents[i + 1], parents[i]);
-                        SanitizeSolution(child1, input);
-                        SanitizeSolution(child2, input);
-                        children.Add(child1);
-                        children.Add(child2);
-                    }
-                    else
-                    {
-                        var child1 = parents[i].DeepCopy();
-                        var child2 = parents[i + 1].DeepCopy();
-                        SanitizeSolution(child1, input);
-                        SanitizeSolution(child2, input);
-                        children.Add(child1);
-                        children.Add(child2);
-                    }
-                }
-
-                foreach (var child in children)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    if (GARandomManager.Instance.NextDouble() < input.Settings.MutationRate)
-                        _mutation.Mutate(child, input.Zones, input.ForbiddenZones, input.Settings);
-
-                    SanitizeSolution(child, input);
-                }
-
-                foreach (var child in children)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    var evaluation = _assignmentService.EvaluateAssignment(
-                        child,
-                        input.Elements,
-                        input.Assignment,
-                        input.CraneSpec,
-                        input.Settings);
-
-                    var fitness = _fitnessEvaluator.EvaluateFitness(
-                        child,
-                        evaluation,
-                        input.Settings);
-
-                    child.Fitness = fitness.FitnessScore;
-                    child.CoverageRatio = fitness.CoverageRatio;
-                }
-
-                population = _replacement.Replace(population, children);
+                return bestSolution;
             }
-
-            return bestSolution;
         }
 
         /// <summary>

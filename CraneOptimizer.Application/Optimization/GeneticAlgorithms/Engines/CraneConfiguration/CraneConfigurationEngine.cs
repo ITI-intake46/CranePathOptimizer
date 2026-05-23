@@ -4,6 +4,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using System;
 using System.Collections.Generic;
+using CraneOptimizer.Application.Optimization.Utilities;
 using System.Linq;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.CraneConfiguration
@@ -21,14 +22,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cran
             double boomLength,
             GASettings settings)
         {
-            if (craneSpec.LoadChart == null || craneSpec.LoadChart.Count == 0)
-                return 0;
+            using (new GAProfiler.ProfileScope("CraneConfigurationEngine.CraneCapacity"))
+            {
+                if (craneSpec.LoadChart == null || craneSpec.LoadChart.Count == 0)
+                    return 0;
 
-            double? capacity = InterpolateCapacityFromChart(craneSpec, radius, boomLength);
-            if (capacity == null || capacity <= 0)
-                return 0;
+                double? capacity = InterpolateCapacityFromChart(craneSpec, radius, boomLength);
+                if (capacity == null || capacity <= 0)
+                    return 0;
 
-            return capacity.Value * settings.DeratingRatio * settings.SafetyFactor;
+                return capacity.Value * settings.DeratingRatio * settings.SafetyFactor;
+            }
         }
 
         public bool ExceedsMaxRadius(double radius, CraneSpecification craneSpec)

@@ -200,5 +200,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// types are included in the optimization target set.
         /// </summary>
         public IReadOnlyCollection<string>? TargetElementTypes { get; set; }
+
+        /// <summary>
+        /// Directory where the GA profiling log should be saved.
+        /// If not specified, falls back to %LocalAppData%/CraneOptimizer/Logs/GA/.
+        /// </summary>
+        public string? ProfilingLogDirectory { get; set; }
     }
 }

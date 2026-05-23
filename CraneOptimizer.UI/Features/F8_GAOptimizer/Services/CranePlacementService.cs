@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 {
@@ -21,19 +22,22 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         private readonly IOptimizationScopeEngine _scopeEngine;
         private readonly ISceneService _sceneService;
         private readonly CoordinateService _coordinateService;
+        private readonly IProjectWorkspaceService _workspaceService;
 
         public CranePlacementService(
             IOptimizationInputBuilder inputBuilder,
             ICranePlacementEngine placementEngine,
             IOptimizationScopeEngine scopeEngine,
             ISceneService sceneService,
-            CoordinateService coordinateService)
+            CoordinateService coordinateService,
+            IProjectWorkspaceService workspaceService)
         {
             _inputBuilder = inputBuilder;
             _placementEngine = placementEngine;
             _scopeEngine = scopeEngine;
             _sceneService = sceneService;
             _coordinateService = coordinateService;
+            _workspaceService = workspaceService;
         }
 
         public async Task<CranePlacementResult> RunOptimizationAsync(
@@ -80,6 +84,19 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             {
                 zones.Add(_coordinateService.NormalizeZoneToMeters(sceneZones[i]));
             }
+
+            // Determine profiling logs folder path from ProjectWorkspaceService
+            string? projectFolder = _workspaceService?.CurrentSession?.ProjectFolderPath;
+            string logsDir;
+            if (!string.IsNullOrWhiteSpace(projectFolder))
+            {
+                logsDir = System.IO.Path.Combine(projectFolder, "Logs", "GA");
+            }
+            else
+            {
+                logsDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Logs", "GA");
+            }
+            settings.ProfilingLogDirectory = logsDir;
 
             // Build input in normalized meters
             var input = _inputBuilder.Build(settings, crane, elements, zones);
