@@ -15,13 +15,16 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
     {
         private readonly IGeneticAlgorithmEngine _gaEngine;
         private readonly IElementAssignmentService _assignmentService;
+        private readonly ICoverageEngine _coverageEngine;
 
         public CranePlacementEngine(
             IGeneticAlgorithmEngine gaEngine,
-            IElementAssignmentService assignmentService)
+            IElementAssignmentService assignmentService,
+            ICoverageEngine coverageEngine)
         {
             _gaEngine = gaEngine;
             _assignmentService = assignmentService;
+            _coverageEngine = coverageEngine;
         }
 
         public PlacementResult RunOptimization(
@@ -97,20 +100,45 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
 
                 previousCoverage = currentCoverage;
 
-                remainingElements = allElements
-                    .Where(element => !coveredElements.Contains(element.ElementID))
-                    .ToList();
+                remainingElements = _coverageEngine.FilterRemainingElements(allElements, coveredElements);
             }
 
-            DeduplicateFinalPositions(finalResult, input.Settings);
-            RecalculateCoverage(finalResult, allElements.Count);
+#if DEBUG
+            // ══════════════════════════════════════════════════════════════
+            // GOLDEN MASTER COMPARISON (Phase 4 Verification)
+            // ══════════════════════════════════════════════════════════════
+            var cloneLegacy = ClonePlacementResult(finalResult);
+            var cloneNew = ClonePlacementResult(finalResult);
+
+            LegacyDeduplicateFinalPositions(cloneLegacy, input.Settings);
+            LegacyRecalculateCoverage(cloneLegacy, allElements.Count);
+
+            _coverageEngine.DeduplicateFinalPositions(cloneNew, input.Settings);
+            _coverageEngine.RecalculateCoverage(cloneNew, allElements.Count);
+
+            if (cloneLegacy.LiftedElementCount != cloneNew.LiftedElementCount)
+                throw new InvalidOperationException($"LiftedElementCount mismatch! New: {cloneNew.LiftedElementCount}, Legacy: {cloneLegacy.LiftedElementCount}");
+            if (Math.Abs(cloneLegacy.CoverageRatio - cloneNew.CoverageRatio) > 1e-7)
+                throw new InvalidOperationException($"CoverageRatio mismatch! New: {cloneNew.CoverageRatio}, Legacy: {cloneLegacy.CoverageRatio}");
+            if (cloneLegacy.Positions.Count != cloneNew.Positions.Count)
+                throw new InvalidOperationException($"Deduplicated Positions Count mismatch! New: {cloneNew.Positions.Count}, Legacy: {cloneLegacy.Positions.Count}");
+            for (int i = 0; i < cloneLegacy.Positions.Count; i++)
+            {
+                if (cloneLegacy.Positions[i].NewLiftableCount != cloneNew.Positions[i].NewLiftableCount)
+                    throw new InvalidOperationException($"NewLiftableCount mismatch at index {i}! New: {cloneNew.Positions[i].NewLiftableCount}, Legacy: {cloneLegacy.Positions[i].NewLiftableCount}");
+            }
+            // ══════════════════════════════════════════════════════════════
+#endif
+
+            _coverageEngine.DeduplicateFinalPositions(finalResult, input.Settings);
+            _coverageEngine.RecalculateCoverage(finalResult, allElements.Count);
 
             finalResult.FitnessScore = finalResult.CoverageRatio;
             finalResult.Positions = finalResult.Positions
                 .OrderByDescending(position => position.NewLiftableCount)
                 .ToList();
 
-            RecalculateCoverage(finalResult, allElements.Count);
+            _coverageEngine.RecalculateCoverage(finalResult, allElements.Count);
 
             return finalResult;
         }
@@ -215,7 +243,54 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
             }
         }
 
-        private static void DeduplicateFinalPositions(
+#if DEBUG
+        // ══════════════════════════════════════════════════════════════
+        // LEGACY COPIES Guarantees 100% Verification (Phase 4 Verification)
+        // ══════════════════════════════════════════════════════════════
+
+        private static PlacementResult ClonePlacementResult(PlacementResult src)
+        {
+            var dst = new PlacementResult
+            {
+                FitnessScore = src.FitnessScore,
+                CoverageRatio = src.CoverageRatio,
+                LiftedElementCount = src.LiftedElementCount,
+                TotalElementCount = src.TotalElementCount,
+                Statistics = new LiftStatistics
+                {
+                    Liftable = src.Statistics.Liftable,
+                    OutOfRadius = src.Statistics.OutOfRadius,
+                    Overweight = src.Statistics.Overweight,
+                    HeightFail = src.Statistics.HeightFail,
+                    SpecialCase = src.Statistics.SpecialCase
+                },
+                Positions = src.Positions.Select(p => new CranePositionResult
+                {
+                    X = p.X,
+                    Y = p.Y,
+                    Z = p.Z,
+                    NewLiftableCount = p.NewLiftableCount,
+                    ElementResults = p.ElementResults.Select(er => new ElementLiftResult
+                    {
+                        ElementId = er.ElementId,
+                        ElementMark = er.ElementMark,
+                        ElementType = er.ElementType,
+                        Weight = er.Weight,
+                        CogX = er.CogX,
+                        CogY = er.CogY,
+                        CogZ = er.CogZ,
+                        Status = er.Status,
+                        Radius = er.Radius,
+                        BoomLength = er.BoomLength,
+                        AvailableCapacity = er.AvailableCapacity,
+                        RequiredCapacity = er.RequiredCapacity
+                    }).ToList()
+                }).ToList()
+            };
+            return dst;
+        }
+
+        private static void LegacyDeduplicateFinalPositions(
             PlacementResult result,
             GASettings settings)
         {
@@ -236,7 +311,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
             foreach (var candidate in result.Positions)
             {
                 int nearIndex = filtered.FindIndex(existing =>
-                    Distance2D(existing, candidate) < minimumDistance);
+                    LegacyDistance2D(existing, candidate) < minimumDistance);
 
                 if (nearIndex < 0)
                 {
@@ -256,7 +331,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
             result.Positions = filtered;
         }
 
-        private static void RecalculateCoverage(PlacementResult result, int totalElementCount)
+        private static void LegacyRecalculateCoverage(PlacementResult result, int totalElementCount)
         {
             var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -276,11 +351,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 : (double)covered.Count / totalElementCount;
         }
 
-        private static double Distance2D(CranePositionResult a, CranePositionResult b)
+        private static double LegacyDistance2D(CranePositionResult a, CranePositionResult b)
         {
             double dx = a.X - b.X;
             double dy = a.Y - b.Y;
             return Math.Sqrt(dx * dx + dy * dy);
         }
+#endif
     }
 }
