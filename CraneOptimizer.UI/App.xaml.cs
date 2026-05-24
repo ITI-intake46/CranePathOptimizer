@@ -127,6 +127,9 @@ namespace CraneOptimizer.UI
             services.AddScoped<ICranePlacementService, CranePlacementService>();
             services.AddSingleton<ICraneOptimizerDialogService, CraneOptimizerDialogService>();
             services.AddSingleton<IGAResultsWindowService, GAResultsWindowService>();
+            services.AddSingleton<CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces.IGADiagnosticsReaderService, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GADiagnosticsReaderService>();
+            services.AddSingleton<CraneOptimizer.UI.Features.F8_GAOptimizer.Services.IGADiagnosticsWindowService, CraneOptimizer.UI.Features.F8_GAOptimizer.Services.GADiagnosticsWindowService>();
+
 
             // =========================
             // Rendering
