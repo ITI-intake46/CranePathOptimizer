@@ -24,7 +24,7 @@ namespace CraneOptimizer.Application.Tests
         }
 
         [Fact]
-        public void TestLoadChartInterpolation()
+        public void TestLoadChartDiscreteLookup()
         {
             var engine = new CraneConfigurationEngine();
             var settings = new GASettings
@@ -45,30 +45,57 @@ namespace CraneOptimizer.Application.Tests
                 }
             };
 
-            // Test case 1: Exact match on radius & boom
+            // 1. Exact radius and boom match
             double capExact = engine.CraneCapacity(craneSpec, 10, 20, settings);
-            // Expected capacity = 50 * 0.8 * 0.9 = 36.0
+            // Expected: R=10, B=20 => 50 * 0.8 * 0.9 = 36.0
             Assert.Equal(36.0, capExact, 5);
 
-            // Test case 2: Interpolate along boom length (radius=10, boom=25)
-            double capAlongBoom = engine.CraneCapacity(craneSpec, 10, 25, settings);
-            // Radius 10 capacity for Boom 20 is 50, Boom 30 is 40. Midpoint (Boom 25) = 45.
-            // Expected = 45 * 0.8 * 0.9 = 32.4
-            Assert.Equal(32.4, capAlongBoom, 5);
+            // 2. Boom rounded up to next available chart boom
+            double capBoomRoundUp = engine.CraneCapacity(craneSpec, 10, 25, settings);
+            // Expected: R=10, B=30 => 40 * 0.8 * 0.9 = 28.8
+            Assert.Equal(28.8, capBoomRoundUp, 5);
 
-            // Test case 3: Interpolate along radius (radius=15, boom=20)
-            double capAlongRadius = engine.CraneCapacity(craneSpec, 15, 20, settings);
-            // Boom 20 capacity for Radius 10 is 50, Radius 20 is 30. Midpoint (Radius 15) = 40.
-            // Expected = 40 * 0.8 * 0.9 = 28.8
-            Assert.Equal(28.8, capAlongRadius, 5);
+            // 3. Radius rounded up to next available chart radius
+            double capRadiusRoundUp = engine.CraneCapacity(craneSpec, 15, 20, settings);
+            // Expected: R=20, B=20 => 30 * 0.8 * 0.9 = 21.6
+            Assert.Equal(21.6, capRadiusRoundUp, 5);
 
-            // Test case 4: Bilinear interpolation (radius=15, boom=25)
-            double capBilinear = engine.CraneCapacity(craneSpec, 15, 25, settings);
-            // Radius 10, Boom 25 -> 45
-            // Radius 20, Boom 25 -> 25
-            // Midpoint Radius 15, Boom 25 -> 35
-            // Expected = 35 * 0.8 * 0.9 = 25.2
-            Assert.Equal(25.2, capBilinear, 5);
+            // 4. Both radius and boom rounded up
+            double capBothRoundUp = engine.CraneCapacity(craneSpec, 15, 25, settings);
+            // Expected: R=20, B=30 => 20 * 0.8 * 0.9 = 14.4
+            Assert.Equal(14.4, capBothRoundUp, 5);
+
+            // 5. Radius exceeds chart range
+            double capRadiusExceeds = engine.CraneCapacity(craneSpec, 25, 20, settings);
+            // Expected: 0
+            Assert.Equal(0, capRadiusExceeds, 5);
+
+            // 6. Boom exceeds chart range
+            double capBoomExceeds = engine.CraneCapacity(craneSpec, 20, 35, settings);
+            // Expected: 0
+            Assert.Equal(0, capBoomExceeds, 5);
+
+            // 7. Irregular/missing chart entries & no valid conservative point
+            var irregularSpec = new CraneSpecification
+            {
+                LoadChart = new List<TargetPoint>
+                {
+                    new TargetPoint { Radius = 20, BoomLength = 20, Capacity = 30 },
+                    new TargetPoint { Radius = 30, BoomLength = 30, Capacity = 15 }
+                }
+            };
+
+            // R=15, B=28 => nearest is R=30, B=30 => 15 * 0.8 * 0.9 = 10.8
+            double capIrregular = engine.CraneCapacity(irregularSpec, 15, 28, settings);
+            Assert.Equal(10.8, capIrregular, 5);
+
+            // R=35, B=20 => no entry has Radius >= 35 => 0
+            double capNoValidR = engine.CraneCapacity(irregularSpec, 35, 20, settings);
+            Assert.Equal(0, capNoValidR, 5);
+
+            // R=20, B=35 => no entry has BoomLength >= 35 => 0
+            double capNoValidB = engine.CraneCapacity(irregularSpec, 20, 35, settings);
+            Assert.Equal(0, capNoValidB, 5);
         }
     }
 }
