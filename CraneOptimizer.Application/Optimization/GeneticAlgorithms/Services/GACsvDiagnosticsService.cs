@@ -173,9 +173,45 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                                     suggestedAction = "suggest longer boom or different crane configuration.";
                                     break;
                                 case LiftStatus.SpecialCase:
-                                    failureReason = "SpecialCase";
-                                    failureCategory = "SpecialCase";
-                                    suggestedAction = "suggest reviewing element geometry and extracted data.";
+                                    var capacityDiag = _configEngine.EvaluateCraneCapacityDiagnostic(
+                                        input.CraneSpec!,
+                                        bestEval.Radius,
+                                        bestEval.BoomLength,
+                                        input.Settings);
+
+                                    switch (capacityDiag.FailureReason)
+                                    {
+                                        case CapacityFailureReason.RadiusBeyondLoadChart:
+                                            failureReason = "RadiusBeyondLoadChart";
+                                            failureCategory = "RadiusBeyondLoadChart";
+                                            suggestedAction = "suggest select a crane with larger working radius or move/expand green area closer to the elements.";
+                                            break;
+                                        case CapacityFailureReason.BoomBeyondLoadChart:
+                                            failureReason = "BoomBeyondLoadChart";
+                                            failureCategory = "BoomBeyondLoadChart";
+                                            suggestedAction = "suggest select a longer boom configuration or a different crane model.";
+                                            break;
+                                        case CapacityFailureReason.NoDiscreteLoadChartEntry:
+                                            failureReason = "NoDiscreteLoadChartEntry";
+                                            failureCategory = "NoDiscreteLoadChartEntry";
+                                            suggestedAction = "suggest review crane load chart completeness for this radius/boom combination.";
+                                            break;
+                                        case CapacityFailureReason.ZeroCapacityChartEntry:
+                                            failureReason = "ZeroCapacityChartEntry";
+                                            failureCategory = "ZeroCapacityChartEntry";
+                                            suggestedAction = "suggest review the crane chart value or select a larger crane.";
+                                            break;
+                                        case CapacityFailureReason.MissingLoadChartData:
+                                            failureReason = "MissingLoadChartData";
+                                            failureCategory = "MissingLoadChartData";
+                                            suggestedAction = "suggest validate crane load chart configuration.";
+                                            break;
+                                        default:
+                                            failureReason = "SpecialCase";
+                                            failureCategory = "SpecialCase";
+                                            suggestedAction = "suggest reviewing element geometry and extracted data.";
+                                            break;
+                                    }
                                     break;
                                 default:
                                     failureReason = "Unknown";
@@ -271,7 +307,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             var categories = new[]
             {
                 "OutOfRadius", "Overweight", "HeightFail", "BoomLengthExceeded", "NoValidSetupPosition",
-                "ForbiddenZoneBlocked", "NotAssigned", "MissingWeightOrInvalidData", "SpecialCase", "Unknown"
+                "ForbiddenZoneBlocked", "NotAssigned", "MissingWeightOrInvalidData", "SpecialCase", "Unknown",
+                "RadiusBeyondLoadChart", "BoomBeyondLoadChart", "NoDiscreteLoadChartEntry", "ZeroCapacityChartEntry", "MissingLoadChartData"
             };
             var failureCounts = categories.ToDictionary(c => c, c => 0);
 

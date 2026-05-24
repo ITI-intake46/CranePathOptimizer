@@ -3,6 +3,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.CraneCon
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using System;
 using System.Collections.Generic;
 
@@ -96,6 +97,62 @@ namespace CraneOptimizer.Application.Tests
             // R=20, B=35 => no entry has BoomLength >= 35 => 0
             double capNoValidB = engine.CraneCapacity(irregularSpec, 20, 35, settings);
             Assert.Equal(0, capNoValidB, 5);
+        }
+
+        [Fact]
+        public void TestEvaluateCraneCapacityDiagnostic()
+        {
+            var engine = new CraneConfigurationEngine();
+            var settings = new GASettings
+            {
+                DeratingRatio = 0.8,
+                SafetyFactor = 0.9
+            };
+
+            // 6. missing/empty load chart
+            var emptySpec = new CraneSpecification { LoadChart = new List<TargetPoint>() };
+            var diagEmpty = engine.EvaluateCraneCapacityDiagnostic(emptySpec, 10, 20, settings);
+            Assert.Equal(CapacityFailureReason.MissingLoadChartData, diagEmpty.FailureReason);
+
+            var chartSpec = new CraneSpecification
+            {
+                LoadChart = new List<TargetPoint>
+                {
+                    new TargetPoint { Radius = 10, BoomLength = 20, Capacity = 50 },
+                    new TargetPoint { Radius = 10, BoomLength = 30, Capacity = 0 }, // 5. zero capacity chart entry
+                    new TargetPoint { Radius = 20, BoomLength = 20, Capacity = 30 },
+                    new TargetPoint { Radius = 20, BoomLength = 30, Capacity = 20 }
+                }
+            };
+
+            // 1. radius beyond max chart radius
+            var diagRadiusBeyond = engine.EvaluateCraneCapacityDiagnostic(chartSpec, 25, 20, settings);
+            Assert.Equal(CapacityFailureReason.RadiusBeyondLoadChart, diagRadiusBeyond.FailureReason);
+
+            // 2. boom beyond max chart boom
+            var diagBoomBeyond = engine.EvaluateCraneCapacityDiagnostic(chartSpec, 15, 35, settings);
+            Assert.Equal(CapacityFailureReason.BoomBeyondLoadChart, diagBoomBeyond.FailureReason);
+
+            // 3. missing chart cell but another conservative point exists
+            var diagValid = engine.EvaluateCraneCapacityDiagnostic(chartSpec, 15, 25, settings);
+            Assert.Equal(CapacityFailureReason.None, diagValid.FailureReason);
+            Assert.Equal(14.4, diagValid.Capacity, 5);
+
+            // 4. no conservative chart point exists
+            var irregularSpec = new CraneSpecification
+            {
+                LoadChart = new List<TargetPoint>
+                {
+                    new TargetPoint { Radius = 20, BoomLength = 30, Capacity = 20 },
+                    new TargetPoint { Radius = 30, BoomLength = 20, Capacity = 30 }
+                }
+            };
+            var diagNoConservative = engine.EvaluateCraneCapacityDiagnostic(irregularSpec, 25, 25, settings);
+            Assert.Equal(CapacityFailureReason.NoDiscreteLoadChartEntry, diagNoConservative.FailureReason);
+
+            // 5. zero capacity chart entry
+            var diagZeroCap = engine.EvaluateCraneCapacityDiagnostic(chartSpec, 10, 30, settings);
+            Assert.Equal(CapacityFailureReason.ZeroCapacityChartEntry, diagZeroCap.FailureReason);
         }
     }
 }

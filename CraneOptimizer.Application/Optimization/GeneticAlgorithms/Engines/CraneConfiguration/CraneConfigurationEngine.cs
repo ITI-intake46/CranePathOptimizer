@@ -67,34 +67,82 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cran
                     System.Threading.Interlocked.Increment(ref GAProfiler.CapacityCacheMisses);
                 }
 
-                double calculatedCapacity = 0;
-
-                // 1. Find all load chart entries where Radius >= requiredRadius and BoomLength >= requiredBoomLength
-                var validEntries = craneSpec.LoadChart
-                    .Where(tp => tp.Radius >= radius && tp.BoomLength >= boomLength)
-                    .ToList();
-
-                if (validEntries.Count > 0)
-                {
-                    // 2. Select the most conservative nearest actual chart point:
-                    //    - smallest valid Radius
-                    double minRadius = validEntries.Min(tp => tp.Radius);
-                    var minRadiusEntries = validEntries.Where(tp => tp.Radius == minRadius).ToList();
-
-                    //    - then smallest valid BoomLength
-                    double minBoom = minRadiusEntries.Min(tp => tp.BoomLength);
-                    var finalEntry = minRadiusEntries.FirstOrDefault(tp => tp.BoomLength == minBoom);
-
-                    if (finalEntry != null && finalEntry.Capacity > 0)
-                    {
-                        // 3. Return the capacity after applying derating/safety factor
-                        calculatedCapacity = finalEntry.Capacity * settings.DeratingRatio * settings.SafetyFactor;
-                    }
-                }
+                var diagResult = EvaluateCraneCapacityDiagnosticInternal(craneSpec, radius, boomLength, settings);
+                double calculatedCapacity = diagResult.Capacity;
 
                 _capacityCache[key] = calculatedCapacity;
                 return calculatedCapacity;
             }
+        }
+
+        public CraneCapacityDiagnosticResult EvaluateCraneCapacityDiagnostic(
+            CraneSpecification craneSpec,
+            double radius,
+            double boomLength,
+            GASettings settings)
+        {
+            using (new GAProfiler.ProfileScope("CraneConfigurationEngine.EvaluateCraneCapacityDiagnostic"))
+            {
+                return EvaluateCraneCapacityDiagnosticInternal(craneSpec, radius, boomLength, settings);
+            }
+        }
+
+        private CraneCapacityDiagnosticResult EvaluateCraneCapacityDiagnosticInternal(
+            CraneSpecification craneSpec,
+            double radius,
+            double boomLength,
+            GASettings settings)
+        {
+            if (craneSpec == null || craneSpec.LoadChart == null || craneSpec.LoadChart.Count == 0)
+            {
+                return new CraneCapacityDiagnosticResult(0, 0, 0, CapacityFailureReason.MissingLoadChartData);
+            }
+
+            // Check if radius exceeds all radii in load chart
+            bool hasValidRadius = craneSpec.LoadChart.Any(tp => tp.Radius >= radius);
+            if (!hasValidRadius)
+            {
+                return new CraneCapacityDiagnosticResult(0, 0, 0, CapacityFailureReason.RadiusBeyondLoadChart);
+            }
+
+            // Check if any entry satisfies both Radius >= radius and BoomLength >= boomLength
+            var validEntries = craneSpec.LoadChart
+                .Where(tp => tp.Radius >= radius && tp.BoomLength >= boomLength)
+                .ToList();
+
+            if (validEntries.Count == 0)
+            {
+                // Check if any entry with BoomLength >= boomLength exists at all in the load chart
+                bool hasAnyValidBoom = craneSpec.LoadChart.Any(tp => tp.BoomLength >= boomLength);
+                if (!hasAnyValidBoom)
+                {
+                    return new CraneCapacityDiagnosticResult(0, 0, 0, CapacityFailureReason.BoomBeyondLoadChart);
+                }
+                else
+                {
+                    return new CraneCapacityDiagnosticResult(0, 0, 0, CapacityFailureReason.NoDiscreteLoadChartEntry);
+                }
+            }
+
+            // Find the most conservative nearest actual chart point
+            double minRadius = validEntries.Min(tp => tp.Radius);
+            var minRadiusEntries = validEntries.Where(tp => tp.Radius == minRadius).ToList();
+
+            double minBoom = minRadiusEntries.Min(tp => tp.BoomLength);
+            var finalEntry = minRadiusEntries.FirstOrDefault(tp => tp.BoomLength == minBoom);
+
+            if (finalEntry == null)
+            {
+                return new CraneCapacityDiagnosticResult(0, minRadius, minBoom, CapacityFailureReason.NoDiscreteLoadChartEntry);
+            }
+
+            if (finalEntry.Capacity <= 0)
+            {
+                return new CraneCapacityDiagnosticResult(0, finalEntry.Radius, finalEntry.BoomLength, CapacityFailureReason.ZeroCapacityChartEntry);
+            }
+
+            double calculatedCapacity = finalEntry.Capacity * settings.DeratingRatio * settings.SafetyFactor;
+            return new CraneCapacityDiagnosticResult(calculatedCapacity, finalEntry.Radius, finalEntry.BoomLength, CapacityFailureReason.None);
         }
 
         public bool ExceedsMaxRadius(double radius, CraneSpecification craneSpec)
