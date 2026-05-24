@@ -33,6 +33,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         public ICommand MoveIfcCommand { get; }
         public ICommand DeleteIfcCommand { get; }
 
+        public event Action? IfcModelChanged;
+
+        public string? LoadedIfcFilePath { get; private set; }
+
         private bool _isLoading;
         public bool IsLoading
         {
@@ -143,6 +147,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                 _pendingIfcElements = all;
                 _pendingFilterOptions = filter;
+                LoadedIfcFilePath = path;
                 _isMovingExistingIfc = false;
                 PendingPlacementPoint = null;
                 IsPlacementMode = true;
@@ -190,7 +195,54 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IsPlacementMode = false;
             OnPropertyChanged(nameof(PlacementPrompt));
             Status = $"Placed {_filterService.ShowingCount} of {placedElements.Count} elements";
+            IfcModelChanged?.Invoke();
             return true;
+        }
+
+        public async Task<bool> LoadIfcFromProjectAsync(string filePath, Point3D insertionOffset)
+        {
+            if (string.IsNullOrWhiteSpace(filePath) || !System.IO.File.Exists(filePath))
+                return false;
+
+            try
+            {
+                IsLoading = true;
+                Progress = 0;
+                Status = "Restoring IFC...";
+
+                var progress = new Progress<double>(p =>
+                {
+                    Progress = p;
+                    Status = $"Restoring IFC... {p:F0}%";
+                });
+
+                var elements = await Task.Run(() => _ifcReader.ReadElements(filePath, progress));
+                if (elements == null || elements.Count == 0)
+                {
+                    Status = "Saved IFC contains no elements.";
+                    return false;
+                }
+
+                var placedElements = _ifcSceneOperations.TranslateElements(
+                    elements,
+                    new DomainPoint3D(insertionOffset.X, insertionOffset.Y, insertionOffset.Z));
+
+                _ifcSceneOperations.ReplaceIfcModel(placedElements);
+                LoadedIfcFilePath = filePath;
+                PendingPlacementPoint = insertionOffset;
+                Progress = 100;
+                Status = $"Restored {placedElements.Count} IFC elements";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Status = $"IFC restore failed: {ex.Message}";
+                return false;
+            }
+            finally
+            {
+                IsLoading = false;
+            }
         }
 
         public bool MovePlacedIfc(Point3D insertionPoint)
@@ -220,6 +272,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IsPlacementMode = false;
             OnPropertyChanged(nameof(PlacementPrompt));
             Status = $"Moved IFC origin to {insertionPoint.X:F2}, {insertionPoint.Y:F2}, {insertionPoint.Z:F2}";
+            IfcModelChanged?.Invoke();
             return true;
         }
 
@@ -228,7 +281,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _pendingIfcElements = null;
             _pendingFilterOptions = null;
             if (!_isMovingExistingIfc)
+            {
                 PendingPlacementPoint = null;
+                LoadedIfcFilePath = null;
+            }
             _isMovingExistingIfc = false;
             IsPlacementMode = false;
             OnPropertyChanged(nameof(PlacementPrompt));
@@ -268,8 +324,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             OnPropertyChanged(nameof(PlacementPrompt));
 
             _ifcSceneOperations.DeleteIfcModel();
+            LoadedIfcFilePath = null;
             Progress = 0;
             Status = "IFC model deleted";
+            IfcModelChanged?.Invoke();
         }
 
         private void ShowMergeIfcPlaceholder()

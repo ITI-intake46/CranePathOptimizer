@@ -19,6 +19,8 @@
         /// </summary>
         public string RelativePath { get; set; } = string.Empty;
 
+        public string Role { get; set; } = "Primary";
+
         /// <summary>
         /// Original user-selected path before copying/importing into the project folder.
         /// Optional, used for traceability only.
@@ -38,6 +40,10 @@
         /// IFC2X3, IFC4, IFC4X3, etc.
         /// </summary>
         public string? SchemaVersion { get; set; }
+
+        public string? TransformJson { get; set; }
+
+        public string? MetadataJson { get; set; }
 
         public bool IsActive { get; set; } = true;
 

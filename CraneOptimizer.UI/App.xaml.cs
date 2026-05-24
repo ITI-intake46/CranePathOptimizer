@@ -1,6 +1,6 @@
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Units;
@@ -95,6 +95,7 @@ namespace CraneOptimizer.UI
             // F10 Project Management
             // =========================
             services.AddSingleton<IProjectWorkspaceService, ProjectWorkspaceService>();
+            services.AddSingleton<IProjectStateService, ProjectStateService>();
             services.AddTransient<IProjectService, ProjectService>();
             services.AddSingleton<IProjectShellService, ProjectShellService>();
             services.AddSingleton<IProjectNavigationService, ProjectNavigationService>();
@@ -120,10 +121,15 @@ namespace CraneOptimizer.UI
             // =========================
             RegisterGAServices(services);
 
-            services.AddScoped<GAInputBuilder>();
+            services.AddScoped<IOptimizationInputBuilder, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.OptimizationScope.OptimizationInputBuilder>();
+            services.AddScoped<ICranePlacementEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.PlacementOrchestration.CranePlacementEngine>();
+            services.AddScoped<IOptimizationScopeEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.OptimizationScope.OptimizationScopeEngine>();
             services.AddScoped<ICranePlacementService, CranePlacementService>();
             services.AddSingleton<ICraneOptimizerDialogService, CraneOptimizerDialogService>();
             services.AddSingleton<IGAResultsWindowService, GAResultsWindowService>();
+            services.AddSingleton<CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces.IGADiagnosticsReaderService, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GADiagnosticsReaderService>();
+            services.AddSingleton<CraneOptimizer.UI.Features.F8_GAOptimizer.Services.IGADiagnosticsWindowService, CraneOptimizer.UI.Features.F8_GAOptimizer.Services.GADiagnosticsWindowService>();
+
 
             // =========================
             // Rendering
@@ -309,9 +315,15 @@ namespace CraneOptimizer.UI
         {
             services.AddScoped<IGeneticAlgorithmEngine, GAEngine>();
 
+            services.AddScoped<ICraneConfigurationEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.CraneConfiguration.CraneConfigurationEngine>();
+            services.AddScoped<ILiftingCalculationEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.LiftingCalculation.LiftingCalculationEngine>();
+            services.AddScoped<IConstraintEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Constraints.ConstraintEngine>();
+            services.AddScoped<ICoverageEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Coverage.CoverageEngine>();
+
             services.AddScoped<IGAInitializer, GAInitializer>();
             services.AddScoped<IElementAssignmentService, ElementAssignmentService>();
             services.AddScoped<IFitnessEvaluator, FitnessEvaluator>();
+            services.AddScoped<IGACsvDiagnosticsService, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GACsvDiagnosticsService>();
             services.AddSingleton<CraneSetupViewModel>();
             services.AddScoped<ISelectionStrategy, TournamentSelection>();
             services.AddScoped<ICrossoverOperator, CrossoverOperator>();

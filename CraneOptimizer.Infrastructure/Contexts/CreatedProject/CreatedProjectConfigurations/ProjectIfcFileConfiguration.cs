@@ -20,6 +20,10 @@ namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject.CreatedProjectCo
                 .IsRequired()
                 .HasMaxLength(1000);
 
+            entity.Property(x => x.Role)
+                .IsRequired()
+                .HasMaxLength(100);
+
             entity.Property(x => x.OriginalFullPath)
                 .HasMaxLength(1000);
 
@@ -28,6 +32,12 @@ namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject.CreatedProjectCo
 
             entity.Property(x => x.SchemaVersion)
                 .HasMaxLength(50);
+
+            entity.Property(x => x.TransformJson)
+                .HasColumnType("TEXT");
+
+            entity.Property(x => x.MetadataJson)
+                .HasColumnType("TEXT");
 
             entity.Property(x => x.BuildingName)
                 .HasMaxLength(250);

@@ -8,7 +8,10 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
     public sealed class CreateProjectViewModel : ViewModelBase
     {
         private string _projectName = string.Empty;
-        private string _parentFolderPath = string.Empty;
+        private string _parentFolderPath = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "CraneOptimizer",
+            "Projects");
 
         public CreateProjectViewModel()
         {
