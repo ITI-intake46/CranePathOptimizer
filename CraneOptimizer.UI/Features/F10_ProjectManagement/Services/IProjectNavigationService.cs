@@ -4,6 +4,6 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 {
     public interface IProjectNavigationService
     {
-        void OpenMainWindow(ProjectCardModel project);
+        void OpenMainWindow(ProjectSession session);
     }
 }

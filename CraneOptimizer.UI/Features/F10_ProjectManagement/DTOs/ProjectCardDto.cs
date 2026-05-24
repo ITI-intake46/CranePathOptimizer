@@ -6,6 +6,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.DTOs
     internal sealed record ProjectCardDto(
         Guid Id,
         string Name,
+        string ProjectFolderPath,
         string? IfcFilePath,
         DateTime CreatedDateUtc,
         DateTime LastOpenedDateUtc,

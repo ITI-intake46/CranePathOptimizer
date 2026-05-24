@@ -14,6 +14,8 @@ using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 
@@ -32,12 +34,17 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly ICraneSceneInteractionService _craneSceneInteraction;
         private readonly IUnitSettingsService _unitSettings;
         private readonly CraneVisualBuilder _craneVisualBuilder;
+        private readonly IProjectStateService _projectStateService;
 
         private Crane? _selectedCrane;
         private bool _disposed;
+        private bool _suppressProjectStateSave;
         private Guid? _currentProjectId;
+        private ProjectSession? _currentProjectSession;
         private string _currentProjectName = string.Empty;
         private string? _currentProjectIfcPath;
+        private string _currentProjectFolderPath = string.Empty;
+        private string _currentProjectDatabasePath = string.Empty;
 
         public MainViewModel(
             ISceneService scene,
@@ -58,7 +65,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             ICraneSceneInteractionService craneSceneInteraction,
             CraneManagerViewModel craneManager,
             IUnitSettingsService unitSettings,
-            CraneVisualBuilder craneVisualBuilder)
+            CraneVisualBuilder craneVisualBuilder,
+            IProjectStateService projectStateService)
         {
             Scene = scene;
             Drawing = drawing;
@@ -80,6 +88,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _craneSceneInteraction = craneSceneInteraction;
             _unitSettings = unitSettings;
             _craneVisualBuilder = craneVisualBuilder;
+            _projectStateService = projectStateService;
 
             _status.StatusChanged += OnStatusChanged;
             _status.HistoryChanged += OnHistoryChanged;
@@ -87,6 +96,18 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _originService.PickingChanged += OnOriginPickingChanged;
             _craneSceneInteraction.StateChanged += OnCraneInteractionStateChanged;
             _unitSettings.SettingsChanged += OnUnitSettingsChanged;
+            Scene.ZoneAdded += OnProjectStateZoneChanged;
+            Scene.ZoneRemoved += OnProjectStateZoneChanged;
+            Scene.ZoneUpdated += OnProjectStateZoneChanged;
+            Scene.ZonesCleared += OnProjectStateChanged;
+            Scene.CraneAdded += OnProjectStateCraneChanged;
+            Scene.CraneRemoved += OnProjectStateCraneChanged;
+            Scene.CraneMoved += OnProjectStateCraneChanged;
+            Scene.CraneRotated += OnProjectStateCraneChanged;
+            Scene.CraneUpdated += OnProjectStateCraneChanged;
+            Scene.CranesCleared += OnProjectStateChanged;
+            IfcViewer.IfcModelChanged += OnProjectStateChanged;
+            Dxf.DxfStateChanged += OnProjectStateChanged;
 
             // When any crane is built/re-rendered, push its parameters to the right panel.
             _craneVisualBuilder.CraneParametersReady += (scene, p) =>
@@ -161,6 +182,26 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             private set
             {
                 _currentProjectIfcPath = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string CurrentProjectFolderPath
+        {
+            get => _currentProjectFolderPath;
+            private set
+            {
+                _currentProjectFolderPath = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string CurrentProjectDatabasePath
+        {
+            get => _currentProjectDatabasePath;
+            private set
+            {
+                _currentProjectDatabasePath = value;
                 OnPropertyChanged();
             }
         }
@@ -403,6 +444,19 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CurrentProjectIfcPath = ifcFilePath;
             _ = LoadProjectUnitsAsync(projectId);
             _status.Set($"Project opened: {projectName}", "Load IFC when needed.");
+        }
+
+        public void OpenProject(ProjectSession session)
+        {
+            _currentProjectSession = session;
+            CurrentProjectId = session.ProjectId;
+            CurrentProjectName = session.ProjectName;
+            CurrentProjectFolderPath = session.ProjectFolderPath;
+            CurrentProjectDatabasePath = session.ProjectDatabasePath;
+            CurrentProjectIfcPath = session.ProjectCard.IfcFilePath;
+            _ = LoadProjectUnitsAsync(session.ProjectId);
+            _ = LoadProjectStateAsync(session);
+            _status.Set($"Project opened: {session.ProjectName}", "Load IFC when needed.");
         }
 
         private async Task LoadProjectUnitsAsync(Guid projectId)

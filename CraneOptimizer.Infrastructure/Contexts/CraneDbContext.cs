@@ -1,5 +1,6 @@
 using CraneOptimizer.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Xbim.IO.Xml.BsConf;
 
 namespace CraneOptimizer.Infrastructure.Contexts
 {
@@ -42,6 +43,9 @@ namespace CraneOptimizer.Infrastructure.Contexts
                     .WithOne(x => x.Project)
                     .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
+                entity.Property(x => x.ProjectFolderPath)
+                    .IsRequired()
+                    .HasMaxLength(1000);
             });
 
             modelBuilder.Entity<ProjectIfcFile>(entity =>

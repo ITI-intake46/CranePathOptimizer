@@ -8,16 +8,16 @@ using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Input;
+using Microsoft.Win32;
 
 namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
 {
     public sealed class ProjectManagementViewModel : ViewModelBase
     {
-        private readonly IProjectService _projectService;
+        private readonly IProjectWorkspaceService _workspaceService;
         private readonly IProjectNavigationService _navigationService;
         private readonly IProjectShellService _shellService;
         private readonly IDialogService _dialogService;
-        private readonly IUnitSettingsService _unitSettingsService;
         private readonly CancellationTokenSource _lifetime = new();
         private string _searchText = string.Empty;
         private bool _favoritesOnly;
@@ -25,20 +25,19 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
         private string _statusText = "Select a project to continue";
 
         public ProjectManagementViewModel(
-            IProjectService projectService,
+            IProjectWorkspaceService workspaceService,
             IProjectNavigationService navigationService,
             IProjectShellService shellService,
-            IDialogService dialogService,
-            IUnitSettingsService unitSettingsService)
+            IDialogService dialogService)
         {
-            _projectService = projectService;
+            _workspaceService = workspaceService;
             _navigationService = navigationService;
             _shellService = shellService;
             _dialogService = dialogService;
-            _unitSettingsService = unitSettingsService;
 
             RefreshCommand = new AsyncRelayCommand(RefreshAsync);
             CreateProjectCommand = new AsyncRelayCommand(CreateProjectAsync);
+            OpenProjectFolderCommand = new AsyncRelayCommand(OpenProjectFolderAsync);
             OpenProjectCommand = new AsyncRelayCommand<ProjectCardViewModel>(OpenProjectAsync, project => project != null);
             DeleteProjectCommand = new AsyncRelayCommand<ProjectCardViewModel>(DeleteProjectAsync, project => project != null);
             ToggleFavoriteCommand = new AsyncRelayCommand<ProjectCardViewModel>(ToggleFavoriteAsync, project => project != null);
@@ -103,6 +102,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
 
         public ICommand RefreshCommand { get; }
         public ICommand CreateProjectCommand { get; }
+        public ICommand OpenProjectFolderCommand { get; }
         public ICommand OpenProjectCommand { get; }
         public ICommand DeleteProjectCommand { get; }
         public ICommand ToggleFavoriteCommand { get; }
@@ -115,12 +115,12 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
 
         private async Task RefreshAsync()
         {
-            await LoadProjectsAsync(() => _projectService.GetRecentProjectsAsync(_lifetime.Token));
+            await LoadProjectsAsync(() => _workspaceService.GetRecentProjectsAsync(_lifetime.Token));
         }
 
         private async Task SearchAsync()
         {
-            await LoadProjectsAsync(() => _projectService.SearchProjectsAsync(SearchText, FavoritesOnly, _lifetime.Token));
+            await LoadProjectsAsync(() => _workspaceService.SearchProjectsAsync(SearchText, FavoritesOnly, _lifetime.Token));
         }
 
         private async Task LoadProjectsAsync(Func<Task<IReadOnlyList<ProjectCardModel>>> loader)
@@ -159,6 +159,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             };
 
             createViewModel.CancelRequested += (_, _) => dialog.DialogResult = false;
+            createViewModel.BrowseLocationRequested += (_, _) => BrowseProjectLocation(createViewModel, dialog);
             createViewModel.CreateRequested += (_, _) => dialog.DialogResult = true;
 
             if (dialog.ShowDialog() != true)
@@ -167,17 +168,16 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             try
             {
                 IsBusy = true;
-                var project = await _projectService.CreateProjectAsync(
-                    createViewModel.ProjectName,
+                var session = await _workspaceService.CreateProjectAsync(
+                    new CreateProjectRequest
+                    {
+                        ProjectName = createViewModel.ProjectName,
+                        ParentFolderPath = createViewModel.ParentFolderPath,
+                        UnitSettings = createViewModel.BuildUnitSettings()
+                    },
                     _lifetime.Token);
 
-                // Persist the unit settings chosen in the Create Project dialog
-                await _unitSettingsService.SaveProjectSettingsAsync(
-                    project.Id,
-                    createViewModel.BuildUnitSettings(),
-                    _lifetime.Token);
-
-                _navigationService.OpenMainWindow(project);
+                _navigationService.OpenMainWindow(session);
                 CloseEntryWindow();
             }
             catch (Exception ex)
@@ -198,21 +198,52 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             try
             {
                 IsBusy = true;
-                var project = await _projectService.OpenProjectAsync(card.Id, _lifetime.Token);
+                var session = await _workspaceService.OpenProjectAsync(card.Id, _lifetime.Token);
 
-                if (project == null)
+                if (session == null)
                 {
                     _dialogService.ShowMessage("Project was not found.");
                     await RefreshAsync();
                     return;
                 }
 
-                _navigationService.OpenMainWindow(project);
+                _navigationService.OpenMainWindow(session);
                 CloseEntryWindow();
             }
             catch (Exception ex)
             {
                 _dialogService.ShowNonBlockingError(ex.Message, "Open Project Error");
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
+        private async Task OpenProjectFolderAsync()
+        {
+            var picker = new OpenFolderDialog
+            {
+                Title = "Open Project Folder",
+                Multiselect = false
+            };
+
+            if (picker.ShowDialog(System.Windows.Application.Current.MainWindow) != true)
+                return;
+
+            try
+            {
+                IsBusy = true;
+                var session = await _workspaceService.OpenProjectFolderAsync(
+                    picker.FolderName,
+                    _lifetime.Token);
+
+                _navigationService.OpenMainWindow(session);
+                CloseEntryWindow();
+            }
+            catch (Exception ex)
+            {
+                _dialogService.ShowNonBlockingError(ex.Message, "Open Project Folder Error");
             }
             finally
             {
@@ -230,7 +261,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
 
             try
             {
-                await _projectService.DeleteProjectAsync(card.Id, _lifetime.Token);
+                await _workspaceService.DeleteProjectAsync(card.Id, _lifetime.Token);
                 Projects.Remove(card);
                 StatusText = $"{Projects.Count} project(s)";
             }
@@ -247,7 +278,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
 
             try
             {
-                await _projectService.ToggleFavoriteAsync(card.Id, card.IsFavorite, _lifetime.Token);
+                await _workspaceService.ToggleFavoriteAsync(card.Id, card.IsFavorite, _lifetime.Token);
 
                 if (FavoritesOnly && !card.IsFavorite)
                     Projects.Remove(card);
@@ -264,13 +295,33 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             if (card == null)
                 return;
 
-            if (string.IsNullOrWhiteSpace(card.IfcFilePath) || !File.Exists(card.IfcFilePath))
+            if (string.IsNullOrWhiteSpace(card.ProjectFolderPath) || !Directory.Exists(card.ProjectFolderPath))
             {
-                _dialogService.ShowMessage("No IFC file is linked to this project.");
+                _dialogService.ShowMessage("Project folder was not found.");
                 return;
             }
 
-            _shellService.ShowFileInFolder(card.IfcFilePath);
+            _shellService.ShowFileInFolder(card.ProjectFolderPath);
+        }
+
+        private static void BrowseProjectLocation(
+            CreateProjectViewModel createViewModel,
+            System.Windows.Window owner)
+        {
+            var picker = new OpenFolderDialog
+            {
+                Title = "Select Project Location",
+                Multiselect = false
+            };
+
+            if (!string.IsNullOrWhiteSpace(createViewModel.ParentFolderPath)
+                && Directory.Exists(createViewModel.ParentFolderPath))
+            {
+                picker.InitialDirectory = createViewModel.ParentFolderPath;
+            }
+
+            if (picker.ShowDialog(owner) == true)
+                createViewModel.ParentFolderPath = picker.FolderName;
         }
 
         private static void CloseEntryWindow()

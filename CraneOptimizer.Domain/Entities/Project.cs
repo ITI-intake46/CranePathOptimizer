@@ -32,6 +32,8 @@ namespace CraneOptimizer.Domain.Entities
 
         public int UnitDecimalPlaces { get; set; } = 2;
 
+        public string ProjectFolderPath { get; set; } = string.Empty;
+
         public ICollection<ProjectIfcFile> IfcFiles { get; set; } = new List<ProjectIfcFile>();
     }
 }

@@ -8,14 +8,20 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
     public sealed class CreateProjectViewModel : ViewModelBase
     {
         private string _projectName = string.Empty;
+        private string _parentFolderPath = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "CraneOptimizer",
+            "Projects");
 
         public CreateProjectViewModel()
         {
             CreateCommand = new RelayCommand(Create, CanCreate);
+            BrowseLocationCommand = new RelayCommand(BrowseLocation);
             CancelCommand = new RelayCommand(Cancel);
         }
 
         public event EventHandler? CreateRequested;
+        public event EventHandler? BrowseLocationRequested;
         public event EventHandler? CancelRequested;
 
         public string ProjectName
@@ -27,6 +33,20 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
                     return;
 
                 _projectName = value;
+                OnPropertyChanged();
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        public string ParentFolderPath
+        {
+            get => _parentFolderPath;
+            set
+            {
+                if (_parentFolderPath == value)
+                    return;
+
+                _parentFolderPath = value;
                 OnPropertyChanged();
                 CommandManager.InvalidateRequerySuggested();
             }
@@ -75,16 +95,23 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
         };
 
         public ICommand CreateCommand { get; }
+        public ICommand BrowseLocationCommand { get; }
         public ICommand CancelCommand { get; }
 
         private bool CanCreate()
         {
-            return !string.IsNullOrWhiteSpace(ProjectName);
+            return !string.IsNullOrWhiteSpace(ProjectName)
+                && !string.IsNullOrWhiteSpace(ParentFolderPath);
         }
 
         private void Create()
         {
             CreateRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void BrowseLocation()
+        {
+            BrowseLocationRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void Cancel()

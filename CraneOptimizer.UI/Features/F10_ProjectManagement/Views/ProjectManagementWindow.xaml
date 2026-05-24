@@ -139,13 +139,14 @@
 
                 <Grid Grid.Row="1" Grid.ColumnSpan="2" Margin="0,18,0,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="420" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <TextBox
-                        MinWidth="320"
+                        MinWidth="260"
                         VerticalContentAlignment="Center"
                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
 
@@ -159,6 +160,15 @@
 
                     <Button
                         Grid.Column="2"
+                        Width="96"
+                        Height="34"
+                        Margin="16,0,0,0"
+                        Command="{Binding OpenProjectFolderCommand}"
+                        Content="Open"
+                        Style="{StaticResource ButtonSecondary}" />
+
+                    <Button
+                        Grid.Column="3"
                         Width="172"
                         Height="34"
                         Margin="16,0,0,0"
