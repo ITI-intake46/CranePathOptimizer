@@ -32,13 +32,82 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
         public static MeshQuality CurrentQuality { get; set; } = MeshQuality.Medium;
 
-        private static readonly Dictionary<int, MediaMeshGeometry3D> MeshCache = new();
+        private static readonly object MeshCacheGate = new();
+        private static readonly Dictionary<MeshCacheKey, MediaMeshGeometry3D> MeshCache = new();
+        private static Guid? MeshCacheSessionId;
 
         private readonly IIfcReaderRepository? _ifcReader;
         private readonly DomainPoint3D? _origin;
         private readonly DomainPoint3D? _placementOffset;
         private readonly bool _renderOnlyStatusElements;
         private readonly byte? _statusAlpha;
+
+        public static void ClearMeshCache(string reason = "manual")
+        {
+            lock (MeshCacheGate)
+            {
+                var count = MeshCache.Count;
+                MeshCache.Clear();
+                MeshCacheSessionId = null;
+                Debug.WriteLine($"[ElementVisualBuilder] Mesh cache cleared. Reason={reason}, Removed={count}");
+            }
+        }
+
+        public record RenderCacheStats(Guid? SessionId, int CacheCount);
+
+        public static RenderCacheStats GetCacheStats()
+        {
+            lock (MeshCacheGate)
+            {
+                return new RenderCacheStats(MeshCacheSessionId, MeshCache.Count);
+            }
+        }
+
+        public static void ClearForTesting()
+        {
+            ClearMeshCache("testing");
+        }
+
+        public static MediaMeshGeometry3D? GetOrCreateCachedMeshForTesting(
+            Guid sessionId,
+            byte[] shapeData,
+            double oneMeter,
+            MeshQuality quality,
+            out bool reused)
+        {
+            return GetOrCreateCachedMesh(sessionId, shapeData, oneMeter, quality, out reused);
+        }
+
+        public static void EnsureCacheSessionForTesting(Guid sessionId)
+        {
+            EnsureCacheSession(sessionId);
+        }
+
+        private static int MeshCacheCount
+        {
+            get
+            {
+                lock (MeshCacheGate)
+                {
+                    return MeshCache.Count;
+                }
+            }
+        }
+
+        private static long GetPrivateMemoryBytes()
+        {
+            try
+            {
+                return Process.GetCurrentProcess().PrivateMemorySize64;
+            }
+            catch
+            {
+                return GC.GetTotalMemory(false);
+            }
+        }
+
+        private static string FormatBytes(long bytes) =>
+            $"{bytes / (1024d * 1024d):F1} MB";
 
         public ElementVisualBuilder(
             IIfcReaderRepository? ifcReader = null,
@@ -75,7 +144,13 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 itemsList = itemsList.Where(item => item.status.HasValue).ToList();
 
             if (CurrentQuality == MeshQuality.Low)
-                return BuildLargeModelBatch(itemsList);
+            {
+                var lowVisual = BuildLargeModelBatch(itemsList, out var lowGeometryModels);
+                Debug.WriteLine(
+                    $"[ElementVisualBuilder] Low quality render complete. Elements={itemsList.Count}, " +
+                    $"GeometryModel3D={lowGeometryModels}, ModelVisual3D=1, MemoryAfterRender={FormatBytes(GetPrivateMemoryBytes())}");
+                return lowVisual;
+            }
 
             if (_ifcReader is CraneOptimizer.Infrastructure.Repositories.IfcReaderRepository concreteRepo
                 && concreteRepo.GeometryContext != null
@@ -83,6 +158,12 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             {
                 var model = concreteRepo.CurrentModel;
                 var context = concreteRepo.GeometryContext;
+                var sessionId = concreteRepo.CurrentSessionId ?? Guid.Empty;
+                EnsureCacheSession(sessionId);
+                var meshesCreated = 0;
+                var meshesReused = 0;
+                var geometryModelsCreated = 0;
+                var modelVisualsCreated = 1; // batch root visual
 
                 double oneMeter = model.ModelFactors.OneMeter;
                 if (oneMeter <= 0) oneMeter = 1000.0;
@@ -135,12 +216,24 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                         var gid = labelToGid[si.IfcProductLabel];
                         var (el, _, col, isSelected) = elementMap[gid];
 
+                        var cacheReused = false;
                         var mesh = CurrentQuality == MeshQuality.High
                             ? CreateHighQualityDetailedMesh(shapeGeom.ShapeData, si.Transformation, oneMeter, origin, placementOffset)
-                            : GetOrCreateCachedMesh(shapeGeom.ShapeData, oneMeter, CurrentQuality);
+                            : GetOrCreateCachedMesh(sessionId, shapeGeom.ShapeData, oneMeter, CurrentQuality, out cacheReused);
                         if (mesh == null || mesh.Positions.Count == 0) continue;
                         if (CurrentQuality == MeshQuality.High)
+                        {
                             mesh.Freeze();
+                            meshesCreated++;
+                        }
+                        else if (cacheReused)
+                        {
+                            meshesReused++;
+                        }
+                        else
+                        {
+                            meshesCreated++;
+                        }
 
                         if (!elementVisualMap.TryGetValue(gid, out var ev))
                         {
@@ -148,6 +241,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                             ev.SetValue(System.Windows.FrameworkElement.TagProperty, el);
                             elementVisualMap[gid] = ev;
                             batchVisual.Children.Add(ev);
+                            modelVisualsCreated++;
                         }
 
                         var material = BuildMaterial(col, isSelected, selectionMaterial);
@@ -163,12 +257,20 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                         };
 
                         ((Model3DGroup)ev.Content).Children.Add(geoModel);
+                        geometryModelsCreated++;
                     }
                     catch
                     {
                         // keep rendering robust per element
                     }
                 }
+
+                Debug.WriteLine(
+                    $"[ElementVisualBuilder] IFC mesh render complete. SessionId={sessionId}, " +
+                    $"Elements={itemsList.Count}, ShapeInstances={allInstances.Count}, MeshesCreated={meshesCreated}, " +
+                    $"CachedMeshesReused={meshesReused}, CacheSize={MeshCacheCount}, " +
+                    $"GeometryModel3D={geometryModelsCreated}, ModelVisual3D={modelVisualsCreated}, " +
+                    $"MemoryAfterRender={FormatBytes(GetPrivateMemoryBytes())}");
 
                 return batchVisual;
             }
@@ -180,9 +282,12 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             return fallbackBatch;
         }
 
-        private Visual3D BuildLargeModelBatch(IReadOnlyList<(PrecastElement element, LiftStatus? status, bool isSelected)> items)
+        private Visual3D BuildLargeModelBatch(
+            IReadOnlyList<(PrecastElement element, LiftStatus? status, bool isSelected)> items,
+            out int geometryModelsCreated)
         {
             var group = new Model3DGroup();
+            geometryModelsCreated = 0;
 
             foreach (var renderGroup in items.GroupBy(GetBatchKey))
             {
@@ -201,6 +306,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                     Material = material,
                     BackMaterial = material
                 });
+                geometryModelsCreated++;
             }
 
             if (group.CanFreeze)
@@ -377,28 +483,56 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             }
         }
 
-        private static MediaMeshGeometry3D? GetOrCreateCachedMesh(byte[] shapeData, double oneMeter, MeshQuality quality)
+        private static MediaMeshGeometry3D? GetOrCreateCachedMesh(
+            Guid sessionId,
+            byte[] shapeData,
+            double oneMeter,
+            MeshQuality quality,
+            out bool reused)
         {
-            var cacheKey = GetShapeCacheKey(shapeData, oneMeter, quality);
-            if (MeshCache.TryGetValue(cacheKey, out var cachedMesh))
-                return cachedMesh;
+            reused = false;
+            var cacheKey = new MeshCacheKey(sessionId, GetShapeDataHash(shapeData), oneMeter, quality);
+            lock (MeshCacheGate)
+            {
+                if (MeshCache.TryGetValue(cacheKey, out var cachedMesh))
+                {
+                    reused = true;
+                    return cachedMesh;
+                }
+            }
 
             var mesh = CreateIndexedLocalMesh(shapeData, oneMeter, quality);
             if (mesh == null)
                 return null;
 
             mesh.Freeze();
-            MeshCache[cacheKey] = mesh;
+            lock (MeshCacheGate)
+            {
+                MeshCache[cacheKey] = mesh;
+            }
             return mesh;
         }
 
-        private static int GetShapeCacheKey(byte[] shapeData, double oneMeter, MeshQuality quality)
+        private static void EnsureCacheSession(Guid sessionId)
+        {
+            lock (MeshCacheGate)
+            {
+                if (MeshCacheSessionId == sessionId)
+                    return;
+
+                var removed = MeshCache.Count;
+                MeshCache.Clear();
+                MeshCacheSessionId = sessionId;
+                if (removed > 0)
+                    Debug.WriteLine($"[ElementVisualBuilder] Mesh cache reset for session {sessionId}. Removed={removed}");
+            }
+        }
+
+        private static int GetShapeDataHash(byte[] shapeData)
         {
             unchecked
             {
                 var hash = 17;
-                hash = (hash * 31) + quality.GetHashCode();
-                hash = (hash * 31) + oneMeter.GetHashCode();
                 hash = (hash * 31) + shapeData.Length;
 
                 foreach (var value in shapeData)
@@ -407,6 +541,12 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 return hash;
             }
         }
+
+        private readonly record struct MeshCacheKey(
+            Guid SessionId,
+            int ShapeDataHash,
+            double OneMeter,
+            MeshQuality Quality);
 
         private static Transform3D CreateInstanceTransform(XbimMatrix3D matrix, double oneMeter, DomainPoint3D origin, DomainPoint3D placementOffset)
         {

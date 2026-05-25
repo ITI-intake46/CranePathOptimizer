@@ -1,5 +1,6 @@
 using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
+using CraneOptimizer.Infrastructure.Ifc;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -24,15 +25,86 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private const double DefaultLengthToMetersFactor = 1.0;
         private const double ConcreteDensityKgPerCubicMeter = 2500.0;
         private const double TonToKgFactor = 1000.0;
+        private readonly IIfcModelSessionService? _sessionService;
+        private readonly object _auditCacheGate = new();
+        private Guid? _lastAuditSessionId;
+        private string? _lastAuditFileIdentity;
+        private IfcAuditResult? _lastAuditResult;
+
+        public IfcDiagnosticAuditService()
+        {
+        }
+
+        public IfcDiagnosticAuditService(IIfcModelSessionService sessionService)
+        {
+            _sessionService = sessionService;
+        }
 
         public Task<IfcAuditResult> RunAuditAsync(string ifcPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
-            return Task.Run(() => RunAuditCore(ifcPath, progress, cancellationToken), cancellationToken);
+            return Task.Run(() => RunAudit(ifcPath, progress, cancellationToken), cancellationToken);
         }
 
         public Task<string> GenerateReportsAsync(IfcAuditResult auditResult, string? projectFolderPath = null, CancellationToken cancellationToken = default)
         {
             return Task.Run(() => GenerateReportsCore(auditResult, projectFolderPath, cancellationToken), cancellationToken);
+        }
+
+        private IfcAuditResult RunAudit(string ifcPath, IProgress<double>? progress, CancellationToken cancellationToken)
+        {
+            var session = _sessionService?.GetActiveSession(ifcPath);
+            if (session != null)
+            {
+                lock (_auditCacheGate)
+                {
+                    if (_lastAuditResult != null
+                        && _lastAuditSessionId == session.SessionId
+                        && string.Equals(_lastAuditFileIdentity, session.FileIdentity, StringComparison.Ordinal))
+                    {
+                        Debug.WriteLine($"[IfcDiagnosticAudit] Reusing cached audit for session {session.SessionId}.");
+                        progress?.Report(100.0);
+                        return _lastAuditResult;
+                    }
+                }
+
+                var sessionAuditTimer = Stopwatch.StartNew();
+                var result = RunAuditCore(session, progress, cancellationToken);
+                sessionAuditTimer.Stop();
+
+                lock (_auditCacheGate)
+                {
+                    _lastAuditSessionId = session.SessionId;
+                    _lastAuditFileIdentity = session.FileIdentity;
+                    _lastAuditResult = result;
+                }
+
+                Debug.WriteLine(
+                    $"[IfcDiagnosticAudit] Session audit completed. SessionId={session.SessionId}, " +
+                    $"Duration={sessionAuditTimer.ElapsedMilliseconds} ms, ReopenedIfc=False, CreatedContext=False");
+
+                return result;
+            }
+
+            return RunAuditCore(ifcPath, progress, cancellationToken);
+        }
+
+        private IfcAuditResult RunAuditCore(IIfcModelSession session, IProgress<double>? progress, CancellationToken cancellationToken)
+        {
+            var result = new IfcAuditResult();
+
+            try
+            {
+                progress?.Report(15.0);
+                PopulateAuditResult(result, session.Model, session.GeometryContext, session.IfcPath, progress, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[IfcDiagnosticAudit] Error running diagnostic audit on active session: {ex.Message}");
+                result.Metadata.FileName = Path.GetFileName(session.IfcPath);
+                result.Metadata.Warnings.Add($"Audit execution failed: {ex.Message}");
+            }
+
+            return result;
         }
 
         private IfcAuditResult RunAuditCore(string ifcPath, IProgress<double>? progress, CancellationToken cancellationToken)
@@ -43,17 +115,14 @@ namespace CraneOptimizer.Infrastructure.Repositories
             try
             {
                 progress?.Report(5.0);
+                var openTimer = Stopwatch.StartNew();
                 model = IfcStore.Open(ifcPath);
-                cancellationToken.ThrowIfCancellationRequested();
-
-                progress?.Report(15.0);
-                // 1. General Metadata & Exporter info
-                result.Metadata = ExtractMetadata(model, ifcPath);
+                openTimer.Stop();
                 cancellationToken.ThrowIfCancellationRequested();
 
                 progress?.Report(25.0);
-                // Initialize geometry engine safely
                 Xbim3DModelContext? geometryContext = null;
+                var contextTimer = Stopwatch.StartNew();
                 try
                 {
                     _ = new Xbim.Geometry.Engine.Interop.XbimGeometryEngine();
@@ -65,30 +134,14 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     result.Metadata.Warnings.Add($"Native geometry engine initialization bypassed/failed: {geomEx.Message}");
                     Debug.WriteLine($"[IfcDiagnosticAudit] Native geometry engine initialization failed: {geomEx.Message}");
                 }
+                contextTimer.Stop();
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // Fetch physical products
-                var allPhysicalProducts = model.Instances
-                    .OfType<IIfcProduct>()
-                    .Where(IsPhysicalProduct)
-                    .ToList();
+                PopulateAuditResult(result, model, geometryContext, ifcPath, progress, cancellationToken);
 
-                progress?.Report(40.0);
-                // 2. Raw Type Summary
-                result.RawTypes = BuildRawTypeSummary(allPhysicalProducts, geometryContext);
-                cancellationToken.ThrowIfCancellationRequested();
-
-                progress?.Report(60.0);
-                // 3. Assembly decomposition audit
-                result.Assemblies = BuildAssemblyDecompositionAudit(model, allPhysicalProducts, geometryContext, cancellationToken);
-                cancellationToken.ThrowIfCancellationRequested();
-
-                progress?.Report(80.0);
-                // 4. Classifications, Weights, Volumes & Materials, Geometry Ownership
-                ProcessPhysicalElements(allPhysicalProducts, geometryContext, result, result.Metadata.LengthConversionFactor, result.Metadata.VolumeConversionFactor);
-                cancellationToken.ThrowIfCancellationRequested();
-
-                progress?.Report(100.0);
+                Debug.WriteLine(
+                    $"[IfcDiagnosticAudit] Standalone audit completed. Open={openTimer.ElapsedMilliseconds} ms, " +
+                    $"CreateContext={contextTimer.ElapsedMilliseconds} ms, ReopenedIfc=True");
             }
             catch (Exception ex)
             {
@@ -111,6 +164,38 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
 
             return result;
+        }
+
+        private static void PopulateAuditResult(
+            IfcAuditResult result,
+            IfcStore model,
+            Xbim3DModelContext geometryContext,
+            string ifcPath,
+            IProgress<double>? progress,
+            CancellationToken cancellationToken)
+        {
+            progress?.Report(15.0);
+            result.Metadata = ExtractMetadata(model, ifcPath);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var allPhysicalProducts = model.Instances
+                .OfType<IIfcProduct>()
+                .Where(IsPhysicalProduct)
+                .ToList();
+
+            progress?.Report(40.0);
+            result.RawTypes = BuildRawTypeSummary(allPhysicalProducts, geometryContext);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            progress?.Report(60.0);
+            result.Assemblies = BuildAssemblyDecompositionAudit(model, allPhysicalProducts, geometryContext, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            progress?.Report(80.0);
+            ProcessPhysicalElements(allPhysicalProducts, geometryContext, result, result.Metadata.LengthConversionFactor, result.Metadata.VolumeConversionFactor);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            progress?.Report(100.0);
         }
 
         private static bool IsPhysicalProduct(IIfcProduct product)

@@ -289,6 +289,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             if (!qualityChanged)
                 return;
 
+            ElementVisualBuilder.ClearMeshCache("render quality changed");
             vm.ReRenderElements();
             _cameraService.UpdateClipping(_sceneService.GetElements());
             vm.StatusText = $"Render quality: {GetRenderQualityDescription(selectedQuality)}";

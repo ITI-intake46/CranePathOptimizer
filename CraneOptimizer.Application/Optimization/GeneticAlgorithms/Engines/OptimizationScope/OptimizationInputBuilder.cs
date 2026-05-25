@@ -27,10 +27,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
             if (elements == null || elements.Count == 0)
                 throw new InvalidOperationException("No elements found in the scene.");
 
+            var gaEnabledElements = elements
+                .Where(element => element.IncludeInGa)
+                .ToList();
+
+            if (gaEnabledElements.Count == 0)
+                throw new InvalidOperationException("No GA-enabled elements found in the scene.");
+
             var selectedElementTypes = CreateElementTypeSet(settings.TargetElementTypes);
             var candidateElements = selectedElementTypes == null
-                ? elements.ToList()
-                : elements
+                ? gaEnabledElements
+                : gaEnabledElements
                     .Where(element => selectedElementTypes.Contains(NormalizeElementType(element.ElementType)))
                     .ToList();
 
