@@ -23,6 +23,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
     {
         private const double DefaultLengthToMetersFactor = 1.0;
         private const double ConcreteDensityKgPerCubicMeter = 2500.0;
+        private const double TonToKgFactor = 1000.0;
 
         public Task<IfcAuditResult> RunAuditAsync(string ifcPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
@@ -51,10 +52,19 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 cancellationToken.ThrowIfCancellationRequested();
 
                 progress?.Report(25.0);
-                // Initialize geometry engine
-                _ = new Xbim.Geometry.Engine.Interop.XbimGeometryEngine();
-                var geometryContext = new Xbim3DModelContext(model);
-                geometryContext.CreateContext();
+                // Initialize geometry engine safely
+                Xbim3DModelContext? geometryContext = null;
+                try
+                {
+                    _ = new Xbim.Geometry.Engine.Interop.XbimGeometryEngine();
+                    geometryContext = new Xbim3DModelContext(model);
+                    geometryContext.CreateContext();
+                }
+                catch (Exception geomEx)
+                {
+                    result.Metadata.Warnings.Add($"Native geometry engine initialization bypassed/failed: {geomEx.Message}");
+                    Debug.WriteLine($"[IfcDiagnosticAudit] Native geometry engine initialization failed: {geomEx.Message}");
+                }
                 cancellationToken.ThrowIfCancellationRequested();
 
                 // Fetch physical products
@@ -211,7 +221,27 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         private static double GetSiUnitFactor(IIfcSIUnit siUnit)
         {
+            var name = siUnit.Name.ToString();
             var prefix = siUnit.Prefix?.ToString() ?? string.Empty;
+
+            // KILOGRAM to kilograms must be 1, not 1000
+            if (name.Equals("GRAM", StringComparison.OrdinalIgnoreCase) || 
+                name.Equals("KILOGRAM", StringComparison.OrdinalIgnoreCase))
+            {
+                if (prefix.Contains("KILO", StringComparison.OrdinalIgnoreCase) || 
+                    name.Equals("KILOGRAM", StringComparison.OrdinalIgnoreCase))
+                {
+                    return 1.0;
+                }
+                if (string.IsNullOrEmpty(prefix))
+                {
+                    return 0.001; // gram to kg
+                }
+                if (prefix.Contains("MILLI", StringComparison.OrdinalIgnoreCase))
+                {
+                    return 0.000001; // milligram to kg
+                }
+            }
 
             if (prefix.Contains("MILLI", StringComparison.OrdinalIgnoreCase)) return 0.001;
             if (prefix.Contains("CENTI", StringComparison.OrdinalIgnoreCase)) return 0.01;
@@ -228,8 +258,27 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             if (name.Contains("MILLIMET", StringComparison.OrdinalIgnoreCase)) return 0.001;
             if (name.Contains("CENTIMET", StringComparison.OrdinalIgnoreCase)) return 0.01;
-            if (name.Contains("FOOT", StringComparison.OrdinalIgnoreCase) || name.Contains("FEET", StringComparison.OrdinalIgnoreCase)) return 0.3048;
+            
+            // Check composite foot dimensions before standard foot to avoid partial matching
+            if (name.Contains("SQUARE FOOT", StringComparison.OrdinalIgnoreCase) || 
+                name.Contains("SQUARE FEET", StringComparison.OrdinalIgnoreCase) || 
+                name.Contains("SQ FT", StringComparison.OrdinalIgnoreCase)) 
+                return 0.3048 * 0.3048;
+
+            if (name.Contains("CUBIC FOOT", StringComparison.OrdinalIgnoreCase) || 
+                name.Contains("CUBIC FEET", StringComparison.OrdinalIgnoreCase) || 
+                name.Contains("CU FT", StringComparison.OrdinalIgnoreCase)) 
+                return 0.3048 * 0.3048 * 0.3048;
+
+            if (name.Contains("FOOT", StringComparison.OrdinalIgnoreCase) || 
+                name.Contains("FEET", StringComparison.OrdinalIgnoreCase)) 
+                return 0.3048;
+
             if (name.Contains("INCH", StringComparison.OrdinalIgnoreCase)) return 0.0254;
+
+            if (name.Contains("TON", StringComparison.OrdinalIgnoreCase) || 
+                name.Contains("TONNE", StringComparison.OrdinalIgnoreCase)) 
+                return TonToKgFactor;
 
             var valComp = conversionUnit.ConversionFactor?.ValueComponent?.ToString();
             if (double.TryParse(valComp, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedFactor))

@@ -26,6 +26,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly IIfcSceneOperationService _ifcSceneOperations;
         private readonly IIfcDiagnosticAuditService _auditService;
         private readonly IProjectWorkspaceService _workspaceService;
+        private readonly IIfcNormalizationDecisionService _normalizationService;
         private List<PrecastElement>? _pendingIfcElements;
         private IfcLoadOptionsDto? _pendingFilterOptions;
         private bool _isMovingExistingIfc;
@@ -98,7 +99,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IElementVisibilityFilterService filterService,
             IIfcSceneOperationService ifcSceneOperations,
             IIfcDiagnosticAuditService auditService,
-            IProjectWorkspaceService workspaceService)
+            IProjectWorkspaceService workspaceService,
+            IIfcNormalizationDecisionService normalizationService)
         {
             _ifcReader = ifcReader;
             _scene = scene;
@@ -110,6 +112,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _ifcSceneOperations = ifcSceneOperations;
             _auditService = auditService;
             _workspaceService = workspaceService;
+            _normalizationService = normalizationService;
 
             LoadIfcCommand = new RelayCommand(async () => await LoadIfcAsync(), () => !IsLoading && !IsPlacementMode);
             MergeIfcCommand = new RelayCommand(ShowMergeIfcPlaceholder, () => !IsLoading && !IsPlacementMode);
@@ -166,10 +169,15 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                         var projectFolder = _workspaceService.CurrentSession?.ProjectFolderPath;
                         await _auditService.GenerateReportsAsync(auditResult, projectFolder);
                         Debug.WriteLine("[IfcViewerViewModel] Background diagnostic audit completed successfully.");
+
+                        // Run normalization decision preview
+                        var previewResult = await _normalizationService.GenerateNormalizationPreviewAsync(auditResult);
+                        await _normalizationService.GeneratePreviewReportsAsync(previewResult, projectFolder);
+                        Debug.WriteLine("[IfcViewerViewModel] Background normalization preview reports completed successfully.");
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"[IfcViewerViewModel] Background diagnostic audit failed: {ex.Message}");
+                        Debug.WriteLine($"[IfcViewerViewModel] Background diagnostic audit or normalization failed: {ex.Message}");
                     }
                 });
                 _isMovingExistingIfc = false;
@@ -257,10 +265,15 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                         var projectFolder = _workspaceService.CurrentSession?.ProjectFolderPath;
                         await _auditService.GenerateReportsAsync(auditResult, projectFolder);
                         Debug.WriteLine("[IfcViewerViewModel] Background diagnostic audit completed successfully.");
+
+                        // Run normalization decision preview
+                        var previewResult = await _normalizationService.GenerateNormalizationPreviewAsync(auditResult);
+                        await _normalizationService.GeneratePreviewReportsAsync(previewResult, projectFolder);
+                        Debug.WriteLine("[IfcViewerViewModel] Background normalization preview reports completed successfully.");
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"[IfcViewerViewModel] Background diagnostic audit failed: {ex.Message}");
+                        Debug.WriteLine($"[IfcViewerViewModel] Background diagnostic audit or normalization failed: {ex.Message}");
                     }
                 });
 

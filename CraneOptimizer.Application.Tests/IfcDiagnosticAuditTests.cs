@@ -7,11 +7,18 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace CraneOptimizer.Application.Tests
 {
     public class IfcDiagnosticAuditTests
     {
+        private readonly ITestOutputHelper _output;
+
+        public IfcDiagnosticAuditTests(ITestOutputHelper output)
+        {
+            _output = output;
+        }
         [Fact]
         public void TestIfcAuditResultDtoInitialization()
         {
@@ -267,6 +274,548 @@ namespace CraneOptimizer.Application.Tests
                 if (Directory.Exists(tempPath))
                 {
                     Directory.Delete(tempPath, true);
+                }
+            }
+        }
+
+        [Fact]
+        public async Task TestTeklaSingleChildAssemblyWrapperCollapse()
+        {
+            // Tekla single-child assembly becomes GroupingOnly parent + LiftableElement child.
+            var audit = new IfcAuditResult
+            {
+                Metadata = new IfcAuditMetadata
+                {
+                    FileName = "TeklaModel.ifc",
+                    SchemaVersion = "IFC4",
+                    ExporterApplication = "Tekla Structures 2024"
+                }
+            };
+
+            // Parent assembly
+            audit.Classifications.Add(new ElementClassificationAuditDetail
+            {
+                GlobalId = "ParentAssemblyGlobalId",
+                RawIfcType = "IfcElementAssembly",
+                CandidateResolvedCategory = "Assembly",
+                Name = "TeklaPrecastAssembly"
+            });
+            audit.Weights.Add(new ElementWeightAuditDetail
+            {
+                GlobalId = "ParentAssemblyGlobalId",
+                ResolvedType = "Assembly",
+                WeightSource = "Missing",
+                WeightStatus = "MissingWeight",
+                WeightRawValue = null,
+                WeightStandardValueTons = null
+            });
+
+            // Single Child
+            audit.Classifications.Add(new ElementClassificationAuditDetail
+            {
+                GlobalId = "ChildElementGlobalId",
+                RawIfcType = "IfcColumn",
+                CandidateResolvedCategory = "Column",
+                Name = "TeklaPrecastColumn"
+            });
+            audit.Weights.Add(new ElementWeightAuditDetail
+            {
+                GlobalId = "ChildElementGlobalId",
+                ResolvedType = "Column",
+                WeightSource = "Quantity",
+                WeightStatus = "ExplicitPositive",
+                WeightRawValue = 4.5,
+                WeightStandardValueTons = 4.5
+            });
+
+            // Assembly Decomposition details
+            var detail = new AssemblyDecompositionDetail
+            {
+                AssemblyGlobalId = "ParentAssemblyGlobalId",
+                AssemblyName = "TeklaPrecastAssembly",
+                GeometryOwnershipPattern = "ChildrenOnly",
+                ParentHasGeometry = false,
+                ChildrenHaveGeometry = true,
+                DirectChildCount = 1,
+                RecursiveChildCount = 1
+            };
+            detail.ChildDetails.Add(new AssemblyChildDetail
+            {
+                ChildGlobalId = "ChildElementGlobalId",
+                ChildRawIfcType = "IfcColumn",
+                ChildName = "TeklaPrecastColumn",
+                HasGeometry = true,
+                SwallowedRisk = true
+            });
+            audit.Assemblies.Details.Add(detail);
+
+            var resolver = new IfcExporterProfileResolver();
+            var normalizer = new IfcNormalizationDecisionService(resolver);
+
+            var result = await normalizer.GenerateNormalizationPreviewAsync(audit);
+
+            var parent = result.Elements.First(e => e.GlobalId == "ParentAssemblyGlobalId");
+            var child = result.Elements.First(e => e.GlobalId == "ChildElementGlobalId");
+
+            Assert.Equal(IfcElementRole.GroupingOnly, parent.Role);
+            Assert.Equal(IfcAssemblyDecision.SingleChildWrapper, parent.AssemblyDecision);
+            Assert.False(parent.IncludeInGaPreview);
+            Assert.Single(parent.VisibleGeometryOwnerGlobalIds);
+            Assert.Equal("ChildElementGlobalId", parent.VisibleGeometryOwnerGlobalIds[0]);
+
+            Assert.Equal(IfcElementRole.LiftableElement, child.Role);
+            Assert.True(child.IncludeInGaPreview);
+            Assert.Equal("ParentAssemblyGlobalId", child.ParentGlobalId);
+            Assert.Single(child.VisibleGeometryOwnerGlobalIds);
+            Assert.Equal("ChildElementGlobalId", child.VisibleGeometryOwnerGlobalIds[0]);
+        }
+
+        [Fact]
+        public async Task TestTeklaWeldedMultiChildAssemblyTreating()
+        {
+            // Tekla welded multi-child assembly becomes LiftAssembly when explicit parent weight exists,
+            // and structural children are excluded to avoid double counting.
+            var audit = new IfcAuditResult
+            {
+                Metadata = new IfcAuditMetadata
+                {
+                    FileName = "TeklaCastUnit.ifc",
+                    SchemaVersion = "IFC4",
+                    ExporterApplication = "Tekla Structures"
+                }
+            };
+
+            // Parent Assembly (has trusted weight)
+            audit.Classifications.Add(new ElementClassificationAuditDetail
+            {
+                GlobalId = "ParentAssembly",
+                RawIfcType = "IfcElementAssembly",
+                CandidateResolvedCategory = "Assembly",
+                Name = "TeklaCastUnitAssembly"
+            });
+            audit.Weights.Add(new ElementWeightAuditDetail
+            {
+                GlobalId = "ParentAssembly",
+                ResolvedType = "Assembly",
+                WeightSource = "PropertySet.CastUnitWeight",
+                WeightStatus = "ExplicitPositive",
+                WeightRawValue = 12.5,
+                WeightStandardValueTons = 12.5
+            });
+
+            // Children elements
+            audit.Classifications.Add(new ElementClassificationAuditDetail
+            {
+                GlobalId = "Child1",
+                RawIfcType = "IfcBeam",
+                CandidateResolvedCategory = "Beam",
+                Name = "PrecastBeamComponent1"
+            });
+            audit.Weights.Add(new ElementWeightAuditDetail
+            {
+                GlobalId = "Child1",
+                ResolvedType = "Beam",
+                WeightSource = "Missing",
+                WeightStatus = "MissingWeight"
+            });
+
+            audit.Classifications.Add(new ElementClassificationAuditDetail
+            {
+                GlobalId = "Child2",
+                RawIfcType = "IfcBeam",
+                CandidateResolvedCategory = "Beam",
+                Name = "PrecastBeamComponent2"
+            });
+            audit.Weights.Add(new ElementWeightAuditDetail
+            {
+                GlobalId = "Child2",
+                ResolvedType = "Beam",
+                WeightSource = "Missing",
+                WeightStatus = "MissingWeight"
+            });
+
+            var detail = new AssemblyDecompositionDetail
+            {
+                AssemblyGlobalId = "ParentAssembly",
+                AssemblyName = "TeklaCastUnitAssembly",
+                GeometryOwnershipPattern = "ChildrenOnly",
+                ParentHasGeometry = false,
+                ChildrenHaveGeometry = true,
+                DirectChildCount = 2,
+                RecursiveChildCount = 2
+            };
+            detail.ChildDetails.Add(new AssemblyChildDetail { ChildGlobalId = "Child1", ChildRawIfcType = "IfcBeam", HasGeometry = true });
+            detail.ChildDetails.Add(new AssemblyChildDetail { ChildGlobalId = "Child2", ChildRawIfcType = "IfcBeam", HasGeometry = true });
+            audit.Assemblies.Details.Add(detail);
+
+            var resolver = new IfcExporterProfileResolver();
+            var normalizer = new IfcNormalizationDecisionService(resolver);
+
+            var result = await normalizer.GenerateNormalizationPreviewAsync(audit);
+
+            var parent = result.Elements.First(e => e.GlobalId == "ParentAssembly");
+            var c1 = result.Elements.First(e => e.GlobalId == "Child1");
+            var c2 = result.Elements.First(e => e.GlobalId == "Child2");
+
+            Assert.Equal(IfcElementRole.LiftAssembly, parent.Role);
+            Assert.Equal(IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly, parent.AssemblyDecision);
+            Assert.True(parent.IncludeInGaPreview);
+            // ChildrenOnly pattern -> visible geometry owners must list the child IDs
+            Assert.Contains("Child1", parent.VisibleGeometryOwnerGlobalIds);
+            Assert.Contains("Child2", parent.VisibleGeometryOwnerGlobalIds);
+            Assert.Equal(2, parent.VisibleGeometryOwnerGlobalIds.Count);
+
+            // Children must be Swallowed/Excluded to avoid double-counting
+            Assert.Equal(IfcElementRole.Excluded, c1.Role);
+            Assert.Equal(IfcElementRole.Excluded, c2.Role);
+            Assert.False(c1.IncludeInGaPreview);
+            Assert.False(c2.IncludeInGaPreview);
+        }
+
+        [Fact]
+        public async Task TestRevitStructuralBeamSystemUnrolling()
+        {
+            // Revit Structural Beam System becomes GroupingOnly parent + liftable beam children.
+            var audit = new IfcAuditResult
+            {
+                Metadata = new IfcAuditMetadata
+                {
+                    FileName = "RevitModel.ifc",
+                    SchemaVersion = "IFC4",
+                    ExporterApplication = "Revit Exporter"
+                }
+            };
+
+            // Parent system grouping
+            audit.Classifications.Add(new ElementClassificationAuditDetail
+            {
+                GlobalId = "SystemParent",
+                RawIfcType = "IfcElementAssembly",
+                CandidateResolvedCategory = "Assembly",
+                Name = "Structural Beam System"
+            });
+            audit.Weights.Add(new ElementWeightAuditDetail { GlobalId = "SystemParent", WeightStatus = "MissingWeight" });
+
+            // Child beams
+            audit.Classifications.Add(new ElementClassificationAuditDetail
+            {
+                GlobalId = "BeamChild1",
+                RawIfcType = "IfcBeam",
+                CandidateResolvedCategory = "Beam",
+                Name = "Structural Beam 01"
+            });
+            audit.Weights.Add(new ElementWeightAuditDetail
+            {
+                GlobalId = "BeamChild1",
+                ResolvedType = "Beam",
+                WeightSource = "PropertySet.Weight",
+                WeightStatus = "ExplicitPositive",
+                WeightRawValue = 1.8,
+                WeightStandardValueTons = 1.8
+            });
+
+            audit.Classifications.Add(new ElementClassificationAuditDetail
+            {
+                GlobalId = "BeamChild2",
+                RawIfcType = "IfcBeam",
+                CandidateResolvedCategory = "Beam",
+                Name = "Structural Beam 02"
+            });
+            audit.Weights.Add(new ElementWeightAuditDetail
+            {
+                GlobalId = "BeamChild2",
+                ResolvedType = "Beam",
+                WeightSource = "PropertySet.Weight",
+                WeightStatus = "ExplicitPositive",
+                WeightRawValue = 1.8,
+                WeightStandardValueTons = 1.8
+            });
+
+            var detail = new AssemblyDecompositionDetail
+            {
+                AssemblyGlobalId = "SystemParent",
+                AssemblyName = "Structural Beam System",
+                GeometryOwnershipPattern = "ChildrenOnly",
+                ParentHasGeometry = false,
+                ChildrenHaveGeometry = true,
+                DirectChildCount = 2,
+                RecursiveChildCount = 2
+            };
+            detail.ChildDetails.Add(new AssemblyChildDetail { ChildGlobalId = "BeamChild1", ChildRawIfcType = "IfcBeam", HasGeometry = true });
+            detail.ChildDetails.Add(new AssemblyChildDetail { ChildGlobalId = "BeamChild2", ChildRawIfcType = "IfcBeam", HasGeometry = true });
+            audit.Assemblies.Details.Add(detail);
+
+            var resolver = new IfcExporterProfileResolver();
+            var normalizer = new IfcNormalizationDecisionService(resolver);
+
+            var result = await normalizer.GenerateNormalizationPreviewAsync(audit);
+
+            var parent = result.Elements.First(e => e.GlobalId == "SystemParent");
+            var b1 = result.Elements.First(e => e.GlobalId == "BeamChild1");
+            var b2 = result.Elements.First(e => e.GlobalId == "BeamChild2");
+
+            Assert.Equal(IfcElementRole.GroupingOnly, parent.Role);
+            Assert.Equal(IfcAssemblyDecision.RevitStructuralBeamSystemGrouping, parent.AssemblyDecision);
+            Assert.False(parent.IncludeInGaPreview);
+
+            Assert.Equal(IfcElementRole.LiftableElement, b1.Role);
+            Assert.Equal(IfcElementRole.LiftableElement, b2.Role);
+            Assert.True(b1.IncludeInGaPreview);
+            Assert.True(b2.IncludeInGaPreview);
+            Assert.Equal("SystemParent", b1.ParentGlobalId);
+            Assert.Equal("SystemParent", b2.ParentGlobalId);
+        }
+
+        [Fact]
+        public async Task TestIfcReinforcingBarClassificationAndWeightRollup()
+        {
+            // IfcReinforcingBar becomes InternalAuxiliary and reinforcement explicit weight rollup
+            var audit = new IfcAuditResult
+            {
+                Metadata = new IfcAuditMetadata
+                {
+                    FileName = "Reinforcements.ifc",
+                    ExporterApplication = "Generic Exporter"
+                }
+            };
+
+            // Host element (missing weight)
+            audit.Classifications.Add(new ElementClassificationAuditDetail
+            {
+                GlobalId = "PrecastCol",
+                RawIfcType = "IfcColumn",
+                CandidateResolvedCategory = "Column",
+                Name = "Precast Concrete Column"
+            });
+            audit.Weights.Add(new ElementWeightAuditDetail { GlobalId = "PrecastCol", WeightStatus = "MissingWeight" });
+
+            // Reinforcement rebar child (has explicit weight)
+            audit.Classifications.Add(new ElementClassificationAuditDetail
+            {
+                GlobalId = "Rebar1",
+                RawIfcType = "IfcReinforcingBar",
+                CandidateResolvedCategory = "Reinforcement",
+                Name = "Main Rebar 25mm"
+            });
+            audit.Weights.Add(new ElementWeightAuditDetail
+            {
+                GlobalId = "Rebar1",
+                ResolvedType = "Reinforcement",
+                WeightSource = "PropertySet.Mass",
+                WeightStatus = "ExplicitPositive",
+                WeightRawValue = 0.45,
+                WeightStandardValueTons = 0.45
+            });
+
+            audit.Geometries.Add(new ElementGeometryOwnershipAuditDetail
+            {
+                LogicalGlobalId = "Rebar1",
+                HasGeometryDirectly = true,
+                GeometryOwnerCandidateGlobalId = "Rebar1"
+            });
+
+            var detail = new AssemblyDecompositionDetail
+            {
+                AssemblyGlobalId = "PrecastCol",
+                AssemblyName = "Precast Concrete Column",
+                GeometryOwnershipPattern = "ChildrenOnly",
+                DirectChildCount = 1,
+                RecursiveChildCount = 1
+            };
+            detail.ChildDetails.Add(new AssemblyChildDetail { ChildGlobalId = "Rebar1", ChildRawIfcType = "IfcReinforcingBar", HasGeometry = true });
+            audit.Assemblies.Details.Add(detail);
+
+            var resolver = new IfcExporterProfileResolver();
+            var normalizer = new IfcNormalizationDecisionService(resolver);
+
+            var result = await normalizer.GenerateNormalizationPreviewAsync(audit);
+
+            var host = result.Elements.First(e => e.GlobalId == "PrecastCol");
+            var rebar = result.Elements.First(e => e.GlobalId == "Rebar1");
+
+            // Rebar checks
+            Assert.Equal(IfcElementRole.InternalAuxiliary, rebar.Role);
+            Assert.False(rebar.IncludeInRenderPreview);
+            Assert.False(rebar.IncludeInGaPreview);
+            Assert.Contains("Rebar1", rebar.HiddenInternalGeometryOwnerGlobalIds);
+
+            // Roll-up verification
+            Assert.Equal(0.45, host.ReinforcementWeightContributionTons);
+            Assert.Equal(IfcWeightTrustLevel.RequiresUserApproval, host.WeightTrustLevel);
+            Assert.Contains("positive reinforcement steel weight is available", host.Warnings[0]);
+        }
+
+        [Fact]
+        public void TestUnitConversionDisplayWarningsAndConversions()
+        {
+            // Add tests for length/area/volume/mass conversion display.
+            // Explicitly assert that:
+            // 1. FOOT length to meters = 0.3048
+            // 2. SQUARE FOOT to square meters = 0.09290304
+            // 3. CUBIC FOOT to cubic meters = 0.028316846592
+            // 4. KILOGRAM to kilograms = 1.0 (GetSiUnitFactor logic)
+
+            // Let's call the private methods of IfcDiagnosticAuditService using reflection or check their behavior.
+            var type = typeof(IfcDiagnosticAuditService);
+            
+            var getSiFactorMethod = type.GetMethod("GetSiUnitFactor", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            var getConvFactorMethod = type.GetMethod("GetConversionUnitFactor", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.NotNull(getSiFactorMethod);
+            Assert.NotNull(getConvFactorMethod);
+
+            using (var model = Xbim.Ifc.IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create mock units"))
+                {
+                    // Create conversion based units
+                    var mockFoot = model.Instances.New<Xbim.Ifc4.MeasureResource.IfcConversionBasedUnit>();
+                    mockFoot.Name = "FOOT";
+
+                    var mockSqFoot = model.Instances.New<Xbim.Ifc4.MeasureResource.IfcConversionBasedUnit>();
+                    mockSqFoot.Name = "SQUARE FOOT";
+
+                    var mockSqFt = model.Instances.New<Xbim.Ifc4.MeasureResource.IfcConversionBasedUnit>();
+                    mockSqFt.Name = "SQ FT";
+
+                    var mockCuFoot = model.Instances.New<Xbim.Ifc4.MeasureResource.IfcConversionBasedUnit>();
+                    mockCuFoot.Name = "CUBIC FOOT";
+
+                    var mockCuFt = model.Instances.New<Xbim.Ifc4.MeasureResource.IfcConversionBasedUnit>();
+                    mockCuFt.Name = "CU FT";
+
+                    var mockTon = model.Instances.New<Xbim.Ifc4.MeasureResource.IfcConversionBasedUnit>();
+                    mockTon.Name = "TON";
+
+                    var footFactor = (double)getConvFactorMethod.Invoke(null, new object[] { mockFoot })!;
+                    var sqFootFactor = (double)getConvFactorMethod.Invoke(null, new object[] { mockSqFoot })!;
+                    var sqFtFactor = (double)getConvFactorMethod.Invoke(null, new object[] { mockSqFt })!;
+                    var cuFootFactor = (double)getConvFactorMethod.Invoke(null, new object[] { mockCuFoot })!;
+                    var cuFtFactor = (double)getConvFactorMethod.Invoke(null, new object[] { mockCuFt })!;
+                    var tonFactor = (double)getConvFactorMethod.Invoke(null, new object[] { mockTon })!;
+
+                    Assert.Equal(0.3048, footFactor);
+                    Assert.Equal(0.3048 * 0.3048, sqFootFactor);
+                    Assert.Equal(0.3048 * 0.3048, sqFtFactor);
+                    Assert.Equal(0.3048 * 0.3048 * 0.3048, cuFootFactor);
+                    Assert.Equal(0.3048 * 0.3048 * 0.3048, cuFtFactor);
+                    Assert.Equal(1000.0, tonFactor);
+
+                    // Create SI units for mass
+                    var mockKg = model.Instances.New<Xbim.Ifc4.MeasureResource.IfcSIUnit>();
+                    mockKg.Name = Xbim.Ifc4.Interfaces.IfcSIUnitName.GRAM;
+                    mockKg.Prefix = Xbim.Ifc4.Interfaces.IfcSIPrefix.KILO;
+
+                    var mockGram = model.Instances.New<Xbim.Ifc4.MeasureResource.IfcSIUnit>();
+                    mockGram.Name = Xbim.Ifc4.Interfaces.IfcSIUnitName.GRAM;
+
+                    var kgFactor = (double)getSiFactorMethod.Invoke(null, new object[] { mockKg })!;
+                    var gramFactor = (double)getSiFactorMethod.Invoke(null, new object[] { mockGram })!;
+
+                    Assert.Equal(1.0, kgFactor);
+                    Assert.Equal(0.001, gramFactor);
+                    
+                    txn.Commit();
+                }
+            }
+        }
+
+        [Fact]
+        public async Task RunRealIfcNormalizationPreviews()
+        {
+            var files = new[]
+            {
+                @"F:\06-ITI\00-Project\tryProjects\try6\Models\IFC\IfcBuilding_12_ifc4.ifc",
+                @"F:\06-ITI\00-Project\tryProjects\try6\Models\IFC\13_ifc4.ifc",
+                @"F:\06-ITI\00-Project\tryProjects\try6\Models\IFC\Snowdon Towers Sample Structural_ifc2x3.ifc",
+                @"F:\06-ITI\00-Project\tryProjects\try6\Models\IFC\Snowdon Towers Sample Structural_ifc4.ifc"
+            };
+
+            var auditService = new IfcDiagnosticAuditService();
+            var resolver = new IfcExporterProfileResolver();
+            var normalizer = new IfcNormalizationDecisionService(resolver);
+            var projectFolder = @"f:\06-ITI\00-Project\Main Project\CraneOptimizer";
+
+            foreach (var file in files)
+            {
+                if (!System.IO.File.Exists(file))
+                {
+                    _output.WriteLine($"[ERROR] File not found: {file}");
+                    continue;
+                }
+
+                _output.WriteLine($"\n--- Processing File: {System.IO.Path.GetFileName(file)} ---");
+                var auditResult = await auditService.RunAuditAsync(file);
+                await auditService.GenerateReportsAsync(auditResult, projectFolder);
+
+                var previewResult = await normalizer.GenerateNormalizationPreviewAsync(auditResult);
+                string outDir = await normalizer.GeneratePreviewReportsAsync(previewResult, projectFolder);
+
+                _output.WriteLine($"Reports generated at: {outDir}");
+                _output.WriteLine($"Detected Exporter: {previewResult.ExporterApplication}");
+                _output.WriteLine($"Detected Profile: {previewResult.DetectedProfile}");
+                _output.WriteLine($"Total Raw Products: {previewResult.TotalRawProductCount}");
+                _output.WriteLine($"Normalized LiftableCount: {previewResult.NormalizedLiftableCount}");
+                _output.WriteLine($"GroupingOnlyCount: {previewResult.GroupingOnlyCount}");
+                _output.WriteLine($"LiftAssemblyCount: {previewResult.LiftAssemblyCount}");
+                _output.WriteLine($"InternalAuxiliaryCount: {previewResult.InternalAuxiliaryCount}");
+                _output.WriteLine($"ExcludedCount: {previewResult.ExcludedCount}");
+                _output.WriteLine($"NeedsReviewCount: {previewResult.NeedsReviewCount}");
+                _output.WriteLine($"VisibleRenderGeometryCount: {previewResult.VisibleRenderGeometryCount}");
+                _output.WriteLine($"HiddenInternalGeometryCount: {previewResult.HiddenInternalGeometryCount}");
+                _output.WriteLine($"BlockedGaMissingWeightCount: {previewResult.BlockedGaMissingWeightCount}");
+                _output.WriteLine($"BlockedGaZeroWeightCount: {previewResult.BlockedGaZeroWeightCount}");
+                _output.WriteLine($"BlockedGaFallbackWeightCount: {previewResult.BlockedGaFallbackWeightCount}");
+
+                // Count assembly decisions
+                int singleChildWrapper = 0;
+                int revitBeamSystem = 0;
+                int teklaWelded = 0;
+                int genericGrouping = 0;
+                int unknownNeedsReview = 0;
+
+                foreach (var el in previewResult.Elements)
+                {
+                    switch (el.AssemblyDecision)
+                    {
+                        case IfcAssemblyDecision.SingleChildWrapper:
+                            singleChildWrapper++;
+                            break;
+                        case IfcAssemblyDecision.RevitStructuralBeamSystemGrouping:
+                            revitBeamSystem++;
+                            break;
+                        case IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly:
+                            teklaWelded++;
+                            break;
+                        case IfcAssemblyDecision.GenericGroupingAssembly:
+                            genericGrouping++;
+                            break;
+                        case IfcAssemblyDecision.UnknownNeedsReview:
+                            unknownNeedsReview++;
+                            break;
+                    }
+                }
+
+                _output.WriteLine($"Assembly Decision Counts:");
+                _output.WriteLine($"  SingleChildWrapper: {singleChildWrapper}");
+                _output.WriteLine($"  RevitStructuralBeamSystemGrouping: {revitBeamSystem}");
+                _output.WriteLine($"  TeklaCastUnitOrWeldedLiftAssembly: {teklaWelded}");
+                _output.WriteLine($"  GenericGroupingAssembly: {genericGrouping}");
+                _output.WriteLine($"  UnknownNeedsReview: {unknownNeedsReview}");
+
+                // Count weight trust levels
+                var trustCounts = new Dictionary<IfcWeightTrustLevel, int>();
+                foreach (var el in previewResult.Elements)
+                {
+                    if (!trustCounts.ContainsKey(el.WeightTrustLevel))
+                        trustCounts[el.WeightTrustLevel] = 0;
+                    trustCounts[el.WeightTrustLevel]++;
+                }
+
+                _output.WriteLine($"Weight Trust Level Counts:");
+                foreach (var kv in trustCounts)
+                {
+                    _output.WriteLine($"  {kv.Key}: {kv.Value}");
                 }
             }
         }

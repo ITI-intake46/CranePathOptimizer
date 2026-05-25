@@ -82,6 +82,8 @@ namespace CraneOptimizer.UI
             services.AddScoped<IProjectRepository, ProjectRepository>();
             services.AddSingleton<IUnitSettingsService, UnitSettingsService>();
             services.AddSingleton<IIfcDiagnosticAuditService, IfcDiagnosticAuditService>();
+            services.AddSingleton<IIfcExporterProfileResolver, IfcExporterProfileResolver>();
+            services.AddSingleton<IIfcNormalizationDecisionService, IfcNormalizationDecisionService>();
 
             // =========================
             // Core Services
