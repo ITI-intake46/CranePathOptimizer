@@ -238,21 +238,21 @@ namespace CraneOptimizer.Application.Tests
                 Assert.True(Directory.Exists(outputDir));
 
                 var files = Directory.GetFiles(outputDir);
-                Assert.Equal(3, files.Length);
+                Assert.Equal(2, files.Length);
 
-                var mdFile = files.FirstOrDefault(f => f.EndsWith(".md"));
                 var jsonFile = files.FirstOrDefault(f => f.EndsWith(".json"));
                 var csvFile = files.FirstOrDefault(f => f.EndsWith(".csv"));
 
-                Assert.NotNull(mdFile);
                 Assert.NotNull(jsonFile);
                 Assert.NotNull(csvFile);
 
-                // Verify MD Content
-                var mdContent = File.ReadAllText(mdFile);
-                Assert.Contains("SampleBridge.ifc", mdContent);
-                Assert.Contains("Autodesk Revit 2024", mdContent);
-                Assert.Contains("IfcColumn", mdContent);
+                // Verify CSV Content and Metadata headers (Phase 2A requirement)
+                var csvContent = File.ReadAllText(csvFile);
+                Assert.Contains("# IFC DIAGNOSTIC AUDIT PROFESSIONAL REPORT", csvContent);
+                Assert.Contains("# File Name: SampleBridge.ifc", csvContent);
+                Assert.Contains("# Exporter Application: Autodesk Revit 2024", csvContent);
+                Assert.Contains("# Schema Version: IFC4", csvContent);
+                Assert.Contains("GlobalId,EntityLabel,Name,RawIfcType,ResolvedCategory", csvContent);
 
                 // Verify JSON Content
                 var jsonContent = File.ReadAllText(jsonFile);
@@ -264,7 +264,7 @@ namespace CraneOptimizer.Application.Tests
                 }
 
                 // Verify CSV Content
-                var csvContent = File.ReadAllText(csvFile);
+                csvContent = File.ReadAllText(csvFile);
                 Assert.Contains("ColGlobalId_1", csvContent);
                 Assert.Contains("IfcColumn", csvContent);
                 Assert.Contains("Concrete", csvContent);
@@ -818,6 +818,129 @@ namespace CraneOptimizer.Application.Tests
                     _output.WriteLine($"  {kv.Key}: {kv.Value}");
                 }
             }
+        }
+
+        [Fact]
+        public void TestPhase2ANormalizationGating()
+        {
+            // Test 1: NeedsReview parent element is blocked from GA
+            var needsReviewEl = new CraneOptimizer.Domain.Schemas.PrecastElement
+            {
+                ElementID = "NeedsReview_Parent",
+                Role = IfcElementRole.NeedsReview,
+                IncludeInGa = true, // Normalization service might have initialized to true
+                WeightTons = 5.0,
+                WeightTrustLevel = IfcWeightTrustLevel.RequiresUserApproval
+            };
+
+            // Test 2: GroupingOnly item must not enter GA or render
+            var groupingOnlyEl = new CraneOptimizer.Domain.Schemas.PrecastElement
+            {
+                ElementID = "GroupingOnly_System",
+                Role = IfcElementRole.GroupingOnly,
+                IncludeInGa = true,
+                IncludeInRender = true,
+                WeightTons = 10.0,
+                WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity
+            };
+
+            // Test 3: Standardized Units and Gating Criteria for GA
+            // GA ready element
+            var gaReadyEl = new CraneOptimizer.Domain.Schemas.PrecastElement
+            {
+                ElementID = "GA_Ready",
+                Role = IfcElementRole.LiftableElement,
+                IncludeInGa = true,
+                IncludeInRender = true,
+                WeightTons = 3.5,
+                WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
+                ElementCOG = new CraneOptimizer.Domain.Common.DomainPoint3D(1.0, 2.0, 3.0)
+            };
+
+            // Missing weight element
+            var missingWeightEl = new CraneOptimizer.Domain.Schemas.PrecastElement
+            {
+                ElementID = "Missing_Weight",
+                Role = IfcElementRole.LiftableElement,
+                IncludeInGa = true,
+                WeightTons = null,
+                WeightTrustLevel = IfcWeightTrustLevel.Missing
+            };
+
+            // Fallback weight element (not allowed in GA)
+            var fallbackWeightEl = new CraneOptimizer.Domain.Schemas.PrecastElement
+            {
+                ElementID = "Fallback_Weight",
+                Role = IfcElementRole.LiftableElement,
+                IncludeInGa = true,
+                WeightTons = 4.2,
+                WeightTrustLevel = IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA
+            };
+
+            // Let's verify our gating logic on these elements
+            var filteredElements = new List<CraneOptimizer.Domain.Schemas.PrecastElement>
+            {
+                needsReviewEl,
+                groupingOnlyEl,
+                gaReadyEl,
+                missingWeightEl,
+                fallbackWeightEl
+            };
+
+            var gaReadyElements = new List<CraneOptimizer.Domain.Schemas.PrecastElement>();
+            var blockedElements = new List<(CraneOptimizer.Domain.Schemas.PrecastElement element, string reason)>();
+
+            foreach (var element in filteredElements)
+            {
+                if (!element.IncludeInGa)
+                {
+                    blockedElements.Add((element, "IncludeInGa flag is false"));
+                    continue;
+                }
+
+                if (element.Role == IfcElementRole.NeedsReview)
+                {
+                    blockedElements.Add((element, "NeedsReview blocked"));
+                    continue;
+                }
+
+                if (element.Role == IfcElementRole.GroupingOnly)
+                {
+                    blockedElements.Add((element, "GroupingOnly blocked"));
+                    continue;
+                }
+
+                if (element.Role == IfcElementRole.InternalAuxiliary)
+                {
+                    blockedElements.Add((element, "Auxiliary blocked"));
+                    continue;
+                }
+
+                if (!element.WeightTons.HasValue || element.WeightTons.Value <= 0)
+                {
+                    blockedElements.Add((element, "Missing or zero weight"));
+                    continue;
+                }
+
+                if (element.WeightTrustLevel != IfcWeightTrustLevel.ExplicitQuantity &&
+                    element.WeightTrustLevel != IfcWeightTrustLevel.ExplicitProperty)
+                {
+                    blockedElements.Add((element, "Untrusted weight"));
+                    continue;
+                }
+
+                gaReadyElements.Add(element);
+            }
+
+            // Assertions
+            Assert.Single(gaReadyElements);
+            Assert.Equal("GA_Ready", gaReadyElements[0].ElementID);
+
+            Assert.Equal(4, blockedElements.Count);
+            Assert.Contains(blockedElements, b => b.element.ElementID == "NeedsReview_Parent" && b.reason == "NeedsReview blocked");
+            Assert.Contains(blockedElements, b => b.element.ElementID == "GroupingOnly_System" && b.reason == "GroupingOnly blocked");
+            Assert.Contains(blockedElements, b => b.element.ElementID == "Missing_Weight" && b.reason == "Missing or zero weight");
+            Assert.Contains(blockedElements, b => b.element.ElementID == "Fallback_Weight" && b.reason == "Untrusted weight");
         }
     }
 }

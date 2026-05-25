@@ -291,6 +291,15 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 {
                     if (preview.ParentGlobalId != null && previews.TryGetValue(preview.ParentGlobalId, out var parentCP))
                     {
+                        // If parent assembly requires review, block the child as well (BlockedDueToParentNeedsReview)
+                        if (parentCP.Role == IfcElementRole.NeedsReview)
+                        {
+                            preview.Role = IfcElementRole.NeedsReview;
+                            preview.IncludeInGaPreview = false;
+                            preview.DecisionReason = "Blocked due to parent assembly requiring review (BlockedDueToParentNeedsReview).";
+                            continue;
+                        }
+
                         // If parent assembly is a Tekla precast lift assembly, child elements are components of the assembly, not independent lift items
                         if (parentCP.AssemblyDecision == IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly)
                         {
@@ -411,7 +420,6 @@ namespace CraneOptimizer.Infrastructure.Repositories
             Directory.CreateDirectory(outputDirectory);
 
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var mdPath = Path.Combine(outputDirectory, $"ifc_normalization_preview_summary_{timestamp}.md");
             var jsonPath = Path.Combine(outputDirectory, $"ifc_normalization_preview_details_{timestamp}.json");
             var csvPath = Path.Combine(outputDirectory, $"ifc_normalization_preview_elements_{timestamp}.csv");
 
@@ -426,20 +434,37 @@ namespace CraneOptimizer.Infrastructure.Repositories
             File.WriteAllText(jsonPath, jsonContent, Encoding.UTF8);
 
             cancellationToken.ThrowIfCancellationRequested();
-            // 2. CSV Elements Matrix
+            // 2. CSV Elements Matrix (Metadata included at top per user request)
             GeneratePreviewCsv(preview, csvPath);
 
-            cancellationToken.ThrowIfCancellationRequested();
-            // 3. Markdown summary report
-            GeneratePreviewMarkdown(preview, mdPath);
-
-            Debug.WriteLine($"[IfcNormalizationPreview] Reports generated successfully at: {outputDirectory}");
+            Debug.WriteLine($"[IfcNormalizationPreview] JSON and CSV Reports generated successfully at: {outputDirectory}");
             return outputDirectory;
         }
 
         private static void GeneratePreviewCsv(IfcNormalizationPreviewSummary preview, string csvPath)
         {
             var sb = new StringBuilder();
+
+            // Append professional IFC normalization preview metadata header (Phase 2A request)
+            sb.AppendLine("# ==========================================================================");
+            sb.AppendLine("# IFC NORMALIZATION DECISION PREVIEW PROFESSIONAL REPORT");
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# File Name: {0}", preview.FileName));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Exporter Application: {0}", preview.ExporterApplication));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Resolved Exporter Profile: {0}", preview.DetectedProfile));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Total Physical Elements Ingested: {0}", preview.TotalRawProductCount));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Proposed LiftableElements (Leafs): {0}", preview.NormalizedLiftableCount));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Proposed GroupingOnly Container Nodes: {0}", preview.GroupingOnlyCount));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Proposed LiftAssemblies: {0}", preview.LiftAssemblyCount));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Proposed InternalAuxiliary (Reinforcements): {0}", preview.InternalAuxiliaryCount));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Proposed Excluded Elements (Swallowed Components): {0}", preview.ExcludedCount));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Proposed NeedsReview Elements: {0}", preview.NeedsReviewCount));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Proposed GA-Blocked (Missing Weight): {0}", preview.BlockedGaMissingWeightCount));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Proposed GA-Blocked (Zero Weight): {0}", preview.BlockedGaZeroWeightCount));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Proposed GA-Blocked (Fallback Density Weight): {0}", preview.BlockedGaFallbackWeightCount));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Generated At (UTC): {0}", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")));
+            sb.AppendLine("# ==========================================================================");
+            sb.AppendLine();
+
             sb.AppendLine("GlobalId,Name,RawIfcType,ResolvedRole,AssemblyDecision,WeightTons,WeightTrustLevel,IncludeInGaPreview,VisibleGeometryOwners,HiddenGeometryOwners,DecisionReason");
 
             foreach (var elem in preview.Elements)

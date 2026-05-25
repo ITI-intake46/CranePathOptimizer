@@ -57,13 +57,15 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         public Visual3D Build((PrecastElement element, LiftStatus? status, bool isSelected) item)
         {
             var container = new ModelVisual3D();
+            if (!item.element.IncludeInRender)
+                return container;
             BuildFallbackBox(container, item.element, item.status, item.isSelected);
             return container;
         }
 
         public Visual3D BuildBatch(IEnumerable<(PrecastElement element, LiftStatus? status, bool isSelected)> items)
         {
-            var itemsList = items.ToList();
+            var itemsList = items.Where(item => item.element.IncludeInRender).ToList();
             
             // DEBUG: Verify status distribution
             int withStatus = itemsList.Count(i => i.status.HasValue);

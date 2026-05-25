@@ -957,7 +957,6 @@ namespace CraneOptimizer.Infrastructure.Repositories
             Directory.CreateDirectory(outputDirectory);
 
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var mdPath = Path.Combine(outputDirectory, $"ifc_audit_summary_{timestamp}.md");
             var jsonPath = Path.Combine(outputDirectory, $"ifc_audit_details_{timestamp}.json");
             var csvPath = Path.Combine(outputDirectory, $"ifc_audit_elements_{timestamp}.csv");
 
@@ -972,20 +971,32 @@ namespace CraneOptimizer.Infrastructure.Repositories
             File.WriteAllText(jsonPath, jsonContent, Encoding.UTF8);
 
             cancellationToken.ThrowIfCancellationRequested();
-            // 2. Generate CSV
+            // 2. Generate CSV (Metadata included at top per user request)
             GenerateCsvReport(auditResult, csvPath);
 
-            cancellationToken.ThrowIfCancellationRequested();
-            // 3. Generate Markdown
-            GenerateMarkdownReport(auditResult, mdPath);
-
-            Debug.WriteLine($"[IfcDiagnosticAudit] Reports generated successfully at: {outputDirectory}");
+            Debug.WriteLine($"[IfcDiagnosticAudit] JSON and CSV Reports generated successfully at: {outputDirectory}");
             return outputDirectory;
         }
 
         private static void GenerateCsvReport(IfcAuditResult auditResult, string csvPath)
         {
             var sb = new StringBuilder();
+
+            // Append professional IFC metadata header (Phase 2A request)
+            sb.AppendLine("# ==========================================================================");
+            sb.AppendLine("# IFC DIAGNOSTIC AUDIT PROFESSIONAL REPORT");
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# File Name: {0}", auditResult.Metadata.FileName));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Schema Version: {0}", auditResult.Metadata.SchemaVersion));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Exporter Application: {0}", auditResult.Metadata.ExporterApplication));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Total Physical Elements Analyzed: {0}", auditResult.Classifications.Count));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Length Unit: {0} ({1} m scale factor)", auditResult.Metadata.LengthUnit, auditResult.Metadata.LengthConversionFactor));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Area Unit: {0} ({1} m² scale factor)", auditResult.Metadata.AreaUnit, auditResult.Metadata.AreaConversionFactor));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Volume Unit: {0} ({1} m³ scale factor)", auditResult.Metadata.VolumeUnit, auditResult.Metadata.VolumeConversionFactor));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Mass Unit: {0} ({1} kg scale factor)", auditResult.Metadata.MassUnit, auditResult.Metadata.MassConversionFactor.HasValue ? auditResult.Metadata.MassConversionFactor.Value.ToString(CultureInfo.InvariantCulture) : "Unspecified"));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "# Generated At (UTC): {0}", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")));
+            sb.AppendLine("# ==========================================================================");
+            sb.AppendLine();
+
             sb.AppendLine("GlobalId,EntityLabel,Name,RawIfcType,ResolvedCategory,WeightRawValue,WeightStandardValueTons,WeightSource,WeightStatus,VolumeM3,MaterialName,GeometryOwner,RenderRisk");
 
             foreach (var element in auditResult.Classifications)
