@@ -66,6 +66,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                         RotationDegrees = 0,
                         Scale = 1
                     },
+                IfcElements = Scene.GetElements(),
                 DxfFile = string.IsNullOrWhiteSpace(Dxf.LoadedFilePath)
                     ? null
                     : new ProjectModelFileState
@@ -153,7 +154,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 var offset = state.IfcFile.InsertionOffset;
                 var restored = await IfcViewer.LoadIfcFromProjectAsync(
                     state.IfcFile.AbsolutePath,
-                    new Point3D(offset.X, offset.Y, offset.Z)).ConfigureAwait(true);
+                    new Point3D(offset.X, offset.Y, offset.Z),
+                    state.IfcElements).ConfigureAwait(true);
 
                 if (restored)
                     CurrentProjectIfcPath = state.IfcFile.AbsolutePath;

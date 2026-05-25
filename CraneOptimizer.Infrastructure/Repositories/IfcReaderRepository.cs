@@ -93,6 +93,14 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return ReadElementsCore(path, progress, cancellationToken);
         }
 
+        public Task InitializeSessionForRenderingAsync(string ifcPath, CancellationToken cancellationToken = default)
+        {
+            return Task.Run(() =>
+            {
+                _sessionService.OpenSession(ifcPath, cancellationToken);
+            }, cancellationToken);
+        }
+
         private List<PrecastElement> ReadElementsCore(
             string ifcPath,
             IProgress<double>? progress,

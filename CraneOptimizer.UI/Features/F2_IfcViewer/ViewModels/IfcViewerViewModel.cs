@@ -231,10 +231,16 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             return true;
         }
 
-        public async Task<bool> LoadIfcFromProjectAsync(string filePath, Point3D insertionOffset)
+        public async Task<bool> LoadIfcFromProjectAsync(
+            string filePath,
+            Point3D insertionOffset,
+            List<PrecastElement>? cachedElements = null)
         {
             if (string.IsNullOrWhiteSpace(filePath) || !System.IO.File.Exists(filePath))
+            {
+                Debug.WriteLine("[IfcRestore] Fallback: IFC file path is null or file does not exist on disk.");
                 return false;
+            }
 
             try
             {
@@ -242,40 +248,83 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 Progress = 0;
                 Status = "Restoring IFC...";
 
-                var progress = new Progress<double>(p =>
-                {
-                    Progress = p;
-                    Status = $"Restoring IFC... {p:F0}%";
-                });
+                List<PrecastElement>? elements = null;
+                bool usedCache = false;
 
-                var elements = await Task.Run(() => _ifcReader.ReadElements(filePath, progress));
+                if (cachedElements != null && cachedElements.Count > 0)
+                {
+                    elements = cachedElements;
+                    usedCache = true;
+                    Debug.WriteLine("[IfcRestore] Diagnostic: Cached restore used DB elements. Full extraction skipped.");
+                    Status = $"Restored {elements.Count} elements from database cache. Initializing background render session...";
+                    
+                    // Start only the xBIM model session/context in the background for detailed mesh rendering
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            Debug.WriteLine("[IfcRestore] Background session: Initializing render-only xBIM session.");
+                            await _ifcReader.InitializeSessionForRenderingAsync(filePath);
+                            Debug.WriteLine("[IfcRestore] Background session: Render-only xBIM session initialized. Real mesh re-render triggered.");
+                            
+                            System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
+                            {
+                                IfcModelChanged?.Invoke();
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[IfcRestore] Background session: Failed to initialize xBIM session for rendering: {ex.Message}");
+                        }
+                    });
+                }
+                else
+                {
+                    string fallbackReason = cachedElements == null
+                        ? "Cached element metadata is missing."
+                        : "Cached elements list is empty.";
+
+                    Debug.WriteLine($"[IfcRestore] Diagnostic: Restore used full IFC extraction. Fallback reason: {fallbackReason}.");
+
+                    var progress = new Progress<double>(p =>
+                    {
+                        Progress = p;
+                        Status = $"Reading IFC... {p:F0}%";
+                    });
+
+                    elements = await Task.Run(() => _ifcReader.ReadElements(filePath, progress));
+
+                    if (elements != null && elements.Count > 0)
+                    {
+                        // Safe non-destructive background diagnostic audit trigger
+                        var auditPath = filePath;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var auditResult = await _auditService.RunAuditAsync(auditPath);
+                                var projectFolder = _workspaceService.CurrentSession?.ProjectFolderPath;
+                                await _auditService.GenerateReportsAsync(auditResult, projectFolder);
+                                Debug.WriteLine("[IfcViewerViewModel] Background diagnostic audit completed successfully.");
+
+                                // Run normalization decision preview
+                                var previewResult = await _normalizationService.GenerateNormalizationPreviewAsync(auditResult);
+                                await _normalizationService.GeneratePreviewReportsAsync(previewResult, projectFolder);
+                                Debug.WriteLine("[IfcViewerViewModel] Background normalization preview reports completed successfully.");
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"[IfcViewerViewModel] Background diagnostic audit or normalization failed: {ex.Message}");
+                            }
+                        });
+                    }
+                }
+
                 if (elements == null || elements.Count == 0)
                 {
                     Status = "Saved IFC contains no elements.";
                     return false;
                 }
-
-                // Safe non-destructive background diagnostic audit trigger
-                var auditPath = filePath;
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        var auditResult = await _auditService.RunAuditAsync(auditPath);
-                        var projectFolder = _workspaceService.CurrentSession?.ProjectFolderPath;
-                        await _auditService.GenerateReportsAsync(auditResult, projectFolder);
-                        Debug.WriteLine("[IfcViewerViewModel] Background diagnostic audit completed successfully.");
-
-                        // Run normalization decision preview
-                        var previewResult = await _normalizationService.GenerateNormalizationPreviewAsync(auditResult);
-                        await _normalizationService.GeneratePreviewReportsAsync(previewResult, projectFolder);
-                        Debug.WriteLine("[IfcViewerViewModel] Background normalization preview reports completed successfully.");
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"[IfcViewerViewModel] Background diagnostic audit or normalization failed: {ex.Message}");
-                    }
-                });
 
                 var placedElements = _ifcSceneOperations.TranslateElements(
                     elements,
@@ -285,7 +334,16 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 LoadedIfcFilePath = filePath;
                 PendingPlacementPoint = insertionOffset;
                 Progress = 100;
-                Status = $"Restored {placedElements.Count} IFC elements";
+
+                if (usedCache)
+                {
+                    Status = $"Restored {placedElements.Count} elements (UI ready, meshes rendering in background)";
+                }
+                else
+                {
+                    Status = $"Restored {placedElements.Count} IFC elements via full extraction";
+                }
+
                 return true;
             }
             catch (Exception ex)

@@ -1,4 +1,4 @@
-﻿namespace CraneOptimizer.Domain.CreatedProject.IfcFiles
+namespace CraneOptimizer.Domain.CreatedProject.IfcFiles
 {
     /// <summary>
     /// Lightweight IFC element cache used by the application after import.
@@ -70,6 +70,22 @@
         /// False for ignored/non-liftable elements.
         /// </summary>
         public bool IsLiftable { get; set; } = true;
+
+        // Phase 2A/0 Normalization fields
+        public string? RawIfcType { get; set; }
+        public string? ResolvedCategory { get; set; }
+        public string? Role { get; set; }
+        public string? ParentGlobalId { get; set; }
+        public string? ChildGlobalIdsJson { get; set; }
+        public string? VisibleGeometryOwnerGlobalIdsJson { get; set; }
+        public string? HiddenInternalGeometryOwnerGlobalIdsJson { get; set; }
+        public bool IncludeInRender { get; set; } = true;
+        public bool IncludeInElementTree { get; set; } = true;
+        public bool IncludeInGa { get; set; } = true;
+        public string? WeightSource { get; set; }
+        public string? WeightTrustLevel { get; set; }
+        public string? ExtractionWarningsJson { get; set; }
+        public string? NormalizationDecisionReason { get; set; }
 
         public DateTime CachedAtUtc { get; set; } = DateTime.UtcNow;
 

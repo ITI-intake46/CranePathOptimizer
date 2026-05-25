@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.CreatedProject.IfcFiles;
+using CraneOptimizer.Domain.CreatedProject.IfcFiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -33,6 +33,24 @@ namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject.CreatedProjectCo
 
             entity.Property(x => x.Material)
                 .HasMaxLength(250);
+
+            entity.Property(x => x.RawIfcType)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.ResolvedCategory)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.Role)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.ParentGlobalId)
+                .HasMaxLength(128);
+
+            entity.Property(x => x.WeightSource)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.WeightTrustLevel)
+                .HasMaxLength(100);
 
             entity.Property(x => x.CachedAtUtc)
                 .IsRequired();
