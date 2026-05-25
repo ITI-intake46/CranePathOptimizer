@@ -81,6 +81,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IIfcReaderRepository, IfcReaderRepository>();
             services.AddScoped<IProjectRepository, ProjectRepository>();
             services.AddSingleton<IUnitSettingsService, UnitSettingsService>();
+            services.AddSingleton<IIfcDiagnosticAuditService, IfcDiagnosticAuditService>();
 
             // =========================
             // Core Services

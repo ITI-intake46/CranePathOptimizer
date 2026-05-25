@@ -7,6 +7,7 @@ using CraneOptimizer.UI.Features.F2_IfcViewer.DTOs;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using System.Diagnostics;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
@@ -23,6 +24,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly IViewportHitTestService _hitTest;
         private readonly IElementVisibilityFilterService _filterService;
         private readonly IIfcSceneOperationService _ifcSceneOperations;
+        private readonly IIfcDiagnosticAuditService _auditService;
+        private readonly IProjectWorkspaceService _workspaceService;
         private List<PrecastElement>? _pendingIfcElements;
         private IfcLoadOptionsDto? _pendingFilterOptions;
         private bool _isMovingExistingIfc;
@@ -93,7 +96,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IViewportInteractionService interaction,
             IViewportHitTestService hitTest,
             IElementVisibilityFilterService filterService,
-            IIfcSceneOperationService ifcSceneOperations)
+            IIfcSceneOperationService ifcSceneOperations,
+            IIfcDiagnosticAuditService auditService,
+            IProjectWorkspaceService workspaceService)
         {
             _ifcReader = ifcReader;
             _scene = scene;
@@ -103,6 +108,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _hitTest = hitTest;
             _filterService = filterService;
             _ifcSceneOperations = ifcSceneOperations;
+            _auditService = auditService;
+            _workspaceService = workspaceService;
 
             LoadIfcCommand = new RelayCommand(async () => await LoadIfcAsync(), () => !IsLoading && !IsPlacementMode);
             MergeIfcCommand = new RelayCommand(ShowMergeIfcPlaceholder, () => !IsLoading && !IsPlacementMode);
@@ -148,6 +155,23 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 _pendingIfcElements = all;
                 _pendingFilterOptions = filter;
                 LoadedIfcFilePath = path;
+
+                // Safe non-destructive background diagnostic audit trigger
+                var auditPath = path;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditResult = await _auditService.RunAuditAsync(auditPath);
+                        var projectFolder = _workspaceService.CurrentSession?.ProjectFolderPath;
+                        await _auditService.GenerateReportsAsync(auditResult, projectFolder);
+                        Debug.WriteLine("[IfcViewerViewModel] Background diagnostic audit completed successfully.");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[IfcViewerViewModel] Background diagnostic audit failed: {ex.Message}");
+                    }
+                });
                 _isMovingExistingIfc = false;
                 PendingPlacementPoint = null;
                 IsPlacementMode = true;
@@ -222,6 +246,23 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     Status = "Saved IFC contains no elements.";
                     return false;
                 }
+
+                // Safe non-destructive background diagnostic audit trigger
+                var auditPath = filePath;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditResult = await _auditService.RunAuditAsync(auditPath);
+                        var projectFolder = _workspaceService.CurrentSession?.ProjectFolderPath;
+                        await _auditService.GenerateReportsAsync(auditResult, projectFolder);
+                        Debug.WriteLine("[IfcViewerViewModel] Background diagnostic audit completed successfully.");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[IfcViewerViewModel] Background diagnostic audit failed: {ex.Message}");
+                    }
+                });
 
                 var placedElements = _ifcSceneOperations.TranslateElements(
                     elements,
