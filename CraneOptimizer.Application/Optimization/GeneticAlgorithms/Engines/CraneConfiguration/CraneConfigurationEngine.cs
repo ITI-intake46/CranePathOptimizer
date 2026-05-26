@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using CraneOptimizer.Application.Optimization.Utilities;
 using System.Linq;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.CraneConfiguration
 {
@@ -20,6 +21,16 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cran
     public class CraneConfigurationEngine : ICraneConfigurationEngine
     {
         private readonly ConcurrentDictionary<CapacityCacheKey, double> _capacityCache = new();
+        private readonly ILoadChartCapacityResolver _capacityResolver;
+
+        public CraneConfigurationEngine() : this(null)
+        {
+        }
+
+        public CraneConfigurationEngine(ILoadChartCapacityResolver? capacityResolver)
+        {
+            _capacityResolver = capacityResolver ?? new LoadChartCapacityResolver();
+        }
 
         public void ClearCache()
         {
@@ -93,56 +104,33 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cran
             double boomLength,
             GASettings settings)
         {
-            if (craneSpec == null || craneSpec.LoadChart == null || craneSpec.LoadChart.Count == 0)
-            {
-                return new CraneCapacityDiagnosticResult(0, 0, 0, CapacityFailureReason.MissingLoadChartData);
-            }
+            var resolveResult = _capacityResolver.Resolve(craneSpec, radius, boomLength, 0.0, settings);
 
-            // Check if radius exceeds all radii in load chart
-            bool hasValidRadius = craneSpec.LoadChart.Any(tp => tp.Radius >= radius);
-            if (!hasValidRadius)
+            CapacityFailureReason reason = CapacityFailureReason.None;
+            if (resolveResult.LiftStatus != LiftStatus.Liftable)
             {
-                return new CraneCapacityDiagnosticResult(0, 0, 0, CapacityFailureReason.RadiusBeyondLoadChart);
-            }
-
-            // Check if any entry satisfies both Radius >= radius and BoomLength >= boomLength
-            var validEntries = craneSpec.LoadChart
-                .Where(tp => tp.Radius >= radius && tp.BoomLength >= boomLength)
-                .ToList();
-
-            if (validEntries.Count == 0)
-            {
-                // Check if any entry with BoomLength >= boomLength exists at all in the load chart
-                bool hasAnyValidBoom = craneSpec.LoadChart.Any(tp => tp.BoomLength >= boomLength);
-                if (!hasAnyValidBoom)
+                if (Enum.TryParse<CapacityFailureReason>(resolveResult.FailureReason, out var parsedReason))
                 {
-                    return new CraneCapacityDiagnosticResult(0, 0, 0, CapacityFailureReason.BoomBeyondLoadChart);
+                    reason = parsedReason;
                 }
                 else
                 {
-                    return new CraneCapacityDiagnosticResult(0, 0, 0, CapacityFailureReason.NoDiscreteLoadChartEntry);
+                    reason = resolveResult.ChartStatus switch
+                    {
+                        ChartStatus.InvalidBlankCell => CapacityFailureReason.InvalidBlankCell,
+                        ChartStatus.InvalidZeroCell => CapacityFailureReason.InvalidZeroCell,
+                        ChartStatus.OutsideChartEnvelope => CapacityFailureReason.OutsideChartEnvelope,
+                        ChartStatus.NoListedCapacity => CapacityFailureReason.NoListedCapacityForBoomRadius,
+                        _ => CapacityFailureReason.MissingLoadChartData
+                    };
                 }
             }
 
-            // Find the most conservative nearest actual chart point
-            double minRadius = validEntries.Min(tp => tp.Radius);
-            var minRadiusEntries = validEntries.Where(tp => tp.Radius == minRadius).ToList();
-
-            double minBoom = minRadiusEntries.Min(tp => tp.BoomLength);
-            var finalEntry = minRadiusEntries.FirstOrDefault(tp => tp.BoomLength == minBoom);
-
-            if (finalEntry == null)
-            {
-                return new CraneCapacityDiagnosticResult(0, minRadius, minBoom, CapacityFailureReason.NoDiscreteLoadChartEntry);
-            }
-
-            if (finalEntry.Capacity <= 0)
-            {
-                return new CraneCapacityDiagnosticResult(0, finalEntry.Radius, finalEntry.BoomLength, CapacityFailureReason.ZeroCapacityChartEntry);
-            }
-
-            double calculatedCapacity = finalEntry.Capacity * settings.DeratingRatio * settings.SafetyFactor;
-            return new CraneCapacityDiagnosticResult(calculatedCapacity, finalEntry.Radius, finalEntry.BoomLength, CapacityFailureReason.None);
+            return new CraneCapacityDiagnosticResult(
+                resolveResult.AvailableCapacity,
+                resolveResult.SelectedChartRadius,
+                resolveResult.SelectedChartBoomLength,
+                reason);
         }
 
         public bool ExceedsMaxRadius(double radius, CraneSpecification craneSpec)

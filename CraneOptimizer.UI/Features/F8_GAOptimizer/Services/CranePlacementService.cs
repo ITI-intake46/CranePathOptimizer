@@ -272,7 +272,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                             Radius = appElem.Radius,
                             BoomLength = appElem.BoomLength,
                             AvailableCapacity = appElem.AvailableCapacity,
-                            RequiredCapacity = appElem.RequiredCapacity
+                            RequiredCapacity = appElem.RequiredCapacity,
+                            ReachStatus = appElem.ReachStatus,
+                            ChartStatus = appElem.ChartStatus,
+                            IsExactMatch = appElem.IsExactMatch,
+                            IsSteppedRadius = appElem.IsSteppedRadius,
+                            IsBlankCell = appElem.IsBlankCell,
+                            IsZeroCell = appElem.IsZeroCell,
+                            SafetyMargin = appElem.SafetyMargin
                         };
                     }).ToList()
                 };

@@ -683,7 +683,184 @@
                                     <DataGridTextColumn Header="Req Boom" Binding="{Binding RequiredBoomLength, StringFormat={}{0:F2}}" />
                                     <DataGridTextColumn Header="Req Cap" Binding="{Binding RequiredCapacity, StringFormat={}{0:F2}}" />
                                     <DataGridTextColumn Header="Avail Cap" Binding="{Binding AvailableCapacity, StringFormat={}{0:F2}}" />
-                                    <DataGridTextColumn Header="Lift Status" Binding="{Binding LiftStatus}" />
+                                    
+                                    <!-- Lift Status column with rich tooltip -->
+                                    <DataGridTemplateColumn Header="Lift Status">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding LiftStatus}" FontWeight="SemiBold">
+                                                    <TextBlock.ToolTip>
+                                                        <ToolTip Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                                            <StackPanel Margin="4">
+                                                                <TextBlock Text="🔍 Detailed Lifting Diagnostics" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Margin="0,0,0,6"/>
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="12" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Grid.RowDefinitions>
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                    </Grid.RowDefinitions>
+
+                                                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Reach Status:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding ReachStatus}" FontWeight="SemiBold"/>
+
+                                                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Chart Status:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding ChartStatus}" FontWeight="SemiBold"/>
+
+                                                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Safety Margin:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding SafetyMargin, StringFormat={}{0:F2}}" FontWeight="SemiBold"/>
+
+                                                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Lookup Mode:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding LookupMode}"/>
+
+                                                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Match Type:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Grid.Row="4" Grid.Column="2">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IsExactMatch}" Value="True">
+                                                                                        <Setter Property="Text" Value="Exact Match (Listed)" />
+                                                                                        <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding IsExactMatch}" Value="False">
+                                                                                        <Setter Property="Text" Value="Conservative Next Step" />
+                                                                                        <Setter Property="Foreground" Value="{StaticResource WarningBrush}" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+
+                                                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Stepped Radius:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Grid.Row="5" Grid.Column="2" Text="{Binding IsSteppedRadius}"/>
+
+                                                                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Blank Cell?:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Grid.Row="6" Grid.Column="2" Text="{Binding IsBlankCell}"/>
+
+                                                                    <TextBlock Grid.Row="7" Grid.Column="0" Text="Zero Cell?:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Grid.Row="7" Grid.Column="2" Text="{Binding IsZeroCell}"/>
+                                                                </Grid>
+                                                            </StackPanel>
+                                                        </ToolTip>
+                                                    </TextBlock.ToolTip>
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <!-- Rich diagnostic columns -->
+                                    <DataGridTextColumn Header="Reach Status" Binding="{Binding ReachStatus}" />
+                                    <DataGridTextColumn Header="Chart Status" Binding="{Binding ChartStatus}" />
+                                    <DataGridTextColumn Header="Lookup Mode" Binding="{Binding LookupMode}" />
+                                    <DataGridTextColumn Header="Req Radius" Binding="{Binding RequiredRadius, StringFormat={}{0:F2}}" />
+                                    <DataGridTextColumn Header="Chart Radius" Binding="{Binding SelectedChartRadius, StringFormat={}{0:F2}}" />
+                                    <DataGridTextColumn Header="Chart Boom" Binding="{Binding SelectedChartBoomLength, StringFormat={}{0:F2}}" />
+                                    <DataGridTextColumn Header="Safety Margin" Binding="{Binding SafetyMargin, StringFormat={}{0:F2}}" />
+
+                                    <!-- IsExactMatch Template Column -->
+                                    <DataGridTemplateColumn Header="Exact Match">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock HorizontalAlignment="Center" FontSize="12">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsExactMatch}" Value="True">
+                                                                    <Setter Property="Text" Value="✔️" />
+                                                                    <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsExactMatch}" Value="False">
+                                                                    <Setter Property="Text" Value="❌" />
+                                                                    <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <!-- IsSteppedRadius Template Column -->
+                                    <DataGridTemplateColumn Header="Stepped Rad">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock HorizontalAlignment="Center" FontSize="12">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSteppedRadius}" Value="True">
+                                                                    <Setter Property="Text" Value="✔️" />
+                                                                    <Setter Property="Foreground" Value="{StaticResource WarningBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsSteppedRadius}" Value="False">
+                                                                    <Setter Property="Text" Value="-" />
+                                                                    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <!-- IsBlankCell Template Column -->
+                                    <DataGridTemplateColumn Header="Blank Cell">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock HorizontalAlignment="Center" FontSize="12">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsBlankCell}" Value="True">
+                                                                    <Setter Property="Text" Value="⚠️ Blank" />
+                                                                    <Setter Property="Foreground" Value="{StaticResource WarningBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsBlankCell}" Value="False">
+                                                                    <Setter Property="Text" Value="-" />
+                                                                    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <!-- IsZeroCell Template Column -->
+                                    <DataGridTemplateColumn Header="Zero Cell">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock HorizontalAlignment="Center" FontSize="12">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsZeroCell}" Value="True">
+                                                                    <Setter Property="Text" Value="🚫 Zero" />
+                                                                    <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsZeroCell}" Value="False">
+                                                                    <Setter Property="Text" Value="-" />
+                                                                    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
                                     
                                     <!-- Is Lifted CheckBox column -->
                                     <DataGridTemplateColumn Header="Lifted">

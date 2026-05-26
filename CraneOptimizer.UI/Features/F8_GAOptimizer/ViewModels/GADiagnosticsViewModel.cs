@@ -209,7 +209,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         {
             "All", "OutOfRadius", "Overweight", "HeightFail", "BoomLengthExceeded", "NoValidSetupPosition",
             "ForbiddenZoneBlocked", "NotAssigned", "MissingWeightOrInvalidData", "SpecialCase", "Unknown",
-            "RadiusBeyondLoadChart", "BoomBeyondLoadChart", "NoDiscreteLoadChartEntry", "ZeroCapacityChartEntry", "MissingLoadChartData"
+            "RadiusBeyondLoadChart", "BoomBeyondLoadChart", "NoDiscreteLoadChartEntry", "NoListedCapacityForBoomRadius",
+            "OutsideChartEnvelope", "InvalidBlankCell", "InvalidZeroCell", "MissingLoadChartData"
         };
 
         public List<string> ElementTypeFilters

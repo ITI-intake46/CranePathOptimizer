@@ -308,7 +308,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 Radius = evaluation.Radius,
                 BoomLength = evaluation.BoomLength,
                 AvailableCapacity = evaluation.AvailableCapacity,
-                RequiredCapacity = evaluation.RequiredCapacity
+                RequiredCapacity = evaluation.RequiredCapacity,
+                ReachStatus = evaluation.ReachStatus,
+                ChartStatus = evaluation.ChartStatus,
+                IsExactMatch = evaluation.IsExactMatch,
+                IsSteppedRadius = evaluation.IsSteppedRadius,
+                IsBlankCell = evaluation.IsBlankCell,
+                IsZeroCell = evaluation.IsZeroCell,
+                SafetyMargin = evaluation.SafetyMargin,
+                LookupMode = evaluation.LookupMode,
+                RequiredRadius = evaluation.RequiredRadius,
+                SelectedChartRadius = evaluation.SelectedChartRadius,
+                SelectedChartBoomLength = evaluation.SelectedChartBoomLength
             };
         }
 
@@ -374,7 +385,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                         Radius = er.Radius,
                         BoomLength = er.BoomLength,
                         AvailableCapacity = er.AvailableCapacity,
-                        RequiredCapacity = er.RequiredCapacity
+                        RequiredCapacity = er.RequiredCapacity,
+                        ReachStatus = er.ReachStatus,
+                        ChartStatus = er.ChartStatus,
+                        IsExactMatch = er.IsExactMatch,
+                        IsSteppedRadius = er.IsSteppedRadius,
+                        IsBlankCell = er.IsBlankCell,
+                        IsZeroCell = er.IsZeroCell,
+                        SafetyMargin = er.SafetyMargin,
+                        LookupMode = er.LookupMode,
+                        RequiredRadius = er.RequiredRadius,
+                        SelectedChartRadius = er.SelectedChartRadius,
+                        SelectedChartBoomLength = er.SelectedChartBoomLength
                     }).ToList()
                 }).ToList()
             };

@@ -201,6 +201,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
                 LiftStatus.Overweight => "Overweight",
                 LiftStatus.HeightFail => "Height fail",
                 LiftStatus.SpecialCase => "Special case",
+                LiftStatus.NotCharted => "Not charted",
                 _ => status.ToString()
             };
         }

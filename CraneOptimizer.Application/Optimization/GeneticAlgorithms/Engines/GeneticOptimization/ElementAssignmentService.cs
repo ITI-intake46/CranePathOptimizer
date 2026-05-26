@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using CraneOptimizer.Application.Optimization.Utilities;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization
 {
@@ -29,13 +30,23 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
     {
         private readonly ILiftingCalculationEngine _liftingEngine;
         private readonly ICraneConfigurationEngine _configEngine;
+        private readonly ILoadChartCapacityResolver _capacityResolver;
 
         public ElementAssignmentService(
             ILiftingCalculationEngine liftingEngine,
             ICraneConfigurationEngine configEngine)
+            : this(liftingEngine, configEngine, null)
+        {
+        }
+
+        public ElementAssignmentService(
+            ILiftingCalculationEngine liftingEngine,
+            ICraneConfigurationEngine configEngine,
+            ILoadChartCapacityResolver? capacityResolver)
         {
             _liftingEngine = liftingEngine;
             _configEngine = configEngine;
+            _capacityResolver = capacityResolver ?? new LoadChartCapacityResolver();
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -296,28 +307,25 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             // Step 5 — Required capacity = element weight + lifting accessories
             double requiredCapacity = _liftingEngine.CalculateRequiredWeight(element, settings);
 
-            // Step 6 — Lookup chart capacity for debug/reporting
-            double availableCapacity = _configEngine.CraneCapacity(
-                craneSpec,
-                radius,
-                boomLength,
-                settings);
-
-            // Step 7 — Determine full lift status
-            LiftStatus status = _liftingEngine.DetermineLiftStatus(
-                radius, boomLength, requiredCapacity, craneSpec, settings);
-
-
+            // Step 6 — Resolve via ILoadChartCapacityResolver
+            var resolveResult = _capacityResolver.Resolve(craneSpec, radius, boomLength, requiredCapacity, settings);
 
             return new ElementEvaluationResult
             {
                 ElementId = element.ElementID,
                 AssignedCraneIndex = craneIndex,
-                Status = status,
+                Status = resolveResult.LiftStatus,
                 Radius = radius,
                 BoomLength = boomLength,
-                AvailableCapacity = availableCapacity,
-                RequiredCapacity = requiredCapacity
+                AvailableCapacity = resolveResult.AvailableCapacity,
+                RequiredCapacity = requiredCapacity,
+                ReachStatus = resolveResult.ReachStatus,
+                ChartStatus = resolveResult.ChartStatus,
+                IsExactMatch = resolveResult.IsExactMatch,
+                IsSteppedRadius = resolveResult.IsSteppedRadius,
+                IsBlankCell = resolveResult.IsBlankCell,
+                IsZeroCell = resolveResult.IsZeroCell,
+                SafetyMargin = resolveResult.SafetyMargin
             };
         }
 

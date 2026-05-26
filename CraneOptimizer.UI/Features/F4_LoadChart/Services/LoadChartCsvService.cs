@@ -85,7 +85,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                     double boomLength = boomLengths[i];
                     string rawCapacityText = row[i + 1]?.ToString() ?? string.Empty;
                     string capacityText = NormalizeGridNumber(rawCapacityText);
-                    double capacity = 0d;
+                    double capacity = -1d; // Default sentinel value for blank cell!
 
                     if (!string.IsNullOrWhiteSpace(capacityText))
                     {
@@ -100,6 +100,10 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                             throw new FormatException(
                                 $"Capacity value '{capacityText}' is invalid at radius '{radiusText}', boom '{boomLength}'.");
                         }
+                    }
+                    else
+                    {
+                        capacity = -1d; // Blank cell sentinel!
                     }
 
                     minBoom = !minBoom.HasValue || boomLength < minBoom.Value ? boomLength : minBoom;

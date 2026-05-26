@@ -1350,10 +1350,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             {
                 // Premium High-Contrast Palette
                 LiftStatus.Liftable    => Color.FromRgb(46, 204, 113),  // Emerald Green
-                LiftStatus.Overweight  => Color.FromRgb(241, 196, 15),  // Vivid Sun Yellow
-                LiftStatus.OutOfRadius => Color.FromRgb(231, 76, 60),   // Alizarin Red
-                LiftStatus.HeightFail  => Color.FromRgb(230, 126, 34),  // Carrot Orange
+                LiftStatus.Overweight  => Color.FromRgb(230, 126, 34),  // Warning Orange
+                LiftStatus.OutOfRadius => Color.FromRgb(231, 76, 60),   // Alizarin Red (Reach failure)
+                LiftStatus.HeightFail  => Color.FromRgb(231, 76, 60),   // Alizarin Red (Reach failure)
                 LiftStatus.SpecialCase => Color.FromRgb(155, 89, 182),  // Amethyst Purple
+                LiftStatus.NotCharted  => Color.FromRgb(112, 128, 144),  // Slate Gray
                 _                      => Color.FromRgb(149, 165, 166)  // Asbestos Gray
             };
 

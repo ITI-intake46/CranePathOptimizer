@@ -152,7 +152,7 @@ namespace CraneOptimizer.Application.Tests
 
             // 5. zero capacity chart entry
             var diagZeroCap = engine.EvaluateCraneCapacityDiagnostic(chartSpec, 10, 30, settings);
-            Assert.Equal(CapacityFailureReason.ZeroCapacityChartEntry, diagZeroCap.FailureReason);
+            Assert.Equal(CapacityFailureReason.InvalidZeroCell, diagZeroCap.FailureReason);
         }
     }
 }

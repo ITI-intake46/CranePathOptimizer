@@ -71,6 +71,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public double AvailableCapacity { get; set; }
 
         public double RequiredCapacity { get; set; }
+
+        public ReachStatus ReachStatus { get; set; }
+        public ChartStatus ChartStatus { get; set; }
+        public bool IsExactMatch { get; set; }
+        public bool IsSteppedRadius { get; set; }
+        public bool IsBlankCell { get; set; }
+        public bool IsZeroCell { get; set; }
+        public double SafetyMargin { get; set; }
+        public string LookupMode { get; set; } = "ConservativeStep";
+        public double RequiredRadius { get; set; }
+        public double SelectedChartRadius { get; set; }
+        public double SelectedChartBoomLength { get; set; }
     }
 
     /// <summary>

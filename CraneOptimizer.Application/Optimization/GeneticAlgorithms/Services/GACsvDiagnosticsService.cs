@@ -17,14 +17,24 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     {
         private readonly ILiftingCalculationEngine _liftingEngine;
         private readonly ICraneConfigurationEngine _configEngine;
+        private readonly ILoadChartCapacityResolver _capacityResolver;
         private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
         public GACsvDiagnosticsService(
             ILiftingCalculationEngine liftingEngine,
             ICraneConfigurationEngine configEngine)
+            : this(liftingEngine, configEngine, null)
+        {
+        }
+
+        public GACsvDiagnosticsService(
+            ILiftingCalculationEngine liftingEngine,
+            ICraneConfigurationEngine configEngine,
+            ILoadChartCapacityResolver? capacityResolver)
         {
             _liftingEngine = liftingEngine;
             _configEngine = configEngine;
+            _capacityResolver = capacityResolver ?? new LoadChartCapacityResolver();
         }
 
         public string GenerateDiagnostics(PlacementInput input, PlacementResult finalResult)
@@ -86,7 +96,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                             Radius = elemResult.Radius,
                             BoomLength = elemResult.BoomLength,
                             AvailableCapacity = elemResult.AvailableCapacity,
-                            RequiredCapacity = elemResult.RequiredCapacity
+                            RequiredCapacity = elemResult.RequiredCapacity,
+                            ReachStatus = elemResult.ReachStatus,
+                            ChartStatus = elemResult.ChartStatus,
+                            IsExactMatch = elemResult.IsExactMatch,
+                            IsSteppedRadius = elemResult.IsSteppedRadius,
+                            IsBlankCell = elemResult.IsBlankCell,
+                            IsZeroCell = elemResult.IsZeroCell,
+                            SafetyMargin = elemResult.SafetyMargin,
+                            LookupMode = elemResult.LookupMode,
+                            RequiredRadius = elemResult.RequiredRadius,
+                            SelectedChartRadius = elemResult.SelectedChartRadius,
+                            SelectedChartBoomLength = elemResult.SelectedChartBoomLength
                         };
                         break;
                     }
@@ -104,18 +125,28 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         double height = _liftingEngine.CalculateLiftHeight(element, cranePosPoint, input.Settings);
                         double boomLength = _configEngine.CalculateRequiredBoomLength(radius, height);
                         double requiredCapacity = _liftingEngine.CalculateRequiredWeight(element, input.Settings);
-                        double availableCapacity = _configEngine.CraneCapacity(input.CraneSpec!, radius, boomLength, input.Settings);
-                        LiftStatus status = _liftingEngine.DetermineLiftStatus(radius, boomLength, requiredCapacity, input.CraneSpec!, input.Settings);
+                        var resolveResult = _capacityResolver.Resolve(input.CraneSpec!, radius, boomLength, requiredCapacity, input.Settings);
 
                         var candidate = new ElementEvaluationResult
                         {
                             ElementId = element.ElementID,
                             AssignedCraneIndex = i,
-                            Status = status,
+                            Status = resolveResult.LiftStatus,
                             Radius = radius,
                             BoomLength = boomLength,
-                            AvailableCapacity = availableCapacity,
-                            RequiredCapacity = requiredCapacity
+                            AvailableCapacity = resolveResult.AvailableCapacity,
+                            RequiredCapacity = requiredCapacity,
+                            ReachStatus = resolveResult.ReachStatus,
+                            ChartStatus = resolveResult.ChartStatus,
+                            IsExactMatch = resolveResult.IsExactMatch,
+                            IsSteppedRadius = resolveResult.IsSteppedRadius,
+                            IsBlankCell = resolveResult.IsBlankCell,
+                            IsZeroCell = resolveResult.IsZeroCell,
+                            SafetyMargin = resolveResult.SafetyMargin,
+                            LookupMode = resolveResult.LookupMode,
+                            RequiredRadius = resolveResult.RequiredRadius,
+                            SelectedChartRadius = resolveResult.SelectedChartRadius,
+                            SelectedChartBoomLength = resolveResult.SelectedChartBoomLength
                         };
 
                         if (bestEval == null || IsBetterThan(candidate, bestEval))
@@ -196,10 +227,25 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                                             failureCategory = "NoDiscreteLoadChartEntry";
                                             suggestedAction = "suggest review crane load chart completeness for this radius/boom combination.";
                                             break;
-                                        case CapacityFailureReason.ZeroCapacityChartEntry:
-                                            failureReason = "ZeroCapacityChartEntry";
-                                            failureCategory = "ZeroCapacityChartEntry";
-                                            suggestedAction = "suggest review the crane chart value or select a larger crane.";
+                                        case CapacityFailureReason.NoListedCapacityForBoomRadius:
+                                            failureReason = "NoListedCapacityForBoomRadius";
+                                            failureCategory = "NoListedCapacityForBoomRadius";
+                                            suggestedAction = "suggest review crane load chart capacity or select a larger crane.";
+                                            break;
+                                        case CapacityFailureReason.OutsideChartEnvelope:
+                                            failureReason = "OutsideChartEnvelope";
+                                            failureCategory = "OutsideChartEnvelope";
+                                            suggestedAction = "suggest elements are outside the crane load chart envelope.";
+                                            break;
+                                        case CapacityFailureReason.InvalidBlankCell:
+                                            failureReason = "InvalidBlankCell";
+                                            failureCategory = "InvalidBlankCell";
+                                            suggestedAction = "suggest review crane load chart blank cell rating.";
+                                            break;
+                                        case CapacityFailureReason.InvalidZeroCell:
+                                            failureReason = "InvalidZeroCell";
+                                            failureCategory = "InvalidZeroCell";
+                                            suggestedAction = "suggest review crane load chart zero cell rating.";
                                             break;
                                         case CapacityFailureReason.MissingLoadChartData:
                                             failureReason = "MissingLoadChartData";
@@ -255,7 +301,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     IsLifted = isLifted,
                     FailureReason = failureReason,
                     FailureCategory = failureCategory,
-                    SuggestedAction = suggestedAction
+                    SuggestedAction = suggestedAction,
+                    ReachStatus = bestEval != null ? bestEval.ReachStatus.ToString() : ReachStatus.Reachable.ToString(),
+                    ChartStatus = bestEval != null ? bestEval.ChartStatus.ToString() : ChartStatus.NoListedCapacity.ToString(),
+                    IsExactMatch = bestEval?.IsExactMatch ?? false,
+                    IsSteppedRadius = bestEval?.IsSteppedRadius ?? false,
+                    IsBlankCell = bestEval?.IsBlankCell ?? false,
+                    IsZeroCell = bestEval?.IsZeroCell ?? false,
+                    SafetyMargin = bestEval?.SafetyMargin ?? 0.0,
+                    LookupMode = bestEval?.LookupMode ?? "ConservativeStep",
+                    RequiredRadius = bestEval?.RequiredRadius ?? 0.0,
+                    SelectedChartRadius = bestEval?.SelectedChartRadius ?? 0.0,
+                    SelectedChartBoomLength = bestEval?.SelectedChartBoomLength ?? 0.0
                 });
             }
 
@@ -267,7 +324,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     "Timestamp", "ProjectName", "IfcFileName", "CraneNameOrId", "ElementId", "ElementName", "ElementType",
                     "StoreyOrElevation", "Weight", "COG_X", "COG_Y", "COG_Z", "AssignedSetupIndex", "AssignedCraneX",
                     "AssignedCraneY", "AssignedCraneZ", "BestRadius", "RequiredBoomLength", "RequiredCapacity",
-                    "AvailableCapacity", "LiftStatus", "IsLifted", "FailureReason", "FailureCategory", "SuggestedAction"
+                    "AvailableCapacity", "LiftStatus", "IsLifted", "FailureReason", "FailureCategory", "SuggestedAction",
+                    "ReachStatus", "ChartStatus", "IsExactMatch", "IsSteppedRadius", "IsBlankCell", "IsZeroCell", "SafetyMargin",
+                    "LookupMode", "RequiredRadius", "SelectedChartRadius", "SelectedChartBoomLength"
                 }));
 
                 foreach (var row in detailedRows)
@@ -298,7 +357,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         row.IsLifted ? "true" : "false",
                         Escape(row.FailureReason),
                         Escape(row.FailureCategory),
-                        Escape(row.SuggestedAction)
+                        Escape(row.SuggestedAction),
+                        row.ReachStatus,
+                        row.ChartStatus,
+                        row.IsExactMatch ? "true" : "false",
+                        row.IsSteppedRadius ? "true" : "false",
+                        row.IsBlankCell ? "true" : "false",
+                        row.IsZeroCell ? "true" : "false",
+                        row.SafetyMargin.ToString("0.###", Invariant),
+                        Escape(row.LookupMode),
+                        row.RequiredRadius.ToString("0.###", Invariant),
+                        row.SelectedChartRadius.ToString("0.###", Invariant),
+                        row.SelectedChartBoomLength.ToString("0.###", Invariant)
                     }));
                 }
             }
@@ -308,7 +378,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             {
                 "OutOfRadius", "Overweight", "HeightFail", "BoomLengthExceeded", "NoValidSetupPosition",
                 "ForbiddenZoneBlocked", "NotAssigned", "MissingWeightOrInvalidData", "SpecialCase", "Unknown",
-                "RadiusBeyondLoadChart", "BoomBeyondLoadChart", "NoDiscreteLoadChartEntry", "ZeroCapacityChartEntry", "MissingLoadChartData"
+                "RadiusBeyondLoadChart", "BoomBeyondLoadChart", "NoDiscreteLoadChartEntry", "NoListedCapacityForBoomRadius",
+                "OutsideChartEnvelope", "InvalidBlankCell", "InvalidZeroCell", "MissingLoadChartData"
             };
             var failureCounts = categories.ToDictionary(c => c, c => 0);
 
@@ -511,6 +582,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             public string FailureReason { get; set; } = "";
             public string FailureCategory { get; set; } = "";
             public string SuggestedAction { get; set; } = "";
+            public string ReachStatus { get; set; } = "";
+            public string ChartStatus { get; set; } = "";
+            public bool IsExactMatch { get; set; }
+            public bool IsSteppedRadius { get; set; }
+            public bool IsBlankCell { get; set; }
+            public bool IsZeroCell { get; set; }
+            public double SafetyMargin { get; set; }
+            public string LookupMode { get; set; } = "";
+            public double RequiredRadius { get; set; }
+            public double SelectedChartRadius { get; set; }
+            public double SelectedChartBoomLength { get; set; }
         }
     }
 }

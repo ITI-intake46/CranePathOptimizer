@@ -177,6 +177,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     int failureReasonIdx = GetHeaderIndex(headers, "FailureReason");
                     int failureCategoryIdx = GetHeaderIndex(headers, "FailureCategory");
                     int suggestedActionIdx = GetHeaderIndex(headers, "SuggestedAction");
+                    int reachStatusIdx = GetHeaderIndex(headers, "ReachStatus");
+                    int chartStatusIdx = GetHeaderIndex(headers, "ChartStatus");
+                    int isExactMatchIdx = GetHeaderIndex(headers, "IsExactMatch");
+                    int isSteppedRadiusIdx = GetHeaderIndex(headers, "IsSteppedRadius");
+                    int isBlankCellIdx = GetHeaderIndex(headers, "IsBlankCell");
+                    int isZeroCellIdx = GetHeaderIndex(headers, "IsZeroCell");
+                    int safetyMarginIdx = GetHeaderIndex(headers, "SafetyMargin");
+                    int lookupModeIdx = GetHeaderIndex(headers, "LookupMode");
+                    int requiredRadiusIdx = GetHeaderIndex(headers, "RequiredRadius");
+                    int selectedChartRadiusIdx = GetHeaderIndex(headers, "SelectedChartRadius");
+                    int selectedChartBoomLengthIdx = GetHeaderIndex(headers, "SelectedChartBoomLength");
 
                     string? line;
                     while ((line = reader.ReadLine()) != null)
@@ -210,7 +221,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                             IsLifted = GetValueBool(row, isLiftedIdx),
                             FailureReason = GetValue(row, failureReasonIdx, "N/A"),
                             FailureCategory = GetValue(row, failureCategoryIdx, "Unknown"),
-                            SuggestedAction = GetValue(row, suggestedActionIdx, "")
+                            SuggestedAction = GetValue(row, suggestedActionIdx, ""),
+                            ReachStatus = GetValue(row, reachStatusIdx, "Reachable"),
+                            ChartStatus = GetValue(row, chartStatusIdx, "NoListedCapacity"),
+                            IsExactMatch = GetValueBool(row, isExactMatchIdx),
+                            IsSteppedRadius = GetValueBool(row, isSteppedRadiusIdx),
+                            IsBlankCell = GetValueBool(row, isBlankCellIdx),
+                            IsZeroCell = GetValueBool(row, isZeroCellIdx),
+                            SafetyMargin = GetValueDouble(row, safetyMarginIdx),
+                            LookupMode = GetValue(row, lookupModeIdx, "ConservativeStep"),
+                            RequiredRadius = GetValueDouble(row, requiredRadiusIdx, GetValueDouble(row, bestRadiusIdx)),
+                            SelectedChartRadius = GetValueDouble(row, selectedChartRadiusIdx),
+                            SelectedChartBoomLength = GetValueDouble(row, selectedChartBoomLengthIdx)
                         };
 
                         results.Add(dto);

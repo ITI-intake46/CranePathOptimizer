@@ -29,5 +29,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public string FailureReason { get; set; } = string.Empty;
         public string FailureCategory { get; set; } = string.Empty;
         public string SuggestedAction { get; set; } = string.Empty;
+
+        public string ReachStatus { get; set; } = string.Empty;
+        public string ChartStatus { get; set; } = string.Empty;
+        public bool IsExactMatch { get; set; }
+        public bool IsSteppedRadius { get; set; }
+        public bool IsBlankCell { get; set; }
+        public bool IsZeroCell { get; set; }
+        public double SafetyMargin { get; set; }
+        public string LookupMode { get; set; } = string.Empty;
+        public double RequiredRadius { get; set; }
+        public double SelectedChartRadius { get; set; }
+        public double SelectedChartBoomLength { get; set; }
     }
 }

@@ -5,6 +5,7 @@ using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 using System;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.LiftingCalculation
 {
@@ -12,10 +13,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Lift
     {
         private const double CapacityToleranceTons = 0.001;
         private readonly ICraneConfigurationEngine _configEngine;
+        private readonly ILoadChartCapacityResolver _capacityResolver;
 
         public LiftingCalculationEngine(ICraneConfigurationEngine configEngine)
+            : this(configEngine, null)
+        {
+        }
+
+        public LiftingCalculationEngine(ICraneConfigurationEngine configEngine, ILoadChartCapacityResolver? capacityResolver)
         {
             _configEngine = configEngine;
+            _capacityResolver = capacityResolver ?? new LoadChartCapacityResolver();
         }
 
         public double CalculateRadius(DomainPoint3D cranePosition, PrecastElement element)
@@ -49,26 +57,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Lift
             CraneSpecification craneSpec,
             GASettings settings)
         {
-            // ── 1. Geometric reach check ───────────────────────────
-            if (_configEngine.ExceedsMaxRadius(radius, craneSpec))
-                return LiftStatus.OutOfRadius;
-
-            // ── 2. Boom length check ───────────────────────────────
-            if (_configEngine.ExceedsMaxBoomLength(boomLength, craneSpec))
-                return LiftStatus.HeightFail;
-
-            // ── 3. Load chart data availability ───────────────────
-            double available = _configEngine.CraneCapacity(craneSpec, radius, boomLength, settings);
-
-            if (available <= 0)
-                return LiftStatus.SpecialCase;
-
-            // ── 4. Capacity check (with FP tolerance) ─────────────
-            if (requiredCapacity > available + CapacityToleranceTons)
-                return LiftStatus.Overweight;
-
-            // ── 5. All checks passed ───────────────────────────────
-            return LiftStatus.Liftable;
+            var resolveResult = _capacityResolver.Resolve(craneSpec, radius, boomLength, requiredCapacity, settings);
+            return resolveResult.LiftStatus;
         }
     }
 }
