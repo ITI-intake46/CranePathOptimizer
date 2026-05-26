@@ -82,6 +82,17 @@
                         FontSize="{StaticResource FontSizeSM}"
                         FontWeight="SemiBold"
                         Style="{StaticResource ButtonSecondary}" />
+                    <Button
+                        Padding="8,4"
+                        Margin="0,0,8,0"
+                        VerticalAlignment="Center"
+                        Click="TopView_Click"
+                        Content="⛶ Top View"
+                        DockPanel.Dock="Right"
+                        FontFamily="{StaticResource FontPrimary}"
+                        FontSize="{StaticResource FontSizeSM}"
+                        FontWeight="SemiBold"
+                        Style="{StaticResource ButtonSecondary}" />
                     <StackPanel
                         Margin="0,0,8,0"
                         VerticalAlignment="Center"
