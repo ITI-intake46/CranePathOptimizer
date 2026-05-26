@@ -48,7 +48,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
             int nonLiftable = point.ElementResults.Count(r =>
                 r.Status == LiftStatus.Overweight ||
                 r.Status == LiftStatus.HeightFail ||
-                r.Status == LiftStatus.SpecialCase);
+                r.Status == LiftStatus.SpecialCase ||
+                r.Status == LiftStatus.NotCharted);
             int unreachable = point.ElementResults.Count(r => r.Status == LiftStatus.OutOfRadius);
 
             return new CraneOptimizerPointSummary(

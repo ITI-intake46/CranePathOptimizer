@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using CraneOptimizer.Application.Optimization.Utilities;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.PlacementOrchestration
 {
@@ -325,24 +326,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
 
         private static void UpdateStatistics(LiftStatistics statistics, LiftStatus status)
         {
-            switch (status)
-            {
-                case LiftStatus.Liftable:
-                    statistics.Liftable++;
-                    break;
-                case LiftStatus.OutOfRadius:
-                    statistics.OutOfRadius++;
-                    break;
-                case LiftStatus.Overweight:
-                    statistics.Overweight++;
-                    break;
-                case LiftStatus.HeightFail:
-                    statistics.HeightFail++;
-                    break;
-                case LiftStatus.SpecialCase:
-                    statistics.SpecialCase++;
-                    break;
-            }
+            LiftClassificationPolicy.UpdateStatistics(statistics, status);
         }
 
 #if DEBUG
@@ -364,7 +348,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                     OutOfRadius = src.Statistics.OutOfRadius,
                     Overweight = src.Statistics.Overweight,
                     HeightFail = src.Statistics.HeightFail,
-                    SpecialCase = src.Statistics.SpecialCase
+                    SpecialCase = src.Statistics.SpecialCase,
+                    NotCharted = src.Statistics.NotCharted
                 },
                 Positions = src.Positions.Select(p => new CranePositionResult
                 {

@@ -260,14 +260,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         /// </summary>
         private int GetFailureRank(LiftStatus status)
         {
-            return status switch
-            {
-                LiftStatus.Overweight => 3,
-                LiftStatus.HeightFail => 2,
-                LiftStatus.SpecialCase => 1,
-                LiftStatus.OutOfRadius => 0,
-                _ => 0
-            };
+            return LiftClassificationPolicy.GetFailureRank(status);
         }
 
         // ══════════════════════════════════════════════════════════════

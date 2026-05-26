@@ -164,115 +164,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
                 if (!isLifted)
                 {
-                    if (finalResult.Positions.Count == 0)
-                    {
-                        failureReason = "NoValidSetupPosition";
-                        failureCategory = "NoValidSetupPosition";
-                        suggestedAction = "suggest adjusting green/red zones.";
-                    }
-                    else if (!element.ElementWT.HasValue || element.ElementWT.Value <= 0)
-                    {
-                        failureReason = "MissingWeightOrInvalidData";
-                        failureCategory = "MissingWeightOrInvalidData";
-                        suggestedAction = "suggest validating IFC quantities or fallback density rules.";
-                    }
-                    else if (bestEval != null)
-                    {
-                        if (bestEval.BoomLength > input.CraneSpec!.MaxBoomLength)
-                        {
-                            failureReason = "BoomLengthExceeded";
-                            failureCategory = "BoomLengthExceeded";
-                            suggestedAction = "suggest longer boom or different crane configuration.";
-                        }
-                        else
-                        {
-                            switch (bestEval.Status)
-                            {
-                                case LiftStatus.OutOfRadius:
-                                    failureReason = "OutOfRadius";
-                                    failureCategory = "OutOfRadius";
-                                    suggestedAction = "suggest increasing allowed green area, adding setup locations, or selecting a longer-radius crane.";
-                                    break;
-                                case LiftStatus.Overweight:
-                                    failureReason = "Overweight";
-                                    failureCategory = "Overweight";
-                                    suggestedAction = "suggest larger crane capacity or reviewing element weight.";
-                                    break;
-                                case LiftStatus.HeightFail:
-                                    failureReason = "HeightFail";
-                                    failureCategory = "HeightFail";
-                                    suggestedAction = "suggest longer boom or different crane configuration.";
-                                    break;
-                                case LiftStatus.SpecialCase:
-                                    var capacityDiag = _configEngine.EvaluateCraneCapacityDiagnostic(
-                                        input.CraneSpec!,
-                                        bestEval.Radius,
-                                        bestEval.BoomLength,
-                                        input.Settings);
+                    var classification = LiftClassificationPolicy.Classify(
+                        bestEval?.Status ?? LiftStatus.SpecialCase,
+                        bestEval?.ChartStatus ?? ChartStatus.NoListedCapacity,
+                        element.ElementWT,
+                        bestEval?.BoomLength ?? 0.0,
+                        input.CraneSpec?.MaxBoomLength ?? 0.0,
+                        finalResult.Positions.Count > 0);
 
-                                    switch (capacityDiag.FailureReason)
-                                    {
-                                        case CapacityFailureReason.RadiusBeyondLoadChart:
-                                            failureReason = "RadiusBeyondLoadChart";
-                                            failureCategory = "RadiusBeyondLoadChart";
-                                            suggestedAction = "suggest select a crane with larger working radius or move/expand green area closer to the elements.";
-                                            break;
-                                        case CapacityFailureReason.BoomBeyondLoadChart:
-                                            failureReason = "BoomBeyondLoadChart";
-                                            failureCategory = "BoomBeyondLoadChart";
-                                            suggestedAction = "suggest select a longer boom configuration or a different crane model.";
-                                            break;
-                                        case CapacityFailureReason.NoDiscreteLoadChartEntry:
-                                            failureReason = "NoDiscreteLoadChartEntry";
-                                            failureCategory = "NoDiscreteLoadChartEntry";
-                                            suggestedAction = "suggest review crane load chart completeness for this radius/boom combination.";
-                                            break;
-                                        case CapacityFailureReason.NoListedCapacityForBoomRadius:
-                                            failureReason = "NoListedCapacityForBoomRadius";
-                                            failureCategory = "NoListedCapacityForBoomRadius";
-                                            suggestedAction = "suggest review crane load chart capacity or select a larger crane.";
-                                            break;
-                                        case CapacityFailureReason.OutsideChartEnvelope:
-                                            failureReason = "OutsideChartEnvelope";
-                                            failureCategory = "OutsideChartEnvelope";
-                                            suggestedAction = "suggest elements are outside the crane load chart envelope.";
-                                            break;
-                                        case CapacityFailureReason.InvalidBlankCell:
-                                            failureReason = "InvalidBlankCell";
-                                            failureCategory = "InvalidBlankCell";
-                                            suggestedAction = "suggest review crane load chart blank cell rating.";
-                                            break;
-                                        case CapacityFailureReason.InvalidZeroCell:
-                                            failureReason = "InvalidZeroCell";
-                                            failureCategory = "InvalidZeroCell";
-                                            suggestedAction = "suggest review crane load chart zero cell rating.";
-                                            break;
-                                        case CapacityFailureReason.MissingLoadChartData:
-                                            failureReason = "MissingLoadChartData";
-                                            failureCategory = "MissingLoadChartData";
-                                            suggestedAction = "suggest validate crane load chart configuration.";
-                                            break;
-                                        default:
-                                            failureReason = "SpecialCase";
-                                            failureCategory = "SpecialCase";
-                                            suggestedAction = "suggest reviewing element geometry and extracted data.";
-                                            break;
-                                    }
-                                    break;
-                                default:
-                                    failureReason = "Unknown";
-                                    failureCategory = "Unknown";
-                                    suggestedAction = "suggest reviewing element geometry and extracted data.";
-                                    break;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        failureReason = "Unknown";
-                        failureCategory = "Unknown";
-                        suggestedAction = "suggest reviewing element geometry and extracted data.";
-                    }
+                    failureReason = classification.FailureReason;
+                    failureCategory = classification.FailureCategory;
+                    suggestedAction = classification.SuggestedAction;
                 }
 
                 detailedRows.Add(new ElementDiagnosticRow
@@ -529,14 +431,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
         private static int GetFailureRank(LiftStatus status)
         {
-            return status switch
-            {
-                LiftStatus.Overweight => 3,
-                LiftStatus.HeightFail => 2,
-                LiftStatus.SpecialCase => 1,
-                LiftStatus.OutOfRadius => 0,
-                _ => 0
-            };
+            return LiftClassificationPolicy.GetFailureRank(status);
         }
 
         private static string Escape(string? value)

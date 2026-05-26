@@ -99,5 +99,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public int HeightFail { get; set; }
 
         public int SpecialCase { get; set; }
+
+        public int NotCharted { get; set; }
     }
 }

@@ -174,5 +174,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         public int HeightFail { get; set; }
 
         public int SpecialCase { get; set; }
+
+        public int NotCharted { get; set; }
     }
 }

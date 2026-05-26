@@ -233,7 +233,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     OutOfRadius = appResult.Statistics.OutOfRadius,
                     Overweight = appResult.Statistics.Overweight,
                     HeightFail = appResult.Statistics.HeightFail,
-                    SpecialCase = appResult.Statistics.SpecialCase
+                    SpecialCase = appResult.Statistics.SpecialCase,
+                    NotCharted = appResult.Statistics.NotCharted
                 },
                 Positions = new List<DTOs.CranePositionResult>(appResult.Positions.Count)
             };
@@ -279,7 +280,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                             IsSteppedRadius = appElem.IsSteppedRadius,
                             IsBlankCell = appElem.IsBlankCell,
                             IsZeroCell = appElem.IsZeroCell,
-                            SafetyMargin = appElem.SafetyMargin
+                            SafetyMargin = appElem.SafetyMargin,
+                            LookupMode = appElem.LookupMode,
+                            RequiredRadius = appElem.RequiredRadius,
+                            SelectedChartRadius = appElem.SelectedChartRadius,
+                            SelectedChartBoomLength = appElem.SelectedChartBoomLength
                         };
                     }).ToList()
                 };
