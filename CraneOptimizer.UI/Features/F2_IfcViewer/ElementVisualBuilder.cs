@@ -37,6 +37,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         public int DiagFallbackBoxCount { get; private set; }
         public int DiagRealMeshElements { get; private set; }
 
+        // Phase 2.3B High Quality mesh cache diagnostics counters
+        public int DiagHighQualityMeshCacheHits { get; private set; }
+        public int DiagHighQualityMeshCacheMisses { get; private set; }
+        public int DiagHighQualityMeshesCreated { get; private set; }
+
         // Phase 2.2A Batching diagnostics counters
         public int DiagBatchedGroups { get; private set; }
         public int DiagBatchedElements { get; private set; }
@@ -60,6 +65,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             DiagFallbackBoxCount = 0;
             DiagRealMeshElements = 0;
 
+            DiagHighQualityMeshCacheHits = 0;
+            DiagHighQualityMeshCacheMisses = 0;
+            DiagHighQualityMeshesCreated = 0;
+
             DiagBatchedGroups = 0;
             DiagBatchedElements = 0;
             DiagHitTestBoxes = 0;
@@ -82,6 +91,20 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         private static readonly Dictionary<MeshCacheKey, MediaMeshGeometry3D> MeshCache = new();
         private static Guid? MeshCacheSessionId;
 
+        private static readonly object HighQualityMeshCacheGate = new();
+        private static readonly Dictionary<HighQualityMeshCacheKey, MediaMeshGeometry3D> HighQualityMeshCache = new();
+
+        public static int HighQualityMeshCacheCount
+        {
+            get
+            {
+                lock (HighQualityMeshCacheGate)
+                {
+                    return HighQualityMeshCache.Count;
+                }
+            }
+        }
+
         private readonly IIfcReaderRepository? _ifcReader;
         private readonly DomainPoint3D? _origin;
         private readonly DomainPoint3D? _placementOffset;
@@ -96,6 +119,13 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 MeshCache.Clear();
                 MeshCacheSessionId = null;
                 Debug.WriteLine($"[ElementVisualBuilder] Mesh cache cleared. Reason={reason}, Removed={count}");
+            }
+
+            lock (HighQualityMeshCacheGate)
+            {
+                var count = HighQualityMeshCache.Count;
+                HighQualityMeshCache.Clear();
+                Debug.WriteLine($"[ElementVisualBuilder] High Quality Mesh cache cleared. Reason={reason}, Removed={count}");
             }
         }
 
@@ -286,14 +316,23 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
                             var cacheReused = false;
                             var mesh = CurrentQuality == MeshQuality.High
-                                ? CreateHighQualityDetailedMesh(shapeGeom.ShapeData, si.Transformation, oneMeter, origin, placementOffset)
+                                ? GetOrCreateHighQualityCachedMesh(sessionId, shapeGeom.ShapeData, si, shapeGeom, oneMeter, origin, placementOffset, out cacheReused)
                                 : GetOrCreateCachedMesh(sessionId, shapeGeom.ShapeData, oneMeter, CurrentQuality, out cacheReused);
                             if (mesh == null || mesh.Positions.Count == 0) continue;
 
                             if (CurrentQuality == MeshQuality.High)
                             {
-                                mesh.Freeze();
-                                meshesCreated++;
+                                if (cacheReused)
+                                {
+                                    DiagHighQualityMeshCacheHits++;
+                                    meshesReused++;
+                                }
+                                else
+                                {
+                                    DiagHighQualityMeshCacheMisses++;
+                                    DiagHighQualityMeshesCreated++;
+                                    meshesCreated++;
+                                }
                             }
                             else if (cacheReused)
                             {
@@ -424,14 +463,23 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
                             var cacheReused = false;
                             var mesh = CurrentQuality == MeshQuality.High
-                                ? CreateHighQualityDetailedMesh(shapeGeom.ShapeData, si.Transformation, oneMeter, origin, placementOffset)
+                                ? GetOrCreateHighQualityCachedMesh(sessionId, shapeGeom.ShapeData, si, shapeGeom, oneMeter, origin, placementOffset, out cacheReused)
                                 : GetOrCreateCachedMesh(sessionId, shapeGeom.ShapeData, oneMeter, CurrentQuality, out cacheReused);
                             if (mesh == null || mesh.Positions.Count == 0) continue;
 
                             if (CurrentQuality == MeshQuality.High)
                             {
-                                mesh.Freeze();
-                                meshesCreated++;
+                                if (cacheReused)
+                                {
+                                    DiagHighQualityMeshCacheHits++;
+                                    meshesReused++;
+                                }
+                                else
+                                {
+                                    DiagHighQualityMeshCacheMisses++;
+                                    DiagHighQualityMeshesCreated++;
+                                    meshesCreated++;
+                                }
                             }
                             else if (cacheReused)
                             {
@@ -487,14 +535,23 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
                             var cacheReused = false;
                             var localMesh = CurrentQuality == MeshQuality.High
-                                ? CreateHighQualityDetailedMesh(shapeGeom.ShapeData, si.Transformation, oneMeter, origin, placementOffset)
+                                ? GetOrCreateHighQualityCachedMesh(sessionId, shapeGeom.ShapeData, si, shapeGeom, oneMeter, origin, placementOffset, out cacheReused)
                                 : GetOrCreateCachedMesh(sessionId, shapeGeom.ShapeData, oneMeter, CurrentQuality, out cacheReused);
                             if (localMesh == null || localMesh.Positions.Count == 0) continue;
 
                             if (CurrentQuality == MeshQuality.High)
                             {
-                                localMesh.Freeze();
-                                meshesCreated++;
+                                if (cacheReused)
+                                {
+                                    DiagHighQualityMeshCacheHits++;
+                                    meshesReused++;
+                                }
+                                else
+                                {
+                                    DiagHighQualityMeshCacheMisses++;
+                                    DiagHighQualityMeshesCreated++;
+                                    meshesCreated++;
+                                }
                             }
                             else if (cacheReused)
                             {
@@ -847,18 +904,95 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             return mesh;
         }
 
+        private static MediaMeshGeometry3D? GetOrCreateHighQualityCachedMesh(
+            Guid sessionId,
+            byte[] shapeData,
+            XbimShapeInstance si,
+            IXbimShapeGeometryData shapeGeom,
+            double oneMeter,
+            DomainPoint3D origin,
+            DomainPoint3D placementOffset,
+            out bool reused)
+        {
+            reused = false;
+
+            int shapeGeomLabel = si != null ? si.ShapeGeometryLabel : 0;
+            int geomHash = shapeGeom != null ? shapeGeom.GeometryHash : 0;
+            int ifcProductLabel = si != null ? si.IfcProductLabel : 0;
+            int shapeDataHash = 0;
+
+            if (shapeGeomLabel == 0 && geomHash == 0)
+            {
+                shapeDataHash = GetShapeDataHash(shapeData);
+            }
+
+            var matrix = si != null ? si.Transformation : XbimMatrix3D.Identity;
+            int transformHash = GetTransformHash(matrix);
+
+            var key = new HighQualityMeshCacheKey(
+                sessionId,
+                MeshQuality.High,
+                shapeGeomLabel,
+                geomHash,
+                ifcProductLabel,
+                shapeDataHash,
+                transformHash,
+                oneMeter,
+                origin.X, origin.Y, origin.Z,
+                placementOffset.X, placementOffset.Y, placementOffset.Z,
+                matrix.M11, matrix.M12, matrix.M13, matrix.M14,
+                matrix.M21, matrix.M22, matrix.M23, matrix.M24,
+                matrix.M31, matrix.M32, matrix.M33, matrix.M34,
+                matrix.OffsetX, matrix.OffsetY, matrix.OffsetZ, matrix.M44
+            );
+
+            lock (HighQualityMeshCacheGate)
+            {
+                if (HighQualityMeshCache.TryGetValue(key, out var cachedMesh))
+                {
+                    reused = true;
+                    return cachedMesh;
+                }
+            }
+
+            var mesh = CreateHighQualityDetailedMesh(shapeData, matrix, oneMeter, origin, placementOffset);
+            if (mesh == null) return null;
+
+            mesh.Freeze();
+
+            lock (HighQualityMeshCacheGate)
+            {
+                HighQualityMeshCache[key] = mesh;
+            }
+
+            return mesh;
+        }
+
         private static void EnsureCacheSession(Guid sessionId)
         {
+            bool sessionChanged = false;
             lock (MeshCacheGate)
             {
-                if (MeshCacheSessionId == sessionId)
-                    return;
+                if (MeshCacheSessionId != sessionId)
+                {
+                    var removed = MeshCache.Count;
+                    MeshCache.Clear();
+                    MeshCacheSessionId = sessionId;
+                    sessionChanged = true;
+                    if (removed > 0)
+                        Debug.WriteLine($"[ElementVisualBuilder] Mesh cache reset for session {sessionId}. Removed={removed}");
+                }
+            }
 
-                var removed = MeshCache.Count;
-                MeshCache.Clear();
-                MeshCacheSessionId = sessionId;
-                if (removed > 0)
-                    Debug.WriteLine($"[ElementVisualBuilder] Mesh cache reset for session {sessionId}. Removed={removed}");
+            if (sessionChanged)
+            {
+                lock (HighQualityMeshCacheGate)
+                {
+                    var removed = HighQualityMeshCache.Count;
+                    HighQualityMeshCache.Clear();
+                    if (removed > 0)
+                        Debug.WriteLine($"[ElementVisualBuilder] High Quality Mesh cache reset for session {sessionId}. Removed={removed}");
+                }
             }
         }
 
@@ -881,6 +1015,48 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             int ShapeDataHash,
             double OneMeter,
             MeshQuality Quality);
+
+        private static int GetTransformHash(XbimMatrix3D matrix)
+        {
+            unchecked
+            {
+                var hash = 17;
+                hash = (hash * 31) + matrix.M11.GetHashCode();
+                hash = (hash * 31) + matrix.M12.GetHashCode();
+                hash = (hash * 31) + matrix.M13.GetHashCode();
+                hash = (hash * 31) + matrix.M14.GetHashCode();
+                hash = (hash * 31) + matrix.M21.GetHashCode();
+                hash = (hash * 31) + matrix.M22.GetHashCode();
+                hash = (hash * 31) + matrix.M23.GetHashCode();
+                hash = (hash * 31) + matrix.M24.GetHashCode();
+                hash = (hash * 31) + matrix.M31.GetHashCode();
+                hash = (hash * 31) + matrix.M32.GetHashCode();
+                hash = (hash * 31) + matrix.M33.GetHashCode();
+                hash = (hash * 31) + matrix.M34.GetHashCode();
+                hash = (hash * 31) + matrix.OffsetX.GetHashCode();
+                hash = (hash * 31) + matrix.OffsetY.GetHashCode();
+                hash = (hash * 31) + matrix.OffsetZ.GetHashCode();
+                hash = (hash * 31) + matrix.M44.GetHashCode();
+                return hash;
+            }
+        }
+
+        private readonly record struct HighQualityMeshCacheKey(
+            Guid SessionId,
+            MeshQuality Quality,
+            int ShapeGeometryLabel,
+            int GeometryHash,
+            int IfcProductLabel,
+            int ShapeDataHash,
+            int TransformHash,
+            double OneMeter,
+            double OriginX, double OriginY, double OriginZ,
+            double OffsetX, double OffsetY, double OffsetZ,
+            double M11, double M12, double M13, double M14,
+            double M21, double M22, double M23, double M24,
+            double M31, double M32, double M33, double M34,
+            double TransX, double TransY, double TransZ, double M44
+        );
 
         private static Transform3D CreateInstanceTransform(XbimMatrix3D matrix, double oneMeter, DomainPoint3D origin, DomainPoint3D placementOffset)
         {

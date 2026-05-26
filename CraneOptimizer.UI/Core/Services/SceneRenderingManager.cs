@@ -137,6 +137,10 @@ namespace CraneOptimizer.UI.Core.Services
                 MeshesCreatedCount = builder.DiagMeshesCreated,
                 MeshCacheHitCount = builder.DiagMeshCacheHits,
                 MeshCacheMissCount = builder.DiagMeshCacheMisses,
+                HighQualityMeshCacheHitCount = builder.DiagHighQualityMeshCacheHits,
+                HighQualityMeshCacheMissCount = builder.DiagHighQualityMeshCacheMisses,
+                HighQualityMeshesCreatedCount = builder.DiagHighQualityMeshesCreated,
+                HighQualityCacheCount = ElementVisualBuilder.HighQualityMeshCacheCount,
                 GeometryModel3DCount = builder.DiagGeometryModel3DCount,
                 ModelVisual3DCount = builder.DiagModelVisual3DCount,
                 MaterialCreatedCount = builder.DiagMaterialCreated,
@@ -162,6 +166,8 @@ namespace CraneOptimizer.UI.Core.Services
                 $"Visible={stats.VisibleElements} Skipped={stats.IncludeInRenderSkippedCount} " +
                 $"BatchedGroups={stats.BatchedGroupCount} HitBoxes={stats.HitTestBoxCount} " +
                 $"RenderGeomModels={stats.RenderGeometryModel3DCount} HitTestGeomModels={stats.HitTestGeometryModel3DCount} " +
+                $"HQCacheHits={stats.HighQualityMeshCacheHitCount} HQCacheMisses={stats.HighQualityMeshCacheMissCount} " +
+                $"HQMeshesCreated={stats.HighQualityMeshesCreatedCount} HQCacheSize={stats.HighQualityCacheCount} " +
                 $"DurationMs={stats.RenderDurationMs:F1} MemBefore={memBefore:F1}MB MemAfter={memAfter:F1}MB");
         }
 

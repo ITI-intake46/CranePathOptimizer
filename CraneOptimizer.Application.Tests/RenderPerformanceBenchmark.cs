@@ -181,8 +181,12 @@ namespace CraneOptimizer.Application.Tests
             // Scenarios C: Medium Quality (Second Render - Warm Cache)
             ExecuteAndRecord(caseName, "Medium (Warm Cache)", elements, readerRepository, origin, placementOffset, results);
 
-            // Scenarios D: High Quality
+            // Scenarios D: High Quality (First Render - Clean Cache)
+            ElementVisualBuilder.ClearMeshCache("benchmark-high-refresh");
             ExecuteAndRecord(caseName, "High", elements, readerRepository, origin, placementOffset, results);
+
+            // Scenarios D2: High Quality (Second Render - Warm Cache)
+            ExecuteAndRecord(caseName, "High (Warm Cache)", elements, readerRepository, origin, placementOffset, results);
 
             // Scenarios E: Filter Change (Simulating 40% hidden elements)
             var filteredElements = elements.Select((e, idx) => new PrecastElement

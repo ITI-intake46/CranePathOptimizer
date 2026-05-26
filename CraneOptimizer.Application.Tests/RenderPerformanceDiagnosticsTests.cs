@@ -734,6 +734,214 @@ namespace CraneOptimizer.Application.Tests
             });
         }
 
+        [Fact]
+        public void Builder_HighQualityCache_MissesOnFirst_HitsOnSecond()
+        {
+            RunOnSta(() =>
+            {
+                var smallIfcPath = @"F:\06-ITI\00-Project\tryProjects\try6\Models\IFC\teklaModelTestIFC_10.ifc";
+                if (!System.IO.File.Exists(smallIfcPath)) return;
+
+                var sessionService = new IfcModelSessionService();
+                var auditService = new IfcDiagnosticAuditService(sessionService);
+                var exporterProfileResolver = new IfcExporterProfileResolver();
+                var normalizationService = new IfcNormalizationDecisionService(exporterProfileResolver);
+                var readerRepository = new IfcReaderRepository(auditService, normalizationService, sessionService);
+
+                var elements = readerRepository.ReadElements(smallIfcPath);
+                var origin = new DomainPoint3D(0, 0, 0);
+                var placementOffset = new DomainPoint3D(0, 0, 0);
+
+                var previousQuality = ElementVisualBuilder.CurrentQuality;
+                var previousFlag = ElementVisualBuilder.UseBatchedRealMeshRendering;
+                try
+                {
+                    ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.High;
+                    ElementVisualBuilder.UseBatchedRealMeshRendering = true;
+
+                    // Clear cache first
+                    ElementVisualBuilder.ClearMeshCache("test-hq-init");
+
+                    // Render once to populate cache
+                    var builder1 = new ElementVisualBuilder(readerRepository, origin, placementOffset);
+                    builder1.ResetCounters();
+                    builder1.BuildBatch(elements.Select(e => (e, (LiftStatus?)null, false)));
+
+                    var misses1 = builder1.DiagHighQualityMeshCacheMisses;
+                    var hits1 = builder1.DiagHighQualityMeshCacheHits;
+
+                    Assert.True(misses1 > 0);
+                    Assert.Equal(0, hits1);
+
+                    // Render second time (warm cache)
+                    var builder2 = new ElementVisualBuilder(readerRepository, origin, placementOffset);
+                    builder2.ResetCounters();
+                    builder2.BuildBatch(elements.Select(e => (e, (LiftStatus?)null, false)));
+
+                    var misses2 = builder2.DiagHighQualityMeshCacheMisses;
+                    var hits2 = builder2.DiagHighQualityMeshCacheHits;
+
+                    // Misses in the second run should be 0 because all detailed meshes are cached!
+                    Assert.Equal(0, misses2);
+                    Assert.True(hits2 > 0);
+                    Assert.Equal(misses1, hits2); // hits matches previous misses
+                }
+                finally
+                {
+                    ElementVisualBuilder.CurrentQuality = previousQuality;
+                    ElementVisualBuilder.UseBatchedRealMeshRendering = previousFlag;
+                    readerRepository.ClearData();
+                }
+            });
+        }
+
+        [Fact]
+        public void Builder_HighQualityCache_SessionChangeClearsCache()
+        {
+            RunOnSta(() =>
+            {
+                var smallIfcPath = @"F:\06-ITI\00-Project\tryProjects\try6\Models\IFC\teklaModelTestIFC_10.ifc";
+                if (!System.IO.File.Exists(smallIfcPath)) return;
+
+                var sessionService = new IfcModelSessionService();
+                var auditService = new IfcDiagnosticAuditService(sessionService);
+                var exporterProfileResolver = new IfcExporterProfileResolver();
+                var normalizationService = new IfcNormalizationDecisionService(exporterProfileResolver);
+                var readerRepository = new IfcReaderRepository(auditService, normalizationService, sessionService);
+
+                var elements = readerRepository.ReadElements(smallIfcPath);
+                var origin = new DomainPoint3D(0, 0, 0);
+                var placementOffset = new DomainPoint3D(0, 0, 0);
+
+                var previousQuality = ElementVisualBuilder.CurrentQuality;
+                var previousFlag = ElementVisualBuilder.UseBatchedRealMeshRendering;
+                try
+                {
+                    ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.High;
+                    ElementVisualBuilder.UseBatchedRealMeshRendering = true;
+
+                    // Populate cache
+                    ElementVisualBuilder.ClearMeshCache("test-session-change");
+                    var builder1 = new ElementVisualBuilder(readerRepository, origin, placementOffset);
+                    builder1.BuildBatch(elements.Select(e => (e, (LiftStatus?)null, false)));
+
+                    Assert.True(ElementVisualBuilder.HighQualityMeshCacheCount > 0);
+
+                    // Change session ID via clear/new loading simulation
+                    ElementVisualBuilder.ClearMeshCache("simulate-unload");
+                    Assert.Equal(0, ElementVisualBuilder.HighQualityMeshCacheCount);
+                }
+                finally
+                {
+                    ElementVisualBuilder.CurrentQuality = previousQuality;
+                    ElementVisualBuilder.UseBatchedRealMeshRendering = previousFlag;
+                    readerRepository.ClearData();
+                }
+            });
+        }
+
+        [Fact]
+        public void Builder_HighQualityCache_IncludeInRenderFalseExcluded()
+        {
+            RunOnSta(() =>
+            {
+                var smallIfcPath = @"F:\06-ITI\00-Project\tryProjects\try6\Models\IFC\teklaModelTestIFC_10.ifc";
+                if (!System.IO.File.Exists(smallIfcPath)) return;
+
+                var sessionService = new IfcModelSessionService();
+                var auditService = new IfcDiagnosticAuditService(sessionService);
+                var exporterProfileResolver = new IfcExporterProfileResolver();
+                var normalizationService = new IfcNormalizationDecisionService(exporterProfileResolver);
+                var readerRepository = new IfcReaderRepository(auditService, normalizationService, sessionService);
+
+                var elements = readerRepository.ReadElements(smallIfcPath).ToList();
+                var origin = new DomainPoint3D(0, 0, 0);
+                var placementOffset = new DomainPoint3D(0, 0, 0);
+
+                foreach (var el in elements)
+                {
+                    el.IncludeInRender = false;
+                }
+
+                var previousQuality = ElementVisualBuilder.CurrentQuality;
+                var previousFlag = ElementVisualBuilder.UseBatchedRealMeshRendering;
+                try
+                {
+                    ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.High;
+                    ElementVisualBuilder.UseBatchedRealMeshRendering = true;
+
+                    ElementVisualBuilder.ClearMeshCache("test-exclude");
+                    var builder1 = new ElementVisualBuilder(readerRepository, origin, placementOffset);
+                    builder1.ResetCounters();
+                    builder1.BuildBatch(elements.Select(e => (e, (LiftStatus?)null, false)));
+
+                    Assert.Equal(0, builder1.DiagVisibleElements);
+                    Assert.Equal(elements.Count, builder1.DiagIncludeInRenderSkipped);
+                    Assert.Equal(0, ElementVisualBuilder.HighQualityMeshCacheCount);
+                }
+                finally
+                {
+                    ElementVisualBuilder.CurrentQuality = previousQuality;
+                    ElementVisualBuilder.UseBatchedRealMeshRendering = previousFlag;
+                    readerRepository.ClearData();
+                }
+            });
+        }
+
+        [Fact]
+        public void Builder_HighQualityCache_SelectionWorksWithCachedHighMeshes()
+        {
+            RunOnSta(() =>
+            {
+                var smallIfcPath = @"F:\06-ITI\00-Project\tryProjects\try6\Models\IFC\teklaModelTestIFC_10.ifc";
+                if (!System.IO.File.Exists(smallIfcPath)) return;
+
+                var sessionService = new IfcModelSessionService();
+                var auditService = new IfcDiagnosticAuditService(sessionService);
+                var exporterProfileResolver = new IfcExporterProfileResolver();
+                var normalizationService = new IfcNormalizationDecisionService(exporterProfileResolver);
+                var readerRepository = new IfcReaderRepository(auditService, normalizationService, sessionService);
+
+                var elements = readerRepository.ReadElements(smallIfcPath).ToList();
+                var origin = new DomainPoint3D(0, 0, 0);
+                var placementOffset = new DomainPoint3D(0, 0, 0);
+
+                var previousQuality = ElementVisualBuilder.CurrentQuality;
+                var previousFlag = ElementVisualBuilder.UseBatchedRealMeshRendering;
+                try
+                {
+                    ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.High;
+                    ElementVisualBuilder.UseBatchedRealMeshRendering = true;
+
+                    // 1. Render once to cache
+                    ElementVisualBuilder.ClearMeshCache("test-select-hq");
+                    var builder1 = new ElementVisualBuilder(readerRepository, origin, placementOffset);
+                    builder1.BuildBatch(elements.Select(e => (e, (LiftStatus?)null, false)));
+
+                    var sizeBefore = ElementVisualBuilder.HighQualityMeshCacheCount;
+                    Assert.True(sizeBefore > 0);
+
+                    // 2. Select one element and render again
+                    var selectedElement = elements.First();
+                    var builder2 = new ElementVisualBuilder(readerRepository, origin, placementOffset);
+                    builder2.ResetCounters();
+                    var visual = builder2.BuildBatch(elements.Select(e => (e, (LiftStatus?)null, e.ElementID == selectedElement.ElementID)));
+
+                    // Selection works, and misses should be 0 because selected element is also cached, and the cache size remains identical
+                    Assert.Equal(0, builder2.DiagHighQualityMeshCacheMisses);
+                    Assert.True(builder2.DiagHighQualityMeshCacheHits > 0);
+                    Assert.Equal(sizeBefore, ElementVisualBuilder.HighQualityMeshCacheCount);
+                    Assert.NotNull(visual);
+                }
+                finally
+                {
+                    ElementVisualBuilder.CurrentQuality = previousQuality;
+                    ElementVisualBuilder.UseBatchedRealMeshRendering = previousFlag;
+                    readerRepository.ClearData();
+                }
+            });
+        }
+
         #endregion
     }
 }
