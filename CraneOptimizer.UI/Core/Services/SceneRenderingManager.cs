@@ -142,6 +142,12 @@ namespace CraneOptimizer.UI.Core.Services
                 MaterialCreatedCount = builder.DiagMaterialCreated,
                 FallbackBoxCount = builder.DiagFallbackBoxCount,
                 RealMeshElementCount = builder.DiagRealMeshElements,
+                BatchedGroupCount = builder.DiagBatchedGroups,
+                BatchedElementCount = builder.DiagBatchedElements,
+                HitTestBoxCount = builder.DiagHitTestBoxes,
+                RenderGeometryModel3DCount = builder.DiagRenderGeometryModel3DCount,
+                HitTestGeometryModel3DCount = builder.DiagHitTestGeometryModel3DCount,
+                TotalGeometryModel3DCount = builder.DiagTotalGeometryModel3DCount,
                 RenderDurationMs = sw.Elapsed.TotalMilliseconds,
                 ReRenderDurationMs = sw.Elapsed.TotalMilliseconds,
                 MemoryBeforeRenderMB = memBefore,
@@ -154,9 +160,8 @@ namespace CraneOptimizer.UI.Core.Services
             Debug.WriteLine(
                 $"[RenderStats] Quality={stats.RenderQuality} Elements={stats.TotalElements} " +
                 $"Visible={stats.VisibleElements} Skipped={stats.IncludeInRenderSkippedCount} " +
-                $"Shapes={stats.ShapeInstanceCount} MeshCreated={stats.MeshesCreatedCount} " +
-                $"CacheHit={stats.MeshCacheHitCount} GeometryModels={stats.GeometryModel3DCount} " +
-                $"ModelVisuals={stats.ModelVisual3DCount} FallbackBoxes={stats.FallbackBoxCount} " +
+                $"BatchedGroups={stats.BatchedGroupCount} HitBoxes={stats.HitTestBoxCount} " +
+                $"RenderGeomModels={stats.RenderGeometryModel3DCount} HitTestGeomModels={stats.HitTestGeometryModel3DCount} " +
                 $"DurationMs={stats.RenderDurationMs:F1} MemBefore={memBefore:F1}MB MemAfter={memAfter:F1}MB");
         }
 

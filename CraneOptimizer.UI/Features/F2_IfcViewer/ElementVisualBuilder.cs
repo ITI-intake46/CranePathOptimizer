@@ -37,6 +37,14 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         public int DiagFallbackBoxCount { get; private set; }
         public int DiagRealMeshElements { get; private set; }
 
+        // Phase 2.2A Batching diagnostics counters
+        public int DiagBatchedGroups { get; private set; }
+        public int DiagBatchedElements { get; private set; }
+        public int DiagHitTestBoxes { get; private set; }
+        public int DiagRenderGeometryModel3DCount { get; private set; }
+        public int DiagHitTestGeometryModel3DCount { get; private set; }
+        public int DiagTotalGeometryModel3DCount { get; private set; }
+
         public void ResetCounters()
         {
             DiagTotalElements = 0;
@@ -51,6 +59,13 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             DiagMaterialCreated = 0;
             DiagFallbackBoxCount = 0;
             DiagRealMeshElements = 0;
+
+            DiagBatchedGroups = 0;
+            DiagBatchedElements = 0;
+            DiagHitTestBoxes = 0;
+            DiagRenderGeometryModel3DCount = 0;
+            DiagHitTestGeometryModel3DCount = 0;
+            DiagTotalGeometryModel3DCount = 0;
         }
 
         public enum MeshQuality
@@ -61,6 +76,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         }
 
         public static MeshQuality CurrentQuality { get; set; } = MeshQuality.Medium;
+        public static bool UseBatchedRealMeshRendering { get; set; } = true;
 
         private static readonly object MeshCacheGate = new();
         private static readonly Dictionary<MeshCacheKey, MediaMeshGeometry3D> MeshCache = new();
@@ -189,6 +205,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 var lowVisual = BuildLargeModelBatch(itemsList, out var lowGeometryModels);
                 DiagGeometryModel3DCount += lowGeometryModels;
                 DiagModelVisual3DCount++;
+                DiagRenderGeometryModel3DCount = lowGeometryModels;
+                DiagHitTestGeometryModel3DCount = 0;
+                DiagTotalGeometryModel3DCount = lowGeometryModels;
                 Debug.WriteLine(
                     $"[ElementVisualBuilder] Low quality render complete. Elements={itemsList.Count}, " +
                     $"GeometryModel3D={lowGeometryModels}, ModelVisual3D=1, MemoryAfterRender={FormatBytes(GetPrivateMemoryBytes())}");
@@ -203,135 +222,396 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 var context = concreteRepo.GeometryContext;
                 var sessionId = concreteRepo.CurrentSessionId ?? Guid.Empty;
                 EnsureCacheSession(sessionId);
-                var meshesCreated = 0;
-                var meshesReused = 0;
-                var geometryModelsCreated = 0;
-                var modelVisualsCreated = 1; // batch root visual
-                DiagRealMeshElements += itemsList.Count;
 
                 double oneMeter = model.ModelFactors.OneMeter;
                 if (oneMeter <= 0) oneMeter = 1000.0;
-
-                var elementMap = new Dictionary<string, (PrecastElement el, LiftStatus? st, Color col, bool sel)>(StringComparer.OrdinalIgnoreCase);
-                foreach (var item in itemsList)
-                {
-                    var color = GetColor(item.status);
-                    elementMap[item.element.ElementID] = (item.element, item.status, color, item.isSelected);
-                }
-
-                var labelToGid = new Dictionary<int, string>();
-                foreach (var p in model.Instances.OfType<IIfcProduct>())
-                {
-                    var gid = p.GlobalId.ToString();
-                    var revitId = (p as IIfcElement)?.Tag?.ToString();
-
-                    // Check if either Revit ID or Global ID matches our element map
-                    var matchingKey = string.Empty;
-                    if (revitId != null && elementMap.ContainsKey(revitId))
-                        matchingKey = revitId;
-                    else if (!string.IsNullOrEmpty(gid) && elementMap.ContainsKey(gid))
-                        matchingKey = gid;
-
-                    if (!string.IsNullOrEmpty(matchingKey))
-                    {
-                        labelToGid[p.EntityLabel] = matchingKey;
-                        AddChildProductLabels(p, matchingKey, labelToGid);
-                    }
-                }
-
-                var allInstances = context.ShapeInstances()
-                    .Where(si => labelToGid.ContainsKey(si.IfcProductLabel))
-                    .ToList();
-                DiagShapeInstances += allInstances.Count;
 
                 var origin = _origin ?? new DomainPoint3D(0, 0, 0);
                 var placementOffset = _placementOffset ?? new DomainPoint3D(0, 0, 0);
 
                 var selectionMaterial = CreateFrozenDiffuseMaterial(Color.FromArgb(110, 100, 180, 255));
-                var elementVisualMap = new Dictionary<string, ModelVisual3D>();
-                var batchVisual = new ModelVisual3D();
 
-                foreach (var si in allInstances)
+                if (!UseBatchedRealMeshRendering)
                 {
-                    try
+                    // ─── OLD PRE-OPTIMIZATION RENDERING PATH ───
+                    var meshesCreated = 0;
+                    var meshesReused = 0;
+                    var geometryModelsCreated = 0;
+                    var modelVisualsCreated = 1; // batch root visual
+                    DiagRealMeshElements += itemsList.Count;
+
+                    var elementMap = new Dictionary<string, (PrecastElement el, LiftStatus? st, Color col, bool sel)>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var item in itemsList)
                     {
-                        var shapeGeom = context.ShapeGeometry(si) as IXbimShapeGeometryData;
-                        if (shapeGeom?.ShapeData == null || shapeGeom.ShapeData.Length == 0) continue;
+                        var color = GetColor(item.status);
+                        elementMap[item.element.ElementID] = (item.element, item.status, color, item.isSelected);
+                    }
 
+                    var labelToGid = new Dictionary<int, string>();
+                    foreach (var p in model.Instances.OfType<IIfcProduct>())
+                    {
+                        var gid = p.GlobalId.ToString();
+                        var revitId = (p as IIfcElement)?.Tag?.ToString();
+
+                        var matchingKey = string.Empty;
+                        if (revitId != null && elementMap.ContainsKey(revitId))
+                            matchingKey = revitId;
+                        else if (!string.IsNullOrEmpty(gid) && elementMap.ContainsKey(gid))
+                            matchingKey = gid;
+
+                        if (!string.IsNullOrEmpty(matchingKey))
+                        {
+                            labelToGid[p.EntityLabel] = matchingKey;
+                            AddChildProductLabels(p, matchingKey, labelToGid);
+                        }
+                    }
+
+                    var allInstances = context.ShapeInstances()
+                        .Where(si => labelToGid.ContainsKey(si.IfcProductLabel))
+                        .ToList();
+                    DiagShapeInstances += allInstances.Count;
+
+                    var batchVisual = new ModelVisual3D();
+                    var elementVisualMap = new Dictionary<string, ModelVisual3D>();
+
+                    foreach (var si in allInstances)
+                    {
+                        try
+                        {
+                            var shapeGeom = context.ShapeGeometry(si) as IXbimShapeGeometryData;
+                            if (shapeGeom?.ShapeData == null || shapeGeom.ShapeData.Length == 0) continue;
+
+                            var gid = labelToGid[si.IfcProductLabel];
+                            var (el, _, col, isSelected) = elementMap[gid];
+
+                            var cacheReused = false;
+                            var mesh = CurrentQuality == MeshQuality.High
+                                ? CreateHighQualityDetailedMesh(shapeGeom.ShapeData, si.Transformation, oneMeter, origin, placementOffset)
+                                : GetOrCreateCachedMesh(sessionId, shapeGeom.ShapeData, oneMeter, CurrentQuality, out cacheReused);
+                            if (mesh == null || mesh.Positions.Count == 0) continue;
+
+                            if (CurrentQuality == MeshQuality.High)
+                            {
+                                mesh.Freeze();
+                                meshesCreated++;
+                            }
+                            else if (cacheReused)
+                            {
+                                meshesReused++;
+                            }
+                            else
+                            {
+                                meshesCreated++;
+                            }
+
+                            if (!elementVisualMap.TryGetValue(gid, out var ev))
+                            {
+                                ev = new ModelVisual3D { Content = new Model3DGroup() };
+                                ev.SetValue(System.Windows.FrameworkElement.TagProperty, el);
+                                elementVisualMap[gid] = ev;
+                                batchVisual.Children.Add(ev);
+                                modelVisualsCreated++;
+                            }
+
+                            var material = BuildMaterial(col, isSelected, selectionMaterial);
+                            DiagMaterialCreated++;
+
+                            var geoModel = new GeometryModel3D
+                            {
+                                Geometry = mesh,
+                                Material = material,
+                                BackMaterial = material,
+                                Transform = CurrentQuality == MeshQuality.High
+                                    ? Transform3D.Identity
+                                    : CreateInstanceTransform(si.Transformation, oneMeter, origin, placementOffset)
+                            };
+
+                            ((Model3DGroup)ev.Content).Children.Add(geoModel);
+                            geometryModelsCreated++;
+                        }
+                        catch
+                        {
+                            // keep rendering robust per element
+                        }
+                    }
+
+                    // Propagate local counters to diagnostics properties
+                    DiagMeshesCreated += meshesCreated;
+                    DiagMeshCacheHits += meshesReused;
+                    DiagMeshCacheMisses += meshesCreated; // miss = had to create
+                    DiagGeometryModel3DCount += geometryModelsCreated;
+                    DiagModelVisual3DCount += modelVisualsCreated;
+                    DiagRenderGeometryModel3DCount = geometryModelsCreated;
+                    DiagHitTestGeometryModel3DCount = 0;
+                    DiagTotalGeometryModel3DCount = geometryModelsCreated;
+
+                    Debug.WriteLine(
+                        $"[ElementVisualBuilder] IFC mesh render complete. SessionId={sessionId}, " +
+                        $"Elements={itemsList.Count}, ShapeInstances={allInstances.Count}, MeshesCreated={meshesCreated}, " +
+                        $"CachedMeshesReused={meshesReused}, CacheSize={MeshCacheCount}, " +
+                        $"GeometryModel3D={geometryModelsCreated}, ModelVisual3D={modelVisualsCreated}, " +
+                        $"MemoryAfterRender={FormatBytes(GetPrivateMemoryBytes())}");
+
+                    return batchVisual;
+                }
+                else
+                {
+                    // ─── HIGH-PERFORMANCE BATCHED REAL MESH RENDERING PATH ───
+                    var meshesCreated = 0;
+                    var meshesReused = 0;
+                    var geometryModelsCreated = 0;
+                    var modelVisualsCreated = 1; // batch root visual
+                    DiagRealMeshElements += itemsList.Count;
+
+                    var elementMap = new Dictionary<string, (PrecastElement el, LiftStatus? st, Color col, bool sel)>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var item in itemsList)
+                    {
+                        var color = GetColor(item.status);
+                        elementMap[item.element.ElementID] = (item.element, item.status, color, item.isSelected);
+                    }
+
+                    var labelToGid = new Dictionary<int, string>();
+                    foreach (var p in model.Instances.OfType<IIfcProduct>())
+                    {
+                        var gid = p.GlobalId.ToString();
+                        var revitId = (p as IIfcElement)?.Tag?.ToString();
+
+                        var matchingKey = string.Empty;
+                        if (revitId != null && elementMap.ContainsKey(revitId))
+                            matchingKey = revitId;
+                        else if (!string.IsNullOrEmpty(gid) && elementMap.ContainsKey(gid))
+                            matchingKey = gid;
+
+                        if (!string.IsNullOrEmpty(matchingKey))
+                        {
+                            labelToGid[p.EntityLabel] = matchingKey;
+                            AddChildProductLabels(p, matchingKey, labelToGid);
+                        }
+                    }
+
+                    var allInstances = context.ShapeInstances()
+                        .Where(si => labelToGid.ContainsKey(si.IfcProductLabel))
+                        .ToList();
+                    DiagShapeInstances += allInstances.Count;
+
+                    var batchVisual = new ModelVisual3D();
+
+                    // Separate Selected and Unselected instances
+                    var selectedInstances = new List<XbimShapeInstance>();
+                    var unselectedInstances = new List<XbimShapeInstance>();
+
+                    foreach (var si in allInstances)
+                    {
                         var gid = labelToGid[si.IfcProductLabel];
-                        var (el, _, col, isSelected) = elementMap[gid];
-
-                        var cacheReused = false;
-                        var mesh = CurrentQuality == MeshQuality.High
-                            ? CreateHighQualityDetailedMesh(shapeGeom.ShapeData, si.Transformation, oneMeter, origin, placementOffset)
-                            : GetOrCreateCachedMesh(sessionId, shapeGeom.ShapeData, oneMeter, CurrentQuality, out cacheReused);
-                        if (mesh == null || mesh.Positions.Count == 0) continue;
-                        if (CurrentQuality == MeshQuality.High)
-                        {
-                            mesh.Freeze();
-                            meshesCreated++;
-                        }
-                        else if (cacheReused)
-                        {
-                            meshesReused++;
-                        }
+                        var (_, _, _, isSelected) = elementMap[gid];
+                        if (isSelected)
+                            selectedInstances.Add(si);
                         else
-                        {
-                            meshesCreated++;
-                        }
+                            unselectedInstances.Add(si);
+                    }
 
-                        if (!elementVisualMap.TryGetValue(gid, out var ev))
+                    // A. Render Selected Element(s) independently
+                    var elementVisualMap = new Dictionary<string, ModelVisual3D>();
+                    foreach (var si in selectedInstances)
+                    {
+                        try
                         {
-                            ev = new ModelVisual3D { Content = new Model3DGroup() };
-                            ev.SetValue(System.Windows.FrameworkElement.TagProperty, el);
-                            elementVisualMap[gid] = ev;
-                            batchVisual.Children.Add(ev);
-                            modelVisualsCreated++;
-                        }
+                            var shapeGeom = context.ShapeGeometry(si) as IXbimShapeGeometryData;
+                            if (shapeGeom?.ShapeData == null || shapeGeom.ShapeData.Length == 0) continue;
 
-                        var material = BuildMaterial(col, isSelected, selectionMaterial);
+                            var gid = labelToGid[si.IfcProductLabel];
+                            var (el, _, col, isSelected) = elementMap[gid];
+
+                            var cacheReused = false;
+                            var mesh = CurrentQuality == MeshQuality.High
+                                ? CreateHighQualityDetailedMesh(shapeGeom.ShapeData, si.Transformation, oneMeter, origin, placementOffset)
+                                : GetOrCreateCachedMesh(sessionId, shapeGeom.ShapeData, oneMeter, CurrentQuality, out cacheReused);
+                            if (mesh == null || mesh.Positions.Count == 0) continue;
+
+                            if (CurrentQuality == MeshQuality.High)
+                            {
+                                mesh.Freeze();
+                                meshesCreated++;
+                            }
+                            else if (cacheReused)
+                            {
+                                meshesReused++;
+                            }
+                            else
+                            {
+                                meshesCreated++;
+                            }
+
+                            if (!elementVisualMap.TryGetValue(gid, out var ev))
+                            {
+                                ev = new ModelVisual3D { Content = new Model3DGroup() };
+                                ev.SetValue(System.Windows.FrameworkElement.TagProperty, el);
+                                elementVisualMap[gid] = ev;
+                                batchVisual.Children.Add(ev);
+                                modelVisualsCreated++;
+                            }
+
+                            var material = BuildMaterial(col, isSelected, selectionMaterial);
+                            DiagMaterialCreated++;
+
+                            var geoModel = new GeometryModel3D
+                            {
+                                Geometry = mesh,
+                                Material = material,
+                                BackMaterial = material,
+                                Transform = CurrentQuality == MeshQuality.High
+                                    ? Transform3D.Identity
+                                    : CreateInstanceTransform(si.Transformation, oneMeter, origin, placementOffset)
+                            };
+
+                            ((Model3DGroup)ev.Content).Children.Add(geoModel);
+                            geometryModelsCreated++;
+                        }
+                        catch { }
+                    }
+
+                    // B. Group and Concatenate Unselected Elements
+                    var batchedGroups = new Dictionary<RenderBatchKey, (Point3DCollection positions, Vector3DCollection normals, Int32Collection indices)>();
+                    var unselectedGidsHandled = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var si in unselectedInstances)
+                    {
+                        try
+                        {
+                            var shapeGeom = context.ShapeGeometry(si) as IXbimShapeGeometryData;
+                            if (shapeGeom?.ShapeData == null || shapeGeom.ShapeData.Length == 0) continue;
+
+                            var gid = labelToGid[si.IfcProductLabel];
+                            var (el, status, col, _) = elementMap[gid];
+                            unselectedGidsHandled.Add(gid);
+
+                            var cacheReused = false;
+                            var localMesh = CurrentQuality == MeshQuality.High
+                                ? CreateHighQualityDetailedMesh(shapeGeom.ShapeData, si.Transformation, oneMeter, origin, placementOffset)
+                                : GetOrCreateCachedMesh(sessionId, shapeGeom.ShapeData, oneMeter, CurrentQuality, out cacheReused);
+                            if (localMesh == null || localMesh.Positions.Count == 0) continue;
+
+                            if (CurrentQuality == MeshQuality.High)
+                            {
+                                localMesh.Freeze();
+                                meshesCreated++;
+                            }
+                            else if (cacheReused)
+                            {
+                                meshesReused++;
+                            }
+                            else
+                            {
+                                meshesCreated++;
+                            }
+
+                            var key = new RenderBatchKey(col, status, NormalizeBatchText(el.ElementMaterial), NormalizeBatchText(el.ElementType));
+                            if (!batchedGroups.TryGetValue(key, out var geomData))
+                            {
+                                geomData = (new Point3DCollection(), new Vector3DCollection(), new Int32Collection());
+                                batchedGroups[key] = geomData;
+                            }
+
+                            if (CurrentQuality == MeshQuality.High)
+                            {
+                                ConcatenateMesh(geomData.positions, geomData.normals, geomData.indices, localMesh, Matrix3D.Identity);
+                            }
+                            else
+                            {
+                                var wpfMatrix = CreateInstanceWpfMatrix(si.Transformation, oneMeter, origin, placementOffset);
+                                ConcatenateMesh(geomData.positions, geomData.normals, geomData.indices, localMesh, wpfMatrix);
+                            }
+                        }
+                        catch { }
+                    }
+
+                    // C. Render Consolidated Batched Mesh groups
+                    var batchedGroupsCount = 0;
+                    foreach (var kvp in batchedGroups)
+                    {
+                        var key = kvp.Key;
+                        var (positions, normals, indices) = kvp.Value;
+                        if (positions.Count == 0) continue;
+
+                        var batchedMesh = new MediaMeshGeometry3D
+                        {
+                            Positions = positions,
+                            Normals = normals,
+                            TriangleIndices = indices
+                        };
+                        batchedMesh.Freeze();
+
+                        var material = BuildMaterial(key.Color, false, selectionMaterial);
+                        if (material.CanFreeze)
+                            material.Freeze();
                         DiagMaterialCreated++;
 
                         var geoModel = new GeometryModel3D
                         {
-                            Geometry = mesh,
+                            Geometry = batchedMesh,
                             Material = material,
-                            BackMaterial = material,
-                            Transform = CurrentQuality == MeshQuality.High
-                                ? Transform3D.Identity
-                                : CreateInstanceTransform(si.Transformation, oneMeter, origin, placementOffset)
+                            BackMaterial = material
                         };
+                        geoModel.Freeze();
 
-                        ((Model3DGroup)ev.Content).Children.Add(geoModel);
+                        var groupVisual = new ModelVisual3D { Content = geoModel };
+                        batchVisual.Children.Add(groupVisual);
+                        modelVisualsCreated++;
                         geometryModelsCreated++;
+                        batchedGroupsCount++;
                     }
-                    catch
+
+                    // D. Render Lightweight Transparent Hit-Testing Boxes for selection
+                    var hitBoxesCount = 0;
+                    foreach (var item in itemsList)
                     {
-                        // keep rendering robust per element
+                        try
+                        {
+                            var isSelected = item.isSelected;
+                            if (!isSelected)
+                            {
+                                var hitBox = CreateTransparentHitBox(item.element, origin, placementOffset);
+                                batchVisual.Children.Add(hitBox);
+                                modelVisualsCreated++;
+                                hitBoxesCount++;
+                            }
+                        }
+                        catch { }
                     }
+
+                    // E. Set Diagnostics counters
+                    DiagMeshesCreated += meshesCreated;
+                    DiagMeshCacheHits += meshesReused;
+                    DiagMeshCacheMisses += meshesCreated;
+
+                    DiagBatchedGroups = batchedGroupsCount;
+                    DiagBatchedElements = unselectedGidsHandled.Count;
+                    DiagHitTestBoxes = hitBoxesCount;
+                    DiagRenderGeometryModel3DCount = geometryModelsCreated;
+                    DiagHitTestGeometryModel3DCount = hitBoxesCount;
+                    DiagGeometryModel3DCount = DiagRenderGeometryModel3DCount + DiagHitTestGeometryModel3DCount;
+                    DiagModelVisual3DCount += modelVisualsCreated;
+                    DiagTotalGeometryModel3DCount = DiagGeometryModel3DCount;
+
+                    Debug.WriteLine(
+                        $"[ElementVisualBuilder] IFC batched mesh render complete. SessionId={sessionId}, " +
+                        $"Elements={itemsList.Count}, ShapeInstances={allInstances.Count}, BatchedGroups={batchedGroupsCount}, " +
+                        $"RenderGeometryModels={geometryModelsCreated}, HitBoxes={hitBoxesCount}, MeshesCreated={meshesCreated}, " +
+                        $"CachedMeshesReused={meshesReused}, CacheSize={MeshCacheCount}, " +
+                        $"TotalModelVisuals={modelVisualsCreated}, MemoryAfterRender={FormatBytes(GetPrivateMemoryBytes())}");
+
+                    return batchVisual;
                 }
-
-                // Propagate local counters to diagnostics properties
-                DiagMeshesCreated += meshesCreated;
-                DiagMeshCacheHits += meshesReused;
-                DiagMeshCacheMisses += meshesCreated; // miss = had to create
-                DiagGeometryModel3DCount += geometryModelsCreated;
-                DiagModelVisual3DCount += modelVisualsCreated;
-
-                Debug.WriteLine(
-                    $"[ElementVisualBuilder] IFC mesh render complete. SessionId={sessionId}, " +
-                    $"Elements={itemsList.Count}, ShapeInstances={allInstances.Count}, MeshesCreated={meshesCreated}, " +
-                    $"CachedMeshesReused={meshesReused}, CacheSize={MeshCacheCount}, " +
-                    $"GeometryModel3D={geometryModelsCreated}, ModelVisual3D={modelVisualsCreated}, " +
-                    $"MemoryAfterRender={FormatBytes(GetPrivateMemoryBytes())}");
-
-                return batchVisual;
             }
 
             // Fallback path: no xBIM context, use bounding boxes
             var fallbackBatch = new ModelVisual3D();
             foreach (var item in itemsList)
                 BuildFallbackBox(fallbackBatch, item.element, item.status, item.isSelected);
+
+            DiagRenderGeometryModel3DCount = DiagGeometryModel3DCount;
+            DiagHitTestGeometryModel3DCount = 0;
+            DiagTotalGeometryModel3DCount = DiagGeometryModel3DCount;
 
             return fallbackBatch;
         }
@@ -795,6 +1075,117 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             return _statusAlpha.HasValue
                 ? Color.FromArgb(_statusAlpha.Value, color.R, color.G, color.B)
                 : color;
+        }
+
+        // --- Helper methods for Real Mesh Batching (Phase 2.2A) ---
+        private readonly record struct RenderBatchKey(Color Color, LiftStatus? Status, string Material, string Type);
+
+        private static Matrix3D CreateInstanceWpfMatrix(XbimMatrix3D matrix, double oneMeter, DomainPoint3D origin, DomainPoint3D placementOffset)
+        {
+            var scale = 1.0 / oneMeter;
+            return new Matrix3D(
+                matrix.M11, matrix.M12, matrix.M13, matrix.M14,
+                matrix.M21, matrix.M22, matrix.M23, matrix.M24,
+                matrix.M31, matrix.M32, matrix.M33, matrix.M34,
+                matrix.OffsetX * scale - origin.X + placementOffset.X,
+                matrix.OffsetY * scale - origin.Y + placementOffset.Y,
+                matrix.OffsetZ * scale - origin.Z + placementOffset.Z,
+                matrix.M44);
+        }
+
+        private static void ConcatenateMesh(
+            Point3DCollection targetPos,
+            Vector3DCollection targetNorms,
+            Int32Collection targetIndices,
+            MediaMeshGeometry3D source,
+            Matrix3D transform)
+        {
+            int indexOffset = targetPos.Count;
+
+            if (transform.IsIdentity)
+            {
+                foreach (var pos in source.Positions)
+                {
+                    targetPos.Add(pos);
+                }
+            }
+            else
+            {
+                foreach (var pos in source.Positions)
+                {
+                    targetPos.Add(transform.Transform(pos));
+                }
+            }
+
+            if (source.Normals != null && source.Normals.Count > 0)
+            {
+                if (transform.IsIdentity)
+                {
+                    foreach (var norm in source.Normals)
+                    {
+                        targetNorms.Add(norm);
+                    }
+                }
+                else
+                {
+                    foreach (var norm in source.Normals)
+                    {
+                        var transNorm = transform.Transform(norm);
+                        transNorm.Normalize();
+                        targetNorms.Add(transNorm);
+                    }
+                }
+            }
+
+            foreach (int index in source.TriangleIndices)
+            {
+                targetIndices.Add(indexOffset + index);
+            }
+        }
+
+        private ModelVisual3D CreateTransparentHitBox(PrecastElement element, DomainPoint3D origin, DomainPoint3D placementOffset)
+        {
+            var color = Color.FromArgb(1, 0, 0, 0); // Transparent, but hit-testable
+            var meshBuilder = new MeshBuilder(true, true);
+            var x = element.ElementCOG.X - origin.X;
+            var y = element.ElementCOG.Y - origin.Y;
+            var z = element.ElementCOG.Z - origin.Z;
+            meshBuilder.AddBox(
+                new Vector3((float)x, (float)y, (float)z),
+                (float)(element.BBoxLength ?? 1),
+                (float)(element.BBoxWidth ?? 1),
+                (float)(element.BBoxHeight ?? 1));
+                
+            var helixMesh = meshBuilder.ToMesh();
+            var meshGeom = new System.Windows.Media.Media3D.MeshGeometry3D
+            {
+                Positions = new Point3DCollection(helixMesh.Positions.Select(p => new Point3D(p.X, p.Y, p.Z))),
+                TriangleIndices = new Int32Collection(helixMesh.TriangleIndices),
+                Normals = helixMesh.Normals == null
+                    ? new Vector3DCollection()
+                    : new Vector3DCollection(helixMesh.Normals.Select(n => new Vector3D(n.X, n.Y, n.Z)))
+            };
+            meshGeom.Freeze();
+
+            var transparentBrush = new SolidColorBrush(color);
+            transparentBrush.Freeze();
+            var material = new DiffuseMaterial(transparentBrush);
+            material.Freeze();
+
+            var group = new Model3DGroup();
+            var geoModel = new GeometryModel3D
+            {
+                Geometry = meshGeom,
+                Material = material,
+                BackMaterial = material
+            };
+            geoModel.Freeze();
+            group.Children.Add(geoModel);
+            group.Freeze();
+
+            var ev = new ModelVisual3D { Content = group };
+            ev.SetValue(System.Windows.FrameworkElement.TagProperty, element);
+            return ev;
         }
     }
 }

@@ -19,6 +19,12 @@ namespace CraneOptimizer.Domain.Diagnostics
         public int MaterialCreatedCount { get; set; }
         public int FallbackBoxCount { get; set; }
         public int RealMeshElementCount { get; set; }
+        public int BatchedGroupCount { get; set; }
+        public int BatchedElementCount { get; set; }
+        public int HitTestBoxCount { get; set; }
+        public int RenderGeometryModel3DCount { get; set; }
+        public int HitTestGeometryModel3DCount { get; set; }
+        public int TotalGeometryModel3DCount { get; set; }
         public double RenderDurationMs { get; set; }
         public double ReRenderDurationMs { get; set; }
         public double MemoryBeforeRenderMB { get; set; }
