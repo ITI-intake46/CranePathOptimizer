@@ -68,7 +68,7 @@ namespace CraneOptimizer.Application.Tests
             double MemoryAfterMB,
             double MemoryDeltaMB);
 
-        [Fact]
+        [Fact(Skip = "Exempt from standard test runs to prevent heavy local-file benchmarks unless explicitly intended.")]
         public void ExecuteBenchmarkSuite()
         {
             RunOnSta(() =>

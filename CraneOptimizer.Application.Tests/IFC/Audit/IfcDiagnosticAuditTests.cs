@@ -734,89 +734,102 @@ namespace CraneOptimizer.Application.Tests
             var auditService = new IfcDiagnosticAuditService();
             var resolver = new IfcExporterProfileResolver();
             var normalizer = new IfcNormalizationDecisionService(resolver);
-            var projectFolder = @"f:\06-ITI\00-Project\Main Project\CraneOptimizer";
+            var projectFolder = Path.Combine(Path.GetTempPath(), "IfcNormalizationPreviews_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(projectFolder);
 
-            foreach (var file in files)
+            try
             {
-                if (!System.IO.File.Exists(file))
+                foreach (var file in files)
                 {
-                    _output.WriteLine($"[ERROR] File not found: {file}");
-                    continue;
-                }
-
-                _output.WriteLine($"\n--- Processing File: {System.IO.Path.GetFileName(file)} ---");
-                var auditResult = await auditService.RunAuditAsync(file);
-                await auditService.GenerateReportsAsync(auditResult, projectFolder);
-
-                var previewResult = await normalizer.GenerateNormalizationPreviewAsync(auditResult);
-                string outDir = await normalizer.GeneratePreviewReportsAsync(previewResult, projectFolder);
-
-                _output.WriteLine($"Reports generated at: {outDir}");
-                _output.WriteLine($"Detected Exporter: {previewResult.ExporterApplication}");
-                _output.WriteLine($"Detected Profile: {previewResult.DetectedProfile}");
-                _output.WriteLine($"Total Raw Products: {previewResult.TotalRawProductCount}");
-                _output.WriteLine($"Normalized LiftableCount: {previewResult.NormalizedLiftableCount}");
-                _output.WriteLine($"GroupingOnlyCount: {previewResult.GroupingOnlyCount}");
-                _output.WriteLine($"LiftAssemblyCount: {previewResult.LiftAssemblyCount}");
-                _output.WriteLine($"InternalAuxiliaryCount: {previewResult.InternalAuxiliaryCount}");
-                _output.WriteLine($"ExcludedCount: {previewResult.ExcludedCount}");
-                _output.WriteLine($"NeedsReviewCount: {previewResult.NeedsReviewCount}");
-                _output.WriteLine($"VisibleRenderGeometryCount: {previewResult.VisibleRenderGeometryCount}");
-                _output.WriteLine($"HiddenInternalGeometryCount: {previewResult.HiddenInternalGeometryCount}");
-                _output.WriteLine($"BlockedGaMissingWeightCount: {previewResult.BlockedGaMissingWeightCount}");
-                _output.WriteLine($"BlockedGaZeroWeightCount: {previewResult.BlockedGaZeroWeightCount}");
-                _output.WriteLine($"BlockedGaFallbackWeightCount: {previewResult.BlockedGaFallbackWeightCount}");
-
-                // Count assembly decisions
-                int singleChildWrapper = 0;
-                int revitBeamSystem = 0;
-                int teklaWelded = 0;
-                int genericGrouping = 0;
-                int unknownNeedsReview = 0;
-
-                foreach (var el in previewResult.Elements)
-                {
-                    switch (el.AssemblyDecision)
+                    if (!System.IO.File.Exists(file))
                     {
-                        case IfcAssemblyDecision.SingleChildWrapper:
-                            singleChildWrapper++;
-                            break;
-                        case IfcAssemblyDecision.RevitStructuralBeamSystemGrouping:
-                            revitBeamSystem++;
-                            break;
-                        case IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly:
-                            teklaWelded++;
-                            break;
-                        case IfcAssemblyDecision.GenericGroupingAssembly:
-                            genericGrouping++;
-                            break;
-                        case IfcAssemblyDecision.UnknownNeedsReview:
-                            unknownNeedsReview++;
-                            break;
+                        _output.WriteLine($"[ERROR] File not found: {file}");
+                        continue;
+                    }
+
+                    _output.WriteLine($"\n--- Processing File: {System.IO.Path.GetFileName(file)} ---");
+                    var auditResult = await auditService.RunAuditAsync(file);
+                    await auditService.GenerateReportsAsync(auditResult, projectFolder);
+
+                    var previewResult = await normalizer.GenerateNormalizationPreviewAsync(auditResult);
+                    string outDir = await normalizer.GeneratePreviewReportsAsync(previewResult, projectFolder);
+
+                    _output.WriteLine($"Reports generated at: {outDir}");
+                    _output.WriteLine($"Detected Exporter: {previewResult.ExporterApplication}");
+                    _output.WriteLine($"Detected Profile: {previewResult.DetectedProfile}");
+                    _output.WriteLine($"Total Raw Products: {previewResult.TotalRawProductCount}");
+                    _output.WriteLine($"Normalized LiftableCount: {previewResult.NormalizedLiftableCount}");
+                    _output.WriteLine($"GroupingOnlyCount: {previewResult.GroupingOnlyCount}");
+                    _output.WriteLine($"LiftAssemblyCount: {previewResult.LiftAssemblyCount}");
+                    _output.WriteLine($"InternalAuxiliaryCount: {previewResult.InternalAuxiliaryCount}");
+                    _output.WriteLine($"ExcludedCount: {previewResult.ExcludedCount}");
+                    _output.WriteLine($"NeedsReviewCount: {previewResult.NeedsReviewCount}");
+                    _output.WriteLine($"VisibleRenderGeometryCount: {previewResult.VisibleRenderGeometryCount}");
+                    _output.WriteLine($"HiddenInternalGeometryCount: {previewResult.HiddenInternalGeometryCount}");
+                    _output.WriteLine($"BlockedGaMissingWeightCount: {previewResult.BlockedGaMissingWeightCount}");
+                    _output.WriteLine($"BlockedGaZeroWeightCount: {previewResult.BlockedGaZeroWeightCount}");
+                    _output.WriteLine($"BlockedGaFallbackWeightCount: {previewResult.BlockedGaFallbackWeightCount}");
+
+                    // Count assembly decisions
+                    int singleChildWrapper = 0;
+                    int revitBeamSystem = 0;
+                    int teklaWelded = 0;
+                    int genericGrouping = 0;
+                    int unknownNeedsReview = 0;
+
+                    foreach (var el in previewResult.Elements)
+                    {
+                        switch (el.AssemblyDecision)
+                        {
+                            case IfcAssemblyDecision.SingleChildWrapper:
+                                singleChildWrapper++;
+                                break;
+                            case IfcAssemblyDecision.RevitStructuralBeamSystemGrouping:
+                                revitBeamSystem++;
+                                break;
+                            case IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly:
+                                teklaWelded++;
+                                break;
+                            case IfcAssemblyDecision.GenericGroupingAssembly:
+                                genericGrouping++;
+                                break;
+                            case IfcAssemblyDecision.UnknownNeedsReview:
+                                unknownNeedsReview++;
+                                break;
+                        }
+                    }
+
+                    _output.WriteLine($"Assembly Decision Counts:");
+                    _output.WriteLine($"  SingleChildWrapper: {singleChildWrapper}");
+                    _output.WriteLine($"  RevitStructuralBeamSystemGrouping: {revitBeamSystem}");
+                    _output.WriteLine($"  TeklaCastUnitOrWeldedLiftAssembly: {teklaWelded}");
+                    _output.WriteLine($"  GenericGroupingAssembly: {genericGrouping}");
+                    _output.WriteLine($"  UnknownNeedsReview: {unknownNeedsReview}");
+
+                    // Count weight trust levels
+                    var trustCounts = new Dictionary<IfcWeightTrustLevel, int>();
+                    foreach (var el in previewResult.Elements)
+                    {
+                        if (!trustCounts.ContainsKey(el.WeightTrustLevel))
+                            trustCounts[el.WeightTrustLevel] = 0;
+                        trustCounts[el.WeightTrustLevel]++;
+                    }
+
+                    _output.WriteLine($"Weight Trust Level Counts:");
+                    foreach (var kv in trustCounts)
+                    {
+                        _output.WriteLine($"  {kv.Key}: {kv.Value}");
                     }
                 }
-
-                _output.WriteLine($"Assembly Decision Counts:");
-                _output.WriteLine($"  SingleChildWrapper: {singleChildWrapper}");
-                _output.WriteLine($"  RevitStructuralBeamSystemGrouping: {revitBeamSystem}");
-                _output.WriteLine($"  TeklaCastUnitOrWeldedLiftAssembly: {teklaWelded}");
-                _output.WriteLine($"  GenericGroupingAssembly: {genericGrouping}");
-                _output.WriteLine($"  UnknownNeedsReview: {unknownNeedsReview}");
-
-                // Count weight trust levels
-                var trustCounts = new Dictionary<IfcWeightTrustLevel, int>();
-                foreach (var el in previewResult.Elements)
+            }
+            finally
+            {
+                try
                 {
-                    if (!trustCounts.ContainsKey(el.WeightTrustLevel))
-                        trustCounts[el.WeightTrustLevel] = 0;
-                    trustCounts[el.WeightTrustLevel]++;
+                    if (Directory.Exists(projectFolder))
+                        Directory.Delete(projectFolder, recursive: true);
                 }
-
-                _output.WriteLine($"Weight Trust Level Counts:");
-                foreach (var kv in trustCounts)
-                {
-                    _output.WriteLine($"  {kv.Key}: {kv.Value}");
-                }
+                catch { }
             }
         }
 

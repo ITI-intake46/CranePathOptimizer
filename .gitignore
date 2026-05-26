@@ -31,3 +31,7 @@ Thumbs.db
 *.txt
 *.md
 *.csv
+
+# IFC Diagnostic reports
+Reports/
+**/Reports/
