@@ -30,6 +30,17 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels
             ToggleMasterCommand     = new RelayCommand(ToggleMaster);
             ResetToDefaultsCommand  = new RelayCommand(ResetToDefaults);
             SaveSettingsCommand     = new RelayCommand(SaveSettings);
+
+            _snapService.MasterEnabledChanged += enabled =>
+            {
+                if (_masterEnabled != enabled)
+                {
+                    _masterEnabled = enabled;
+                    OnPropertyChanged(nameof(MasterEnabled));
+                    OnPropertyChanged(nameof(OsnButtonLabel));
+                    OnPropertyChanged(nameof(IsAnySnapActive));
+                }
+            };
         }
 
         // ─── Commands ──────────────────────────────────────────────────────────

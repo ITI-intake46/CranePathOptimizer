@@ -97,6 +97,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             public Point3D Min { get; set; }
             public Point3D Max { get; set; }
             public bool IsVisible { get; set; }
+            public List<(MediaMeshGeometry3D Mesh, Matrix3D Transform)> Meshes { get; set; } = new();
         }
 
         private static readonly object MeshCacheGate = new();
@@ -265,6 +266,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
         public Visual3D BuildBatch(IEnumerable<(PrecastElement element, LiftStatus? status, bool isSelected)> items)
         {
+            var elementMeshes = new Dictionary<string, List<(MediaMeshGeometry3D Mesh, Matrix3D Transform)>>(StringComparer.OrdinalIgnoreCase);
             var allItems = items.ToList();
             DiagTotalElements += allItems.Count;
             var skipped = allItems.Count(i => !i.element.IncludeInRender);
@@ -291,6 +293,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 Debug.WriteLine(
                     $"[ElementVisualBuilder] Low quality render complete. Elements={itemsList.Count}, " +
                     $"GeometryModel3D={lowGeometryModels}, ModelVisual3D=1, MemoryAfterRender={FormatBytes(GetPrivateMemoryBytes())}");
+
+                var lowOrigin = _origin ?? new DomainPoint3D(0, 0, 0);
+                var lowSessionId = (_ifcReader as CraneOptimizer.Infrastructure.Repositories.IfcReaderRepository)?.CurrentSessionId;
+                PopulateSpatialHitTestRegistry(allItems, lowSessionId, lowOrigin, elementMeshes);
+
                 return lowVisual;
             }
 
@@ -308,35 +315,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
                 var origin = _origin ?? new DomainPoint3D(0, 0, 0);
                 var placementOffset = _placementOffset ?? new DomainPoint3D(0, 0, 0);
-
-                // Populate spatial hit-testing elements registry snapshot
-                var spatialElements = new List<SpatialHitTestElement>();
-                var renderTimestamp = DateTime.UtcNow;
-                foreach (var item in allItems)
-                {
-                    var el = item.element;
-                    var x = el.ElementCOG.X - origin.X;
-                    var y = el.ElementCOG.Y - origin.Y;
-                    var z = el.ElementCOG.Z - origin.Z;
-                    var dx = el.BBoxLength ?? 1.0;
-                    var dy = el.BBoxWidth ?? 1.0;
-                    var dz = el.BBoxHeight ?? 1.0;
-
-                    var min = new Point3D(x - dx / 2, y - dy / 2, z - dz / 2);
-                    var max = new Point3D(x + dx / 2, y + dy / 2, z + dz / 2);
-
-                    spatialElements.Add(new SpatialHitTestElement
-                    {
-                        SessionId = sessionId,
-                        RenderTimestampUtc = renderTimestamp,
-                        ElementId = el.ElementID,
-                        Element = el,
-                        Min = min,
-                        Max = max,
-                        IsVisible = el.IncludeInRender
-                    });
-                }
-                RegisterSpatialHitTestElements(spatialElements);
 
                 var selectionMaterial = CreateFrozenDiffuseMaterial(Color.FromArgb(110, 100, 180, 255));
 
@@ -398,6 +376,16 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                                 ? GetOrCreateHighQualityCachedMesh(sessionId, shapeGeom.ShapeData, si, shapeGeom, oneMeter, origin, placementOffset, out cacheReused)
                                 : GetOrCreateCachedMesh(sessionId, shapeGeom.ShapeData, oneMeter, CurrentQuality, out cacheReused);
                             if (mesh == null || mesh.Positions.Count == 0) continue;
+
+                            if (!elementMeshes.TryGetValue(gid, out var meshesList))
+                            {
+                                meshesList = new List<(MediaMeshGeometry3D, Matrix3D)>();
+                                elementMeshes[gid] = meshesList;
+                            }
+                            var matrix = CurrentQuality == MeshQuality.High
+                                ? Matrix3D.Identity
+                                : CreateInstanceWpfMatrix(si.Transformation, oneMeter, origin, placementOffset);
+                            meshesList.Add((mesh, matrix));
 
                             if (CurrentQuality == MeshQuality.High)
                             {
@@ -470,6 +458,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                         $"GeometryModel3D={geometryModelsCreated}, ModelVisual3D={modelVisualsCreated}, " +
                         $"MemoryAfterRender={FormatBytes(GetPrivateMemoryBytes())}");
 
+                    PopulateSpatialHitTestRegistry(allItems, sessionId, origin, elementMeshes);
                     return batchVisual;
                 }
                 else
@@ -546,6 +535,16 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                                 : GetOrCreateCachedMesh(sessionId, shapeGeom.ShapeData, oneMeter, CurrentQuality, out cacheReused);
                             if (mesh == null || mesh.Positions.Count == 0) continue;
 
+                            if (!elementMeshes.TryGetValue(gid, out var meshesList))
+                            {
+                                meshesList = new List<(MediaMeshGeometry3D, Matrix3D)>();
+                                elementMeshes[gid] = meshesList;
+                            }
+                            var matrix = CurrentQuality == MeshQuality.High
+                                ? Matrix3D.Identity
+                                : CreateInstanceWpfMatrix(si.Transformation, oneMeter, origin, placementOffset);
+                            meshesList.Add((mesh, matrix));
+
                             if (CurrentQuality == MeshQuality.High)
                             {
                                 if (cacheReused)
@@ -617,6 +616,16 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                                 ? GetOrCreateHighQualityCachedMesh(sessionId, shapeGeom.ShapeData, si, shapeGeom, oneMeter, origin, placementOffset, out cacheReused)
                                 : GetOrCreateCachedMesh(sessionId, shapeGeom.ShapeData, oneMeter, CurrentQuality, out cacheReused);
                             if (localMesh == null || localMesh.Positions.Count == 0) continue;
+
+                            if (!elementMeshes.TryGetValue(gid, out var meshesList))
+                            {
+                                meshesList = new List<(MediaMeshGeometry3D, Matrix3D)>();
+                                elementMeshes[gid] = meshesList;
+                            }
+                            var matrix = CurrentQuality == MeshQuality.High
+                                ? Matrix3D.Identity
+                                : CreateInstanceWpfMatrix(si.Transformation, oneMeter, origin, placementOffset);
+                            meshesList.Add((localMesh, matrix));
 
                             if (CurrentQuality == MeshQuality.High)
                             {
@@ -739,6 +748,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                         $"CachedMeshesReused={meshesReused}, CacheSize={MeshCacheCount}, " +
                         $"TotalModelVisuals={modelVisualsCreated}, MemoryAfterRender={FormatBytes(GetPrivateMemoryBytes())}");
 
+                    PopulateSpatialHitTestRegistry(allItems, sessionId, origin, elementMeshes);
                     return batchVisual;
                 }
             }
@@ -751,6 +761,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             DiagRenderGeometryModel3DCount = DiagGeometryModel3DCount;
             DiagHitTestGeometryModel3DCount = 0;
             DiagTotalGeometryModel3DCount = DiagGeometryModel3DCount;
+
+            var fallbackOrigin = _origin ?? new DomainPoint3D(0, 0, 0);
+            var fallbackSessionId = (_ifcReader as CraneOptimizer.Infrastructure.Repositories.IfcReaderRepository)?.CurrentSessionId;
+            PopulateSpatialHitTestRegistry(allItems, fallbackSessionId, fallbackOrigin, null);
 
             return fallbackBatch;
         }
@@ -1452,6 +1466,48 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             var ev = new ModelVisual3D { Content = group };
             ev.SetValue(System.Windows.FrameworkElement.TagProperty, element);
             return ev;
+        }
+
+        private static void PopulateSpatialHitTestRegistry(
+            List<(PrecastElement element, LiftStatus? status, bool isSelected)> allItems,
+            Guid? sessionId,
+            DomainPoint3D origin,
+            Dictionary<string, List<(MediaMeshGeometry3D Mesh, Matrix3D Transform)>>? elementMeshes)
+        {
+            var spatialElements = new List<SpatialHitTestElement>();
+            var renderTimestamp = DateTime.UtcNow;
+            foreach (var item in allItems)
+            {
+                var el = item.element;
+                var x = el.ElementCOG.X - origin.X;
+                var y = el.ElementCOG.Y - origin.Y;
+                var z = el.ElementCOG.Z - origin.Z;
+                var dx = el.BBoxLength ?? 1.0;
+                var dy = el.BBoxWidth ?? 1.0;
+                var dz = el.BBoxHeight ?? 1.0;
+
+                var min = new Point3D(x - dx / 2, y - dy / 2, z - dz / 2);
+                var max = new Point3D(x + dx / 2, y + dy / 2, z + dz / 2);
+
+                var hitElement = new SpatialHitTestElement
+                {
+                    SessionId = sessionId,
+                    RenderTimestampUtc = renderTimestamp,
+                    ElementId = el.ElementID,
+                    Element = el,
+                    Min = min,
+                    Max = max,
+                    IsVisible = el.IncludeInRender
+                };
+
+                if (elementMeshes != null && elementMeshes.TryGetValue(el.ElementID, out var meshes))
+                {
+                    hitElement.Meshes.AddRange(meshes);
+                }
+
+                spatialElements.Add(hitElement);
+            }
+            RegisterSpatialHitTestElements(spatialElements);
         }
     }
 }

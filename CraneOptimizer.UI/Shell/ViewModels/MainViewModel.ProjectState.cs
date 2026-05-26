@@ -1,4 +1,6 @@
 using CraneOptimizer.Domain.Common;
+using Microsoft.Extensions.DependencyInjection;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
@@ -137,6 +139,10 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         private async Task RestoreProjectStateAsync(ProjectStateSnapshot state)
         {
+            // Always disable Object Snap by default when restoring/opening projects
+            var osnap = App.ServiceProvider?.GetService<IOsnapService>();
+            osnap?.SetMasterEnabled(false);
+
             Scene.ClearZones();
             Scene.ClearCranes();
 

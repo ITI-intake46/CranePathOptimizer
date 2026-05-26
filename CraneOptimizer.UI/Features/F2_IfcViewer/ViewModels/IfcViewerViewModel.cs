@@ -1,4 +1,6 @@
 using CraneOptimizer.Domain.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
@@ -126,6 +128,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         {
             try
             {
+                var osnap = App.ServiceProvider?.GetService<IOsnapService>();
+                osnap?.SetMasterEnabled(false);
+
                 IsLoading = true;
                 Progress = 0;
                 Status = "Selecting file...";
@@ -244,6 +249,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
             try
             {
+                var osnap = App.ServiceProvider?.GetService<IOsnapService>();
+                osnap?.SetMasterEnabled(false);
+
                 IsLoading = true;
                 Progress = 0;
                 Status = "Restoring IFC...";

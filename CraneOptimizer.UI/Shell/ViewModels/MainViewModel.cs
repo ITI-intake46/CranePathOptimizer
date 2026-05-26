@@ -1,4 +1,6 @@
 using CraneOptimizer.Domain.Common;
+using Microsoft.Extensions.DependencyInjection;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
@@ -439,6 +441,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         public void OpenProject(Guid projectId, string projectName, string? ifcFilePath)
         {
+            var osnap = App.ServiceProvider?.GetService<IOsnapService>();
+            osnap?.SetMasterEnabled(false);
+
             CurrentProjectId = projectId;
             CurrentProjectName = projectName;
             CurrentProjectIfcPath = ifcFilePath;
@@ -448,6 +453,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         public void OpenProject(ProjectSession session)
         {
+            var osnap = App.ServiceProvider?.GetService<IOsnapService>();
+            osnap?.SetMasterEnabled(false);
+
             _currentProjectSession = session;
             CurrentProjectId = session.ProjectId;
             CurrentProjectName = session.ProjectName;
