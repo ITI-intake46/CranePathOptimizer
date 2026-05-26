@@ -334,13 +334,63 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     return false;
                 }
 
-                var placedElements = _ifcSceneOperations.TranslateElements(
-                    elements,
-                    new DomainPoint3D(insertionOffset.X, insertionOffset.Y, insertionOffset.Z));
+                var beforeFirstCOG = elements.FirstOrDefault()?.ElementCOG;
+
+                // DIAGNOSTIC DETECTION FOR DOUBLE-TRANSLATION CORRUPTION IN LEGACY PROJECTS
+                var firstEl = elements.FirstOrDefault();
+                if (firstEl != null && usedCache)
+                {
+                    double dx = insertionOffset.X;
+                    double dy = insertionOffset.Y;
+                    double dz = insertionOffset.Z;
+                    double offsetLen = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+                    if (offsetLen > 10.0)
+                    {
+                        var cog = firstEl.ElementCOG;
+                        double distToSingle = Math.Sqrt(
+                            Math.Pow(cog.X - dx, 2) +
+                            Math.Pow(cog.Y - dy, 2) +
+                            Math.Pow(cog.Z - dz, 2));
+                        double distToDouble = Math.Sqrt(
+                            Math.Pow(cog.X - 2 * dx, 2) +
+                            Math.Pow(cog.Y - 2 * dy, 2) +
+                            Math.Pow(cog.Z - 2 * dz, 2));
+
+                        if (distToDouble < distToSingle && distToDouble < offsetLen * 0.5)
+                        {
+                            Debug.WriteLine("[IfcRestore Diagnosis] WARNING: Legacy double-translated coordinates detected in saved project state! The stored coordinates in the project file/DB appear to have been corrupted by double-translation. To avoid silently corrupting further, they are restored without translation, but visual alignment might require repositioning the IFC model.");
+                        }
+                    }
+                }
+
+                List<PrecastElement> placedElements;
+                if (usedCache)
+                {
+                    // Cached elements already have the insertion offset baked in from user placement.
+                    // Do NOT translate them again!
+                    placedElements = elements;
+                }
+                else
+                {
+                    // Full extraction requires applying the insertion offset once.
+                    placedElements = _ifcSceneOperations.TranslateElements(
+                        elements,
+                        new DomainPoint3D(insertionOffset.X, insertionOffset.Y, insertionOffset.Z));
+                }
+
+                var afterFirstCOG = placedElements.FirstOrDefault()?.ElementCOG;
 
                 _ifcSceneOperations.ReplaceIfcModel(placedElements);
                 LoadedIfcFilePath = filePath;
                 PendingPlacementPoint = insertionOffset;
+
+                // Log [IfcRestore Diagnosis] as strictly requested in safeguards
+                Debug.WriteLine($"[IfcRestore Diagnosis] CacheUsed: {usedCache}");
+                Debug.WriteLine($"[IfcRestore Diagnosis] Saved InsertionOffset: ({insertionOffset.X:F3}, {insertionOffset.Y:F3}, {insertionOffset.Z:F3})");
+                Debug.WriteLine($"[IfcRestore Diagnosis] First Element COG Before: {(beforeFirstCOG != null ? $"({beforeFirstCOG.X:F3}, {beforeFirstCOG.Y:F3}, {beforeFirstCOG.Z:F3})" : "null")}");
+                Debug.WriteLine($"[IfcRestore Diagnosis] First Element COG After: {(afterFirstCOG != null ? $"({afterFirstCOG.X:F3}, {afterFirstCOG.Y:F3}, {afterFirstCOG.Z:F3})" : "null")}");
+                Debug.WriteLine($"[IfcRestore Diagnosis] PendingPlacementPoint Set To: {(PendingPlacementPoint != null ? $"({PendingPlacementPoint.Value.X:F3}, {PendingPlacementPoint.Value.Y:F3}, {PendingPlacementPoint.Value.Z:F3})" : "null")}");
+
                 Progress = 100;
 
                 if (usedCache)
