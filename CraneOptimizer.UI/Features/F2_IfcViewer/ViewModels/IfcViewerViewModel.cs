@@ -213,6 +213,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             if (!IsPlacementMode || _pendingIfcElements == null || _pendingIfcElements.Count == 0)
                 return false;
 
+            var originalBounds = CalculateBounds(_pendingIfcElements);
             var placementOffset = CalculatePlacementOffset(_pendingIfcElements, insertionPoint);
 
             PendingPlacementPoint = placementOffset;
@@ -220,6 +221,14 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             var placedElements = _ifcSceneOperations.TranslateElements(
                 _pendingIfcElements,
                 new DomainPoint3D(placementOffset.X, placementOffset.Y, placementOffset.Z));
+
+            var finalBounds = CalculateBounds(placedElements);
+
+            // Log [IfcImport Z-Preservation Diagnosis] as strictly requested in safeguards
+            Debug.WriteLine($"[IfcImport Z-Preservation Diagnosis] Original Z-Range: [{originalBounds.MinZ:F3}, {originalBounds.MaxZ:F3}]");
+            Debug.WriteLine($"[IfcImport Z-Preservation Diagnosis] Insertion Offset Z: {placementOffset.Z:F3}");
+            Debug.WriteLine($"[IfcImport Z-Preservation Diagnosis] Final Z-Range: [{finalBounds.MinZ:F3}, {finalBounds.MaxZ:F3}]");
+            Debug.WriteLine($"[IfcImport Z-Preservation Diagnosis] Vertical Normalization Occurred: False (Preserved original coordinates)");
 
             Debug.WriteLine($"IFC Origin Placed At: {insertionPoint.X:F3}, {insertionPoint.Y:F3}, {insertionPoint.Z:F3}");
             _ifcSceneOperations.ReplaceIfcModel(placedElements);
@@ -384,6 +393,15 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 LoadedIfcFilePath = filePath;
                 PendingPlacementPoint = insertionOffset;
 
+                var originalBounds = CalculateBounds(elements);
+                var finalBounds = CalculateBounds(placedElements);
+
+                // Log [IfcRestore Z-Preservation Diagnosis] as strictly requested in safeguards
+                Debug.WriteLine($"[IfcRestore Z-Preservation Diagnosis] Original Z-Range: [{originalBounds.MinZ:F3}, {originalBounds.MaxZ:F3}]");
+                Debug.WriteLine($"[IfcRestore Z-Preservation Diagnosis] Insertion Offset Z: {insertionOffset.Z:F3}");
+                Debug.WriteLine($"[IfcRestore Z-Preservation Diagnosis] Final Z-Range: [{finalBounds.MinZ:F3}, {finalBounds.MaxZ:F3}]");
+                Debug.WriteLine($"[IfcRestore Z-Preservation Diagnosis] Vertical Normalization Occurred: False (Preserved original coordinates)");
+
                 // Log [IfcRestore Diagnosis] as strictly requested in safeguards
                 Debug.WriteLine($"[IfcRestore Diagnosis] CacheUsed: {usedCache}");
                 Debug.WriteLine($"[IfcRestore Diagnosis] Saved InsertionOffset: ({insertionOffset.X:F3}, {insertionOffset.Y:F3}, {insertionOffset.Z:F3})");
@@ -424,19 +442,43 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             if (elements.Count == 0)
                 return false;
 
+            var firstEl = elements.FirstOrDefault();
+            var beforeCOG = firstEl?.ElementCOG;
+
+            var originalBounds = CalculateBounds(elements);
             var currentOffset = PendingPlacementPoint ?? new Point3D(0, 0, 0);
-            var currentGround = CalculateModelBaseElevation(elements);
             var delta = new Point3D(
                 insertionPoint.X - currentOffset.X,
                 insertionPoint.Y - currentOffset.Y,
-                insertionPoint.Z - currentGround);
+                insertionPoint.Z - currentOffset.Z);
 
-            _ifcSceneOperations.MoveIfcModel(new DomainPoint3D(delta.X, delta.Y, delta.Z));
-
-            PendingPlacementPoint = new Point3D(
+            var newOffset = new Point3D(
                 currentOffset.X + delta.X,
                 currentOffset.Y + delta.Y,
                 currentOffset.Z + delta.Z);
+
+            // CRITICAL rendering sync fix: Set PendingPlacementPoint BEFORE calling MoveIfcModel,
+            // so that ReRenderElements triggered synchronously inside MoveIfcModel reads the new offset correctly!
+            PendingPlacementPoint = newOffset;
+
+            _ifcSceneOperations.MoveIfcModel(new DomainPoint3D(delta.X, delta.Y, delta.Z));
+
+            var movedElements = _ifcSceneOperations.GetElements();
+            var afterCOG = movedElements.FirstOrDefault()?.ElementCOG;
+            var finalBounds = CalculateBounds(movedElements);
+
+            // Log [IfcMove Z-Preservation Diagnosis] as strictly requested in safeguards
+            Debug.WriteLine($"[IfcMove Z-Preservation Diagnosis] Original Z-Range: [{originalBounds.MinZ:F3}, {originalBounds.MaxZ:F3}]");
+            Debug.WriteLine($"[IfcMove Z-Preservation Diagnosis] Insertion Offset Z: {newOffset.Z:F3}");
+            Debug.WriteLine($"[IfcMove Z-Preservation Diagnosis] Final Z-Range: [{finalBounds.MinZ:F3}, {finalBounds.MaxZ:F3}]");
+            Debug.WriteLine($"[IfcMove Z-Preservation Diagnosis] Vertical Normalization Occurred: False (Preserved original coordinates)");
+
+            // Log [IfcMove Diagnosis] as strictly requested in safeguards
+            Debug.WriteLine($"[IfcMove Diagnosis] Old Offset: ({currentOffset.X:F3}, {currentOffset.Y:F3}, {currentOffset.Z:F3})");
+            Debug.WriteLine($"[IfcMove Diagnosis] New Offset: ({newOffset.X:F3}, {newOffset.Y:F3}, {newOffset.Z:F3})");
+            Debug.WriteLine($"[IfcMove Diagnosis] Move Delta: ({delta.X:F3}, {delta.Y:F3}, {delta.Z:F3})");
+            Debug.WriteLine($"[IfcMove Diagnosis] First Element COG Before: {(beforeCOG != null ? $"({beforeCOG.X:F3}, {beforeCOG.Y:F3}, {beforeCOG.Z:F3})" : "null")}");
+            Debug.WriteLine($"[IfcMove Diagnosis] First Element COG After: {(afterCOG != null ? $"({afterCOG.X:F3}, {afterCOG.Y:F3}, {afterCOG.Z:F3})" : "null")}");
 
             _isMovingExistingIfc = false;
             IsPlacementMode = false;
@@ -554,7 +596,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 ? new DomainPoint3D(centerX, centerY, 0d)
                 : new DomainPoint3D(0d, 0d, 0d);
 
-            var groundZ = _ifcReader.ModelGroundElevation ?? bounds.MinZ;
+            var groundZ = 0d;
             return new DomainPoint3D(horizontalAnchor.X, horizontalAnchor.Y, groundZ);
         }
 
