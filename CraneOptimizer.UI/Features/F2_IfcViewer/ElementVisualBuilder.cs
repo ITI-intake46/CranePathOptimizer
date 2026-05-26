@@ -98,6 +98,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             public Point3D Max { get; set; }
             public bool IsVisible { get; set; }
             public List<(MediaMeshGeometry3D Mesh, Matrix3D Transform)> Meshes { get; set; } = new();
+
+            // Phase 2.4.2 diagnostics: AABB derivation source tracking
+            public bool UsedMeshDerivedBounds { get; set; }
+            public Point3D CogBasedMin { get; set; }
+            public Point3D CogBasedMax { get; set; }
         }
 
         private static readonly object MeshCacheGate = new();
@@ -1476,18 +1481,103 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         {
             var spatialElements = new List<SpatialHitTestElement>();
             var renderTimestamp = DateTime.UtcNow;
+            int meshDerivedCount = 0;
+            int cogFallbackCount = 0;
+
             foreach (var item in allItems)
             {
                 var el = item.element;
-                var x = el.ElementCOG.X - origin.X;
-                var y = el.ElementCOG.Y - origin.Y;
-                var z = el.ElementCOG.Z - origin.Z;
+
+                // Always compute the COG-based AABB for diagnostics comparison
+                var cogX = el.ElementCOG.X - origin.X;
+                var cogY = el.ElementCOG.Y - origin.Y;
+                var cogZ = el.ElementCOG.Z - origin.Z;
                 var dx = el.BBoxLength ?? 1.0;
                 var dy = el.BBoxWidth ?? 1.0;
                 var dz = el.BBoxHeight ?? 1.0;
+                var cogMin = new Point3D(cogX - dx / 2, cogY - dy / 2, cogZ - dz / 2);
+                var cogMax = new Point3D(cogX + dx / 2, cogY + dy / 2, cogZ + dz / 2);
 
-                var min = new Point3D(x - dx / 2, y - dy / 2, z - dz / 2);
-                var max = new Point3D(x + dx / 2, y + dy / 2, z + dz / 2);
+                Point3D min;
+                Point3D max;
+                bool usedMeshDerived = false;
+
+                // Try to compute AABB from actual rendered mesh vertex data
+                if (elementMeshes != null
+                    && elementMeshes.TryGetValue(el.ElementID, out var meshes)
+                    && meshes.Count > 0)
+                {
+                    double minX = double.MaxValue, minY = double.MaxValue, minZ = double.MaxValue;
+                    double maxX = double.MinValue, maxY = double.MinValue, maxZ = double.MinValue;
+                    int totalVerts = 0;
+
+                    foreach (var (mesh, transform) in meshes)
+                    {
+                        var positions = mesh.Positions;
+                        if (positions == null || positions.Count == 0) continue;
+
+                        if (transform.IsIdentity)
+                        {
+                            foreach (var pos in positions)
+                            {
+                                if (pos.X < minX) minX = pos.X;
+                                if (pos.Y < minY) minY = pos.Y;
+                                if (pos.Z < minZ) minZ = pos.Z;
+                                if (pos.X > maxX) maxX = pos.X;
+                                if (pos.Y > maxY) maxY = pos.Y;
+                                if (pos.Z > maxZ) maxZ = pos.Z;
+                                totalVerts++;
+                            }
+                        }
+                        else
+                        {
+                            foreach (var pos in positions)
+                            {
+                                var worldPos = transform.Transform(pos);
+                                if (worldPos.X < minX) minX = worldPos.X;
+                                if (worldPos.Y < minY) minY = worldPos.Y;
+                                if (worldPos.Z < minZ) minZ = worldPos.Z;
+                                if (worldPos.X > maxX) maxX = worldPos.X;
+                                if (worldPos.Y > maxY) maxY = worldPos.Y;
+                                if (worldPos.Z > maxZ) maxZ = worldPos.Z;
+                                totalVerts++;
+                            }
+                        }
+                    }
+
+                    if (totalVerts > 0)
+                    {
+                        min = new Point3D(minX, minY, minZ);
+                        max = new Point3D(maxX, maxY, maxZ);
+                        usedMeshDerived = true;
+                        meshDerivedCount++;
+                    }
+                    else
+                    {
+                        min = cogMin;
+                        max = cogMax;
+                        cogFallbackCount++;
+                    }
+                }
+                else
+                {
+                    // Fallback to domain-level COG + BBox
+                    min = cogMin;
+                    max = cogMax;
+                    cogFallbackCount++;
+                }
+
+                // Add AABB diagnostic logging (ElementID, COG AABB, mesh AABB, delta, source)
+                var cogCenter = new Point3D((cogMin.X + cogMax.X) / 2.0, (cogMin.Y + cogMax.Y) / 2.0, (cogMin.Z + cogMax.Z) / 2.0);
+                var meshCenter = new Point3D((min.X + max.X) / 2.0, (min.Y + max.Y) / 2.0, (min.Z + max.Z) / 2.0);
+                var delta = usedMeshDerived ? (meshCenter - cogCenter).Length : 0.0;
+
+                if (usedMeshDerived && delta > 0.05)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[AABB Diagnostic] ElementID={el.ElementID}, Source=Mesh, " +
+                        $"COG AABB=[{cogMin} to {cogMax}], Mesh AABB=[{min} to {max}], Delta={delta:F4}");
+                }
 
                 var hitElement = new SpatialHitTestElement
                 {
@@ -1497,16 +1587,24 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                     Element = el,
                     Min = min,
                     Max = max,
-                    IsVisible = el.IncludeInRender
+                    IsVisible = el.IncludeInRender,
+                    UsedMeshDerivedBounds = usedMeshDerived,
+                    CogBasedMin = cogMin,
+                    CogBasedMax = cogMax
                 };
 
-                if (elementMeshes != null && elementMeshes.TryGetValue(el.ElementID, out var meshes))
+                if (elementMeshes != null && elementMeshes.TryGetValue(el.ElementID, out var meshesRef))
                 {
-                    hitElement.Meshes.AddRange(meshes);
+                    hitElement.Meshes.AddRange(meshesRef);
                 }
 
                 spatialElements.Add(hitElement);
             }
+
+            Debug.WriteLine(
+                $"[ElementVisualBuilder] SpatialHitTest registry populated: Total={spatialElements.Count}, " +
+                $"MeshDerived={meshDerivedCount}, CogFallback={cogFallbackCount}");
+
             RegisterSpatialHitTestElements(spatialElements);
         }
     }

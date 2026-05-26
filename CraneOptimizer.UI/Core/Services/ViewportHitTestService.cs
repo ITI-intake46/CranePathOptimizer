@@ -103,6 +103,12 @@ namespace CraneOptimizer.UI.Core.Services
         public static int NarrowPhaseTestsCount { get; set; }
         public static bool NarrowPhaseTimedOut { get; set; }
 
+        // Phase 2.4.2 diagnostics: mesh-derived AABB tracking
+        public static int BroadPhaseCandidateCount { get; set; }
+        public static int MeshDerivedAABBCount { get; set; }
+        public static int CogFallbackAABBCount { get; set; }
+        public static bool PickedUsedMeshDerivedBounds { get; set; }
+
         public static void ResetDiagnostics()
         {
             SpatialHitTestCandidateCount = 0;
@@ -116,6 +122,11 @@ namespace CraneOptimizer.UI.Core.Services
             BroadPhaseDurationMs = 0;
             NarrowPhaseTestsCount = 0;
             NarrowPhaseTimedOut = false;
+
+            BroadPhaseCandidateCount = 0;
+            MeshDerivedAABBCount = 0;
+            CogFallbackAABBCount = 0;
+            PickedUsedMeshDerivedBounds = false;
         }
 
         private static bool RayIntersectsAABB(Point3D rayOrigin, Vector3D rayDir, Point3D min, Point3D max, out double tNear)
@@ -238,11 +249,12 @@ namespace CraneOptimizer.UI.Core.Services
 
             var volume = (el.BBoxLength ?? 1.0) * (el.BBoxWidth ?? 1.0) * (el.BBoxHeight ?? 1.0);
 
-            // Lower score is better.
+            // Lower score is better. Volume penalty increased in Phase 2.4.2 from 0.001 to 0.05
+            // to prevent large slabs/walls from dominating smaller clicked elements.
             double score = tNear * 1.0 
                            + rayToCenterDistance * 2.0 
                            + Math.Max(0, projectedLength) * 0.1
-                           + volume * 0.001;
+                           + volume * 0.05;
 
             return score;
         }
@@ -268,6 +280,8 @@ namespace CraneOptimizer.UI.Core.Services
                             dir.Normalize();
                             var candidates = ElementVisualBuilder.GetSpatialHitTestElements();
                             SpatialHitTestCandidateCount = candidates.Count;
+                            MeshDerivedAABBCount = candidates.Count(c => c.UsedMeshDerivedBounds);
+                            CogFallbackAABBCount = candidates.Count(c => !c.UsedMeshDerivedBounds);
 
                             // Broad-phase: AABB raycasts
                             var intersectedCandidates = new List<(ElementVisualBuilder.SpatialHitTestElement Candidate, double TNear)>();
@@ -284,6 +298,9 @@ namespace CraneOptimizer.UI.Core.Services
 
                             broadSw.Stop();
                             BroadPhaseDurationMs = broadSw.Elapsed.TotalMilliseconds;
+                            BroadPhaseCandidateCount = intersectedCandidates.Count;
+
+                            System.Diagnostics.Debug.WriteLine($"[ViewportHitTestService] Broad-phase: Selected {intersectedCandidates.Count} intersected candidates out of {candidates.Count} total. MeshDerived count: {MeshDerivedAABBCount}, CogFallback count: {CogFallbackAABBCount}.");
 
                             if (intersectedCandidates.Count > 0)
                             {
@@ -351,6 +368,8 @@ namespace CraneOptimizer.UI.Core.Services
 
                                     if (bestTriangleElement != null)
                                     {
+                                        var pickedCandidate = narrowCandidates.FirstOrDefault(c => c.Candidate.Element == bestTriangleElement).Candidate;
+                                        PickedUsedMeshDerivedBounds = pickedCandidate?.UsedMeshDerivedBounds ?? false;
                                         sw.Stop();
                                         SpatialHitTestDurationMs = sw.Elapsed.TotalMilliseconds;
                                         PickedElementId = bestTriangleElement.ElementID;
@@ -375,6 +394,8 @@ namespace CraneOptimizer.UI.Core.Services
 
                                 if (bestFallbackElement != null)
                                 {
+                                    var pickedCandidate = candidates.FirstOrDefault(c => c.Element == bestFallbackElement);
+                                    PickedUsedMeshDerivedBounds = pickedCandidate?.UsedMeshDerivedBounds ?? false;
                                     sw.Stop();
                                     SpatialHitTestDurationMs = sw.Elapsed.TotalMilliseconds;
                                     PickedElementId = bestFallbackElement.ElementID;
