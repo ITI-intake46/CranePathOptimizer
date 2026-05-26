@@ -34,6 +34,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private readonly OsnapPanelViewModel _osnapVm = null!;
         private readonly OsnapGeometryBridge _osnapBridge = null!;
         private readonly IUnitSettingsService _unitSettingsService = null!;
+        private readonly IViewportSelectionService _viewportSelectionService = null!;
         private Window? _ownerWindow;
         private MainViewModel? _osnapDxfSource;
 
@@ -64,6 +65,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _osnapVm = App.ServiceProvider.GetRequiredService<OsnapPanelViewModel>();
             _osnapBridge = App.ServiceProvider.GetRequiredService<OsnapGeometryBridge>();
             _unitSettingsService = App.ServiceProvider.GetRequiredService<IUnitSettingsService>();
+            _viewportSelectionService = App.ServiceProvider.GetRequiredService<IViewportSelectionService>();
 
             OsnapPanel.DataContext = _osnapVm;
             _osnapIndicator = new OsnapIndicator(OsnapOverlayCanvas);
@@ -97,6 +99,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 _interactionService.ResetToDefaultMode(new DefaultSelectionMode(
                     vm,
                     _hitTestService,
+                    _viewportSelectionService,
                     () => _cameraService.UpdateClipping(_sceneService.GetElements())));
                 vm.Dxf.Initialize(IfcViewer);
                 AttachDxfSnapBridge(vm);

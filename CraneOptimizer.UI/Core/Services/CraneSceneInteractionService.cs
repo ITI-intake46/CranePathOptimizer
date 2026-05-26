@@ -11,17 +11,28 @@ namespace CraneOptimizer.UI.Core.Services
         private readonly ICoordinateTransformService _coordinateTransform;
         private readonly ICraneValidationService _craneValidation;
         private readonly IStatusService _status;
+        private readonly IViewportSelectionService _viewportSelection;
 
         public CraneSceneInteractionService(
             ISceneService scene,
             ICoordinateTransformService coordinateTransform,
             ICraneValidationService craneValidation,
-            IStatusService status)
+            IStatusService status,
+            IViewportSelectionService viewportSelection)
         {
             _scene = scene;
             _coordinateTransform = coordinateTransform;
             _craneValidation = craneValidation;
             _status = status;
+            _viewportSelection = viewportSelection;
+
+            _scene.CraneSelected += OnSceneCraneSelected;
+        }
+
+        private void OnSceneCraneSelected(SceneCrane? crane)
+        {
+            SelectedSceneCrane = crane;
+            StateChanged?.Invoke();
         }
 
         public SceneCrane? SelectedSceneCrane { get; private set; }
@@ -32,9 +43,14 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void SelectSceneCrane(SceneCrane? crane)
         {
-            SelectedSceneCrane = crane;
-            _scene.SetSelectedCrane(crane);
-            StateChanged?.Invoke();
+            if (crane == null)
+            {
+                _viewportSelection.ClearSelection();
+            }
+            else
+            {
+                _viewportSelection.Select(crane, false);
+            }
         }
 
         public void PlaceCrane(Crane crane, DomainPoint3D point)

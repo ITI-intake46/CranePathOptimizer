@@ -150,6 +150,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IOriginService, OriginService>();
             services.AddSingleton<ICraneSceneInteractionService, CraneSceneInteractionService>();
             services.AddSingleton<ISceneService>(provider => provider.GetRequiredService<SceneService>());
+            services.AddSingleton<IViewportSelectionService, ViewportSelectionService>();
             services.AddSingleton<IIfcOptionsDialogService, IfcOptionsDialogService>();
 
             // =========================

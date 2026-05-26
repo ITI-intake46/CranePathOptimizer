@@ -26,3 +26,8 @@ packages/
 # OS
 .DS_Store
 Thumbs.db
+
+# files
+*.txt
+*.md
+*.csv
