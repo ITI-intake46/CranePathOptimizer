@@ -23,6 +23,36 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
     {
         private const double MinimumBoxSize = 1d;
 
+        // ── Diagnostics counters (instance-scoped, reset per render cycle) ──
+        public int DiagTotalElements { get; private set; }
+        public int DiagVisibleElements { get; private set; }
+        public int DiagIncludeInRenderSkipped { get; private set; }
+        public int DiagShapeInstances { get; private set; }
+        public int DiagMeshesCreated { get; private set; }
+        public int DiagMeshCacheHits { get; private set; }
+        public int DiagMeshCacheMisses { get; private set; }
+        public int DiagGeometryModel3DCount { get; private set; }
+        public int DiagModelVisual3DCount { get; private set; }
+        public int DiagMaterialCreated { get; private set; }
+        public int DiagFallbackBoxCount { get; private set; }
+        public int DiagRealMeshElements { get; private set; }
+
+        public void ResetCounters()
+        {
+            DiagTotalElements = 0;
+            DiagVisibleElements = 0;
+            DiagIncludeInRenderSkipped = 0;
+            DiagShapeInstances = 0;
+            DiagMeshesCreated = 0;
+            DiagMeshCacheHits = 0;
+            DiagMeshCacheMisses = 0;
+            DiagGeometryModel3DCount = 0;
+            DiagModelVisual3DCount = 0;
+            DiagMaterialCreated = 0;
+            DiagFallbackBoxCount = 0;
+            DiagRealMeshElements = 0;
+        }
+
         public enum MeshQuality
         {
             Low,
@@ -125,16 +155,27 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
         public Visual3D Build((PrecastElement element, LiftStatus? status, bool isSelected) item)
         {
+            DiagTotalElements++;
             var container = new ModelVisual3D();
             if (!item.element.IncludeInRender)
+            {
+                DiagIncludeInRenderSkipped++;
                 return container;
+            }
+            DiagVisibleElements++;
             BuildFallbackBox(container, item.element, item.status, item.isSelected);
             return container;
         }
 
         public Visual3D BuildBatch(IEnumerable<(PrecastElement element, LiftStatus? status, bool isSelected)> items)
         {
-            var itemsList = items.Where(item => item.element.IncludeInRender).ToList();
+            var allItems = items.ToList();
+            DiagTotalElements += allItems.Count;
+            var skipped = allItems.Count(i => !i.element.IncludeInRender);
+            DiagIncludeInRenderSkipped += skipped;
+
+            var itemsList = allItems.Where(item => item.element.IncludeInRender).ToList();
+            DiagVisibleElements += itemsList.Count;
             
             // DEBUG: Verify status distribution
             int withStatus = itemsList.Count(i => i.status.HasValue);
@@ -146,6 +187,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             if (CurrentQuality == MeshQuality.Low)
             {
                 var lowVisual = BuildLargeModelBatch(itemsList, out var lowGeometryModels);
+                DiagGeometryModel3DCount += lowGeometryModels;
+                DiagModelVisual3DCount++;
                 Debug.WriteLine(
                     $"[ElementVisualBuilder] Low quality render complete. Elements={itemsList.Count}, " +
                     $"GeometryModel3D={lowGeometryModels}, ModelVisual3D=1, MemoryAfterRender={FormatBytes(GetPrivateMemoryBytes())}");
@@ -164,6 +207,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 var meshesReused = 0;
                 var geometryModelsCreated = 0;
                 var modelVisualsCreated = 1; // batch root visual
+                DiagRealMeshElements += itemsList.Count;
 
                 double oneMeter = model.ModelFactors.OneMeter;
                 if (oneMeter <= 0) oneMeter = 1000.0;
@@ -198,6 +242,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 var allInstances = context.ShapeInstances()
                     .Where(si => labelToGid.ContainsKey(si.IfcProductLabel))
                     .ToList();
+                DiagShapeInstances += allInstances.Count;
 
                 var origin = _origin ?? new DomainPoint3D(0, 0, 0);
                 var placementOffset = _placementOffset ?? new DomainPoint3D(0, 0, 0);
@@ -245,6 +290,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                         }
 
                         var material = BuildMaterial(col, isSelected, selectionMaterial);
+                        DiagMaterialCreated++;
 
                         var geoModel = new GeometryModel3D
                         {
@@ -265,6 +311,13 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                     }
                 }
 
+                // Propagate local counters to diagnostics properties
+                DiagMeshesCreated += meshesCreated;
+                DiagMeshCacheHits += meshesReused;
+                DiagMeshCacheMisses += meshesCreated; // miss = had to create
+                DiagGeometryModel3DCount += geometryModelsCreated;
+                DiagModelVisual3DCount += modelVisualsCreated;
+
                 Debug.WriteLine(
                     $"[ElementVisualBuilder] IFC mesh render complete. SessionId={sessionId}, " +
                     $"Elements={itemsList.Count}, ShapeInstances={allInstances.Count}, MeshesCreated={meshesCreated}, " +
@@ -275,6 +328,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 return batchVisual;
             }
 
+            // Fallback path: no xBIM context, use bounding boxes
             var fallbackBatch = new ModelVisual3D();
             foreach (var item in itemsList)
                 BuildFallbackBox(fallbackBatch, item.element, item.status, item.isSelected);
@@ -692,6 +746,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
         private void BuildFallbackBox(ModelVisual3D container, PrecastElement element, LiftStatus? status, bool isSelected)
         {
+            DiagFallbackBoxCount++;
+            DiagGeometryModel3DCount++;
+            DiagModelVisual3DCount++;
+            DiagMaterialCreated++;
+
             var color = GetColor(status);
             var meshBuilder = new MeshBuilder(true, true);
             var x = element.ElementCOG.X - (_origin?.X ?? 0d);

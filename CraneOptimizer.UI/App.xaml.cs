@@ -139,6 +139,7 @@ namespace CraneOptimizer.UI
             // =========================
             // Rendering
             // =========================
+            services.AddSingleton<IRenderDiagnosticsStore, RenderDiagnosticsStore>();
             services.AddSingleton<ElementVisualBuilder>();
             services.AddSingleton<CraneVisualBuilder>();       // shared singleton — carries CraneParametersReady event
             services.AddSingleton<IRenderingService, HelixRenderingService>();
