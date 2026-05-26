@@ -160,7 +160,7 @@ namespace CraneOptimizer.Application.Tests
                 Assert.NotNull(method);
                 
                 // origin = (0,0,0)
-                method.Invoke(null, new object[] { allItems, Guid.NewGuid(), new DomainPoint3D(0, 0, 0), elementMeshes });
+                method.Invoke(null, new object[] { allItems, Guid.NewGuid(), new DomainPoint3D(0, 0, 0), elementMeshes, null, null });
 
                 // Get spatial hit test elements
                 var spatialElements = ElementVisualBuilder.GetSpatialHitTestElements();
@@ -215,7 +215,7 @@ namespace CraneOptimizer.Application.Tests
                     System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
                 
                 Assert.NotNull(method);
-                method.Invoke(null, new object[] { allItems, Guid.NewGuid(), new DomainPoint3D(0, 0, 0), elementMeshes });
+                method.Invoke(null, new object[] { allItems, Guid.NewGuid(), new DomainPoint3D(0, 0, 0), elementMeshes, null, null });
 
                 var registered = ElementVisualBuilder.GetSpatialHitTestElements().FirstOrDefault(x => x.ElementId == "EL_TEST_02");
 
@@ -252,7 +252,7 @@ namespace CraneOptimizer.Application.Tests
                     System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
                 
                 Assert.NotNull(method);
-                method.Invoke(null, new object[] { allItems, Guid.NewGuid(), new DomainPoint3D(0, 0, 0), null });
+                method.Invoke(null, new object[] { allItems, Guid.NewGuid(), new DomainPoint3D(0, 0, 0), null, null, null });
 
                 var registered = ElementVisualBuilder.GetSpatialHitTestElements().FirstOrDefault(x => x.ElementId == "EL_TEST_03");
 
@@ -359,6 +359,70 @@ namespace CraneOptimizer.Application.Tests
                 Assert.Equal(3.0, colT, 3);
                 Assert.Equal(3.25, slabT, 3);
                 Assert.True(colT < slabT, "Column triangle hit distance should be smaller than slab hit distance.");
+            });
+        }
+
+        [Fact]
+        public void Test_AabbSanityValidation_IdentifiesHugeOutliers()
+        {
+            RunOnSta(() =>
+            {
+                var method = typeof(ElementVisualBuilder).GetMethod("IsValidAABB",
+                    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+                Assert.NotNull(method);
+
+                // Sane bounds: 10m x 5m x 3m
+                var minSane = new Point3D(0, 0, 0);
+                var maxSane = new Point3D(10, 5, 3);
+                bool saneValid = (bool)method.Invoke(null, new object[] { minSane, maxSane })!;
+                Assert.True(saneValid);
+
+                // Huge bounds: 500m length
+                var minHuge = new Point3D(0, 0, 0);
+                var maxHuge = new Point3D(500, 5, 3);
+                bool hugeValid = (bool)method.Invoke(null, new object[] { minHuge, maxHuge })!;
+                Assert.False(hugeValid);
+
+                // Huge volume bounds: 200m x 200m x 10m
+                var minHugeVol = new Point3D(0, 0, 0);
+                var maxHugeVol = new Point3D(200, 200, 10);
+                bool hugeVolValid = (bool)method.Invoke(null, new object[] { minHugeVol, maxHugeVol })!;
+                Assert.False(hugeVolValid);
+            });
+        }
+
+        [Fact]
+        public void Test_HugeSlabExclusionFromSpatialPicking()
+        {
+            RunOnSta(() =>
+            {
+                var el = new PrecastElement
+                {
+                    ElementID = "HUGE_SLAB_TEST",
+                    ElementCOG = new DomainPoint3D(0, 0, 0),
+                    BBoxLength = 500, // extremely large invalid bounds
+                    BBoxWidth = 500,
+                    BBoxHeight = 5,
+                    IncludeInRender = true
+                };
+
+                var allItems = new List<(PrecastElement element, LiftStatus? status, bool isSelected)>
+                {
+                    (el, null, false)
+                };
+
+                var method = typeof(ElementVisualBuilder).GetMethod("PopulateSpatialHitTestRegistry",
+                    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+                Assert.NotNull(method);
+
+                // Invoke PopulateSpatialHitTestRegistry with null meshes (like Low mode or purely COG fallback)
+                method.Invoke(null, new object[] { allItems, Guid.NewGuid(), new DomainPoint3D(0, 0, 0), null, null, null });
+
+                var registered = ElementVisualBuilder.GetSpatialHitTestElements().FirstOrDefault(x => x.ElementId == "HUGE_SLAB_TEST");
+                Assert.NotNull(registered);
+                
+                // Huge invalid bounds must result in IsVisible = false for spatial hit testing to prevent accidental empty space selection
+                Assert.False(registered.IsVisible);
             });
         }
     }

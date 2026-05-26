@@ -301,7 +301,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
                 var lowOrigin = _origin ?? new DomainPoint3D(0, 0, 0);
                 var lowSessionId = (_ifcReader as CraneOptimizer.Infrastructure.Repositories.IfcReaderRepository)?.CurrentSessionId;
-                PopulateSpatialHitTestRegistry(allItems, lowSessionId, lowOrigin, elementMeshes);
+                PopulateSpatialHitTestRegistry(allItems, lowSessionId, lowOrigin, elementMeshes, _ifcReader, _placementOffset);
 
                 return lowVisual;
             }
@@ -463,7 +463,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                         $"GeometryModel3D={geometryModelsCreated}, ModelVisual3D={modelVisualsCreated}, " +
                         $"MemoryAfterRender={FormatBytes(GetPrivateMemoryBytes())}");
 
-                    PopulateSpatialHitTestRegistry(allItems, sessionId, origin, elementMeshes);
+                    PopulateSpatialHitTestRegistry(allItems, sessionId, origin, elementMeshes, _ifcReader, _placementOffset);
                     return batchVisual;
                 }
                 else
@@ -753,7 +753,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                         $"CachedMeshesReused={meshesReused}, CacheSize={MeshCacheCount}, " +
                         $"TotalModelVisuals={modelVisualsCreated}, MemoryAfterRender={FormatBytes(GetPrivateMemoryBytes())}");
 
-                    PopulateSpatialHitTestRegistry(allItems, sessionId, origin, elementMeshes);
+                    PopulateSpatialHitTestRegistry(allItems, sessionId, origin, elementMeshes, _ifcReader, _placementOffset);
                     return batchVisual;
                 }
             }
@@ -769,7 +769,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
             var fallbackOrigin = _origin ?? new DomainPoint3D(0, 0, 0);
             var fallbackSessionId = (_ifcReader as CraneOptimizer.Infrastructure.Repositories.IfcReaderRepository)?.CurrentSessionId;
-            PopulateSpatialHitTestRegistry(allItems, fallbackSessionId, fallbackOrigin, null);
+            PopulateSpatialHitTestRegistry(allItems, fallbackSessionId, fallbackOrigin, null, _ifcReader, _placementOffset);
 
             return fallbackBatch;
         }
@@ -1468,16 +1468,147 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             group.Children.Add(geoModel);
             group.Freeze();
 
-            var ev = new ModelVisual3D { Content = group };
+var ev = new ModelVisual3D { Content = group };
             ev.SetValue(System.Windows.FrameworkElement.TagProperty, element);
             return ev;
+        }
+
+        private static bool IsValidAABB(Point3D min, Point3D max)
+        {
+            double dx = max.X - min.X;
+            double dy = max.Y - min.Y;
+            double dz = max.Z - min.Z;
+
+            if (double.IsNaN(dx) || double.IsNaN(dy) || double.IsNaN(dz) ||
+                double.IsInfinity(dx) || double.IsInfinity(dy) || double.IsInfinity(dz))
+            {
+                return false;
+            }
+
+            // AABB dimensions should be strictly positive and physically reasonable
+            if (dx <= 1e-4 || dy <= 1e-4 || dz <= 1e-4)
+            {
+                return false;
+            }
+
+            // Exclude abnormally huge elements (> 150m in any dimension) as outliers
+            if (dx > 150.0 || dy > 150.0 || dz > 150.0)
+            {
+                return false;
+            }
+
+            // Exclude abnormally huge volumes (> 200,000 m³)
+            double volume = dx * dy * dz;
+            if (volume > 200000.0)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool TryGetMeshDerivedBounds(
+            PrecastElement el,
+            Guid sessionId,
+            double oneMeter,
+            DomainPoint3D origin,
+            DomainPoint3D placementOffset,
+            IIfcReaderRepository? ifcReader,
+            out Point3D min,
+            out Point3D max,
+            out List<(MediaMeshGeometry3D Mesh, Matrix3D Transform)> meshesList)
+        {
+            min = new Point3D();
+            max = new Point3D();
+            meshesList = new List<(MediaMeshGeometry3D Mesh, Matrix3D Transform)>();
+
+            if (ifcReader is not CraneOptimizer.Infrastructure.Repositories.IfcReaderRepository concreteRepo
+                || concreteRepo.GeometryContext == null
+                || concreteRepo.CurrentModel == null)
+            {
+                return false;
+            }
+
+            var model = concreteRepo.CurrentModel;
+            var context = concreteRepo.GeometryContext;
+
+            // Map product labels
+            var labelToGid = new Dictionary<int, string>();
+            foreach (var p in model.Instances.OfType<IIfcProduct>())
+            {
+                var gid = p.GlobalId.ToString();
+                var revitId = (p as IIfcElement)?.Tag?.ToString();
+
+                bool match = false;
+                if (revitId != null && string.Equals(revitId, el.ElementID, StringComparison.OrdinalIgnoreCase))
+                    match = true;
+                else if (!string.IsNullOrEmpty(gid) && string.Equals(gid, el.ElementID, StringComparison.OrdinalIgnoreCase))
+                    match = true;
+
+                if (match)
+                {
+                    labelToGid[p.EntityLabel] = el.ElementID;
+                    AddChildProductLabels(p, el.ElementID, labelToGid);
+                }
+            }
+
+            var instances = context.ShapeInstances()
+                .Where(si => labelToGid.ContainsKey(si.IfcProductLabel))
+                .ToList();
+
+            if (instances.Count == 0)
+                return false;
+
+            double minX = double.MaxValue, minY = double.MaxValue, minZ = double.MaxValue;
+            double maxX = double.MinValue, maxY = double.MinValue, maxZ = double.MinValue;
+            int totalVerts = 0;
+
+            foreach (var si in instances)
+            {
+                try
+                {
+                    var shapeGeom = context.ShapeGeometry(si) as IXbimShapeGeometryData;
+                    if (shapeGeom?.ShapeData == null || shapeGeom.ShapeData.Length == 0) continue;
+
+                    bool cacheReused;
+                    var mesh = GetOrCreateCachedMesh(sessionId, shapeGeom.ShapeData, oneMeter, MeshQuality.Medium, out cacheReused);
+                    if (mesh == null || mesh.Positions.Count == 0) continue;
+
+                    var wpfMatrix = CreateInstanceWpfMatrix(si.Transformation, oneMeter, origin, placementOffset);
+                    meshesList.Add((mesh, wpfMatrix));
+
+                    foreach (var pos in mesh.Positions)
+                    {
+                        var worldPos = wpfMatrix.Transform(pos);
+                        if (worldPos.X < minX) minX = worldPos.X;
+                        if (worldPos.Y < minY) minY = worldPos.Y;
+                        if (worldPos.Z < minZ) minZ = worldPos.Z;
+                        if (worldPos.X > maxX) maxX = worldPos.X;
+                        if (worldPos.Y > maxY) maxY = worldPos.Y;
+                        if (worldPos.Z > maxZ) maxZ = worldPos.Z;
+                        totalVerts++;
+                    }
+                }
+                catch { }
+            }
+
+            if (totalVerts > 0)
+            {
+                min = new Point3D(minX, minY, minZ);
+                max = new Point3D(maxX, maxY, maxZ);
+                return true;
+            }
+
+            return false;
         }
 
         private static void PopulateSpatialHitTestRegistry(
             List<(PrecastElement element, LiftStatus? status, bool isSelected)> allItems,
             Guid? sessionId,
             DomainPoint3D origin,
-            Dictionary<string, List<(MediaMeshGeometry3D Mesh, Matrix3D Transform)>>? elementMeshes)
+            Dictionary<string, List<(MediaMeshGeometry3D Mesh, Matrix3D Transform)>>? elementMeshes,
+            IIfcReaderRepository? ifcReader = null,
+            DomainPoint3D? placementOffset = null)
         {
             var spatialElements = new List<SpatialHitTestElement>();
             var renderTimestamp = DateTime.UtcNow;
@@ -1498,11 +1629,14 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 var cogMin = new Point3D(cogX - dx / 2, cogY - dy / 2, cogZ - dz / 2);
                 var cogMax = new Point3D(cogX + dx / 2, cogY + dy / 2, cogZ + dz / 2);
 
-                Point3D min;
-                Point3D max;
-                bool usedMeshDerived = false;
+                bool isCogValid = IsValidAABB(cogMin, cogMax);
 
-                // Try to compute AABB from actual rendered mesh vertex data
+                Point3D min = cogMin;
+                Point3D max = cogMax;
+                bool usedMeshDerived = false;
+                var meshesForHitTest = new List<(MediaMeshGeometry3D Mesh, Matrix3D Transform)>();
+
+                // 1. Try to compute AABB from actual rendered mesh vertex data (if available)
                 if (elementMeshes != null
                     && elementMeshes.TryGetValue(el.ElementID, out var meshes)
                     && meshes.Count > 0)
@@ -1547,23 +1681,50 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
                     if (totalVerts > 0)
                     {
-                        min = new Point3D(minX, minY, minZ);
-                        max = new Point3D(maxX, maxY, maxZ);
-                        usedMeshDerived = true;
-                        meshDerivedCount++;
-                    }
-                    else
-                    {
-                        min = cogMin;
-                        max = cogMax;
-                        cogFallbackCount++;
+                        var meshMin = new Point3D(minX, minY, minZ);
+                        var meshMax = new Point3D(maxX, maxY, maxZ);
+
+                        if (IsValidAABB(meshMin, meshMax))
+                        {
+                            min = meshMin;
+                            max = meshMax;
+                            usedMeshDerived = true;
+                            meshDerivedCount++;
+                            meshesForHitTest.AddRange(meshes);
+                        }
                     }
                 }
-                else
+
+                // 2. If we don't have mesh-derived bounds yet, but COG-based is invalid/outlier, try to derive from IFC shape geometry programmatically
+                if (!usedMeshDerived && (!isCogValid || CurrentQuality == MeshQuality.Low))
                 {
-                    // Fallback to domain-level COG + BBox
-                    min = cogMin;
-                    max = cogMax;
+                    if (sessionId.HasValue && ifcReader is CraneOptimizer.Infrastructure.Repositories.IfcReaderRepository concreteRepo && concreteRepo.CurrentModel != null)
+                    {
+                        double oneMeter = concreteRepo.CurrentModel.ModelFactors.OneMeter;
+                        if (oneMeter <= 0) oneMeter = 1000.0;
+
+                        if (TryGetMeshDerivedBounds(el, sessionId.Value, oneMeter, origin, placementOffset ?? new DomainPoint3D(0, 0, 0), ifcReader, out var derivedMin, out var derivedMax, out var derivedMes))
+                        {
+                            if (IsValidAABB(derivedMin, derivedMax))
+                            {
+                                min = derivedMin;
+                                max = derivedMax;
+                                usedMeshDerived = true;
+                                meshDerivedCount++;
+                                meshesForHitTest.AddRange(derivedMes);
+                            }
+                        }
+                    }
+                }
+
+                // 3. Final safety check: if the selected bounds (min, max) are still invalid/outlier, exclude from spatial picking
+                bool finalBoundsValid = IsValidAABB(min, max);
+                if (!finalBoundsValid)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[AABB Exclusion] Excluding ElementID={el.ElementID} from spatial picking because its AABB is invalid/outlier: [{min} to {max}]");
+                }
+                else if (!usedMeshDerived)
+                {
                     cogFallbackCount++;
                 }
 
@@ -1587,13 +1748,17 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                     Element = el,
                     Min = min,
                     Max = max,
-                    IsVisible = el.IncludeInRender,
+                    IsVisible = el.IncludeInRender && finalBoundsValid, // Exclude invalid bounds from picking
                     UsedMeshDerivedBounds = usedMeshDerived,
                     CogBasedMin = cogMin,
                     CogBasedMax = cogMax
                 };
 
-                if (elementMeshes != null && elementMeshes.TryGetValue(el.ElementID, out var meshesRef))
+                if (meshesForHitTest.Count > 0)
+                {
+                    hitElement.Meshes.AddRange(meshesForHitTest);
+                }
+                else if (elementMeshes != null && elementMeshes.TryGetValue(el.ElementID, out var meshesRef))
                 {
                     hitElement.Meshes.AddRange(meshesRef);
                 }

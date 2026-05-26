@@ -373,7 +373,27 @@ namespace CraneOptimizer.UI.Core.Services
                                         sw.Stop();
                                         SpatialHitTestDurationMs = sw.Elapsed.TotalMilliseconds;
                                         PickedElementId = bestTriangleElement.ElementID;
+
+                                        // Diagnostics log
+                                        System.Diagnostics.Debug.WriteLine($"[HitTest Diagnosis] Selected ElementID: {bestTriangleElement.ElementID}");
+                                        System.Diagnostics.Debug.WriteLine($"  Type: {bestTriangleElement.ElementType}");
+                                        System.Diagnostics.Debug.WriteLine($"  COG: {bestTriangleElement.ElementCOG}");
+                                        System.Diagnostics.Debug.WriteLine($"  COG BBox Size: {bestTriangleElement.BBoxLength} x {bestTriangleElement.BBoxWidth} x {bestTriangleElement.BBoxHeight}");
+                                        if (pickedCandidate != null)
+                                        {
+                                            System.Diagnostics.Debug.WriteLine($"  Mesh Bounds: Min={pickedCandidate.Min}, Max={pickedCandidate.Max}");
+                                        }
+                                        System.Diagnostics.Debug.WriteLine($"  Reason: Ray-Triangle intersection in narrow phase (distance={bestTriangleDist:F4})");
+
                                         return bestTriangleElement;
+                                    }
+                                    else
+                                    {
+                                        // If meshes are available but no triangle is hit, then it's an empty-space click!
+                                        // Return null immediately and do not perform fallback AABB scoring.
+                                        sw.Stop();
+                                        SpatialHitTestDurationMs = sw.Elapsed.TotalMilliseconds;
+                                        return null;
                                     }
                                 }
 
@@ -399,6 +419,18 @@ namespace CraneOptimizer.UI.Core.Services
                                     sw.Stop();
                                     SpatialHitTestDurationMs = sw.Elapsed.TotalMilliseconds;
                                     PickedElementId = bestFallbackElement.ElementID;
+
+                                    // Diagnostics log
+                                    System.Diagnostics.Debug.WriteLine($"[HitTest Diagnosis] Selected ElementID (Fallback): {bestFallbackElement.ElementID}");
+                                    System.Diagnostics.Debug.WriteLine($"  Type: {bestFallbackElement.ElementType}");
+                                    System.Diagnostics.Debug.WriteLine($"  COG: {bestFallbackElement.ElementCOG}");
+                                    System.Diagnostics.Debug.WriteLine($"  COG BBox Size: {bestFallbackElement.BBoxLength} x {bestFallbackElement.BBoxWidth} x {bestFallbackElement.BBoxHeight}");
+                                    if (pickedCandidate != null)
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"  AABB Bounds: Min={pickedCandidate.Min}, Max={pickedCandidate.Max}");
+                                    }
+                                    System.Diagnostics.Debug.WriteLine($"  Reason: Fallback AABB proximity score (score={bestScore:F4})");
+
                                     return bestFallbackElement;
                                 }
                             }
