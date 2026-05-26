@@ -8,6 +8,8 @@ using System.Collections.Generic;
 using CraneOptimizer.Application.Optimization.Utilities;
 using System.Linq;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.CraneConfiguration
 {
@@ -40,6 +42,23 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cran
         public double CalculateRequiredBoomLength(double radius, double height)
         {
             return Math.Sqrt(radius * radius + height * height);
+        }
+
+        public double CalculateRequiredBoomLength(DomainPoint3D cranePosition, PrecastElement element, GASettings settings)
+        {
+            double hingeX = cranePosition.X + settings.BoomHingeOffsetX;
+            double hingeY = cranePosition.Y + settings.BoomHingeOffsetY;
+            double hingeZ = cranePosition.Z + settings.BoomHingeOffsetZ;
+
+            double dx = element.ElementCOG.X - hingeX;
+            double dy = element.ElementCOG.Y - hingeY;
+            double dHinge = Math.Sqrt(dx * dx + dy * dy);
+
+            double elementHalfHeight = (element.ElementHeight ?? 0) / 2.0;
+            double zHook = element.ElementCOG.Z + elementHalfHeight + settings.WireLength;
+            double hHinge = Math.Max(0.0, zHook - hingeZ);
+
+            return Math.Sqrt(dHinge * dHinge + hHinge * hHinge);
         }
 
         public double CraneCapacity(

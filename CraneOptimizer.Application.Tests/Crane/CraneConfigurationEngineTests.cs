@@ -86,9 +86,9 @@ namespace CraneOptimizer.Application.Tests
                 }
             };
 
-            // R=15, B=28 => nearest is R=30, B=30 => 15 * 0.8 * 0.9 = 10.8
+            // R=15, B=28 => next radius >= 15 is 20. But at R=20, there is no boom >= 28. Expected: 0
             double capIrregular = engine.CraneCapacity(irregularSpec, 15, 28, settings);
-            Assert.Equal(10.8, capIrregular, 5);
+            Assert.Equal(0, capIrregular, 5);
 
             // R=35, B=20 => no entry has Radius >= 35 => 0
             double capNoValidR = engine.CraneCapacity(irregularSpec, 35, 20, settings);
@@ -148,7 +148,7 @@ namespace CraneOptimizer.Application.Tests
                 }
             };
             var diagNoConservative = engine.EvaluateCraneCapacityDiagnostic(irregularSpec, 25, 25, settings);
-            Assert.Equal(CapacityFailureReason.NoDiscreteLoadChartEntry, diagNoConservative.FailureReason);
+            Assert.Equal(CapacityFailureReason.OutsideChartEnvelope, diagNoConservative.FailureReason);
 
             // 5. zero capacity chart entry
             var diagZeroCap = engine.EvaluateCraneCapacityDiagnostic(chartSpec, 10, 30, settings);

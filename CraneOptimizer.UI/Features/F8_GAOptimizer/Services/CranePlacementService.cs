@@ -284,7 +284,23 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                             LookupMode = appElem.LookupMode,
                             RequiredRadius = appElem.RequiredRadius,
                             SelectedChartRadius = appElem.SelectedChartRadius,
-                            SelectedChartBoomLength = appElem.SelectedChartBoomLength
+                            SelectedChartBoomLength = appElem.SelectedChartBoomLength,
+                            CraneBaseX = appElem.CraneBaseX,
+                            CraneBaseY = appElem.CraneBaseY,
+                            CraneBaseZ = appElem.CraneBaseZ,
+                            SlewCenterX = appElem.SlewCenterX,
+                            SlewCenterY = appElem.SlewCenterY,
+                            SlewCenterZ = appElem.SlewCenterZ,
+                            BoomHingeX = appElem.BoomHingeX,
+                            BoomHingeY = appElem.BoomHingeY,
+                            BoomHingeZ = appElem.BoomHingeZ,
+                            LoadPointX = appElem.LoadPointX,
+                            LoadPointY = appElem.LoadPointY,
+                            LoadPointZ = appElem.LoadPointZ,
+                            RadiusOriginType = appElem.RadiusOriginType,
+                            BoomOriginType = appElem.BoomOriginType,
+                            CandidateBoomsChecked = appElem.CandidateBoomsChecked,
+                            RejectedCandidates = appElem.RejectedCandidates
                         };
                     }).ToList()
                 };

@@ -214,7 +214,23 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     LookupMode = bestEval?.LookupMode ?? "ConservativeStep",
                     RequiredRadius = bestEval?.RequiredRadius ?? 0.0,
                     SelectedChartRadius = bestEval?.SelectedChartRadius ?? 0.0,
-                    SelectedChartBoomLength = bestEval?.SelectedChartBoomLength ?? 0.0
+                    SelectedChartBoomLength = bestEval?.SelectedChartBoomLength ?? 0.0,
+                    CraneBaseX = bestEval?.CraneBaseX ?? (assignedIndex >= 0 ? finalResult.Positions[assignedIndex].X : 0.0),
+                    CraneBaseY = bestEval?.CraneBaseY ?? (assignedIndex >= 0 ? finalResult.Positions[assignedIndex].Y : 0.0),
+                    CraneBaseZ = bestEval?.CraneBaseZ ?? (assignedIndex >= 0 ? finalResult.Positions[assignedIndex].Z : 0.0),
+                    SlewCenterX = bestEval?.SlewCenterX ?? (assignedIndex >= 0 ? finalResult.Positions[assignedIndex].X : 0.0),
+                    SlewCenterY = bestEval?.SlewCenterY ?? (assignedIndex >= 0 ? finalResult.Positions[assignedIndex].Y : 0.0),
+                    SlewCenterZ = bestEval?.SlewCenterZ ?? (assignedIndex >= 0 ? finalResult.Positions[assignedIndex].Z : 0.0),
+                    BoomHingeX = bestEval?.BoomHingeX ?? (assignedIndex >= 0 ? finalResult.Positions[assignedIndex].X : 0.0),
+                    BoomHingeY = bestEval?.BoomHingeY ?? (assignedIndex >= 0 ? finalResult.Positions[assignedIndex].Y : 0.0),
+                    BoomHingeZ = bestEval?.BoomHingeZ ?? (assignedIndex >= 0 ? finalResult.Positions[assignedIndex].Z : 0.0),
+                    LoadPointX = bestEval?.LoadPointX ?? element.ElementCOG.X,
+                    LoadPointY = bestEval?.LoadPointY ?? element.ElementCOG.Y,
+                    LoadPointZ = bestEval?.LoadPointZ ?? element.ElementCOG.Z,
+                    RadiusOriginType = bestEval?.RadiusOriginType ?? "SlewCenter",
+                    BoomOriginType = bestEval?.BoomOriginType ?? "BoomHinge",
+                    CandidateBoomsChecked = bestEval?.CandidateBoomsChecked ?? string.Empty,
+                    RejectedCandidates = bestEval?.RejectedCandidates ?? string.Empty
                 });
             }
 
@@ -228,7 +244,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     "AssignedCraneY", "AssignedCraneZ", "BestRadius", "RequiredBoomLength", "RequiredCapacity",
                     "AvailableCapacity", "LiftStatus", "IsLifted", "FailureReason", "FailureCategory", "SuggestedAction",
                     "ReachStatus", "ChartStatus", "IsExactMatch", "IsSteppedRadius", "IsBlankCell", "IsZeroCell", "SafetyMargin",
-                    "LookupMode", "RequiredRadius", "SelectedChartRadius", "SelectedChartBoomLength"
+                    "LookupMode", "RequiredRadius", "SelectedChartRadius", "SelectedChartBoomLength",
+                    "CraneBasePoint", "SlewCenterPoint", "BoomHingePoint", "LoadPoint", "RadiusOriginType", "BoomOriginType",
+                    "CandidateBoomsChecked", "RejectedCandidates"
                 }));
 
                 foreach (var row in detailedRows)
@@ -270,7 +288,15 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         Escape(row.LookupMode),
                         row.RequiredRadius.ToString("0.###", Invariant),
                         row.SelectedChartRadius.ToString("0.###", Invariant),
-                        row.SelectedChartBoomLength.ToString("0.###", Invariant)
+                        row.SelectedChartBoomLength.ToString("0.###", Invariant),
+                        Escape($"({row.CraneBaseX.ToString("0.###", Invariant)}; {row.CraneBaseY.ToString("0.###", Invariant)}; {row.CraneBaseZ.ToString("0.###", Invariant)})"),
+                        Escape($"({row.SlewCenterX.ToString("0.###", Invariant)}; {row.SlewCenterY.ToString("0.###", Invariant)}; {row.SlewCenterZ.ToString("0.###", Invariant)})"),
+                        Escape($"({row.BoomHingeX.ToString("0.###", Invariant)}; {row.BoomHingeY.ToString("0.###", Invariant)}; {row.BoomHingeZ.ToString("0.###", Invariant)})"),
+                        Escape($"({row.LoadPointX.ToString("0.###", Invariant)}; {row.LoadPointY.ToString("0.###", Invariant)}; {row.LoadPointZ.ToString("0.###", Invariant)})"),
+                        Escape(row.RadiusOriginType),
+                        Escape(row.BoomOriginType),
+                        Escape(row.CandidateBoomsChecked),
+                        Escape(row.RejectedCandidates)
                     }));
                 }
             }
@@ -488,6 +514,22 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             public double RequiredRadius { get; set; }
             public double SelectedChartRadius { get; set; }
             public double SelectedChartBoomLength { get; set; }
+            public double CraneBaseX { get; set; }
+            public double CraneBaseY { get; set; }
+            public double CraneBaseZ { get; set; }
+            public double SlewCenterX { get; set; }
+            public double SlewCenterY { get; set; }
+            public double SlewCenterZ { get; set; }
+            public double BoomHingeX { get; set; }
+            public double BoomHingeY { get; set; }
+            public double BoomHingeZ { get; set; }
+            public double LoadPointX { get; set; }
+            public double LoadPointY { get; set; }
+            public double LoadPointZ { get; set; }
+            public string RadiusOriginType { get; set; } = "SlewCenter";
+            public string BoomOriginType { get; set; } = "BoomHinge";
+            public string CandidateBoomsChecked { get; set; } = "";
+            public string RejectedCandidates { get; set; } = "";
         }
     }
 }

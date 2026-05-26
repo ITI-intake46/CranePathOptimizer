@@ -5,6 +5,10 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using System.Collections.Generic;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.CraneConfiguration;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.LiftingCalculation;
+using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Tests
 {
@@ -264,6 +268,178 @@ namespace CraneOptimizer.Application.Tests
 
             Assert.Equal(1, stats.NotCharted);
             Assert.Equal(0, stats.SpecialCase);
+        }
+
+        [Fact]
+        public void TestFirstBoomZeroLaterBoomValidAndLiftable()
+        {
+            var craneSpec = new CraneSpecification
+            {
+                MaxRadius = 40,
+                MaxBoomLength = 50,
+                LoadChart = new List<TargetPoint>
+                {
+                    new TargetPoint { Radius = 10, BoomLength = 20, Capacity = 0.0 }, // First candidate is zero capacity
+                    new TargetPoint { Radius = 10, BoomLength = 30, Capacity = 5.0 }  // Later is valid and liftable
+                }
+            };
+
+            var result = _resolver.Resolve(craneSpec, 10, 20, 2.0, _settings);
+
+            Assert.Equal(LiftStatus.Liftable, result.LiftStatus);
+            Assert.Equal(ChartStatus.ListedCapacityFound, result.ChartStatus);
+            Assert.Equal(30.0, result.SelectedChartBoomLength);
+            Assert.Equal(5.0, result.AvailableCapacity);
+            Assert.Contains("20 (InvalidZeroCell)", result.RejectedCandidates);
+        }
+
+        [Fact]
+        public void TestFirstBoomBlankLaterBoomValidAndLiftable()
+        {
+            var craneSpec = new CraneSpecification
+            {
+                MaxRadius = 40,
+                MaxBoomLength = 50,
+                LoadChart = new List<TargetPoint>
+                {
+                    new TargetPoint { Radius = 10, BoomLength = 20, Capacity = -1.0 }, // First candidate is blank capacity
+                    new TargetPoint { Radius = 10, BoomLength = 30, Capacity = 5.0 }   // Later is valid and liftable
+                }
+            };
+
+            var result = _resolver.Resolve(craneSpec, 10, 20, 2.0, _settings);
+
+            Assert.Equal(LiftStatus.Liftable, result.LiftStatus);
+            Assert.Equal(ChartStatus.ListedCapacityFound, result.ChartStatus);
+            Assert.Equal(30.0, result.SelectedChartBoomLength);
+            Assert.Equal(5.0, result.AvailableCapacity);
+            Assert.Contains("20 (InvalidBlankCell)", result.RejectedCandidates);
+        }
+
+        [Fact]
+        public void TestAllBoomCandidatesFailedReturnsNotCharted()
+        {
+            var craneSpec = new CraneSpecification
+            {
+                MaxRadius = 40,
+                MaxBoomLength = 50,
+                LoadChart = new List<TargetPoint>
+                {
+                    new TargetPoint { Radius = 10, BoomLength = 20, Capacity = 0.0 },
+                    new TargetPoint { Radius = 10, BoomLength = 30, Capacity = -1.0 }
+                }
+            };
+
+            var result = _resolver.Resolve(craneSpec, 10, 20, 2.0, _settings);
+
+            Assert.Equal(LiftStatus.NotCharted, result.LiftStatus);
+            Assert.Equal(ChartStatus.InvalidZeroCell, result.ChartStatus);
+            Assert.Equal(20.0, result.SelectedChartBoomLength); // shortest fallback
+        }
+
+        [Fact]
+        public void TestPositiveCandidatesBelowWeightReturnsOverweight()
+        {
+            var craneSpec = new CraneSpecification
+            {
+                MaxRadius = 40,
+                MaxBoomLength = 50,
+                LoadChart = new List<TargetPoint>
+                {
+                    new TargetPoint { Radius = 10, BoomLength = 20, Capacity = 0.0 },
+                    new TargetPoint { Radius = 10, BoomLength = 30, Capacity = 2.0 }, // Overweight but best
+                    new TargetPoint { Radius = 10, BoomLength = 40, Capacity = 1.0 }
+                }
+            };
+
+            var result = _resolver.Resolve(craneSpec, 10, 20, 5.0, _settings);
+
+            Assert.Equal(LiftStatus.Overweight, result.LiftStatus);
+            Assert.Equal(ChartStatus.ListedCapacityFound, result.ChartStatus);
+            Assert.Equal(30.0, result.SelectedChartBoomLength);
+            Assert.Equal(2.0, result.AvailableCapacity);
+        }
+
+        [Fact]
+        public void TestSelectedRadiusUsesNextRadiusGteRequiredRadiusNotMinimum()
+        {
+            var craneSpec = new CraneSpecification
+            {
+                MaxRadius = 40,
+                MaxBoomLength = 50,
+                LoadChart = new List<TargetPoint>
+                {
+                    new TargetPoint { Radius = 5, BoomLength = 20, Capacity = 10.0 },
+                    new TargetPoint { Radius = 10, BoomLength = 20, Capacity = 8.0 },
+                    new TargetPoint { Radius = 15, BoomLength = 20, Capacity = 6.0 }
+                }
+            };
+
+            var result = _resolver.Resolve(craneSpec, 11.0, 20, 2.0, _settings);
+
+            Assert.Equal(15.0, result.SelectedChartRadius);
+        }
+
+        [Fact]
+        public void TestOffsetGeometryCalculations()
+        {
+            var settings = new GASettings
+            {
+                SlewOffsetX = 2.0,
+                SlewOffsetY = 3.0,
+                BoomHingeOffsetX = 1.0,
+                BoomHingeOffsetY = 2.0,
+                BoomHingeOffsetZ = 4.0,
+                WireLength = 2.0
+            };
+
+            var cranePosition = new Domain.Common.DomainPoint3D(10.0, 20.0, 5.0);
+            var element = new PrecastElement
+            {
+                ElementCOG = new Domain.Common.DomainPoint3D(30.0, 40.0, 8.0),
+                ElementHeight = 4.0
+            };
+
+            var liftingEngine = new LiftingCalculationEngine(new CraneConfigurationEngine());
+            var configEngine = new CraneConfigurationEngine();
+
+            double radius = liftingEngine.CalculateRadius(cranePosition, element, settings);
+            double expectedRadius = Math.Sqrt(Math.Pow(30.0 - 12.0, 2) + Math.Pow(40.0 - 23.0, 2));
+
+            Assert.Equal(expectedRadius, radius, 5);
+
+            double boomLength = configEngine.CalculateRequiredBoomLength(cranePosition, element, settings);
+            double dHinge = Math.Sqrt(Math.Pow(30.0 - 11.0, 2) + Math.Pow(40.0 - 22.0, 2));
+            double hHinge = 8.0 + 2.0 + 2.0 - 9.0;
+            double expectedBoomLength = Math.Sqrt(dHinge * dHinge + hHinge * hHinge);
+
+            Assert.Equal(expectedBoomLength, boomLength, 5);
+        }
+
+        [Fact]
+        public void TestOffsetsDefaultToZeroPreserveOldBehavior()
+        {
+            var settings = new GASettings(); // offsets all default to 0.0
+            var cranePosition = new Domain.Common.DomainPoint3D(10.0, 20.0, 5.0);
+            var element = new PrecastElement
+            {
+                ElementCOG = new Domain.Common.DomainPoint3D(30.0, 40.0, 8.0),
+                ElementHeight = 4.0
+            };
+
+            var liftingEngine = new LiftingCalculationEngine(new CraneConfigurationEngine());
+            var configEngine = new CraneConfigurationEngine();
+
+            double radiusWithOffsets = liftingEngine.CalculateRadius(cranePosition, element, settings);
+            double radiusLegacy = liftingEngine.CalculateRadius(cranePosition, element);
+
+            Assert.Equal(radiusLegacy, radiusWithOffsets, 5);
+
+            double boomWithOffsets = configEngine.CalculateRequiredBoomLength(cranePosition, element, settings);
+            double height = liftingEngine.CalculateLiftHeight(element, cranePosition, settings);
+            double boomLegacy = configEngine.CalculateRequiredBoomLength(radiusLegacy, height);
+
+            Assert.Equal(boomLegacy, boomWithOffsets, 5);
         }
     }
 }

@@ -288,14 +288,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             // Step 1 — Get crane position
             var cranePosition = solution.Chromosome.CranePositions[craneIndex];
 
-            // Step 2 — Working radius (orientation-aware)
-            double radius = _liftingEngine.CalculateRadius(cranePosition, element);
+            // Step 2 — Working radius (orientation-aware and slew-offset-aware)
+            double radius = _liftingEngine.CalculateRadius(cranePosition, element, settings);
 
             // Step 3 — Vertical lift height
             double height = _liftingEngine.CalculateLiftHeight(element, cranePosition, settings);
 
-            // Step 4 — Required boom length
-            double boomLength = _configEngine.CalculateRequiredBoomLength(radius, height);
+            // Step 4 — Required boom length (hinge-offset-aware)
+            double boomLength = _configEngine.CalculateRequiredBoomLength(cranePosition, element, settings);
 
             // Step 5 — Required capacity = element weight + lifting accessories
             double requiredCapacity = _liftingEngine.CalculateRequiredWeight(element, settings);
@@ -318,7 +318,27 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 IsSteppedRadius = resolveResult.IsSteppedRadius,
                 IsBlankCell = resolveResult.IsBlankCell,
                 IsZeroCell = resolveResult.IsZeroCell,
-                SafetyMargin = resolveResult.SafetyMargin
+                SafetyMargin = resolveResult.SafetyMargin,
+                LookupMode = resolveResult.LookupMode,
+                RequiredRadius = radius,
+                SelectedChartRadius = resolveResult.SelectedChartRadius,
+                SelectedChartBoomLength = resolveResult.SelectedChartBoomLength,
+                CraneBaseX = cranePosition.X,
+                CraneBaseY = cranePosition.Y,
+                CraneBaseZ = cranePosition.Z,
+                SlewCenterX = cranePosition.X + settings.SlewOffsetX,
+                SlewCenterY = cranePosition.Y + settings.SlewOffsetY,
+                SlewCenterZ = cranePosition.Z + settings.SlewOffsetZ,
+                BoomHingeX = cranePosition.X + settings.BoomHingeOffsetX,
+                BoomHingeY = cranePosition.Y + settings.BoomHingeOffsetY,
+                BoomHingeZ = cranePosition.Z + settings.BoomHingeOffsetZ,
+                LoadPointX = element.ElementCOG.X,
+                LoadPointY = element.ElementCOG.Y,
+                LoadPointZ = element.ElementCOG.Z,
+                RadiusOriginType = "SlewCenter",
+                BoomOriginType = "BoomHinge",
+                CandidateBoomsChecked = resolveResult.CandidateBoomsChecked,
+                RejectedCandidates = resolveResult.RejectedCandidates
             };
         }
 

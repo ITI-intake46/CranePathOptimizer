@@ -320,7 +320,23 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 LookupMode = evaluation.LookupMode,
                 RequiredRadius = evaluation.RequiredRadius,
                 SelectedChartRadius = evaluation.SelectedChartRadius,
-                SelectedChartBoomLength = evaluation.SelectedChartBoomLength
+                SelectedChartBoomLength = evaluation.SelectedChartBoomLength,
+                CraneBaseX = evaluation.CraneBaseX,
+                CraneBaseY = evaluation.CraneBaseY,
+                CraneBaseZ = evaluation.CraneBaseZ,
+                SlewCenterX = evaluation.SlewCenterX,
+                SlewCenterY = evaluation.SlewCenterY,
+                SlewCenterZ = evaluation.SlewCenterZ,
+                BoomHingeX = evaluation.BoomHingeX,
+                BoomHingeY = evaluation.BoomHingeY,
+                BoomHingeZ = evaluation.BoomHingeZ,
+                LoadPointX = evaluation.LoadPointX,
+                LoadPointY = evaluation.LoadPointY,
+                LoadPointZ = evaluation.LoadPointZ,
+                RadiusOriginType = evaluation.RadiusOriginType,
+                BoomOriginType = evaluation.BoomOriginType,
+                CandidateBoomsChecked = evaluation.CandidateBoomsChecked,
+                RejectedCandidates = evaluation.RejectedCandidates
             };
         }
 
@@ -381,7 +397,23 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                         LookupMode = er.LookupMode,
                         RequiredRadius = er.RequiredRadius,
                         SelectedChartRadius = er.SelectedChartRadius,
-                        SelectedChartBoomLength = er.SelectedChartBoomLength
+                        SelectedChartBoomLength = er.SelectedChartBoomLength,
+                        CraneBaseX = er.CraneBaseX,
+                        CraneBaseY = er.CraneBaseY,
+                        CraneBaseZ = er.CraneBaseZ,
+                        SlewCenterX = er.SlewCenterX,
+                        SlewCenterY = er.SlewCenterY,
+                        SlewCenterZ = er.SlewCenterZ,
+                        BoomHingeX = er.BoomHingeX,
+                        BoomHingeY = er.BoomHingeY,
+                        BoomHingeZ = er.BoomHingeZ,
+                        LoadPointX = er.LoadPointX,
+                        LoadPointY = er.LoadPointY,
+                        LoadPointZ = er.LoadPointZ,
+                        RadiusOriginType = er.RadiusOriginType,
+                        BoomOriginType = er.BoomOriginType,
+                        CandidateBoomsChecked = er.CandidateBoomsChecked,
+                        RejectedCandidates = er.RejectedCandidates
                     }).ToList()
                 }).ToList()
             };

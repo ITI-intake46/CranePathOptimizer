@@ -83,6 +83,27 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public double RequiredRadius { get; set; }
         public double SelectedChartRadius { get; set; }
         public double SelectedChartBoomLength { get; set; }
+
+        public double CraneBaseX { get; set; }
+        public double CraneBaseY { get; set; }
+        public double CraneBaseZ { get; set; }
+
+        public double SlewCenterX { get; set; }
+        public double SlewCenterY { get; set; }
+        public double SlewCenterZ { get; set; }
+
+        public double BoomHingeX { get; set; }
+        public double BoomHingeY { get; set; }
+        public double BoomHingeZ { get; set; }
+
+        public double LoadPointX { get; set; }
+        public double LoadPointY { get; set; }
+        public double LoadPointZ { get; set; }
+
+        public string RadiusOriginType { get; set; } = "SlewCenter";
+        public string BoomOriginType { get; set; } = "BoomHinge";
+        public string CandidateBoomsChecked { get; set; } = string.Empty;
+        public string RejectedCandidates { get; set; } = string.Empty;
     }
 
     /// <summary>

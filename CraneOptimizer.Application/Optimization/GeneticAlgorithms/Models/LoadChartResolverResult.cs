@@ -18,5 +18,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
         public bool IsBlankCell { get; set; }
         public bool IsZeroCell { get; set; }
         public double SafetyMargin { get; set; }
+        public string CandidateBoomsChecked { get; set; } = string.Empty;
+        public string RejectedCandidates { get; set; } = string.Empty;
     }
 }

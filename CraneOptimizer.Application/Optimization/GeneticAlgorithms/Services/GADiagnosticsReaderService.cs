@@ -188,6 +188,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     int requiredRadiusIdx = GetHeaderIndex(headers, "RequiredRadius");
                     int selectedChartRadiusIdx = GetHeaderIndex(headers, "SelectedChartRadius");
                     int selectedChartBoomLengthIdx = GetHeaderIndex(headers, "SelectedChartBoomLength");
+                    int craneBasePointIdx = GetHeaderIndex(headers, "CraneBasePoint");
+                    int slewCenterPointIdx = GetHeaderIndex(headers, "SlewCenterPoint");
+                    int boomHingePointIdx = GetHeaderIndex(headers, "BoomHingePoint");
+                    int loadPointIdx = GetHeaderIndex(headers, "LoadPoint");
+                    int radiusOriginTypeIdx = GetHeaderIndex(headers, "RadiusOriginType");
+                    int boomOriginTypeIdx = GetHeaderIndex(headers, "BoomOriginType");
+                    int candidateBoomsCheckedIdx = GetHeaderIndex(headers, "CandidateBoomsChecked");
+                    int rejectedCandidatesIdx = GetHeaderIndex(headers, "RejectedCandidates");
 
                     string? line;
                     while ((line = reader.ReadLine()) != null)
@@ -195,6 +203,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         if (string.IsNullOrWhiteSpace(line)) continue;
 
                         var row = ParseCsvLine(line);
+                        var basePt = ParsePoint(GetValue(row, craneBasePointIdx, ""));
+                        var slewPt = ParsePoint(GetValue(row, slewCenterPointIdx, ""));
+                        var hingePt = ParsePoint(GetValue(row, boomHingePointIdx, ""));
+                        var loadPt = ParsePoint(GetValue(row, loadPointIdx, ""));
+
                         var dto = new GAElementDiagnosticDto
                         {
                             Timestamp = GetValue(row, timestampIdx),
@@ -232,7 +245,23 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                             LookupMode = GetValue(row, lookupModeIdx, "ConservativeStep"),
                             RequiredRadius = GetValueDouble(row, requiredRadiusIdx, GetValueDouble(row, bestRadiusIdx)),
                             SelectedChartRadius = GetValueDouble(row, selectedChartRadiusIdx),
-                            SelectedChartBoomLength = GetValueDouble(row, selectedChartBoomLengthIdx)
+                            SelectedChartBoomLength = GetValueDouble(row, selectedChartBoomLengthIdx),
+                            CraneBaseX = basePt.X,
+                            CraneBaseY = basePt.Y,
+                            CraneBaseZ = basePt.Z,
+                            SlewCenterX = slewPt.X,
+                            SlewCenterY = slewPt.Y,
+                            SlewCenterZ = slewPt.Z,
+                            BoomHingeX = hingePt.X,
+                            BoomHingeY = hingePt.Y,
+                            BoomHingeZ = hingePt.Z,
+                            LoadPointX = loadPt.X,
+                            LoadPointY = loadPt.Y,
+                            LoadPointZ = loadPt.Z,
+                            RadiusOriginType = GetValue(row, radiusOriginTypeIdx, "SlewCenter"),
+                            BoomOriginType = GetValue(row, boomOriginTypeIdx, "BoomHinge"),
+                            CandidateBoomsChecked = GetValue(row, candidateBoomsCheckedIdx, ""),
+                            RejectedCandidates = GetValue(row, rejectedCandidatesIdx, "")
                         };
 
                         results.Add(dto);
@@ -384,6 +413,22 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             }
             result.Add(currentToken.ToString());
             return result;
+        }
+
+        private static (double X, double Y, double Z) ParsePoint(string pointStr)
+        {
+            if (string.IsNullOrWhiteSpace(pointStr)) return (0, 0, 0);
+            var trimmed = pointStr.Trim('(', ')', ' ', '\t');
+            var parts = trimmed.Split(';');
+            if (parts.Length < 3) parts = trimmed.Split(','); // fallback
+            if (parts.Length >= 3 &&
+                double.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double x) &&
+                double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double y) &&
+                double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double z))
+            {
+                return (x, y, z);
+            }
+            return (0, 0, 0);
         }
 
         #endregion

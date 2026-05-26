@@ -28,8 +28,16 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Lift
 
         public double CalculateRadius(DomainPoint3D cranePosition, PrecastElement element)
         {
-            double dx = cranePosition.X - element.ElementCOG.X;
-            double dy = cranePosition.Y - element.ElementCOG.Y;
+            return CalculateRadius(cranePosition, element, new GASettings());
+        }
+
+        public double CalculateRadius(DomainPoint3D cranePosition, PrecastElement element, GASettings settings)
+        {
+            double slewX = cranePosition.X + settings.SlewOffsetX;
+            double slewY = cranePosition.Y + settings.SlewOffsetY;
+
+            double dx = slewX - element.ElementCOG.X;
+            double dy = slewY - element.ElementCOG.Y;
 
             return Math.Sqrt(dx * dx + dy * dy);
         }

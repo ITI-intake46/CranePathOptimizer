@@ -708,6 +708,12 @@
                                                                         <RowDefinition Height="Auto" />
                                                                         <RowDefinition Height="Auto" />
                                                                         <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
                                                                     </Grid.RowDefinitions>
 
                                                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Reach Status:" Foreground="{StaticResource MutedTextBrush}"/>
@@ -748,6 +754,34 @@
 
                                                                     <TextBlock Grid.Row="7" Grid.Column="0" Text="Zero Cell?:" Foreground="{StaticResource MutedTextBrush}"/>
                                                                     <TextBlock Grid.Row="7" Grid.Column="2" Text="{Binding IsZeroCell}"/>
+
+                                                                    <TextBlock Grid.Row="8" Grid.Column="0" Text="Candidate Booms:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Grid.Row="8" Grid.Column="2" Text="{Binding CandidateBoomsChecked}" TextWrapping="Wrap" MaxWidth="250"/>
+
+                                                                    <TextBlock Grid.Row="9" Grid.Column="0" Text="Rejected Booms:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Grid.Row="9" Grid.Column="2" Text="{Binding RejectedCandidates}" TextWrapping="Wrap" MaxWidth="250" Foreground="{StaticResource ErrorBrush}"/>
+
+                                                                    <TextBlock Grid.Row="10" Grid.Column="0" Text="Base Point:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Grid.Row="10" Grid.Column="2">
+                                                                        <Run Text="(" /><Run Text="{Binding CraneBaseX, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding CraneBaseY, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding CraneBaseZ, StringFormat={}{0:F1}}" /><Run Text=")" />
+                                                                    </TextBlock>
+
+                                                                    <TextBlock Grid.Row="11" Grid.Column="0" Text="Slew Center:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Grid.Row="11" Grid.Column="2">
+                                                                        <Run Text="(" /><Run Text="{Binding SlewCenterX, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding SlewCenterY, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding SlewCenterZ, StringFormat={}{0:F1}}" /><Run Text=")" />
+                                                                        <Run Text=" [" /><Run Text="{Binding RadiusOriginType}" /><Run Text="]" />
+                                                                    </TextBlock>
+
+                                                                    <TextBlock Grid.Row="12" Grid.Column="0" Text="Boom Hinge:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Grid.Row="12" Grid.Column="2">
+                                                                        <Run Text="(" /><Run Text="{Binding BoomHingeX, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding BoomHingeY, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding BoomHingeZ, StringFormat={}{0:F1}}" /><Run Text=")" />
+                                                                        <Run Text=" [" /><Run Text="{Binding BoomOriginType}" /><Run Text="]" />
+                                                                    </TextBlock>
+
+                                                                    <TextBlock Grid.Row="13" Grid.Column="0" Text="Load Point:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Grid.Row="13" Grid.Column="2">
+                                                                        <Run Text="(" /><Run Text="{Binding LoadPointX, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding LoadPointY, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding LoadPointZ, StringFormat={}{0:F1}}" /><Run Text=")" />
+                                                                    </TextBlock>
                                                                 </Grid>
                                                             </StackPanel>
                                                         </ToolTip>

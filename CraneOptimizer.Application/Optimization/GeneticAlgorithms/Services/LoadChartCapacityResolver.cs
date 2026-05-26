@@ -66,11 +66,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             }
 
             // 3. Envelope Check
-            // Check if required radius or boom length exceeds any entry in the entire load chart
-            bool exceedsMaxRadiusInChart = !craneSpec.LoadChart.Any(tp => tp.Radius >= radius);
-            bool exceedsMaxBoomInChart = !craneSpec.LoadChart.Any(tp => tp.BoomLength >= boomLength);
-
-            if (exceedsMaxRadiusInChart || exceedsMaxBoomInChart)
+            var radiusEntries = craneSpec.LoadChart.Where(tp => tp.Radius >= radius).ToList();
+            if (radiusEntries.Count == 0)
             {
                 result.ChartStatus = ChartStatus.OutsideChartEnvelope;
                 result.LiftStatus = LiftStatus.NotCharted;
@@ -78,73 +75,120 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 return result;
             }
 
-            // 4. Find valid discrete entries: tp.Radius >= radius && tp.BoomLength >= boomLength
-            var validEntries = craneSpec.LoadChart
-                .Where(tp => tp.Radius >= radius && tp.BoomLength >= boomLength)
+            double selectedChartRadius = radiusEntries.Min(tp => tp.Radius);
+            result.SelectedChartRadius = selectedChartRadius;
+
+            // Gather all boom configurations >= RequiredBoomLength at selectedChartRadius, sorted ascending
+            var candidates = craneSpec.LoadChart
+                .Where(tp => tp.Radius == selectedChartRadius && tp.BoomLength >= boomLength)
+                .OrderBy(tp => tp.BoomLength)
                 .ToList();
 
-            if (validEntries.Count == 0)
+            if (candidates.Count == 0)
             {
-                result.ChartStatus = ChartStatus.NoListedCapacity;
+                result.ChartStatus = ChartStatus.OutsideChartEnvelope;
                 result.LiftStatus = LiftStatus.NotCharted;
-                result.FailureReason = CapacityFailureReason.NoDiscreteLoadChartEntry.ToString();
+                result.FailureReason = CapacityFailureReason.OutsideChartEnvelope.ToString();
                 return result;
             }
 
-            // Find conservative nearest chart point
-            double minRadius = validEntries.Min(tp => tp.Radius);
-            var minRadiusEntries = validEntries.Where(tp => tp.Radius == minRadius).ToList();
+            // 4. Candidate Selection Loop
+            var checkedBooms = new System.Collections.Generic.List<double>();
+            var rejections = new System.Collections.Generic.List<string>();
+            TargetPoint? selectedEntry = null;
+            TargetPoint? bestOverweightEntry = null;
+            double bestOverweightCapacity = -1.0;
 
-            double minBoom = minRadiusEntries.Min(tp => tp.BoomLength);
-            var finalEntry = minRadiusEntries.FirstOrDefault(tp => tp.BoomLength == minBoom);
-
-            if (finalEntry == null)
+            foreach (var tp in candidates)
             {
-                result.ChartStatus = ChartStatus.NoListedCapacity;
-                result.LiftStatus = LiftStatus.NotCharted;
-                result.FailureReason = CapacityFailureReason.NoDiscreteLoadChartEntry.ToString();
-                return result;
+                checkedBooms.Add(tp.BoomLength);
+
+                if (tp.Capacity <= -1.0)
+                {
+                    rejections.Add($"{tp.BoomLength:0.#} (InvalidBlankCell)");
+                    continue;
+                }
+                if (tp.Capacity == 0.0)
+                {
+                    rejections.Add($"{tp.BoomLength:0.#} (InvalidZeroCell)");
+                    continue;
+                }
+
+                // Positive capacity candidate found!
+                double available = tp.Capacity * settings.DeratingRatio * settings.SafetyFactor;
+                if (available >= elementWeight)
+                {
+                    selectedEntry = tp;
+                    break; // Shortest compliant boom selected!
+                }
+                else
+                {
+                    rejections.Add($"{tp.BoomLength:0.#} (Overweight: {available:0.###} < {elementWeight:0.###})");
+                    if (available > bestOverweightCapacity)
+                    {
+                        bestOverweightCapacity = available;
+                        bestOverweightEntry = tp;
+                    }
+                }
             }
 
-            result.SelectedChartRadius = finalEntry.Radius;
-            result.SelectedChartBoomLength = finalEntry.BoomLength;
-            result.IsExactMatch = Math.Abs(finalEntry.Radius - radius) < 1e-5 && Math.Abs(finalEntry.BoomLength - boomLength) < 1e-5;
-            result.IsSteppedRadius = finalEntry.Radius > radius;
+            result.CandidateBoomsChecked = string.Join(", ", checkedBooms.Select(b => b.ToString("0.#")));
+            result.RejectedCandidates = string.Join(" | ", rejections);
 
-            // 5. Evaluate blank/zero capacity cell status
-            if (finalEntry.Capacity <= -1.0)
+            TargetPoint finalEntry;
+
+            if (selectedEntry != null)
             {
-                result.IsBlankCell = true;
-                result.ChartStatus = ChartStatus.InvalidBlankCell;
-                result.LiftStatus = LiftStatus.NotCharted;
-                result.FailureReason = CapacityFailureReason.InvalidBlankCell.ToString();
-                return result;
+                // Case A: Shortest Compliant Boom Selected
+                finalEntry = selectedEntry;
+                result.SelectedChartBoomLength = finalEntry.BoomLength;
+                result.IsExactMatch = Math.Abs(finalEntry.Radius - radius) < 1e-5 && Math.Abs(finalEntry.BoomLength - boomLength) < 1e-5;
+                result.IsSteppedRadius = finalEntry.Radius > radius;
+
+                double available = finalEntry.Capacity * settings.DeratingRatio * settings.SafetyFactor;
+                result.AvailableCapacity = available;
+                result.SafetyMargin = available - elementWeight;
+                result.ChartStatus = ChartStatus.ListedCapacityFound;
+                result.LiftStatus = LiftStatus.Liftable;
+                result.FailureReason = CapacityFailureReason.None.ToString();
             }
-
-            if (finalEntry.Capacity == 0.0)
+            else if (bestOverweightEntry != null)
             {
-                result.IsZeroCell = true;
-                result.ChartStatus = ChartStatus.InvalidZeroCell;
-                result.LiftStatus = LiftStatus.NotCharted;
-                result.FailureReason = CapacityFailureReason.InvalidZeroCell.ToString();
-                return result;
-            }
+                // Case B: No compliant boom, but there are overweight positive capacity candidates
+                finalEntry = bestOverweightEntry;
+                result.SelectedChartBoomLength = finalEntry.BoomLength;
+                result.IsExactMatch = Math.Abs(finalEntry.Radius - radius) < 1e-5 && Math.Abs(finalEntry.BoomLength - boomLength) < 1e-5;
+                result.IsSteppedRadius = finalEntry.Radius > radius;
 
-            // 6. Valid Listed Capacity Found - Apply Derating & Safety Factors
-            double available = finalEntry.Capacity * settings.DeratingRatio * settings.SafetyFactor;
-            result.AvailableCapacity = available;
-            result.SafetyMargin = available - elementWeight;
-            result.ChartStatus = ChartStatus.ListedCapacityFound;
-
-            if (elementWeight > available + 0.001)
-            {
+                double available = finalEntry.Capacity * settings.DeratingRatio * settings.SafetyFactor;
+                result.AvailableCapacity = available;
+                result.SafetyMargin = available - elementWeight;
+                result.ChartStatus = ChartStatus.ListedCapacityFound;
                 result.LiftStatus = LiftStatus.Overweight;
-                result.FailureReason = CapacityFailureReason.NoListedCapacityForBoomRadius.ToString(); // Not liftable due to overweight capacity limit
+                result.FailureReason = CapacityFailureReason.NoListedCapacityForBoomRadius.ToString();
             }
             else
             {
-                result.LiftStatus = LiftStatus.Liftable;
-                result.FailureReason = CapacityFailureReason.None.ToString();
+                // Case C: All candidates are blank/zero
+                finalEntry = candidates.First();
+                result.SelectedChartBoomLength = finalEntry.BoomLength;
+                result.IsExactMatch = Math.Abs(finalEntry.Radius - radius) < 1e-5 && Math.Abs(finalEntry.BoomLength - boomLength) < 1e-5;
+                result.IsSteppedRadius = finalEntry.Radius > radius;
+
+                if (finalEntry.Capacity <= -1.0)
+                {
+                    result.IsBlankCell = true;
+                    result.ChartStatus = ChartStatus.InvalidBlankCell;
+                    result.LiftStatus = LiftStatus.NotCharted;
+                    result.FailureReason = CapacityFailureReason.InvalidBlankCell.ToString();
+                }
+                else
+                {
+                    result.IsZeroCell = true;
+                    result.ChartStatus = ChartStatus.InvalidZeroCell;
+                    result.LiftStatus = LiftStatus.NotCharted;
+                    result.FailureReason = CapacityFailureReason.InvalidZeroCell.ToString();
+                }
             }
 
             return result;
