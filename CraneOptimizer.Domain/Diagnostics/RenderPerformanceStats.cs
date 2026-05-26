@@ -33,6 +33,9 @@ namespace CraneOptimizer.Domain.Diagnostics
         public double ReRenderDurationMs { get; set; }
         public double MemoryBeforeRenderMB { get; set; }
         public double MemoryAfterRenderMB { get; set; }
+        public int SpatialHitTestCandidateCount { get; set; }
+        public double SpatialHitTestDurationMs { get; set; }
+        public string? PickedElementId { get; set; }
         public DateTime TimestampUtc { get; set; }
     }
 }

@@ -1,3 +1,5 @@
+using System;
+using System.Windows.Media.Media3D;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Schemas;
@@ -578,9 +580,11 @@ namespace CraneOptimizer.Application.Tests
 
                 var previousQuality = ElementVisualBuilder.CurrentQuality;
                 var previousFlag = ElementVisualBuilder.UseBatchedRealMeshRendering;
+                var previousSpatialFlag = ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes;
                 try
                 {
                     ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.Medium;
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = false;
                     
                     // 1. Render with batching ENABLED (all unselected)
                     ElementVisualBuilder.UseBatchedRealMeshRendering = true;
@@ -614,6 +618,7 @@ namespace CraneOptimizer.Application.Tests
                 {
                     ElementVisualBuilder.CurrentQuality = previousQuality;
                     ElementVisualBuilder.UseBatchedRealMeshRendering = previousFlag;
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = previousSpatialFlag;
                     readerRepository.ClearData();
                 }
             });
@@ -639,10 +644,12 @@ namespace CraneOptimizer.Application.Tests
 
                 var previousQuality = ElementVisualBuilder.CurrentQuality;
                 var previousFlag = ElementVisualBuilder.UseBatchedRealMeshRendering;
+                var previousSpatialFlag = ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes;
                 try
                 {
                     ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.Medium;
                     ElementVisualBuilder.UseBatchedRealMeshRendering = true;
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = false;
 
                     // Set one element IncludeInRender = false
                     var modifiedElements = elements.ToList();
@@ -672,6 +679,7 @@ namespace CraneOptimizer.Application.Tests
                 {
                     ElementVisualBuilder.CurrentQuality = previousQuality;
                     ElementVisualBuilder.UseBatchedRealMeshRendering = previousFlag;
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = previousSpatialFlag;
                     readerRepository.ClearData();
                 }
             });
@@ -937,6 +945,283 @@ namespace CraneOptimizer.Application.Tests
                 {
                     ElementVisualBuilder.CurrentQuality = previousQuality;
                     ElementVisualBuilder.UseBatchedRealMeshRendering = previousFlag;
+                    readerRepository.ClearData();
+                }
+            });
+        }
+
+        [Fact]
+        public void Builder_SpatialHitTesting_NearestAABBSelected()
+        {
+            RunOnSta(() =>
+            {
+                var smallIfcPath = @"F:\06-ITI\00-Project\tryProjects\try6\Models\IFC\teklaModelTestIFC_10.ifc";
+                if (!System.IO.File.Exists(smallIfcPath)) return;
+
+                var sessionService = new IfcModelSessionService();
+                var auditService = new IfcDiagnosticAuditService(sessionService);
+                var exporterProfileResolver = new IfcExporterProfileResolver();
+                var normalizationService = new IfcNormalizationDecisionService(exporterProfileResolver);
+                var readerRepository = new IfcReaderRepository(auditService, normalizationService, sessionService);
+
+                var elements = readerRepository.ReadElements(smallIfcPath).ToList();
+                var origin = new DomainPoint3D(0, 0, 0);
+                var placementOffset = new DomainPoint3D(0, 0, 0);
+
+                var previousFlag = ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes;
+                try
+                {
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = true;
+                    ElementVisualBuilder.ClearMeshCache("test-spatial-nearest");
+
+                    // 1. Render a single element to register its AABB uniquely
+                    var targetElement = elements.First();
+                    var builder = new ElementVisualBuilder(readerRepository, origin, placementOffset);
+                    builder.BuildBatch(new List<PrecastElement> { targetElement }.Select(e => (e, (LiftStatus?)null, false)));
+
+                    // Bounding boxes must be registered
+                    Assert.True(ElementVisualBuilder.SpatialHitTestElementCount > 0);
+
+                    // 2. Perform a mock ray intersection test directly
+                    var x = targetElement.ElementCOG.X - origin.X;
+                    var y = targetElement.ElementCOG.Y - origin.Y;
+                    var z = targetElement.ElementCOG.Z - origin.Z;
+
+                    // Mock a viewport ray from above pointing straight down at element center
+                    var rayOrigin = new Point3D(x, y, z + 10.0);
+                    var rayDir = new Vector3D(0, 0, -1.0);
+
+                    // Perform slab intersection against registered candidates
+                    var candidates = ElementVisualBuilder.GetSpatialHitTestElements();
+                    PrecastElement? hitElement = null;
+                    double closestDist = double.MaxValue;
+
+                    foreach (var cand in candidates)
+                    {
+                        if (!cand.IsVisible) continue;
+
+                        // Mock Kajiya slab method call
+                        var method = typeof(ViewportHitTestService).GetMethod("RayIntersectsAABB", 
+                            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+                        
+                        object[] args = new object[] { rayOrigin, rayDir, cand.Min, cand.Max, 0.0 };
+                        if (method != null && (bool)method.Invoke(null, args)!)
+                        {
+                            double t = (double)args[4];
+                            if (t < closestDist)
+                            {
+                                closestDist = t;
+                                hitElement = cand.Element;
+                            }
+                        }
+                    }
+
+                    Assert.NotNull(hitElement);
+                    Assert.Equal(targetElement.ElementID, hitElement.ElementID);
+                }
+                finally
+                {
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = previousFlag;
+                    readerRepository.ClearData();
+                }
+            });
+        }
+
+        [Fact]
+        public void Builder_SpatialHitTesting_IncludeInRenderFalseExcluded()
+        {
+            RunOnSta(() =>
+            {
+                var smallIfcPath = @"F:\06-ITI\00-Project\tryProjects\try6\Models\IFC\teklaModelTestIFC_10.ifc";
+                if (!System.IO.File.Exists(smallIfcPath)) return;
+
+                var sessionService = new IfcModelSessionService();
+                var auditService = new IfcDiagnosticAuditService(sessionService);
+                var exporterProfileResolver = new IfcExporterProfileResolver();
+                var normalizationService = new IfcNormalizationDecisionService(exporterProfileResolver);
+                var readerRepository = new IfcReaderRepository(auditService, normalizationService, sessionService);
+
+                var elements = readerRepository.ReadElements(smallIfcPath).ToList();
+                var origin = new DomainPoint3D(0, 0, 0);
+                var placementOffset = new DomainPoint3D(0, 0, 0);
+
+                var targetElement = elements.First();
+                targetElement.IncludeInRender = false; // Hide this specific element
+
+                var previousFlag = ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes;
+                try
+                {
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = true;
+                    ElementVisualBuilder.ClearMeshCache("test-spatial-exclude");
+
+                    // Render
+                    var builder = new ElementVisualBuilder(readerRepository, origin, placementOffset);
+                    builder.BuildBatch(elements.Select(e => (e, (LiftStatus?)null, false)));
+
+                    // Check registry matches
+                    var candidates = ElementVisualBuilder.GetSpatialHitTestElements();
+                    var match = candidates.FirstOrDefault(c => c.ElementId == targetElement.ElementID);
+
+                    Assert.NotNull(match);
+                    Assert.False(match.IsVisible); // Must be marked invisible in registry
+                }
+                finally
+                {
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = previousFlag;
+                    readerRepository.ClearData();
+                }
+            });
+        }
+
+        [Fact]
+        public void Builder_SpatialHitTesting_RegistryClearsOnRenderSessionUnload()
+        {
+            RunOnSta(() =>
+            {
+                var smallIfcPath = @"F:\06-ITI\00-Project\tryProjects\try6\Models\IFC\teklaModelTestIFC_10.ifc";
+                if (!System.IO.File.Exists(smallIfcPath)) return;
+
+                var sessionService = new IfcModelSessionService();
+                var auditService = new IfcDiagnosticAuditService(sessionService);
+                var exporterProfileResolver = new IfcExporterProfileResolver();
+                var normalizationService = new IfcNormalizationDecisionService(exporterProfileResolver);
+                var readerRepository = new IfcReaderRepository(auditService, normalizationService, sessionService);
+
+                var elements = readerRepository.ReadElements(smallIfcPath).ToList();
+                var origin = new DomainPoint3D(0, 0, 0);
+                var placementOffset = new DomainPoint3D(0, 0, 0);
+
+                var previousFlag = ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes;
+                try
+                {
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = true;
+
+                    // 1. Registry is populated on render
+                    ElementVisualBuilder.ClearMeshCache("test-reg-clear");
+                    var builder = new ElementVisualBuilder(readerRepository, origin, placementOffset);
+                    builder.BuildBatch(elements.Select(e => (e, (LiftStatus?)null, false)));
+                    
+                    var sizeBefore = ElementVisualBuilder.SpatialHitTestElementCount;
+                    Assert.True(sizeBefore > 0);
+
+                    // 2. Registry clears on ClearMeshCache
+                    ElementVisualBuilder.ClearMeshCache("simulate-unload");
+                    Assert.Equal(0, ElementVisualBuilder.SpatialHitTestElementCount);
+
+                    // 3. Registry is repopulated on another render
+                    builder.BuildBatch(elements.Select(e => (e, (LiftStatus?)null, false)));
+                    Assert.Equal(sizeBefore, ElementVisualBuilder.SpatialHitTestElementCount);
+
+                    // 4. Registry clears on Session change (EnsureCacheSession)
+                    // Simulate session change in ViewModel lifecycle
+                    var newSessionId = Guid.NewGuid();
+                    var ensureMethod = typeof(ElementVisualBuilder).GetMethod("EnsureCacheSessionForTesting",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                    
+                    Assert.NotNull(ensureMethod);
+                    ensureMethod.Invoke(null, new object[] { newSessionId });
+                    
+                    Assert.Equal(0, ElementVisualBuilder.SpatialHitTestElementCount);
+                }
+                finally
+                {
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = previousFlag;
+                    readerRepository.ClearData();
+                }
+            });
+        }
+
+        [Fact]
+        public void Builder_SpatialHitTesting_FeatureFlagOffRestoresTransparentHitBoxes()
+        {
+            RunOnSta(() =>
+            {
+                var smallIfcPath = @"F:\06-ITI\00-Project\tryProjects\try6\Models\IFC\teklaModelTestIFC_10.ifc";
+                if (!System.IO.File.Exists(smallIfcPath)) return;
+
+                var sessionService = new IfcModelSessionService();
+                var auditService = new IfcDiagnosticAuditService(sessionService);
+                var exporterProfileResolver = new IfcExporterProfileResolver();
+                var normalizationService = new IfcNormalizationDecisionService(exporterProfileResolver);
+                var readerRepository = new IfcReaderRepository(auditService, normalizationService, sessionService);
+
+                var elements = readerRepository.ReadElements(smallIfcPath).ToList();
+                var origin = new DomainPoint3D(0, 0, 0);
+                var placementOffset = new DomainPoint3D(0, 0, 0);
+
+                var previousFlag = ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes;
+                try
+                {
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = false;
+                    ElementVisualBuilder.ClearMeshCache("test-flag-off");
+
+                    // Render with spatial hit testing OFF
+                    var builder = new ElementVisualBuilder(readerRepository, origin, placementOffset);
+                    builder.ResetCounters();
+                    builder.BuildBatch(elements.Select(e => (e, (LiftStatus?)null, false)));
+
+                    // Transparent boxes should be generated in the visual tree
+                    Assert.True(builder.DiagHitTestBoxes > 0);
+                    Assert.Equal(builder.DiagVisibleElements, builder.DiagHitTestBoxes);
+                }
+                finally
+                {
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = previousFlag;
+                    readerRepository.ClearData();
+                }
+            });
+        }
+
+        [Fact]
+        public void Builder_SpatialHitTesting_VisualCountDropsSignificantly()
+        {
+            RunOnSta(() =>
+            {
+                var smallIfcPath = @"F:\06-ITI\00-Project\tryProjects\try6\Models\IFC\teklaModelTestIFC_10.ifc";
+                if (!System.IO.File.Exists(smallIfcPath)) return;
+
+                var sessionService = new IfcModelSessionService();
+                var auditService = new IfcDiagnosticAuditService(sessionService);
+                var exporterProfileResolver = new IfcExporterProfileResolver();
+                var normalizationService = new IfcNormalizationDecisionService(exporterProfileResolver);
+                var readerRepository = new IfcReaderRepository(auditService, normalizationService, sessionService);
+
+                var elements = readerRepository.ReadElements(smallIfcPath).ToList();
+                var origin = new DomainPoint3D(0, 0, 0);
+                var placementOffset = new DomainPoint3D(0, 0, 0);
+
+                var previousFlag = ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes;
+                try
+                {
+                    // 1. Check visual count with spatial hit testing OFF (native overlays ON)
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = false;
+                    ElementVisualBuilder.ClearMeshCache("test-vis-off");
+                    var builderOff = new ElementVisualBuilder(readerRepository, origin, placementOffset);
+                    builderOff.ResetCounters();
+                    builderOff.BuildBatch(elements.Select(e => (e, (LiftStatus?)null, false)));
+
+                    var visualsCountOff = builderOff.DiagModelVisual3DCount;
+                    var geomCountOff = builderOff.DiagGeometryModel3DCount;
+
+                    // 2. Check visual count with spatial hit testing ON (native overlays OFF)
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = true;
+                    ElementVisualBuilder.ClearMeshCache("test-vis-on");
+                    var builderOn = new ElementVisualBuilder(readerRepository, origin, placementOffset);
+                    builderOn.ResetCounters();
+                    builderOn.BuildBatch(elements.Select(e => (e, (LiftStatus?)null, false)));
+
+                    var visualsCountOn = builderOn.DiagModelVisual3DCount;
+                    var geomCountOn = builderOn.DiagGeometryModel3DCount;
+
+                    // When spatial picking is ON, the GeometryModel3D and ModelVisual3D count must drop dramatically!
+                    Assert.True(geomCountOn < geomCountOff);
+                    Assert.True(visualsCountOn < visualsCountOff);
+                    Assert.Equal(0, builderOn.DiagHitTestBoxes);
+                    Assert.Equal(0, builderOn.DiagHitTestGeometryModel3DCount);
+                }
+                finally
+                {
+                    ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = previousFlag;
                     readerRepository.ClearData();
                 }
             });

@@ -86,6 +86,18 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
         public static MeshQuality CurrentQuality { get; set; } = MeshQuality.Medium;
         public static bool UseBatchedRealMeshRendering { get; set; } = true;
+        public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } = true;
+
+        public sealed class SpatialHitTestElement
+        {
+            public Guid? SessionId { get; set; }
+            public DateTime RenderTimestampUtc { get; set; }
+            public string ElementId { get; set; } = null!;
+            public PrecastElement Element { get; set; } = null!;
+            public Point3D Min { get; set; }
+            public Point3D Max { get; set; }
+            public bool IsVisible { get; set; }
+        }
 
         private static readonly object MeshCacheGate = new();
         private static readonly Dictionary<MeshCacheKey, MediaMeshGeometry3D> MeshCache = new();
@@ -102,6 +114,37 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 {
                     return HighQualityMeshCache.Count;
                 }
+            }
+        }
+
+        private static readonly object SpatialHitTestGate = new();
+        private static readonly List<SpatialHitTestElement> SpatialHitTestElements = new();
+
+        public static int SpatialHitTestElementCount
+        {
+            get
+            {
+                lock (SpatialHitTestGate)
+                {
+                    return SpatialHitTestElements.Count;
+                }
+            }
+        }
+
+        public static void RegisterSpatialHitTestElements(IEnumerable<SpatialHitTestElement> elements)
+        {
+            lock (SpatialHitTestGate)
+            {
+                SpatialHitTestElements.Clear();
+                SpatialHitTestElements.AddRange(elements);
+            }
+        }
+
+        public static IReadOnlyList<SpatialHitTestElement> GetSpatialHitTestElements()
+        {
+            lock (SpatialHitTestGate)
+            {
+                return SpatialHitTestElements.ToList();
             }
         }
 
@@ -126,6 +169,13 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 var count = HighQualityMeshCache.Count;
                 HighQualityMeshCache.Clear();
                 Debug.WriteLine($"[ElementVisualBuilder] High Quality Mesh cache cleared. Reason={reason}, Removed={count}");
+            }
+
+            lock (SpatialHitTestGate)
+            {
+                var count = SpatialHitTestElements.Count;
+                SpatialHitTestElements.Clear();
+                Debug.WriteLine($"[ElementVisualBuilder] Spatial Hit Test elements cleared. Reason={reason}, Removed={count}");
             }
         }
 
@@ -258,6 +308,35 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
                 var origin = _origin ?? new DomainPoint3D(0, 0, 0);
                 var placementOffset = _placementOffset ?? new DomainPoint3D(0, 0, 0);
+
+                // Populate spatial hit-testing elements registry snapshot
+                var spatialElements = new List<SpatialHitTestElement>();
+                var renderTimestamp = DateTime.UtcNow;
+                foreach (var item in allItems)
+                {
+                    var el = item.element;
+                    var x = el.ElementCOG.X - origin.X;
+                    var y = el.ElementCOG.Y - origin.Y;
+                    var z = el.ElementCOG.Z - origin.Z;
+                    var dx = el.BBoxLength ?? 1.0;
+                    var dy = el.BBoxWidth ?? 1.0;
+                    var dz = el.BBoxHeight ?? 1.0;
+
+                    var min = new Point3D(x - dx / 2, y - dy / 2, z - dz / 2);
+                    var max = new Point3D(x + dx / 2, y + dy / 2, z + dz / 2);
+
+                    spatialElements.Add(new SpatialHitTestElement
+                    {
+                        SessionId = sessionId,
+                        RenderTimestampUtc = renderTimestamp,
+                        ElementId = el.ElementID,
+                        Element = el,
+                        Min = min,
+                        Max = max,
+                        IsVisible = el.IncludeInRender
+                    });
+                }
+                RegisterSpatialHitTestElements(spatialElements);
 
                 var selectionMaterial = CreateFrozenDiffuseMaterial(Color.FromArgb(110, 100, 180, 255));
 
@@ -620,20 +699,23 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
                     // D. Render Lightweight Transparent Hit-Testing Boxes for selection
                     var hitBoxesCount = 0;
-                    foreach (var item in itemsList)
+                    if (!UseSpatialHitTestingInsteadOfTransparentBoxes)
                     {
-                        try
+                        foreach (var item in itemsList)
                         {
-                            var isSelected = item.isSelected;
-                            if (!isSelected)
+                            try
                             {
-                                var hitBox = CreateTransparentHitBox(item.element, origin, placementOffset);
-                                batchVisual.Children.Add(hitBox);
-                                modelVisualsCreated++;
-                                hitBoxesCount++;
+                                var isSelected = item.isSelected;
+                                if (!isSelected)
+                                {
+                                    var hitBox = CreateTransparentHitBox(item.element, origin, placementOffset);
+                                    batchVisual.Children.Add(hitBox);
+                                    modelVisualsCreated++;
+                                    hitBoxesCount++;
+                                }
                             }
+                            catch { }
                         }
-                        catch { }
                     }
 
                     // E. Set Diagnostics counters
@@ -992,6 +1074,14 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                     HighQualityMeshCache.Clear();
                     if (removed > 0)
                         Debug.WriteLine($"[ElementVisualBuilder] High Quality Mesh cache reset for session {sessionId}. Removed={removed}");
+                }
+
+                lock (SpatialHitTestGate)
+                {
+                    var removed = SpatialHitTestElements.Count;
+                    SpatialHitTestElements.Clear();
+                    if (removed > 0)
+                        Debug.WriteLine($"[ElementVisualBuilder] Spatial Hit Test elements reset for session {sessionId}. Removed={removed}");
                 }
             }
         }
