@@ -132,7 +132,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                     {
                         heightFailCount++;
                     }
-                    else if (r.Status == LiftStatus.SpecialCase)
+                    else if (r.Status == LiftStatus.SpecialCase || r.Status == LiftStatus.NotCharted)
                     {
                         specialCaseCount++;
                     }

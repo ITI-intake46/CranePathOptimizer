@@ -86,7 +86,7 @@ namespace CraneOptimizer.Application.Tests
             var status3 = liftingEngine.DetermineLiftStatus(10, 20, 15, craneSpec, settings);
             Assert.Equal(LiftStatus.Overweight, status3);
 
-            // Case 4: Special Case (No capacity available)
+            // Case 4: Not Charted (No capacity available / empty chart)
             var craneSpecNoChart = new CraneSpecification
             {
                 MaxRadius = 40,
@@ -94,7 +94,7 @@ namespace CraneOptimizer.Application.Tests
                 LoadChart = new List<TargetPoint>()
             };
             var status4 = liftingEngine.DetermineLiftStatus(10, 20, 5, craneSpecNoChart, settings);
-            Assert.Equal(LiftStatus.SpecialCase, status4);
+            Assert.Equal(LiftStatus.NotCharted, status4);
 
             // Case 5: Liftable
             var status5 = liftingEngine.DetermineLiftStatus(10, 20, 8, craneSpec, settings);

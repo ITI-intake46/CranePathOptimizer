@@ -97,7 +97,9 @@ namespace CraneOptimizer.Application.Tests
                     double reqWeight = liftingEngine.CalculateRequiredWeight(el, settings);
                     var statusNew = liftingEngine.DetermineLiftStatus(radiusNew, boomNew, reqWeight, craneSpec, settings);
                     var statusOld = LiftCalculationLegacy.DetermineLiftStatus(radiusOld, boomOld, reqWeight, craneSpec, settings);
-                    Assert.Equal(statusOld, statusNew);
+                    
+                    var statusNewMapped = statusNew == LiftStatus.NotCharted ? LiftStatus.SpecialCase : statusNew;
+                    Assert.Equal(statusOld, statusNewMapped);
                 }
             }
         }

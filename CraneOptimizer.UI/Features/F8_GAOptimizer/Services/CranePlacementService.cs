@@ -70,17 +70,83 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             var filteredElements = _scopeEngine.FilterElements(sceneElements, filter);
 
-            // Normalize elements to meters
-            var elements = new List<PrecastElement>(filteredElements.Count);
+            // Normalize elements to meters, applying strict GA input gating (Phase 2A requirement)
+            var elements = new List<PrecastElement>();
+            var blockedElements = new List<(PrecastElement element, string reason)>();
+
             for (int i = 0; i < filteredElements.Count; i++)
             {
                 var element = filteredElements[i];
 
+                if (!element.IncludeInGa)
+                {
+                    blockedElements.Add((element, $"IncludeInGa flag is false (Role: {element.Role}, Reason: {element.NormalizationDecisionReason})"));
+                    continue;
+                }
+
+                if (element.Role == CraneOptimizer.Domain.Diagnostics.IfcElementRole.NeedsReview)
+                {
+                    blockedElements.Add((element, "NeedsReview element blocked until user decision exists."));
+                    continue;
+                }
+
+                if (element.Role == CraneOptimizer.Domain.Diagnostics.IfcElementRole.GroupingOnly)
+                {
+                    blockedElements.Add((element, "GroupingOnly container elements cannot enter GA."));
+                    continue;
+                }
+
+                if (element.Role == CraneOptimizer.Domain.Diagnostics.IfcElementRole.InternalAuxiliary)
+                {
+                    blockedElements.Add((element, "Reinforcements/internal auxiliary elements cannot enter GA."));
+                    continue;
+                }
+
+                if (element.Role == CraneOptimizer.Domain.Diagnostics.IfcElementRole.Excluded)
+                {
+                    blockedElements.Add((element, "Consolidated child components swallowed/excluded."));
+                    continue;
+                }
+
+                if (!element.WeightTons.HasValue)
+                {
+                    blockedElements.Add((element, "Missing weight."));
+                    continue;
+                }
+
+                if (element.WeightTons.Value <= 0)
+                {
+                    blockedElements.Add((element, "Explicit zero or negative weight."));
+                    continue;
+                }
+
+                if (element.WeightTrustLevel != CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.ExplicitQuantity &&
+                    element.WeightTrustLevel != CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.ExplicitProperty)
+                {
+                    blockedElements.Add((element, $"Untrusted weight source/trust level (TrustLevel: {element.WeightTrustLevel}, Source: {element.WeightSource})."));
+                    continue;
+                }
+
                 if (!_coordinateService.IsValidPoint(element.ElementCOG))
-                    throw new InvalidOperationException($"Invalid coordinates found for element '{element.ElementID}'.");
+                {
+                    blockedElements.Add((element, "Invalid COG coordinates."));
+                    continue;
+                }
 
                 elements.Add(_coordinateService.NormalizeElementToMeters(element));
             }
+
+            // Write detailed extraction and GA gating diagnostics breakdown summaries to Debug.WriteLine (Phase 2A requirement)
+            System.Diagnostics.Debug.WriteLine("=== Phase 2A Genetic Algorithm Input Gating Diagnostics ===");
+            System.Diagnostics.Debug.WriteLine($"Total Scene Elements: {sceneElements?.Count ?? 0}");
+            System.Diagnostics.Debug.WriteLine($"Selected/Filtered Scene Elements: {filteredElements.Count}");
+            System.Diagnostics.Debug.WriteLine($"GA-Ready Elements (Normalized & Passed Gating): {elements.Count}");
+            System.Diagnostics.Debug.WriteLine($"GA-Blocked Elements: {blockedElements.Count}");
+            foreach (var blocked in blockedElements.GroupBy(b => b.reason))
+            {
+                System.Diagnostics.Debug.WriteLine($"  - Reason: {blocked.Key} -> Count: {blocked.Count()}");
+            }
+            System.Diagnostics.Debug.WriteLine("==========================================================");
 
             // Normalize zones to meters
             var zones = new List<GreenAreaZone>(sceneZones.Count);
@@ -167,7 +233,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     OutOfRadius = appResult.Statistics.OutOfRadius,
                     Overweight = appResult.Statistics.Overweight,
                     HeightFail = appResult.Statistics.HeightFail,
-                    SpecialCase = appResult.Statistics.SpecialCase
+                    SpecialCase = appResult.Statistics.SpecialCase,
+                    NotCharted = appResult.Statistics.NotCharted
                 },
                 Positions = new List<DTOs.CranePositionResult>(appResult.Positions.Count)
             };
@@ -206,7 +273,58 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                             Radius = appElem.Radius,
                             BoomLength = appElem.BoomLength,
                             AvailableCapacity = appElem.AvailableCapacity,
-                            RequiredCapacity = appElem.RequiredCapacity
+                            RequiredCapacity = appElem.RequiredCapacity,
+                            ReachStatus = appElem.ReachStatus,
+                            ChartStatus = appElem.ChartStatus,
+                            IsExactMatch = appElem.IsExactMatch,
+                            IsSteppedRadius = appElem.IsSteppedRadius,
+                            IsBlankCell = appElem.IsBlankCell,
+                            IsZeroCell = appElem.IsZeroCell,
+                            SafetyMargin = appElem.SafetyMargin,
+                            LookupMode = appElem.LookupMode,
+                            RequiredRadius = appElem.RequiredRadius,
+                            SelectedChartRadius = appElem.SelectedChartRadius,
+                            SelectedChartBoomLength = appElem.SelectedChartBoomLength,
+                            CraneBaseX = appElem.CraneBaseX,
+                            CraneBaseY = appElem.CraneBaseY,
+                            CraneBaseZ = appElem.CraneBaseZ,
+                            SlewCenterX = appElem.SlewCenterX,
+                            SlewCenterY = appElem.SlewCenterY,
+                            SlewCenterZ = appElem.SlewCenterZ,
+                            BoomHingeX = appElem.BoomHingeX,
+                            BoomHingeY = appElem.BoomHingeY,
+                            BoomHingeZ = appElem.BoomHingeZ,
+                            LoadPointX = appElem.LoadPointX,
+                            LoadPointY = appElem.LoadPointY,
+                            LoadPointZ = appElem.LoadPointZ,
+                            RadiusOriginType = appElem.RadiusOriginType,
+                            BoomOriginType = appElem.BoomOriginType,
+                            CandidateBoomsChecked = appElem.CandidateBoomsChecked,
+                            RejectedCandidates = appElem.RejectedCandidates,
+                            
+                            // GA Assignment and Uniqueness Fields
+                            CandidatePointId = appElem.CandidatePointId,
+                            CandidatePointIndex = appElem.CandidatePointIndex,
+                            IsFeasibleFromPoint = appElem.IsFeasibleFromPoint,
+                            IsFinalAssignedToPoint = appElem.IsFinalAssignedToPoint,
+                            AssignedPointId = appElem.AssignedPointId,
+                            AssignedPointIndex = appElem.AssignedPointIndex,
+                            AssignmentReason = appElem.AssignmentReason,
+                            AssignmentScore = appElem.AssignmentScore,
+                            DuplicateAssignmentResolved = appElem.DuplicateAssignmentResolved,
+                            FeasiblePointIds = appElem.FeasiblePointIds,
+                            FinalOwnerPointId = appElem.FinalOwnerPointId,
+                            IsFinalAssigned = appElem.IsFinalAssigned,
+                            BestFailedPointId = appElem.BestFailedPointId,
+                            BestFailureReason = appElem.BestFailureReason,
+                            
+                            HasBestFailedCandidate = appElem.HasBestFailedCandidate,
+                            BestFailedLiftStatus = appElem.BestFailedLiftStatus,
+                            BestFailedReachStatus = appElem.BestFailedReachStatus,
+                            BestFailedChartStatus = appElem.BestFailedChartStatus,
+                            BestFailedSafetyMargin = appElem.BestFailedSafetyMargin,
+                            BestFailedRequiredRadius = appElem.BestFailedRequiredRadius,
+                            BestFailedRequiredBoomLength = appElem.BestFailedRequiredBoomLength
                         };
                     }).ToList()
                 };

@@ -1,4 +1,5 @@
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Schemas.Enums;
 
 namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
@@ -6,6 +7,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
     public sealed class ProjectStateSnapshot
     {
         public ProjectIfcFileState? IfcFile { get; set; }
+
+        public List<PrecastElement> IfcElements { get; set; } = new();
 
         public ProjectModelFileState? DxfFile { get; set; }
 

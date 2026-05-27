@@ -177,6 +177,9 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                     b.Property<DateTime>("CachedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ChildGlobalIdsJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("DisplayName")
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
@@ -188,6 +191,9 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                     b.Property<int?>("EntityLabel")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ExtractionWarningsJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("GlobalId")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -196,7 +202,19 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                     b.Property<double?>("HeightM")
                         .HasColumnType("REAL");
 
+                    b.Property<string>("HiddenInternalGeometryOwnerGlobalIdsJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("IfcFileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IncludeInElementTree")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IncludeInGa")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IncludeInRender")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsLiftable")
@@ -217,18 +235,48 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("NormalizationDecisionReason")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ParentGlobalId")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("ProjectInfoId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("RawIfcType")
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResolvedCategory")
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("StoreyName")
                         .HasMaxLength(250)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("VisibleGeometryOwnerGlobalIdsJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<double?>("VolumeM3")
                         .HasColumnType("REAL");
 
+                    b.Property<string>("WeightSource")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.Property<double?>("WeightTons")
                         .HasColumnType("REAL");
+
+                    b.Property<string>("WeightTrustLevel")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
 
                     b.Property<double?>("WidthM")
                         .HasColumnType("REAL");

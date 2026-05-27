@@ -29,5 +29,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         double RequiredCapacity,
         double AvailableCapacity,
         string Status,
-        bool NewlyCovered);
+        bool NewlyCovered,
+        string ReachStatus,
+        string ChartStatus,
+        bool IsExactMatch,
+        bool IsSteppedRadius,
+        bool IsBlankCell,
+        bool IsZeroCell,
+        double SafetyMargin,
+        string LookupMode,
+        double RequiredRadius,
+        double SelectedChartRadius,
+        double SelectedChartBoomLength);
 }

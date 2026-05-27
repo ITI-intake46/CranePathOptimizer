@@ -1,3 +1,4 @@
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
@@ -18,7 +19,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             _sceneService = sceneService;
         }
 
-        public void Show(CranePlacementResult result, Action<CranePositionResult?> selectedPointChanged)
+        public void Show(
+            CranePlacementResult result, 
+            Action<CranePositionResult?> selectedPointChanged,
+            Action<GAViewMode> viewModeChanged,
+            GAViewMode initialViewMode)
         {
             if (result == null || result.Positions.Count == 0)
                 return;
@@ -27,7 +32,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 result,
                 _renderingService,
                 _sceneService,
-                selectedPointChanged);
+                selectedPointChanged,
+                viewModeChanged,
+                initialViewMode);
             var window = new GAResultsWindow(viewModel);
 
             if (System.Windows.Application.Current?.MainWindow != null)

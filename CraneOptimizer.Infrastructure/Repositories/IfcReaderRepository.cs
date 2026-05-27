@@ -1,10 +1,17 @@
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Units;
+using CraneOptimizer.Infrastructure.Ifc;
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Xbim.Common.Geometry;
 using Xbim.Common.XbimExtensions;
 using Xbim.Ifc;
@@ -22,20 +29,31 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private const double GlassDensityKgPerCubicMeter = 2500d;
         private const double TimberDensityKgPerCubicMeter = 600d;
 
-        public IfcStore? CurrentModel { get; private set; }
-        public Xbim3DModelContext? GeometryContext { get; private set; }
-        public double ModelLengthFactor { get; private set; } = 1.0;
-        public double? ModelGroundElevation { get; private set; }
+        private readonly IIfcDiagnosticAuditService _auditService;
+        private readonly IIfcNormalizationDecisionService _normalizationService;
+        private readonly IIfcModelSessionService _sessionService;
+
+        public IfcReaderRepository(
+            IIfcDiagnosticAuditService auditService,
+            IIfcNormalizationDecisionService normalizationService,
+            IIfcModelSessionService sessionService)
+        {
+            _auditService = auditService;
+            _normalizationService = normalizationService;
+            _sessionService = sessionService;
+        }
+
+        public IfcStore? CurrentModel => _sessionService.Current?.Model;
+        public Xbim3DModelContext? GeometryContext => _sessionService.Current?.GeometryContext;
+        public Guid? CurrentSessionId => _sessionService.Current?.SessionId;
+        public string? CurrentFileIdentity => _sessionService.Current?.FileIdentity;
+        public double ModelLengthFactor => _sessionService.Current?.ModelLengthFactor ?? 1.0;
+        public double? ModelGroundElevation => _sessionService.Current?.ModelGroundElevation;
+
 
         public void ClearData()
         {
-            if (CurrentModel != null)
-            {
-                try { CurrentModel.Close(); CurrentModel.Dispose(); } catch { }
-                CurrentModel = null;
-            }
-            GeometryContext = null;
-            ModelGroundElevation = null;
+            _sessionService.Clear();
         }
 
         public void Dispose()
@@ -75,6 +93,14 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return ReadElementsCore(path, progress, cancellationToken);
         }
 
+        public Task InitializeSessionForRenderingAsync(string ifcPath, CancellationToken cancellationToken = default)
+        {
+            return Task.Run(() =>
+            {
+                _sessionService.OpenSession(ifcPath, cancellationToken);
+            }, cancellationToken);
+        }
+
         private List<PrecastElement> ReadElementsCore(
             string ifcPath,
             IProgress<double>? progress,
@@ -82,22 +108,35 @@ namespace CraneOptimizer.Infrastructure.Repositories
         {
             try
             {
-                ClearData();
-                CurrentModel = IfcStore.Open(ifcPath);
-
-                _ = new Xbim.Geometry.Engine.Interop.XbimGeometryEngine();
-                GeometryContext = new Xbim3DModelContext(CurrentModel);
-                GeometryContext.CreateContext();
-
-                ModelLengthFactor = GetLengthToMetersFactor(CurrentModel);
-                ModelGroundElevation = GetModelGroundElevation(CurrentModel, ModelLengthFactor);
+                var loadMemoryBefore = GetPrivateMemoryBytes();
+                var session = _sessionService.OpenSession(ifcPath, cancellationToken);
 
                 var extractor = new IfcEngineeringExtractor(
-                    CurrentModel,
-                    GeometryContext,
-                    ModelLengthFactor);
+                    session.Model,
+                    session.GeometryContext,
+                    session.ModelLengthFactor);
 
-                return extractor.Extract(progress, cancellationToken);
+                // Run synchronous diagnostics audit and normalization decision preview (Task 3 & 4)
+                var auditTimer = Stopwatch.StartNew();
+                var auditResult = _auditService.RunAuditAsync(ifcPath, null, cancellationToken).GetAwaiter().GetResult();
+                auditTimer.Stop();
+                var previewResult = _normalizationService.GenerateNormalizationPreviewAsync(auditResult, cancellationToken).GetAwaiter().GetResult();
+
+                var extractionTimer = Stopwatch.StartNew();
+                var elements = extractor.ExtractNormalized(previewResult, auditResult, progress, cancellationToken);
+                extractionTimer.Stop();
+
+                Debug.WriteLine(
+                    $"[IfcReaderRepository] Load complete. SessionId={session.SessionId}, " +
+                    $"Open={session.OpenDuration.TotalMilliseconds:F0} ms, " +
+                    $"CreateContext={session.CreateContextDuration.TotalMilliseconds:F0} ms, " +
+                    $"Audit={auditTimer.ElapsedMilliseconds} ms, " +
+                    $"Extraction={extractionTimer.ElapsedMilliseconds} ms, " +
+                    $"Elements={elements.Count}, ShapeInstances={session.ShapeInstanceCount}, " +
+                    $"MemoryBeforeLoad={FormatBytes(loadMemoryBefore)}, " +
+                    $"MemoryAfterLoad={FormatBytes(GetPrivateMemoryBytes())}");
+
+                return elements;
             }
             catch (OperationCanceledException)
             {
@@ -109,6 +148,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 throw;
             }
         }
+
 
         private static double GetLengthToMetersFactor(IfcStore model)
         {
@@ -222,6 +262,21 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         private static bool IsFinite(double value) =>
             !double.IsNaN(value) && !double.IsInfinity(value);
+
+        private static long GetPrivateMemoryBytes()
+        {
+            try
+            {
+                return Process.GetCurrentProcess().PrivateMemorySize64;
+            }
+            catch
+            {
+                return GC.GetTotalMemory(false);
+            }
+        }
+
+        private static string FormatBytes(long bytes) =>
+            $"{bytes / (1024d * 1024d):F1} MB";
 
         // -------------------------------------------------------------------------
         // Extractor
@@ -1017,6 +1072,182 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     .ToList();
 
                 return distinct.Count > 0 ? string.Join(", ", distinct) : null;
+            }
+
+            public List<PrecastElement> ExtractNormalized(
+                IfcNormalizationPreviewSummary previewSummary,
+                IfcAuditResult auditResult,
+                IProgress<double>? progress,
+                CancellationToken cancellationToken)
+            {
+                // 1. Get all engineering products to build the _sourceCache
+                var physicalProducts = _model.Instances
+                    .OfType<IIfcProduct>()
+                    .Where(IsEngineeringProduct)
+                    .ToList();
+
+                if (physicalProducts.Count > 0)
+                {
+                    CacheSourceProducts(physicalProducts, progress, cancellationToken);
+                }
+
+                // Create a fast lookup by GlobalId for IIfcProduct
+                var productByGlobalId = physicalProducts
+                    .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
+                    .ToLookup(p => (string)p.GlobalId)
+                    .ToDictionary(g => g.Key, g => g.First());
+
+                var result = new List<PrecastElement>();
+
+                // 2. Loop through elements from the previewSummary
+                foreach (var preview in previewSummary.Elements)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    // Try to retrieve cached SourceElementSnapshot
+                    SourceElementSnapshot? sourceSnapshot = null;
+                    if (productByGlobalId.TryGetValue(preview.GlobalId, out var product))
+                    {
+                        _sourceCache.TryGetValue(product.EntityLabel, out sourceSnapshot);
+                    }
+
+                    // Map all values to a new PrecastElement
+                    var pe = new PrecastElement();
+                    pe.ElementID = preview.GlobalId;
+                    pe.ElementRevitId = sourceSnapshot?.RevitId ?? (product != null ? GetRevitId(product) : null);
+                    pe.ElementMark = string.IsNullOrWhiteSpace(preview.Name) ? (product != null ? CleanElementName(GetMark(product) ?? product.Name?.ToString() ?? string.Empty) : string.Empty) : preview.Name;
+                    
+                    // Set ElementType = preview.CandidateCategory to fix UI filter labels (Requirement)
+                    pe.ElementType = preview.CandidateCategory;
+
+                    // Set standard fields
+                    pe.RawIfcType = preview.RawIfcType;
+                    pe.ResolvedCategory = preview.CandidateCategory;
+                    pe.Role = preview.Role;
+                    pe.ParentGlobalId = preview.ParentGlobalId;
+                    pe.ChildGlobalIds = new List<string>(preview.ChildGlobalIds);
+                    pe.VisibleGeometryOwnerGlobalIds = new List<string>(preview.VisibleGeometryOwnerGlobalIds);
+                    pe.HiddenInternalGeometryOwnerGlobalIds = new List<string>(preview.HiddenInternalGeometryOwnerGlobalIds);
+                    pe.IncludeInRender = preview.IncludeInRenderPreview;
+                    pe.IncludeInElementTree = preview.IncludeInElementTreePreview;
+                    pe.IncludeInGa = preview.IncludeInGaPreview;
+
+                    // Weight setup
+                    pe.WeightTons = preview.WeightStandardValueTons;
+                    pe.WeightSource = preview.WeightSource;
+                    pe.WeightTrustLevel = preview.WeightTrustLevel;
+                    // For ElementWT, set to WeightStandardValueTons to align with UI expectations
+                    pe.ElementWT = preview.WeightStandardValueTons;
+
+                    // Decision/Warnings
+                    pe.NormalizationDecisionReason = preview.DecisionReason;
+                    pe.ExtractionWarnings = new List<string>(preview.Warnings);
+
+                    // Material
+                    if (sourceSnapshot != null)
+                    {
+                        pe.ElementMaterial = sourceSnapshot.Material ?? string.Empty;
+                    }
+                    else if (product != null)
+                    {
+                        pe.ElementMaterial = GetMaterial(product) ?? string.Empty;
+                    }
+                    else
+                    {
+                        pe.ElementMaterial = string.Empty;
+                    }
+
+                    // Geometry / COG / Volume / BoundingBox setup
+                    if (preview.Role == IfcElementRole.LiftAssembly)
+                    {
+                        // Consolidated assembly: we should resolve aggregate geometry/COG/bounds
+                        if (product is IIfcElementAssembly assembly)
+                        {
+                            var aggregate = BuildAggregateSnapshot(assembly, new HashSet<int>());
+                            if (aggregate != null)
+                            {
+                                pe.ElementVolume = aggregate.Volume;
+                                pe.VolumeM3 = aggregate.Volume; // standardized unit is m^3
+
+                                // BoundingBox and COG must be standard METERS
+                                if (aggregate.Geometry != null)
+                                {
+                                    pe.BBoxLength = aggregate.Geometry.Length;
+                                    pe.BBoxWidth = aggregate.Geometry.Width;
+                                    pe.BBoxHeight = aggregate.Geometry.Height;
+                                    pe.BoundingBox_M = new DomainPoint3D
+                                    {
+                                        X = aggregate.Geometry.Length,
+                                        Y = aggregate.Geometry.Width,
+                                        Z = aggregate.Geometry.Height
+                                    };
+                                }
+                                pe.ElementCOG = aggregate.CenterOfGravity;
+                                pe.COG_M = aggregate.CenterOfGravity; // standardized unit is meters
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Single / standard element
+                        if (sourceSnapshot != null)
+                        {
+                            pe.ElementVolume = sourceSnapshot.Volume;
+                            pe.VolumeM3 = sourceSnapshot.Volume;
+
+                            if (sourceSnapshot.Geometry != null)
+                            {
+                                pe.BBoxLength = sourceSnapshot.Geometry.Length;
+                                pe.BBoxWidth = sourceSnapshot.Geometry.Width;
+                                pe.BBoxHeight = sourceSnapshot.Geometry.Height;
+                                pe.BoundingBox_M = new DomainPoint3D
+                                {
+                                    X = sourceSnapshot.Geometry.Length,
+                                    Y = sourceSnapshot.Geometry.Width,
+                                    Z = sourceSnapshot.Geometry.Height
+                                };
+                            }
+                            else
+                            {
+                                pe.BBoxLength = sourceSnapshot.ElementLength;
+                                pe.BBoxWidth = sourceSnapshot.ElementWidth;
+                                pe.BBoxHeight = sourceSnapshot.ElementHeight;
+                                pe.BoundingBox_M = new DomainPoint3D
+                                {
+                                    X = sourceSnapshot.ElementLength ?? 0,
+                                    Y = sourceSnapshot.ElementWidth ?? 0,
+                                    Z = sourceSnapshot.ElementHeight ?? 0
+                                };
+                            }
+
+                            pe.ElementCOG = sourceSnapshot.CenterOfGravity;
+                            pe.COG_M = sourceSnapshot.CenterOfGravity;
+                        }
+                    }
+
+                    // Make sure standardized units are enforced (everything scaled to meters, tons, m3)
+                    // If a NeedsReview parent/child exists, block it from GA
+                    if (preview.Role == IfcElementRole.NeedsReview)
+                    {
+                        pe.IncludeInGa = false;
+                    }
+
+                    result.Add(pe);
+                }
+
+                // Log a comprehensive diagnostic summary via Debug.WriteLine
+                Debug.WriteLine("=== Phase 2A Normalization Element Extraction Diagnostics ===");
+                Debug.WriteLine($"Total Normalized Elements Extracted: {result.Count}");
+                Debug.WriteLine($"GA-Ready Elements: {result.Count(r => r.IncludeInGa)}");
+                Debug.WriteLine($"GA-Blocked (Hiding/Auxiliary/NeedsReview/Excluded): {result.Count(r => !r.IncludeInGa)}");
+                Debug.WriteLine($"IncludeInRender Elements: {result.Count(r => r.IncludeInRender)}");
+                Debug.WriteLine($"ExcludeInRender Elements: {result.Count(r => !r.IncludeInRender)}");
+                Debug.WriteLine($"Explicit Weights (Quantity/Property): {result.Count(r => r.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity || r.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty)}");
+                Debug.WriteLine($"Zero/Fallback/Missing Weights: {result.Count(r => r.WeightTrustLevel != IfcWeightTrustLevel.ExplicitQuantity && r.WeightTrustLevel != IfcWeightTrustLevel.ExplicitProperty)}");
+                Debug.WriteLine("=============================================================");
+
+                progress?.Report(100d);
+                return result;
             }
 
             private static PrecastElement ToPrecastElement(IEngineeringSnapshot snapshot)

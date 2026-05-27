@@ -1,4 +1,5 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
@@ -18,11 +19,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             _workspaceService = workspaceService;
         }
 
-        public void Show()
+        public void Show(GAViewMode currentMode = GAViewMode.FinalAssignment)
         {
             try
             {
-                var viewModel = new GADiagnosticsViewModel(_readerService, _workspaceService);
+                var viewModel = new GADiagnosticsViewModel(_readerService, _workspaceService)
+                {
+                    CurrentGAViewMode = currentMode
+                };
                 var window = new GADiagnosticsWindow(viewModel);
 
                 if (System.Windows.Application.Current?.MainWindow != null)

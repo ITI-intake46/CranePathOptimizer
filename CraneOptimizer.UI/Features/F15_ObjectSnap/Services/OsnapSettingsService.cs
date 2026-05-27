@@ -48,6 +48,8 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 
         private static void NormalizeLoadedSettings(OsnapSettings settings)
         {
+            settings.MasterEnabled = false; // Force disabled by default on startup
+
             // Older settings stored grid spacing as "1.0" while the scene is in
             // millimetres, causing a visible grid snap candidate almost everywhere.
             if (settings.GridSpacing < 10.0)

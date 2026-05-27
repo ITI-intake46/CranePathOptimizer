@@ -1,7 +1,7 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -21,6 +21,16 @@
   <ItemGroup>
     <ProjectReference Include="..\CraneOptimizer.Application\CraneOptimizer.Application.csproj" />
     <ProjectReference Include="..\CraneOptimizer.Domain\CraneOptimizer.Domain.csproj" />
+    <ProjectReference Include="..\CraneOptimizer.Infrastructure\CraneOptimizer.Infrastructure.csproj" />
+    <ProjectReference Include="..\CraneOptimizer.UI\CraneOptimizer.UI.csproj" />
   </ItemGroup>
+  <Target Name="CopyXbimNativeDll" AfterTargets="Build">
+    <ItemGroup>
+      <XbimNativeDll Include="..\CraneOptimizer.Infrastructure\bin\**\Xbim.Geometry.Engine64.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(XbimNativeDll)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(XbimNativeDll)' != ''" />
+    <Message Importance="High" Text="Xbim DLL copied to $(OutputPath)" Condition="'@(XbimNativeDll)' != ''" />
+    <Warning Text="❌ Xbim.Geometry.Engine64.dll NOT FOUND in Infrastructure build output" Condition="'@(XbimNativeDll)' == ''" />
+  </Target>
 
 </Project>

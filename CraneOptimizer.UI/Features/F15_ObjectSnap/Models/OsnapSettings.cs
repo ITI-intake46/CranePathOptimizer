@@ -14,7 +14,7 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Models
         /// <summary>
         /// When false ALL snap types are suppressed, regardless of their individual flags.
         /// </summary>
-        public bool MasterEnabled { get; set; } = true;
+        public bool MasterEnabled { get; set; } = false;
 
         // ─── Individual snap-type flags ───────────────────────────────────────
         public bool SnapEndpoint     { get; set; } = true;

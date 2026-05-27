@@ -1,12 +1,15 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
 {
     public interface ICraneConfigurationEngine
     {
         double CalculateRequiredBoomLength(double radius, double height);
+        double CalculateRequiredBoomLength(DomainPoint3D cranePosition, PrecastElement element, GASettings settings);
         double CraneCapacity(CraneSpecification craneSpec, double radius, double boomLength, GASettings settings);
         CraneCapacityDiagnosticResult EvaluateCraneCapacityDiagnostic(CraneSpecification craneSpec, double radius, double boomLength, GASettings settings);
         bool ExceedsMaxRadius(double radius, CraneSpecification craneSpec);

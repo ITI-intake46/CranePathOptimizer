@@ -26,6 +26,8 @@ namespace CraneOptimizer.UI.Core.Services
             _renderingService = renderingService;
         }
 
+        public bool IsTopPlanViewActive { get; set; }
+
         public void ResetCamera()
         {
             ResetToDefaultView();
@@ -36,6 +38,9 @@ namespace CraneOptimizer.UI.Core.Services
             var viewport = _renderingService.GetViewport();
             if (viewport == null)
                 return;
+
+            IsTopPlanViewActive = false;
+            viewport.Orthographic = false;
 
             SetCameraView(
                 center: new Point3D(0, 0, 0),
@@ -53,6 +58,14 @@ namespace CraneOptimizer.UI.Core.Services
 
             viewport.UpdateLayout();
             viewport.ZoomExtents();
+
+            if (IsTopPlanViewActive && viewport.Camera is OrthographicCamera camera)
+            {
+                var look = camera.LookDirection;
+                var distance = look.Length;
+                camera.LookDirection = new Vector3D(0, 0, -distance);
+                camera.UpDirection = new Vector3D(0, 1, 0);
+            }
         }
 
         public void ZoomToElements(IReadOnlyList<PrecastElement> elements)
@@ -63,6 +76,12 @@ namespace CraneOptimizer.UI.Core.Services
                 return;
             }
 
+            if (IsTopPlanViewActive)
+            {
+                ZoomToTopView(elements, animate: false);
+                return;
+            }
+
             var (center, size) = CalculateBounds(elements);
             SetCameraView(center, size, elevationFactor: 0.72, distanceFactor: 1.55);
             UpdateClipping(elements);
@@ -70,6 +89,13 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void ZoomToFrontView(IReadOnlyList<PrecastElement> elements, bool animate = true)
         {
+            var viewport = _renderingService.GetViewport();
+            if (viewport != null)
+            {
+                IsTopPlanViewActive = false;
+                viewport.Orthographic = false;
+            }
+
             var hasElements = elements.Count > 0;
             var (center, size) = hasElements
                 ? CalculateBounds(elements)
@@ -77,6 +103,56 @@ namespace CraneOptimizer.UI.Core.Services
 
             SetFrontCameraView(center, size, animate);
             UpdateClipping(hasElements ? elements : null);
+        }
+
+        public void ZoomToTopView(IReadOnlyList<PrecastElement> elements, bool animate = true)
+        {
+            var viewport = _renderingService.GetViewport();
+            if (viewport == null)
+                return;
+
+            var hasElements = elements.Count > 0;
+            var (center, size) = hasElements
+                ? CalculateBounds(elements)
+                : (new Point3D(0, 0, 0), DefaultGridViewSize);
+
+            var distance = Math.Max(50d, size * 1.5);
+            var position = new Point3D(center.X, center.Y, center.Z + distance);
+            var lookDirection = new Vector3D(0, 0, -distance);
+            var upDirection = new Vector3D(0, 1, 0);
+
+            viewport.Orthographic = true;
+
+            var camera = viewport.Camera as OrthographicCamera;
+            if (camera == null)
+            {
+                camera = new OrthographicCamera();
+                viewport.Camera = camera;
+            }
+
+            camera.Width = Math.Max(50d, size * 1.2);
+            IsTopPlanViewActive = true;
+
+            if (animate)
+            {
+                AnimateCamera(camera, position, lookDirection, upDirection);
+            }
+            else
+            {
+                ApplyCamera(camera, position, lookDirection, upDirection);
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[Camera Diagnosis] Position: ({camera.Position.X:F3}, {camera.Position.Y:F3}, {camera.Position.Z:F3})");
+            System.Diagnostics.Debug.WriteLine($"[Camera Diagnosis] LookDirection: ({camera.LookDirection.X:F3}, {camera.LookDirection.Y:F3}, {camera.LookDirection.Z:F3})");
+            System.Diagnostics.Debug.WriteLine($"[Camera Diagnosis] UpDirection: ({camera.UpDirection.X:F3}, {camera.UpDirection.Y:F3}, {camera.UpDirection.Z:F3})");
+            System.Diagnostics.Debug.WriteLine($"[Camera Diagnosis] ProjectionMode: Orthographic");
+            System.Diagnostics.Debug.WriteLine($"[Camera Diagnosis] TargetCenter: ({center.X:F3}, {center.Y:F3}, {center.Z:F3})");
+            System.Diagnostics.Debug.WriteLine($"[Camera Diagnosis] IsTopPlanViewActive: {IsTopPlanViewActive}");
+
+            System.Diagnostics.Debug.Assert(Math.Abs(lookDirection.X) < 1e-6 && Math.Abs(lookDirection.Y) < 1e-6, "LookDirection must be exactly vertical along Z axis");
+            System.Diagnostics.Debug.Assert(Math.Abs(upDirection.Z) < 1e-6, "UpDirection must be horizontal");
+
+            viewport.UpdateLayout();
         }
 
         public void UpdateClipping(IReadOnlyList<PrecastElement>? elements)
@@ -165,7 +241,7 @@ namespace CraneOptimizer.UI.Core.Services
         }
 
         private static void AnimateCamera(
-            PerspectiveCamera camera,
+            ProjectionCamera camera,
             Point3D position,
             Vector3D lookDirection,
             Vector3D upDirection)
@@ -233,7 +309,7 @@ namespace CraneOptimizer.UI.Core.Services
         }
 
         private static void ApplyCamera(
-            PerspectiveCamera camera,
+            ProjectionCamera camera,
             Point3D position,
             Vector3D lookDirection,
             Vector3D upDirection)

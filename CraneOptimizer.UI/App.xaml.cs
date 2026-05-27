@@ -5,6 +5,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
+using CraneOptimizer.Infrastructure.Ifc;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
@@ -78,9 +79,13 @@ namespace CraneOptimizer.UI
             // Infrastructure
             // =========================
             services.AddScoped<ICraneRepository, CraneRepository>();
+            services.AddSingleton<IIfcModelSessionService, IfcModelSessionService>();
             services.AddSingleton<IIfcReaderRepository, IfcReaderRepository>();
             services.AddScoped<IProjectRepository, ProjectRepository>();
             services.AddSingleton<IUnitSettingsService, UnitSettingsService>();
+            services.AddSingleton<IIfcDiagnosticAuditService, IfcDiagnosticAuditService>();
+            services.AddSingleton<IIfcExporterProfileResolver, IfcExporterProfileResolver>();
+            services.AddSingleton<IIfcNormalizationDecisionService, IfcNormalizationDecisionService>();
 
             // =========================
             // Core Services
@@ -134,6 +139,7 @@ namespace CraneOptimizer.UI
             // =========================
             // Rendering
             // =========================
+            services.AddSingleton<IRenderDiagnosticsStore, RenderDiagnosticsStore>();
             services.AddSingleton<ElementVisualBuilder>();
             services.AddSingleton<CraneVisualBuilder>();       // shared singleton — carries CraneParametersReady event
             services.AddSingleton<IRenderingService, HelixRenderingService>();
@@ -144,6 +150,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IOriginService, OriginService>();
             services.AddSingleton<ICraneSceneInteractionService, CraneSceneInteractionService>();
             services.AddSingleton<ISceneService>(provider => provider.GetRequiredService<SceneService>());
+            services.AddSingleton<IViewportSelectionService, ViewportSelectionService>();
             services.AddSingleton<IIfcOptionsDialogService, IfcOptionsDialogService>();
 
             // =========================
@@ -317,6 +324,7 @@ namespace CraneOptimizer.UI
 
             services.AddScoped<ICraneConfigurationEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.CraneConfiguration.CraneConfigurationEngine>();
             services.AddScoped<ILiftingCalculationEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.LiftingCalculation.LiftingCalculationEngine>();
+            services.AddScoped<CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces.ILoadChartCapacityResolver, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.LoadChartCapacityResolver>();
             services.AddScoped<IConstraintEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Constraints.ConstraintEngine>();
             services.AddScoped<ICoverageEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Coverage.CoverageEngine>();
 

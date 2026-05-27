@@ -56,7 +56,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 GetPlacementOffset = GetPlacementOffset,
                 GetLiftResults = () => CranePlacement.SelectedPosition?.ElementResults,
                 GetSelectedElementId = () => ElementManagement.SelectedElement?.ElementID,
-                GetZones = () => Scene.GetZones()
+                GetZones = () => Scene.GetZones(),
+                GetGAViewMode = () => CranePlacement.CurrentGAViewMode
             });
 
             _sceneRendering.ElementsCleared += OnSceneElementsCleared;

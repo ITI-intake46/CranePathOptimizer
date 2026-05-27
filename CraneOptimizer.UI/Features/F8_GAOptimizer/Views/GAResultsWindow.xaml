@@ -21,9 +21,25 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock
-            Style="{StaticResource PanelSectionHeader}"
-            Text="BEST CRANE POSITIONS" />
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock
+                Grid.Column="0"
+                Style="{StaticResource PanelSectionHeader}"
+                VerticalAlignment="Center"
+                Text="BEST CRANE POSITIONS" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock VerticalAlignment="Center" Margin="0,0,8,0" FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="View Mode:" />
+                <ComboBox Width="180" Height="26"
+                          ItemsSource="{Binding ViewModes}"
+                          SelectedValuePath="Key"
+                          DisplayMemberPath="Value"
+                          SelectedValue="{Binding CurrentGAViewMode, Mode=TwoWay}"/>
+            </StackPanel>
+        </Grid>
 
         <Border
             Grid.Row="2"
