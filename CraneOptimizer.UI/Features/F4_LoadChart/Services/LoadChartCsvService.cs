@@ -49,16 +49,28 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 throw new FormatException("The load chart grid must contain a radius column and at least one boom column.");
 
             var boomLengths = new List<double>();
+            var boomHeaderLabels = new List<string>();
+
             for (int columnIndex = 1; columnIndex < table.Columns.Count; columnIndex++)
             {
                 string rawHeader = previewHeaders != null && columnIndex < previewHeaders.Count
                     ? previewHeaders[columnIndex]
                     : table.Columns[columnIndex].ColumnName;
+
                 string headerText = NormalizeGridNumber(rawHeader);
                 if (!TryParseFlexibleNumber(headerText, out double boomLength))
                     throw new FormatException($"Column '{rawHeader}' is not a valid boom length.");
 
+                if (boomLengths.Any(existing => Math.Abs(existing - boomLength) < 0.001))
+                {
+                    throw new FormatException(
+                        $"Duplicate boom length '{rawHeader}' was found. The current load-chart model supports only simple 2D charts with unique boom-length columns. " +
+                        "Repeated boom lengths usually indicate a multi-dimensional manufacturer chart, such as boom length plus angle, mode, jib, counterweight, or another configuration. " +
+                        "Please select a standard Radius + Boom Length -> Capacity table.");
+                }
+
                 boomLengths.Add(boomLength);
+                boomHeaderLabels.Add(rawHeader);
             }
 
             var points = new List<TargetPoint>();
@@ -77,45 +89,43 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 if (!TryParseFlexibleNumber(radiusText, out double radius))
                     throw new FormatException($"Radius value '{radiusText}' is invalid.");
 
-                minRadius = !minRadius.HasValue || radius < minRadius.Value ? radius : minRadius;
-                maxRadius = !maxRadius.HasValue || radius > maxRadius.Value ? radius : maxRadius;
-
                 for (int i = 0; i < boomLengths.Count; i++)
                 {
                     double boomLength = boomLengths[i];
                     string rawCapacityText = row[i + 1]?.ToString() ?? string.Empty;
                     string capacityText = NormalizeGridNumber(rawCapacityText);
-                    double capacity = 0d;
 
-                    if (!string.IsNullOrWhiteSpace(capacityText))
+                    // Blank cells in manufacturer load charts usually mean this radius/boom combination
+                    // is outside the chart or not permitted. They must stay blank in the preview and must
+                    // not become real zero-capacity TargetPoint records.
+                    if (string.IsNullOrWhiteSpace(capacityText))
+                        continue;
+
+                    if (!TryParseFlexibleNumber(capacityText, out double capacity))
                     {
-                        if (TryParseFlexibleNumber(capacityText, out capacity))
-                        {
-                            var normalizedCapacity = NormalizeCapacityToTons(rawCapacityText, capacity);
-                            capacity = normalizedCapacity;
-                            maxCapacity = !maxCapacity.HasValue || normalizedCapacity > maxCapacity.Value ? normalizedCapacity : maxCapacity;
-                        }
-                        else
-                        {
-                            throw new FormatException(
-                                $"Capacity value '{capacityText}' is invalid at radius '{radiusText}', boom '{boomLength}'.");
-                        }
+                        throw new FormatException(
+                            $"Capacity value '{capacityText}' is invalid at radius '{radiusText}', boom '{boomLength}'.");
                     }
 
+                    double normalizedCapacity = NormalizeCapacityToTons(rawCapacityText, capacity);
+
+                    minRadius = !minRadius.HasValue || radius < minRadius.Value ? radius : minRadius;
+                    maxRadius = !maxRadius.HasValue || radius > maxRadius.Value ? radius : maxRadius;
                     minBoom = !minBoom.HasValue || boomLength < minBoom.Value ? boomLength : minBoom;
                     maxBoom = !maxBoom.HasValue || boomLength > maxBoom.Value ? boomLength : maxBoom;
+                    maxCapacity = !maxCapacity.HasValue || normalizedCapacity > maxCapacity.Value ? normalizedCapacity : maxCapacity;
 
                     points.Add(new TargetPoint
                     {
                         Radius = radius,
                         BoomLength = boomLength,
-                        Capacity = capacity
+                        Capacity = normalizedCapacity
                     });
                 }
             }
 
             if (points.Count == 0)
-                throw new FormatException("The grid does not contain any load chart points.");
+                throw new FormatException("The grid does not contain any real load chart capacity points.");
 
             return new ParsedLoadChart
             {
@@ -130,7 +140,6 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 MaxCapacity = maxCapacity ?? 0d
             };
         }
-
         public static ParsedLoadChart TransposePreview(DataTable source, IReadOnlyList<string> previewHeaders)
         {
             var rawGrid = ToRawGrid(source, previewHeaders);
@@ -543,10 +552,13 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             if (Regex.IsMatch(rawValue, @"(?i)\bkg\b"))
                 return UnitSystem.ToTons(value, MassUnit.Kilogram);
 
+            // Explicit ton/tons/tonne/t values and unitless crane load-chart values are already tons.
+            // Do not infer kilograms only because a capacity is greater than 100:
+            // values such as 180 t, 160 t, and 139.3 t are valid crane-chart capacities.
             if (Regex.IsMatch(rawValue, @"(?i)\b(t|ton|tons|tonne|tonnes)\b"))
                 return value;
 
-            return value > 100d ? UnitSystem.ToTons(value, MassUnit.Kilogram) : value;
+            return value;
         }
 
         private static string NormalizeGridNumber(string? value)

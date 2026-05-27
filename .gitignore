@@ -31,3 +31,5 @@ Thumbs.db
 *.txt
 *.md
 *.csv
+# Local patch backups
+.patch-backups/

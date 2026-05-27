@@ -32,8 +32,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         public LoadChartImportDialog(LoadChartCraneDto? craneToEdit = null)
         {
             InitializeComponent();
-
-            var factory = App.ServiceProvider.GetRequiredService<IDbContextFactory<CraneDbContext>>();
+var factory = App.ServiceProvider.GetRequiredService<IDbContextFactory<CraneDbContext>>();
             _catalogService = new LoadChartCatalogService(factory);
             _unitSettingsService = App.ServiceProvider.GetRequiredService<IUnitSettingsService>();
             _unitSettings = _unitSettingsService.Current;
@@ -108,7 +107,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         {
             var dialog = new OpenFileDialog
             {
-                Filter = "CSV files (*.csv)|*.csv"
+                Filter = "Load chart files (*.csv;*.pdf)|*.csv;*.pdf|CSV files (*.csv)|*.csv|PDF files (*.pdf)|*.pdf"
             };
 
             if (dialog.ShowDialog() == true)
@@ -137,7 +136,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         {
             try
             {
-                SetNominalChart(LoadChartCsvService.ParseCsv(path));
+                var importResult = LoadChartImportService.Import(path, this);
+
+                SetNominalChart(importResult.Chart);
 
                 TxtFileName.Text = Path.GetFileName(path);
                 var info = new FileInfo(path);
@@ -149,12 +150,17 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
                 TxtMaxRadius.Text = _nominalChart == null ? string.Empty : FormatLengthInput(_nominalChart.MaxRadius);
 
-                TxtStatus.Text = $"Loaded {Path.GetFileName(path)}.";
+                TxtStatus.Text = importResult.BuildStatusMessage(Path.GetFileName(path));
+
+                if (importResult.HasActionableWarnings())
+                {
+                    MessageBox.Show(this, importResult.BuildWarningsMessage(), "PDF Import Notes", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
             }
             catch (Exception ex)
             {
                 TxtStatus.Text = ex.Message;
-                MessageBox.Show(this, ex.Message, "CSV Import Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, ex.Message, "Load Chart Import Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -401,7 +407,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                         Mode = BindingMode.TwoWay,
                         UpdateSourceTrigger = UpdateSourceTrigger.LostFocus
                     },
-                    Width = columnIndex == 0 ? new DataGridLength(96) : new DataGridLength(60)
+                    Width = columnIndex == 0 ? new DataGridLength(88) : new DataGridLength(58), MinWidth = columnIndex == 0 ? 76 : 52
                 });
             }
         }
