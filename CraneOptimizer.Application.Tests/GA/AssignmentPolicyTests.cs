@@ -379,5 +379,167 @@ namespace CraneOptimizer.Application.Tests
             // Explicitly assert that no UI-only visual states are added
             Assert.DoesNotContain("AssignedToPoint", names);
         }
+
+        [Fact]
+        public void TestFinalAssignmentModeRendering()
+        {
+            var selectedPointId = "Point_0";
+            var viewMode = GAViewMode.FinalAssignment;
+
+            Func<ElementLiftResult, bool, LiftStatus?> mapStatus = (item, hasFinalAssignments) =>
+            {
+                if (viewMode == GAViewMode.SelectedPointFeasibility)
+                {
+                    return (LiftStatus?)item.Status;
+                }
+                else // FinalAssignment or AllFeasibleDebug
+                {
+                    if (hasFinalAssignments)
+                    {
+                        if (item.IsFinalAssignedToPoint || (!string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId == selectedPointId))
+                        {
+                            return (LiftStatus?)item.Status;
+                        }
+                        else if (item.IsFinalAssigned && !string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId != selectedPointId)
+                        {
+                            return null;
+                        }
+                        else if (!item.IsFinalAssigned)
+                        {
+                            return (LiftStatus?)item.BestFailedLiftStatus;
+                        }
+                        else
+                        {
+                            return null;
+                        }
+                    }
+                    return (LiftStatus?)item.Status;
+                }
+            };
+
+            // 1. Assigned to selected point -> maps to real status
+            var assignedToSelected = new ElementLiftResult
+            {
+                Status = LiftStatus.Liftable,
+                IsFinalAssigned = true,
+                IsFinalAssignedToPoint = true,
+                AssignedPointId = "Point_0"
+            };
+            Assert.Equal(LiftStatus.Liftable, mapStatus(assignedToSelected, true));
+
+            // 2. Assigned to another point -> maps to null (dimmed gray)
+            var assignedToOther = new ElementLiftResult
+            {
+                Status = LiftStatus.Liftable,
+                IsFinalAssigned = true,
+                IsFinalAssignedToPoint = false,
+                AssignedPointId = "Point_1"
+            };
+            Assert.Null(mapStatus(assignedToOther, true));
+
+            // 3. Unassigned failed -> maps to BestFailedLiftStatus
+            var unassignedFailed = new ElementLiftResult
+            {
+                Status = LiftStatus.Overweight,
+                IsFinalAssigned = false,
+                BestFailedLiftStatus = LiftStatus.Overweight
+            };
+            Assert.Equal(LiftStatus.Overweight, mapStatus(unassignedFailed, true));
+        }
+
+        [Fact]
+        public void TestSelectedPointFeasibilityModeRendering()
+        {
+            var selectedPointId = "Point_0";
+            var viewMode = GAViewMode.SelectedPointFeasibility;
+
+            Func<ElementLiftResult, bool, LiftStatus?> mapStatus = (item, hasFinalAssignments) =>
+            {
+                if (viewMode == GAViewMode.SelectedPointFeasibility)
+                {
+                    return (LiftStatus?)item.Status;
+                }
+                else // FinalAssignment or AllFeasibleDebug
+                {
+                    return null;
+                }
+            };
+
+            // Regardless of whether it's assigned to another point or has final assignments,
+            // SelectedPointFeasibility mode always maps directly to the physical status evaluated from that point!
+            var item = new ElementLiftResult
+            {
+                Status = LiftStatus.Liftable,
+                IsFinalAssigned = true,
+                IsFinalAssignedToPoint = false, // Assigned to another point
+                AssignedPointId = "Point_1"
+            };
+            Assert.Equal(LiftStatus.Liftable, mapStatus(item, true));
+
+            var itemFailed = new ElementLiftResult
+            {
+                Status = LiftStatus.OutOfRadius,
+                IsFinalAssigned = false,
+                BestFailedLiftStatus = LiftStatus.Overweight
+            };
+            Assert.Equal(LiftStatus.OutOfRadius, mapStatus(itemFailed, true));
+        }
+
+        [Fact]
+        public void TestAllFeasibleDebugModeRendering()
+        {
+            var selectedPointId = "Point_0";
+            var viewMode = GAViewMode.AllFeasibleDebug;
+
+            Func<ElementLiftResult, bool, LiftStatus?> mapStatus = (item, hasFinalAssignments) =>
+            {
+                if (viewMode == GAViewMode.SelectedPointFeasibility)
+                {
+                    return (LiftStatus?)item.Status;
+                }
+                else // FinalAssignment or AllFeasibleDebug
+                {
+                    if (hasFinalAssignments)
+                    {
+                        if (item.IsFinalAssignedToPoint || (!string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId == selectedPointId))
+                        {
+                            return (LiftStatus?)item.Status;
+                        }
+                        else if (item.IsFinalAssigned && !string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId != selectedPointId)
+                        {
+                            return null;
+                        }
+                        else if (!item.IsFinalAssigned)
+                        {
+                            return (LiftStatus?)item.BestFailedLiftStatus;
+                        }
+                        else
+                        {
+                            return null;
+                        }
+                    }
+                    return (LiftStatus?)item.Status;
+                }
+            };
+
+            // AllFeasibleDebug uses the exact same rendering status logic as FinalAssignment
+            var assignedToSelected = new ElementLiftResult
+            {
+                Status = LiftStatus.Liftable,
+                IsFinalAssigned = true,
+                IsFinalAssignedToPoint = true,
+                AssignedPointId = "Point_0"
+            };
+            Assert.Equal(LiftStatus.Liftable, mapStatus(assignedToSelected, true));
+
+            var assignedToOther = new ElementLiftResult
+            {
+                Status = LiftStatus.Liftable,
+                IsFinalAssigned = true,
+                IsFinalAssignedToPoint = false,
+                AssignedPointId = "Point_1"
+            };
+            Assert.Null(mapStatus(assignedToOther, true));
+        }
     }
 }

@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Input;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
@@ -46,6 +47,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         }
 
         #region Properties
+
+        public GAViewMode CurrentGAViewMode { get; set; } = GAViewMode.FinalAssignment;
 
         public ObservableCollection<GARunHistoryDto> RunHistory
         {
