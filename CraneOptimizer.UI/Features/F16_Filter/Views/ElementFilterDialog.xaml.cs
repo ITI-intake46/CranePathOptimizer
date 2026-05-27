@@ -4,6 +4,7 @@ using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F16_Filter.DTOs;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
 using CraneOptimizer.UI.Features.F16_Filter.ViewModels;
+using CraneOptimizer.UI.Features.F17_Selection.Services;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
@@ -22,33 +23,36 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
         private readonly ElementManagementViewModel? _viewModel;
         private readonly IElementVisibilityFilterService? _visibilityFilter;
         private readonly ISceneService? _scene;
+        private readonly ISelectionService? _selectionService;
         private bool _isSyncingControls;
         private List<FilterDialogOption> _allTypeOptions = new();
         private List<FilterDialogOption> _allMaterialOptions = new();
         private List<FilterDialogOption> _allStoreyOptions = new();
+        private List<PrecastElement> _allSceneElements = new();
+        private List<PrecastElement> _selectedScopeElements = new();
+        private List<PrecastElement> _selectionSnapshotElements = new();
         private List<PrecastElement> _allElements = new();
         private ObservableCollection<FilterHierarchyNode> _hierarchyRoots = new();
         private bool _isSyncingHierarchy;
-        private static readonly string[] StructuralTypeKeywords =
-        [
-            "IfcColumn", "IfcBeam", "IfcSlab", "IfcWall", "IfcStair",
-            "IfcRoof", "IfcMember", "IfcPlate", "IfcFooting", "IfcPile", "IfcRamp"
-        ];
+        private bool _showSelectedScope;
+        private bool _isInitializing;
+        private SelectionVisibilityAction _activeSelectionVisibilityAction;
+
+        private enum SelectionVisibilityAction
+        {
+            None,
+            Isolate,
+            Hide
+        }
 
         public ElementFilterDialog()
         {
             InitializeComponent();
             _visibilityFilter = App.ServiceProvider.GetService<IElementVisibilityFilterService>();
             _scene = App.ServiceProvider.GetService<ISceneService>();
-            TxtSubtitle.Text = "Choose IFC types, materials, levels, and weight range to hide or show elements in the 3D view.";
-            _allElements = (_visibilityFilter?.AllElements ?? Array.Empty<PrecastElement>()).ToList();
-            LoadTypeOptions(_allElements);
-            LoadMaterialOptions(_allElements);
-            LoadStoreyOptions(_allElements);
-            BuildHierarchy();
-            InitializeWeightControls();
-            UpdateRangeChips();
-            FilterChanged();
+            _selectionService = App.ServiceProvider.GetService<ISelectionService>();
+            HookSelectionEvents();
+            InitializeDialogElements(_visibilityFilter?.AllElements ?? Array.Empty<PrecastElement>());
         }
 
         public ElementFilterDialog(ElementManagementViewModel viewModel)
@@ -57,19 +61,219 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             _viewModel = viewModel;
             _visibilityFilter = App.ServiceProvider.GetService<IElementVisibilityFilterService>();
             _scene = App.ServiceProvider.GetService<ISceneService>();
+            _selectionService = App.ServiceProvider.GetService<ISelectionService>();
+            HookSelectionEvents();
             DataContext = viewModel;
 
-            TxtSubtitle.Text = "Choose IFC types, materials, levels, and weight range to hide or show elements in the 3D view.";
-            TxtSearch.Text = viewModel.SearchText;
-            _allElements = viewModel.Elements.ToList();
+            InitializeDialogElements(viewModel.Elements, searchText: viewModel.SearchText);
+        }
 
-            LoadTypeOptions(viewModel.Elements);
-            LoadMaterialOptions(viewModel.Elements);
-            LoadStoreyOptions(viewModel.Elements);
+        /// <summary>
+        /// Opens the filter dialog with the Selected scope active when elements are supplied.
+        /// </summary>
+        public ElementFilterDialog(IReadOnlyCollection<PrecastElement> selectedElements)
+        {
+            InitializeComponent();
+            _visibilityFilter = App.ServiceProvider.GetService<IElementVisibilityFilterService>();
+            _scene = App.ServiceProvider.GetService<ISceneService>();
+            _selectionService = App.ServiceProvider.GetService<ISelectionService>();
+            HookSelectionEvents();
+            InitializeDialogElements(
+                _visibilityFilter?.AllElements ?? Array.Empty<PrecastElement>(),
+                selectedElements);
+        }
+
+        private void HookSelectionEvents()
+        {
+            if (_selectionService != null)
+                _selectionService.SelectionChanged += OnSelectionChanged;
+
+            Closed += ElementFilterDialog_Closed;
+        }
+
+        private void ElementFilterDialog_Closed(object? sender, EventArgs e)
+        {
+            if (_selectionService != null)
+                _selectionService.SelectionChanged -= OnSelectionChanged;
+
+            Closed -= ElementFilterDialog_Closed;
+        }
+
+        private void InitializeDialogElements(
+            IEnumerable<PrecastElement> elements,
+            IEnumerable<PrecastElement>? selectedElements = null,
+            string? searchText = null)
+        {
+            _isInitializing = true;
+            try
+            {
+                _allSceneElements = elements.ToList();
+                _selectedScopeElements = ResolveSelectedScopeElements(selectedElements ?? GetLiveSelectedElements());
+                _selectionSnapshotElements = _selectedScopeElements.ToList();
+                _showSelectedScope = _selectedScopeElements.Count > 0;
+
+                if (searchText != null)
+                    TxtSearch.Text = searchText;
+
+                RebuildScopeFilter();
+            }
+            finally
+            {
+                _isInitializing = false;
+            }
+
+            UpdatePreviewCount();
+            UpdateSelectionActionButtons();
+        }
+
+        private List<PrecastElement> ResolveSelectedScopeElements(IEnumerable<PrecastElement> selectedElements)
+        {
+            var selected = selectedElements.ToList();
+            var selectedIds = selected
+                .Select(e => e.ElementID)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (selectedIds.Count == 0)
+                return selected;
+
+            var resolved = _allSceneElements
+                .Where(e => !string.IsNullOrWhiteSpace(e.ElementID) && selectedIds.Contains(e.ElementID))
+                .ToList();
+
+            return resolved.Count > 0 ? resolved : selected;
+        }
+
+        private IEnumerable<PrecastElement> GetLiveSelectedElements()
+        {
+            if (_selectionService?.SelectedElements.Count > 0)
+                return _selectionService.SelectedElements;
+
+            return _scene?.GetSelectedElements() ?? Enumerable.Empty<PrecastElement>();
+        }
+
+        private IEnumerable<PrecastElement> GetCurrentSelectedElements()
+        {
+            var live = GetLiveSelectedElements().ToList();
+            return live.Count > 0 ? live : _selectionSnapshotElements;
+        }
+
+        private List<PrecastElement> GetSelectionActionElements()
+        {
+            var live = ResolveSelectedScopeElements(GetLiveSelectedElements());
+            if (live.Count > 0)
+                return live;
+
+            return _activeSelectionVisibilityAction == SelectionVisibilityAction.None
+                ? new List<PrecastElement>()
+                : _selectionSnapshotElements.ToList();
+        }
+
+        private void OnSelectionChanged()
+        {
+            var liveSelection = ResolveSelectedScopeElements(GetLiveSelectedElements());
+            if (liveSelection.Count > 0)
+            {
+                _selectedScopeElements = liveSelection;
+                _selectionSnapshotElements = liveSelection.ToList();
+            }
+            else if (_activeSelectionVisibilityAction == SelectionVisibilityAction.None)
+            {
+                _selectedScopeElements.Clear();
+                _selectionSnapshotElements.Clear();
+            }
+
+            if (_showSelectedScope && _selectedScopeElements.Count == 0)
+                _showSelectedScope = false;
+
+            if (_showSelectedScope)
+                RebuildScopeFilter();
+            else
+                UpdateScopeButtons();
+
+            UpdateSelectionActionButtons();
+        }
+
+        private void UpdateSelectionActionButtons()
+        {
+            var hasSelection = GetSelectionActionElements().Count > 0;
+            if (!hasSelection)
+                _activeSelectionVisibilityAction = SelectionVisibilityAction.None;
+
+            var primaryStyle = TryFindResource("ButtonPrimary") as Style;
+            var secondaryStyle = TryFindResource("ButtonSecondary") as Style;
+
+            if (BtnShowSelectedOnly != null)
+            {
+                BtnShowSelectedOnly.IsEnabled = hasSelection;
+                BtnShowSelectedOnly.Style = _activeSelectionVisibilityAction == SelectionVisibilityAction.Isolate
+                    ? primaryStyle
+                    : secondaryStyle;
+            }
+
+            if (BtnHideSelected != null)
+            {
+                BtnHideSelected.IsEnabled = hasSelection;
+                BtnHideSelected.Style = _activeSelectionVisibilityAction == SelectionVisibilityAction.Hide
+                    ? primaryStyle
+                    : secondaryStyle;
+            }
+        }
+
+        private void BtnScopeAll_Click(object sender, RoutedEventArgs e) => SwitchElementScope(showSelectedOnly: false);
+        private void BtnScopeSelected_Click(object sender, RoutedEventArgs e) => SwitchElementScope(showSelectedOnly: true);
+
+        private void SwitchElementScope(bool showSelectedOnly)
+        {
+            if (showSelectedOnly && _selectedScopeElements.Count == 0)
+                return;
+
+            if (_showSelectedScope == showSelectedOnly)
+                return;
+
+            _showSelectedScope = showSelectedOnly;
+            RebuildScopeFilter();
+        }
+
+        private void RebuildScopeFilter()
+        {
+            _allElements = (_showSelectedScope ? _selectedScopeElements : _allSceneElements).ToList();
+            LoadTypeOptions(_allElements);
+            LoadMaterialOptions(_allElements);
+            LoadStoreyOptions(_allElements);
+            if (_showSelectedScope)
+            {
+                SetAllChecked(_allTypeOptions, true);
+                SetAllChecked(_allMaterialOptions, true);
+                SetAllChecked(_allStoreyOptions, true);
+            }
             BuildHierarchy();
+            if (_showSelectedScope)
+                SetHierarchyChecked(true);
             InitializeWeightControls();
             UpdateRangeChips();
-            FilterChanged();
+            UpdateScopeButtons();
+            UpdatePreviewCount();
+        }
+
+        private void UpdateScopeButtons()
+        {
+            if (BtnScopeAll == null || BtnScopeSelected == null)
+                return;
+
+            var primaryStyle = TryFindResource("ButtonPrimary") as Style;
+            var secondaryStyle = TryFindResource("ButtonSecondary") as Style;
+
+            BtnScopeAll.Style = _showSelectedScope ? secondaryStyle : primaryStyle;
+            BtnScopeSelected.Style = _showSelectedScope ? primaryStyle : secondaryStyle;
+            BtnScopeSelected.IsEnabled = _selectedScopeElements.Count > 0;
+            BtnScopeSelected.Content = _selectedScopeElements.Count > 0
+                ? $"Selected ({_selectedScopeElements.Count:N0})"
+                : "Selected";
+
+            TxtSubtitle.Text = _showSelectedScope
+                ? $"Filtering only the {_selectedScopeElements.Count:N0} selected element{(_selectedScopeElements.Count == 1 ? string.Empty : "s")}."
+                : "Choose IFC types, materials, levels, and weight range to hide or show elements in the 3D view.";
         }
 
         private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e) => NonWeightFilterChanged();
@@ -167,20 +371,36 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
 
         private void BtnReset_Click(object sender, RoutedEventArgs e)
         {
-            TxtSearch.Text = string.Empty;
-            SetAllChecked(_allTypeOptions, true);
-            SetAllChecked(_allMaterialOptions, true);
-            SetAllChecked(_allStoreyOptions, true);
-            SetHierarchyChecked(true);
-            InitializeWeightControls();
-            UpdateRangeChips();
-            FilterChanged();
+            var selectionToRestore = GetCurrentSelectedElements().ToList();
+
+            _isInitializing = true;
+            try
+            {
+                _visibilityFilter?.ResetFilters();
+                _activeSelectionVisibilityAction = SelectionVisibilityAction.None;
+                _showSelectedScope = false;
+                TxtSearch.Text = string.Empty;
+                RebuildScopeFilter();
+                SetHierarchyChecked(true);
+                ApplyToElementList();
+            }
+            finally
+            {
+                _isInitializing = false;
+            }
+
+            RestoreSelection(selectionToRestore);
+            UpdatePreviewCount();
+            UpdateSelectionActionButtons();
         }
 
         private void BtnApply_Click(object sender, RoutedEventArgs e)
         {
+            var selectionToRestore = GetCurrentSelectedElements().ToList();
             ApplyToElementList();
-            ApplyToViewer();
+            if (_activeSelectionVisibilityAction == SelectionVisibilityAction.None)
+                ApplyToViewer();
+            RestoreSelection(selectionToRestore);
             DialogResult = true;
             Close();
         }
@@ -193,92 +413,84 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
 
         private void BtnIsolateSelected_Click(object sender, RoutedEventArgs e)
         {
-            _visibilityFilter?.IsolateElements(_scene?.GetSelectedElements() ?? new List<PrecastElement>());
+            var elements = GetSelectionActionElements();
+            if (elements.Count == 0)
+                return;
+
+            if (_activeSelectionVisibilityAction == SelectionVisibilityAction.Isolate)
+            {
+                RestoreCurrentFilterVisibility(elements);
+                return;
+            }
+
+            if (_activeSelectionVisibilityAction != SelectionVisibilityAction.None)
+                ApplyToViewer();
+
+            _selectionSnapshotElements = ResolveSelectedScopeElements(elements);
+            _selectedScopeElements = _selectionSnapshotElements.ToList();
+            _visibilityFilter?.IsolateElements(_selectionSnapshotElements);
+            _activeSelectionVisibilityAction = SelectionVisibilityAction.Isolate;
+            RestoreSelection(_selectionSnapshotElements);
+            UpdateScopeButtons();
             UpdatePreviewCount();
+            UpdateSelectionActionButtons();
         }
 
         private void BtnHideSelected_Click(object sender, RoutedEventArgs e)
         {
-            _visibilityFilter?.HideElements(_scene?.GetSelectedElements() ?? new List<PrecastElement>());
+            var elements = GetSelectionActionElements();
+            if (elements.Count == 0)
+                return;
+
+            if (_activeSelectionVisibilityAction == SelectionVisibilityAction.Hide)
+            {
+                RestoreCurrentFilterVisibility(elements);
+                return;
+            }
+
+            if (_activeSelectionVisibilityAction != SelectionVisibilityAction.None)
+                ApplyToViewer();
+
+            _selectionSnapshotElements = ResolveSelectedScopeElements(elements);
+            _selectedScopeElements = _selectionSnapshotElements.ToList();
+            _visibilityFilter?.HideElements(_selectionSnapshotElements);
+            _activeSelectionVisibilityAction = SelectionVisibilityAction.Hide;
+            RestoreSelection(_selectionSnapshotElements);
+            UpdateScopeButtons();
             UpdatePreviewCount();
+            UpdateSelectionActionButtons();
+        }
+
+        private void RestoreCurrentFilterVisibility(IReadOnlyCollection<PrecastElement> elementsToKeepSelected)
+        {
+            _activeSelectionVisibilityAction = SelectionVisibilityAction.None;
+            ApplyToViewer();
+            RestoreSelection(elementsToKeepSelected);
+            UpdatePreviewCount();
+            UpdateSelectionActionButtons();
+        }
+
+        private void RestoreSelection(IEnumerable<PrecastElement> elements)
+        {
+            var resolved = ResolveSelectedScopeElements(elements);
+            _selectionSnapshotElements = resolved.ToList();
+            _selectedScopeElements = resolved.ToList();
+
+            if (resolved.Count == 0)
+                return;
+
+            if (_selectionService != null)
+                _selectionService.Set(resolved);
+            else
+                _scene?.SetSelectedElements(resolved);
+
+            UpdateScopeButtons();
         }
 
         private void BtnShowAll_Click(object sender, RoutedEventArgs e)
         {
             _visibilityFilter?.ShowAll();
             BtnReset_Click(sender, e);
-        }
-
-        private void BtnPresetStructural_Click(object sender, RoutedEventArgs e)
-        {
-            foreach (var option in _allTypeOptions)
-                option.IsChecked = StructuralTypeKeywords.Any(keyword => option.DisplayName.Contains(keyword, StringComparison.OrdinalIgnoreCase));
-
-            SetAllChecked(_allMaterialOptions, true);
-            SetAllChecked(_allStoreyOptions, true);
-            InitializeWeightControls();
-            BuildHierarchy();
-            SetHierarchyElementPredicate(element =>
-                StructuralTypeKeywords.Any(keyword => (element.ElementType ?? string.Empty).Contains(keyword, StringComparison.OrdinalIgnoreCase)));
-            NonWeightFilterChanged();
-        }
-
-        private void BtnPresetHeavy_Click(object sender, RoutedEventArgs e)
-        {
-            SetAllChecked(_allTypeOptions, true);
-            SetAllChecked(_allMaterialOptions, true);
-            SetAllChecked(_allStoreyOptions, true);
-
-            var availableMax = _visibilityFilter?.AvailableMaxWeightKg ?? 0d;
-            var heavyThreshold = Math.Max(1000d, availableMax * 0.25d);
-            TxtWeightMin.Text = heavyThreshold.ToString("0", CultureInfo.CurrentCulture);
-            TxtWeightMax.Text = availableMax.ToString("0", CultureInfo.CurrentCulture);
-            SetHierarchyChecked(true);
-            FilterChanged();
-        }
-
-        private void BtnPresetCurrentSelection_Click(object sender, RoutedEventArgs e)
-        {
-            var selected = _scene?.GetSelectedElements() ?? new List<PrecastElement>();
-
-            // If nothing selected in 3D, fall back to currently checked hierarchy items
-            if (selected.Count == 0)
-            {
-                var checkedIds = _hierarchyRoots
-                    .SelectMany(root => root.Children)
-                    .Where(node => node.IsChecked && node.Element != null)
-                    .Select(node => node.Element!.ElementID)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                if (checkedIds.Count == 0)
-                    return;
-
-                selected = _allElements
-                    .Where(el => !string.IsNullOrWhiteSpace(el.ElementID) && checkedIds.Contains(el.ElementID))
-                    .ToList();
-            }
-
-            var selectedTypes = selected
-                .Select(e => e.ElementType)
-                .Where(v => !string.IsNullOrWhiteSpace(v))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var selectedMaterials = selected
-                .Select(e => string.IsNullOrWhiteSpace(e.ElementMaterial) ? "Unspecified" : e.ElementMaterial.Trim())
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var selectedStoreys = selected
-                .Select(e => _visibilityFilter?.GetStorey(e) ?? "Unassigned")
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var option in _allTypeOptions) option.IsChecked = selectedTypes.Contains(option.DisplayName);
-            foreach (var option in _allMaterialOptions) option.IsChecked = selectedMaterials.Contains(option.DisplayName);
-            foreach (var option in _allStoreyOptions) option.IsChecked = selectedStoreys.Contains(option.DisplayName);
-            var selectedIds = selected
-                .Select(e => e.ElementID)
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            BuildHierarchy();
-            SetHierarchyElementPredicate(element => !string.IsNullOrWhiteSpace(element.ElementID) && selectedIds.Contains(element.ElementID));
-            NonWeightFilterChanged();
         }
 
         private void ApplyToElementList()
@@ -306,6 +518,13 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                 return;
 
             _visibilityFilter.ResetFilters();
+
+            if (_showSelectedScope)
+            {
+                _visibilityFilter.SetExcludedElementIds(GetFilteredOutCurrentScopeElementIds());
+                return;
+            }
+
             _visibilityFilter.SetSearchText(TxtSearch.Text);
             _visibilityFilter.SetWeightRange(
                 ParseDouble(TxtWeightMin.Text, _visibilityFilter.AvailableMinWeightKg),
@@ -324,7 +543,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             foreach (var storey in _visibilityFilter.Storeys)
                 _visibilityFilter.SetStoreyEnabled(storey, selectedStoreys.Contains(storey));
 
-            _visibilityFilter.SetIncludedElementIds(GetIncludedElementIds());
+            _visibilityFilter.SetExcludedElementIds(GetUncheckedCurrentScopeElementIds());
         }
 
         private void InitializeWeightControls()
@@ -373,10 +592,17 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
         {
             UpdatePreviewCount();
 
+            if (_isInitializing)
+                return;
+
             if (ChkLiveApply?.IsChecked == true)
             {
+                var selectionToRestore = GetCurrentSelectedElements().ToList();
+                _activeSelectionVisibilityAction = SelectionVisibilityAction.None;
+                UpdateSelectionActionButtons();
                 ApplyToElementList();
                 ApplyToViewer();
+                RestoreSelection(selectionToRestore);
             }
         }
 
@@ -585,13 +811,33 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
 
         private IEnumerable<string> GetIncludedElementIds()
         {
-            if (_hierarchyRoots.Count == 0)
-                return _allElements.Select(e => e.ElementID).Where(id => !string.IsNullOrWhiteSpace(id));
+            return _hierarchyRoots.Count == 0
+                ? _allElements.Select(e => e.ElementID).Where(id => !string.IsNullOrWhiteSpace(id))
+                : _hierarchyRoots
+                    .SelectMany(root => root.Children)
+                    .Where(node => node.IsChecked && node.Element != null && !string.IsNullOrWhiteSpace(node.Element.ElementID))
+                    .Select(node => node.Element!.ElementID);
+        }
 
-            return _hierarchyRoots
-                .SelectMany(root => root.Children)
-                .Where(node => node.IsChecked && node.Element != null && !string.IsNullOrWhiteSpace(node.Element.ElementID))
-                .Select(node => node.Element!.ElementID);
+        private IEnumerable<string> GetUncheckedCurrentScopeElementIds()
+        {
+            var includedIds = GetIncludedElementIds().ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            return _allElements
+                .Select(e => e.ElementID)
+                .Where(id => !string.IsNullOrWhiteSpace(id) && !includedIds.Contains(id));
+        }
+
+        private IEnumerable<string> GetFilteredOutCurrentScopeElementIds()
+        {
+            var visibleScopeIds = GetElementsMatchingCurrentFilters(includeWeightRange: true)
+                .Select(e => e.ElementID)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            return _allElements
+                .Select(e => e.ElementID)
+                .Where(id => !string.IsNullOrWhiteSpace(id) && !visibleScopeIds.Contains(id));
         }
 
         private string GetSortBy() =>
@@ -713,8 +959,9 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             if (TxtPreviewCount == null)
                 return;
 
-            var total = _viewModel?.Elements.Count ?? _visibilityFilter?.TotalCount ?? 0;
-            TxtPreviewCount.Text = $"Showing {CalculatePreviewCount()} of {total} elements";
+            var total = _allElements.Count;
+            var label = _showSelectedScope ? "selected" : "elements";
+            TxtPreviewCount.Text = $"Showing {CalculatePreviewCount()} of {total} {label}";
         }
 
         private int CalculatePreviewCount()
@@ -724,7 +971,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
 
         private List<PrecastElement> GetElementsMatchingCurrentFilters(bool includeWeightRange)
         {
-            var elements = _viewModel?.Elements.AsEnumerable() ?? _visibilityFilter?.AllElements ?? Enumerable.Empty<PrecastElement>();
+            var elements = _allElements.AsEnumerable();
             var selectedTypes = new HashSet<string>(GetSelectedTypes(), StringComparer.OrdinalIgnoreCase);
             var selectedMaterials = new HashSet<string>(GetSelectedMaterials(), StringComparer.OrdinalIgnoreCase);
             var selectedStoreys = new HashSet<string>(GetSelectedStoreys(), StringComparer.OrdinalIgnoreCase);

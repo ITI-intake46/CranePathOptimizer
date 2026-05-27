@@ -65,6 +65,10 @@
     <Folder Include="Features\F15_ObjectSnap\Views\" />
     <Folder Include="Features\F15_ObjectSnap\ViewModels\" />
     <Folder Include="Features\F15_ObjectSnap\Services\" />
+    <Folder Include="Features\F17_Selection\Interaction\" />
+    <Folder Include="Features\F17_Selection\Services\" />
+    <Folder Include="Features\F17_Selection\ViewModels\" />
+    <Folder Include="Features\F17_Selection\Views\" />
     <Folder Include="Features\F4_LoadChart\Services\" />
     <Folder Include="Features\F4_LoadChart\ViewModels\" />
     <Folder Include="Features\F5_ElementManagement\" />

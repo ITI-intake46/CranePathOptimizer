@@ -17,6 +17,7 @@ using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Views;
 using CraneOptimizer.UI.Features.F7_Zones;
+using CraneOptimizer.UI.Features.F17_Selection.Interaction;
 using CraneOptimizer.UI.Shell.Interaction;
 using CraneOptimizer.UI.Shell.ViewModels;
 
@@ -34,6 +35,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private readonly OsnapPanelViewModel _osnapVm = null!;
         private readonly OsnapGeometryBridge _osnapBridge = null!;
         private readonly IUnitSettingsService _unitSettingsService = null!;
+        private readonly SelectionHandler _selectionHandler = null!;
         private Window? _ownerWindow;
         private MainViewModel? _osnapDxfSource;
 
@@ -64,12 +66,17 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _osnapVm = App.ServiceProvider.GetRequiredService<OsnapPanelViewModel>();
             _osnapBridge = App.ServiceProvider.GetRequiredService<OsnapGeometryBridge>();
             _unitSettingsService = App.ServiceProvider.GetRequiredService<IUnitSettingsService>();
+            _selectionHandler = App.ServiceProvider.GetRequiredService<SelectionHandler>();
 
             OsnapPanel.DataContext = _osnapVm;
             _osnapIndicator = new OsnapIndicator(OsnapOverlayCanvas);
 
             _renderingService.Initialize(IfcViewer);
             _osnapBridge.AttachViewport(IfcViewer);
+
+            // Wire the 2D rubber-band overlay canvas to the selection handler.
+            // Must be done after InitializeComponent() so SelectionCanvas is created.
+            _selectionHandler.SetOverlayCanvas(SelectionCanvas);
 
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
@@ -150,6 +157,11 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
         private void OwnerWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            UpdateSelectionHandlerEnabled();
+            _selectionHandler.OnKeyDown(IfcViewer, e);
+            if (e.Handled)
+                return;
+
             _interactionService.HandleKeyDown(IfcViewer, e);
         }
 
@@ -194,6 +206,12 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
         private void IfcViewer_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
+            if (sender is HelixViewport3D viewport)
+            {
+                UpdateSelectionHandlerEnabled();
+                _selectionHandler.OnPreviewMouseDown(viewport, e);
+            }
+
             if (e.ChangedButton != MouseButton.Middle || e.ClickCount != 2)
                 return;
 
@@ -220,7 +238,30 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 }
             }
 
+            UpdateSelectionHandlerEnabled();
+            _selectionHandler.OnMouseMove(viewport, e);
             _interactionService.HandleMouseMove(viewport, e);
+        }
+
+        // ── PreviewMouse handlers — tunnel BEFORE Helix sees the event ──────
+        // We delegate box-select start/drag/end via Preview* so that when the
+        // user drags over empty space we can draw the rubber-band AND block
+        // Helix from starting its camera-rotation capture.
+
+        private void IfcViewer_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (sender is not HelixViewport3D viewport) return;
+            // Forward to SelectionHandler; it sets e.Handled = true only when
+            // a box-select drag is active, which stops Helix rotating the camera.
+            UpdateSelectionHandlerEnabled();
+            _selectionHandler.OnPreviewMouseMove(viewport, e);
+        }
+
+        private void IfcViewer_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not HelixViewport3D viewport) return;
+            UpdateSelectionHandlerEnabled();
+            _selectionHandler.OnPreviewMouseUp(viewport, e);
         }
 
         private static bool IsCameraOrDragMouseMove(MouseEventArgs e)
@@ -231,13 +272,43 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private void IfcViewer_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (sender is HelixViewport3D viewport)
+            {
+                // Let SelectionHandler record the drag-start point on every
+                // left-click (even over empty space) before the mode stack runs.
+                UpdateSelectionHandlerEnabled();
+                _selectionHandler.OnMouseDown(viewport, e);
                 _interactionService.HandleMouseDown(viewport, e);
+            }
         }
 
         private void IfcViewer_MouseUp(object sender, MouseButtonEventArgs e)
         {
             if (sender is HelixViewport3D viewport)
+            {
+                UpdateSelectionHandlerEnabled();
+                _selectionHandler.OnMouseUp(viewport, e);
+                if (e.Handled)
+                    return;
+
                 _interactionService.HandleMouseUp(viewport, e);
+            }
+        }
+
+        private void UpdateSelectionHandlerEnabled()
+        {
+            if (DataContext is not MainViewModel vm)
+            {
+                _selectionHandler.IsEnabled = false;
+                return;
+            }
+
+            _selectionHandler.IsEnabled =
+                _interactionService.CurrentMode is DefaultSelectionMode &&
+                !vm.IfcViewer.IsPlacementMode &&
+                !vm.CranePlacement.IsPlacing &&
+                !vm.IsPickingOrigin &&
+                !vm.Drawing.IsDrawing &&
+                !vm.Drawing.IsMeasuring;
         }
 
         private void IfcViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)

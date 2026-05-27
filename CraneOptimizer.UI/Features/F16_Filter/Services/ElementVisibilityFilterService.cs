@@ -15,6 +15,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         private readonly HashSet<string> _enabledMaterials = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _enabledStoreys = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _hiddenElementIds = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _excludedElementIds = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _isolatedElementIds = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> _storeyByElementId = new(StringComparer.OrdinalIgnoreCase);
         private readonly IIfcReaderRepository _ifcReader;
@@ -45,6 +46,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             _allElements.Clear();
             _allElements.AddRange(elements);
             _hiddenElementIds.Clear();
+            _excludedElementIds.Clear();
             _isolatedElementIds.Clear();
             _includedElementIds = null;
             SearchText = string.Empty;
@@ -96,6 +98,19 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             Recalculate();
         }
 
+        public void SetExcludedElementIds(IEnumerable<string>? elementIds)
+        {
+            _excludedElementIds.Clear();
+
+            if (elementIds != null)
+            {
+                foreach (var id in elementIds.Where(id => !string.IsNullOrWhiteSpace(id)))
+                    _excludedElementIds.Add(id);
+            }
+
+            Recalculate();
+        }
+
         public void ResetFilters()
         {
             SearchText = string.Empty;
@@ -103,6 +118,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             MinWeightKg = AvailableMinWeightKg;
             MaxWeightKg = AvailableMaxWeightKg;
             _hiddenElementIds.Clear();
+            _excludedElementIds.Clear();
             _isolatedElementIds.Clear();
             _includedElementIds = null;
             Recalculate();
@@ -169,9 +185,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         public bool IsTypeEnabled(string type) => _enabledTypes.Contains(Normalize(type, "Unknown type"));
         public bool IsMaterialEnabled(string material) => _enabledMaterials.Contains(Normalize(material, "Unspecified"));
         public bool IsStoreyEnabled(string storey) => _enabledStoreys.Contains(Normalize(storey, "Unassigned"));
-        public bool IsElementIncluded(PrecastElement element) =>
-            _includedElementIds == null
-            || (!string.IsNullOrWhiteSpace(element.ElementID) && _includedElementIds.Contains(element.ElementID));
+        public bool IsElementIncluded(PrecastElement element) => IsVisible(element);
 
         private void SetEnabled(HashSet<string> set, string value, bool enabled)
         {
@@ -197,6 +211,9 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             var id = element.ElementID ?? string.Empty;
 
             if (_hiddenElementIds.Contains(id))
+                return false;
+
+            if (_excludedElementIds.Contains(id))
                 return false;
 
             if (_includedElementIds != null && !_includedElementIds.Contains(id))

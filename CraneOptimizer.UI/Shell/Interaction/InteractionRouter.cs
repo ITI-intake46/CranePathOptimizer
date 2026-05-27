@@ -171,11 +171,13 @@ namespace CraneOptimizer.UI.Shell.Interaction
         {
             var hitObj = _hitTest.GetHitObject(viewport, e.GetPosition(viewport));
 
+            if (hitObj is PrecastElement)
+                return false;
+
             if (hitObj == null)
             {
                 _vm.Scene.SetSelectedZone(null);
                 _vm.Scene.SetSelectedCrane(null);
-                _vm.Scene.SetSelectedElements(new List<PrecastElement>());
                 return false;
             }
 
@@ -188,12 +190,6 @@ namespace CraneOptimizer.UI.Shell.Interaction
             if (hitObj is SceneCrane crane)
             {
                 _vm.Scene.SetSelectedCrane(crane);
-                return true;
-            }
-
-            if (hitObj is PrecastElement element)
-            {
-                _vm.Scene.SetSelectedElements(new List<PrecastElement> { element });
                 return true;
             }
 

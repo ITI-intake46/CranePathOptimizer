@@ -75,13 +75,18 @@ namespace CraneOptimizer.UI.Shell.Interaction
         private bool HandleSelection(HelixViewport3D viewport, MouseButtonEventArgs e)
         {
             var hitObj = _hitTest.GetHitObject(viewport, e.GetPosition(viewport));
+
+            // F17 owns element selection so Ctrl-click, Tab cycling, and box
+            // selection all pass through one batched selection service.
+            if (hitObj is PrecastElement)
+                return false;
+
             _vm.Scene.SetSelectedObject(hitObj);
 
             if (hitObj == null)
             {
                 _vm.Scene.SetSelectedZone(null);
                 _vm.Scene.SetSelectedCrane(null);
-                _vm.Scene.SetSelectedElements(new List<PrecastElement>());
                 return false;
             }
 
@@ -94,12 +99,6 @@ namespace CraneOptimizer.UI.Shell.Interaction
             if (hitObj is SceneCrane crane)
             {
                 _vm.Scene.SetSelectedCrane(crane);
-                return true;
-            }
-
-            if (hitObj is PrecastElement element)
-            {
-                _vm.Scene.SetSelectedElements(new List<PrecastElement> { element });
                 return true;
             }
 

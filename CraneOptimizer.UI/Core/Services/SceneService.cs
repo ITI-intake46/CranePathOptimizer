@@ -59,8 +59,10 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void ClearSelectedElements()
         {
+            _selectedObject = null;
             _selectedElements.Clear();
             ElementsSelectionChanged?.Invoke(new List<PrecastElement>());
+            SelectionChanged?.Invoke(null);
         }
 
         // =========================

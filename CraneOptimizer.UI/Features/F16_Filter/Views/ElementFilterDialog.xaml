@@ -203,14 +203,36 @@
             </Grid>
         </Border>
 
-        <ScrollViewer
-            Grid.Row="1"
-            Padding="16"
-            HorizontalScrollBarVisibility="Disabled"
-            PanningMode="VerticalOnly"
-            ScrollViewer.CanContentScroll="False"
-            VerticalScrollBarVisibility="Auto">
-            <StackPanel>
+        <Grid Grid.Row="1" Margin="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0">
+                <TextBlock Text="SCOPE" Style="{StaticResource PanelSectionHeader}" />
+                <UniformGrid Columns="2" Margin="0,0,0,14">
+                    <Button
+                        x:Name="BtnScopeAll"
+                        Margin="0,0,6,0"
+                        Padding="8,6"
+                        Click="BtnScopeAll_Click"
+                        Content="All Elements"
+                        Style="{StaticResource ButtonSecondary}"
+                        ToolTip="Filter the full model." />
+                    <Button
+                        x:Name="BtnScopeSelected"
+                        Padding="8,6"
+                        Click="BtnScopeSelected_Click"
+                        Content="Selected"
+                        Style="{StaticResource ButtonSecondary}"
+                        ToolTip="Filter only the elements selected before opening this dialog." />
+                </UniformGrid>
+            </StackPanel>
+
+            <StackPanel Grid.Row="1">
                 <TextBlock Text="SEARCH" Style="{StaticResource PanelSectionHeader}" />
                 <TextBox
                     x:Name="TxtSearch"
@@ -219,23 +241,9 @@
                     Padding="8,2"
                     VerticalContentAlignment="Center"
                     TextChanged="TxtSearch_TextChanged" />
+            </StackPanel>
 
-                <UniformGrid Columns="2" Margin="0,0,0,14">
-                    <Button
-                        Margin="0,0,6,0"
-                        Padding="8,5"
-                        Click="BtnPresetStructural_Click"
-                        Style="{StaticResource ButtonSecondary}">
-                        Structural
-                    </Button>
-                    <Button
-                        Padding="8,5"
-                        Click="BtnPresetCurrentSelection_Click"
-                        Style="{StaticResource ButtonSecondary}">
-                        Selected
-                    </Button>
-                </UniformGrid>
-
+            <StackPanel Grid.Row="2">
                 <TextBlock Text="WEIGHT RANGE (kg)" Style="{StaticResource PanelSectionHeader}" />
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
@@ -309,9 +317,11 @@
                         ValueChanged="SliderWeightMax_Changed"
                         Visibility="Collapsed" />
                 </Canvas>
+            </StackPanel>
 
                 <Border
-                    Margin="0,0,0,14"
+                    Grid.Row="3"
+                    Margin="0"
                     Padding="12"
                     Background="{DynamicResource SurfaceElevatedBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
@@ -320,7 +330,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="360" />
+                            <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <Grid Grid.Row="0" Margin="0,0,0,8">
                             <Grid.ColumnDefinitions>
@@ -436,26 +446,7 @@
                     </Grid>
                 </Border>
 
-                <TextBlock Text="VISIBILITY ACTIONS" Style="{StaticResource PanelSectionHeader}" />
-                <UniformGrid Columns="2" Margin="0,0,0,4">
-                    <Button
-                        Margin="0,0,6,0"
-                        Padding="8,6"
-                        Click="BtnIsolateSelected_Click"
-                        Style="{StaticResource ButtonSecondary}"
-                        ToolTip="Show only the elements currently selected in the 3D view or element list.">
-                        Isolate Selected
-                    </Button>
-                    <Button
-                        Padding="8,6"
-                        Click="BtnHideSelected_Click"
-                        Style="{StaticResource ButtonSecondary}"
-                        ToolTip="Hide the elements currently selected in the 3D view or element list.">
-                        Hide Selected
-                    </Button>
-                </UniformGrid>
-            </StackPanel>
-        </ScrollViewer>
+        </Grid>
 
         <Border
             Grid.Row="2"
@@ -465,6 +456,10 @@
             BorderThickness="0,1,0,0">
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="8" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -479,13 +474,29 @@
                     Content="Reset All Filters"
                     Style="{StaticResource ButtonSecondary}" />
                 <Button
+                    x:Name="BtnShowSelectedOnly"
                     Grid.Column="2"
+                    Padding="14,6"
+                    Click="BtnIsolateSelected_Click"
+                    Content="Show Selected Only"
+                    Style="{StaticResource ButtonSecondary}"
+                    ToolTip="Show only the currently selected elements in the 3D view." />
+                <Button
+                    x:Name="BtnHideSelected"
+                    Grid.Column="4"
+                    Padding="14,6"
+                    Click="BtnHideSelected_Click"
+                    Content="Hide Selected"
+                    Style="{StaticResource ButtonSecondary}"
+                    ToolTip="Hide the currently selected elements in the 3D view." />
+                <Button
+                    Grid.Column="6"
                     Padding="20,8"
                     Click="BtnApply_Click"
                     Content="Apply"
                     Style="{StaticResource ButtonPrimary}" />
                 <Button
-                    Grid.Column="4"
+                    Grid.Column="8"
                     Padding="14,6"
                     Click="BtnCancel_Click"
                     Content="Cancel"

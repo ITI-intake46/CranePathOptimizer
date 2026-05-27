@@ -42,6 +42,7 @@ namespace CraneOptimizer.UI.Core.Services
             _filterService = filterService;
 
             _scene.ElementsChanged += OnElementsChanged;
+            _scene.ElementsSelectionChanged += OnElementsSelectionChanged;
             _filterService.StateChanged += OnFilterStateChanged;
             _scene.CraneAdded += OnCraneChanged;
             _scene.CraneMoved += OnCraneChanged;
@@ -94,7 +95,14 @@ namespace CraneOptimizer.UI.Core.Services
                 .GroupBy(result => result.ElementId, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.Last().Status, StringComparer.OrdinalIgnoreCase);
 
+            var selectedIds = _scene.GetSelectedElements()
+                .Select(element => element.ElementID)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var selectedElementId = _context.GetSelectedElementId();
+            if (!string.IsNullOrWhiteSpace(selectedElementId))
+                selectedIds.Add(selectedElementId);
+
             var origin = _context.GetOriginPoint();
             var placementOffset = _context.GetPlacementOffset();
 
@@ -105,7 +113,7 @@ namespace CraneOptimizer.UI.Core.Services
                     if (statusMap != null && statusMap.TryGetValue(element.ElementID, out var liftStatus))
                         status = liftStatus;
 
-                    return (element, status, element.ElementID == selectedElementId);
+                    return (element, status, !string.IsNullOrWhiteSpace(element.ElementID) && selectedIds.Contains(element.ElementID));
                 }),
                 new ElementVisualBuilder(_ifcReader, origin, placementOffset),
                 "Elements");
@@ -163,6 +171,8 @@ namespace CraneOptimizer.UI.Core.Services
                 ReRenderElements();
         }
 
+        private void OnElementsSelectionChanged(List<PrecastElement> _) => ReRenderElements();
+
         private void OnCraneChanged(SceneCrane _) => ReRenderCranes();
         private void OnZoneChanged(GreenAreaZone _) => ReRenderCranes();
 
@@ -179,6 +189,7 @@ namespace CraneOptimizer.UI.Core.Services
 
             _disposed = true;
             _scene.ElementsChanged -= OnElementsChanged;
+            _scene.ElementsSelectionChanged -= OnElementsSelectionChanged;
             _filterService.StateChanged -= OnFilterStateChanged;
             _scene.CraneAdded -= OnCraneChanged;
             _scene.CraneMoved -= OnCraneChanged;

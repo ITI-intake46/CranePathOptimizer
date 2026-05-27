@@ -11,6 +11,7 @@ using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F3_CraneSetup;
 using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
+using CraneOptimizer.UI.Features.F17_Selection.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
@@ -58,7 +59,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             ICraneSceneInteractionService craneSceneInteraction,
             CraneManagerViewModel craneManager,
             IUnitSettingsService unitSettings,
-            CraneVisualBuilder craneVisualBuilder)
+            CraneVisualBuilder craneVisualBuilder,
+            SelectionViewModel selection)
         {
             Scene = scene;
             Drawing = drawing;
@@ -68,6 +70,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CraneSetup = craneSetup;
             ElementManagement = elementManagement;
             CraneManager = craneManager;
+            Selection = selection;
 
             _ifcReader = ifcReader;
             _render = render;
@@ -128,6 +131,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         public DrawingViewModel Drawing { get; }
         public IfcViewerViewModel IfcViewer { get; }
         public DxfTabViewModel Dxf { get; }
+        public SelectionViewModel Selection { get; }
 
         public ICommand StartDrawingCommand { get; }
         public ICommand OptimizeCommand { get; }

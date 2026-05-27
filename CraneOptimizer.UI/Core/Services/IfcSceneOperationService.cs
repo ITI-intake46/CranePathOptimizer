@@ -30,6 +30,7 @@ namespace CraneOptimizer.UI.Core.Services
         public List<PrecastElement> ReplaceIfcModel(IEnumerable<PrecastElement> elements)
         {
             var modelElements = elements.ToList();
+            _scene.ClearSelectedElements();
             _scene.SetElements(modelElements);
             return modelElements;
         }
@@ -38,6 +39,7 @@ namespace CraneOptimizer.UI.Core.Services
         {
             var mergedElements = _scene.GetElements();
             mergedElements.AddRange(elements);
+            _scene.ClearSelectedElements();
             _scene.SetElements(mergedElements);
             return mergedElements;
         }

@@ -24,6 +24,9 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
+using CraneOptimizer.UI.Features.F17_Selection.Interaction;
+using CraneOptimizer.UI.Features.F17_Selection.Services;
+using CraneOptimizer.UI.Features.F17_Selection.ViewModels;
 using CraneOptimizer.UI.F10_ProjectManagement.Views;
 using CraneOptimizer.UI.Shell.Services;
 using CraneOptimizer.UI.Shell.ViewModels;
@@ -90,6 +93,14 @@ namespace CraneOptimizer.UI
             services.AddSingleton<ISceneGridSizingService, SceneGridSizingService>();
             services.AddSingleton<IElementVisibilityFilterService, ElementVisibilityFilterService>();
             services.AddSingleton<IIfcSceneOperationService, IfcSceneOperationService>();
+
+            // =========================
+            // F17 Selection
+            // =========================
+            services.AddSingleton<ISelectionService, SelectionService>();
+            services.AddSingleton<HoverHitCache>();
+            services.AddSingleton<SelectionHandler>();
+            services.AddSingleton<SelectionViewModel>();
 
             // =========================
             // F10 Project Management
