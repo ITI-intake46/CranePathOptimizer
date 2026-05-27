@@ -45,6 +45,7 @@ namespace CraneOptimizer.UI.Core.Services
             _diagnosticsStore = diagnosticsStore;
 
             _scene.ElementsChanged += OnElementsChanged;
+            _scene.ElementsSelectionChanged += OnElementsSelectionChanged;
             _filterService.StateChanged += OnFilterStateChanged;
             _scene.CraneAdded += OnCraneChanged;
             _scene.CraneMoved += OnCraneChanged;
@@ -144,7 +145,26 @@ namespace CraneOptimizer.UI.Core.Services
                     },
                     StringComparer.OrdinalIgnoreCase);
 
-            var selectedElementId = _context.GetSelectedElementId();
+            var selectedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (_context.GetSelectedElementIds != null)
+            {
+                var ids = _context.GetSelectedElementIds();
+                if (ids != null)
+                {
+                    foreach (var id in ids)
+                    {
+                        if (id != null)
+                            selectedIds.Add(id);
+                    }
+                }
+            }
+            else
+            {
+                var singleId = _context.GetSelectedElementId();
+                if (singleId != null)
+                    selectedIds.Add(singleId);
+            }
+
             var origin = _context.GetOriginPoint();
             var placementOffset = _context.GetPlacementOffset();
 
@@ -158,7 +178,8 @@ namespace CraneOptimizer.UI.Core.Services
                     if (statusMap != null && statusMap.TryGetValue(element.ElementID, out var liftStatus))
                         status = liftStatus;
 
-                    return (element, status, element.ElementID == selectedElementId);
+                    bool isSelected = selectedIds.Contains(element.ElementID);
+                    return (element, status, isSelected);
                 }),
                 builder,
                 "Elements");
@@ -272,6 +293,11 @@ namespace CraneOptimizer.UI.Core.Services
             ReRenderElements();
         }
 
+        private void OnElementsSelectionChanged(List<PrecastElement> selected)
+        {
+            ReRenderElements();
+        }
+
         private void OnFilterStateChanged()
         {
             if (!_isSyncingSceneElements)
@@ -294,6 +320,7 @@ namespace CraneOptimizer.UI.Core.Services
 
             _disposed = true;
             _scene.ElementsChanged -= OnElementsChanged;
+            _scene.ElementsSelectionChanged -= OnElementsSelectionChanged;
             _filterService.StateChanged -= OnFilterStateChanged;
             _scene.CraneAdded -= OnCraneChanged;
             _scene.CraneMoved -= OnCraneChanged;

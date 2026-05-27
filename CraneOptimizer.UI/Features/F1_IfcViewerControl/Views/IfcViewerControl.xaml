@@ -82,17 +82,6 @@
                         FontSize="{StaticResource FontSizeSM}"
                         FontWeight="SemiBold"
                         Style="{StaticResource ButtonSecondary}" />
-                    <Button
-                        Padding="8,4"
-                        Margin="0,0,8,0"
-                        VerticalAlignment="Center"
-                        Click="TopView_Click"
-                        Content="⛶ Top View"
-                        DockPanel.Dock="Right"
-                        FontFamily="{StaticResource FontPrimary}"
-                        FontSize="{StaticResource FontSizeSM}"
-                        FontWeight="SemiBold"
-                        Style="{StaticResource ButtonSecondary}" />
                     <StackPanel
                         Margin="0,0,8,0"
                         VerticalAlignment="Center"
@@ -176,6 +165,8 @@
                     MouseMove="IfcViewer_MouseMove"
                     MouseUp="IfcViewer_MouseUp"
                     PreviewMouseDown="IfcViewer_PreviewMouseDown"
+                    PreviewMouseMove="IfcViewer_PreviewMouseMove"
+                    PreviewMouseUp="IfcViewer_PreviewMouseUp"
                     Background="{DynamicResource BackgroundBrush}"
                     CameraRotationMode="Turntable"
                     InfiniteSpin="False"
@@ -219,6 +210,15 @@
                         </ModelVisual3D.Content>
                     </ModelVisual3D>
                 </helix:HelixViewport3D>
+
+                <!--  ── SELECTION RUBBER-BAND OVERLAY ─────────────────
+                      Sits between the viewport and the osnap indicator.
+                      IsHitTestVisible=False lets all mouse events fall
+                      through to the HelixViewport3D below.               -->
+                <Canvas x:Name="SelectionCanvas"
+                        IsHitTestVisible="False"
+                        Background="Transparent"
+                        ClipToBounds="True"/>
 
                 <!--  ── OSNAP INDICATOR OVERLAY ──────────────────────
                       Transparent Canvas floats above the 3D viewport.

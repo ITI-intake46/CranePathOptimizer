@@ -39,6 +39,9 @@ using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels;
 using CraneOptimizer.UI.Features.F9_Settings.Views;
 using CraneOptimizer.UI.F90_CraneSeedData.Services;
+using CraneOptimizer.UI.Features.F17_Selection.Interaction;
+using CraneOptimizer.UI.Features.F17_Selection.Services;
+using CraneOptimizer.UI.Features.F17_Selection.ViewModels;
 
 namespace CraneOptimizer.UI
 {
@@ -163,6 +166,9 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IfcViewerViewModel>();
             services.AddSingleton<DxfTabViewModel>();
             services.AddScoped<ElementManagementViewModel>();
+            services.AddSingleton<SelectionHandler>();
+            services.AddSingleton<HoverHitCache>();
+            services.AddTransient<SelectionViewModel>();
 
             // =========================
             // F15 Object Snap

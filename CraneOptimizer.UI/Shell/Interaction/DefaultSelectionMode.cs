@@ -83,9 +83,6 @@ namespace CraneOptimizer.UI.Shell.Interaction
         {
             var hitObj = _hitTest.GetHitObject(viewport, e.GetPosition(viewport));
             
-            // Set legacy selected object for basic compatibility, though actual state is handled in ViewportSelectionService
-            _vm.Scene.SetSelectedObject(hitObj);
-
             bool isCtrlHeld = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
             _viewportSelection.Select(hitObj, isCtrlHeld);
 

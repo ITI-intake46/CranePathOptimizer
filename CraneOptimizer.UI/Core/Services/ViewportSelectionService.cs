@@ -106,6 +106,93 @@ namespace CraneOptimizer.UI.Core.Services
             }
         }
 
+        public void SelectElements(IEnumerable<PrecastElement> elements, bool isCtrlHeld)
+        {
+            if (_isUpdating) return;
+            _isUpdating = true;
+            try
+            {
+                if (isCtrlHeld)
+                {
+                    var currentElements = _scene.GetSelectedElements();
+                    var currentSet = new HashSet<PrecastElement>(currentElements, ReferenceEqualityComparer.Instance);
+                    
+                    foreach (var el in elements)
+                    {
+                        if (currentSet.Contains(el))
+                        {
+                            currentElements.RemoveAll(x => ReferenceEquals(x, el));
+                        }
+                        else
+                        {
+                            currentElements.Add(el);
+                        }
+                    }
+                    _scene.SetSelectedElements(currentElements);
+                }
+                else
+                {
+                    _scene.SetSelectedElements(elements.ToList());
+                    _scene.SetSelectedZone(null);
+                    _scene.SetSelectedCrane(null);
+                    _scene.SetSelectedDxfEntity(null);
+                }
+                NotifyChanged();
+            }
+            finally
+            {
+                _isUpdating = false;
+            }
+        }
+
+        public void SetElements(IEnumerable<PrecastElement> elements)
+        {
+            if (_isUpdating) return;
+            _isUpdating = true;
+            try
+            {
+                _scene.SetSelectedElements(elements.ToList());
+                _scene.SetSelectedZone(null);
+                _scene.SetSelectedCrane(null);
+                _scene.SetSelectedDxfEntity(null);
+                NotifyChanged();
+            }
+            finally
+            {
+                _isUpdating = false;
+            }
+        }
+
+        public void ToggleElement(PrecastElement element)
+        {
+            if (_isUpdating) return;
+            _isUpdating = true;
+            try
+            {
+                var currentElements = _scene.GetSelectedElements();
+                var existing = currentElements.FirstOrDefault(x => ReferenceEquals(x, element));
+                if (existing != null)
+                {
+                    currentElements.Remove(existing);
+                }
+                else
+                {
+                    currentElements.Add(element);
+                }
+                _scene.SetSelectedElements(currentElements);
+                NotifyChanged();
+            }
+            finally
+            {
+                _isUpdating = false;
+            }
+        }
+
+        public void Clear()
+        {
+            ClearSelection();
+        }
+
         public void ClearSelection()
         {
             if (_isUpdating)

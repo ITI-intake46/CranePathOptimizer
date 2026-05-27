@@ -15,7 +15,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
-using System.Reflection;
 using System.Windows.Data;
 using System.Windows.Input;
 using CraneOptimizer.UI.Features.F5_ElementManagement.DTOs;
@@ -174,7 +173,6 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             MinWeight = criteria.MinWeight;
             MaxWeight = criteria.MaxWeight;
             ApplySearchFilter();
-            ApplyViewerFilterCriteria(criteria);
         }
 
         public void LoadElementProperties()
@@ -501,14 +499,6 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             return filtered.Children.Count > 0 ? filtered : null;
         }
 
-        private static bool MatchesElement(PrecastElement element, string filter)
-        {
-            return Matches(GetElementDisplayName(element), filter) ||
-                   Matches(element.ElementID, filter) ||
-                   Matches(element.ElementType, filter) ||
-                   Matches(element.ElementMaterial, filter);
-        }
-
         private static bool Matches(string? value, string filter) =>
             !string.IsNullOrWhiteSpace(value) &&
             value.Contains(filter, StringComparison.OrdinalIgnoreCase);
@@ -516,13 +506,6 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         private static string GetElementDisplayName(PrecastElement element)
         {
             return ElementDisplayNameConverter.GetDisplayName(element);
-        }
-
-        // Kept for backward compatibility (not used in BuildPropertyGroups anymore)
-        private static string GetWeightDisplayValue(PrecastElement element)
-        {
-            var weight = ElementWeightCalculator.GetWeightTons(element);
-            return weight > 0d ? $"{weight:N2} t" : string.Empty;
         }
 
         private string FormatLength(double? value)
@@ -556,12 +539,6 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             OnPropertyChanged(nameof(GridSize));
         }
 
-        private static string? GetStringProperty(object source, string propertyName)
-        {
-            var property = source.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
-            return property?.GetValue(source)?.ToString();
-        }
-
         private static string FormatValue(object? value)
         {
             return value switch
@@ -575,43 +552,10 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             };
         }
 
-        private static string FormatPoint(PrecastElement element)
-        {
-            return string.Create(
-                CultureInfo.CurrentCulture,
-                $"{element.ElementCOG.X:N2}, {element.ElementCOG.Y:N2}, {element.ElementCOG.Z:N2}");
-        }
-
         private int GetVisibleElementCount()
         {
             var view = CollectionViewSource.GetDefaultView(FilteredElements);
             return view?.Cast<object>().Count() ?? FilteredElements.Count;
-        }
-
-        private void ApplyViewerFilterCriteria(FilterCriteriaDto criteria)
-        {
-            _visibilityFilterService.ResetFilters();
-            _visibilityFilterService.SetSearchText(SearchText);
-            _visibilityFilterService.SetWeightRange(criteria.MinWeight, criteria.MaxWeight);
-
-            var selectedTypes = new HashSet<string>(
-                criteria.SelectedTypes ?? new List<string>(),
-                StringComparer.OrdinalIgnoreCase);
-            var selectedMaterials = new HashSet<string>(
-                criteria.SelectedMaterials ?? new List<string>(),
-                StringComparer.OrdinalIgnoreCase);
-            var selectedStoreys = new HashSet<string>(
-                criteria.SelectedStoreys ?? new List<string>(),
-                StringComparer.OrdinalIgnoreCase);
-
-            foreach (var type in _visibilityFilterService.ElementTypes)
-                _visibilityFilterService.SetTypeEnabled(type, selectedTypes.Contains(type));
-
-            foreach (var material in _visibilityFilterService.Materials)
-                _visibilityFilterService.SetMaterialEnabled(material, selectedMaterials.Contains(material));
-
-            foreach (var storey in _visibilityFilterService.Storeys)
-                _visibilityFilterService.SetStoreyEnabled(storey, selectedStoreys.Contains(storey));
         }
 
         private static string NormalizeMaterial(string? material) =>

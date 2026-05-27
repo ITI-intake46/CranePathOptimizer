@@ -18,6 +18,7 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
+using CraneOptimizer.UI.Features.F17_Selection.ViewModels;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 
@@ -68,13 +69,15 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CraneManagerViewModel craneManager,
             IUnitSettingsService unitSettings,
             CraneVisualBuilder craneVisualBuilder,
-            IProjectStateService projectStateService)
+            IProjectStateService projectStateService,
+            SelectionViewModel selection)
         {
             Scene = scene;
             Drawing = drawing;
             CranePlacement = cranePlacement;
             IfcViewer = ifcViewer;
             Dxf = dxf;
+            Selection = selection;
             CraneSetup = craneSetup;
             ElementManagement = elementManagement;
             CraneManager = craneManager;
@@ -151,6 +154,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         public DrawingViewModel Drawing { get; }
         public IfcViewerViewModel IfcViewer { get; }
         public DxfTabViewModel Dxf { get; }
+        public SelectionViewModel Selection { get; }
 
         public ICommand StartDrawingCommand { get; }
         public ICommand OptimizeCommand { get; }
