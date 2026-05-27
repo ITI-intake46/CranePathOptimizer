@@ -15,41 +15,6 @@
     FontSize="{StaticResource FontSizeBase}">
 
     <Window.Resources>
-        <DataTemplate x:Key="CheckableItemTemplate">
-            <CheckBox
-                Margin="0,2"
-                Checked="FilterOption_Changed"
-                IsChecked="{Binding IsChecked, Mode=TwoWay}"
-                Unchecked="FilterOption_Changed">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock
-                        VerticalAlignment="Center"
-                        FontSize="{StaticResource FontSizeXS}"
-                        Foreground="{DynamicResource TextPrimaryBrush}"
-                        Text="{Binding DisplayName}"
-                        TextTrimming="CharacterEllipsis" />
-                    <Border
-                        Grid.Column="1"
-                        Margin="8,0,0,0"
-                        Padding="5,1"
-                        VerticalAlignment="Center"
-                        Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8">
-                        <TextBlock
-                            FontSize="{StaticResource FontSizeXS}"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text="{Binding Count}" />
-                    </Border>
-                </Grid>
-            </CheckBox>
-        </DataTemplate>
-
         <HierarchicalDataTemplate x:Key="HierarchyNodeTemplate" ItemsSource="{Binding Children}">
             <Grid Margin="0,2">
                 <Grid.ColumnDefinitions>

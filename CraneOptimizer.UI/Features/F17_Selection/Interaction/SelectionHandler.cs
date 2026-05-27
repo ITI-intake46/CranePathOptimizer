@@ -142,10 +142,17 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             var pos = e.GetPosition(viewport);
             e.Handled = true;
 
-            if (!_isDragging && !HasMovedEnoughToDrag(pos))
-                return;
+            if (!_isDragging)
+            {
+                if (!HasMovedEnoughToDrag(pos))
+                    return;
 
-            _isDragging = true;
+                if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
+                    _selection.Clear();
+
+                _isDragging = true;
+            }
+
             _dragCurrent = pos;
             UpdateRubberBand();
         }
@@ -458,10 +465,10 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
 
             foreach (var element in _filterService.VisibleElements)
             {
-                if (TryProjectElementBox(viewport, element, out var screenBounds, out var center, out var samples, out var depth) &&
+                if (TryProjectElementBox(viewport, element, out var screenBounds, out var samples, out var depth) &&
                     seen.Add(element))
                 {
-                    projections.Add(new ElementProjection(element, screenBounds, center, samples, depth));
+                    projections.Add(new ElementProjection(element, screenBounds, samples, depth));
                 }
             }
 
@@ -481,10 +488,10 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             if (element != null &&
                 _filterService.IsElementIncluded(element) &&
                 !seen.Contains(element) &&
-                TryProjectVisualBounds(viewport, visual, visualTransform, out var screenBounds, out var center, out var samples, out var depth) &&
+                TryProjectVisualBounds(viewport, visual, visualTransform, out var screenBounds, out var samples, out var depth) &&
                 seen.Add(element))
             {
-                projections.Add(new ElementProjection(element, screenBounds, center, samples, depth));
+                projections.Add(new ElementProjection(element, screenBounds, samples, depth));
             }
 
             foreach (var child in visual.Children.OfType<ModelVisual3D>())
@@ -510,12 +517,10 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             ModelVisual3D visual,
             Transform3D transform,
             out Rect screenBounds,
-            out Point center,
             out Point[] samples,
             out double depth)
         {
             screenBounds = Rect.Empty;
-            center = new Point();
             samples = [];
             depth = 0d;
 
@@ -525,14 +530,13 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             var worldPoints = new List<Point3D>();
             CollectModelBoundsSamplePoints(visual.Content, transform, worldPoints);
 
-            return TryProjectWorldPoints(viewport, worldPoints, out screenBounds, out center, out samples, out depth);
+            return TryProjectWorldPoints(viewport, worldPoints, out screenBounds, out samples, out depth);
         }
 
         private bool TryProjectElementBox(
             HelixViewport3D viewport,
             PrecastElement element,
             out Rect screenBounds,
-            out Point center,
             out Point[] samples,
             out double depth)
         {
@@ -551,7 +555,7 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
                 Math.Max(element.BBoxWidth ?? element.ElementWidth ?? 1d, 0.01d),
                 Math.Max(element.BBoxHeight ?? element.ElementHeight ?? 1d, 0.01d));
 
-            return TryProjectBounds(viewport, bounds, Transform3D.Identity, out screenBounds, out center, out samples, out depth);
+            return TryProjectBounds(viewport, bounds, Transform3D.Identity, out screenBounds, out samples, out depth);
         }
 
         private static bool TryProjectBounds(
@@ -559,12 +563,10 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             Rect3D bounds,
             Transform3D transform,
             out Rect screenBounds,
-            out Point center,
             out Point[] samples,
             out double depth)
         {
             screenBounds = Rect.Empty;
-            center = new Point();
             samples = [];
             depth = 0d;
 
@@ -575,19 +577,17 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             var worldPoints = GetBoundsSamplePoints(bounds)
                 .Select(point => matrix.Transform(point));
 
-            return TryProjectWorldPoints(viewport, worldPoints, out screenBounds, out center, out samples, out depth);
+            return TryProjectWorldPoints(viewport, worldPoints, out screenBounds, out samples, out depth);
         }
 
         private static bool TryProjectWorldPoints(
             HelixViewport3D viewport,
             IEnumerable<Point3D> worldPoints,
             out Rect screenBounds,
-            out Point center,
             out Point[] samples,
             out double depth)
         {
             screenBounds = Rect.Empty;
-            center = new Point();
             samples = [];
             depth = 0d;
 
@@ -620,9 +620,6 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
                 return false;
 
             screenBounds = InflateTinyRect(rect.Value);
-            center = new Point(
-                screenBounds.X + screenBounds.Width / 2d,
-                screenBounds.Y + screenBounds.Height / 2d);
             samples = projectedPoints.ToArray();
             depth = depthSum / projectedCount;
             return true;
@@ -899,7 +896,6 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
         private readonly record struct ElementProjection(
             PrecastElement Element,
             Rect ScreenBounds,
-            Point Center,
             Point[] ScreenSamples,
             double Depth);
     }

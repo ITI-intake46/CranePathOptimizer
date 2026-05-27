@@ -19,7 +19,6 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         private readonly HashSet<string> _isolatedElementIds = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> _storeyByElementId = new(StringComparer.OrdinalIgnoreCase);
         private readonly IIfcReaderRepository _ifcReader;
-        private HashSet<string>? _includedElementIds;
 
         public ElementVisibilityFilterService(IIfcReaderRepository ifcReader)
         {
@@ -48,7 +47,6 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             _hiddenElementIds.Clear();
             _excludedElementIds.Clear();
             _isolatedElementIds.Clear();
-            _includedElementIds = null;
             SearchText = string.Empty;
 
             BuildStoreyMap();
@@ -87,17 +85,6 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             Recalculate();
         }
 
-        public void SetIncludedElementIds(IEnumerable<string>? elementIds)
-        {
-            _includedElementIds = elementIds == null
-                ? null
-                : elementIds
-                    .Where(id => !string.IsNullOrWhiteSpace(id))
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            Recalculate();
-        }
-
         public void SetExcludedElementIds(IEnumerable<string>? elementIds)
         {
             _excludedElementIds.Clear();
@@ -120,13 +107,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             _hiddenElementIds.Clear();
             _excludedElementIds.Clear();
             _isolatedElementIds.Clear();
-            _includedElementIds = null;
             Recalculate();
-        }
-
-        public void ShowAll()
-        {
-            ResetFilters();
         }
 
         public void HideElements(IEnumerable<PrecastElement> elements)
@@ -214,9 +195,6 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
                 return false;
 
             if (_excludedElementIds.Contains(id))
-                return false;
-
-            if (_includedElementIds != null && !_includedElementIds.Contains(id))
                 return false;
 
             if (_isolatedElementIds.Count > 0 && !_isolatedElementIds.Contains(id))

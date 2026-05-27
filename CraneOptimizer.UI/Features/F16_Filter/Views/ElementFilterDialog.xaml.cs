@@ -280,20 +280,11 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
         private void FilterOption_Changed(object sender, RoutedEventArgs e) => NonWeightFilterChanged();
         private void HierarchyOption_Changed(object sender, RoutedEventArgs e) => OnHierarchyOptionChanged(sender);
         private void AnyFilter_Changed(object sender, RoutedEventArgs e) => FilterChanged();
-        private void OptionSearch_Changed(object sender, TextChangedEventArgs e) => RefreshOptionViews();
         private void HierarchyMode_Changed(object sender, SelectionChangedEventArgs e) => BuildHierarchy();
         private void Sort_Changed(object sender, RoutedEventArgs e) => BuildHierarchy();
         private void Sort_Changed(object sender, SelectionChangedEventArgs e) => BuildHierarchy();
         private void BtnExpandHierarchy_Click(object sender, RoutedEventArgs e) => SetHierarchyExpanded(true);
         private void BtnCollapseHierarchy_Click(object sender, RoutedEventArgs e) => SetHierarchyExpanded(false);
-
-        private void BtnSelectAllTypes_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allTypeOptions, true); FilterChanged(); }
-        private void BtnClearAllTypes_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allTypeOptions, false); FilterChanged(); }
-        private void BtnSelectAllMaterials_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allMaterialOptions, true); FilterChanged(); }
-        private void BtnClearAllMaterials_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allMaterialOptions, false); FilterChanged(); }
-        private void BtnSelectAllStoreys_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allStoreyOptions, true); FilterChanged(); }
-        private void BtnClearAllStoreys_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allStoreyOptions, false); FilterChanged(); }
-        private void BtnInvertTypes_Click(object sender, RoutedEventArgs e) { InvertChecked(_allTypeOptions); FilterChanged(); }
 
         private void WeightRange_Changed(object sender, TextChangedEventArgs e)
         {
@@ -485,12 +476,6 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                 _scene?.SetSelectedElements(resolved);
 
             UpdateScopeButtons();
-        }
-
-        private void BtnShowAll_Click(object sender, RoutedEventArgs e)
-        {
-            _visibilityFilter?.ShowAll();
-            BtnReset_Click(sender, e);
         }
 
         private void ApplyToElementList()
@@ -862,12 +847,6 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                 option.IsChecked = isChecked;
         }
 
-        private static void InvertChecked(IEnumerable<FilterDialogOption> options)
-        {
-            foreach (var option in options)
-                option.IsChecked = !option.IsChecked;
-        }
-
         private void LoadTypeOptions(IEnumerable<PrecastElement> elements)
         {
             _allTypeOptions = elements
@@ -904,16 +883,6 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
         private void RefreshOptionViews()
         {
             UpdatePreviewCount();
-        }
-
-        private static List<FilterDialogOption> FilterOptions(IEnumerable<FilterDialogOption> options, string? search)
-        {
-            if (string.IsNullOrWhiteSpace(search))
-                return options.ToList();
-
-            return options
-                .Where(option => option.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase))
-                .ToList();
         }
 
         private bool IsTypeChecked(string type) => _visibilityFilter?.IsTypeEnabled(type) ?? true;

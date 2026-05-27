@@ -41,8 +41,6 @@ namespace CraneOptimizer.UI.Features.F17_Selection.ViewModels
 
         public bool HasSelection => SelectedCount > 0;
 
-        public void ClearSelection() => _selection.Clear();
-
         private void OnSelectionChanged() => Refresh();
 
         private void Refresh()

@@ -23,9 +23,7 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Services
         private readonly ISceneService _sceneService;
         private bool _isSyncingScene;
 
-        public SelectionService(
-            IElementVisibilityFilterService filterService,
-            ISceneService sceneService)
+        public SelectionService(ISceneService sceneService)
         {
             _sceneService = sceneService;
 
@@ -45,12 +43,6 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Services
         public void Add(PrecastElement element)
         {
             if (_selected.Add(element))
-                RaiseSelectionChanged();
-        }
-
-        public void Remove(PrecastElement element)
-        {
-            if (_selected.Remove(element))
                 RaiseSelectionChanged();
         }
 

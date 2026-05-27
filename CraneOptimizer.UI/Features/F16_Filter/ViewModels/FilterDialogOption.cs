@@ -2,7 +2,7 @@ using CraneOptimizer.UI.Core.Base;
 
 namespace CraneOptimizer.UI.Features.F16_Filter.ViewModels
 {
-    public sealed class FilterDialogOption : ViewModelBase, ICheckableFilterOption
+    public sealed class FilterDialogOption : ViewModelBase
     {
         private bool _isChecked;
 

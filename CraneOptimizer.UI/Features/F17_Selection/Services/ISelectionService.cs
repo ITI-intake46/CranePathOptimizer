@@ -17,7 +17,6 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Services
         IReadOnlyCollection<PrecastElement> SelectedElements { get; }
 
         void Add(PrecastElement element);
-        void Remove(PrecastElement element);
 
         /// <summary>Toggles element in/out of the selection set.</summary>
         void Toggle(PrecastElement element);
