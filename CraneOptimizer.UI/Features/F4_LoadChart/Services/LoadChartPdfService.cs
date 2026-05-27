@@ -62,13 +62,28 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
         public string ConfidenceLabel { get; init; } = "Low";
         public string Summary { get; init; } = string.Empty;
         public List<List<string>> RawGrid { get; init; } = new();
+        public List<List<string>> ImportGrid { get; init; } = new();
+        public bool HasSeparateImportGrid => ImportGrid.Count > 0;
         public List<string> Warnings { get; init; } = new();
 
+        public bool IsEnvelopeCandidate =>
+            Warnings.Any(warning =>
+                warning.Contains("ENVELOPE_IMPORT_REVIEW_REQUIRED", StringComparison.OrdinalIgnoreCase) ||
+                warning.Contains("maximum-capacity envelope", StringComparison.OrdinalIgnoreCase) ||
+                warning.Contains("consolidated into unique boom columns", StringComparison.OrdinalIgnoreCase));
+
+        public string CandidateKindLabel =>
+            IsEnvelopeCandidate ? "Envelope review required" : ConfidenceLabel;
+
         public string DisplayTitle =>
-            $"Table {TableIndex} - {ConfidenceLabel} - {BoomColumnCount} x {RadiusRowCount}";
+            IsEnvelopeCandidate
+                ? $"Table {TableIndex} - Envelope review - {BoomColumnCount} x {RadiusRowCount}"
+                : $"Table {TableIndex} - {ConfidenceLabel} - {BoomColumnCount} x {RadiusRowCount}";
 
         public string DisplayDetails =>
-            $"{Summary} | Cells: {NonEmptyCapacityCellCount}, Score: {Score:0.0}";
+            IsEnvelopeCandidate
+                ? $"{Summary} | ENVELOPE candidate: duplicate visual columns were consolidated. Cells: {NonEmptyCapacityCellCount}, Score: {Score:0.0}"
+                : $"{Summary} | Cells: {NonEmptyCapacityCellCount}, Score: {Score:0.0}";
     }
 
     internal static class LoadChartPdfService
@@ -95,8 +110,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             if (selectedTable == null)
                 throw new ArgumentNullException(nameof(selectedTable));
 
-            var chart = LoadChartCsvService.ParseRawGrid(selectedTable.RawGrid);
+            var gridToImport = selectedTable.ImportGrid.Count > 0
 
+                ? selectedTable.ImportGrid
+
+                : selectedTable.RawGrid;
+
+
+            var chart = LoadChartCsvService.ParseRawGrid(gridToImport);
             if (chart.Points.Count == 0 || chart.MaxCapacity <= 0)
                 throw new FormatException("The selected PDF table did not produce a valid crane load chart.");
 
@@ -106,6 +127,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 $"Imported {chart.Points.Count} real capacity point(s) from {selectedTable.NonEmptyCapacityCellCount} non-empty PDF capacity cell(s).",
                 $"Detected {selectedTable.BoomColumnCount} boom-length column(s), {selectedTable.RadiusRowCount} radius row(s), and max capacity {chart.MaxCapacity:0.###} t."
             };
+if (selectedTable.ImportGrid.Count > 0)
+{
+    warnings.Add("Exact PDF visual preview was preserved separately. The saved/imported chart uses the consolidated 2D envelope grid because the current crane model cannot store duplicate boom-length visual columns yet.");
+}
+
 warnings.AddRange(selectedTable.Warnings);
             warnings.AddRange(scanResult.Warnings);
 
@@ -228,20 +254,56 @@ warnings.AddRange(selectedTable.Warnings);
             List<PdfWordInfo> allWords)
         {
             var candidates = new List<PdfTableCandidateDto>();
-            var seenSignatures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var header in FindHeaderCandidates(rows).Take(16))
+            foreach (var header in FindHeaderCandidates(rows).Take(24))
             {
-                var candidate = TryBuildRowStreamCandidate(rows, header, pageNumber, candidates.Count + 1, allWords);
-                if (candidate == null)
+                var streamSegments = BuildRowStreamSegments(rows, header);
+                if (streamSegments.Count == 0)
                     continue;
 
-                string signature = BuildCandidateSignature(candidate);
-                if (!seenSignatures.Add(signature))
-                    continue;
+                for (int segmentIndex = 0; segmentIndex < streamSegments.Count; segmentIndex++)
+                {
+                    var segmentRows = streamSegments[segmentIndex];
+                    var candidate = TryBuildRowStreamCandidate(
+                        rows,
+                        header,
+                        pageNumber,
+                        candidates.Count + 1,
+                        allWords,
+                        segmentRows,
+                        includeHeaderInBounds: segmentIndex == 0);
 
-                candidates.Add(candidate);
+                    if (candidate == null)
+                        continue;
+
+                    if (IsLikelyMetadataCandidate(candidate))
+                        continue;
+
+                    if (IsDuplicateCandidate(candidates, candidate))
+                        continue;
+
+                    candidates.Add(candidate);
+                }
             }
+
+            if (!candidates.Any(IsStrongTableCandidate))
+            {
+                foreach (var fallbackCandidate in BuildUniversalGeometryFallbackCandidates(rows, pageNumber, allWords, candidates.Count + 1))
+                {
+                    if (IsLikelyMetadataCandidate(fallbackCandidate))
+                        continue;
+
+                    if (IsDuplicateCandidate(candidates, fallbackCandidate))
+                        continue;
+
+                    candidates.Add(fallbackCandidate);
+                }
+            }
+
+            candidates = candidates
+                .OrderByDescending(candidate => candidate.Score)
+                .ThenByDescending(candidate => candidate.Top)
+                .ToList();
 
             for (int index = 0; index < candidates.Count; index++)
             {
@@ -250,7 +312,6 @@ warnings.AddRange(selectedTable.Warnings);
 
             return candidates;
         }
-
         private static List<HeaderCandidate> FindHeaderCandidates(List<List<PdfWordInfo>> rows)
         {
             var candidates = new List<HeaderCandidate>();
@@ -294,9 +355,11 @@ warnings.AddRange(selectedTable.Warnings);
             HeaderCandidate header,
             int pageNumber,
             int tableIndex,
-            List<PdfWordInfo> allWords)
+            List<PdfWordInfo> allWords,
+            List<RowStreamData>? streamRowsOverride = null,
+            bool includeHeaderInBounds = true)
         {
-            var streamRows = BuildRowStreamRows(rows, header);
+            var streamRows = streamRowsOverride ?? BuildRowStreamRows(rows, header);
             if (streamRows.Count < MinimumRadiusRowCount)
                 return null;
 
@@ -310,9 +373,16 @@ warnings.AddRange(selectedTable.Warnings);
             if (candidateGrid.Density < 0.08)
                 return null;
 
-            var boundsWords = header.RowWords
-                .Concat(candidateGrid.UsedRows.SelectMany(row => row.OriginalRow))
-                .ToList();
+            var boundsWords = includeHeaderInBounds
+                ? header.RowWords
+                    .Concat(candidateGrid.UsedRows.SelectMany(row => row.OriginalRow))
+                    .ToList()
+                : candidateGrid.UsedRows
+                    .SelectMany(row => row.OriginalRow)
+                    .ToList();
+
+            if (boundsWords.Count == 0)
+                boundsWords = header.RowWords.ToList();
 
             var warnings = new List<string>
             {
@@ -360,6 +430,107 @@ warnings.AddRange(selectedTable.Warnings);
             };
         }
 
+        private static List<List<RowStreamData>> BuildRowStreamSegments(
+            List<List<PdfWordInfo>> rows,
+            HeaderCandidate header)
+        {
+            var segments = new List<List<RowStreamData>>();
+            var currentSegment = new List<RowStreamData>();
+
+            double firstHeaderX = header.Numbers.First().Word.CenterX;
+            double lastHeaderX = header.Numbers.Last().Word.CenterX;
+            double medianHeaderGap = GetMedianGap(header.Numbers.Select(token => token.Word.CenterX).ToList());
+            if (medianHeaderGap <= 0)
+                medianHeaderGap = 40;
+
+            double? previousRadius = null;
+            int skippedRowsAfterStart = 0;
+
+            for (int rowIndex = header.RowIndex + 1; rowIndex < rows.Count; rowIndex++)
+            {
+                var row = rows[rowIndex];
+
+                var numbers = GetNumericTokens(row)
+                    .OrderBy(token => token.Word.CenterX)
+                    .ToList();
+
+                if (numbers.Count < 2)
+                {
+                    CloseCurrentSegmentAfterGap();
+                    continue;
+                }
+
+                NumericToken? radiusToken = FindLeftRadius(numbers, firstHeaderX, medianHeaderGap);
+                if (radiusToken == null)
+                {
+                    CloseCurrentSegmentAfterGap();
+                    continue;
+                }
+
+                double radius = radiusToken.Value.Value;
+                if (radius <= 0 || radius > 500)
+                {
+                    CloseCurrentSegmentAfterGap();
+                    continue;
+                }
+
+                if (previousRadius.HasValue && radius < previousRadius.Value - 0.001)
+                {
+                    AddCurrentSegmentIfUseful();
+                    currentSegment = new List<RowStreamData>();
+                    previousRadius = null;
+                    skippedRowsAfterStart = 0;
+                }
+
+                NumericToken? rightDuplicateRadius = FindRightDuplicateRadius(numbers, radiusToken.Value, lastHeaderX);
+
+                var bodyNumbers = numbers
+                    .Where(token => !ReferenceEquals(token.Word, radiusToken.Value.Word))
+                    .Where(token => rightDuplicateRadius == null || !ReferenceEquals(token.Word, rightDuplicateRadius.Value.Word))
+                    .Where(token => token.Word.CenterX > radiusToken.Value.Word.CenterX + 2)
+                    .Where(token => rightDuplicateRadius == null || token.Word.CenterX < rightDuplicateRadius.Value.Word.CenterX - 2)
+                    .OrderBy(token => token.Word.CenterX)
+                    .ToList();
+
+                if (bodyNumbers.Count == 0)
+                {
+                    CloseCurrentSegmentAfterGap();
+                    continue;
+                }
+
+                int startColumn = EstimateStartColumn(header.Numbers, bodyNumbers.First().Word.CenterX);
+
+                currentSegment.Add(new RowStreamData(radius, radiusToken.Value, rightDuplicateRadius, bodyNumbers, startColumn, row));
+                previousRadius = radius;
+                skippedRowsAfterStart = 0;
+            }
+
+            AddCurrentSegmentIfUseful();
+            return segments;
+
+            void CloseCurrentSegmentAfterGap()
+            {
+                if (currentSegment.Count == 0)
+                    return;
+
+                skippedRowsAfterStart++;
+                if (skippedRowsAfterStart < 8)
+                    return;
+
+                AddCurrentSegmentIfUseful();
+                currentSegment = new List<RowStreamData>();
+                previousRadius = null;
+                skippedRowsAfterStart = 0;
+            }
+
+            void AddCurrentSegmentIfUseful()
+            {
+                if (currentSegment.Count < MinimumRadiusRowCount)
+                    return;
+
+                segments.Add(currentSegment);
+            }
+        }
         private static List<RowStreamData> BuildRowStreamRows(
             List<List<PdfWordInfo>> rows,
             HeaderCandidate header)
@@ -683,6 +854,705 @@ warnings.AddRange(selectedTable.Warnings);
             return Math.Max(0, nearest);
         }
 
+        private static bool IsStrongTableCandidate(PdfTableCandidateDto candidate)
+        {
+            return candidate.BoomColumnCount >= 3
+                && candidate.RadiusRowCount >= 6
+                && candidate.NonEmptyCapacityCellCount >= Math.Max(18, candidate.BoomColumnCount * 2);
+        }
+
+        private static List<PdfTableCandidateDto> BuildUniversalGeometryFallbackCandidates(
+            List<List<PdfWordInfo>> rows,
+            int pageNumber,
+            List<PdfWordInfo> allWords,
+            int firstTableIndex)
+        {
+            var candidates = new List<PdfTableCandidateDto>();
+
+            var header = FindUniversalGeometryHeaderCandidate(rows);
+            if (header == null)
+                return candidates;
+
+            var radiusColumns = FindUniversalGeometryRadiusColumns(rows, header.RowIndex);
+            if (radiusColumns.Count < 2)
+                return candidates;
+
+            foreach (var region in BuildUniversalGeometryRegions(header, radiusColumns))
+            {
+                var candidate = TryBuildUniversalGeometryRegionCandidate(
+                    rows,
+                    header,
+                    region,
+                    pageNumber,
+                    firstTableIndex + candidates.Count,
+                    allWords);
+
+                if (candidate == null)
+                    continue;
+
+                candidates.Add(candidate);
+            }
+
+            return candidates;
+        }
+
+        private static HeaderCandidate? FindUniversalGeometryHeaderCandidate(List<List<PdfWordInfo>> rows)
+        {
+            HeaderCandidate? best = null;
+            double bestScore = double.MinValue;
+
+            for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+            {
+                var numbers = GetNumericTokens(rows[rowIndex])
+                    .Where(token => token.Value > 0 && token.Value < 200)
+                    .OrderBy(token => token.Word.CenterX)
+                    .ToList();
+
+                numbers = RemoveNearDuplicateNumbers(numbers);
+
+                if (numbers.Count < 6)
+                    continue;
+
+                double xSpan = numbers.Last().Word.CenterX - numbers.First().Word.CenterX;
+                if (xSpan < 120)
+                    continue;
+
+                int duplicateNumericValueCount = numbers
+                    .GroupBy(token => FormatNumber(token.Value))
+                    .Count(group => group.Count() >= 2);
+
+                double increasingRatio = GetIncreasingRatio(numbers.Select(token => token.Value).ToList());
+                double spacingRegularity = GetSpacingRegularity(numbers.Select(token => token.Word.CenterX).ToList());
+
+                bool nearbyHeaderWords = Enumerable.Range(Math.Max(0, rowIndex - 3), Math.Min(4, rowIndex + 1))
+                    .Any(index =>
+                    {
+                        string text = string.Join(" ", rows[index].Select(word => word.Text)).ToLowerInvariant();
+                        return text.Contains("radius") || text.Contains("boom") || text.Contains("load chart") || text.Contains("main boom");
+                    });
+
+                bool hasBodyRowsBelow = rows
+                    .Skip(rowIndex + 1)
+                    .Take(28)
+                    .Count(row => GetNumericTokens(row).Count >= 4) >= 6;
+
+                if (!hasBodyRowsBelow)
+                    continue;
+
+                if (duplicateNumericValueCount == 0 && increasingRatio < 0.45)
+                    continue;
+
+                double score =
+                    numbers.Count * 8 +
+                    duplicateNumericValueCount * 34 +
+                    Math.Min(xSpan / 8d, 130) +
+                    spacingRegularity * 20 +
+                    increasingRatio * 18 +
+                    (nearbyHeaderWords ? 180 : 0) -
+                    rowIndex * 1.5;
+
+                if (score <= bestScore)
+                    continue;
+
+                bestScore = score;
+                best = new HeaderCandidate(rowIndex, rows[rowIndex], numbers, score);
+            }
+
+            return best;
+        }
+
+        private static List<GeometryRadiusColumn> FindUniversalGeometryRadiusColumns(
+            List<List<PdfWordInfo>> rows,
+            int headerRowIndex)
+        {
+            var columns = new List<GeometryRadiusColumn>();
+
+            for (int rowIndex = headerRowIndex + 1; rowIndex < rows.Count; rowIndex++)
+            {
+                var numbers = GetNumericTokens(rows[rowIndex])
+                    .Where(token => token.Value > 0 && token.Value <= 250)
+                    .OrderBy(token => token.Word.CenterX)
+                    .ToList();
+
+                foreach (var token in numbers)
+                {
+                    GeometryRadiusColumn? match = columns
+                        .OrderBy(column => Math.Abs(column.CenterX - token.Word.CenterX))
+                        .FirstOrDefault(column => Math.Abs(column.CenterX - token.Word.CenterX) <= 8);
+
+                    if (match == null)
+                    {
+                        columns.Add(new GeometryRadiusColumn(token.Word.CenterX));
+                        match = columns[columns.Count - 1];
+                    }
+
+                    match.Add(rowIndex, token);
+                }
+            }
+
+            return columns
+                .Where(column =>
+                    column.Tokens.Count >= 6 &&
+                    column.MinValue <= 12 &&
+                    column.MaxValue - column.MinValue >= 2 &&
+                    column.IncreasingRatio >= 0.62)
+                .OrderBy(column => column.CenterX)
+                .ToList();
+        }
+
+        private static List<GeometryTableRegion> BuildUniversalGeometryRegions(
+            HeaderCandidate header,
+            List<GeometryRadiusColumn> radiusColumns)
+        {
+            var regions = new List<GeometryTableRegion>();
+
+            for (int index = 0; index < radiusColumns.Count - 1; index++)
+            {
+                var leftRadius = radiusColumns[index];
+                var rightRadius = radiusColumns[index + 1];
+
+                double width = rightRadius.CenterX - leftRadius.CenterX;
+                if (width < 150)
+                    continue;
+
+                var headerNumbers = header.Numbers
+                    .Where(token => token.Word.CenterX > leftRadius.CenterX + 8)
+                    .Where(token => token.Word.CenterX < rightRadius.CenterX - 8)
+                    .OrderBy(token => token.Word.CenterX)
+                    .ToList();
+
+                if (headerNumbers.Count < MinimumBoomColumnCount)
+                    continue;
+
+                var headerRuns = BuildUniversalGeometryHeaderRuns(headerNumbers);
+                if (headerRuns.Count < MinimumBoomColumnCount)
+                    continue;
+
+                regions.Add(new GeometryTableRegion(leftRadius, rightRadius, headerRuns));
+            }
+
+            return regions;
+        }
+
+        private static List<GeometryHeaderRun> BuildUniversalGeometryHeaderRuns(List<NumericToken> headerNumbers)
+        {
+            var runs = new List<GeometryHeaderRun>();
+
+            foreach (var token in headerNumbers.OrderBy(token => token.Word.CenterX))
+            {
+                var last = runs.LastOrDefault();
+                if (last != null
+                    && AreClose(last.BoomLength, token.Value)
+                    && token.Word.CenterX - last.Right <= 45)
+                {
+                    last.Add(token);
+                    continue;
+                }
+
+                runs.Add(new GeometryHeaderRun(token.Value, token));
+            }
+
+            var uniqueRuns = new List<GeometryHeaderRun>();
+            foreach (var run in runs)
+            {
+                if (uniqueRuns.Any(existing => AreClose(existing.BoomLength, run.BoomLength)))
+                    continue;
+
+                uniqueRuns.Add(run);
+            }
+
+            return uniqueRuns;
+        }
+
+        private static PdfTableCandidateDto? TryBuildUniversalGeometryRegionCandidate(
+            List<List<PdfWordInfo>> rows,
+            HeaderCandidate header,
+            GeometryTableRegion region,
+            int pageNumber,
+            int tableIndex,
+            List<PdfWordInfo> allWords)
+        {
+            int columnCount = region.HeaderRuns.Count;
+            if (columnCount < MinimumBoomColumnCount)
+                return null;
+
+            var rawGrid = new List<List<string>>
+            {
+                new List<string> { "Radius (m)" }
+                    .Concat(region.HeaderRuns.Select(run => FormatNumber(run.BoomLength)))
+                    .ToList()
+            };
+
+            var usedRows = new List<List<PdfWordInfo>>();
+            int nonEmptyCells = 0;
+            double? previousRadius = null;
+            int skippedRowsAfterStart = 0;
+
+            for (int rowIndex = header.RowIndex + 1; rowIndex < rows.Count; rowIndex++)
+            {
+                var row = rows[rowIndex];
+                var numbers = GetNumericTokens(row)
+                    .Where(token => token.Value > 0)
+                    .OrderBy(token => token.Word.CenterX)
+                    .ToList();
+
+                if (numbers.Count < 2)
+                {
+                    if (rawGrid.Count > 1 && ++skippedRowsAfterStart >= 8)
+                        break;
+
+                    continue;
+                }
+
+                var radiusToken = FindUniversalGeometryRadiusToken(numbers, region);
+                if (radiusToken == null)
+                {
+                    if (rawGrid.Count > 1 && ++skippedRowsAfterStart >= 8)
+                        break;
+
+                    continue;
+                }
+
+                double radius = radiusToken.Value.Value;
+                if (radius <= 0 || radius > 500)
+                    continue;
+
+                if (previousRadius.HasValue && radius < previousRadius.Value - 0.001)
+                {
+                    if (rawGrid.Count > MinimumRadiusRowCount)
+                        break;
+
+                    continue;
+                }
+
+                var outputRow = Enumerable.Repeat(string.Empty, columnCount + 1).ToList();
+                outputRow[0] = FormatNumber(radius);
+
+                int assigned = 0;
+                for (int columnIndex = 0; columnIndex < region.HeaderRuns.Count; columnIndex++)
+                {
+                    var run = region.HeaderRuns[columnIndex];
+
+                    var capacityTokens = numbers
+                        .Where(token => !ReferenceEquals(token.Word, radiusToken.Value.Word))
+                        .Where(token => token.Word.CenterX >= run.Left - 4)
+                        .Where(token => token.Word.CenterX <= run.Right + 4)
+                        .Where(token => token.Value > 0 && token.Value <= 10000)
+                        .ToList();
+
+                    if (capacityTokens.Count == 0)
+                        continue;
+
+                    double capacity = capacityTokens.Max(token => token.Value);
+                    outputRow[columnIndex + 1] = FormatNumber(capacity);
+                    assigned++;
+                    nonEmptyCells++;
+                }
+
+                if (assigned == 0)
+                {
+                    if (rawGrid.Count > 1 && ++skippedRowsAfterStart >= 8)
+                        break;
+
+                    continue;
+                }
+
+                rawGrid.Add(outputRow);
+                usedRows.Add(row);
+                previousRadius = radius;
+                skippedRowsAfterStart = 0;
+            }
+
+            int radiusRows = rawGrid.Count - 1;
+            if (radiusRows < 6)
+                return null;
+
+            double density = (double)nonEmptyCells / Math.Max(1, radiusRows * columnCount);
+            if (density < 0.10)
+                return null;
+
+            double radiusIncreasingRatio = GetRadiusIncreasingRatio(rawGrid);
+            double topRowsDensity = GetTopRowsDensity(rawGrid, Math.Min(8, radiusRows));
+            double firstColumnDensity = GetColumnDensity(rawGrid, 1);
+            double columnCoverage = GetColumnCoverage(rawGrid);
+            double capacityTrendRatio = GetCapacityTrendRatio(rawGrid);
+
+            if (radiusIncreasingRatio < 0.72)
+                return null;
+
+            if (columnCoverage < 0.45)
+                return null;
+
+            var boundsWords = new List<PdfWordInfo>();
+            boundsWords.AddRange(header.RowWords.Where(word =>
+                word.CenterX >= region.LeftRadius.CenterX - 15 &&
+                word.CenterX <= region.RightRadius.CenterX + 15));
+
+            boundsWords.AddRange(usedRows.SelectMany(row => row.Where(word =>
+                word.CenterX >= region.LeftRadius.CenterX - 15 &&
+                word.CenterX <= region.RightRadius.CenterX + 15)));
+
+            if (boundsWords.Count == 0)
+                boundsWords = usedRows.SelectMany(row => row).ToList();
+
+            bool consolidatedDuplicateHeaders = region.HeaderRuns.Any(run => run.Tokens.Count > 1);
+            var exactVisualGrid = consolidatedDuplicateHeaders
+                ? BuildExactVisualGrid(rows, header, region)
+                : rawGrid;
+            int visualColumnCount = Math.Max(
+                region.HeaderRuns.Sum(run => run.Tokens.Count),
+                Math.Max(columnCount, (exactVisualGrid.FirstOrDefault()?.Count ?? 1) - 1));
+            int uniqueBoomLengthCount = region.HeaderRuns.Count;
+            int exactVisualCellCount = CountNonEmptyCapacityCells(exactVisualGrid);
+
+            double score =
+                520 +
+                columnCount * 54 +
+                radiusRows * 20 +
+                nonEmptyCells * 7 +
+                density * 260 +
+                topRowsDensity * 140 +
+                firstColumnDensity * 90 +
+                columnCoverage * 120 +
+                radiusIncreasingRatio * 95 +
+                capacityTrendRatio * 50 +
+                ScoreKeywords(allWords);
+
+            if (consolidatedDuplicateHeaders)
+                score += 70;
+
+            if (columnCount <= 3)
+                score -= 80;
+
+            var warnings = new List<string>
+            {
+                "Geometry fallback extractor detected a side-by-side or repeated-header load-chart region.",
+                "Capacity cells were assigned by PDF X-position bands. Review the preview carefully before saving."
+            };
+
+            if (consolidatedDuplicateHeaders)
+            {
+                warnings.Add("ENVELOPE_IMPORT_REVIEW_REQUIRED: This candidate is a consolidated maximum-capacity envelope, not a full manufacturer multi-dimensional load chart.");
+                warnings.Add($"Full manufacturer visual columns detected: {visualColumnCount} visual boom column(s) were consolidated to {uniqueBoomLengthCount} unique boom-length column(s).");
+                warnings.Add("Repeated boom-length headers were consolidated into unique boom columns by using the maximum capacity found under each repeated boom-length group. This can overestimate capacity if repeated columns represent line count, counterweight, mode, boom angle, jib, or another operating condition.");
+                warnings.Add("Do not save this envelope candidate unless you have manually verified the intended operating condition and line-count/reeving information against the original PDF.");
+            }
+
+            warnings.Add($"Fallback region bounds X={region.LeftRadius.CenterX:0.#} to X={region.RightRadius.CenterX:0.#}; extracted {columnCount} unique boom column(s) from {visualColumnCount} visual column(s), {radiusRows} radius row(s), and {nonEmptyCells} capacity cell(s).");
+
+            if (density < 0.25)
+                warnings.Add("This extracted region has sparse cells. Verify that the selected table is the intended load chart.");
+
+            return new PdfTableCandidateDto
+            {
+                PageNumber = pageNumber,
+                TableIndex = tableIndex,
+                Left = boundsWords.Count == 0 ? 0 : boundsWords.Min(word => word.Left),
+                Right = boundsWords.Count == 0 ? 0 : boundsWords.Max(word => word.Right),
+                Top = boundsWords.Count == 0 ? 0 : boundsWords.Max(word => word.Top),
+                Bottom = boundsWords.Count == 0 ? 0 : boundsWords.Min(word => word.Bottom),
+                BoomColumnCount = consolidatedDuplicateHeaders ? visualColumnCount : columnCount,
+                RadiusRowCount = consolidatedDuplicateHeaders ? Math.Max(radiusRows, exactVisualGrid.Count - 1) : radiusRows,
+                NonEmptyCapacityCellCount = consolidatedDuplicateHeaders ? Math.Max(nonEmptyCells, exactVisualCellCount) : nonEmptyCells,
+                Score = score,
+                ConfidenceLabel = consolidatedDuplicateHeaders ? "Envelope review" : GetConfidenceLabel(score),
+                Summary = consolidatedDuplicateHeaders
+                    ? $"{visualColumnCount} exact visual boom columns ({uniqueBoomLengthCount} unique boom lengths), {Math.Max(radiusRows, exactVisualGrid.Count - 1)} radius rows. Import uses envelope fallback density {density:P0}."
+                    : $"{columnCount} boom columns, {radiusRows} radius rows, geometry fallback density {density:P0}.",
+                RawGrid = consolidatedDuplicateHeaders ? exactVisualGrid : rawGrid,
+                ImportGrid = consolidatedDuplicateHeaders ? rawGrid : new List<List<string>>(),
+                Warnings = warnings.Distinct().ToList()
+            };
+        }
+
+        private static List<List<string>> BuildExactVisualGrid(
+            List<List<PdfWordInfo>> rows,
+            HeaderCandidate header,
+            GeometryTableRegion region)
+        {
+            var visualColumns = region.HeaderRuns
+                .SelectMany(run => run.Tokens.Select(token => (BoomLength: run.BoomLength, CenterX: token.Word.CenterX)))
+                .OrderBy(column => column.CenterX)
+                .ToList();
+
+            if (visualColumns.Count == 0)
+            {
+                return new List<List<string>>();
+            }
+
+            var exactGrid = new List<List<string>>
+            {
+                new List<string> { "Radius (m)" }
+                    .Concat(visualColumns.Select(column => FormatNumber(column.BoomLength)))
+                    .ToList()
+            };
+
+            double? previousRadius = null;
+            int skippedRowsAfterStart = 0;
+
+            for (int rowIndex = header.RowIndex + 1; rowIndex < rows.Count; rowIndex++)
+            {
+                var row = rows[rowIndex];
+                var numbers = GetNumericTokens(row)
+                    .Where(token => token.Value > 0)
+                    .OrderBy(token => token.Word.CenterX)
+                    .ToList();
+
+                if (numbers.Count < 2)
+                {
+                    if (exactGrid.Count > 1 && ++skippedRowsAfterStart >= 8)
+                        break;
+
+                    continue;
+                }
+
+                var radiusToken = FindUniversalGeometryRadiusToken(numbers, region);
+                if (radiusToken == null)
+                {
+                    if (exactGrid.Count > 1 && ++skippedRowsAfterStart >= 8)
+                        break;
+
+                    continue;
+                }
+
+                double radius = radiusToken.Value.Value;
+                if (radius <= 0 || radius > 500)
+                    continue;
+
+                if (previousRadius.HasValue && radius < previousRadius.Value - 0.001)
+                {
+                    if (exactGrid.Count > MinimumRadiusRowCount)
+                        break;
+
+                    continue;
+                }
+
+                var outputRow = Enumerable.Repeat(string.Empty, visualColumns.Count + 1).ToList();
+                outputRow[0] = FormatNumber(radius);
+
+                int assigned = 0;
+                for (int columnIndex = 0; columnIndex < visualColumns.Count; columnIndex++)
+                {
+                    var visualColumn = visualColumns[columnIndex];
+
+                    NumericToken? capacityToken = numbers
+                        .Where(token => !ReferenceEquals(token.Word, radiusToken.Value.Word))
+                        .Where(token => Math.Abs(token.Word.CenterX - region.LeftRadius.CenterX) > 14)
+                        .Where(token => Math.Abs(token.Word.CenterX - region.RightRadius.CenterX) > 14)
+                        .Where(token => Math.Abs(token.Word.CenterX - visualColumn.CenterX) <= 12)
+                        .Where(token => token.Value > 0 && token.Value <= 10000)
+                        .OrderBy(token => Math.Abs(token.Word.CenterX - visualColumn.CenterX))
+                        .Select(token => (NumericToken?)token)
+                        .FirstOrDefault();
+
+                    if (capacityToken == null)
+                        continue;
+
+                    outputRow[columnIndex + 1] = FormatNumber(capacityToken.Value.Value);
+                    assigned++;
+                }
+
+                if (assigned == 0)
+                {
+                    if (exactGrid.Count > 1 && ++skippedRowsAfterStart >= 8)
+                        break;
+
+                    continue;
+                }
+
+                exactGrid.Add(outputRow);
+                previousRadius = radius;
+                skippedRowsAfterStart = 0;
+            }
+
+            return exactGrid;
+        }
+
+        private static int CountNonEmptyCapacityCells(IReadOnlyList<List<string>> rawGrid)
+        {
+            if (rawGrid.Count <= 1)
+                return 0;
+
+            return rawGrid
+                .Skip(1)
+                .Sum(row => row.Skip(1).Count(cell => !string.IsNullOrWhiteSpace(cell)));
+        }
+        private static NumericToken? FindUniversalGeometryRadiusToken(
+            List<NumericToken> numbers,
+            GeometryTableRegion region)
+        {
+            var candidates = numbers
+                .Where(token => token.Value > 0 && token.Value <= 500)
+                .Where(token =>
+                    Math.Abs(token.Word.CenterX - region.LeftRadius.CenterX) <= 14 ||
+                    Math.Abs(token.Word.CenterX - region.RightRadius.CenterX) <= 14)
+                .OrderBy(token => Math.Min(
+                    Math.Abs(token.Word.CenterX - region.LeftRadius.CenterX),
+                    Math.Abs(token.Word.CenterX - region.RightRadius.CenterX)))
+                .ThenBy(token => token.Word.CenterX)
+                .ToList();
+
+            return candidates.Count == 0
+                ? null
+                : candidates.First();
+        }
+
+        private sealed class GeometryRadiusColumn
+        {
+            private readonly List<GeometryRadiusToken> _tokens = new();
+
+            public GeometryRadiusColumn(double initialCenterX)
+            {
+                CenterX = initialCenterX;
+            }
+
+            public double CenterX { get; private set; }
+            public IReadOnlyList<GeometryRadiusToken> Tokens => _tokens;
+            public double MinValue => _tokens.Count == 0 ? 0 : _tokens.Min(token => token.Token.Value);
+            public double MaxValue => _tokens.Count == 0 ? 0 : _tokens.Max(token => token.Token.Value);
+
+            public double IncreasingRatio
+            {
+                get
+                {
+                    var values = _tokens
+                        .OrderBy(token => token.RowIndex)
+                        .Select(token => token.Token.Value)
+                        .ToList();
+
+                    return GetIncreasingRatio(values);
+                }
+            }
+
+            public void Add(int rowIndex, NumericToken token)
+            {
+                _tokens.Add(new GeometryRadiusToken(rowIndex, token));
+                CenterX = _tokens.Average(item => item.Token.Word.CenterX);
+            }
+        }
+
+        private sealed class GeometryRadiusToken
+        {
+            public GeometryRadiusToken(int rowIndex, NumericToken token)
+            {
+                RowIndex = rowIndex;
+                Token = token;
+            }
+
+            public int RowIndex { get; }
+            public NumericToken Token { get; }
+        }
+
+        private sealed class GeometryHeaderRun
+        {
+            public GeometryHeaderRun(double boomLength, NumericToken firstToken)
+            {
+                BoomLength = boomLength;
+                Add(firstToken);
+            }
+
+            public double BoomLength { get; }
+            public List<NumericToken> Tokens { get; } = new();
+            public double Left => Tokens.Count == 0 ? 0 : Tokens.Min(token => token.Word.CenterX);
+            public double Right => Tokens.Count == 0 ? 0 : Tokens.Max(token => token.Word.CenterX);
+
+            public void Add(NumericToken token)
+            {
+                Tokens.Add(token);
+            }
+        }
+
+        private sealed class GeometryTableRegion
+        {
+            public GeometryTableRegion(
+                GeometryRadiusColumn leftRadius,
+                GeometryRadiusColumn rightRadius,
+                List<GeometryHeaderRun> headerRuns)
+            {
+                LeftRadius = leftRadius;
+                RightRadius = rightRadius;
+                HeaderRuns = headerRuns;
+            }
+
+            public GeometryRadiusColumn LeftRadius { get; }
+            public GeometryRadiusColumn RightRadius { get; }
+            public List<GeometryHeaderRun> HeaderRuns { get; }
+        }
+        private static bool IsDuplicateCandidate(
+            List<PdfTableCandidateDto> existingCandidates,
+            PdfTableCandidateDto candidate)
+        {
+            string candidateSignature = BuildCandidateSignature(candidate);
+
+            foreach (var existing in existingCandidates)
+            {
+                bool sameSignature = string.Equals(
+                    BuildCandidateSignature(existing),
+                    candidateSignature,
+                    StringComparison.OrdinalIgnoreCase);
+
+                if (sameSignature
+                    && HasSubstantialOverlap(existing.Left, existing.Right, candidate.Left, candidate.Right)
+                    && HasSubstantialOverlap(existing.Bottom, existing.Top, candidate.Bottom, candidate.Top))
+                {
+                    return true;
+                }
+
+                bool candidateIsWeakerContainedTable =
+                    candidate.Score < existing.Score * 0.40
+                    && candidate.BoomColumnCount <= 4
+                    && HasSubstantialOverlap(existing.Left, existing.Right, candidate.Left, candidate.Right)
+                    && HasSubstantialOverlap(existing.Bottom, existing.Top, candidate.Bottom, candidate.Top);
+
+                if (candidateIsWeakerContainedTable)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool HasSubstantialOverlap(double firstStart, double firstEnd, double secondStart, double secondEnd)
+        {
+            double firstMin = Math.Min(firstStart, firstEnd);
+            double firstMax = Math.Max(firstStart, firstEnd);
+            double secondMin = Math.Min(secondStart, secondEnd);
+            double secondMax = Math.Max(secondStart, secondEnd);
+
+            double overlap = Math.Min(firstMax, secondMax) - Math.Max(firstMin, secondMin);
+            if (overlap <= 0)
+                return false;
+
+            double smallerSpan = Math.Min(firstMax - firstMin, secondMax - secondMin);
+            if (smallerSpan <= 0)
+                return false;
+
+            return overlap / smallerSpan >= 0.70;
+        }
+
+        private static bool IsLikelyMetadataCandidate(PdfTableCandidateDto candidate)
+        {
+            var headerValues = GetCandidateHeaderValues(candidate);
+            bool hasAngleOrRangeMarker = headerValues.Any(value => Math.Abs(value - 360) < 0.001 || value > 180);
+            bool verySmallTable = candidate.BoomColumnCount <= 4
+                && candidate.NonEmptyCapacityCellCount <= Math.Max(30, candidate.RadiusRowCount + 8);
+            bool manySkippedValues = candidate.Warnings.Any(warning =>
+                warning.Contains("outside the supported boom-column range", StringComparison.OrdinalIgnoreCase));
+
+            return hasAngleOrRangeMarker && verySmallTable && manySkippedValues;
+        }
+
+        private static List<double> GetCandidateHeaderValues(PdfTableCandidateDto candidate)
+        {
+            var headerRow = candidate.RawGrid.FirstOrDefault();
+            if (headerRow == null)
+                return new List<double>();
+
+            return headerRow
+                .Skip(1)
+                .Select(cell => TryExtractNumber(cell, out double value) ? value : double.NaN)
+                .Where(value => !double.IsNaN(value))
+                .ToList();
+        }
         private static PdfTableCandidateDto ReindexCandidate(PdfTableCandidateDto candidate, int newIndex)
         {
             return new PdfTableCandidateDto
@@ -700,6 +1570,7 @@ warnings.AddRange(selectedTable.Warnings);
                 ConfidenceLabel = candidate.ConfidenceLabel,
                 Summary = candidate.Summary,
                 RawGrid = candidate.RawGrid,
+                ImportGrid = candidate.ImportGrid,
                 Warnings = candidate.Warnings
             };
         }
