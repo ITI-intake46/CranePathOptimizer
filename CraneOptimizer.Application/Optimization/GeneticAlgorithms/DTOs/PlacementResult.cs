@@ -104,7 +104,32 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public string BoomOriginType { get; set; } = "BoomHinge";
         public string CandidateBoomsChecked { get; set; } = string.Empty;
         public string RejectedCandidates { get; set; } = string.Empty;
+
+        // GA Assignment and Uniqueness Fields
+        public string CandidatePointId { get; set; } = string.Empty;
+        public int CandidatePointIndex { get; set; } = -1;
+        public bool IsFeasibleFromPoint { get; set; }
+        public bool IsFinalAssignedToPoint { get; set; }
+        public string AssignedPointId { get; set; } = string.Empty;
+        public int AssignedPointIndex { get; set; } = -1;
+        public string AssignmentReason { get; set; } = string.Empty;
+        public double AssignmentScore { get; set; }
+        public bool DuplicateAssignmentResolved { get; set; }
+        public string FeasiblePointIds { get; set; } = string.Empty;
+        public string FinalOwnerPointId { get; set; } = string.Empty;
+        public bool IsFinalAssigned { get; set; }
+        public string BestFailedPointId { get; set; } = string.Empty;
+        public string BestFailureReason { get; set; } = string.Empty;
+
+        public bool HasBestFailedCandidate { get; set; }
+        public LiftStatus BestFailedLiftStatus { get; set; } = LiftStatus.OutOfRadius;
+        public ReachStatus BestFailedReachStatus { get; set; } = ReachStatus.OutOfRadius;
+        public ChartStatus BestFailedChartStatus { get; set; } = ChartStatus.NoListedCapacity;
+        public double BestFailedSafetyMargin { get; set; }
+        public double BestFailedRequiredRadius { get; set; }
+        public double BestFailedRequiredBoomLength { get; set; }
     }
+
 
     /// <summary>
     /// Aggregated lift statistics across all elements in the application layer.

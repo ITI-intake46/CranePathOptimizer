@@ -691,98 +691,159 @@
                                                 <TextBlock Text="{Binding LiftStatus}" FontWeight="SemiBold">
                                                     <TextBlock.ToolTip>
                                                         <ToolTip Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
-                                                            <StackPanel Margin="4">
-                                                                <TextBlock Text="🔍 Detailed Lifting Diagnostics" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Margin="0,0,0,6"/>
-                                                                <Grid>
-                                                                    <Grid.ColumnDefinitions>
-                                                                        <ColumnDefinition Width="Auto" />
-                                                                        <ColumnDefinition Width="12" />
-                                                                        <ColumnDefinition Width="*" />
-                                                                    </Grid.ColumnDefinitions>
-                                                                    <Grid.RowDefinitions>
-                                                                        <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
-                                                                    </Grid.RowDefinitions>
+                                                            <StackPanel Margin="4" MinWidth="260">
+                                                                <!-- SECTION A: Assigned to Selected Point -->
+                                                                <StackPanel>
+                                                                    <StackPanel.Style>
+                                                                        <Style TargetType="StackPanel">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsFinalAssignedToPoint}" Value="True">
+                                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </StackPanel.Style>
+                                                                    
+                                                                    <TextBlock Text="🟢 Assigned to Selected Setup" FontWeight="Bold" Foreground="{StaticResource SuccessBrush}" Margin="0,0,0,6"/>
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                            <ColumnDefinition Width="12" />
+                                                                            <ColumnDefinition Width="*" />
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <Grid.RowDefinitions>
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                        </Grid.RowDefinitions>
 
-                                                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Reach Status:" Foreground="{StaticResource MutedTextBrush}"/>
-                                                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding ReachStatus}" FontWeight="SemiBold"/>
+                                                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Reach Status:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding ReachStatus}" FontWeight="SemiBold"/>
 
-                                                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Chart Status:" Foreground="{StaticResource MutedTextBrush}"/>
-                                                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding ChartStatus}" FontWeight="SemiBold"/>
+                                                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Chart Status:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding ChartStatus}" FontWeight="SemiBold"/>
 
-                                                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Safety Margin:" Foreground="{StaticResource MutedTextBrush}"/>
-                                                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding SafetyMargin, StringFormat={}{0:F2}}" FontWeight="SemiBold"/>
+                                                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Safety Margin:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding SafetyMargin, StringFormat={}{0:F2}}" FontWeight="SemiBold"/>
 
-                                                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Lookup Mode:" Foreground="{StaticResource MutedTextBrush}"/>
-                                                                    <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding LookupMode}"/>
+                                                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Required Radius:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding RequiredRadius, StringFormat={}{0:F2} m}"/>
 
-                                                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Match Type:" Foreground="{StaticResource MutedTextBrush}"/>
-                                                                    <TextBlock Grid.Row="4" Grid.Column="2">
-                                                                        <TextBlock.Style>
-                                                                            <Style TargetType="TextBlock">
-                                                                                <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding IsExactMatch}" Value="True">
-                                                                                        <Setter Property="Text" Value="Exact Match (Listed)" />
-                                                                                        <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
-                                                                                    </DataTrigger>
-                                                                                    <DataTrigger Binding="{Binding IsExactMatch}" Value="False">
-                                                                                        <Setter Property="Text" Value="Conservative Next Step" />
-                                                                                        <Setter Property="Foreground" Value="{StaticResource WarningBrush}" />
-                                                                                    </DataTrigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </TextBlock.Style>
-                                                                    </TextBlock>
+                                                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Required Boom:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding RequiredBoomLength, StringFormat={}{0:F2} m}"/>
 
-                                                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Stepped Radius:" Foreground="{StaticResource MutedTextBrush}"/>
-                                                                    <TextBlock Grid.Row="5" Grid.Column="2" Text="{Binding IsSteppedRadius}"/>
+                                                                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Available Capacity:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="5" Grid.Column="2" Text="{Binding AvailableCapacity, StringFormat={}{0:F2} t}"/>
 
-                                                                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Blank Cell?:" Foreground="{StaticResource MutedTextBrush}"/>
-                                                                    <TextBlock Grid.Row="6" Grid.Column="2" Text="{Binding IsBlankCell}"/>
+                                                                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Assigned Setup:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="6" Grid.Column="2" Text="{Binding AssignedPointId}" FontWeight="SemiBold" Foreground="{StaticResource InfoBrush}"/>
 
-                                                                    <TextBlock Grid.Row="7" Grid.Column="0" Text="Zero Cell?:" Foreground="{StaticResource MutedTextBrush}"/>
-                                                                    <TextBlock Grid.Row="7" Grid.Column="2" Text="{Binding IsZeroCell}"/>
+                                                                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Assignment Reason:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="7" Grid.Column="2" Text="{Binding AssignmentReason}"/>
 
-                                                                    <TextBlock Grid.Row="8" Grid.Column="0" Text="Candidate Booms:" Foreground="{StaticResource MutedTextBrush}"/>
-                                                                    <TextBlock Grid.Row="8" Grid.Column="2" Text="{Binding CandidateBoomsChecked}" TextWrapping="Wrap" MaxWidth="250"/>
+                                                                        <TextBlock Grid.Row="8" Grid.Column="0" Text="Feasible Setup Points:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="8" Grid.Column="2" Text="{Binding FeasiblePointIds}" TextWrapping="Wrap" MaxWidth="180"/>
+                                                                    </Grid>
+                                                                </StackPanel>
 
-                                                                    <TextBlock Grid.Row="9" Grid.Column="0" Text="Rejected Booms:" Foreground="{StaticResource MutedTextBrush}"/>
-                                                                    <TextBlock Grid.Row="9" Grid.Column="2" Text="{Binding RejectedCandidates}" TextWrapping="Wrap" MaxWidth="250" Foreground="{StaticResource ErrorBrush}"/>
+                                                                <!-- SECTION B: Assigned to Another Point -->
+                                                                <StackPanel>
+                                                                    <StackPanel.Style>
+                                                                        <Style TargetType="StackPanel">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                            <Style.Triggers>
+                                                                                <MultiDataTrigger>
+                                                                                    <MultiDataTrigger.Conditions>
+                                                                                        <Condition Binding="{Binding IsFinalAssigned}" Value="True" />
+                                                                                        <Condition Binding="{Binding IsFinalAssignedToPoint}" Value="False" />
+                                                                                    </MultiDataTrigger.Conditions>
+                                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                                </MultiDataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </StackPanel.Style>
 
-                                                                    <TextBlock Grid.Row="10" Grid.Column="0" Text="Base Point:" Foreground="{StaticResource MutedTextBrush}"/>
-                                                                    <TextBlock Grid.Row="10" Grid.Column="2">
-                                                                        <Run Text="(" /><Run Text="{Binding CraneBaseX, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding CraneBaseY, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding CraneBaseZ, StringFormat={}{0:F1}}" /><Run Text=")" />
-                                                                    </TextBlock>
+                                                                    <TextBlock Text="🪙 Assigned to Another Setup" FontWeight="Bold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,6"/>
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                            <ColumnDefinition Width="12" />
+                                                                            <ColumnDefinition Width="*" />
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <Grid.RowDefinitions>
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                        </Grid.RowDefinitions>
 
-                                                                    <TextBlock Grid.Row="11" Grid.Column="0" Text="Slew Center:" Foreground="{StaticResource MutedTextBrush}"/>
-                                                                    <TextBlock Grid.Row="11" Grid.Column="2">
-                                                                        <Run Text="(" /><Run Text="{Binding SlewCenterX, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding SlewCenterY, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding SlewCenterZ, StringFormat={}{0:F1}}" /><Run Text=")" />
-                                                                        <Run Text=" [" /><Run Text="{Binding RadiusOriginType}" /><Run Text="]" />
-                                                                    </TextBlock>
+                                                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Owner Setup Point:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding AssignedPointId}" FontWeight="Bold" Foreground="{StaticResource InfoBrush}"/>
 
-                                                                    <TextBlock Grid.Row="12" Grid.Column="0" Text="Boom Hinge:" Foreground="{StaticResource MutedTextBrush}"/>
-                                                                    <TextBlock Grid.Row="12" Grid.Column="2">
-                                                                        <Run Text="(" /><Run Text="{Binding BoomHingeX, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding BoomHingeY, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding BoomHingeZ, StringFormat={}{0:F1}}" /><Run Text=")" />
-                                                                        <Run Text=" [" /><Run Text="{Binding BoomOriginType}" /><Run Text="]" />
-                                                                    </TextBlock>
+                                                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Assignment Status:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="1" Grid.Column="2" Text="Feasible &amp; Lifted" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}"/>
 
-                                                                    <TextBlock Grid.Row="13" Grid.Column="0" Text="Load Point:" Foreground="{StaticResource MutedTextBrush}"/>
-                                                                    <TextBlock Grid.Row="13" Grid.Column="2">
-                                                                        <Run Text="(" /><Run Text="{Binding LoadPointX, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding LoadPointY, StringFormat={}{0:F1}}" /><Run Text="; " /><Run Text="{Binding LoadPointZ, StringFormat={}{0:F1}}" /><Run Text=")" />
-                                                                    </TextBlock>
-                                                                </Grid>
+                                                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Feasible Setup Points:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding FeasiblePointIds}" TextWrapping="Wrap" MaxWidth="180"/>
+                                                                    </Grid>
+                                                                </StackPanel>
+
+                                                                <!-- SECTION C: Unassigned Failed -->
+                                                                <StackPanel>
+                                                                    <StackPanel.Style>
+                                                                        <Style TargetType="StackPanel">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsFinalAssigned}" Value="False">
+                                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </StackPanel.Style>
+
+                                                                    <TextBlock Text="🔴 Unassigned / Lift Failure" FontWeight="Bold" Foreground="{StaticResource DangerBrush}" Margin="0,0,0,6"/>
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                            <ColumnDefinition Width="12" />
+                                                                            <ColumnDefinition Width="*" />
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <Grid.RowDefinitions>
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="Auto" />
+                                                                        </Grid.RowDefinitions>
+
+                                                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Best Failed Setup:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding BestFailedPointId}" FontWeight="SemiBold"/>
+
+                                                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Failure Status:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding BestFailedLiftStatus}" FontWeight="Bold" Foreground="{StaticResource WarningBrush}"/>
+
+                                                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Failure Reason:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding BestFailureReason}" Foreground="{StaticResource DangerBrush}" FontWeight="SemiBold"/>
+
+                                                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Best Safety Margin:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding BestFailedSafetyMargin, StringFormat={}{0:F2}}" FontWeight="SemiBold"/>
+
+                                                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Best Failed Radius:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding BestFailedRequiredRadius, StringFormat={}{0:F2} m}"/>
+
+                                                                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Best Failed Boom:" Foreground="{StaticResource MutedTextBrush}"/>
+                                                                        <TextBlock Grid.Row="5" Grid.Column="2" Text="{Binding BestFailedRequiredBoomLength, StringFormat={}{0:F2} m}"/>
+                                                                    </Grid>
+                                                                </StackPanel>
                                                             </StackPanel>
                                                         </ToolTip>
                                                     </TextBlock.ToolTip>

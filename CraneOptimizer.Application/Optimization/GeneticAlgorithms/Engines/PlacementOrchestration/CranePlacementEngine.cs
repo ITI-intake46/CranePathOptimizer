@@ -174,6 +174,26 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                     .OrderByDescending(position => position.NewLiftableCount)
                     .ToList();
 
+                // Resolve final unique assignments
+                AssignmentPolicy.ResolveFinalAssignments(finalResult.Positions, allElements, input.CraneSpec!, input.Settings);
+
+                // Validation: no ElementGlobalId has more than one final AssignedPointId
+                var assignedTracker = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var pos in finalResult.Positions)
+                {
+                    foreach (var er in pos.ElementResults)
+                    {
+                        if (er.IsFinalAssignedToPoint)
+                        {
+                            if (assignedTracker.TryGetValue(er.ElementId, out var existingPointId))
+                            {
+                                throw new InvalidOperationException($"Duplicate assignment detected! Element {er.ElementId} is assigned to both {existingPointId} and {er.AssignedPointId}.");
+                            }
+                            assignedTracker[er.ElementId] = er.AssignedPointId;
+                        }
+                    }
+                }
+
                 _coverageEngine.RecalculateCoverage(finalResult, allElements.Count);
 
                 if (GAProfiler.Enabled)

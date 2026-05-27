@@ -300,7 +300,31 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                             RadiusOriginType = appElem.RadiusOriginType,
                             BoomOriginType = appElem.BoomOriginType,
                             CandidateBoomsChecked = appElem.CandidateBoomsChecked,
-                            RejectedCandidates = appElem.RejectedCandidates
+                            RejectedCandidates = appElem.RejectedCandidates,
+                            
+                            // GA Assignment and Uniqueness Fields
+                            CandidatePointId = appElem.CandidatePointId,
+                            CandidatePointIndex = appElem.CandidatePointIndex,
+                            IsFeasibleFromPoint = appElem.IsFeasibleFromPoint,
+                            IsFinalAssignedToPoint = appElem.IsFinalAssignedToPoint,
+                            AssignedPointId = appElem.AssignedPointId,
+                            AssignedPointIndex = appElem.AssignedPointIndex,
+                            AssignmentReason = appElem.AssignmentReason,
+                            AssignmentScore = appElem.AssignmentScore,
+                            DuplicateAssignmentResolved = appElem.DuplicateAssignmentResolved,
+                            FeasiblePointIds = appElem.FeasiblePointIds,
+                            FinalOwnerPointId = appElem.FinalOwnerPointId,
+                            IsFinalAssigned = appElem.IsFinalAssigned,
+                            BestFailedPointId = appElem.BestFailedPointId,
+                            BestFailureReason = appElem.BestFailureReason,
+                            
+                            HasBestFailedCandidate = appElem.HasBestFailedCandidate,
+                            BestFailedLiftStatus = appElem.BestFailedLiftStatus,
+                            BestFailedReachStatus = appElem.BestFailedReachStatus,
+                            BestFailedChartStatus = appElem.BestFailedChartStatus,
+                            BestFailedSafetyMargin = appElem.BestFailedSafetyMargin,
+                            BestFailedRequiredRadius = appElem.BestFailedRequiredRadius,
+                            BestFailedRequiredBoomLength = appElem.BestFailedRequiredBoomLength
                         };
                     }).ToList()
                 };

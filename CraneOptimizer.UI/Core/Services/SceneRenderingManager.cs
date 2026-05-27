@@ -96,10 +96,43 @@ namespace CraneOptimizer.UI.Core.Services
             var sw = System.Diagnostics.Stopwatch.StartNew();
             var memBefore = GetPrivateMemoryMB();
 
-            var statusMap = _context.GetLiftResults()
+            var liftResults = _context.GetLiftResults();
+            bool hasFinalAssignments = liftResults != null && liftResults.Any(r => r.IsFinalAssignedToPoint);
+            string selectedPointId = liftResults?.FirstOrDefault(r => !string.IsNullOrEmpty(r.CandidatePointId))?.CandidatePointId ?? string.Empty;
+
+            var statusMap = liftResults
                 ?.Where(result => !string.IsNullOrWhiteSpace(result.ElementId))
                 .GroupBy(result => result.ElementId, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.Last().Status, StringComparer.OrdinalIgnoreCase);
+                .ToDictionary(
+                    group => group.Key,
+                    group =>
+                    {
+                        var item = group.FirstOrDefault(r => r.CandidatePointId == selectedPointId)
+                                   ?? group.FirstOrDefault(r => r.IsFinalAssignedToPoint)
+                                   ?? group.Last();
+
+                        if (hasFinalAssignments)
+                        {
+                            if (item.IsFinalAssignedToPoint || (!string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId == selectedPointId))
+                            {
+                                return (LiftStatus?)item.Status;
+                            }
+                            else if (item.IsFinalAssigned && !string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId != selectedPointId)
+                            {
+                                return null; // Dimmed/Blueprint Gray
+                            }
+                            else if (!item.IsFinalAssigned)
+                            {
+                                return (LiftStatus?)item.BestFailedLiftStatus;
+                            }
+                            else
+                            {
+                                return null; // Safe neutral fallback
+                            }
+                        }
+                        return (LiftStatus?)item.Status;
+                    },
+                    StringComparer.OrdinalIgnoreCase);
 
             var selectedElementId = _context.GetSelectedElementId();
             var origin = _context.GetOriginPoint();
