@@ -233,7 +233,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     OutOfRadius = appResult.Statistics.OutOfRadius,
                     Overweight = appResult.Statistics.Overweight,
                     HeightFail = appResult.Statistics.HeightFail,
-                    SpecialCase = appResult.Statistics.SpecialCase
+                    SpecialCase = appResult.Statistics.SpecialCase,
+                    NotCharted = appResult.Statistics.NotCharted
                 },
                 Positions = new List<DTOs.CranePositionResult>(appResult.Positions.Count)
             };
@@ -272,7 +273,58 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                             Radius = appElem.Radius,
                             BoomLength = appElem.BoomLength,
                             AvailableCapacity = appElem.AvailableCapacity,
-                            RequiredCapacity = appElem.RequiredCapacity
+                            RequiredCapacity = appElem.RequiredCapacity,
+                            ReachStatus = appElem.ReachStatus,
+                            ChartStatus = appElem.ChartStatus,
+                            IsExactMatch = appElem.IsExactMatch,
+                            IsSteppedRadius = appElem.IsSteppedRadius,
+                            IsBlankCell = appElem.IsBlankCell,
+                            IsZeroCell = appElem.IsZeroCell,
+                            SafetyMargin = appElem.SafetyMargin,
+                            LookupMode = appElem.LookupMode,
+                            RequiredRadius = appElem.RequiredRadius,
+                            SelectedChartRadius = appElem.SelectedChartRadius,
+                            SelectedChartBoomLength = appElem.SelectedChartBoomLength,
+                            CraneBaseX = appElem.CraneBaseX,
+                            CraneBaseY = appElem.CraneBaseY,
+                            CraneBaseZ = appElem.CraneBaseZ,
+                            SlewCenterX = appElem.SlewCenterX,
+                            SlewCenterY = appElem.SlewCenterY,
+                            SlewCenterZ = appElem.SlewCenterZ,
+                            BoomHingeX = appElem.BoomHingeX,
+                            BoomHingeY = appElem.BoomHingeY,
+                            BoomHingeZ = appElem.BoomHingeZ,
+                            LoadPointX = appElem.LoadPointX,
+                            LoadPointY = appElem.LoadPointY,
+                            LoadPointZ = appElem.LoadPointZ,
+                            RadiusOriginType = appElem.RadiusOriginType,
+                            BoomOriginType = appElem.BoomOriginType,
+                            CandidateBoomsChecked = appElem.CandidateBoomsChecked,
+                            RejectedCandidates = appElem.RejectedCandidates,
+                            
+                            // GA Assignment and Uniqueness Fields
+                            CandidatePointId = appElem.CandidatePointId,
+                            CandidatePointIndex = appElem.CandidatePointIndex,
+                            IsFeasibleFromPoint = appElem.IsFeasibleFromPoint,
+                            IsFinalAssignedToPoint = appElem.IsFinalAssignedToPoint,
+                            AssignedPointId = appElem.AssignedPointId,
+                            AssignedPointIndex = appElem.AssignedPointIndex,
+                            AssignmentReason = appElem.AssignmentReason,
+                            AssignmentScore = appElem.AssignmentScore,
+                            DuplicateAssignmentResolved = appElem.DuplicateAssignmentResolved,
+                            FeasiblePointIds = appElem.FeasiblePointIds,
+                            FinalOwnerPointId = appElem.FinalOwnerPointId,
+                            IsFinalAssigned = appElem.IsFinalAssigned,
+                            BestFailedPointId = appElem.BestFailedPointId,
+                            BestFailureReason = appElem.BestFailureReason,
+                            
+                            HasBestFailedCandidate = appElem.HasBestFailedCandidate,
+                            BestFailedLiftStatus = appElem.BestFailedLiftStatus,
+                            BestFailedReachStatus = appElem.BestFailedReachStatus,
+                            BestFailedChartStatus = appElem.BestFailedChartStatus,
+                            BestFailedSafetyMargin = appElem.BestFailedSafetyMargin,
+                            BestFailedRequiredRadius = appElem.BestFailedRequiredRadius,
+                            BestFailedRequiredBoomLength = appElem.BestFailedRequiredBoomLength
                         };
                     }).ToList()
                 };

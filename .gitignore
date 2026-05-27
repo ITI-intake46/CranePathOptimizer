@@ -26,3 +26,12 @@ packages/
 # OS
 .DS_Store
 Thumbs.db
+
+# files
+*.txt
+*.md
+*.csv
+
+# IFC Diagnostic reports
+Reports/
+**/Reports/

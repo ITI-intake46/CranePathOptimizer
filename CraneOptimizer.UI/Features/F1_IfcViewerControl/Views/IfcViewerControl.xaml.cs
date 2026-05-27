@@ -34,6 +34,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private readonly OsnapPanelViewModel _osnapVm = null!;
         private readonly OsnapGeometryBridge _osnapBridge = null!;
         private readonly IUnitSettingsService _unitSettingsService = null!;
+        private readonly IViewportSelectionService _viewportSelectionService = null!;
         private Window? _ownerWindow;
         private MainViewModel? _osnapDxfSource;
 
@@ -44,6 +45,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private double _gridLengthMeters = 50d;
         private string _lastElementSceneKey = string.Empty;
         private bool _pendingWheelClipUpdate;
+        private bool _isUpdatingCameraMode;
 
         private OsnapIndicator? _osnapIndicator;
 
@@ -64,6 +66,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _osnapVm = App.ServiceProvider.GetRequiredService<OsnapPanelViewModel>();
             _osnapBridge = App.ServiceProvider.GetRequiredService<OsnapGeometryBridge>();
             _unitSettingsService = App.ServiceProvider.GetRequiredService<IUnitSettingsService>();
+            _viewportSelectionService = App.ServiceProvider.GetRequiredService<IViewportSelectionService>();
 
             OsnapPanel.DataContext = _osnapVm;
             _osnapIndicator = new OsnapIndicator(OsnapOverlayCanvas);
@@ -91,12 +94,14 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _sceneService.ZoneUpdated += OnZoneChanged;
             _sceneService.ZonesCleared += OnZonesCleared;
             _unitSettingsService.SettingsChanged += OnUnitSettingsChanged;
+            IfcViewer.CameraChanged += IfcViewer_CameraChanged;
 
             if (DataContext is MainViewModel vm)
             {
                 _interactionService.ResetToDefaultMode(new DefaultSelectionMode(
                     vm,
                     _hitTestService,
+                    _viewportSelectionService,
                     () => _cameraService.UpdateClipping(_sceneService.GetElements())));
                 vm.Dxf.Initialize(IfcViewer);
                 AttachDxfSnapBridge(vm);
@@ -123,6 +128,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _sceneService.ZoneUpdated -= OnZoneChanged;
             _sceneService.ZonesCleared -= OnZonesCleared;
             _unitSettingsService.SettingsChanged -= OnUnitSettingsChanged;
+            IfcViewer.CameraChanged -= IfcViewer_CameraChanged;
             DetachDxfSnapBridge();
         }
 
@@ -266,6 +272,68 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 _cameraService.ZoomToElements(elements);
         }
 
+        private void TopView_Click(object sender, RoutedEventArgs e)
+        {
+            var elements = _sceneService.GetElements();
+            _cameraService.ZoomToTopView(elements, animate: true);
+        }
+
+        private void IfcViewer_CameraChanged(object sender, RoutedEventArgs e)
+        {
+            if (_isUpdatingCameraMode)
+                return;
+
+            if (sender is not HelixViewport3D viewport)
+                return;
+
+            var camera = viewport.Camera;
+            if (camera == null)
+                return;
+
+            var look = camera.LookDirection;
+            var isNearVertical = Math.Abs(look.X) < 1e-2 && Math.Abs(look.Y) < 1e-2;
+
+            if (isNearVertical)
+            {
+                if (!_cameraService.IsTopPlanViewActive)
+                {
+                    _isUpdatingCameraMode = true;
+                    try
+                    {
+                        var elements = _sceneService.GetElements();
+                        _cameraService.ZoomToTopView(elements, animate: true);
+                    }
+                    finally
+                    {
+                        _isUpdatingCameraMode = false;
+                    }
+                }
+            }
+            else
+            {
+                if (_cameraService.IsTopPlanViewActive)
+                {
+                    _isUpdatingCameraMode = true;
+                    try
+                    {
+                        _cameraService.IsTopPlanViewActive = false;
+                        viewport.Orthographic = false;
+
+                        System.Diagnostics.Debug.WriteLine($"[Camera Diagnosis] Exited Top Plan View");
+                        System.Diagnostics.Debug.WriteLine($"[Camera Diagnosis] Position: ({camera.Position.X:F3}, {camera.Position.Y:F3}, {camera.Position.Z:F3})");
+                        System.Diagnostics.Debug.WriteLine($"[Camera Diagnosis] LookDirection: ({camera.LookDirection.X:F3}, {camera.LookDirection.Y:F3}, {camera.LookDirection.Z:F3})");
+                        System.Diagnostics.Debug.WriteLine($"[Camera Diagnosis] UpDirection: ({camera.UpDirection.X:F3}, {camera.UpDirection.Y:F3}, {camera.UpDirection.Z:F3})");
+                        System.Diagnostics.Debug.WriteLine($"[Camera Diagnosis] ProjectionMode: Perspective");
+                        System.Diagnostics.Debug.WriteLine($"[Camera Diagnosis] IsTopPlanViewActive: False");
+                    }
+                    finally
+                    {
+                        _isUpdatingCameraMode = false;
+                    }
+                }
+            }
+        }
+
         private void RenderQualityCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (RenderQualityCombo.SelectedItem is not ComboBoxItem item)
@@ -289,6 +357,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             if (!qualityChanged)
                 return;
 
+            ElementVisualBuilder.ClearMeshCache("render quality changed");
             vm.ReRenderElements();
             _cameraService.UpdateClipping(_sceneService.GetElements());
             vm.StatusText = $"Render quality: {GetRenderQualityDescription(selectedQuality)}";

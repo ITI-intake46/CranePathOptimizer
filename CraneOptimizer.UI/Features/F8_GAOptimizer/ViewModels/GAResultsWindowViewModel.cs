@@ -1,8 +1,10 @@
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering;
+using System.Collections.Generic;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 {
@@ -11,8 +13,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         private readonly IRenderingService _renderingService;
         private readonly ISceneService _sceneService;
         private readonly Action<CranePositionResult?> _selectedPointChanged;
+        private readonly Action<GAViewMode> _viewModeChanged;
         private readonly CranePlacementResult _result;
         private CranePositionResult? _selectedPoint;
+        private GAViewMode _currentGAViewMode;
         private bool _isLoaded;
         private bool _isClosing;
 
@@ -20,13 +24,38 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             CranePlacementResult result,
             IRenderingService renderingService,
             ISceneService sceneService,
-            Action<CranePositionResult?> selectedPointChanged)
+            Action<CranePositionResult?> selectedPointChanged,
+            Action<GAViewMode> viewModeChanged,
+            GAViewMode initialViewMode)
         {
             _result = result;
             _renderingService = renderingService;
             _sceneService = sceneService;
             _selectedPointChanged = selectedPointChanged;
+            _viewModeChanged = viewModeChanged;
+            _currentGAViewMode = initialViewMode;
         }
+
+        public GAViewMode CurrentGAViewMode
+        {
+            get => _currentGAViewMode;
+            set
+            {
+                if (_currentGAViewMode == value)
+                    return;
+
+                _currentGAViewMode = value;
+                OnPropertyChanged();
+                _viewModeChanged?.Invoke(value);
+            }
+        }
+
+        public IReadOnlyList<KeyValuePair<GAViewMode, string>> ViewModes { get; } = new List<KeyValuePair<GAViewMode, string>>
+        {
+            new KeyValuePair<GAViewMode, string>(GAViewMode.FinalAssignment, "Final Assignment"),
+            new KeyValuePair<GAViewMode, string>(GAViewMode.SelectedPointFeasibility, "Selected Point Feasibility"),
+            new KeyValuePair<GAViewMode, string>(GAViewMode.AllFeasibleDebug, "All Feasible Debug")
+        };
 
         public IReadOnlyList<CranePositionResult> Positions => _result.Positions;
         public double FitnessScore => _result.FitnessScore;

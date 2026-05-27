@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using CraneOptimizer.Application.Optimization.Utilities;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization
 {
@@ -29,13 +30,23 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
     {
         private readonly ILiftingCalculationEngine _liftingEngine;
         private readonly ICraneConfigurationEngine _configEngine;
+        private readonly ILoadChartCapacityResolver _capacityResolver;
 
         public ElementAssignmentService(
             ILiftingCalculationEngine liftingEngine,
             ICraneConfigurationEngine configEngine)
+            : this(liftingEngine, configEngine, null)
+        {
+        }
+
+        public ElementAssignmentService(
+            ILiftingCalculationEngine liftingEngine,
+            ICraneConfigurationEngine configEngine,
+            ILoadChartCapacityResolver? capacityResolver)
         {
             _liftingEngine = liftingEngine;
             _configEngine = configEngine;
+            _capacityResolver = capacityResolver ?? new LoadChartCapacityResolver();
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -249,14 +260,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         /// </summary>
         private int GetFailureRank(LiftStatus status)
         {
-            return status switch
-            {
-                LiftStatus.Overweight => 3,
-                LiftStatus.HeightFail => 2,
-                LiftStatus.SpecialCase => 1,
-                LiftStatus.OutOfRadius => 0,
-                _ => 0
-            };
+            return LiftClassificationPolicy.GetFailureRank(status);
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -284,40 +288,57 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             // Step 1 — Get crane position
             var cranePosition = solution.Chromosome.CranePositions[craneIndex];
 
-            // Step 2 — Working radius (orientation-aware)
-            double radius = _liftingEngine.CalculateRadius(cranePosition, element);
+            // Step 2 — Working radius (orientation-aware and slew-offset-aware)
+            double radius = _liftingEngine.CalculateRadius(cranePosition, element, settings);
 
             // Step 3 — Vertical lift height
             double height = _liftingEngine.CalculateLiftHeight(element, cranePosition, settings);
 
-            // Step 4 — Required boom length
-            double boomLength = _configEngine.CalculateRequiredBoomLength(radius, height);
+            // Step 4 — Required boom length (hinge-offset-aware)
+            double boomLength = _configEngine.CalculateRequiredBoomLength(cranePosition, element, settings);
 
             // Step 5 — Required capacity = element weight + lifting accessories
             double requiredCapacity = _liftingEngine.CalculateRequiredWeight(element, settings);
 
-            // Step 6 — Lookup chart capacity for debug/reporting
-            double availableCapacity = _configEngine.CraneCapacity(
-                craneSpec,
-                radius,
-                boomLength,
-                settings);
-
-            // Step 7 — Determine full lift status
-            LiftStatus status = _liftingEngine.DetermineLiftStatus(
-                radius, boomLength, requiredCapacity, craneSpec, settings);
-
-
+            // Step 6 — Resolve via ILoadChartCapacityResolver
+            var resolveResult = _capacityResolver.Resolve(craneSpec, radius, boomLength, requiredCapacity, settings);
 
             return new ElementEvaluationResult
             {
                 ElementId = element.ElementID,
                 AssignedCraneIndex = craneIndex,
-                Status = status,
+                Status = resolveResult.LiftStatus,
                 Radius = radius,
                 BoomLength = boomLength,
-                AvailableCapacity = availableCapacity,
-                RequiredCapacity = requiredCapacity
+                AvailableCapacity = resolveResult.AvailableCapacity,
+                RequiredCapacity = requiredCapacity,
+                ReachStatus = resolveResult.ReachStatus,
+                ChartStatus = resolveResult.ChartStatus,
+                IsExactMatch = resolveResult.IsExactMatch,
+                IsSteppedRadius = resolveResult.IsSteppedRadius,
+                IsBlankCell = resolveResult.IsBlankCell,
+                IsZeroCell = resolveResult.IsZeroCell,
+                SafetyMargin = resolveResult.SafetyMargin,
+                LookupMode = resolveResult.LookupMode,
+                RequiredRadius = radius,
+                SelectedChartRadius = resolveResult.SelectedChartRadius,
+                SelectedChartBoomLength = resolveResult.SelectedChartBoomLength,
+                CraneBaseX = cranePosition.X,
+                CraneBaseY = cranePosition.Y,
+                CraneBaseZ = cranePosition.Z,
+                SlewCenterX = cranePosition.X + settings.SlewOffsetX,
+                SlewCenterY = cranePosition.Y + settings.SlewOffsetY,
+                SlewCenterZ = cranePosition.Z + settings.SlewOffsetZ,
+                BoomHingeX = cranePosition.X + settings.BoomHingeOffsetX,
+                BoomHingeY = cranePosition.Y + settings.BoomHingeOffsetY,
+                BoomHingeZ = cranePosition.Z + settings.BoomHingeOffsetZ,
+                LoadPointX = element.ElementCOG.X,
+                LoadPointY = element.ElementCOG.Y,
+                LoadPointZ = element.ElementCOG.Z,
+                RadiusOriginType = "SlewCenter",
+                BoomOriginType = "BoomHinge",
+                CandidateBoomsChecked = resolveResult.CandidateBoomsChecked,
+                RejectedCandidates = resolveResult.RejectedCandidates
             };
         }
 

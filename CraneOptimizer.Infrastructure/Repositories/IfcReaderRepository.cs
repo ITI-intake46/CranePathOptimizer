@@ -3,6 +3,7 @@ using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Units;
+using CraneOptimizer.Infrastructure.Ifc;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -30,30 +31,29 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         private readonly IIfcDiagnosticAuditService _auditService;
         private readonly IIfcNormalizationDecisionService _normalizationService;
+        private readonly IIfcModelSessionService _sessionService;
 
         public IfcReaderRepository(
             IIfcDiagnosticAuditService auditService,
-            IIfcNormalizationDecisionService normalizationService)
+            IIfcNormalizationDecisionService normalizationService,
+            IIfcModelSessionService sessionService)
         {
             _auditService = auditService;
             _normalizationService = normalizationService;
+            _sessionService = sessionService;
         }
 
-        public IfcStore? CurrentModel { get; private set; }
-        public Xbim3DModelContext? GeometryContext { get; private set; }
-        public double ModelLengthFactor { get; private set; } = 1.0;
-        public double? ModelGroundElevation { get; private set; }
+        public IfcStore? CurrentModel => _sessionService.Current?.Model;
+        public Xbim3DModelContext? GeometryContext => _sessionService.Current?.GeometryContext;
+        public Guid? CurrentSessionId => _sessionService.Current?.SessionId;
+        public string? CurrentFileIdentity => _sessionService.Current?.FileIdentity;
+        public double ModelLengthFactor => _sessionService.Current?.ModelLengthFactor ?? 1.0;
+        public double? ModelGroundElevation => _sessionService.Current?.ModelGroundElevation;
 
 
         public void ClearData()
         {
-            if (CurrentModel != null)
-            {
-                try { CurrentModel.Close(); CurrentModel.Dispose(); } catch { }
-                CurrentModel = null;
-            }
-            GeometryContext = null;
-            ModelGroundElevation = null;
+            _sessionService.Clear();
         }
 
         public void Dispose()
@@ -93,6 +93,14 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return ReadElementsCore(path, progress, cancellationToken);
         }
 
+        public Task InitializeSessionForRenderingAsync(string ifcPath, CancellationToken cancellationToken = default)
+        {
+            return Task.Run(() =>
+            {
+                _sessionService.OpenSession(ifcPath, cancellationToken);
+            }, cancellationToken);
+        }
+
         private List<PrecastElement> ReadElementsCore(
             string ifcPath,
             IProgress<double>? progress,
@@ -100,26 +108,35 @@ namespace CraneOptimizer.Infrastructure.Repositories
         {
             try
             {
-                ClearData();
-                CurrentModel = IfcStore.Open(ifcPath);
-
-                _ = new Xbim.Geometry.Engine.Interop.XbimGeometryEngine();
-                GeometryContext = new Xbim3DModelContext(CurrentModel);
-                GeometryContext.CreateContext();
-
-                ModelLengthFactor = GetLengthToMetersFactor(CurrentModel);
-                ModelGroundElevation = GetModelGroundElevation(CurrentModel, ModelLengthFactor);
+                var loadMemoryBefore = GetPrivateMemoryBytes();
+                var session = _sessionService.OpenSession(ifcPath, cancellationToken);
 
                 var extractor = new IfcEngineeringExtractor(
-                    CurrentModel,
-                    GeometryContext,
-                    ModelLengthFactor);
+                    session.Model,
+                    session.GeometryContext,
+                    session.ModelLengthFactor);
 
                 // Run synchronous diagnostics audit and normalization decision preview (Task 3 & 4)
+                var auditTimer = Stopwatch.StartNew();
                 var auditResult = _auditService.RunAuditAsync(ifcPath, null, cancellationToken).GetAwaiter().GetResult();
+                auditTimer.Stop();
                 var previewResult = _normalizationService.GenerateNormalizationPreviewAsync(auditResult, cancellationToken).GetAwaiter().GetResult();
 
-                return extractor.ExtractNormalized(previewResult, auditResult, progress, cancellationToken);
+                var extractionTimer = Stopwatch.StartNew();
+                var elements = extractor.ExtractNormalized(previewResult, auditResult, progress, cancellationToken);
+                extractionTimer.Stop();
+
+                Debug.WriteLine(
+                    $"[IfcReaderRepository] Load complete. SessionId={session.SessionId}, " +
+                    $"Open={session.OpenDuration.TotalMilliseconds:F0} ms, " +
+                    $"CreateContext={session.CreateContextDuration.TotalMilliseconds:F0} ms, " +
+                    $"Audit={auditTimer.ElapsedMilliseconds} ms, " +
+                    $"Extraction={extractionTimer.ElapsedMilliseconds} ms, " +
+                    $"Elements={elements.Count}, ShapeInstances={session.ShapeInstanceCount}, " +
+                    $"MemoryBeforeLoad={FormatBytes(loadMemoryBefore)}, " +
+                    $"MemoryAfterLoad={FormatBytes(GetPrivateMemoryBytes())}");
+
+                return elements;
             }
             catch (OperationCanceledException)
             {
@@ -245,6 +262,21 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         private static bool IsFinite(double value) =>
             !double.IsNaN(value) && !double.IsInfinity(value);
+
+        private static long GetPrivateMemoryBytes()
+        {
+            try
+            {
+                return Process.GetCurrentProcess().PrivateMemorySize64;
+            }
+            catch
+            {
+                return GC.GetTotalMemory(false);
+            }
+        }
+
+        private static string FormatBytes(long bytes) =>
+            $"{bytes / (1024d * 1024d):F1} MB";
 
         // -------------------------------------------------------------------------
         // Extractor

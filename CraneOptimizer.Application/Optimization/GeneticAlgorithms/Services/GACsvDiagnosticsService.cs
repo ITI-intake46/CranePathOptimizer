@@ -17,14 +17,24 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     {
         private readonly ILiftingCalculationEngine _liftingEngine;
         private readonly ICraneConfigurationEngine _configEngine;
+        private readonly ILoadChartCapacityResolver _capacityResolver;
         private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
         public GACsvDiagnosticsService(
             ILiftingCalculationEngine liftingEngine,
             ICraneConfigurationEngine configEngine)
+            : this(liftingEngine, configEngine, null)
+        {
+        }
+
+        public GACsvDiagnosticsService(
+            ILiftingCalculationEngine liftingEngine,
+            ICraneConfigurationEngine configEngine,
+            ILoadChartCapacityResolver? capacityResolver)
         {
             _liftingEngine = liftingEngine;
             _configEngine = configEngine;
+            _capacityResolver = capacityResolver ?? new LoadChartCapacityResolver();
         }
 
         public string GenerateDiagnostics(PlacementInput input, PlacementResult finalResult)
@@ -65,65 +75,44 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             {
                 if (string.IsNullOrWhiteSpace(element.ElementID)) continue;
 
-                bool isLifted = false;
-                int assignedIndex = -1;
-                ElementEvaluationResult? bestEval = null;
-
-                // Check if the element was successfully lifted at any of the final positions
+                // Find all candidate evaluations for this element across final positions
+                var candidates = new List<(int Index, ElementLiftResult Result)>();
                 for (int i = 0; i < finalResult.Positions.Count; i++)
                 {
                     var pos = finalResult.Positions[i];
                     var elemResult = pos.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, element.ElementID, StringComparison.OrdinalIgnoreCase));
-                    if (elemResult != null && elemResult.Status == LiftStatus.Liftable)
+                    if (elemResult != null)
                     {
-                        isLifted = true;
-                        assignedIndex = i;
-                        bestEval = new ElementEvaluationResult
-                        {
-                            ElementId = element.ElementID,
-                            AssignedCraneIndex = i,
-                            Status = LiftStatus.Liftable,
-                            Radius = elemResult.Radius,
-                            BoomLength = elemResult.BoomLength,
-                            AvailableCapacity = elemResult.AvailableCapacity,
-                            RequiredCapacity = elemResult.RequiredCapacity
-                        };
-                        break;
+                        candidates.Add((i, elemResult));
                     }
                 }
 
-                // If not successfully lifted, evaluate deterministic diagnostic checks against all setup positions to find least-bad setup
-                if (!isLifted && finalResult.Positions.Count > 0)
+                if (candidates.Count == 0) continue;
+
+                // Find owner candidate (IsFinalAssignedToPoint == true)
+                var owner = candidates.FirstOrDefault(c => c.Result.IsFinalAssignedToPoint);
+                
+                ElementLiftResult bestResult;
+                int assignedIndex;
+                bool isLifted;
+
+                if (owner.Result != null)
                 {
-                    for (int i = 0; i < finalResult.Positions.Count; i++)
+                    bestResult = owner.Result;
+                    assignedIndex = owner.Index;
+                    isLifted = (bestResult.Status == LiftStatus.Liftable);
+                }
+                else
+                {
+                    // No owner (Unassigned) -> find best failed candidate
+                    var bestFailed = candidates.FirstOrDefault(c => string.Equals(c.Result.CandidatePointId, c.Result.BestFailedPointId, StringComparison.OrdinalIgnoreCase));
+                    if (bestFailed.Result == null)
                     {
-                        var pos = finalResult.Positions[i];
-                        var cranePosPoint = new DomainPoint3D(pos.X, pos.Y, pos.Z);
-
-                        double radius = _liftingEngine.CalculateRadius(cranePosPoint, element);
-                        double height = _liftingEngine.CalculateLiftHeight(element, cranePosPoint, input.Settings);
-                        double boomLength = _configEngine.CalculateRequiredBoomLength(radius, height);
-                        double requiredCapacity = _liftingEngine.CalculateRequiredWeight(element, input.Settings);
-                        double availableCapacity = _configEngine.CraneCapacity(input.CraneSpec!, radius, boomLength, input.Settings);
-                        LiftStatus status = _liftingEngine.DetermineLiftStatus(radius, boomLength, requiredCapacity, input.CraneSpec!, input.Settings);
-
-                        var candidate = new ElementEvaluationResult
-                        {
-                            ElementId = element.ElementID,
-                            AssignedCraneIndex = i,
-                            Status = status,
-                            Radius = radius,
-                            BoomLength = boomLength,
-                            AvailableCapacity = availableCapacity,
-                            RequiredCapacity = requiredCapacity
-                        };
-
-                        if (bestEval == null || IsBetterThan(candidate, bestEval))
-                        {
-                            bestEval = candidate;
-                            assignedIndex = i;
-                        }
+                        bestFailed = candidates.OrderByDescending(c => c.Result.AssignmentScore).First();
                     }
+                    bestResult = bestFailed.Result;
+                    assignedIndex = bestFailed.Index;
+                    isLifted = false;
                 }
 
                 // Apply classification
@@ -133,100 +122,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
                 if (!isLifted)
                 {
-                    if (finalResult.Positions.Count == 0)
-                    {
-                        failureReason = "NoValidSetupPosition";
-                        failureCategory = "NoValidSetupPosition";
-                        suggestedAction = "suggest adjusting green/red zones.";
-                    }
-                    else if (!element.ElementWT.HasValue || element.ElementWT.Value <= 0)
-                    {
-                        failureReason = "MissingWeightOrInvalidData";
-                        failureCategory = "MissingWeightOrInvalidData";
-                        suggestedAction = "suggest validating IFC quantities or fallback density rules.";
-                    }
-                    else if (bestEval != null)
-                    {
-                        if (bestEval.BoomLength > input.CraneSpec!.MaxBoomLength)
-                        {
-                            failureReason = "BoomLengthExceeded";
-                            failureCategory = "BoomLengthExceeded";
-                            suggestedAction = "suggest longer boom or different crane configuration.";
-                        }
-                        else
-                        {
-                            switch (bestEval.Status)
-                            {
-                                case LiftStatus.OutOfRadius:
-                                    failureReason = "OutOfRadius";
-                                    failureCategory = "OutOfRadius";
-                                    suggestedAction = "suggest increasing allowed green area, adding setup locations, or selecting a longer-radius crane.";
-                                    break;
-                                case LiftStatus.Overweight:
-                                    failureReason = "Overweight";
-                                    failureCategory = "Overweight";
-                                    suggestedAction = "suggest larger crane capacity or reviewing element weight.";
-                                    break;
-                                case LiftStatus.HeightFail:
-                                    failureReason = "HeightFail";
-                                    failureCategory = "HeightFail";
-                                    suggestedAction = "suggest longer boom or different crane configuration.";
-                                    break;
-                                case LiftStatus.SpecialCase:
-                                    var capacityDiag = _configEngine.EvaluateCraneCapacityDiagnostic(
-                                        input.CraneSpec!,
-                                        bestEval.Radius,
-                                        bestEval.BoomLength,
-                                        input.Settings);
+                    var classification = LiftClassificationPolicy.Classify(
+                        bestResult.Status,
+                        bestResult.ChartStatus,
+                        element.ElementWT,
+                        bestResult.BoomLength,
+                        input.CraneSpec?.MaxBoomLength ?? 0.0,
+                        finalResult.Positions.Count > 0);
 
-                                    switch (capacityDiag.FailureReason)
-                                    {
-                                        case CapacityFailureReason.RadiusBeyondLoadChart:
-                                            failureReason = "RadiusBeyondLoadChart";
-                                            failureCategory = "RadiusBeyondLoadChart";
-                                            suggestedAction = "suggest select a crane with larger working radius or move/expand green area closer to the elements.";
-                                            break;
-                                        case CapacityFailureReason.BoomBeyondLoadChart:
-                                            failureReason = "BoomBeyondLoadChart";
-                                            failureCategory = "BoomBeyondLoadChart";
-                                            suggestedAction = "suggest select a longer boom configuration or a different crane model.";
-                                            break;
-                                        case CapacityFailureReason.NoDiscreteLoadChartEntry:
-                                            failureReason = "NoDiscreteLoadChartEntry";
-                                            failureCategory = "NoDiscreteLoadChartEntry";
-                                            suggestedAction = "suggest review crane load chart completeness for this radius/boom combination.";
-                                            break;
-                                        case CapacityFailureReason.ZeroCapacityChartEntry:
-                                            failureReason = "ZeroCapacityChartEntry";
-                                            failureCategory = "ZeroCapacityChartEntry";
-                                            suggestedAction = "suggest review the crane chart value or select a larger crane.";
-                                            break;
-                                        case CapacityFailureReason.MissingLoadChartData:
-                                            failureReason = "MissingLoadChartData";
-                                            failureCategory = "MissingLoadChartData";
-                                            suggestedAction = "suggest validate crane load chart configuration.";
-                                            break;
-                                        default:
-                                            failureReason = "SpecialCase";
-                                            failureCategory = "SpecialCase";
-                                            suggestedAction = "suggest reviewing element geometry and extracted data.";
-                                            break;
-                                    }
-                                    break;
-                                default:
-                                    failureReason = "Unknown";
-                                    failureCategory = "Unknown";
-                                    suggestedAction = "suggest reviewing element geometry and extracted data.";
-                                    break;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        failureReason = "Unknown";
-                        failureCategory = "Unknown";
-                        suggestedAction = "suggest reviewing element geometry and extracted data.";
-                    }
+                    failureReason = classification.FailureReason;
+                    failureCategory = classification.FailureCategory;
+                    suggestedAction = classification.SuggestedAction;
                 }
 
                 detailedRows.Add(new ElementDiagnosticRow
@@ -247,15 +153,64 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     AssignedCraneX = assignedIndex >= 0 ? finalResult.Positions[assignedIndex].X : 0.0,
                     AssignedCraneY = assignedIndex >= 0 ? finalResult.Positions[assignedIndex].Y : 0.0,
                     AssignedCraneZ = assignedIndex >= 0 ? finalResult.Positions[assignedIndex].Z : 0.0,
-                    BestRadius = bestEval?.Radius ?? 0.0,
-                    RequiredBoomLength = bestEval?.BoomLength ?? 0.0,
-                    RequiredCapacity = bestEval?.RequiredCapacity ?? 0.0,
-                    AvailableCapacity = bestEval?.AvailableCapacity ?? 0.0,
-                    LiftStatus = bestEval != null ? bestEval.Status.ToString() : LiftStatus.SpecialCase.ToString(),
+                    BestRadius = bestResult.Radius,
+                    RequiredBoomLength = bestResult.BoomLength,
+                    RequiredCapacity = bestResult.RequiredCapacity,
+                    AvailableCapacity = bestResult.AvailableCapacity,
+                    LiftStatus = bestResult.Status.ToString(),
                     IsLifted = isLifted,
                     FailureReason = failureReason,
                     FailureCategory = failureCategory,
-                    SuggestedAction = suggestedAction
+                    SuggestedAction = suggestedAction,
+                    ReachStatus = bestResult.ReachStatus.ToString(),
+                    ChartStatus = bestResult.ChartStatus.ToString(),
+                    IsExactMatch = bestResult.IsExactMatch,
+                    IsSteppedRadius = bestResult.IsSteppedRadius,
+                    IsBlankCell = bestResult.IsBlankCell,
+                    IsZeroCell = bestResult.IsZeroCell,
+                    SafetyMargin = bestResult.SafetyMargin,
+                    LookupMode = bestResult.LookupMode,
+                    RequiredRadius = bestResult.RequiredRadius,
+                    SelectedChartRadius = bestResult.SelectedChartRadius,
+                    SelectedChartBoomLength = bestResult.SelectedChartBoomLength,
+                    CraneBaseX = bestResult.CraneBaseX,
+                    CraneBaseY = bestResult.CraneBaseY,
+                    CraneBaseZ = bestResult.CraneBaseZ,
+                    SlewCenterX = bestResult.SlewCenterX,
+                    SlewCenterY = bestResult.SlewCenterY,
+                    SlewCenterZ = bestResult.SlewCenterZ,
+                    BoomHingeX = bestResult.BoomHingeX,
+                    BoomHingeY = bestResult.BoomHingeY,
+                    BoomHingeZ = bestResult.BoomHingeZ,
+                    LoadPointX = bestResult.LoadPointX,
+                    LoadPointY = bestResult.LoadPointY,
+                    LoadPointZ = bestResult.LoadPointZ,
+                    RadiusOriginType = bestResult.RadiusOriginType,
+                    BoomOriginType = bestResult.BoomOriginType,
+                    CandidateBoomsChecked = bestResult.CandidateBoomsChecked,
+                    RejectedCandidates = bestResult.RejectedCandidates,
+                    CandidatePointId = bestResult.CandidatePointId,
+                    CandidatePointIndex = bestResult.CandidatePointIndex,
+                    IsFeasibleFromPoint = bestResult.IsFeasibleFromPoint,
+                    IsFinalAssignedToPoint = bestResult.IsFinalAssignedToPoint,
+                    AssignedPointId = bestResult.AssignedPointId,
+                    AssignedPointIndex = bestResult.AssignedPointIndex,
+                    AssignmentReason = bestResult.AssignmentReason,
+                    AssignmentScore = bestResult.AssignmentScore,
+                    DuplicateAssignmentResolved = bestResult.DuplicateAssignmentResolved,
+                    FeasiblePointIds = bestResult.FeasiblePointIds,
+                    FinalOwnerPointId = bestResult.FinalOwnerPointId,
+                    IsFinalAssigned = bestResult.IsFinalAssigned,
+                    BestFailedPointId = bestResult.BestFailedPointId,
+                    BestFailureReason = bestResult.BestFailureReason,
+                    
+                    HasBestFailedCandidate = bestResult.HasBestFailedCandidate,
+                    BestFailedLiftStatus = bestResult.BestFailedLiftStatus.ToString(),
+                    BestFailedReachStatus = bestResult.BestFailedReachStatus.ToString(),
+                    BestFailedChartStatus = bestResult.BestFailedChartStatus.ToString(),
+                    BestFailedSafetyMargin = bestResult.BestFailedSafetyMargin,
+                    BestFailedRequiredRadius = bestResult.BestFailedRequiredRadius,
+                    BestFailedRequiredBoomLength = bestResult.BestFailedRequiredBoomLength
                 });
             }
 
@@ -267,7 +222,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     "Timestamp", "ProjectName", "IfcFileName", "CraneNameOrId", "ElementId", "ElementName", "ElementType",
                     "StoreyOrElevation", "Weight", "COG_X", "COG_Y", "COG_Z", "AssignedSetupIndex", "AssignedCraneX",
                     "AssignedCraneY", "AssignedCraneZ", "BestRadius", "RequiredBoomLength", "RequiredCapacity",
-                    "AvailableCapacity", "LiftStatus", "IsLifted", "FailureReason", "FailureCategory", "SuggestedAction"
+                    "AvailableCapacity", "LiftStatus", "IsLifted", "FailureReason", "FailureCategory", "SuggestedAction",
+                    "ReachStatus", "ChartStatus", "IsExactMatch", "IsSteppedRadius", "IsBlankCell", "IsZeroCell", "SafetyMargin",
+                    "LookupMode", "RequiredRadius", "SelectedChartRadius", "SelectedChartBoomLength",
+                    "CraneBasePoint", "SlewCenterPoint", "BoomHingePoint", "LoadPoint", "RadiusOriginType", "BoomOriginType",
+                    "CandidateBoomsChecked", "RejectedCandidates",
+                    "CandidatePointId", "CandidatePointIndex", "IsFeasibleFromPoint", "IsFinalAssignedToPoint",
+                    "AssignedPointId", "AssignedPointIndex", "AssignmentReason", "AssignmentScore",
+                    "DuplicateAssignmentResolved", "FeasiblePointIds", "FinalOwnerPointId", "IsFinalAssigned",
+                    "BestFailedPointId", "BestFailureReason",
+                    "HasBestFailedCandidate", "BestFailedLiftStatus", "BestFailedReachStatus", "BestFailedChartStatus",
+                    "BestFailedSafetyMargin", "BestFailedRequiredRadius", "BestFailedRequiredBoomLength"
                 }));
 
                 foreach (var row in detailedRows)
@@ -298,7 +263,143 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         row.IsLifted ? "true" : "false",
                         Escape(row.FailureReason),
                         Escape(row.FailureCategory),
-                        Escape(row.SuggestedAction)
+                        Escape(row.SuggestedAction),
+                        row.ReachStatus,
+                        row.ChartStatus,
+                        row.IsExactMatch ? "true" : "false",
+                        row.IsSteppedRadius ? "true" : "false",
+                        row.IsBlankCell ? "true" : "false",
+                        row.IsZeroCell ? "true" : "false",
+                        row.SafetyMargin.ToString("0.###", Invariant),
+                        Escape(row.LookupMode),
+                        row.RequiredRadius.ToString("0.###", Invariant),
+                        row.SelectedChartRadius.ToString("0.###", Invariant),
+                        row.SelectedChartBoomLength.ToString("0.###", Invariant),
+                        Escape($"({row.CraneBaseX.ToString("0.###", Invariant)}; {row.CraneBaseY.ToString("0.###", Invariant)}; {row.CraneBaseZ.ToString("0.###", Invariant)})"),
+                        Escape($"({row.SlewCenterX.ToString("0.###", Invariant)}; {row.SlewCenterY.ToString("0.###", Invariant)}; {row.SlewCenterZ.ToString("0.###", Invariant)})"),
+                        Escape($"({row.BoomHingeX.ToString("0.###", Invariant)}; {row.BoomHingeY.ToString("0.###", Invariant)}; {row.BoomHingeZ.ToString("0.###", Invariant)})"),
+                        Escape($"({row.LoadPointX.ToString("0.###", Invariant)}; {row.LoadPointY.ToString("0.###", Invariant)}; {row.LoadPointZ.ToString("0.###", Invariant)})"),
+                        Escape(row.RadiusOriginType),
+                        Escape(row.BoomOriginType),
+                        Escape(row.CandidateBoomsChecked),
+                        Escape(row.RejectedCandidates),
+                        Escape(row.CandidatePointId),
+                        row.CandidatePointIndex.ToString(),
+                        row.IsFeasibleFromPoint ? "true" : "false",
+                        row.IsFinalAssignedToPoint ? "true" : "false",
+                        Escape(row.AssignedPointId),
+                        row.AssignedPointIndex.ToString(),
+                        Escape(row.AssignmentReason),
+                        row.AssignmentScore.ToString("0.###", Invariant),
+                        row.DuplicateAssignmentResolved ? "true" : "false",
+                        Escape(row.FeasiblePointIds),
+                        Escape(row.FinalOwnerPointId),
+                        row.IsFinalAssigned ? "true" : "false",
+                        Escape(row.BestFailedPointId),
+                        Escape(row.BestFailureReason),
+                        row.HasBestFailedCandidate ? "true" : "false",
+                        Escape(row.BestFailedLiftStatus),
+                        Escape(row.BestFailedReachStatus),
+                        Escape(row.BestFailedChartStatus),
+                        row.BestFailedSafetyMargin.ToString("0.###", Invariant),
+                        row.BestFailedRequiredRadius.ToString("0.###", Invariant),
+                        row.BestFailedRequiredBoomLength.ToString("0.###", Invariant)
+                    }));
+                }
+            }
+
+            // 3A. Write ga_assignment_matrix_*.csv (one row per ElementGlobalId per CandidatePointId)
+            string matrixFileName = $"ga_assignment_matrix_{timestampStr}.csv";
+            string matrixPath = Path.Combine(reportsDir, matrixFileName);
+
+            using (var writer = new StreamWriter(matrixPath, false, new UTF8Encoding(true)))
+            {
+                writer.WriteLine(string.Join(",", new[]
+                {
+                    "Timestamp", "ProjectName", "IfcFileName", "ElementGlobalId", "CandidatePointId", "CandidatePointIndex",
+                    "CraneBasePoint", "SlewCenterPoint", "BoomHingePoint", "LoadPoint", "RequiredRadius", "RequiredBoomLength",
+                    "SelectedChartRadius", "SelectedChartBoomLength", "AvailableCapacity", "ReachStatus", "ChartStatus",
+                    "LiftStatus", "FailureReason", "SafetyMargin", "CandidateBoomsChecked", "RejectedCandidates", "AssignmentScore"
+                }));
+
+                foreach (var element in allElements)
+                {
+                    if (string.IsNullOrWhiteSpace(element.ElementID)) continue;
+
+                    for (int i = 0; i < finalResult.Positions.Count; i++)
+                    {
+                        var pos = finalResult.Positions[i];
+                        var er = pos.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, element.ElementID, StringComparison.OrdinalIgnoreCase));
+                        if (er == null) continue;
+
+                        string failReason = "Liftable";
+                        if (er.Status != LiftStatus.Liftable)
+                        {
+                            var classification = LiftClassificationPolicy.Classify(
+                                er.Status, er.ChartStatus, element.ElementWT, er.BoomLength, input.CraneSpec?.MaxBoomLength ?? 0.0, true);
+                            failReason = classification.FailureReason;
+                        }
+
+                        writer.WriteLine(string.Join(",", new[]
+                        {
+                            timeFormatted,
+                            Escape(input.ProjectName ?? "N/A"),
+                            Escape(input.IfcFileName ?? "N/A"),
+                            Escape(element.ElementID),
+                            Escape(er.CandidatePointId),
+                            er.CandidatePointIndex.ToString(),
+                            Escape($"({er.CraneBaseX.ToString("0.###", Invariant)}; {er.CraneBaseY.ToString("0.###", Invariant)}; {er.CraneBaseZ.ToString("0.###", Invariant)})"),
+                            Escape($"({er.SlewCenterX.ToString("0.###", Invariant)}; {er.SlewCenterY.ToString("0.###", Invariant)}; {er.SlewCenterZ.ToString("0.###", Invariant)})"),
+                            Escape($"({er.BoomHingeX.ToString("0.###", Invariant)}; {er.BoomHingeY.ToString("0.###", Invariant)}; {er.BoomHingeZ.ToString("0.###", Invariant)})"),
+                            Escape($"({er.LoadPointX.ToString("0.###", Invariant)}; {er.LoadPointY.ToString("0.###", Invariant)}; {er.LoadPointZ.ToString("0.###", Invariant)})"),
+                            er.Radius.ToString("0.###", Invariant),
+                            er.BoomLength.ToString("0.###", Invariant),
+                            er.SelectedChartRadius.ToString("0.###", Invariant),
+                            er.SelectedChartBoomLength.ToString("0.###", Invariant),
+                            er.AvailableCapacity.ToString("0.###", Invariant),
+                            er.ReachStatus.ToString(),
+                            er.ChartStatus.ToString(),
+                            er.Status.ToString(),
+                            Escape(failReason),
+                            er.SafetyMargin.ToString("0.###", Invariant),
+                            Escape(er.CandidateBoomsChecked),
+                            Escape(er.RejectedCandidates),
+                            er.AssignmentScore.ToString("0.###", Invariant)
+                        }));
+                    }
+                }
+            }
+
+            // 3B. Write ga_final_assignments_*.csv (one row per ElementGlobalId)
+            string finalAssignmentsFileName = $"ga_final_assignments_{timestampStr}.csv";
+            string finalAssignmentsPath = Path.Combine(reportsDir, finalAssignmentsFileName);
+
+            using (var writer = new StreamWriter(finalAssignmentsPath, false, new UTF8Encoding(true)))
+            {
+                writer.WriteLine(string.Join(",", new[]
+                {
+                    "Timestamp", "ProjectName", "IfcFileName", "ElementGlobalId", "AssignedPointId", "AssignedPointIndex",
+                    "AssignedCraneId", "AssignmentStatus", "AssignmentReason", "AssignmentScore", "IsFinalAssigned",
+                    "BestFailedPointId", "BestFailureReason"
+                }));
+
+                foreach (var row in detailedRows)
+                {
+                    writer.WriteLine(string.Join(",", new[]
+                    {
+                        row.Timestamp,
+                        Escape(row.ProjectName),
+                        Escape(row.IfcFileName),
+                        Escape(row.ElementId),
+                        Escape(row.AssignedPointId),
+                        row.AssignedPointIndex.ToString(),
+                        Escape(row.CraneNameOrId),
+                        row.IsLifted ? "Liftable" : "Unassigned",
+                        Escape(row.AssignmentReason),
+                        row.AssignmentScore.ToString("0.###", Invariant),
+                        row.IsFinalAssigned ? "true" : "false",
+                        Escape(row.BestFailedPointId),
+                        Escape(row.BestFailureReason)
                     }));
                 }
             }
@@ -308,7 +409,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             {
                 "OutOfRadius", "Overweight", "HeightFail", "BoomLengthExceeded", "NoValidSetupPosition",
                 "ForbiddenZoneBlocked", "NotAssigned", "MissingWeightOrInvalidData", "SpecialCase", "Unknown",
-                "RadiusBeyondLoadChart", "BoomBeyondLoadChart", "NoDiscreteLoadChartEntry", "ZeroCapacityChartEntry", "MissingLoadChartData"
+                "RadiusBeyondLoadChart", "BoomBeyondLoadChart", "NoDiscreteLoadChartEntry", "NoListedCapacityForBoomRadius",
+                "OutsideChartEnvelope", "InvalidBlankCell", "InvalidZeroCell", "MissingLoadChartData"
             };
             var failureCounts = categories.ToDictionary(c => c, c => 0);
 
@@ -458,14 +560,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
         private static int GetFailureRank(LiftStatus status)
         {
-            return status switch
-            {
-                LiftStatus.Overweight => 3,
-                LiftStatus.HeightFail => 2,
-                LiftStatus.SpecialCase => 1,
-                LiftStatus.OutOfRadius => 0,
-                _ => 0
-            };
+            return LiftClassificationPolicy.GetFailureRank(status);
         }
 
         private static string Escape(string? value)
@@ -511,6 +606,57 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             public string FailureReason { get; set; } = "";
             public string FailureCategory { get; set; } = "";
             public string SuggestedAction { get; set; } = "";
+            public string ReachStatus { get; set; } = "";
+            public string ChartStatus { get; set; } = "";
+            public bool IsExactMatch { get; set; }
+            public bool IsSteppedRadius { get; set; }
+            public bool IsBlankCell { get; set; }
+            public bool IsZeroCell { get; set; }
+            public double SafetyMargin { get; set; }
+            public string LookupMode { get; set; } = "";
+            public double RequiredRadius { get; set; }
+            public double SelectedChartRadius { get; set; }
+            public double SelectedChartBoomLength { get; set; }
+            public double CraneBaseX { get; set; }
+            public double CraneBaseY { get; set; }
+            public double CraneBaseZ { get; set; }
+            public double SlewCenterX { get; set; }
+            public double SlewCenterY { get; set; }
+            public double SlewCenterZ { get; set; }
+            public double BoomHingeX { get; set; }
+            public double BoomHingeY { get; set; }
+            public double BoomHingeZ { get; set; }
+            public double LoadPointX { get; set; }
+            public double LoadPointY { get; set; }
+            public double LoadPointZ { get; set; }
+            public string RadiusOriginType { get; set; } = "SlewCenter";
+            public string BoomOriginType { get; set; } = "BoomHinge";
+            public string CandidateBoomsChecked { get; set; } = "";
+            public string RejectedCandidates { get; set; } = "";
+
+            // GA Assignment and Uniqueness Fields
+            public string CandidatePointId { get; set; } = "";
+            public int CandidatePointIndex { get; set; } = -1;
+            public bool IsFeasibleFromPoint { get; set; }
+            public bool IsFinalAssignedToPoint { get; set; }
+            public string AssignedPointId { get; set; } = "";
+            public int AssignedPointIndex { get; set; } = -1;
+            public string AssignmentReason { get; set; } = "";
+            public double AssignmentScore { get; set; }
+            public bool DuplicateAssignmentResolved { get; set; }
+            public string FeasiblePointIds { get; set; } = "";
+            public string FinalOwnerPointId { get; set; } = "";
+            public bool IsFinalAssigned { get; set; }
+            public string BestFailedPointId { get; set; } = "";
+            public string BestFailureReason { get; set; } = "";
+
+            public bool HasBestFailedCandidate { get; set; }
+            public string BestFailedLiftStatus { get; set; } = "";
+            public string BestFailedReachStatus { get; set; } = "";
+            public string BestFailedChartStatus { get; set; } = "";
+            public double BestFailedSafetyMargin { get; set; }
+            public double BestFailedRequiredRadius { get; set; }
+            public double BestFailedRequiredBoomLength { get; set; }
         }
     }
 }

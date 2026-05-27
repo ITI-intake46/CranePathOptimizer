@@ -17,6 +17,7 @@ namespace CraneOptimizer.UI.Core.Services
         private readonly IIfcReaderRepository _ifcReader;
         private readonly ICraneValidationService _craneValidation;
         private readonly IElementVisibilityFilterService _filterService;
+        private readonly IRenderDiagnosticsStore _diagnosticsStore;
         private readonly List<PrecastElement> _sceneElements = new();
         // Persistent builder so per-crane MobileCraneVisual3D and the
         // INotifyPropertyChanged -> Rebuild plumbing survive across renders.
@@ -32,7 +33,8 @@ namespace CraneOptimizer.UI.Core.Services
             IIfcReaderRepository ifcReader,
             ICraneValidationService craneValidation,
             CraneVisualBuilder craneBuilder,
-            IElementVisibilityFilterService filterService)
+            IElementVisibilityFilterService filterService,
+            IRenderDiagnosticsStore diagnosticsStore)
         {
             _scene = scene;
             _rendering = rendering;
@@ -40,6 +42,7 @@ namespace CraneOptimizer.UI.Core.Services
             _craneValidation = craneValidation;
             _craneBuilder = craneBuilder;
             _filterService = filterService;
+            _diagnosticsStore = diagnosticsStore;
 
             _scene.ElementsChanged += OnElementsChanged;
             _filterService.StateChanged += OnFilterStateChanged;
@@ -89,14 +92,64 @@ namespace CraneOptimizer.UI.Core.Services
 
             Debug.WriteLine("Rendering Elements: " + visibleElements.Count);
 
-            var statusMap = _context.GetLiftResults()
+            // ── Diagnostics: pre-render snapshot ──
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var memBefore = GetPrivateMemoryMB();
+
+            var liftResults = _context.GetLiftResults();
+            bool hasFinalAssignments = liftResults != null && liftResults.Any(r => r.IsFinalAssignedToPoint);
+            string selectedPointId = liftResults?.FirstOrDefault(r => !string.IsNullOrEmpty(r.CandidatePointId))?.CandidatePointId ?? string.Empty;
+
+            var viewMode = _context.GetGAViewMode?.Invoke() ?? GAViewMode.FinalAssignment;
+
+            var statusMap = liftResults
                 ?.Where(result => !string.IsNullOrWhiteSpace(result.ElementId))
                 .GroupBy(result => result.ElementId, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.Last().Status, StringComparer.OrdinalIgnoreCase);
+                .ToDictionary(
+                    group => group.Key,
+                    group =>
+                    {
+                        var itemForSelected = group.FirstOrDefault(r => r.CandidatePointId == selectedPointId);
+                        var item = itemForSelected
+                                   ?? group.FirstOrDefault(r => r.IsFinalAssignedToPoint)
+                                   ?? group.Last();
+
+                        if (viewMode == GAViewMode.SelectedPointFeasibility)
+                        {
+                            return (LiftStatus?)(itemForSelected?.Status ?? item.Status);
+                        }
+                        else // FinalAssignment or AllFeasibleDebug
+                        {
+                            if (hasFinalAssignments)
+                            {
+                                if (item.IsFinalAssignedToPoint || (!string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId == selectedPointId))
+                                {
+                                    return (LiftStatus?)item.Status;
+                                }
+                                else if (item.IsFinalAssigned && !string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId != selectedPointId)
+                                {
+                                    return null; // Dimmed/Blueprint Gray
+                                }
+                                else if (!item.IsFinalAssigned)
+                                {
+                                    return (LiftStatus?)item.BestFailedLiftStatus;
+                                }
+                                else
+                                {
+                                    return null; // Safe neutral fallback
+                                }
+                            }
+                            return (LiftStatus?)item.Status;
+                        }
+                    },
+                    StringComparer.OrdinalIgnoreCase);
 
             var selectedElementId = _context.GetSelectedElementId();
             var origin = _context.GetOriginPoint();
             var placementOffset = _context.GetPlacementOffset();
+
+            var builder = new ElementVisualBuilder(_ifcReader, origin, placementOffset);
+            builder.ResetCounters();
 
             _rendering.Render(
                 visibleElements.Select(element =>
@@ -107,8 +160,70 @@ namespace CraneOptimizer.UI.Core.Services
 
                     return (element, status, element.ElementID == selectedElementId);
                 }),
-                new ElementVisualBuilder(_ifcReader, origin, placementOffset),
+                builder,
                 "Elements");
+
+            sw.Stop();
+            var memAfter = GetPrivateMemoryMB();
+
+            // ── Diagnostics: build stats ──
+            var sessionService = _ifcReader as CraneOptimizer.Infrastructure.Repositories.IfcReaderRepository;
+            var stats = new CraneOptimizer.Domain.Diagnostics.RenderPerformanceStats
+            {
+                SessionId = sessionService?.CurrentSessionId,
+                FileName = sessionService?.CurrentFileIdentity,
+                RenderQuality = ElementVisualBuilder.CurrentQuality.ToString(),
+                TotalElements = builder.DiagTotalElements,
+                VisibleElements = builder.DiagVisibleElements,
+                IncludeInRenderSkippedCount = builder.DiagIncludeInRenderSkipped,
+                ShapeInstanceCount = builder.DiagShapeInstances,
+                MeshesCreatedCount = builder.DiagMeshesCreated,
+                MeshCacheHitCount = builder.DiagMeshCacheHits,
+                MeshCacheMissCount = builder.DiagMeshCacheMisses,
+                HighQualityMeshCacheHitCount = builder.DiagHighQualityMeshCacheHits,
+                HighQualityMeshCacheMissCount = builder.DiagHighQualityMeshCacheMisses,
+                HighQualityMeshesCreatedCount = builder.DiagHighQualityMeshesCreated,
+                HighQualityCacheCount = ElementVisualBuilder.HighQualityMeshCacheCount,
+                GeometryModel3DCount = builder.DiagGeometryModel3DCount,
+                ModelVisual3DCount = builder.DiagModelVisual3DCount,
+                MaterialCreatedCount = builder.DiagMaterialCreated,
+                FallbackBoxCount = builder.DiagFallbackBoxCount,
+                RealMeshElementCount = builder.DiagRealMeshElements,
+                BatchedGroupCount = builder.DiagBatchedGroups,
+                BatchedElementCount = builder.DiagBatchedElements,
+                HitTestBoxCount = builder.DiagHitTestBoxes,
+                RenderGeometryModel3DCount = builder.DiagRenderGeometryModel3DCount,
+                HitTestGeometryModel3DCount = builder.DiagHitTestGeometryModel3DCount,
+                TotalGeometryModel3DCount = builder.DiagTotalGeometryModel3DCount,
+                RenderDurationMs = sw.Elapsed.TotalMilliseconds,
+                ReRenderDurationMs = sw.Elapsed.TotalMilliseconds,
+                MemoryBeforeRenderMB = memBefore,
+                MemoryAfterRenderMB = memAfter,
+                TimestampUtc = DateTime.UtcNow
+            };
+
+            _diagnosticsStore.AddStats(stats);
+
+            Debug.WriteLine(
+                $"[RenderStats] Quality={stats.RenderQuality} Elements={stats.TotalElements} " +
+                $"Visible={stats.VisibleElements} Skipped={stats.IncludeInRenderSkippedCount} " +
+                $"BatchedGroups={stats.BatchedGroupCount} HitBoxes={stats.HitTestBoxCount} " +
+                $"RenderGeomModels={stats.RenderGeometryModel3DCount} HitTestGeomModels={stats.HitTestGeometryModel3DCount} " +
+                $"HQCacheHits={stats.HighQualityMeshCacheHitCount} HQCacheMisses={stats.HighQualityMeshCacheMissCount} " +
+                $"HQMeshesCreated={stats.HighQualityMeshesCreatedCount} HQCacheSize={stats.HighQualityCacheCount} " +
+                $"DurationMs={stats.RenderDurationMs:F1} MemBefore={memBefore:F1}MB MemAfter={memAfter:F1}MB");
+        }
+
+        private static double GetPrivateMemoryMB()
+        {
+            try
+            {
+                return System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64 / (1024.0 * 1024.0);
+            }
+            catch
+            {
+                return GC.GetTotalMemory(false) / (1024.0 * 1024.0);
+            }
         }
 
         public void ReRenderCranes()

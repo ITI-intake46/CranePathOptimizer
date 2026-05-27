@@ -1,4 +1,6 @@
 using CraneOptimizer.Domain.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
@@ -126,6 +128,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         {
             try
             {
+                var osnap = App.ServiceProvider?.GetService<IOsnapService>();
+                osnap?.SetMasterEnabled(false);
+
                 IsLoading = true;
                 Progress = 0;
                 Status = "Selecting file...";
@@ -208,6 +213,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             if (!IsPlacementMode || _pendingIfcElements == null || _pendingIfcElements.Count == 0)
                 return false;
 
+            var originalBounds = CalculateBounds(_pendingIfcElements);
             var placementOffset = CalculatePlacementOffset(_pendingIfcElements, insertionPoint);
 
             PendingPlacementPoint = placementOffset;
@@ -215,6 +221,14 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             var placedElements = _ifcSceneOperations.TranslateElements(
                 _pendingIfcElements,
                 new DomainPoint3D(placementOffset.X, placementOffset.Y, placementOffset.Z));
+
+            var finalBounds = CalculateBounds(placedElements);
+
+            // Log [IfcImport Z-Preservation Diagnosis] as strictly requested in safeguards
+            Debug.WriteLine($"[IfcImport Z-Preservation Diagnosis] Original Z-Range: [{originalBounds.MinZ:F3}, {originalBounds.MaxZ:F3}]");
+            Debug.WriteLine($"[IfcImport Z-Preservation Diagnosis] Insertion Offset Z: {placementOffset.Z:F3}");
+            Debug.WriteLine($"[IfcImport Z-Preservation Diagnosis] Final Z-Range: [{finalBounds.MinZ:F3}, {finalBounds.MaxZ:F3}]");
+            Debug.WriteLine($"[IfcImport Z-Preservation Diagnosis] Vertical Normalization Occurred: False (Preserved original coordinates)");
 
             Debug.WriteLine($"IFC Origin Placed At: {insertionPoint.X:F3}, {insertionPoint.Y:F3}, {insertionPoint.Z:F3}");
             _ifcSceneOperations.ReplaceIfcModel(placedElements);
@@ -231,61 +245,181 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             return true;
         }
 
-        public async Task<bool> LoadIfcFromProjectAsync(string filePath, Point3D insertionOffset)
+        public async Task<bool> LoadIfcFromProjectAsync(
+            string filePath,
+            Point3D insertionOffset,
+            List<PrecastElement>? cachedElements = null)
         {
             if (string.IsNullOrWhiteSpace(filePath) || !System.IO.File.Exists(filePath))
+            {
+                Debug.WriteLine("[IfcRestore] Fallback: IFC file path is null or file does not exist on disk.");
                 return false;
+            }
 
             try
             {
+                var osnap = App.ServiceProvider?.GetService<IOsnapService>();
+                osnap?.SetMasterEnabled(false);
+
                 IsLoading = true;
                 Progress = 0;
                 Status = "Restoring IFC...";
 
-                var progress = new Progress<double>(p =>
-                {
-                    Progress = p;
-                    Status = $"Restoring IFC... {p:F0}%";
-                });
+                List<PrecastElement>? elements = null;
+                bool usedCache = false;
 
-                var elements = await Task.Run(() => _ifcReader.ReadElements(filePath, progress));
+                if (cachedElements != null && cachedElements.Count > 0)
+                {
+                    elements = cachedElements;
+                    usedCache = true;
+                    Debug.WriteLine("[IfcRestore] Diagnostic: Cached restore used DB elements. Full extraction skipped.");
+                    Status = $"Restored {elements.Count} elements from database cache. Initializing background render session...";
+                    
+                    // Start only the xBIM model session/context in the background for detailed mesh rendering
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            Debug.WriteLine("[IfcRestore] Background session: Initializing render-only xBIM session.");
+                            await _ifcReader.InitializeSessionForRenderingAsync(filePath);
+                            Debug.WriteLine("[IfcRestore] Background session: Render-only xBIM session initialized. Real mesh re-render triggered.");
+                            
+                            System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
+                            {
+                                IfcModelChanged?.Invoke();
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[IfcRestore] Background session: Failed to initialize xBIM session for rendering: {ex.Message}");
+                        }
+                    });
+                }
+                else
+                {
+                    string fallbackReason = cachedElements == null
+                        ? "Cached element metadata is missing."
+                        : "Cached elements list is empty.";
+
+                    Debug.WriteLine($"[IfcRestore] Diagnostic: Restore used full IFC extraction. Fallback reason: {fallbackReason}.");
+
+                    var progress = new Progress<double>(p =>
+                    {
+                        Progress = p;
+                        Status = $"Reading IFC... {p:F0}%";
+                    });
+
+                    elements = await Task.Run(() => _ifcReader.ReadElements(filePath, progress));
+
+                    if (elements != null && elements.Count > 0)
+                    {
+                        // Safe non-destructive background diagnostic audit trigger
+                        var auditPath = filePath;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var auditResult = await _auditService.RunAuditAsync(auditPath);
+                                var projectFolder = _workspaceService.CurrentSession?.ProjectFolderPath;
+                                await _auditService.GenerateReportsAsync(auditResult, projectFolder);
+                                Debug.WriteLine("[IfcViewerViewModel] Background diagnostic audit completed successfully.");
+
+                                // Run normalization decision preview
+                                var previewResult = await _normalizationService.GenerateNormalizationPreviewAsync(auditResult);
+                                await _normalizationService.GeneratePreviewReportsAsync(previewResult, projectFolder);
+                                Debug.WriteLine("[IfcViewerViewModel] Background normalization preview reports completed successfully.");
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"[IfcViewerViewModel] Background diagnostic audit or normalization failed: {ex.Message}");
+                            }
+                        });
+                    }
+                }
+
                 if (elements == null || elements.Count == 0)
                 {
                     Status = "Saved IFC contains no elements.";
                     return false;
                 }
 
-                // Safe non-destructive background diagnostic audit trigger
-                var auditPath = filePath;
-                _ = Task.Run(async () =>
+                var beforeFirstCOG = elements.FirstOrDefault()?.ElementCOG;
+
+                // DIAGNOSTIC DETECTION FOR DOUBLE-TRANSLATION CORRUPTION IN LEGACY PROJECTS
+                var firstEl = elements.FirstOrDefault();
+                if (firstEl != null && usedCache)
                 {
-                    try
+                    double dx = insertionOffset.X;
+                    double dy = insertionOffset.Y;
+                    double dz = insertionOffset.Z;
+                    double offsetLen = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+                    if (offsetLen > 10.0)
                     {
-                        var auditResult = await _auditService.RunAuditAsync(auditPath);
-                        var projectFolder = _workspaceService.CurrentSession?.ProjectFolderPath;
-                        await _auditService.GenerateReportsAsync(auditResult, projectFolder);
-                        Debug.WriteLine("[IfcViewerViewModel] Background diagnostic audit completed successfully.");
+                        var cog = firstEl.ElementCOG;
+                        double distToSingle = Math.Sqrt(
+                            Math.Pow(cog.X - dx, 2) +
+                            Math.Pow(cog.Y - dy, 2) +
+                            Math.Pow(cog.Z - dz, 2));
+                        double distToDouble = Math.Sqrt(
+                            Math.Pow(cog.X - 2 * dx, 2) +
+                            Math.Pow(cog.Y - 2 * dy, 2) +
+                            Math.Pow(cog.Z - 2 * dz, 2));
 
-                        // Run normalization decision preview
-                        var previewResult = await _normalizationService.GenerateNormalizationPreviewAsync(auditResult);
-                        await _normalizationService.GeneratePreviewReportsAsync(previewResult, projectFolder);
-                        Debug.WriteLine("[IfcViewerViewModel] Background normalization preview reports completed successfully.");
+                        if (distToDouble < distToSingle && distToDouble < offsetLen * 0.5)
+                        {
+                            Debug.WriteLine("[IfcRestore Diagnosis] WARNING: Legacy double-translated coordinates detected in saved project state! The stored coordinates in the project file/DB appear to have been corrupted by double-translation. To avoid silently corrupting further, they are restored without translation, but visual alignment might require repositioning the IFC model.");
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"[IfcViewerViewModel] Background diagnostic audit or normalization failed: {ex.Message}");
-                    }
-                });
+                }
 
-                var placedElements = _ifcSceneOperations.TranslateElements(
-                    elements,
-                    new DomainPoint3D(insertionOffset.X, insertionOffset.Y, insertionOffset.Z));
+                List<PrecastElement> placedElements;
+                if (usedCache)
+                {
+                    // Cached elements already have the insertion offset baked in from user placement.
+                    // Do NOT translate them again!
+                    placedElements = elements;
+                }
+                else
+                {
+                    // Full extraction requires applying the insertion offset once.
+                    placedElements = _ifcSceneOperations.TranslateElements(
+                        elements,
+                        new DomainPoint3D(insertionOffset.X, insertionOffset.Y, insertionOffset.Z));
+                }
+
+                var afterFirstCOG = placedElements.FirstOrDefault()?.ElementCOG;
 
                 _ifcSceneOperations.ReplaceIfcModel(placedElements);
                 LoadedIfcFilePath = filePath;
                 PendingPlacementPoint = insertionOffset;
+
+                var originalBounds = CalculateBounds(elements);
+                var finalBounds = CalculateBounds(placedElements);
+
+                // Log [IfcRestore Z-Preservation Diagnosis] as strictly requested in safeguards
+                Debug.WriteLine($"[IfcRestore Z-Preservation Diagnosis] Original Z-Range: [{originalBounds.MinZ:F3}, {originalBounds.MaxZ:F3}]");
+                Debug.WriteLine($"[IfcRestore Z-Preservation Diagnosis] Insertion Offset Z: {insertionOffset.Z:F3}");
+                Debug.WriteLine($"[IfcRestore Z-Preservation Diagnosis] Final Z-Range: [{finalBounds.MinZ:F3}, {finalBounds.MaxZ:F3}]");
+                Debug.WriteLine($"[IfcRestore Z-Preservation Diagnosis] Vertical Normalization Occurred: False (Preserved original coordinates)");
+
+                // Log [IfcRestore Diagnosis] as strictly requested in safeguards
+                Debug.WriteLine($"[IfcRestore Diagnosis] CacheUsed: {usedCache}");
+                Debug.WriteLine($"[IfcRestore Diagnosis] Saved InsertionOffset: ({insertionOffset.X:F3}, {insertionOffset.Y:F3}, {insertionOffset.Z:F3})");
+                Debug.WriteLine($"[IfcRestore Diagnosis] First Element COG Before: {(beforeFirstCOG != null ? $"({beforeFirstCOG.X:F3}, {beforeFirstCOG.Y:F3}, {beforeFirstCOG.Z:F3})" : "null")}");
+                Debug.WriteLine($"[IfcRestore Diagnosis] First Element COG After: {(afterFirstCOG != null ? $"({afterFirstCOG.X:F3}, {afterFirstCOG.Y:F3}, {afterFirstCOG.Z:F3})" : "null")}");
+                Debug.WriteLine($"[IfcRestore Diagnosis] PendingPlacementPoint Set To: {(PendingPlacementPoint != null ? $"({PendingPlacementPoint.Value.X:F3}, {PendingPlacementPoint.Value.Y:F3}, {PendingPlacementPoint.Value.Z:F3})" : "null")}");
+
                 Progress = 100;
-                Status = $"Restored {placedElements.Count} IFC elements";
+
+                if (usedCache)
+                {
+                    Status = $"Restored {placedElements.Count} elements (UI ready, meshes rendering in background)";
+                }
+                else
+                {
+                    Status = $"Restored {placedElements.Count} IFC elements via full extraction";
+                }
+
                 return true;
             }
             catch (Exception ex)
@@ -308,19 +442,43 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             if (elements.Count == 0)
                 return false;
 
+            var firstEl = elements.FirstOrDefault();
+            var beforeCOG = firstEl?.ElementCOG;
+
+            var originalBounds = CalculateBounds(elements);
             var currentOffset = PendingPlacementPoint ?? new Point3D(0, 0, 0);
-            var currentGround = CalculateModelBaseElevation(elements);
             var delta = new Point3D(
                 insertionPoint.X - currentOffset.X,
                 insertionPoint.Y - currentOffset.Y,
-                insertionPoint.Z - currentGround);
+                insertionPoint.Z - currentOffset.Z);
 
-            _ifcSceneOperations.MoveIfcModel(new DomainPoint3D(delta.X, delta.Y, delta.Z));
-
-            PendingPlacementPoint = new Point3D(
+            var newOffset = new Point3D(
                 currentOffset.X + delta.X,
                 currentOffset.Y + delta.Y,
                 currentOffset.Z + delta.Z);
+
+            // CRITICAL rendering sync fix: Set PendingPlacementPoint BEFORE calling MoveIfcModel,
+            // so that ReRenderElements triggered synchronously inside MoveIfcModel reads the new offset correctly!
+            PendingPlacementPoint = newOffset;
+
+            _ifcSceneOperations.MoveIfcModel(new DomainPoint3D(delta.X, delta.Y, delta.Z));
+
+            var movedElements = _ifcSceneOperations.GetElements();
+            var afterCOG = movedElements.FirstOrDefault()?.ElementCOG;
+            var finalBounds = CalculateBounds(movedElements);
+
+            // Log [IfcMove Z-Preservation Diagnosis] as strictly requested in safeguards
+            Debug.WriteLine($"[IfcMove Z-Preservation Diagnosis] Original Z-Range: [{originalBounds.MinZ:F3}, {originalBounds.MaxZ:F3}]");
+            Debug.WriteLine($"[IfcMove Z-Preservation Diagnosis] Insertion Offset Z: {newOffset.Z:F3}");
+            Debug.WriteLine($"[IfcMove Z-Preservation Diagnosis] Final Z-Range: [{finalBounds.MinZ:F3}, {finalBounds.MaxZ:F3}]");
+            Debug.WriteLine($"[IfcMove Z-Preservation Diagnosis] Vertical Normalization Occurred: False (Preserved original coordinates)");
+
+            // Log [IfcMove Diagnosis] as strictly requested in safeguards
+            Debug.WriteLine($"[IfcMove Diagnosis] Old Offset: ({currentOffset.X:F3}, {currentOffset.Y:F3}, {currentOffset.Z:F3})");
+            Debug.WriteLine($"[IfcMove Diagnosis] New Offset: ({newOffset.X:F3}, {newOffset.Y:F3}, {newOffset.Z:F3})");
+            Debug.WriteLine($"[IfcMove Diagnosis] Move Delta: ({delta.X:F3}, {delta.Y:F3}, {delta.Z:F3})");
+            Debug.WriteLine($"[IfcMove Diagnosis] First Element COG Before: {(beforeCOG != null ? $"({beforeCOG.X:F3}, {beforeCOG.Y:F3}, {beforeCOG.Z:F3})" : "null")}");
+            Debug.WriteLine($"[IfcMove Diagnosis] First Element COG After: {(afterCOG != null ? $"({afterCOG.X:F3}, {afterCOG.Y:F3}, {afterCOG.Z:F3})" : "null")}");
 
             _isMovingExistingIfc = false;
             IsPlacementMode = false;
@@ -438,7 +596,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 ? new DomainPoint3D(centerX, centerY, 0d)
                 : new DomainPoint3D(0d, 0d, 0d);
 
-            var groundZ = _ifcReader.ModelGroundElevation ?? bounds.MinZ;
+            var groundZ = 0d;
             return new DomainPoint3D(horizontalAnchor.X, horizontalAnchor.Y, groundZ);
         }
 

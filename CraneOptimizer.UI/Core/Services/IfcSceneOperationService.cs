@@ -2,6 +2,7 @@ using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F2_IfcViewer;
 using System.Collections.Generic;
 
 namespace CraneOptimizer.UI.Core.Services
@@ -57,7 +58,10 @@ namespace CraneOptimizer.UI.Core.Services
             _scene.ClearElements();
 
             if (clearReaderData)
+            {
                 _ifcReader.ClearData();
+                ElementVisualBuilder.ClearMeshCache("IFC unloaded");
+            }
         }
 
         private static PrecastElement TranslateElement(PrecastElement element, DomainPoint3D offset)

@@ -44,6 +44,9 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             // Subscribe to IFC element changes
             _scene.ElementsChanged += OnElementsChanged;
 
+            // Subscribe to Object Snap master enabled changes
+            _snap.MasterEnabledChanged += OnMasterEnabledChanged;
+
             // Seed the initial state (scene may already have data at startup)
             RefreshZones();
         }
@@ -81,12 +84,27 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 
         private void OnElementsChanged(List<PrecastElement> elements)
         {
+            if (!_snap.Settings.MasterEnabled)
+            {
+                System.Diagnostics.Debug.WriteLine("[OSnap] ObjectSnap disabled; snap geometry extraction skipped on load.");
+                _snap.SetIfcSnapGeometry(Enumerable.Empty<IfcSnapGeometry>());
+                return;
+            }
+
+            RefreshIfcSnapGeometry();
+        }
+
+        public void RefreshIfcSnapGeometry()
+        {
+            if (!_snap.Settings.MasterEnabled)
+            {
+                _snap.SetIfcSnapGeometry(Enumerable.Empty<IfcSnapGeometry>());
+                return;
+            }
+
+            var elements = _scene.GetElements();
             _snap.SetIfcSnapGeometry(BuildElementSnapGeometry(elements));
 
-            // Upgrade IFC snaps to rendered-space bounds (includes origin shifts).
-            // Rendering happens in response to the same ElementsChanged event, so we defer
-            // extraction to allow visuals to be created first. Keep this intentionally light:
-            // dense mesh-edge extraction makes large IFC models too slow during snap prep.
             var vp = _viewport;
             if (vp == null) return;
 
@@ -105,6 +123,25 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
                     // Best-effort: keep the coarse snap points if extraction fails.
                 }
             }));
+        }
+
+        private void OnMasterEnabledChanged(bool enabled)
+        {
+            if (enabled)
+            {
+                System.Diagnostics.Debug.WriteLine("[OSnap] ObjectSnap enabled manually; building snap points on demand.");
+                RefreshIfcSnapGeometry();
+                if (_currentUploader != null)
+                {
+                    PushDxfSnapData(_currentUploader);
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("[OSnap] ObjectSnap disabled; clearing snap data.");
+                _snap.SetIfcSnapGeometry(Enumerable.Empty<IfcSnapGeometry>());
+                ClearDxf();
+            }
         }
 
         private static List<IfcSnapGeometry> BuildElementSnapGeometry(IEnumerable<PrecastElement> elements)
@@ -230,6 +267,7 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             _scene.ZoneUpdated  -= OnZoneChanged;
             _scene.ZonesCleared -= OnZonesCleared;
             _scene.ElementsChanged -= OnElementsChanged;
+            _snap.MasterEnabledChanged -= OnMasterEnabledChanged;
 
             if (_currentUploader != null)
                 _currentUploader.SnapDataChanged -= OnDxfSnapDataChanged;

@@ -1,4 +1,6 @@
 using CraneOptimizer.Domain.Common;
+using Microsoft.Extensions.DependencyInjection;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
@@ -52,6 +54,13 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private ProjectStateSnapshot BuildProjectStateSnapshot()
         {
             var ifcOffset = IfcViewer.PendingPlacementPoint ?? new Point3D(0, 0, 0);
+            var elements = Scene.GetElements();
+            var firstCOG = elements.FirstOrDefault()?.ElementCOG;
+
+            // Log [IfcSave Diagnosis] as strictly requested in safeguards
+            Debug.WriteLine($"[IfcSave Diagnosis] Saved InsertionOffset: ({ifcOffset.X:F3}, {ifcOffset.Y:F3}, {ifcOffset.Z:F3})");
+            Debug.WriteLine($"[IfcSave Diagnosis] First Element COG: {(firstCOG != null ? $"({firstCOG.X:F3}, {firstCOG.Y:F3}, {firstCOG.Z:F3})" : "null")}");
+            Debug.WriteLine($"[IfcSave Diagnosis] Element Count: {elements.Count}");
 
             return new ProjectStateSnapshot
             {
@@ -66,6 +75,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                         RotationDegrees = 0,
                         Scale = 1
                     },
+                IfcElements = elements,
                 DxfFile = string.IsNullOrWhiteSpace(Dxf.LoadedFilePath)
                     ? null
                     : new ProjectModelFileState
@@ -136,6 +146,10 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         private async Task RestoreProjectStateAsync(ProjectStateSnapshot state)
         {
+            // Always disable Object Snap by default when restoring/opening projects
+            var osnap = App.ServiceProvider?.GetService<IOsnapService>();
+            osnap?.SetMasterEnabled(false);
+
             Scene.ClearZones();
             Scene.ClearCranes();
 
@@ -153,7 +167,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 var offset = state.IfcFile.InsertionOffset;
                 var restored = await IfcViewer.LoadIfcFromProjectAsync(
                     state.IfcFile.AbsolutePath,
-                    new Point3D(offset.X, offset.Y, offset.Z)).ConfigureAwait(true);
+                    new Point3D(offset.X, offset.Y, offset.Z),
+                    state.IfcElements).ConfigureAwait(true);
 
                 if (restored)
                     CurrentProjectIfcPath = state.IfcFile.AbsolutePath;

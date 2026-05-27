@@ -29,13 +29,24 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
         private Dictionary<string, IfcSnapGeometry> _ifcGeometryByElementId = new(StringComparer.OrdinalIgnoreCase);
         private IfcSnapScreenIndex? _ifcScreenIndex;
         private int _ifcGeometryVersion;
-
         private int _snapCallCount;
+
+        public event Action<bool>? MasterEnabledChanged;
+
+        public int SnapCacheBuiltCount => _ifcGeometryByElementId.Count;
+        public int SnapPointCount => _ifcVertices.Count + _ifcSegments.Count;
+        public double SnapBuildDurationMs { get; private set; }
+        public double SnapMemoryDeltaMB { get; private set; }
 
         public OsnapService(OsnapSettings settings)
             => Settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
-        public void SetMasterEnabled(bool enabled) => Settings.MasterEnabled = enabled;
+        public void SetMasterEnabled(bool enabled)
+        {
+            if (Settings.MasterEnabled == enabled) return;
+            Settings.MasterEnabled = enabled;
+            MasterEnabledChanged?.Invoke(enabled);
+        }
 
         public void SetSnapEnabled(OsnapType type, bool enabled)
         {
@@ -103,6 +114,9 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 
         public void SetIfcSnapGeometry(IEnumerable<IfcSnapGeometry> geometry)
         {
+            var sw = Stopwatch.StartNew();
+            long memBefore = GC.GetTotalMemory(false);
+
             var items = geometry?.Where(g => !string.IsNullOrWhiteSpace(g.ElementId)).ToList() ?? new();
             _ifcGeometryByElementId = items
                 .GroupBy(g => g.ElementId, StringComparer.OrdinalIgnoreCase)
@@ -113,9 +127,16 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             _ifcGeometryVersion++;
             _ifcScreenIndex = null;
 
+            sw.Stop();
+            long memAfter = GC.GetTotalMemory(false);
+
+            SnapBuildDurationMs = sw.Elapsed.TotalMilliseconds;
+            SnapMemoryDeltaMB = Math.Max(0.0, (double)(memAfter - memBefore) / (1024.0 * 1024.0));
+
             Debug.WriteLine(
                 $"[OSnap] SetIfcSnapGeometry: elements={_ifcGeometryByElementId.Count}, " +
-                $"vertices={_ifcVertices.Count}, segments={_ifcSegments.Count}");
+                $"vertices={_ifcVertices.Count}, segments={_ifcSegments.Count}, Duration={SnapBuildDurationMs:F2}ms, " +
+                $"MemoryDelta={SnapMemoryDeltaMB:F2}MB");
         }
 
         public OsnapResult? Snap(Point screenCursor, HelixViewport3D viewport)

@@ -39,7 +39,18 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 "Required Capacity",
                 "Available Capacity",
                 "Status",
-                "Newly Covered At Point"
+                "Newly Covered At Point",
+                "Reach Status",
+                "Chart Status",
+                "Exact Match",
+                "Stepped Radius",
+                "Blank Cell",
+                "Zero Cell",
+                "Safety Margin",
+                "Lookup Mode",
+                "Required Radius",
+                "Selected Chart Radius",
+                "Selected Chart Boom"
             }));
 
             foreach (var row in report.Rows)
@@ -61,7 +72,18 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     FormatWithUnit(row.RequiredCapacity, "t"),
                     FormatWithUnit(row.AvailableCapacity, "t"),
                     Escape(row.Status),
-                    row.NewlyCovered ? "Yes" : "No"
+                    row.NewlyCovered ? "Yes" : "No",
+                    Escape(row.ReachStatus),
+                    Escape(row.ChartStatus),
+                    row.IsExactMatch ? "Yes" : "No",
+                    row.IsSteppedRadius ? "Yes" : "No",
+                    row.IsBlankCell ? "Yes" : "No",
+                    row.IsZeroCell ? "Yes" : "No",
+                    Format(row.SafetyMargin),
+                    Escape(row.LookupMode),
+                    FormatWithUnit(row.RequiredRadius, "m"),
+                    FormatWithUnit(row.SelectedChartRadius, "m"),
+                    FormatWithUnit(row.SelectedChartBoomLength, "m")
                 }));
             }
 

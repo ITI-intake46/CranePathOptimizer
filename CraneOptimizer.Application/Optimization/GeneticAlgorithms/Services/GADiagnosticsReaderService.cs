@@ -177,6 +177,48 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     int failureReasonIdx = GetHeaderIndex(headers, "FailureReason");
                     int failureCategoryIdx = GetHeaderIndex(headers, "FailureCategory");
                     int suggestedActionIdx = GetHeaderIndex(headers, "SuggestedAction");
+                    int reachStatusIdx = GetHeaderIndex(headers, "ReachStatus");
+                    int chartStatusIdx = GetHeaderIndex(headers, "ChartStatus");
+                    int isExactMatchIdx = GetHeaderIndex(headers, "IsExactMatch");
+                    int isSteppedRadiusIdx = GetHeaderIndex(headers, "IsSteppedRadius");
+                    int isBlankCellIdx = GetHeaderIndex(headers, "IsBlankCell");
+                    int isZeroCellIdx = GetHeaderIndex(headers, "IsZeroCell");
+                    int safetyMarginIdx = GetHeaderIndex(headers, "SafetyMargin");
+                    int lookupModeIdx = GetHeaderIndex(headers, "LookupMode");
+                    int requiredRadiusIdx = GetHeaderIndex(headers, "RequiredRadius");
+                    int selectedChartRadiusIdx = GetHeaderIndex(headers, "SelectedChartRadius");
+                    int selectedChartBoomLengthIdx = GetHeaderIndex(headers, "SelectedChartBoomLength");
+                    int craneBasePointIdx = GetHeaderIndex(headers, "CraneBasePoint");
+                    int slewCenterPointIdx = GetHeaderIndex(headers, "SlewCenterPoint");
+                    int boomHingePointIdx = GetHeaderIndex(headers, "BoomHingePoint");
+                    int loadPointIdx = GetHeaderIndex(headers, "LoadPoint");
+                    int radiusOriginTypeIdx = GetHeaderIndex(headers, "RadiusOriginType");
+                    int boomOriginTypeIdx = GetHeaderIndex(headers, "BoomOriginType");
+                    int candidateBoomsCheckedIdx = GetHeaderIndex(headers, "CandidateBoomsChecked");
+                    int rejectedCandidatesIdx = GetHeaderIndex(headers, "RejectedCandidates");
+
+                    int candidatePointIdIdx = GetHeaderIndex(headers, "CandidatePointId");
+                    int candidatePointIndexIdx = GetHeaderIndex(headers, "CandidatePointIndex");
+                    int isFeasibleFromPointIdx = GetHeaderIndex(headers, "IsFeasibleFromPoint");
+                    int isFinalAssignedToPointIdx = GetHeaderIndex(headers, "IsFinalAssignedToPoint");
+                    int assignedPointIdIdx = GetHeaderIndex(headers, "AssignedPointId");
+                    int assignedPointIndexIdx = GetHeaderIndex(headers, "AssignedPointIndex");
+                    int assignmentReasonIdx = GetHeaderIndex(headers, "AssignmentReason");
+                    int assignmentScoreIdx = GetHeaderIndex(headers, "AssignmentScore");
+                    int duplicateAssignmentResolvedIdx = GetHeaderIndex(headers, "DuplicateAssignmentResolved");
+                    int feasiblePointIdsIdx = GetHeaderIndex(headers, "FeasiblePointIds");
+                    int finalOwnerPointIdIdx = GetHeaderIndex(headers, "FinalOwnerPointId");
+                    int isFinalAssignedIdx = GetHeaderIndex(headers, "IsFinalAssigned");
+                    int bestFailedPointIdIdx = GetHeaderIndex(headers, "BestFailedPointId");
+                    int bestFailureReasonIdx = GetHeaderIndex(headers, "BestFailureReason");
+
+                    int hasBestFailedCandidateIdx = GetHeaderIndex(headers, "HasBestFailedCandidate");
+                    int bestFailedLiftStatusIdx = GetHeaderIndex(headers, "BestFailedLiftStatus");
+                    int bestFailedReachStatusIdx = GetHeaderIndex(headers, "BestFailedReachStatus");
+                    int bestFailedChartStatusIdx = GetHeaderIndex(headers, "BestFailedChartStatus");
+                    int bestFailedSafetyMarginIdx = GetHeaderIndex(headers, "BestFailedSafetyMargin");
+                    int bestFailedRequiredRadiusIdx = GetHeaderIndex(headers, "BestFailedRequiredRadius");
+                    int bestFailedRequiredBoomLengthIdx = GetHeaderIndex(headers, "BestFailedRequiredBoomLength");
 
                     string? line;
                     while ((line = reader.ReadLine()) != null)
@@ -184,6 +226,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         if (string.IsNullOrWhiteSpace(line)) continue;
 
                         var row = ParseCsvLine(line);
+                        var basePt = ParsePoint(GetValue(row, craneBasePointIdx, ""));
+                        var slewPt = ParsePoint(GetValue(row, slewCenterPointIdx, ""));
+                        var hingePt = ParsePoint(GetValue(row, boomHingePointIdx, ""));
+                        var loadPt = ParsePoint(GetValue(row, loadPointIdx, ""));
+
                         var dto = new GAElementDiagnosticDto
                         {
                             Timestamp = GetValue(row, timestampIdx),
@@ -210,7 +257,58 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                             IsLifted = GetValueBool(row, isLiftedIdx),
                             FailureReason = GetValue(row, failureReasonIdx, "N/A"),
                             FailureCategory = GetValue(row, failureCategoryIdx, "Unknown"),
-                            SuggestedAction = GetValue(row, suggestedActionIdx, "")
+                            SuggestedAction = GetValue(row, suggestedActionIdx, ""),
+                            ReachStatus = GetValue(row, reachStatusIdx, "Reachable"),
+                            ChartStatus = GetValue(row, chartStatusIdx, "NoListedCapacity"),
+                            IsExactMatch = GetValueBool(row, isExactMatchIdx),
+                            IsSteppedRadius = GetValueBool(row, isSteppedRadiusIdx),
+                            IsBlankCell = GetValueBool(row, isBlankCellIdx),
+                            IsZeroCell = GetValueBool(row, isZeroCellIdx),
+                            SafetyMargin = GetValueDouble(row, safetyMarginIdx),
+                            LookupMode = GetValue(row, lookupModeIdx, "ConservativeStep"),
+                            RequiredRadius = GetValueDouble(row, requiredRadiusIdx, GetValueDouble(row, bestRadiusIdx)),
+                            SelectedChartRadius = GetValueDouble(row, selectedChartRadiusIdx),
+                            SelectedChartBoomLength = GetValueDouble(row, selectedChartBoomLengthIdx),
+                            CraneBaseX = basePt.X,
+                            CraneBaseY = basePt.Y,
+                            CraneBaseZ = basePt.Z,
+                            SlewCenterX = slewPt.X,
+                            SlewCenterY = slewPt.Y,
+                            SlewCenterZ = slewPt.Z,
+                            BoomHingeX = hingePt.X,
+                            BoomHingeY = hingePt.Y,
+                            BoomHingeZ = hingePt.Z,
+                            LoadPointX = loadPt.X,
+                            LoadPointY = loadPt.Y,
+                            LoadPointZ = loadPt.Z,
+                            RadiusOriginType = GetValue(row, radiusOriginTypeIdx, "SlewCenter"),
+                            BoomOriginType = GetValue(row, boomOriginTypeIdx, "BoomHinge"),
+                            CandidateBoomsChecked = GetValue(row, candidateBoomsCheckedIdx, ""),
+                            RejectedCandidates = GetValue(row, rejectedCandidatesIdx, ""),
+
+                            // GA Assignment and Uniqueness Fields
+                            CandidatePointId = GetValue(row, candidatePointIdIdx, ""),
+                            CandidatePointIndex = GetValueInt(row, candidatePointIndexIdx, -1),
+                            IsFeasibleFromPoint = GetValueBool(row, isFeasibleFromPointIdx),
+                            IsFinalAssignedToPoint = GetValueBool(row, isFinalAssignedToPointIdx),
+                            AssignedPointId = GetValue(row, assignedPointIdIdx, ""),
+                            AssignedPointIndex = GetValueInt(row, assignedPointIndexIdx, -1),
+                            AssignmentReason = GetValue(row, assignmentReasonIdx, ""),
+                            AssignmentScore = GetValueDouble(row, assignmentScoreIdx),
+                            DuplicateAssignmentResolved = GetValueBool(row, duplicateAssignmentResolvedIdx),
+                            FeasiblePointIds = GetValue(row, feasiblePointIdsIdx, ""),
+                            FinalOwnerPointId = GetValue(row, finalOwnerPointIdIdx, ""),
+                            IsFinalAssigned = GetValueBool(row, isFinalAssignedIdx),
+                            BestFailedPointId = GetValue(row, bestFailedPointIdIdx, ""),
+                            BestFailureReason = GetValue(row, bestFailureReasonIdx, ""),
+
+                            HasBestFailedCandidate = GetValueBool(row, hasBestFailedCandidateIdx),
+                            BestFailedLiftStatus = GetValue(row, bestFailedLiftStatusIdx, "OutOfRadius"),
+                            BestFailedReachStatus = GetValue(row, bestFailedReachStatusIdx, "OutOfRadius"),
+                            BestFailedChartStatus = GetValue(row, bestFailedChartStatusIdx, "NoListedCapacity"),
+                            BestFailedSafetyMargin = GetValueDouble(row, bestFailedSafetyMarginIdx, 0.0),
+                            BestFailedRequiredRadius = GetValueDouble(row, bestFailedRequiredRadiusIdx, 0.0),
+                            BestFailedRequiredBoomLength = GetValueDouble(row, bestFailedRequiredBoomLengthIdx, 0.0)
                         };
 
                         results.Add(dto);
@@ -362,6 +460,22 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             }
             result.Add(currentToken.ToString());
             return result;
+        }
+
+        private static (double X, double Y, double Z) ParsePoint(string pointStr)
+        {
+            if (string.IsNullOrWhiteSpace(pointStr)) return (0, 0, 0);
+            var trimmed = pointStr.Trim('(', ')', ' ', '\t');
+            var parts = trimmed.Split(';');
+            if (parts.Length < 3) parts = trimmed.Split(','); // fallback
+            if (parts.Length >= 3 &&
+                double.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double x) &&
+                double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double y) &&
+                double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double z))
+            {
+                return (x, y, z);
+            }
+            return (0, 0, 0);
         }
 
         #endregion

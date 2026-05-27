@@ -8,6 +8,9 @@ using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
 using System.Text.Json;
+using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers;
+using System.Diagnostics;
 
 namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 {
@@ -31,7 +34,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             var projectInfo = await GetProjectInfoAsync(context, session.ProjectInfoId, cancellationToken)
                 .ConfigureAwait(false);
 
-            await SaveIfcAsync(context, session, projectInfo.Id, state.IfcFile, cancellationToken)
+            await SaveIfcAsync(context, session, projectInfo.Id, state.IfcFile, state.IfcElements, cancellationToken)
                 .ConfigureAwait(false);
             await SaveModelFilesAsync(context, session, projectInfo.Id, state.DxfFile, cancellationToken)
                 .ConfigureAwait(false);
@@ -90,14 +93,94 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 .FirstOrDefaultAsync(cancellationToken)
                 .ConfigureAwait(false);
 
+            List<PrecastElement> restoredElements = new();
+            if (ifc != null)
+            {
+                if (ValidateIfcCache(session.ProjectFolderPath, ifc, out var validationReason))
+                {
+                    var entities = await context.IfcElements
+                        .AsNoTracking()
+                        .Where(x => x.IfcFileId == ifc.Id)
+                        .OrderBy(x => x.Id)
+                        .ToListAsync(cancellationToken)
+                        .ConfigureAwait(false);
+
+                    foreach (var entity in entities)
+                    {
+                        restoredElements.Add(PrecastElementMapper.ToDomain(entity));
+                    }
+                    Debug.WriteLine($"[ProjectState] DB Restore: Valid cache. Loaded {restoredElements.Count} elements from database.");
+                }
+                else
+                {
+                    Debug.WriteLine($"[ProjectState] DB Restore Fallback: Cache is invalid/missing. Reason: {validationReason}");
+                }
+            }
+
             return new ProjectStateSnapshot
             {
                 IfcFile = ToIfcState(session.ProjectFolderPath, ifc),
+                IfcElements = restoredElements,
                 DxfFile = ToModelFileState(session.ProjectFolderPath, dxf),
                 Zones = zones.Select(ToZoneState).ToList(),
                 Cranes = cranes.Select(ToCraneState).ToList(),
                 Viewport = ToViewportState(viewport)
             };
+        }
+
+        private static bool ValidateIfcCache(
+            string projectFolderPath,
+            ProjectIfcFileEntity? entity,
+            out string validationReason)
+        {
+            if (entity == null)
+            {
+                validationReason = "No persisted IFC file metadata in database.";
+                return false;
+            }
+
+            if (!entity.IsCacheValid)
+            {
+                validationReason = "Cache was explicitly marked invalid in database.";
+                return false;
+            }
+
+            if (entity.ElementCount <= 0)
+            {
+                validationReason = "Persisted element count in database is zero or negative.";
+                return false;
+            }
+
+            var absolutePath = ToAbsolutePath(projectFolderPath, entity.RelativePath);
+            if (!File.Exists(absolutePath))
+            {
+                validationReason = $"IFC file not found at project path: {absolutePath}";
+                return false;
+            }
+
+            var fileInfo = new FileInfo(absolutePath);
+
+            // Compare file size
+            if (fileInfo.Length != entity.FileSizeBytes)
+            {
+                validationReason = $"IFC file size changed. Disk: {fileInfo.Length} bytes, DB: {entity.FileSizeBytes} bytes.";
+                return false;
+            }
+
+            // Compare last write time using UTC and standard tolerance of 2 seconds
+            if (entity.LastWriteUtc.HasValue)
+            {
+                var dbUtc = DateTime.SpecifyKind(entity.LastWriteUtc.Value, DateTimeKind.Utc);
+                var diff = (fileInfo.LastWriteTimeUtc - dbUtc).Duration();
+                if (diff > TimeSpan.FromSeconds(2))
+                {
+                    validationReason = $"IFC last write time changed. Disk: {fileInfo.LastWriteTimeUtc.ToUniversalTime()}, DB: {dbUtc}.";
+                    return false;
+                }
+            }
+
+            validationReason = "Valid";
+            return true;
         }
 
         private static async Task<ProjectInfoEntity> GetProjectInfoAsync(
@@ -120,17 +203,26 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             ProjectSession session,
             int projectInfoId,
             ProjectIfcFileState? ifc,
+            List<PrecastElement> elements,
             CancellationToken cancellationToken)
         {
-            var existing = await context.IfcFiles
-                .Where(x => x.ProjectInfoId == projectInfoId)
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            context.IfcFiles.RemoveRange(existing);
-
             if (ifc == null || string.IsNullOrWhiteSpace(ifc.AbsolutePath) || !File.Exists(ifc.AbsolutePath))
+            {
+                var existing = await context.IfcFiles
+                    .Where(x => x.ProjectInfoId == projectInfoId)
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false);
+
+                context.IfcFiles.RemoveRange(existing);
+
+                var existingElements = await context.IfcElements
+                    .Where(x => x.ProjectInfoId == projectInfoId)
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false);
+
+                context.IfcElements.RemoveRange(existingElements);
                 return;
+            }
 
             var asset = CopyAssetIntoProject(session.ProjectFolderPath, ifc.AbsolutePath, IfcFolder);
             var metadata = ReadFileMetadata(asset.AbsolutePath);
@@ -143,7 +235,62 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 Scale = ifc.Scale
             };
 
-            await context.IfcFiles.AddAsync(new ProjectIfcFileEntity
+            var existingFile = await context.IfcFiles
+                .FirstOrDefaultAsync(x => x.ProjectInfoId == projectInfoId && x.IsActive, cancellationToken)
+                .ConfigureAwait(false);
+
+            bool canReuseCache = false;
+            if (existingFile != null
+                && string.Equals(existingFile.RelativePath, asset.RelativePath, StringComparison.OrdinalIgnoreCase)
+                && existingFile.FileSizeBytes == metadata.SizeBytes
+                && existingFile.IsCacheValid)
+            {
+                if (existingFile.LastWriteUtc.HasValue && metadata.LastWriteUtc.HasValue)
+                {
+                    var existingUtc = DateTime.SpecifyKind(existingFile.LastWriteUtc.Value, DateTimeKind.Utc);
+                    var metadataUtc = DateTime.SpecifyKind(metadata.LastWriteUtc.Value, DateTimeKind.Utc);
+                    var diff = (existingUtc - metadataUtc).Duration();
+                    if (diff <= TimeSpan.FromSeconds(2))
+                    {
+                        canReuseCache = true;
+                    }
+                }
+            }
+
+            if (canReuseCache && existingFile != null)
+            {
+                var dbElementCount = await context.IfcElements
+                    .CountAsync(x => x.IfcFileId == existingFile.Id, cancellationToken)
+                    .ConfigureAwait(false);
+                if (dbElementCount == 0)
+                {
+                    canReuseCache = false;
+                }
+            }
+
+            if (canReuseCache && existingFile != null)
+            {
+                existingFile.TransformJson = JsonSerializer.Serialize(transform, JsonOptions);
+                existingFile.MetadataJson = ifc.MetadataJson;
+                context.IfcFiles.Update(existingFile);
+                Debug.WriteLine("[SaveProject] Fast Save: Reused existing IFC element cache. Only updated transform.");
+                return;
+            }
+
+            // Otherwise, do full save
+            var oldFiles = await context.IfcFiles
+                .Where(x => x.ProjectInfoId == projectInfoId)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            context.IfcFiles.RemoveRange(oldFiles);
+
+            var oldElements = await context.IfcElements
+                .Where(x => x.ProjectInfoId == projectInfoId)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            context.IfcElements.RemoveRange(oldElements);
+
+            var newFile = new ProjectIfcFileEntity
             {
                 ProjectInfoId = projectInfoId,
                 FileName = asset.FileName,
@@ -155,9 +302,29 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 TransformJson = JsonSerializer.Serialize(transform, JsonOptions),
                 MetadataJson = ifc.MetadataJson,
                 IsActive = true,
-                IsCacheValid = false,
-                ImportedAtUtc = DateTime.UtcNow
-            }, cancellationToken).ConfigureAwait(false);
+                IsCacheValid = true,
+                ImportedAtUtc = DateTime.UtcNow,
+                ElementCount = elements.Count
+            };
+
+            await context.IfcFiles.AddAsync(newFile, cancellationToken).ConfigureAwait(false);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            Debug.WriteLine($"[SaveIfcAsync] elements count: {elements.Count}, newFile.Id: {newFile.Id}");
+
+            foreach (var el in elements)
+            {
+                var entity = PrecastElementMapper.ToEntity(el, projectInfoId, newFile.Id);
+                await context.IfcElements.AddAsync(entity, cancellationToken).ConfigureAwait(false);
+                Debug.WriteLine($"[SaveIfcAsync] Tracked element entity: {entity.GlobalId} with IfcFileId: {entity.IfcFileId}");
+            }
+
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            var verifyCount = await context.IfcElements.CountAsync(x => x.IfcFileId == newFile.Id, cancellationToken).ConfigureAwait(false);
+            Debug.WriteLine($"[SaveIfcAsync] Verification count in DB: {verifyCount}");
+
+            Debug.WriteLine($"[SaveProject] Full Save: Persisted new IFC file metadata and {elements.Count} elements to database.");
         }
 
         private static async Task SaveModelFilesAsync(

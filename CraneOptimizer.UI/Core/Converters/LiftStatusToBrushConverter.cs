@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -16,9 +16,10 @@ namespace CraneOptimizer.UI.Core.Converters
             {
                 LiftStatus.Liftable => Brushes.Green,
                 LiftStatus.OutOfRadius => Brushes.Red,
-                LiftStatus.Overweight => Brushes.Red,
+                LiftStatus.Overweight => Brushes.DarkOrange,
                 LiftStatus.HeightFail => Brushes.Red,
                 LiftStatus.SpecialCase => Brushes.Yellow,
+                LiftStatus.NotCharted => Brushes.SlateGray,
                 _ => Brushes.Gray
             };
         }
