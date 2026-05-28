@@ -24,11 +24,28 @@ namespace CraneOptimizer.Infrastructure.Contexts
                 .HasForeignKey(s => s.CraneId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            modelBuilder.Entity<CraneSpecification>()
-                .HasMany(s => s.LoadChart)
-                .WithOne(t => t.CraneSpecification)
-                .HasForeignKey(t => t.CraneSpecificationId)
-                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<CraneSpecification>(entity =>
+            {
+                entity.HasMany(s => s.LoadChart)
+                    .WithOne(t => t.CraneSpecification)
+                    .HasForeignKey(t => t.CraneSpecificationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.Property(s => s.LoadChartStorageMode)
+                    .HasMaxLength(80);
+
+                entity.Property(s => s.LoadChartCapacityPolicy)
+                    .HasMaxLength(160);
+
+                entity.Property(s => s.LoadChartSourceDescription)
+                    .HasMaxLength(500);
+            });
+
+            modelBuilder.Entity<TargetPoint>(entity =>
+            {
+                entity.Property(t => t.VisualColumnHeader)
+                    .HasMaxLength(120);
+            });
 
             modelBuilder.Entity<Project>(entity =>
             {
@@ -56,6 +73,5 @@ namespace CraneOptimizer.Infrastructure.Contexts
                 entity.HasIndex(x => x.ProjectId);
             });
         }
-
     }
 }

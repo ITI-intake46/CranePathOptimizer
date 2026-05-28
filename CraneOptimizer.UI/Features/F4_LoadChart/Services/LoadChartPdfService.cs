@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -110,38 +110,78 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             if (selectedTable == null)
                 throw new ArgumentNullException(nameof(selectedTable));
 
-            var gridToImport = selectedTable.ImportGrid.Count > 0
+            bool hasSeparateImportGrid = selectedTable.ImportGrid.Count > 0;
+            string sourceDescription = $"PDF page {selectedTable.PageNumber}, table {selectedTable.TableIndex}";
 
-                ? selectedTable.ImportGrid
+            var envelopeChart = hasSeparateImportGrid
+                ? LoadChartCsvService.ParseRawGrid(selectedTable.ImportGrid)
+                : null;
 
-                : selectedTable.RawGrid;
+            var chart = hasSeparateImportGrid
+                ? LoadChartCsvService.ParseExactVisualRawGrid(selectedTable.RawGrid, sourceDescription)
+                : LoadChartCsvService.ParseRawGrid(selectedTable.RawGrid);
 
-
-            var chart = LoadChartCsvService.ParseRawGrid(gridToImport);
             if (chart.Points.Count == 0 || chart.MaxCapacity <= 0)
                 throw new FormatException("The selected PDF table did not produce a valid crane load chart.");
 
             var warnings = new List<string>
             {
-                $"PDF import used page {selectedTable.PageNumber}, table {selectedTable.TableIndex}.",
-                $"Imported {chart.Points.Count} real capacity point(s) from {selectedTable.NonEmptyCapacityCellCount} non-empty PDF capacity cell(s).",
-                $"Detected {selectedTable.BoomColumnCount} boom-length column(s), {selectedTable.RadiusRowCount} radius row(s), and max capacity {chart.MaxCapacity:0.###} t."
+                $"PDF import used page {selectedTable.PageNumber}, table {selectedTable.TableIndex}."
             };
-if (selectedTable.ImportGrid.Count > 0)
-{
-    warnings.Add("Exact PDF visual preview was preserved separately. The saved/imported chart uses the consolidated 2D envelope grid because the current crane model cannot store duplicate boom-length visual columns yet.");
-}
 
-warnings.AddRange(selectedTable.Warnings);
+            if (hasSeparateImportGrid && envelopeChart != null)
+            {
+                warnings.Add($"Imported exact PDF visual load chart: {chart.Points.Count} visual capacity cell(s) from {selectedTable.NonEmptyCapacityCellCount} non-empty PDF capacity cell(s).");
+                warnings.Add($"The exact chart preserves {selectedTable.BoomColumnCount} visual boom column(s), including repeated manufacturer headers, across {selectedTable.RadiusRowCount} radius row(s).");
+                warnings.Add($"For optimization capacity lookups, duplicate visual columns with the same radius and numeric boom length use the conservative minimum capacity policy. Reference envelope has {envelopeChart.Points.Count} point(s).");
+            }
+            else
+            {
+                warnings.Add($"Imported {chart.Points.Count} real capacity point(s) from {selectedTable.NonEmptyCapacityCellCount} non-empty PDF capacity cell(s).");
+                warnings.Add($"Detected {selectedTable.BoomColumnCount} boom-length column(s), {selectedTable.RadiusRowCount} radius row(s), and max capacity {chart.MaxCapacity:0.###} t.");
+            }
+
+            warnings.AddRange(hasSeparateImportGrid
+                ? NormalizeExactVisualImportWarnings(selectedTable.Warnings)
+                : selectedTable.Warnings);
             warnings.AddRange(scanResult.Warnings);
 
             return new LoadChartImportResult
             {
                 Chart = chart,
+                ImportableEnvelopeChart = envelopeChart,
                 SourceKind = "PDF",
-                SourceDescription = $"PDF page {selectedTable.PageNumber}, table {selectedTable.TableIndex}",
-                Warnings = warnings.Distinct().ToList()
+                SourceDescription = sourceDescription,
+                Warnings = warnings.Distinct().ToList(),
+                ExactVisualPreviewGrid = hasSeparateImportGrid
+                    ? selectedTable.RawGrid.Select(row => row.ToList()).ToList()
+                    : new List<List<string>>(),
+                ExactVisualPreviewTitle = hasSeparateImportGrid
+                    ? "Exact PDF Visual Load Chart"
+                    : string.Empty,
+                ExactVisualPreviewDescription = hasSeparateImportGrid
+                    ? $"Full PDF visual table: {selectedTable.BoomColumnCount} visual boom column(s) x {selectedTable.RadiusRowCount} radius row(s). Save Crane now saves this exact visual chart. Duplicate numeric boom columns are preserved with visual column metadata; optimization uses the conservative minimum capacity across duplicates."
+                    : string.Empty
             };
+        }
+
+        private static IEnumerable<string> NormalizeExactVisualImportWarnings(IEnumerable<string> warnings)
+        {
+            foreach (string warning in warnings)
+            {
+                if (string.IsNullOrWhiteSpace(warning))
+                    continue;
+
+                if (warning.Contains("ENVELOPE_IMPORT_REVIEW_REQUIRED", StringComparison.OrdinalIgnoreCase)
+                    || warning.Contains("maximum-capacity envelope", StringComparison.OrdinalIgnoreCase)
+                    || warning.Contains("consolidated into unique boom columns", StringComparison.OrdinalIgnoreCase))
+                {
+                    yield return "Repeated visual boom columns were detected. The exact PDF visual chart is preserved and saved; optimization uses the conservative minimum capacity across duplicate same-radius/same-boom columns.";
+                    continue;
+                }
+
+                yield return warning;
+            }
         }
 
         public static PdfLoadChartScanResult ScanPdf(string pdfFilePath)

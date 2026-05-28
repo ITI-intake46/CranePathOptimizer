@@ -13,7 +13,15 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Mappers
         {
             var spec = crane.Specifications?.FirstOrDefault();
             var points = spec?.LoadChart
-                .Select(point => new LoadChartPointDto(point.Radius, point.BoomLength, point.Capacity))
+                .OrderBy(point => point.Radius)
+                .ThenBy(point => point.VisualColumnIndex ?? int.MaxValue)
+                .ThenBy(point => point.BoomLength)
+                .Select(point => new LoadChartPointDto(
+                    point.Radius,
+                    point.BoomLength,
+                    point.Capacity,
+                    point.VisualColumnIndex,
+                    point.VisualColumnHeader ?? string.Empty))
                 .ToList()
                 ?? new List<LoadChartPointDto>();
 
@@ -34,7 +42,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Mappers
                 spec?.MinBoomLength ?? 0d,
                 spec?.MaxBoomLength ?? 0d,
                 spec?.MaxCapacity ?? 0d,
-                points);
+                points,
+                spec?.LoadChartStorageMode ?? "Standard2D",
+                spec?.LoadChartCapacityPolicy ?? "Standard2D",
+                spec?.ExactLoadChartRawGridJson ?? string.Empty,
+                spec?.LoadChartSourceDescription ?? string.Empty);
         }
 
         public static Crane ToCraneEntity(this LoadChartCraneDto dto)
@@ -64,12 +76,18 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Mappers
                         CounterWeight = dto.Counterweight,
                         DeratingRatio = null,
                         OutriggerConfig = dto.OutriggerConfig,
+                        LoadChartStorageMode = string.IsNullOrWhiteSpace(dto.LoadChartStorageMode) ? "Standard2D" : dto.LoadChartStorageMode,
+                        LoadChartCapacityPolicy = string.IsNullOrWhiteSpace(dto.LoadChartCapacityPolicy) ? "Standard2D" : dto.LoadChartCapacityPolicy,
+                        ExactLoadChartRawGridJson = string.IsNullOrWhiteSpace(dto.ExactLoadChartRawGridJson) ? null : dto.ExactLoadChartRawGridJson,
+                        LoadChartSourceDescription = string.IsNullOrWhiteSpace(dto.LoadChartSourceDescription) ? null : dto.LoadChartSourceDescription,
                         LoadChart = dto.Points
                             .Select(point => new TargetPoint
                             {
                                 Radius = point.Radius,
                                 BoomLength = point.BoomLength,
-                                Capacity = point.Capacity
+                                Capacity = point.Capacity,
+                                VisualColumnIndex = point.VisualColumnIndex,
+                                VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader
                             })
                             .ToList()
                     }

@@ -69,6 +69,21 @@ namespace CraneOptimizer.Infrastructure.Migrations
                     b.Property<int>("CraneId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ExactLoadChartRawGridJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LoadChartCapacityPolicy")
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LoadChartSourceDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LoadChartStorageMode")
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
                     b.Property<double?>("MachineRotation")
                         .HasColumnType("REAL");
 
@@ -200,6 +215,13 @@ namespace CraneOptimizer.Infrastructure.Migrations
 
                     b.Property<double>("Radius")
                         .HasColumnType("REAL");
+
+                    b.Property<string>("VisualColumnHeader")
+                        .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("VisualColumnIndex")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 

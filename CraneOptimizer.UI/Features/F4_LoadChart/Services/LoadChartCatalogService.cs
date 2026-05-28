@@ -65,24 +65,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             var existingSpec = existingCrane.Specifications.FirstOrDefault();
             if (existingSpec == null)
             {
-                existingCrane.Specifications.Add(new CraneSpecification
-                {
-                    MaxCapacity = updatedCrane.MaxCapacity,
-                    MaxRadius = updatedCrane.MaxRadius,
-                    MinRadius = updatedCrane.MinRadius,
-                    MaxBoomLength = updatedCrane.MaxBoomLength,
-                    MinBoomLength = updatedCrane.MinBoomLength,
-                    CounterWeight = updatedCrane.Counterweight,
-                    OutriggerConfig = updatedCrane.OutriggerConfig,
-                    LoadChart = updatedCrane.Points
-                        .Select(point => new TargetPoint
-                        {
-                            Radius = point.Radius,
-                            BoomLength = point.BoomLength,
-                            Capacity = point.Capacity
-                        })
-                        .ToList()
-                });
+                existingCrane.Specifications.Add(BuildSpecification(updatedCrane));
             }
             else
             {
@@ -93,6 +76,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 existingSpec.MinBoomLength = updatedCrane.MinBoomLength;
                 existingSpec.CounterWeight = updatedCrane.Counterweight;
                 existingSpec.OutriggerConfig = updatedCrane.OutriggerConfig;
+                existingSpec.LoadChartStorageMode = NormalizeStorageMode(updatedCrane.LoadChartStorageMode);
+                existingSpec.LoadChartCapacityPolicy = NormalizeCapacityPolicy(updatedCrane.LoadChartCapacityPolicy);
+                existingSpec.ExactLoadChartRawGridJson = string.IsNullOrWhiteSpace(updatedCrane.ExactLoadChartRawGridJson)
+                    ? null
+                    : updatedCrane.ExactLoadChartRawGridJson;
+                existingSpec.LoadChartSourceDescription = string.IsNullOrWhiteSpace(updatedCrane.LoadChartSourceDescription)
+                    ? null
+                    : updatedCrane.LoadChartSourceDescription;
 
                 context.TargetPoints.RemoveRange(existingSpec.LoadChart);
                 existingSpec.LoadChart.Clear();
@@ -103,7 +94,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                     {
                         Radius = point.Radius,
                         BoomLength = point.BoomLength,
-                        Capacity = point.Capacity
+                        Capacity = point.Capacity,
+                        VisualColumnIndex = point.VisualColumnIndex,
+                        VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader
                     });
                 }
             }
@@ -153,8 +146,51 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 parsedChart.MaxBoomLength,
                 parsedChart.MaxCapacity,
                 parsedChart.Points
-                    .Select(point => new LoadChartPointDto(point.Radius, point.BoomLength, point.Capacity))
-                    .ToList());
+                    .Select(point => new LoadChartPointDto(
+                        point.Radius,
+                        point.BoomLength,
+                        point.Capacity,
+                        point.VisualColumnIndex,
+                        point.VisualColumnHeader ?? string.Empty))
+                    .ToList(),
+                parsedChart.LoadChartStorageMode,
+                parsedChart.LoadChartCapacityPolicy,
+                parsedChart.ExactLoadChartRawGridJson,
+                parsedChart.LoadChartSourceDescription);
         }
+
+        private static CraneSpecification BuildSpecification(LoadChartCraneDto dto)
+        {
+            return new CraneSpecification
+            {
+                MaxCapacity = dto.MaxCapacity,
+                MaxRadius = dto.MaxRadius,
+                MinRadius = dto.MinRadius,
+                MaxBoomLength = dto.MaxBoomLength,
+                MinBoomLength = dto.MinBoomLength,
+                CounterWeight = dto.Counterweight,
+                OutriggerConfig = dto.OutriggerConfig,
+                LoadChartStorageMode = NormalizeStorageMode(dto.LoadChartStorageMode),
+                LoadChartCapacityPolicy = NormalizeCapacityPolicy(dto.LoadChartCapacityPolicy),
+                ExactLoadChartRawGridJson = string.IsNullOrWhiteSpace(dto.ExactLoadChartRawGridJson) ? null : dto.ExactLoadChartRawGridJson,
+                LoadChartSourceDescription = string.IsNullOrWhiteSpace(dto.LoadChartSourceDescription) ? null : dto.LoadChartSourceDescription,
+                LoadChart = dto.Points
+                    .Select(point => new TargetPoint
+                    {
+                        Radius = point.Radius,
+                        BoomLength = point.BoomLength,
+                        Capacity = point.Capacity,
+                        VisualColumnIndex = point.VisualColumnIndex,
+                        VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader
+                    })
+                    .ToList()
+            };
+        }
+
+        private static string NormalizeStorageMode(string? value)
+            => string.IsNullOrWhiteSpace(value) ? "Standard2D" : value;
+
+        private static string NormalizeCapacityPolicy(string? value)
+            => string.IsNullOrWhiteSpace(value) ? "Standard2D" : value;
     }
 }

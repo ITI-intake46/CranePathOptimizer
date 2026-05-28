@@ -1,4 +1,4 @@
-using CraneOptimizer.UI.Features.F4_LoadChart.Views;
+﻿using CraneOptimizer.UI.Features.F4_LoadChart.Views;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,9 +10,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
     internal sealed class LoadChartImportResult
     {
         public ParsedLoadChart Chart { get; init; } = new();
+        public ParsedLoadChart? ImportableEnvelopeChart { get; init; }
         public string SourceKind { get; init; } = "Unknown";
         public string SourceDescription { get; init; } = string.Empty;
         public List<string> Warnings { get; init; } = new();
+        public List<List<string>> ExactVisualPreviewGrid { get; init; } = new();
+        public string ExactVisualPreviewTitle { get; init; } = string.Empty;
+        public string ExactVisualPreviewDescription { get; init; } = string.Empty;
+        public bool HasExactVisualPreview => ExactVisualPreviewGrid.Count > 1 && ExactVisualPreviewGrid[0].Count > 1;
 
         public string BuildStatusMessage(string fileName)
         {
@@ -37,7 +42,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                     ? string.Empty
                     : $" {actionableNoteCount} import note(s).";
 
-                return $"Loaded {fileName}{description}: {Chart.Points.Count} capacity points, {radiusCount} radii, {boomCount} boom lengths, max {Chart.MaxCapacity:0.###} t.{noteText}";
+                string exactText = Chart.IsExactVisualChart
+                    ? " exact visual capacity cells"
+                    : " capacity points";
+
+                return $"Loaded {fileName}{description}: {Chart.Points.Count}{exactText}, {radiusCount} radii, {boomCount} numeric boom lengths, max {Chart.MaxCapacity:0.###} t.{noteText}";
             }
 
             string warningText = Warnings.Count == 0

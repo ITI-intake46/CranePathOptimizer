@@ -1,8 +1,9 @@
-using CraneOptimizer.Domain.Entities;
+﻿using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Units;
 using System.Data;
 using System.Globalization;
 using System.IO;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
@@ -17,6 +18,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
         public double MinBoomLength { get; init; }
         public double MaxBoomLength { get; init; }
         public double MaxCapacity { get; init; }
+        public string LoadChartStorageMode { get; init; } = "Standard2D";
+        public string LoadChartCapacityPolicy { get; init; } = "Standard2D";
+        public string ExactLoadChartRawGridJson { get; init; } = string.Empty;
+        public string LoadChartSourceDescription { get; init; } = string.Empty;
+        public bool IsExactVisualChart => string.Equals(LoadChartStorageMode, "ExactPdfVisual", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static class LoadChartCsvService
@@ -45,6 +51,60 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
 
         public static ParsedLoadChart ParseTable(DataTable table, IReadOnlyList<string>? previewHeaders = null)
         {
+            return ParseTableCore(
+                table,
+                previewHeaders,
+                allowDuplicateBoomLengths: false,
+                storageMode: "Standard2D",
+                capacityPolicy: "Standard2D",
+                exactRawGridJson: string.Empty,
+                sourceDescription: string.Empty);
+        }
+
+        public static ParsedLoadChart ParseExactVisualRawGrid(
+            IReadOnlyList<List<string>> rawGrid,
+            string sourceDescription = "")
+        {
+            if (rawGrid.Count < 2)
+                throw new FormatException("The exact PDF visual grid must contain a header row and at least one data row.");
+
+            var previewTable = CreateExactVisualPreviewTable(rawGrid, out var previewHeaders);
+            string rawJson = JsonSerializer.Serialize(rawGrid);
+            return ParseExactVisualTable(previewTable, previewHeaders, rawJson, sourceDescription);
+        }
+
+        public static ParsedLoadChart ParseExactVisualTable(
+            DataTable table,
+            IReadOnlyList<string>? previewHeaders = null,
+            string? exactRawGridJson = null,
+            string sourceDescription = "")
+        {
+            var headers = previewHeaders?.ToList()
+                ?? table.Columns.Cast<DataColumn>().Select(column => column.ColumnName).ToList();
+
+            string rawJson = string.IsNullOrWhiteSpace(exactRawGridJson)
+                ? JsonSerializer.Serialize(ToRawGrid(table, headers))
+                : exactRawGridJson;
+
+            return ParseTableCore(
+                table,
+                headers,
+                allowDuplicateBoomLengths: true,
+                storageMode: "ExactPdfVisual",
+                capacityPolicy: "ConservativeMinimumAcrossDuplicateVisualColumns",
+                exactRawGridJson: rawJson,
+                sourceDescription: sourceDescription);
+        }
+
+        private static ParsedLoadChart ParseTableCore(
+            DataTable table,
+            IReadOnlyList<string>? previewHeaders,
+            bool allowDuplicateBoomLengths,
+            string storageMode,
+            string capacityPolicy,
+            string exactRawGridJson,
+            string sourceDescription)
+        {
             if (table.Columns.Count < 2)
                 throw new FormatException("The load chart grid must contain a radius column and at least one boom column.");
 
@@ -57,16 +117,18 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                     ? previewHeaders[columnIndex]
                     : table.Columns[columnIndex].ColumnName;
 
-                string headerText = NormalizeGridNumber(rawHeader);
+                string headerText = allowDuplicateBoomLengths
+                    ? NormalizeVisualBoomHeader(rawHeader)
+                    : NormalizeGridNumber(rawHeader);
+
                 if (!TryParseFlexibleNumber(headerText, out double boomLength))
                     throw new FormatException($"Column '{rawHeader}' is not a valid boom length.");
 
-                if (boomLengths.Any(existing => Math.Abs(existing - boomLength) < 0.001))
+                if (!allowDuplicateBoomLengths && boomLengths.Any(existing => Math.Abs(existing - boomLength) < 0.001))
                 {
                     throw new FormatException(
-                        $"Duplicate boom length '{rawHeader}' was found. The current load-chart model supports only simple 2D charts with unique boom-length columns. " +
-                        "Repeated boom lengths usually indicate a multi-dimensional manufacturer chart, such as boom length plus angle, mode, jib, counterweight, or another configuration. " +
-                        "Please select a standard Radius + Boom Length -> Capacity table.");
+                        $"Duplicate boom length '{rawHeader}' was found. The current simple 2D import path supports only unique boom-length columns. " +
+                        "Use the exact PDF visual import path for manufacturer charts with repeated visual columns.");
                 }
 
                 boomLengths.Add(boomLength);
@@ -119,7 +181,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                     {
                         Radius = radius,
                         BoomLength = boomLength,
-                        Capacity = normalizedCapacity
+                        Capacity = normalizedCapacity,
+                        VisualColumnIndex = allowDuplicateBoomLengths ? i + 1 : null,
+                        VisualColumnHeader = allowDuplicateBoomLengths ? boomHeaderLabels[i] : null
                     });
                 }
             }
@@ -137,9 +201,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 MaxRadius = maxRadius ?? 0d,
                 MinBoomLength = minBoom ?? 0d,
                 MaxBoomLength = maxBoom ?? 0d,
-                MaxCapacity = maxCapacity ?? 0d
+                MaxCapacity = maxCapacity ?? 0d,
+                LoadChartStorageMode = storageMode,
+                LoadChartCapacityPolicy = capacityPolicy,
+                ExactLoadChartRawGridJson = exactRawGridJson,
+                LoadChartSourceDescription = sourceDescription
             };
         }
+
         public static ParsedLoadChart TransposePreview(DataTable source, IReadOnlyList<string> previewHeaders)
         {
             var rawGrid = ToRawGrid(source, previewHeaders);
@@ -173,6 +242,50 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 string displayHeader = Regex.Replace(rawHeader, @"_\d+$", string.Empty);
                 if (columnIndex > 0 && TryParseFlexibleNumber(displayHeader, out double headerNumber))
                     displayHeader = headerNumber.ToString("F1", CultureInfo.InvariantCulture);
+
+                previewHeaders.Add(displayHeader);
+                table.Columns.Add($"C{columnIndex}", typeof(string));
+            }
+
+            for (int rowIndex = 1; rowIndex < rawGrid.Count; rowIndex++)
+            {
+                var row = table.NewRow();
+                var sourceRow = rawGrid[rowIndex];
+
+                for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
+                    row[columnIndex] = columnIndex < sourceRow.Count ? sourceRow[columnIndex] : string.Empty;
+
+                table.Rows.Add(row);
+            }
+
+            return table;
+        }
+
+        private static DataTable CreateExactVisualPreviewTable(IReadOnlyList<List<string>> rawGrid, out List<string> previewHeaders)
+        {
+            var table = new DataTable();
+            previewHeaders = new List<string>();
+            if (rawGrid.Count == 0)
+                return table;
+
+            int columnCount = rawGrid[0].Count;
+            var usedHeaders = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
+            {
+                string rawHeader = columnIndex < rawGrid[0].Count
+                    ? rawGrid[0][columnIndex].Trim()
+                    : string.Empty;
+
+                if (string.IsNullOrWhiteSpace(rawHeader))
+                    rawHeader = columnIndex == 0 ? "Radius (m)" : $"Col{columnIndex}";
+
+                string displayHeader = Regex.Replace(rawHeader, @"_\d+$", string.Empty);
+                if (columnIndex > 0 && TryParseFlexibleNumber(displayHeader, out double headerNumber))
+                    displayHeader = headerNumber.ToString("G", CultureInfo.InvariantCulture);
+
+                if (columnIndex > 0)
+                    displayHeader = MakeUniqueVisualHeader(displayHeader, usedHeaders);
 
                 previewHeaders.Add(displayHeader);
                 table.Columns.Add($"C{columnIndex}", typeof(string));
@@ -495,6 +608,31 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             }
 
             return clean;
+        }
+
+        private static string MakeUniqueVisualHeader(string header, Dictionary<string, int> usedHeaders)
+        {
+            string key = header.Trim();
+            if (!usedHeaders.TryGetValue(key, out int count))
+            {
+                usedHeaders[key] = 1;
+                return key;
+            }
+
+            count++;
+            usedHeaders[key] = count;
+            return $"{key} ({count})";
+        }
+
+        private static string NormalizeVisualBoomHeader(string? header)
+        {
+            if (string.IsNullOrWhiteSpace(header))
+                return string.Empty;
+
+            string clean = header.Trim();
+            clean = Regex.Replace(clean, @"\s*\(\d+\)\s*$", string.Empty);
+            clean = Regex.Replace(clean, @"_\d+$", string.Empty);
+            return NormalizeGridNumber(clean);
         }
 
         private static string NormalizeFlexibleNumber(string? input)

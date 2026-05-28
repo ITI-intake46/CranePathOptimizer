@@ -1,4 +1,4 @@
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
@@ -129,17 +129,32 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cran
             var minRadiusEntries = validEntries.Where(tp => tp.Radius == minRadius).ToList();
 
             double minBoom = minRadiusEntries.Min(tp => tp.BoomLength);
-            var finalEntry = minRadiusEntries.FirstOrDefault(tp => tp.BoomLength == minBoom);
+            var finalEntries = minRadiusEntries
+                .Where(tp => Math.Abs(tp.BoomLength - minBoom) < 0.0001)
+                .ToList();
 
-            if (finalEntry == null)
+            if (finalEntries.Count == 0)
             {
                 return new CraneCapacityDiagnosticResult(0, minRadius, minBoom, CapacityFailureReason.NoDiscreteLoadChartEntry);
             }
 
-            if (finalEntry.Capacity <= 0)
+            var positiveEntries = finalEntries
+                .Where(tp => tp.Capacity > 0)
+                .ToList();
+
+            if (positiveEntries.Count == 0)
             {
-                return new CraneCapacityDiagnosticResult(0, finalEntry.Radius, finalEntry.BoomLength, CapacityFailureReason.ZeroCapacityChartEntry);
+                var firstEntry = finalEntries[0];
+                return new CraneCapacityDiagnosticResult(0, firstEntry.Radius, firstEntry.BoomLength, CapacityFailureReason.ZeroCapacityChartEntry);
             }
+
+            // Full-fidelity PDF charts may preserve repeated visual columns with the same numeric boom length.
+            // Those repeated columns can represent different line counts, counterweights, modes, or other
+            // manufacturer-specific conditions. Use the conservative minimum capacity across duplicates
+            // rather than the optimistic maximum envelope.
+            var finalEntry = positiveEntries
+                .OrderBy(tp => tp.Capacity)
+                .First();
 
             double calculatedCapacity = finalEntry.Capacity * settings.DeratingRatio * settings.SafetyFactor;
             return new CraneCapacityDiagnosticResult(calculatedCapacity, finalEntry.Radius, finalEntry.BoomLength, CapacityFailureReason.None);
