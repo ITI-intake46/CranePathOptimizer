@@ -248,6 +248,14 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 }
             }
 
+            if (DataContext is MainViewModel vm)
+            {
+                if (_hitTestService.TryGetWorldPoint(viewport, screen, out var worldPt))
+                {
+                    vm.SetCoordinates(worldPt.X, worldPt.Y);
+                }
+            }
+
             UpdateSelectionHandlerEnabled();
             _selectionHandler.OnMouseMove(viewport, e);
             _interactionService.HandleMouseMove(viewport, e);

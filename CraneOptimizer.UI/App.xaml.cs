@@ -3,6 +3,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Interfaces;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.Ifc;
@@ -125,6 +126,8 @@ namespace CraneOptimizer.UI
             services.AddSingleton<DrawingService>();
             services.AddSingleton<CoordinateService>();
             services.AddSingleton<ICoordinateTransformService, CoordinateTransformService>();
+            services.AddSingleton<IProjectCoordinateTransformService, ProjectCoordinateTransformService>();
+            services.AddSingleton<ICoordinateReadoutFormatter, CoordinateReadoutFormatter>();
             services.AddSingleton<ICraneValidationService, CraneValidationService>();
             services.AddSingleton<IElementLiftStateService, ElementLiftStateService>();
 
@@ -169,6 +172,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<CranePlacementViewModel>();
             services.AddSingleton<IfcViewerViewModel>();
             services.AddSingleton<DxfTabViewModel>();
+            services.AddSingleton<CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel>();
             services.AddScoped<ElementManagementViewModel>();
             services.AddSingleton<SelectionHandler>();
             services.AddSingleton<HoverHitCache>();

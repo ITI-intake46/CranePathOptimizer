@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
@@ -10,13 +11,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
     {
         private readonly IRenderingService _renderingService;
         private readonly ISceneService _sceneService;
+        private readonly IProjectCoordinateTransformService _transformService;
 
         public GAResultsWindowService(
             IRenderingService renderingService,
-            ISceneService sceneService)
+            ISceneService sceneService,
+            IProjectCoordinateTransformService transformService)
         {
             _renderingService = renderingService;
             _sceneService = sceneService;
+            _transformService = transformService;
         }
 
         public void Show(
@@ -34,7 +38,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 _sceneService,
                 selectedPointChanged,
                 viewModeChanged,
-                initialViewMode);
+                initialViewMode,
+                _transformService);
             var window = new GAResultsWindow(viewModel);
 
             if (System.Windows.Application.Current?.MainWindow != null)

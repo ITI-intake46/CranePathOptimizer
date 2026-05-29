@@ -4,6 +4,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -18,12 +19,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         private readonly ILiftingCalculationEngine _liftingEngine;
         private readonly ICraneConfigurationEngine _configEngine;
         private readonly ILoadChartCapacityResolver _capacityResolver;
+        private readonly IProjectCoordinateTransformService? _transformService;
         private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
         public GACsvDiagnosticsService(
             ILiftingCalculationEngine liftingEngine,
             ICraneConfigurationEngine configEngine)
-            : this(liftingEngine, configEngine, null)
+            : this(liftingEngine, configEngine, null, null)
         {
         }
 
@@ -31,10 +33,28 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             ILiftingCalculationEngine liftingEngine,
             ICraneConfigurationEngine configEngine,
             ILoadChartCapacityResolver? capacityResolver)
+            : this(liftingEngine, configEngine, capacityResolver, null)
+        {
+        }
+
+        public GACsvDiagnosticsService(
+            ILiftingCalculationEngine liftingEngine,
+            ICraneConfigurationEngine configEngine,
+            IProjectCoordinateTransformService? transformService)
+            : this(liftingEngine, configEngine, null, transformService)
+        {
+        }
+
+        public GACsvDiagnosticsService(
+            ILiftingCalculationEngine liftingEngine,
+            ICraneConfigurationEngine configEngine,
+            ILoadChartCapacityResolver? capacityResolver,
+            IProjectCoordinateTransformService? transformService)
         {
             _liftingEngine = liftingEngine;
             _configEngine = configEngine;
             _capacityResolver = capacityResolver ?? new LoadChartCapacityResolver();
+            _transformService = transformService;
         }
 
         public string GenerateDiagnostics(PlacementInput input, PlacementResult finalResult)
@@ -225,18 +245,59 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     "AvailableCapacity", "LiftStatus", "IsLifted", "FailureReason", "FailureCategory", "SuggestedAction",
                     "ReachStatus", "ChartStatus", "IsExactMatch", "IsSteppedRadius", "IsBlankCell", "IsZeroCell", "SafetyMargin",
                     "LookupMode", "RequiredRadius", "SelectedChartRadius", "SelectedChartBoomLength",
-                    "CraneBasePoint", "SlewCenterPoint", "BoomHingePoint", "LoadPoint", "RadiusOriginType", "BoomOriginType",
+                    "CraneBasePoint_Local", "CraneBasePoint_Survey", "SlewCenterPoint_Local", "SlewCenterPoint_Survey",
+                    "BoomHingePoint_Local", "BoomHingePoint_Survey", "LoadPoint_Local", "LoadPoint_Survey",
+                    "RadiusOriginType", "BoomOriginType",
                     "CandidateBoomsChecked", "RejectedCandidates",
                     "CandidatePointId", "CandidatePointIndex", "IsFeasibleFromPoint", "IsFinalAssignedToPoint",
                     "AssignedPointId", "AssignedPointIndex", "AssignmentReason", "AssignmentScore",
                     "DuplicateAssignmentResolved", "FeasiblePointIds", "FinalOwnerPointId", "IsFinalAssigned",
                     "BestFailedPointId", "BestFailureReason",
                     "HasBestFailedCandidate", "BestFailedLiftStatus", "BestFailedReachStatus", "BestFailedChartStatus",
-                    "BestFailedSafetyMargin", "BestFailedRequiredRadius", "BestFailedRequiredBoomLength"
+                    "BestFailedSafetyMargin", "BestFailedRequiredRadius", "BestFailedRequiredBoomLength",
+                    "Candidate_ModelX", "Candidate_ModelY", "Candidate_ModelZ",
+                    "Candidate_SiteE", "Candidate_SiteN", "Candidate_SiteH",
+                    "COG_SiteE", "COG_SiteN", "COG_SiteH",
+                    "CraneBase_ModelX", "CraneBase_ModelY", "CraneBase_ModelZ",
+                    "CraneBase_SiteE", "CraneBase_SiteN", "CraneBase_SiteH",
+                    "SlewCenter_ModelX", "SlewCenter_ModelY", "SlewCenter_ModelZ",
+                    "SlewCenter_SiteE", "SlewCenter_SiteN", "SlewCenter_SiteH",
+                    "BoomHinge_ModelX", "BoomHinge_ModelY", "BoomHinge_ModelZ",
+                    "BoomHinge_SiteE", "BoomHinge_SiteN", "BoomHinge_SiteH",
+                    "LoadPoint_ModelX", "LoadPoint_ModelY", "LoadPoint_ModelZ",
+                    "LoadPoint_SiteE", "LoadPoint_SiteN", "LoadPoint_SiteH",
+                    "COG_ModelX", "COG_ModelY", "COG_ModelZ",
+                    "COG_SurveyEasting", "COG_SurveyNorthing", "COG_SurveyElevation",
+                    "Candidate_SurveyEasting", "Candidate_SurveyNorthing", "Candidate_SurveyElevation",
+                    "CraneBase_SurveyEasting", "CraneBase_SurveyNorthing", "CraneBase_SurveyElevation",
+                    "SlewCenter_SurveyEasting", "SlewCenter_SurveyNorthing", "SlewCenter_SurveyElevation",
+                    "BoomHinge_SurveyEasting", "BoomHinge_SurveyNorthing", "BoomHinge_SurveyElevation",
+                    "LoadPoint_SurveyEasting", "LoadPoint_SurveyNorthing", "LoadPoint_SurveyElevation",
+                    "SiteReferenceEnabled", "SiteOriginEasting", "SiteOriginNorthing", "SiteOriginElevation", "RotationToNorthDegrees"
                 }));
 
                 foreach (var row in detailedRows)
                 {
+                    var isEnabled = _transformService != null && _transformService.IsEnabled;
+                    
+                    var candPt = new DomainPoint3D(row.AssignedCraneX, row.AssignedCraneY, row.AssignedCraneZ);
+                    var candSite = isEnabled && row.AssignedSetupIndex >= 0 ? _transformService!.LocalToSurvey(candPt) : (DomainPoint3D?)null;
+
+                    var cogPt = new DomainPoint3D(row.CogX, row.CogY, row.CogZ);
+                    var cogSite = isEnabled ? _transformService!.LocalToSurvey(cogPt) : (DomainPoint3D?)null;
+
+                    var basePt = new DomainPoint3D(row.CraneBaseX, row.CraneBaseY, row.CraneBaseZ);
+                    var baseSite = isEnabled ? _transformService!.LocalToSurvey(basePt) : (DomainPoint3D?)null;
+
+                    var slewPt = new DomainPoint3D(row.SlewCenterX, row.SlewCenterY, row.SlewCenterZ);
+                    var slewSite = isEnabled ? _transformService!.LocalToSurvey(slewPt) : (DomainPoint3D?)null;
+
+                    var hingePt = new DomainPoint3D(row.BoomHingeX, row.BoomHingeY, row.BoomHingeZ);
+                    var hingeSite = isEnabled ? _transformService!.LocalToSurvey(hingePt) : (DomainPoint3D?)null;
+
+                    var loadPt = new DomainPoint3D(row.LoadPointX, row.LoadPointY, row.LoadPointZ);
+                    var loadSite = isEnabled ? _transformService!.LocalToSurvey(loadPt) : (DomainPoint3D?)null;
+
                     writer.WriteLine(string.Join(",", new[]
                     {
                         row.Timestamp,
@@ -276,9 +337,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         row.SelectedChartRadius.ToString("0.###", Invariant),
                         row.SelectedChartBoomLength.ToString("0.###", Invariant),
                         Escape($"({row.CraneBaseX.ToString("0.###", Invariant)}; {row.CraneBaseY.ToString("0.###", Invariant)}; {row.CraneBaseZ.ToString("0.###", Invariant)})"),
+                        Escape(FormatSurveyIfEnabled(row.CraneBaseX, row.CraneBaseY, row.CraneBaseZ)),
                         Escape($"({row.SlewCenterX.ToString("0.###", Invariant)}; {row.SlewCenterY.ToString("0.###", Invariant)}; {row.SlewCenterZ.ToString("0.###", Invariant)})"),
+                        Escape(FormatSurveyIfEnabled(row.SlewCenterX, row.SlewCenterY, row.SlewCenterZ)),
                         Escape($"({row.BoomHingeX.ToString("0.###", Invariant)}; {row.BoomHingeY.ToString("0.###", Invariant)}; {row.BoomHingeZ.ToString("0.###", Invariant)})"),
+                        Escape(FormatSurveyIfEnabled(row.BoomHingeX, row.BoomHingeY, row.BoomHingeZ)),
                         Escape($"({row.LoadPointX.ToString("0.###", Invariant)}; {row.LoadPointY.ToString("0.###", Invariant)}; {row.LoadPointZ.ToString("0.###", Invariant)})"),
+                        Escape(FormatSurveyIfEnabled(row.LoadPointX, row.LoadPointY, row.LoadPointZ)),
                         Escape(row.RadiusOriginType),
                         Escape(row.BoomOriginType),
                         Escape(row.CandidateBoomsChecked),
@@ -303,7 +368,66 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         Escape(row.BestFailedChartStatus),
                         row.BestFailedSafetyMargin.ToString("0.###", Invariant),
                         row.BestFailedRequiredRadius.ToString("0.###", Invariant),
-                        row.BestFailedRequiredBoomLength.ToString("0.###", Invariant)
+                        row.BestFailedRequiredBoomLength.ToString("0.###", Invariant),
+                        row.AssignedSetupIndex >= 0 ? row.AssignedCraneX.ToString("0.###", Invariant) : "N/A",
+                        row.AssignedSetupIndex >= 0 ? row.AssignedCraneY.ToString("0.###", Invariant) : "N/A",
+                        row.AssignedSetupIndex >= 0 ? row.AssignedCraneZ.ToString("0.###", Invariant) : "N/A",
+                        candSite != null ? candSite.X.ToString("0.###", Invariant) : "N/A",
+                        candSite != null ? candSite.Y.ToString("0.###", Invariant) : "N/A",
+                        candSite != null ? candSite.Z.ToString("0.###", Invariant) : "N/A",
+                        cogSite != null ? cogSite.X.ToString("0.###", Invariant) : "N/A",
+                        cogSite != null ? cogSite.Y.ToString("0.###", Invariant) : "N/A",
+                        cogSite != null ? cogSite.Z.ToString("0.###", Invariant) : "N/A",
+                        row.CraneBaseX.ToString("0.###", Invariant),
+                        row.CraneBaseY.ToString("0.###", Invariant),
+                        row.CraneBaseZ.ToString("0.###", Invariant),
+                        baseSite != null ? baseSite.X.ToString("0.###", Invariant) : "N/A",
+                        baseSite != null ? baseSite.Y.ToString("0.###", Invariant) : "N/A",
+                        baseSite != null ? baseSite.Z.ToString("0.###", Invariant) : "N/A",
+                        row.SlewCenterX.ToString("0.###", Invariant),
+                        row.SlewCenterY.ToString("0.###", Invariant),
+                        row.SlewCenterZ.ToString("0.###", Invariant),
+                        slewSite != null ? slewSite.X.ToString("0.###", Invariant) : "N/A",
+                        slewSite != null ? slewSite.Y.ToString("0.###", Invariant) : "N/A",
+                        slewSite != null ? slewSite.Z.ToString("0.###", Invariant) : "N/A",
+                        row.BoomHingeX.ToString("0.###", Invariant),
+                        row.BoomHingeY.ToString("0.###", Invariant),
+                        row.BoomHingeZ.ToString("0.###", Invariant),
+                        hingeSite != null ? hingeSite.X.ToString("0.###", Invariant) : "N/A",
+                        hingeSite != null ? hingeSite.Y.ToString("0.###", Invariant) : "N/A",
+                        hingeSite != null ? hingeSite.Z.ToString("0.###", Invariant) : "N/A",
+                        row.LoadPointX.ToString("0.###", Invariant),
+                        row.LoadPointY.ToString("0.###", Invariant),
+                        row.LoadPointZ.ToString("0.###", Invariant),
+                        loadSite != null ? loadSite.X.ToString("0.###", Invariant) : "N/A",
+                        loadSite != null ? loadSite.Y.ToString("0.###", Invariant) : "N/A",
+                        loadSite != null ? loadSite.Z.ToString("0.###", Invariant) : "N/A",
+                        row.CogX.ToString("0.###", Invariant),
+                        row.CogY.ToString("0.###", Invariant),
+                        row.CogZ.ToString("0.###", Invariant),
+                        cogSite != null ? cogSite.X.ToString("0.###", Invariant) : "N/A",
+                        cogSite != null ? cogSite.Y.ToString("0.###", Invariant) : "N/A",
+                        cogSite != null ? cogSite.Z.ToString("0.###", Invariant) : "N/A",
+                        candSite != null ? candSite.X.ToString("0.###", Invariant) : "N/A",
+                        candSite != null ? candSite.Y.ToString("0.###", Invariant) : "N/A",
+                        candSite != null ? candSite.Z.ToString("0.###", Invariant) : "N/A",
+                        baseSite != null ? baseSite.X.ToString("0.###", Invariant) : "N/A",
+                        baseSite != null ? baseSite.Y.ToString("0.###", Invariant) : "N/A",
+                        baseSite != null ? baseSite.Z.ToString("0.###", Invariant) : "N/A",
+                        slewSite != null ? slewSite.X.ToString("0.###", Invariant) : "N/A",
+                        slewSite != null ? slewSite.Y.ToString("0.###", Invariant) : "N/A",
+                        slewSite != null ? slewSite.Z.ToString("0.###", Invariant) : "N/A",
+                        hingeSite != null ? hingeSite.X.ToString("0.###", Invariant) : "N/A",
+                        hingeSite != null ? hingeSite.Y.ToString("0.###", Invariant) : "N/A",
+                        hingeSite != null ? hingeSite.Z.ToString("0.###", Invariant) : "N/A",
+                        loadSite != null ? loadSite.X.ToString("0.###", Invariant) : "N/A",
+                        loadSite != null ? loadSite.Y.ToString("0.###", Invariant) : "N/A",
+                        loadSite != null ? loadSite.Z.ToString("0.###", Invariant) : "N/A",
+                        isEnabled.ToString().ToLower(),
+                        isEnabled ? _transformService!.CurrentReference.SurveyEasting.ToString("0.###", Invariant) : "N/A",
+                        isEnabled ? _transformService!.CurrentReference.SurveyNorthing.ToString("0.###", Invariant) : "N/A",
+                        isEnabled ? _transformService!.CurrentReference.SurveyElevation.ToString("0.###", Invariant) : "N/A",
+                        isEnabled ? _transformService!.CurrentReference.RotationToNorthDegrees.ToString("0.###", Invariant) : "N/A"
                     }));
                 }
             }
@@ -459,7 +583,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         "ActualGenerationLoopCount", "TotalGATimeMs", "ElementAssignmentTimeMs", "CraneCapacityLookupCount",
                         "CraneCapacityCacheHits", "CraneCapacityCacheMisses", "CraneCapacityCacheHitRatio",
                         "MemoryBeforeMB", "MemoryAfterMB", "MemoryDeltaMB", "GCGen0Delta", "GCGen1Delta", "GCGen2Delta",
-                        "ProfilingLogPath", "DetailedDiagnosticsCsvPath", "FailureBreakdownCsvPath"
+                        "ProfilingLogPath", "DetailedDiagnosticsCsvPath", "FailureBreakdownCsvPath",
+                        "CoordinateReferenceEnabled", "CoordinateSystemName", "EPSGCode", "RotationToNorthDegrees",
+                        "LocalReferencePoint", "SurveyReferencePoint"
                     }));
                 }
 
@@ -515,8 +641,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     healthLabel,
                     finalResult.Positions.Count.ToString(),
                     GAProfiler.GreedySetCoverIterationCount.ToString(),
-                    input.Settings.PopulationSize.ToString(),
-                    input.Settings.MaxGenerations.ToString(),
+                    (input.Settings?.PopulationSize ?? 0).ToString(),
+                    (input.Settings?.MaxGenerations ?? 0).ToString(),
                     GAProfiler.ActualGenerationLoopCount.ToString(),
                     gaTime,
                     assignmentTime,
@@ -532,7 +658,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     gc2,
                     Escape(logPath),
                     Escape(detailedPath),
-                    Escape(breakdownPath)
+                    Escape(breakdownPath),
+                    (_transformService?.IsEnabled ?? false).ToString(),
+                    Escape(_transformService?.CurrentReference?.CoordinateSystemName ?? "N/A"),
+                    Escape(_transformService?.CurrentReference?.EPSGCode ?? "N/A"),
+                    (_transformService?.CurrentReference?.RotationToNorthDegrees ?? 0.0).ToString("0.###", Invariant),
+                    Escape(_transformService != null && _transformService.IsEnabled ? $"({_transformService.CurrentReference.LocalReferenceX.ToString("0.###", Invariant)}; {_transformService.CurrentReference.LocalReferenceY.ToString("0.###", Invariant)}; {_transformService.CurrentReference.LocalReferenceZ.ToString("0.###", Invariant)})" : "N/A"),
+                    Escape(_transformService != null && _transformService.IsEnabled ? $"({_transformService.CurrentReference.SurveyEasting.ToString("0.###", Invariant)}; {_transformService.CurrentReference.SurveyNorthing.ToString("0.###", Invariant)}; {_transformService.CurrentReference.SurveyElevation.ToString("0.###", Invariant)})" : "N/A")
                 }));
             }
 
@@ -577,6 +709,16 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 return value;
 
             return $"\"{value.Replace("\"", "\"\"")}\"";
+        }
+
+        private string FormatSurveyIfEnabled(double x, double y, double z)
+        {
+            if (_transformService != null && _transformService.IsEnabled)
+            {
+                var survey = _transformService.LocalToSurvey(new DomainPoint3D(x, y, z));
+                return $"({survey.X.ToString("0.###", Invariant)}; {survey.Y.ToString("0.###", Invariant)}; {survey.Z.ToString("0.###", Invariant)})";
+            }
+            return "N/A";
         }
 
         private class ElementDiagnosticRow
