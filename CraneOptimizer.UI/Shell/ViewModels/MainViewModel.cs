@@ -38,6 +38,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly IUnitSettingsService _unitSettings;
         private readonly CraneVisualBuilder _craneVisualBuilder;
         private readonly IProjectStateService _projectStateService;
+        private readonly IProjectCoordinateTransformService _transformService;
 
         private Crane? _selectedCrane;
         private bool _disposed;
@@ -70,7 +71,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IUnitSettingsService unitSettings,
             CraneVisualBuilder craneVisualBuilder,
             IProjectStateService projectStateService,
-            SelectionViewModel selection)
+            SelectionViewModel selection,
+            CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel coordinateReference,
+            IProjectCoordinateTransformService transformService)
         {
             Scene = scene;
             Drawing = drawing;
@@ -78,6 +81,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IfcViewer = ifcViewer;
             Dxf = dxf;
             Selection = selection;
+            CoordinateReference = coordinateReference;
+            _transformService = transformService;
             CraneSetup = craneSetup;
             ElementManagement = elementManagement;
             CraneManager = craneManager;
@@ -94,6 +99,11 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _unitSettings = unitSettings;
             _craneVisualBuilder = craneVisualBuilder;
             _projectStateService = projectStateService;
+
+            _transformService.ReferenceChanged += (s, e) =>
+            {
+                // Force update on coordinates display if we had active coordinates
+            };
 
             _status.StatusChanged += OnStatusChanged;
             _status.HistoryChanged += OnHistoryChanged;
@@ -155,6 +165,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         public IfcViewerViewModel IfcViewer { get; }
         public DxfTabViewModel Dxf { get; }
         public SelectionViewModel Selection { get; }
+        public CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel CoordinateReference { get; }
 
         public ICommand StartDrawingCommand { get; }
         public ICommand OptimizeCommand { get; }
@@ -486,8 +497,18 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         public void SetCoordinates(double x, double y)
         {
             var settings = _unitSettings.Current;
-            CoordX = UnitSystem.FormatLength(x, settings);
-            CoordY = UnitSystem.FormatLength(y, settings);
+            if (_transformService != null && _transformService.IsEnabled)
+            {
+                var localPt = new DomainPoint3D(x, y, 0.0);
+                var surveyPt = _transformService.LocalToSurvey(localPt);
+                CoordX = $"{UnitSystem.FormatLength(x, settings)} (E: {surveyPt.X:F3}m)";
+                CoordY = $"{UnitSystem.FormatLength(y, settings)} (N: {surveyPt.Y:F3}m)";
+            }
+            else
+            {
+                CoordX = UnitSystem.FormatLength(x, settings);
+                CoordY = UnitSystem.FormatLength(y, settings);
+            }
         }
 
         private void OnStatusChanged() => OnPropertyChanged(nameof(StatusText));

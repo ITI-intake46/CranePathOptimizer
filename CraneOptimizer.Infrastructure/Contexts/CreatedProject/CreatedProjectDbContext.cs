@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.CreatedProject;
+using CraneOptimizer.Domain.CreatedProject;
 using CraneOptimizer.Domain.CreatedProject.CraneFiles;
 using CraneOptimizer.Domain.CreatedProject.IfcFiles;
 using CraneOptimizer.Domain.CreatedProject.OptimizationFiles;
@@ -24,6 +24,7 @@ namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject
         public DbSet<ProjectCraneSnapshotEntity> CraneSnapshots => Set<ProjectCraneSnapshotEntity>();
         public DbSet<ProjectCraneLoadChartSnapshotEntity> CraneLoadChartSnapshots => Set<ProjectCraneLoadChartSnapshotEntity>();
         public DbSet<ProjectOptimizationRunEntity> OptimizationRuns => Set<ProjectOptimizationRunEntity>();
+        // public DbSet<ProjectCoordinateReferenceEntity> CoordinateReferences => Set<ProjectCoordinateReferenceEntity>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -31,6 +32,7 @@ namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject
             modelBuilder.Ignore<ProjectSettingEntity>();
             modelBuilder.Ignore<ProjectGeometryCacheEntity>();
             modelBuilder.Ignore<ProjectOptimizationElementResultEntity>();
+            modelBuilder.Ignore<ProjectCoordinateReferenceEntity>();
 
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(CreatedProjectDbContext).Assembly);
         }
