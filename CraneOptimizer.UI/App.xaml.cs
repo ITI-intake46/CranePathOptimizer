@@ -51,6 +51,9 @@ namespace CraneOptimizer.UI
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            // Initialize transitional static holder
+            ZoneGeometryServiceHolder.Instance = new CraneOptimizer.Domain.Services.ZoneGeometryService();
+
             // Global exception handlers
             DispatcherUnhandledException += OnDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
@@ -117,6 +120,7 @@ namespace CraneOptimizer.UI
             // =========================
             // Scene
             // =========================
+            services.AddSingleton<IZoneGeometryService, CraneOptimizer.Domain.Services.ZoneGeometryService>();
             services.AddSingleton<SceneService>();
             services.AddSingleton<DrawingService>();
             services.AddSingleton<CoordinateService>();
