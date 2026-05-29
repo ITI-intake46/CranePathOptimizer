@@ -21,6 +21,7 @@ namespace CraneOptimizer.Application.Tests
 {
     public class ViewportSelectionTests
     {
+#if DEBUG
         static ViewportSelectionTests()
         {
             SelectionHandler.TestProjectHook = (viewport, point) =>
@@ -49,6 +50,7 @@ namespace CraneOptimizer.Application.Tests
                 return new Point(screenX, screenY);
             };
         }
+#endif
 
         private class TestSceneService : ISceneService
         {

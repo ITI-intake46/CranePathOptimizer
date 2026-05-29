@@ -11,6 +11,8 @@ using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using System.Windows.Shapes;
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("CraneOptimizer.Application.Tests")]
+
 namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
 {
     /// <summary>
@@ -20,7 +22,10 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
     /// </summary>
     public sealed class SelectionHandler : IInteractionMode, IDisposable
     {
-        public static System.Func<HelixViewport3D, Point3D, Point>? TestProjectHook { get; set; }
+#if DEBUG
+        // Testing-only hook for headless projection tests. Do not use in runtime.
+        internal static System.Func<HelixViewport3D, Point3D, Point>? TestProjectHook { get; set; }
+#endif
 
         public enum BoxSelectionMode { BoundsOnly, MeshProxy }
         public static BoxSelectionMode SelectionPrecision { get; set; } = BoxSelectionMode.MeshProxy;
@@ -981,11 +986,13 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
                 Point screenPoint;
                 try
                 {
+#if DEBUG
                     if (TestProjectHook != null)
                     {
                         screenPoint = TestProjectHook(viewport, worldPoint);
                     }
                     else
+#endif
                     {
                         var wpfPoint = Viewport3DHelper.Point3DtoPoint2D(viewport.Viewport, worldPoint);
                         // Explicit coordinate space translation using SafeTranslatePoint helper
@@ -1228,11 +1235,13 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             Point screenPoint;
             try
             {
+#if DEBUG
                 if (TestProjectHook != null)
                 {
                     screenPoint = TestProjectHook(viewport, worldPoint);
                 }
                 else
+#endif
                 {
                     var wpfPoint = Viewport3DHelper.Point3DtoPoint2D(viewport.Viewport, worldPoint);
                     screenPoint = SafeTranslatePoint(viewport.Viewport, wpfPoint, viewport);
