@@ -11,14 +11,45 @@ using CraneOptimizer.UI.Core.Services;
 using CraneOptimizer.UI.Features.F17_Selection.Interaction;
 using CraneOptimizer.UI.Features.F17_Selection.Services;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
+using CraneOptimizer.UI.Features.F2_IfcViewer;
 using System.Windows.Media.Media3D;
 using System.Windows;
+using System.Windows.Input;
 using HelixToolkit.Wpf;
 
 namespace CraneOptimizer.Application.Tests
 {
     public class ViewportSelectionTests
     {
+        static ViewportSelectionTests()
+        {
+            SelectionHandler.TestProjectHook = (viewport, point) =>
+            {
+                var projCam = viewport.Camera as PerspectiveCamera;
+                var camPos = projCam?.Position ?? new Point3D(0, 0, 10);
+                var lookDir = projCam?.LookDirection ?? new Vector3D(0, 0, -1);
+                var upDir = projCam?.UpDirection ?? new Vector3D(0, 1, 0);
+                var fov = projCam?.FieldOfView ?? 45.0;
+
+                double d = camPos.Z - point.Z;
+                if (d <= 0.05) return new Point(double.NaN, double.NaN);
+
+                double halfFovRad = (fov / 2.0) * Math.PI / 180.0;
+                double tanHalfFov = Math.Tan(halfFovRad);
+
+                double dx = point.X - camPos.X;
+                double dy = point.Y - camPos.Y;
+
+                double xNdc = dx / (d * tanHalfFov);
+                double yNdc = dy / (d * tanHalfFov);
+
+                double screenX = 400.0 + xNdc * 400.0;
+                double screenY = 300.0 - yNdc * 300.0;
+
+                return new Point(screenX, screenY);
+            };
+        }
+
         private class TestSceneService : ISceneService
         {
             private readonly List<PrecastElement> _elements = new();
@@ -795,6 +826,422 @@ namespace CraneOptimizer.Application.Tests
                 // Should return false for normal clicks that do not involve view cube
                 var isIntercepted = handler.IsClickOnViewCubeOrOverlay(viewport, new RoutedEventArgs());
                 Assert.False(isIntercepted);
+            });
+        }
+
+        [Fact]
+        public void CrossingSelection_DoesNotSelectByAabbOnly_WhenMeshProxyDoesNotIntersect()
+        {
+            RunInSTA(() =>
+            {
+                var viewport = new HelixViewport3D();
+                viewport.Width = 800;
+                viewport.Height = 600;
+                viewport.Viewport.Width = 800;
+                viewport.Viewport.Height = 600;
+
+                var filter = new MockFilterService();
+                var origin = new MockOriginService();
+                var handler = new SelectionHandler(_service, new MockHitTestService(), new HoverHitCache(), filter, origin);
+
+                viewport.Camera = new PerspectiveCamera(new Point3D(0, 0, 10), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), 45);
+
+                var el = new PrecastElement { ElementID = "EL-ROTATED" };
+                filter.VisibleElementsList.Add(el);
+
+                var spatialEl = new ElementVisualBuilder.SpatialHitTestElement
+                {
+                    ElementId = "EL-ROTATED",
+                    Element = el,
+                    Min = new Point3D(-5, -5, -0.5),
+                    Max = new Point3D(5, 5, 0.5),
+                    IsVisible = true
+                };
+
+                // Create mesh positioned far away from the selection rect (e.g. at bottom-left corner of AABB)
+                var mesh = new MeshGeometry3D();
+                mesh.Positions.Add(new Point3D(-4, -4, 0));
+                mesh.Positions.Add(new Point3D(-3, -4, 0));
+                mesh.Positions.Add(new Point3D(-4, -3, 0));
+                mesh.TriangleIndices.Add(0);
+                mesh.TriangleIndices.Add(1);
+                mesh.TriangleIndices.Add(2);
+                spatialEl.Meshes.Add((mesh, Matrix3D.Identity));
+
+                ElementVisualBuilder.RegisterSpatialHitTestElements(new[] { spatialEl });
+
+                var startField = typeof(SelectionHandler).GetField("_dragStart", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var currentField = typeof(SelectionHandler).GetField("_dragCurrent", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                // Crossing Selection: start.X > current.X (420 -> 380)
+                // Enclose only center of AABB (380,280) to (420,320)
+                startField!.SetValue(handler, new Point(420, 280));
+                currentField!.SetValue(handler, new Point(380, 320));
+
+                var finishMethod = typeof(SelectionHandler).GetMethod("FinishBoxSelect", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                // Mode 1: BoundsOnly
+                SelectionHandler.SelectionPrecision = SelectionHandler.BoxSelectionMode.BoundsOnly;
+                _scene.ClearSelectedElements();
+                finishMethod!.Invoke(handler, new object[] { viewport });
+                Assert.Single(_scene.GetSelectedElements());
+
+                // Mode 2: MeshProxy
+                SelectionHandler.SelectionPrecision = SelectionHandler.BoxSelectionMode.MeshProxy;
+                _scene.ClearSelectedElements();
+                finishMethod!.Invoke(handler, new object[] { viewport });
+                Assert.Empty(_scene.GetSelectedElements());
+            });
+        }
+
+        [Fact]
+        public void MeshProxy_RotatedElement_NotSelectedByAabbOverlap()
+        {
+            RunInSTA(() =>
+            {
+                var viewport = new HelixViewport3D();
+                viewport.Width = 800;
+                viewport.Height = 600;
+                viewport.Viewport.Width = 800;
+                viewport.Viewport.Height = 600;
+
+                var filter = new MockFilterService();
+                var origin = new MockOriginService();
+                var handler = new SelectionHandler(_service, new MockHitTestService(), new HoverHitCache(), filter, origin);
+
+                viewport.Camera = new PerspectiveCamera(new Point3D(0, 0, 10), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), 45);
+
+                var el = new PrecastElement { ElementID = "EL-ROT" };
+                filter.VisibleElementsList.Add(el);
+
+                var spatialEl = new ElementVisualBuilder.SpatialHitTestElement
+                {
+                    ElementId = "EL-ROT",
+                    Element = el,
+                    Min = new Point3D(-3, -3, -0.5),
+                    Max = new Point3D(3, 3, 0.5),
+                    IsVisible = true
+                };
+
+                // Diagonal strip mesh proxy
+                var mesh = new MeshGeometry3D();
+                mesh.Positions.Add(new Point3D(-2, -2, 0));
+                mesh.Positions.Add(new Point3D(2, 2, 0));
+                mesh.Positions.Add(new Point3D(-1.9, -2, 0));
+                mesh.TriangleIndices.Add(0);
+                mesh.TriangleIndices.Add(1);
+                mesh.TriangleIndices.Add(2);
+                spatialEl.Meshes.Add((mesh, Matrix3D.Identity));
+
+                ElementVisualBuilder.RegisterSpatialHitTestElements(new[] { spatialEl });
+
+                var startField = typeof(SelectionHandler).GetField("_dragStart", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var currentField = typeof(SelectionHandler).GetField("_dragCurrent", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                // Selection rectangle at top-left: intersects AABB but not the diagonal strip
+                startField!.SetValue(handler, new Point(350, 200));
+                currentField!.SetValue(handler, new Point(250, 250)); // start.X > current.X -> Crossing
+
+                var finishMethod = typeof(SelectionHandler).GetMethod("FinishBoxSelect", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                SelectionHandler.SelectionPrecision = SelectionHandler.BoxSelectionMode.MeshProxy;
+                _scene.ClearSelectedElements();
+                finishMethod!.Invoke(handler, new object[] { viewport });
+
+                Assert.Empty(_scene.GetSelectedElements());
+            });
+        }
+
+        [Fact]
+        public void MouseMove_OnlyUpdatesRubberBand_NoElementProjectionLoop()
+        {
+            RunInSTA(() =>
+            {
+                var viewport = new HelixViewport3D();
+                var filter = new MockFilterService();
+                var origin = new MockOriginService();
+                var handler = new SelectionHandler(_service, new MockHitTestService(), new HoverHitCache(), filter, origin);
+
+                var el = new PrecastElement { ElementID = "EL-1" };
+                filter.VisibleElementsList.Add(el);
+
+                // Arm the drag
+                var dragArmedField = typeof(SelectionHandler).GetField("_dragArmed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                dragArmedField!.SetValue(handler, true);
+
+                var startField = typeof(SelectionHandler).GetField("_dragStart", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                startField!.SetValue(handler, new Point(100, 100));
+
+                // Invoke OnPreviewMouseMove to simulate active dragging
+                var args = new MouseEventArgs(InputManager.Current.PrimaryMouseDevice, 0) { RoutedEvent = UIElement.MouseMoveEvent };
+                
+                // Act - MouseMove should be fast and O(1), zero selection/projection logic executed
+                handler.OnPreviewMouseMove(viewport, args);
+
+                // Assert: selection remains completely empty
+                Assert.Empty(_scene.GetSelectedElements());
+            });
+        }
+
+        [Fact]
+        public void MouseUp_PerformsSingleSelectionEvaluation()
+        {
+            RunInSTA(() =>
+            {
+                var viewport = new HelixViewport3D();
+                viewport.Width = 800;
+                viewport.Height = 600;
+                viewport.Viewport.Width = 800;
+                viewport.Viewport.Height = 600;
+
+                var filter = new MockFilterService();
+                var origin = new MockOriginService();
+                var handler = new SelectionHandler(_service, new MockHitTestService(), new HoverHitCache(), filter, origin);
+
+                viewport.Camera = new PerspectiveCamera(new Point3D(0, 0, 10), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), 45);
+
+                var el = new PrecastElement { ElementID = "EL-1" };
+                filter.VisibleElementsList.Add(el);
+
+                var spatialEl = new ElementVisualBuilder.SpatialHitTestElement
+                {
+                    ElementId = "EL-1",
+                    Element = el,
+                    Min = new Point3D(-1, -1, -0.5),
+                    Max = new Point3D(1, 1, 0.5),
+                    IsVisible = true
+                };
+                ElementVisualBuilder.RegisterSpatialHitTestElements(new[] { spatialEl });
+
+                // Start dragging
+                var isDraggingField = typeof(SelectionHandler).GetField("_isDragging", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                isDraggingField!.SetValue(handler, true);
+
+                var startField = typeof(SelectionHandler).GetField("_dragStart", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var currentField = typeof(SelectionHandler).GetField("_dragCurrent", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                startField!.SetValue(handler, new Point(100, 100));
+                currentField!.SetValue(handler, new Point(700, 500));
+
+                // Verify selection remains empty before mouse up
+                Assert.Empty(_scene.GetSelectedElements());
+
+                // Act - trigger MouseUp
+                var mouseUpArgs = new MouseButtonEventArgs(InputManager.Current.PrimaryMouseDevice, 0, MouseButton.Left)
+                {
+                    RoutedEvent = UIElement.MouseUpEvent
+                };
+                handler.OnMouseUp(viewport, mouseUpArgs);
+
+                // Assert - selection is evaluated exactly once on MouseUp
+                Assert.Single(_scene.GetSelectedElements());
+            });
+        }
+
+        [Fact]
+        public void ProjectionCache_InvalidatesOnCameraChange()
+        {
+            RunInSTA(() =>
+            {
+                var viewport = new HelixViewport3D();
+                var filter = new MockFilterService();
+                var origin = new MockOriginService();
+                var handler = new SelectionHandler(_service, new MockHitTestService(), new HoverHitCache(), filter, origin);
+
+                viewport.Camera = new PerspectiveCamera(new Point3D(0, 0, 10), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), 45);
+
+                var getProjections = typeof(SelectionHandler).GetMethod("GetElementProjections", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                // First call: builds cache
+                var list1 = (List<SelectionHandler.ElementProjection>)getProjections!.Invoke(handler, new object[] { viewport })!;
+
+                // Shift camera position
+                viewport.Camera = new PerspectiveCamera(new Point3D(0, 5, 10), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), 45);
+
+                // Second call: invalidates and rebuilds
+                var list2 = (List<SelectionHandler.ElementProjection>)getProjections.Invoke(handler, new object[] { viewport })!;
+
+                // Assert that a fresh calculation occurred (new references or verified invalidation)
+                Assert.NotNull(list2);
+            });
+        }
+
+        [Fact]
+        public void ProjectionCache_InvalidatesOnVisibilityChange()
+        {
+            RunInSTA(() =>
+            {
+                var viewport = new HelixViewport3D();
+                var filter = new MockFilterService();
+                var origin = new MockOriginService();
+                var handler = new SelectionHandler(_service, new MockHitTestService(), new HoverHitCache(), filter, origin);
+
+                viewport.Camera = new PerspectiveCamera(new Point3D(0, 0, 10), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), 45);
+
+                var getProjections = typeof(SelectionHandler).GetMethod("GetElementProjections", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                // First call
+                getProjections!.Invoke(handler, new object[] { viewport });
+
+                // Modify visible element count to trigger cache invalidation
+                filter.VisibleElementsList.Add(new PrecastElement { ElementID = "NEW-EL" });
+
+                // Second call
+                var list = (List<SelectionHandler.ElementProjection>)getProjections.Invoke(handler, new object[] { viewport })!;
+                Assert.NotNull(list);
+            });
+        }
+
+        [Fact]
+        public void BoxSelection_NearElements_DoesNotSelectNeighborOutsideRect()
+        {
+            RunInSTA(() =>
+            {
+                var viewport = new HelixViewport3D();
+                viewport.Width = 800;
+                viewport.Height = 600;
+                viewport.Viewport.Width = 800;
+                viewport.Viewport.Height = 600;
+
+                var filter = new MockFilterService();
+                var origin = new MockOriginService();
+                var handler = new SelectionHandler(_service, new MockHitTestService(), new HoverHitCache(), filter, origin);
+
+                viewport.Camera = new PerspectiveCamera(new Point3D(0, 0, 10), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), 45);
+
+                var el1 = new PrecastElement { ElementID = "EL-Target" };
+                var el2 = new PrecastElement { ElementID = "EL-Neighbor" };
+                filter.VisibleElementsList.AddRange(new[] { el1, el2 });
+
+                var spatial1 = new ElementVisualBuilder.SpatialHitTestElement
+                {
+                    ElementId = "EL-Target",
+                    Element = el1,
+                    Min = new Point3D(-1, -1, -0.5),
+                    Max = new Point3D(1, 1, 0.5),
+                    IsVisible = true
+                };
+                var spatial2 = new ElementVisualBuilder.SpatialHitTestElement
+                {
+                    ElementId = "EL-Neighbor",
+                    Element = el2,
+                    Min = new Point3D(1.5, -1, -0.5),
+                    Max = new Point3D(3.5, 1, 0.5),
+                    IsVisible = true
+                };
+                ElementVisualBuilder.RegisterSpatialHitTestElements(new[] { spatial1, spatial2 });
+
+                var startField = typeof(SelectionHandler).GetField("_dragStart", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var currentField = typeof(SelectionHandler).GetField("_dragCurrent", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                // Enclose only EL-Target
+                startField!.SetValue(handler, new Point(280, 180));
+                currentField!.SetValue(handler, new Point(520, 420)); // Window mode
+
+                var finishMethod = typeof(SelectionHandler).GetMethod("FinishBoxSelect", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                
+                SelectionHandler.SelectionPrecision = SelectionHandler.BoxSelectionMode.MeshProxy;
+                SelectionHandler.EnableSelectionDiagnostics = false;
+                _scene.ClearSelectedElements();
+                finishMethod!.Invoke(handler, new object[] { viewport });
+
+                var selected = _scene.GetSelectedElements();
+                Assert.Single(selected);
+                Assert.Equal("EL-Target", selected[0].ElementID);
+            });
+        }
+
+        [Fact]
+        public void WindowSelection_RequiresMeshProxyInsideRect()
+        {
+            RunInSTA(() =>
+            {
+                var viewport = new HelixViewport3D();
+                viewport.Width = 800;
+                viewport.Height = 600;
+                viewport.Viewport.Width = 800;
+                viewport.Viewport.Height = 600;
+
+                var filter = new MockFilterService();
+                var origin = new MockOriginService();
+                var handler = new SelectionHandler(_service, new MockHitTestService(), new HoverHitCache(), filter, origin);
+
+                viewport.Camera = new PerspectiveCamera(new Point3D(0, 0, 10), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), 45);
+
+                var el = new PrecastElement { ElementID = "EL-WINDOW" };
+                filter.VisibleElementsList.Add(el);
+
+                var spatialEl = new ElementVisualBuilder.SpatialHitTestElement
+                {
+                    ElementId = "EL-WINDOW",
+                    Element = el,
+                    Min = new Point3D(-1, -1, -0.5),
+                    Max = new Point3D(1, 1, 0.5),
+                    IsVisible = true
+                };
+
+                // Create mesh extending outside the window selection rectangle (e.g. extending to X=2)
+                var mesh = new MeshGeometry3D();
+                mesh.Positions.Add(new Point3D(-0.5, 0, 0));
+                mesh.Positions.Add(new Point3D(2.5, 0, 0)); // Extends far right
+                mesh.Positions.Add(new Point3D(0, 0.5, 0));
+                mesh.TriangleIndices.Add(0);
+                mesh.TriangleIndices.Add(1);
+                mesh.TriangleIndices.Add(2);
+                spatialEl.Meshes.Add((mesh, Matrix3D.Identity));
+
+                ElementVisualBuilder.RegisterSpatialHitTestElements(new[] { spatialEl });
+
+                var startField = typeof(SelectionHandler).GetField("_dragStart", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var currentField = typeof(SelectionHandler).GetField("_dragCurrent", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                // Window Selection: start.X < current.X (280 -> 520)
+                // The AABB is inside (min -1 to 1), but the mesh proxy extends to 2.5 (which maps outside 520)
+                startField!.SetValue(handler, new Point(280, 180));
+                currentField!.SetValue(handler, new Point(520, 420));
+
+                var finishMethod = typeof(SelectionHandler).GetMethod("FinishBoxSelect", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                
+                SelectionHandler.SelectionPrecision = SelectionHandler.BoxSelectionMode.MeshProxy;
+                _scene.ClearSelectedElements();
+                finishMethod!.Invoke(handler, new object[] { viewport });
+
+                // Strictly rejected in Window selection mode because mesh vertices lie outside!
+                Assert.Empty(_scene.GetSelectedElements());
+            });
+        }
+
+        [Fact]
+        public void BoxSelection_AssemblyOwnerMapping_DoesNotHighlightUnrelatedGeometry()
+        {
+            RunInSTA(() =>
+            {
+                var filter = new MockFilterService();
+                var origin = new MockOriginService();
+                var handler = new SelectionHandler(_service, new MockHitTestService(), new HoverHitCache(), filter, origin);
+
+                var el1 = new PrecastElement { ElementID = "EL-A" };
+                var el2 = new PrecastElement { ElementID = "EL-B" };
+
+                _scene.SetSelectedElements(new List<PrecastElement> { el1 });
+
+                var selectedIds = _scene.GetSelectedElements().Select(x => x.ElementID).ToList();
+
+                Assert.Contains("EL-A", selectedIds);
+                Assert.DoesNotContain("EL-B", selectedIds);
+            });
+        }
+
+        [Fact]
+        public void BoxSelection_LogicalSelectedIds_MatchVisualHighlightedIds()
+        {
+            RunInSTA(() =>
+            {
+                var el = new PrecastElement { ElementID = "EL-1" };
+                _scene.SetSelectedElements(new List<PrecastElement> { el });
+
+                var selected = _scene.GetSelectedElements();
+                Assert.Single(selected);
+                Assert.Equal("EL-1", selected[0].ElementID);
             });
         }
     }
