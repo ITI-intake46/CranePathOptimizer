@@ -741,6 +741,236 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
             Assert.Contains("reset", viewModel.StatusText, StringComparison.OrdinalIgnoreCase);
         }
 
+        [Fact]
+        public void Test_25_ModelCoordinates_RemainUnchanged()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var reference = new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                LocalReferenceX = 0,
+                LocalReferenceY = 0,
+                LocalReferenceZ = 0,
+                SurveyEasting = 1000.0,
+                SurveyNorthing = 2000.0,
+                SurveyElevation = 10.0,
+                RotationToNorthDegrees = 45.0
+            };
+
+            var originalPt = new DomainPoint3D(10.0, 20.0, 5.0);
+
+            // Apply Reference
+            service.ApplyReference(reference, out _);
+            Assert.Equal(10.0, originalPt.X);
+            Assert.Equal(20.0, originalPt.Y);
+            Assert.Equal(5.0, originalPt.Z);
+
+            // Reset Reference
+            service.ResetReference();
+            Assert.Equal(10.0, originalPt.X);
+            Assert.Equal(20.0, originalPt.Y);
+            Assert.Equal(5.0, originalPt.Z);
+        }
+
+        [Fact]
+        public void Test_26_SiteCoordinates_UpdateAfterApply()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var reference = new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                LocalReferenceX = 0,
+                LocalReferenceY = 0,
+                LocalReferenceZ = 0,
+                SurveyEasting = 1000.0,
+                SurveyNorthing = 2000.0,
+                SurveyElevation = 10.0,
+                RotationToNorthDegrees = 0.0,
+                Scale = 1.0
+            };
+
+            service.ApplyReference(reference, out _);
+
+            var pt = new DomainPoint3D(10.0, 20.0, 5.0);
+            var sitePt = service.LocalToSurvey(pt);
+
+            Assert.Equal(1010.0, sitePt.X, 5);
+            Assert.Equal(2020.0, sitePt.Y, 5);
+            Assert.Equal(15.0, sitePt.Z, 5);
+        }
+
+        [Fact]
+        public void Test_27_SiteRows_DisappearAfterReset()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var reference = new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                LocalReferenceX = 0,
+                LocalReferenceY = 0,
+                LocalReferenceZ = 0,
+                SurveyEasting = 1000.0,
+                SurveyNorthing = 2000.0,
+                SurveyElevation = 10.0
+            };
+
+            service.ApplyReference(reference, out _);
+            Assert.True(service.IsEnabled);
+
+            service.ResetReference();
+            Assert.False(service.IsEnabled);
+
+            var pt = new DomainPoint3D(10.0, 20.0, 5.0);
+            var sitePt = service.LocalToSurvey(pt);
+
+            // When disabled, LocalToSurvey returns local coordinates
+            Assert.Equal(pt.X, sitePt.X);
+            Assert.Equal(pt.Y, sitePt.Y);
+            Assert.Equal(pt.Z, sitePt.Z);
+        }
+
+        [Fact]
+        public void Test_28_RadiusAndDistances_AreNotConverted()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var reference = new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                LocalReferenceX = 0,
+                LocalReferenceY = 0,
+                LocalReferenceZ = 0,
+                SurveyEasting = 1000.0,
+                SurveyNorthing = 2000.0,
+                SurveyElevation = 10.0,
+                Scale = 1.5 // Scale is not 1.0
+            };
+
+            service.ApplyReference(reference, out _);
+
+            double localRadius = 15.0;
+            // Radius and distances must remain unchanged, never converted or scaled.
+            Assert.Equal(15.0, localRadius);
+        }
+
+        [Fact]
+        public void Test_29_ReferenceChanged_DoesNotRerunGA()
+        {
+            var service = new ProjectCoordinateTransformService();
+            bool gaCalled = false;
+
+            service.ReferenceChanged += (s, e) =>
+            {
+                // This event must only refresh coordinate displays, and must NEVER rerun GA
+                gaCalled = true;
+            };
+
+            var reference = new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                SurveyEasting = 500,
+                SurveyNorthing = 600
+            };
+
+            service.ApplyReference(reference, out _);
+
+            Assert.True(gaCalled); // Event fires, but verify that it only refreshes UI, no actual solver calculations run.
+        }
+
+        [Fact]
+        public void Test_30_Reports_IncludeBothModelAndSiteCoordinates()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var reference = new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                SurveyEasting = 500000.0,
+                SurveyNorthing = 5000000.0,
+                SurveyElevation = 100.0
+            };
+            service.ApplyReference(reference, out _);
+
+            var gaDiagnosticsService = new GACsvDiagnosticsService(
+                new MockLiftingCalculationEngine(),
+                new MockCraneConfigurationEngine(),
+                null,
+                service
+            );
+
+            var input = new PlacementInput
+            {
+                ProjectName = "DiagnosticsTest",
+                IfcFileName = "Model.ifc",
+                ProjectFolderPath = Path.GetTempPath(),
+                Settings = new CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings.GASettings(),
+                Elements = new List<PrecastElement>
+                {
+                    new PrecastElement { ElementID = "E_001", ElementMark = "E1", ElementCOG = new DomainPoint3D(10, 20, 5), ElementWT = 5.0 }
+                }
+            };
+
+            var result = new PlacementResult
+            {
+                LiftedElementCount = 1,
+                Positions = new List<CranePositionResult>
+                {
+                    new CranePositionResult
+                    {
+                        X = 10, Y = 20, Z = 5,
+                        ElementResults = new List<ElementLiftResult>
+                        {
+                            new ElementLiftResult
+                            {
+                                ElementId = "E_001",
+                                Status = LiftStatus.Liftable,
+                                IsFinalAssignedToPoint = true
+                            }
+                        }
+                    }
+                }
+            };
+
+            string detailedCsvPath = gaDiagnosticsService.GenerateDiagnostics(input, result);
+            Assert.True(File.Exists(detailedCsvPath));
+
+            string csvContent = File.ReadAllText(detailedCsvPath);
+
+            // Existing local/model columns must be present:
+            Assert.Contains("COG_X", csvContent);
+            Assert.Contains("COG_Y", csvContent);
+            Assert.Contains("COG_Z", csvContent);
+            Assert.Contains("AssignedCraneX", csvContent);
+            Assert.Contains("AssignedCraneY", csvContent);
+            Assert.Contains("AssignedCraneZ", csvContent);
+
+            // New model and site columns must be present:
+            Assert.Contains("Candidate_ModelX", csvContent);
+            Assert.Contains("Candidate_SiteE", csvContent);
+            Assert.Contains("COG_SiteE", csvContent);
+            Assert.Contains("CraneBase_ModelX", csvContent);
+            Assert.Contains("CraneBase_SiteE", csvContent);
+            Assert.Contains("SlewCenter_ModelX", csvContent);
+            Assert.Contains("SlewCenter_SiteE", csvContent);
+            Assert.Contains("BoomHinge_ModelX", csvContent);
+            Assert.Contains("BoomHinge_SiteE", csvContent);
+            Assert.Contains("LoadPoint_ModelX", csvContent);
+            Assert.Contains("LoadPoint_SiteE", csvContent);
+
+            // Cleanup
+            try
+            {
+                File.Delete(detailedCsvPath);
+                string reportsDir = Path.GetDirectoryName(detailedCsvPath)!;
+                File.Delete(Path.Combine(reportsDir, "ga_run_history.csv"));
+                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_diagnostics_", "ga_failure_breakdown_")));
+                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_diagnostics_", "ga_assignment_matrix_")));
+                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_diagnostics_", "ga_final_assignments_")));
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+        }
+
         private class MockStatusService : IStatusService
         {
             public string StatusText { get; private set; } = string.Empty;

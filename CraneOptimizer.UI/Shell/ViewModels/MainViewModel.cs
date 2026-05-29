@@ -100,10 +100,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _craneVisualBuilder = craneVisualBuilder;
             _projectStateService = projectStateService;
 
-            _transformService.ReferenceChanged += (s, e) =>
-            {
-                // Force update on coordinates display if we had active coordinates
-            };
+            _transformService.ReferenceChanged += OnReferenceChanged;
 
             _status.StatusChanged += OnStatusChanged;
             _status.HistoryChanged += OnHistoryChanged;
@@ -494,20 +491,37 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             }
         }
 
+        private double _lastCoordinateX;
+        private double _lastCoordinateY;
+        private bool _hasCoordinate;
+
+        private void OnReferenceChanged(object? sender, EventArgs e)
+        {
+            if (_hasCoordinate)
+            {
+                SetCoordinates(_lastCoordinateX, _lastCoordinateY);
+            }
+        }
+
         public void SetCoordinates(double x, double y)
         {
+            _lastCoordinateX = x;
+            _lastCoordinateY = y;
+            _hasCoordinate = true;
+
             var settings = _unitSettings.Current;
+            var zVal = 0.0; // ground/plane Z clearly shown as 0.0 as requested
             if (_transformService != null && _transformService.IsEnabled)
             {
-                var localPt = new DomainPoint3D(x, y, 0.0);
+                var localPt = new DomainPoint3D(x, y, zVal);
                 var surveyPt = _transformService.LocalToSurvey(localPt);
                 CoordX = $"{UnitSystem.FormatLength(x, settings)} (E: {surveyPt.X:F3}m)";
-                CoordY = $"{UnitSystem.FormatLength(y, settings)} (N: {surveyPt.Y:F3}m)";
+                CoordY = $"{UnitSystem.FormatLength(y, settings)} (N: {surveyPt.Y:F3}m) [Z: {UnitSystem.FormatLength(zVal, settings)} / H: {surveyPt.Z:F3}m Ground]";
             }
             else
             {
                 CoordX = UnitSystem.FormatLength(x, settings);
-                CoordY = UnitSystem.FormatLength(y, settings);
+                CoordY = $"{UnitSystem.FormatLength(y, settings)} [Z: {UnitSystem.FormatLength(zVal, settings)} Ground]";
             }
         }
 

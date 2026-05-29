@@ -254,11 +254,50 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     "DuplicateAssignmentResolved", "FeasiblePointIds", "FinalOwnerPointId", "IsFinalAssigned",
                     "BestFailedPointId", "BestFailureReason",
                     "HasBestFailedCandidate", "BestFailedLiftStatus", "BestFailedReachStatus", "BestFailedChartStatus",
-                    "BestFailedSafetyMargin", "BestFailedRequiredRadius", "BestFailedRequiredBoomLength"
+                    "BestFailedSafetyMargin", "BestFailedRequiredRadius", "BestFailedRequiredBoomLength",
+                    "Candidate_ModelX", "Candidate_ModelY", "Candidate_ModelZ",
+                    "Candidate_SiteE", "Candidate_SiteN", "Candidate_SiteH",
+                    "COG_SiteE", "COG_SiteN", "COG_SiteH",
+                    "CraneBase_ModelX", "CraneBase_ModelY", "CraneBase_ModelZ",
+                    "CraneBase_SiteE", "CraneBase_SiteN", "CraneBase_SiteH",
+                    "SlewCenter_ModelX", "SlewCenter_ModelY", "SlewCenter_ModelZ",
+                    "SlewCenter_SiteE", "SlewCenter_SiteN", "SlewCenter_SiteH",
+                    "BoomHinge_ModelX", "BoomHinge_ModelY", "BoomHinge_ModelZ",
+                    "BoomHinge_SiteE", "BoomHinge_SiteN", "BoomHinge_SiteH",
+                    "LoadPoint_ModelX", "LoadPoint_ModelY", "LoadPoint_ModelZ",
+                    "LoadPoint_SiteE", "LoadPoint_SiteN", "LoadPoint_SiteH",
+                    "COG_ModelX", "COG_ModelY", "COG_ModelZ",
+                    "COG_AfterSurveyEasting", "COG_AfterSurveyNorthing", "COG_AfterSurveyElevation",
+                    "Candidate_AfterSurveyEasting", "Candidate_AfterSurveyNorthing", "Candidate_AfterSurveyElevation",
+                    "CraneBase_AfterSurveyEasting", "CraneBase_AfterSurveyNorthing", "CraneBase_AfterSurveyElevation",
+                    "SlewCenter_AfterSurveyEasting", "SlewCenter_AfterSurveyNorthing", "SlewCenter_AfterSurveyElevation",
+                    "BoomHinge_AfterSurveyEasting", "BoomHinge_AfterSurveyNorthing", "BoomHinge_AfterSurveyElevation",
+                    "LoadPoint_AfterSurveyEasting", "LoadPoint_AfterSurveyNorthing", "LoadPoint_AfterSurveyElevation",
+                    "SiteReferenceEnabled", "SiteOriginEasting", "SiteOriginNorthing", "SiteOriginElevation", "RotationToNorthDegrees"
                 }));
 
                 foreach (var row in detailedRows)
                 {
+                    var isEnabled = _transformService != null && _transformService.IsEnabled;
+                    
+                    var candPt = new DomainPoint3D(row.AssignedCraneX, row.AssignedCraneY, row.AssignedCraneZ);
+                    var candSite = isEnabled && row.AssignedSetupIndex >= 0 ? _transformService!.LocalToSurvey(candPt) : (DomainPoint3D?)null;
+
+                    var cogPt = new DomainPoint3D(row.CogX, row.CogY, row.CogZ);
+                    var cogSite = isEnabled ? _transformService!.LocalToSurvey(cogPt) : (DomainPoint3D?)null;
+
+                    var basePt = new DomainPoint3D(row.CraneBaseX, row.CraneBaseY, row.CraneBaseZ);
+                    var baseSite = isEnabled ? _transformService!.LocalToSurvey(basePt) : (DomainPoint3D?)null;
+
+                    var slewPt = new DomainPoint3D(row.SlewCenterX, row.SlewCenterY, row.SlewCenterZ);
+                    var slewSite = isEnabled ? _transformService!.LocalToSurvey(slewPt) : (DomainPoint3D?)null;
+
+                    var hingePt = new DomainPoint3D(row.BoomHingeX, row.BoomHingeY, row.BoomHingeZ);
+                    var hingeSite = isEnabled ? _transformService!.LocalToSurvey(hingePt) : (DomainPoint3D?)null;
+
+                    var loadPt = new DomainPoint3D(row.LoadPointX, row.LoadPointY, row.LoadPointZ);
+                    var loadSite = isEnabled ? _transformService!.LocalToSurvey(loadPt) : (DomainPoint3D?)null;
+
                     writer.WriteLine(string.Join(",", new[]
                     {
                         row.Timestamp,
@@ -329,7 +368,66 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         Escape(row.BestFailedChartStatus),
                         row.BestFailedSafetyMargin.ToString("0.###", Invariant),
                         row.BestFailedRequiredRadius.ToString("0.###", Invariant),
-                        row.BestFailedRequiredBoomLength.ToString("0.###", Invariant)
+                        row.BestFailedRequiredBoomLength.ToString("0.###", Invariant),
+                        row.AssignedSetupIndex >= 0 ? row.AssignedCraneX.ToString("0.###", Invariant) : "N/A",
+                        row.AssignedSetupIndex >= 0 ? row.AssignedCraneY.ToString("0.###", Invariant) : "N/A",
+                        row.AssignedSetupIndex >= 0 ? row.AssignedCraneZ.ToString("0.###", Invariant) : "N/A",
+                        candSite != null ? candSite.X.ToString("0.###", Invariant) : "N/A",
+                        candSite != null ? candSite.Y.ToString("0.###", Invariant) : "N/A",
+                        candSite != null ? candSite.Z.ToString("0.###", Invariant) : "N/A",
+                        cogSite != null ? cogSite.X.ToString("0.###", Invariant) : "N/A",
+                        cogSite != null ? cogSite.Y.ToString("0.###", Invariant) : "N/A",
+                        cogSite != null ? cogSite.Z.ToString("0.###", Invariant) : "N/A",
+                        row.CraneBaseX.ToString("0.###", Invariant),
+                        row.CraneBaseY.ToString("0.###", Invariant),
+                        row.CraneBaseZ.ToString("0.###", Invariant),
+                        baseSite != null ? baseSite.X.ToString("0.###", Invariant) : "N/A",
+                        baseSite != null ? baseSite.Y.ToString("0.###", Invariant) : "N/A",
+                        baseSite != null ? baseSite.Z.ToString("0.###", Invariant) : "N/A",
+                        row.SlewCenterX.ToString("0.###", Invariant),
+                        row.SlewCenterY.ToString("0.###", Invariant),
+                        row.SlewCenterZ.ToString("0.###", Invariant),
+                        slewSite != null ? slewSite.X.ToString("0.###", Invariant) : "N/A",
+                        slewSite != null ? slewSite.Y.ToString("0.###", Invariant) : "N/A",
+                        slewSite != null ? slewSite.Z.ToString("0.###", Invariant) : "N/A",
+                        row.BoomHingeX.ToString("0.###", Invariant),
+                        row.BoomHingeY.ToString("0.###", Invariant),
+                        row.BoomHingeZ.ToString("0.###", Invariant),
+                        hingeSite != null ? hingeSite.X.ToString("0.###", Invariant) : "N/A",
+                        hingeSite != null ? hingeSite.Y.ToString("0.###", Invariant) : "N/A",
+                        hingeSite != null ? hingeSite.Z.ToString("0.###", Invariant) : "N/A",
+                        row.LoadPointX.ToString("0.###", Invariant),
+                        row.LoadPointY.ToString("0.###", Invariant),
+                        row.LoadPointZ.ToString("0.###", Invariant),
+                        loadSite != null ? loadSite.X.ToString("0.###", Invariant) : "N/A",
+                        loadSite != null ? loadSite.Y.ToString("0.###", Invariant) : "N/A",
+                        loadSite != null ? loadSite.Z.ToString("0.###", Invariant) : "N/A",
+                        row.CogX.ToString("0.###", Invariant),
+                        row.CogY.ToString("0.###", Invariant),
+                        row.CogZ.ToString("0.###", Invariant),
+                        cogSite != null ? cogSite.X.ToString("0.###", Invariant) : "N/A",
+                        cogSite != null ? cogSite.Y.ToString("0.###", Invariant) : "N/A",
+                        cogSite != null ? cogSite.Z.ToString("0.###", Invariant) : "N/A",
+                        candSite != null ? candSite.X.ToString("0.###", Invariant) : "N/A",
+                        candSite != null ? candSite.Y.ToString("0.###", Invariant) : "N/A",
+                        candSite != null ? candSite.Z.ToString("0.###", Invariant) : "N/A",
+                        baseSite != null ? baseSite.X.ToString("0.###", Invariant) : "N/A",
+                        baseSite != null ? baseSite.Y.ToString("0.###", Invariant) : "N/A",
+                        baseSite != null ? baseSite.Z.ToString("0.###", Invariant) : "N/A",
+                        slewSite != null ? slewSite.X.ToString("0.###", Invariant) : "N/A",
+                        slewSite != null ? slewSite.Y.ToString("0.###", Invariant) : "N/A",
+                        slewSite != null ? slewSite.Z.ToString("0.###", Invariant) : "N/A",
+                        hingeSite != null ? hingeSite.X.ToString("0.###", Invariant) : "N/A",
+                        hingeSite != null ? hingeSite.Y.ToString("0.###", Invariant) : "N/A",
+                        hingeSite != null ? hingeSite.Z.ToString("0.###", Invariant) : "N/A",
+                        loadSite != null ? loadSite.X.ToString("0.###", Invariant) : "N/A",
+                        loadSite != null ? loadSite.Y.ToString("0.###", Invariant) : "N/A",
+                        loadSite != null ? loadSite.Z.ToString("0.###", Invariant) : "N/A",
+                        isEnabled.ToString().ToLower(),
+                        isEnabled ? _transformService!.CurrentReference.SurveyEasting.ToString("0.###", Invariant) : "N/A",
+                        isEnabled ? _transformService!.CurrentReference.SurveyNorthing.ToString("0.###", Invariant) : "N/A",
+                        isEnabled ? _transformService!.CurrentReference.SurveyElevation.ToString("0.###", Invariant) : "N/A",
+                        isEnabled ? _transformService!.CurrentReference.RotationToNorthDegrees.ToString("0.###", Invariant) : "N/A"
                     }));
                 }
             }

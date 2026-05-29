@@ -117,7 +117,7 @@
 
                 <F9Views:UserSettingsView x:Name="PanelSettings" Visibility="Collapsed" />
 
-                <F18Views:CoordinateReferenceView x:Name="PanelCoordinateReference" Visibility="Collapsed" />
+                <F18Views:CoordinateReferenceView x:Name="PanelCoordinateReference" DataContext="{Binding CoordinateReference}" Visibility="Collapsed" />
 
             </Grid>
         </Grid>

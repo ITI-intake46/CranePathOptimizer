@@ -127,6 +127,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<CoordinateService>();
             services.AddSingleton<ICoordinateTransformService, CoordinateTransformService>();
             services.AddSingleton<IProjectCoordinateTransformService, ProjectCoordinateTransformService>();
+            services.AddSingleton<ICoordinateReadoutFormatter, CoordinateReadoutFormatter>();
             services.AddSingleton<ICraneValidationService, CraneValidationService>();
             services.AddSingleton<IElementLiftStateService, ElementLiftStateService>();
 
