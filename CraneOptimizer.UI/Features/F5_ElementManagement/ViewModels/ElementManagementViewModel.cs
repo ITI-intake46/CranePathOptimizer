@@ -398,9 +398,9 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             {
                 var cogPt = new DomainPoint3D(panel.CenterX, panel.CenterY, panel.CenterZ);
                 var sitePt = _transformService.LocalToSurvey(cogPt);
-                locationItems.Add(CreateDisplayProperty("After Survey Easting", FormatLength(sitePt.X)));
-                locationItems.Add(CreateDisplayProperty("After Survey Northing", FormatLength(sitePt.Y)));
-                locationItems.Add(CreateDisplayProperty("After Survey Elevation", FormatLength(sitePt.Z)));
+                locationItems.Add(CreateDisplayProperty("Survey Easting", FormatLength(sitePt.X)));
+                locationItems.Add(CreateDisplayProperty("Survey Northing", FormatLength(sitePt.Y)));
+                locationItems.Add(CreateDisplayProperty("Survey Elevation", FormatLength(sitePt.Z)));
             }
 
             properties.Add(CreateGroup("Location", true, locationItems.ToArray()));

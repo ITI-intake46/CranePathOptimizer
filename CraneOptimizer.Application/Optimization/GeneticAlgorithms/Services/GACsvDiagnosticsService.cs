@@ -267,12 +267,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     "LoadPoint_ModelX", "LoadPoint_ModelY", "LoadPoint_ModelZ",
                     "LoadPoint_SiteE", "LoadPoint_SiteN", "LoadPoint_SiteH",
                     "COG_ModelX", "COG_ModelY", "COG_ModelZ",
-                    "COG_AfterSurveyEasting", "COG_AfterSurveyNorthing", "COG_AfterSurveyElevation",
-                    "Candidate_AfterSurveyEasting", "Candidate_AfterSurveyNorthing", "Candidate_AfterSurveyElevation",
-                    "CraneBase_AfterSurveyEasting", "CraneBase_AfterSurveyNorthing", "CraneBase_AfterSurveyElevation",
-                    "SlewCenter_AfterSurveyEasting", "SlewCenter_AfterSurveyNorthing", "SlewCenter_AfterSurveyElevation",
-                    "BoomHinge_AfterSurveyEasting", "BoomHinge_AfterSurveyNorthing", "BoomHinge_AfterSurveyElevation",
-                    "LoadPoint_AfterSurveyEasting", "LoadPoint_AfterSurveyNorthing", "LoadPoint_AfterSurveyElevation",
+                    "COG_SurveyEasting", "COG_SurveyNorthing", "COG_SurveyElevation",
+                    "Candidate_SurveyEasting", "Candidate_SurveyNorthing", "Candidate_SurveyElevation",
+                    "CraneBase_SurveyEasting", "CraneBase_SurveyNorthing", "CraneBase_SurveyElevation",
+                    "SlewCenter_SurveyEasting", "SlewCenter_SurveyNorthing", "SlewCenter_SurveyElevation",
+                    "BoomHinge_SurveyEasting", "BoomHinge_SurveyNorthing", "BoomHinge_SurveyElevation",
+                    "LoadPoint_SurveyEasting", "LoadPoint_SurveyNorthing", "LoadPoint_SurveyElevation",
                     "SiteReferenceEnabled", "SiteOriginEasting", "SiteOriginNorthing", "SiteOriginElevation", "RotationToNorthDegrees"
                 }));
 

@@ -154,7 +154,7 @@
                                         <Run Text=", Z = "/><Run Text="{Binding CandidateModelZ}"/><Run Text=" m"/>
                                     </TextBlock>
                                     <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
-                                        <Run Text="After Survey / Site Coordinates: " FontWeight="SemiBold"/>
+                                        <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
                                         <Run Text="Easting = "/><Run Text="{Binding CandidateSiteE}"/><Run Text=" m"/>
                                         <Run Text=", Northing = "/><Run Text="{Binding CandidateSiteN}"/><Run Text=" m"/>
                                         <Run Text=", Elevation = "/><Run Text="{Binding CandidateSiteH}"/><Run Text=" m"/>
@@ -178,7 +178,7 @@
                                         <Run Text=", Z = "/><Run Text="{Binding CraneBaseModelZ}"/><Run Text=" m"/>
                                     </TextBlock>
                                     <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
-                                        <Run Text="After Survey / Site Coordinates: " FontWeight="SemiBold"/>
+                                        <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
                                         <Run Text="Easting = "/><Run Text="{Binding CraneBaseSiteE}"/><Run Text=" m"/>
                                         <Run Text=", Northing = "/><Run Text="{Binding CraneBaseSiteN}"/><Run Text=" m"/>
                                         <Run Text=", Elevation = "/><Run Text="{Binding CraneBaseSiteH}"/><Run Text=" m"/>
@@ -202,7 +202,7 @@
                                         <Run Text=", Z = "/><Run Text="{Binding SlewCenterModelZ}"/><Run Text=" m"/>
                                     </TextBlock>
                                     <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
-                                        <Run Text="After Survey / Site Coordinates: " FontWeight="SemiBold"/>
+                                        <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
                                         <Run Text="Easting = "/><Run Text="{Binding SlewCenterSiteE}"/><Run Text=" m"/>
                                         <Run Text=", Northing = "/><Run Text="{Binding SlewCenterSiteN}"/><Run Text=" m"/>
                                         <Run Text=", Elevation = "/><Run Text="{Binding SlewCenterSiteH}"/><Run Text=" m"/>
@@ -226,7 +226,7 @@
                                         <Run Text=", Z = "/><Run Text="{Binding BoomHingeModelZ}"/><Run Text=" m"/>
                                     </TextBlock>
                                     <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
-                                        <Run Text="After Survey / Site Coordinates: " FontWeight="SemiBold"/>
+                                        <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
                                         <Run Text="Easting = "/><Run Text="{Binding BoomHingeSiteE}"/><Run Text=" m"/>
                                         <Run Text=", Northing = "/><Run Text="{Binding BoomHingeSiteN}"/><Run Text=" m"/>
                                         <Run Text=", Elevation = "/><Run Text="{Binding BoomHingeSiteH}"/><Run Text=" m"/>
@@ -250,7 +250,7 @@
                                         <Run Text=", Z = "/><Run Text="{Binding LoadPointModelZ}"/><Run Text=" m"/>
                                     </TextBlock>
                                     <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
-                                        <Run Text="After Survey / Site Coordinates: " FontWeight="SemiBold"/>
+                                        <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
                                         <Run Text="Easting = "/><Run Text="{Binding LoadPointSiteE}"/><Run Text=" m"/>
                                         <Run Text=", Northing = "/><Run Text="{Binding LoadPointSiteN}"/><Run Text=" m"/>
                                         <Run Text=", Elevation = "/><Run Text="{Binding LoadPointSiteH}"/><Run Text=" m"/>
