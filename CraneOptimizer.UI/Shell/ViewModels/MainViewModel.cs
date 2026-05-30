@@ -45,6 +45,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private bool _suppressProjectStateSave;
         private Guid? _currentProjectId;
         private ProjectSession? _currentProjectSession;
+        public ProjectSession? CurrentSession => _currentProjectSession;
         private string _currentProjectName = string.Empty;
         private string? _currentProjectIfcPath;
         private string _currentProjectFolderPath = string.Empty;

@@ -62,6 +62,9 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 UnitSystem = "Metric",
                 LengthUnit = "m",
                 AreaUnit = "m²",
+                Country = request.Country,
+                SiteLocation = request.SiteLocation,
+                ProjectImagePath = request.ProjectImagePath,
                 AppVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(),
                 SchemaVersion = 1,
                 CacheVersion = 1,
@@ -355,7 +358,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             var trimmedParent = parentFolderPath.Trim();
 
             if (!Directory.Exists(trimmedParent))
-                throw new DirectoryNotFoundException($"Project location was not found: {trimmedParent}");
+                Directory.CreateDirectory(trimmedParent);
 
             var invalidCharacters = Path.GetInvalidFileNameChars();
             if (name.IndexOfAny(invalidCharacters) >= 0)

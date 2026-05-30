@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.CreatedProject.CraneFiles;
+using CraneOptimizer.Domain.CreatedProject.CraneFiles;
 using CraneOptimizer.Domain.CreatedProject.IfcFiles;
 using CraneOptimizer.Domain.CreatedProject.OptimizationFiles;
 using CraneOptimizer.Domain.CreatedProject.ProjectState;
@@ -20,6 +20,12 @@ namespace CraneOptimizer.Domain.CreatedProject
         public string Name { get; set; } = string.Empty;
 
         public string? Description { get; set; }
+
+        public string? Country { get; set; }
+
+        public string? SiteLocation { get; set; }
+
+        public string? ProjectImagePath { get; set; }
 
         public string UnitSystem { get; set; } = "Metric";
 
