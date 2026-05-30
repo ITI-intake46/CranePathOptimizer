@@ -9,7 +9,7 @@ namespace CraneOptimizer.Domain.CreatedProject
     /// Stores metadata for a single project-specific database.
     /// This entity belongs to project.db inside the project folder.
     /// It must not be mapped into the global CraneDbContext.
-    /// The global Project entity is only a catalog entry used to locate this project folder.
+    /// The global Project entity is only a catalog entry used to locate this project folder..
     /// </summary>
     public sealed class ProjectInfoEntity
     {
