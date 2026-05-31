@@ -1,7 +1,10 @@
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
+using Microsoft.Win32;
+using System.IO;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 
 namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
 {
@@ -13,10 +16,17 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             "CraneOptimizer",
             "Projects");
 
+        private string _country = "Egypt";
+        private string _siteLocation = string.Empty;
+        private string? _projectImagePath;
+        private BitmapImage? _projectImagePreview;
+
         public CreateProjectViewModel()
         {
             CreateCommand = new RelayCommand(Create, CanCreate);
             BrowseLocationCommand = new RelayCommand(BrowseLocation);
+            BrowseImageCommand = new RelayCommand(BrowseImage);
+            ClearImageCommand = new RelayCommand(ClearImage, () => _projectImagePath != null);
             CancelCommand = new RelayCommand(Cancel);
         }
 
@@ -24,14 +34,14 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
         public event EventHandler? BrowseLocationRequested;
         public event EventHandler? CancelRequested;
 
+        // ── Basic fields ─────────────────────────────────────────────────
+
         public string ProjectName
         {
             get => _projectName;
             set
             {
-                if (_projectName == value)
-                    return;
-
+                if (_projectName == value) return;
                 _projectName = value;
                 OnPropertyChanged();
                 CommandManager.InvalidateRequerySuggested();
@@ -43,17 +53,47 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             get => _parentFolderPath;
             set
             {
-                if (_parentFolderPath == value)
-                    return;
-
+                if (_parentFolderPath == value) return;
                 _parentFolderPath = value;
                 OnPropertyChanged();
                 CommandManager.InvalidateRequerySuggested();
             }
         }
 
-        // ── Unit selection ─────────────────────────────────────────────
-        // Indices map to ComboBox items defined in the XAML.
+        // ── Optional metadata ────────────────────────────────────────────
+
+        public string Country
+        {
+            get => _country;
+            set { _country = value; OnPropertyChanged(); }
+        }
+
+        public string SiteLocation
+        {
+            get => _siteLocation;
+            set { _siteLocation = value; OnPropertyChanged(); }
+        }
+
+        public string? ProjectImagePath
+        {
+            get => _projectImagePath;
+            private set
+            {
+                _projectImagePath = value;
+                OnPropertyChanged();
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        public BitmapImage? ProjectImagePreview
+        {
+            get => _projectImagePreview;
+            private set { _projectImagePreview = value; OnPropertyChanged(); }
+        }
+
+        public bool HasImage => _projectImagePath != null;
+
+        // ── Unit selection ───────────────────────────────────────────────
 
         private int _selectedLengthIndex = 1;   // 0=mm, 1=m
         public int SelectedLengthIndex
@@ -76,16 +116,13 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             set { _selectedMassIndex = value; OnPropertyChanged(); }
         }
 
-        private int _selectedPrecisionIndex = 2; // 0..3 decimal places
+        private int _selectedPrecisionIndex = 2;
         public int SelectedPrecisionIndex
         {
             get => _selectedPrecisionIndex;
             set { _selectedPrecisionIndex = value; OnPropertyChanged(); }
         }
 
-        /// <summary>
-        /// Builds a <see cref="UnitSettings"/> from the current selection.
-        /// </summary>
         public UnitSettings BuildUnitSettings() => new()
         {
             DisplayLengthUnit = SelectedLengthIndex == 0 ? LengthUnit.Millimeter : LengthUnit.Meter,
@@ -94,29 +131,53 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             DecimalPlaces     = Math.Clamp(SelectedPrecisionIndex, 0, 6)
         };
 
+        // ── Commands ─────────────────────────────────────────────────────
+
         public ICommand CreateCommand { get; }
         public ICommand BrowseLocationCommand { get; }
+        public ICommand BrowseImageCommand { get; }
+        public ICommand ClearImageCommand { get; }
         public ICommand CancelCommand { get; }
 
-        private bool CanCreate()
+        private bool CanCreate() =>
+            !string.IsNullOrWhiteSpace(ProjectName) &&
+            !string.IsNullOrWhiteSpace(ParentFolderPath);
+
+        private void Create() => CreateRequested?.Invoke(this, EventArgs.Empty);
+        private void BrowseLocation() => BrowseLocationRequested?.Invoke(this, EventArgs.Empty);
+        private void Cancel() => CancelRequested?.Invoke(this, EventArgs.Empty);
+
+        private void BrowseImage()
         {
-            return !string.IsNullOrWhiteSpace(ProjectName)
-                && !string.IsNullOrWhiteSpace(ParentFolderPath);
+            var dlg = new OpenFileDialog
+            {
+                Title = "Select Project Image",
+                Filter = "Image files (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|All files (*.*)|*.*",
+                Multiselect = false
+            };
+
+            if (dlg.ShowDialog() != true) return;
+
+            try
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(dlg.FileName);
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.EndInit();
+
+                ProjectImagePath = dlg.FileName;
+                ProjectImagePreview = bmp;
+                OnPropertyChanged(nameof(HasImage));
+            }
+            catch { /* silently ignore bad image files */ }
         }
 
-        private void Create()
+        private void ClearImage()
         {
-            CreateRequested?.Invoke(this, EventArgs.Empty);
-        }
-
-        private void BrowseLocation()
-        {
-            BrowseLocationRequested?.Invoke(this, EventArgs.Empty);
-        }
-
-        private void Cancel()
-        {
-            CancelRequested?.Invoke(this, EventArgs.Empty);
+            ProjectImagePath = null;
+            ProjectImagePreview = null;
+            OnPropertyChanged(nameof(HasImage));
         }
     }
 }
