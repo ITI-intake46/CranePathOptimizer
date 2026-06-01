@@ -3,102 +3,113 @@
 The application uses **Entity Framework Core** with the **SQLite** provider for persistent storage.
 
 There are two distinct database configurations used in the application:
-1. **Primary Workspace Database:** Main database created at `%APPDATA%/CraneOptimizer/craneoptimizer.db` on app startup to store catalog items (cranes, saved sites).
-2. **Project Files (`.craneopt`):** Individual SQLite files created at user-specified paths that store site boundaries, obstacles, green areas, crane setups, and structural elements for a specific project.
+1.  **Catalog & Project History Database (`CraneDbContext`):** Main database created at `%APPDATA%/CraneOptimizer/crane.db` (or under `bin/Debug/net8.0/Data/crane.db` during development) on app startup to store catalog items (crane specifications, load charts, historical projects list).
+2.  **Project Files (`.craneopt` / `CreatedProjectDbContext`):** Individual SQLite files created at user-specified paths that store site boundaries, obstacles, green zones, crane setups, and structural elements for a specific planning project.
 
 ---
 
-## Entity Relationship (ER) Schema
+## Catalog Schema (`CraneDbContext`)
 
-The database model is configured within the [AppDbContext](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Contexts/AppDbContext.cs) class.
+The catalog database model is configured within [CraneDbContext.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Contexts/CraneDbContext.cs).
 
 ```mermaid
 erDiagram
-    SiteRecord ||--o{ ElementRecord : contains
-    SiteRecord ||--o{ GreenAreaRecord : has
-    SiteRecord ||--o{ SiteBoundaryPointRecord : bounded_by
-    SiteRecord ||--o{ ObstacleRecord : has
-    GreenAreaRecord ||--o{ GreenAreaPointRecord : polygon_points
-    ObstacleRecord ||--o{ ObstaclePointRecord : polygon_points
-    CraneRecord ||--o{ CraneLoadChartEntryRecord : limits
+    Crane ||--o{ CraneSpecification : has
+    CraneSpecification ||--o{ TargetPoint : load_chart
+    Project ||--o{ ProjectIfcFile : imports
 
-    SiteRecord {
+    Crane {
         int Id PK
-        string ProjectName
-        string Description
-        string IfcFilePath
+        string Brand
+        string ModelName
     }
-    ElementRecord {
+    CraneSpecification {
         int Id PK
-        int SiteRecordId FK
+        int CraneId FK
+        double MaxCapacity
+        double MinRadius
+        double MaxRadius
+        double MaxBoomLength
+        double MinBoomLength
+        double CounterWeight
+        double CraneDerating
+        string OutriggerConfig
+    }
+    TargetPoint {
+        int Id PK
+        int CraneSpecificationId FK
+        double Radius
+        double BoomLength
+        double Capacity
+    }
+    Project {
+        int Id PK
+        string Name
+        string ProjectFolderPath
+        string Notes
+        bool IsFavorite
+        bool IsDeleted
+        DateTime LastOpenedDate
+    }
+    ProjectIfcFile {
+        int Id PK
+        int ProjectId FK
+        string FilePath
+        string FileName
+    }
+```
+
+---
+
+## Project File Schema (`CreatedProjectDbContext`)
+
+The `.craneopt` database model is configured within [CreatedProjectDbContext.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Contexts/CreatedProject/CreatedProjectDbContext.cs) and represents the serialized state of a specific project scene.
+
+```mermaid
+erDiagram
+    ProjectInfoEntity ||--o{ ProjectIfcFileEntity : has
+    ProjectInfoEntity ||--o{ ProjectIfcElementEntity : contains
+    ProjectInfoEntity ||--o{ SiteZoneEntity : has
+    ProjectInfoEntity ||--o{ CraneSetupEntity : has
+
+    ProjectInfoEntity {
+        Guid Id PK
+        string Name
+        string ProjectFolderPath
+    }
+    ProjectIfcFileEntity {
+        int Id PK
+        Guid ProjectInfoId FK
+        string LocalFilePath
+        string ServerFileId
+    }
+    ProjectIfcElementEntity {
+        int Id PK
+        Guid ProjectInfoId FK
         string GlobalId
         string Name
-        string ElementType
-        double X
-        double Y
-        double Z
+        string IfcElementRole
+        double CenterOfGravityX
+        double CenterOfGravityY
+        double CenterOfGravityZ
         double Length
         double Width
         double Height
         double Weight
         double Volume
-        int SortOrder
+        bool IncludeInRender
     }
-    GreenAreaRecord {
+    SiteZoneEntity {
         int Id PK
-        int SiteRecordId FK
+        Guid ProjectInfoId FK
         string Name
+        string ZoneType
+        string PolygonCoordinatesJson
     }
-    GreenAreaPointRecord {
+    CraneSetupEntity {
         int Id PK
-        int GreenAreaRecordId FK
-        double X
-        double Y
-        int SortOrder
-    }
-    SiteBoundaryPointRecord {
-        int Id PK
-        int SiteRecordId FK
-        double X
-        double Y
-        int SortOrder
-    }
-    ObstacleRecord {
-        int Id PK
-        int SiteRecordId FK
-        string Name
-        double Height
-    }
-    ObstaclePointRecord {
-        int Id PK
-        int ObstacleRecordId FK
-        double X
-        double Y
-        int SortOrder
-    }
-    CraneRecord {
-        int Id PK
-        string ModelName
-        double MaxCapacity
-        double MinRadius
-        double MaxRadius
-        double MaxTipLoad
-        double BoomLength
-        double JibLength
-        double CounterweightRadius
-        double MaxHoistHeight
-        double HoistSpeed
-        double SlewSpeed
-        double TrolleySpeed
-        double TipLoadAtMaxRadius
-        double OwnershipCost
-        double BaseHeight
-    }
-    CraneLoadChartEntryRecord {
-        int Id PK
-        int CraneRecordId FK
-        double Radius
-        double Capacity
+        Guid ProjectInfoId FK
+        string SetupCoordinatesJson
     }
 ```
 
@@ -106,26 +117,31 @@ erDiagram
 
 ## Migration History
 
-Database changes are tracked via EF Core migrations located in the [Migrations](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Migrations) folder:
+Database changes are tracked via EF Core migrations located in [Migrations/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Migrations):
 
-### 1. `InitialCreate`
-Creates the main entity tables:
-* `CraneRecords` & `SiteRecords`
-* `ElementRecords` (bound to `SiteRecords`)
-* `GreenAreaRecords` & `GreenAreaPointRecords`
-* `SiteBoundaryPointRecords`
-* `ObstacleRecords` & `ObstaclePointRecords`
+### Catalog migrations:
+*   `20260224012129_InitialCreate` - Sets up standard catalog schema.
+*   `20260427211132_AddProjectTables` - Connects imported project history metadata.
+*   `20260428183336_AddCSVToCeaneSpecification` - Adds CSV mapping support for specs.
+*   `20260519000100_NormalizeUnitSystemStorage` - Standardizes metrics conversions.
+*   `20260521194249_AddProjectFolderpathtoProject` - Integrates directory paths.
 
-### 2. `AddCraneLoadChart`
-* Adds the `CraneLoadChartEntryRecords` table.
-* Adds the `BaseHeight` column to `CraneRecords`.
+### Project `.craneopt` migrations:
+*   `20260521202008_InitialCreatedProjectDb` - Sets up baseline schema for project elements.
+*   `20260523163420_AddProjectStateTables` - Adds scene snapshots and optimization run tables.
+*   `20260525231817_AddLightweightElementMetadata` - Integrates element properties and visibility flags.
 
 ---
 
 ## Cascade Delete Rules
 
 All relationships are configured with **Cascade Delete** via EF Core Fluent API:
-* Deleting a `SiteRecord` deletes all associated elements, site boundary points, green areas, and obstacles.
-* Deleting a `GreenAreaRecord` deletes all its child points (`GreenAreaPointRecord`).
-* Deleting a `ObstacleRecord` deletes all its child points (`ObstaclePointRecord`).
-* Deleting a `CraneRecord` deletes all its load chart entries (`CraneLoadChartEntryRecord`).
+*   Deleting a `Crane` deletes all its child `Specifications`.
+*   Deleting a `CraneSpecification` deletes all its child `TargetPoints`.
+*   Deleting a `Project` deletes all associated imported `ProjectIfcFiles`.
+*   Deleting a `ProjectInfoEntity` in `.craneopt` deletes all child elements, snapshots, zones, and setups.
+
+### Implementation Reference
+
+File:
+[CraneDbContext.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Contexts/CraneDbContext.cs) and [CreatedProjectDbContext.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Contexts/CreatedProject/CreatedProjectDbContext.cs)

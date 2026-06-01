@@ -1,30 +1,36 @@
 # Coding Standards: Data Transfer Objects (DTO) Rules
 
-To maintain separation of concerns and prevent persistence models from leaking into transient operations, the system enforces rules on using Data Transfer Objects (DTOs).
+To maintain separation of concerns and prevent persistence models from leaking into transient operations, the system enforces rules on using Data Transfer Objects (DTOs) and dedicated entity mappings.
 
 ---
 
-## 1. Entity vs. DTO Separation
+## 1. Domain Entities vs. Project Serialization Entities
 
-* **Entities (`*Record`):** Represent rows in the primary application database. They contain system IDs (primary keys) and database relation metadata (foreign keys). They should only exist within repositories, contexts, services, and viewmodels that directly handle database state.
-* **DTOs & Schemas (`*Data`, `*Schema`):** Stateless structures used to transmit data across boundary layers (e.g. IFC extraction $\rightarrow$ UI, UI $\rightarrow$ Project File). They must contain no database annotations, no primary keys, and no database configuration fields.
-
----
-
-## 2. Specific Serialization Schemas
-
-When serializing a project to a `.craneopt` SQLite file, we must use the schema objects defined in [CraneOptimizer.Domain.CreatedProject](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Domain/CreatedProject):
-* **ProjectFileSchema:** Serves as the blueprint for serializing the complete project context.
-* **CraneDataSchema & LoadChartEntrySchema:** Encapsulate crane definitions without database IDs.
-* **SiteDataSchema, ElementDataSchema, GreenAreaDataSchema, PointDataSchema, ObstacleDataSchema:** Maps spatial site boundaries without tracking entities.
-
-During saving, the [ProjectService](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/ProjectService.cs) strips primary keys from records (setting `Id = 0`) and mapping them, letting the target database auto-generate fresh primary keys.
+*   **Catalog Database Entities (Domain):** Represent catalog data in the primary SQLite database (`crane.db`). They reside in [Entities/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Domain/Entities) (e.g. `Crane.cs`, `CraneSpecification.cs`, `TargetPoint.cs`, `Project.cs`).
+*   **Project Serialization Entities (`*Entity`):** Reside under [CreatedProject/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Domain/CreatedProject) and map exactly to SQLite tables in project `.craneopt` files. These structures separate the catalog schema from active project scene states:
+    *   `ProjectInfoEntity`
+    *   `ProjectIfcFileEntity`
+    *   `ProjectIfcElementEntity`
+    *   `ProjectModelFileEntity`
+    *   `SiteZoneEntity`
+    *   `CraneSetupEntity`
 
 ---
 
-## 3. IFC Processing DTOs
+## 2. IFC Processing Abstractions
 
-The `IIfcModelService` must return an [IfcModelResult](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Domain/Common/IfcModelResult.cs) containing a list of [IfcElementData](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Domain/Common/IfcElementData.cs). 
+The `IIfcReaderRepository` processes xBIM models and returns domain elements mapped to the [PrecastElement.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Domain/Schemas/PrecastElement.cs) domain schema.
 
-* **Rule:** The IFC parsing service does not write to the database itself, nor does it create database entities directly.
-* **Mapping:** The ViewModels receive these `IfcElementData` DTOs and convert them into `ElementRecord` entities only when the user commits to saving the imported project.
+*   **Rule:** The IFC parsing service does not write to the database itself, nor does it create database entities directly.
+*   **Mapping:** The ViewModels receive these `PrecastElement` domain schemas. When saving the project, the `ProjectService` maps them to `ProjectIfcElementEntity` records to save them inside the `.craneopt` file.
+
+### Implementation Reference
+
+File:
+[IfcReaderRepository.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcReaderRepository.cs)
+
+Class:
+`IfcReaderRepository`
+
+Method:
+`ReadElements()`

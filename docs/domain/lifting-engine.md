@@ -1,39 +1,54 @@
-# Domain: Lifting Engine (Planned)
+# Domain: Lifting Engine
 
-The **Lifting Engine** is a planned module designed to verify the physical safety and clearance clearances of crane lifts throughout the erection process.
-
----
-
-## 1. Module Responsibility
-
-While the current MVP limits lifting evaluation to simple load-chart capacity checks, the full Lifting Engine will perform dynamic spatial validation:
-* **Sequence-Based Obstacle Modeling:** As elements are erected (in the order specified by `SortOrder`), they become active 3D obstacles for subsequent lifts.
-* **Boom & Jib Clearance Verification:** Checking if the physical crane boom or jib collides with already-installed precast pieces during slewing or trolley movement.
-* **Hook Line Collision Checking:** Checking the hoist rope trajectory to ensure it does not scrape or catch against structural components.
+The **Lifting Engine** is responsible for verifying structural hoist constraints, operating radii, and required lifting capacities for precast building elements.
 
 ---
 
-## 2. Planned Data Structures
+## 1. Operating Metrics & Calculations
 
-To support dynamic clearances, we plan to implement the following entities:
+The system computes operating metrics for every element using settings-defined rigging parameters and crane mechanical offsets:
 
-```csharp
-public class LiftSequenceStep
-{
-    public int StepNumber { get; set; }
-    public ElementRecord TargetElement { get; set; }
-    public double PickRadius { get; set; }
-    public double PlaceRadius { get; set; }
-    public double RequiredClearance { get; set; }
-    public List<Point3D> TravelTrajectory { get; set; } = new();
-}
-```
+### Operating Radius ($R$)
+Calculates the horizontal distance between the crane center of rotation (accounting for structural slew offsets) and the center of gravity (COG) of the building element:
+
+$$R = \sqrt{(X_{\text{slew}} - X_{\text{element}})^2 + (Y_{\text{slew}} - Y_{\text{element}})^2}$$
+
+Where:
+*   $X_{\text{slew}} = X_{\text{crane}} + \text{settings.SlewOffsetX}$
+*   $Y_{\text{slew}} = Y_{\text{crane}} + \text{settings.SlewOffsetY}$
+
+### Hoist Lift Height ($H$)
+Calculates the vertical clearance required, accounting for the element's height and the length of the rigging slings:
+
+$$H = \max\left(0, Z_{\text{element}} + \frac{\text{ElementHeight}}{2} - Z_{\text{crane}}\right) + \text{settings.WireLength}$$
+
+### Required Lifting Weight ($W_{\text{req}}$)
+Calculates the total load on the hook, accounting for both the structural element weight and the weight of the rigging hook block/slings:
+
+$$W_{\text{req}} = \text{ElementWT} + \text{settings.AdditionalWt}$$
+
+### Implementation Reference
+
+File:
+[LiftingCalculationEngine.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/LiftingCalculation/LiftingCalculationEngine.cs)
+
+Class:
+`LiftingCalculationEngine`
+
+Method:
+`CalculateRadius()`, `CalculateLiftHeight()`, and `CalculateRequiredWeight()`
 
 ---
 
-## 3. Planned Trajectory Algorithm
+## 2. Planned Features (Future Design Roadmap)
 
-1. **Start Coordinate:** Crane pickup point (trailer route location).
-2. **Intermediate Waypoints:** Hoisting the precast element above the maximum height of any obstacle in the horizontal path.
-3. **End Coordinate:** Installation coordinate $(X, Y, Z)$ parsed from the IFC file.
-4. **Collision Sweep:** Defining a 3D bounding prism representing the load + rigging lines, and checking for intersections with the boundary volumes of existing structures.
+While the current engine verifies liftability using static radius, height, and capacity checks, subsequent updates are planned to introduce dynamic spatial constraints:
+
+### Sequence-Based Obstacle Modeling
+*   As precast elements are erected (in the order defined by `SortOrder`), they will be dynamically added as active 3D collision obstacles for subsequent lifts.
+
+### Boom & Jib 3D Collision Clearance
+*   Calculates vector intersections of the physical crane boom and jib structures against already installed elements during slewing or trolley movements.
+
+### hoist Rope Trajectory Traversal
+*   Traces hoist ropes to ensure the rigging cables do not scrape or catch against structural components during lifts.

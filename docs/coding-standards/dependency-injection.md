@@ -2,7 +2,7 @@
 
 The application uses the standard **Microsoft.Extensions.DependencyInjection** library to implement inversion of control.
 
-All registrations occur in the `ConfigureServices` method of [App.xaml.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/App.xaml.cs).
+All registrations occur in the `OnStartup` method of [App.xaml.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/App.xaml.cs).
 
 ---
 
@@ -12,37 +12,34 @@ Choose the correct lifetime based on the component's state and purpose:
 
 ### Singletons (`AddSingleton`)
 Used for stateless services, caching repositories, or application-wide coordinators:
-* **Contexts & Repositories:** `AppDbContext`, `CraneRepository`, `SiteRepository`
-* **Application Services:** `CraneService`, `SiteService`, `ProjectService`, `DiagnosticService`
-* **Infrastructure Services:** `IfcModelService`
-* **UI Infrastructure:** `NavigationService`, `MainWindow`, `MainViewModel`
+*   **IFC Processing & Auditing:** `IIfcReaderRepository` ([IfcReaderRepository.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcReaderRepository.cs)), `IIfcDiagnosticAuditService` ([IfcDiagnosticAuditService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcDiagnosticAuditService.cs)), `IIfcNormalizationDecisionService` ([IfcNormalizationDecisionService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcNormalizationDecisionService.cs)).
+*   **Scene & Rendering:** `ElementVisualBuilder`, `CraneVisualBuilder`, `IRenderingService`, `ISceneRenderingManager`, `IViewportHitTestService`, `IViewportInteractionService`.
+*   **Project State:** `IProjectWorkspaceService`, `IProjectStateService`, `IProjectShellService`, `IProjectNavigationService`.
+*   **Mixed ViewModels:** `IfcViewerViewModel`, `CraneManagerViewModel`, `DxfTabViewModel`, `CoordinateReferenceViewModel`, `SelectionHandler`, `HoverHitCache`.
+
+### Scoped (`AddScoped`)
+Used for components that carry state specific to an optimization run or db operation:
+*   **DbContext & Repositories:** `CraneDbContext`, `ICraneRepository` ([CraneRepository.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/CraneRepository.cs)), `IProjectRepository` ([ProjectRepository.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/ProjectRepository.cs)).
+*   **Optimization Engines:** `IGeneticAlgorithmEngine`, `ICraneConfigurationEngine`, `ILiftingCalculationEngine`, `ILoadChartCapacityResolver`, `IConstraintEngine`, `ICoverageEngine`, `IGAInitializer`, `IElementAssignmentService`, `IFitnessEvaluator`, `IGACsvDiagnosticsService`.
+*   **Mixed ViewModels:** `ElementManagementViewModel` (tied to selected element session).
 
 ### Transients (`AddTransient`)
-Used for UI pages (ViewModels). This ensures that every time a user navigates away and returns to a screen, the ViewModel is instantiated fresh, preventing memory leaks or stale state accumulation:
-* `DashboardViewModel`, `ProjectSetupViewModel`, `SiteManagementViewModel`, `CraneManagementViewModel`, `OptimizationViewModel`, `ResultsViewModel`, `SettingsViewModel`
+Used for lightweight views and transient viewmodels resolved dynamically:
+*   **Application Services:** `IProjectService` ([ProjectService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F10_ProjectManagement/Services/ProjectService.cs)).
+*   **Views & Window VMs:** `MainViewModel` (resolved fresh per session), `SelectionViewModel`, `MainWindow`, `ProjectManagementWindow`, `ProjectManagementViewModel`.
 
 ---
 
-## 2. Factory Navigation Pattern
+## 2. Database Context Injection
 
-Because ViewModels are registered as Transients, we cannot inject them directly into the singleton `NavigationService` constructor. Instead, we register a factory delegate in `App.xaml.cs`:
+To ensure thread safety across concurrent background solvers (such as GA threads querying specifications):
+*   **Scoped DbContext:** `CraneDbContext` is registered via `AddDbContext<CraneDbContext>`.
+*   **DbContext Factory:** Registered via `AddDbContextFactory<CraneDbContext>()`. This allows background worker tasks to safely spin up isolated connections via `dbFactory.CreateDbContextAsync()` to prevent SQLite threading lockouts.
 
-```csharp
-services.AddSingleton<Func<Type, ViewModelBase>>(sp => 
-    viewModelType => (ViewModelBase)sp.GetRequiredService(viewModelType));
-```
+### Implementation Reference
 
-This factory is injected into the [NavigationService](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Core/NavigationService.cs). When `NavigateTo<TViewModel>()` is called, the navigation service uses this factory to resolve the ViewModel dynamically from the service provider.
+File:
+[App.xaml.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/App.xaml.cs)
 
----
-
-## 3. Database Injection (Technical Debt Note)
-
-Currently, the `AppDbContext` is registered as a Singleton:
-```csharp
-services.AddSingleton(new AppDbContext(dbPath));
-```
-While this works for simple desktop applications where only one user accesses a local SQLite database, it is not thread-safe. Multiple simultaneous queries from background workers (like optimization threads) may cause SQLite locks or entity state corruption.
-
-**Best Practice:**
-If queries begin running concurrently, register a factory (`IDbContextFactory<AppDbContext>`) or use transient DbContext resolution to spin up fresh connections per operation.
+Method:
+`OnStartup()`

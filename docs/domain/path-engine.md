@@ -1,15 +1,18 @@
-# Domain: Path Engine (Planned)
+# Domain: Path Engine (Planned Feature)
 
-The **Path Engine** is a planned module designed to compute safe travel paths for mobile cranes moving across the construction site.
+The **Path Engine** is a planned module designed to compute safe travel paths for mobile cranes moving across the construction site. 
+
+> [!IMPORTANT]
+> **Current Status:** Non-existent in the current implementation. Crane travel path planning is not active. The optimization solver focuses exclusively on static setup location coverage. The structures documented below represent the roadmap for the Future Design.
 
 ---
 
-## 1. Module Responsibility
+## 1. Planned Module Responsibility
 
 Mobile cranes require significant horizontal clearance and stable ground when traveling:
-* **Site Traversability Mapping:** Subdividing the site boundary into grid cells, identifying setup areas, delivery zones, storage yards, and obstacle spaces.
-* **Travel Route Planning:** Finding a collision-free pathway for the crane to drive from site entrance to optimal setup coordinate.
-* **Kinematic Constraints Validation:** Verifying that paths respect the crane's width, turning radius, and maximum ground slope capabilities.
+*   **Site Traversability Mapping:** Subdividing the site boundary into grid cells, identifying setup areas, delivery zones, storage yards, and obstacle spaces.
+*   **Travel Route Planning:** Finding a collision-free pathway for the crane to drive from site entrance to optimal setup coordinate.
+*   **Kinematic Constraints Validation:** Verifying that paths respect the crane's width, turning radius, and maximum ground slope capabilities.
 
 ---
 
@@ -32,7 +35,7 @@ public class TraversableGridCell
 
 ## 3. Planned Routing Algorithm
 
-* **Grid Generation:** Generate a 2D grid based on the site boundary points and obstacle polygons.
-* **A* Pathfinding:** Search the grid from start $(X_{\text{start}}, Y_{\text{start}})$ to optimized solver coordinates $(X_{\text{opt}}, Y_{\text{opt}})$.
-* **Constraint Filtering:** Filter search nodes if they overlap obstacles, cross unsafe ground, or exceed the maximum allowed slope.
-* **Turning Radius Smoothing:** Run a Dubins path or coordinate smoothing sweep to ensure the crane's physical chassis can execute the turns.
+*   **Grid Generation:** Generate a 2D grid based on the site boundary points and obstacle polygons.
+*   **A* Pathfinding:** Search the grid from start $(X_{\text{start}}, Y_{\text{start}})$ to optimized solver coordinates $(X_{\text{opt}}, Y_{\text{opt}})$.
+*   **Constraint Filtering:** Filter search nodes if they overlap obstacles, cross unsafe ground, or exceed the maximum allowed slope.
+*   **Turning Radius Smoothing:** Run a Dubins path or coordinate smoothing sweep to ensure the crane's physical chassis can execute the turns.
