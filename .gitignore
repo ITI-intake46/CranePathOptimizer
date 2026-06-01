@@ -29,7 +29,6 @@ Thumbs.db
 
 # files
 *.txt
-*.md
 *.csv
 
 # IFC Diagnostic reports
