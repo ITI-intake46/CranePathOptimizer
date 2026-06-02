@@ -108,7 +108,7 @@ Applying SOLID principles guarantees that a codebase is extensible, robust, and 
 ### Finding 3.2: Hardcoded Material Density Rules violating OCP
 * **Title:** Hardcoded Material Categorization and Density Rules in `IfcReaderRepository`
 * **Current Implementation:**
-  The fallback weight calculation in [IfcReaderRepository.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcReaderRepository.cs#L996-L1006) relies on hardcoded string pattern matching:
+  The codebase has hardcoded density heuristics in [IfcReaderRepository.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcReaderRepository.cs#L996-L1006) and in the UI display/filter fallback `ElementWeightCalculator`. The normalized import path primarily uses `IfcDiagnosticAuditService.AuditWeight()` for explicit IFC weights and concrete fallback from direct IFC volume, but the density rules still remain hardcoded where heuristic estimation is used:
   ```csharp
   double densityKgPerCubicMeter =
       name.ContainsAny("STEEL", "REBAR", "METAL") ? SteelDensityKgPerCubicMeter :
@@ -117,7 +117,7 @@ Applying SOLID principles guarantees that a codebase is extensible, robust, and 
       name.ContainsAny("TIMBER", "WOOD") ? TimberDensityKgPerCubicMeter :
       ConcreteDensityKgPerCubicMeter;
   ```
-  If a new material is encountered (e.g., Cast Iron, Polycarbonate) or custom material weights are needed, developers must modify this repository's core code. The codebase is not open for extension.
+  If a new material is encountered (e.g., Cast Iron, Polycarbonate) or custom material weights are needed, developers must modify code instead of configuration. The heuristic density layer is not open for extension.
 * **Recommended Implementation:**
   Abstract density rule matching into a configurable service or registry:
   ```csharp

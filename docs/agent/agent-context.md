@@ -13,7 +13,7 @@ The system is a WPF-based engineering desktop application designed to optimize m
 ## 2. Technology Stack
 
 *   **Language & Framework:** C# 12, .NET 8.0, Windows Presentation Foundation (WPF).
-*   **BIM / IFC Processing:** `xBim.Essentials` and `xBim.Geometry` (for coordinate, volume, and shape parsing).
+*   **BIM / IFC Processing:** `xBim.Essentials`, `xBim.Ifc`, `xBim.Geometry`, and `Xbim.ModelGeometry.Scene` for model opening, metadata/quantity/property extraction, shape instances, transformed bounds, and mesh-based centers of gravity.
 *   **3D Viewport:** `HelixToolkit.Wpf.SharpDX` (DirectX-accelerated 3D rendering).
 *   **ORM & Database:** Entity Framework Core 9.0.3 with SQLite provider.
 *   **DI Container:** `Microsoft.Extensions.DependencyInjection`.
@@ -45,7 +45,7 @@ The solution follows a strict **Clean Architecture (Onion)** pattern:
 *   **Capacity Constraint:** The weight of the precast element must not exceed the crane's capacity at that operating radius:
     $$\text{AvailableCapacity} \ge \text{LiftingWeight}$$
     Capacity is determined via a **ConservativeStep** lookup of manufacturer load charts (stepping up to the nearest larger radius and selecting the shortest compliant configuration). No linear interpolation is performed.
-*   **Precast Concrete Weight:** Fallback concrete density is hardcoded at $2500 \text{ kg/m}^3$ multiplied by volume. Name-based overrides are active for Steel ($7850$), Aluminum ($2700$), Glass ($2500$), and Timber ($600$).
+*   **Precast Concrete Weight:** Import weights prefer explicit IFC weight/mass quantities or properties. If those are missing and direct IFC volume exists, the import audit applies a $2500 \text{ kg/m}^3$ concrete fallback. UI display/filter code can estimate missing displayed weights from volume or bounding boxes with material/type heuristics for steel, aluminum, glass, and timber.
 
 ---
 

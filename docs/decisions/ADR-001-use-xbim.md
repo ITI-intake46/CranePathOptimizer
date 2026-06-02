@@ -12,18 +12,18 @@ The application needs to parse Industry Foundation Classes (IFC) building models
 
 ## Decision
 We chose the **xBIM (eXtensible Building Information Modelling)** toolkit, specifically:
-* `xBim.Essentials` (to read metadata, properties, and IFC schema models).
-* `xBim.Geometry` & `xBim.Geometry.Engine.Interop` (to compute element transformations, world coordinates, and shape bounding boxes).
+* `xBim.Essentials` and `Xbim.Ifc` (to open IFC files and read metadata, properties, quantities, and schema models).
+* `xBim.Geometry`, `xBim.Geometry.Engine.Interop`, and `Xbim.ModelGeometry.Scene` (to create geometry contexts, read shape instances, compute transformed bounds, and access shape geometry).
 
 ---
 
 ## Consequences
 
 ### Positive
-* **Comprehensive Standard Support:** xBIM natively supports IFC2x3 and IFC4 schemas.
+* **Schema Delegation:** The project delegates schema opening to `IfcStore.Open()` and records the resulting `model.SchemaVersion`. There is no project-specific IFC schema allow-list or validation matrix.
 * **Geometry Resolution:** The interop geometry engine allows us to query coordinates and bounding box dimensions from complex shapes.
 * **Performance:** Extracted geometry coordinates are resolved quickly.
 
 ### Negative
 * **Native Dependency:** `xBim.Geometry.Engine.Interop` depends on native C++ compiler libraries. This restricts runtime execution platforms to Windows (x86/x64).
-* **Memory Management:** The geometric engine loads heavy contexts that must be explicitly disposed (`Xbim3DModelContext` and `IfcStore` objects) to prevent memory leaks in WPF.
+* **Memory Management:** IFC sessions load heavy `IfcStore` and `Xbim3DModelContext` objects. The current `IfcModelSession.Dispose()` implementation closes and disposes the `IfcStore`; the geometry context is owned by the session but is not explicitly disposed in current code.

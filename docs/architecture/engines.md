@@ -46,14 +46,15 @@ Method:
 
 Implemented in [IfcReaderRepository.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcReaderRepository.cs) and [IfcModelSessionService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Ifc/IfcModelSessionService.cs).
 
-*   **Technology:** Uses the xBIM library (xBim.Essentials & xBim.Geometry).
+*   **Technology:** Uses xBIM packages including `Xbim.Ifc`, `xBim.Essentials`, `xBim.Geometry`, `xBim.Geometry.Engine.Interop`, and `Xbim.ModelGeometry.Scene`.
 *   **Extraction Pipeline:**
     1. Opens the model file via `IfcStore.Open()`.
     2. Builds the 3D geometry engine context with `Xbim3DModelContext`.
-    3. Iterates over all elements derived from `IIfcBuildingElement`.
-    4. Classifies element type based on C# pattern matching (e.g. `IIfcColumn` $\rightarrow$ `IfcElementRole.Column`).
-    5. Computes local-to-world placements and bounding box dimensions.
-    6. Determines volume (either via quantity properties or bounding box fallback) and calculates weight assuming concrete density of $2500 \text{ kg/m}^3$ (withOverrides for steel, aluminum, glass, wood).
+    3. Runs `IfcDiagnosticAuditService.RunAuditAsync()` and `IfcNormalizationDecisionService.GenerateNormalizationPreviewAsync()`.
+    4. Iterates over physical `IIfcProduct` instances that are `IIfcElement` values with `GlobalId` and `Name`, excluding openings, spaces, and virtual elements.
+    5. Resolves category labels such as `Column`, `Beam`, or `Slab` separately from normalization roles such as `LiftableElement`, `LiftAssembly`, `GroupingOnly`, `InternalAuxiliary`, `Excluded`, and `NeedsReview`.
+    6. Computes transformed shape bounds and mesh-derived centers of gravity from `XbimShapeInstance` and `XbimShapeGeometry`.
+    7. Resolves import weight from explicit IFC weight/mass quantities or properties first, then applies a $2500 \text{ kg/m}^3$ concrete fallback when direct IFC volume exists.
 
 ### Implementation Reference
 
@@ -64,7 +65,7 @@ Class:
 `IfcReaderRepository`
 
 Method:
-`ReadElements()` and `ExtractGeometryInfo()`
+`ReadElementsCore()` and nested `IfcEngineeringExtractor.ExtractNormalized()`
 
 ---
 

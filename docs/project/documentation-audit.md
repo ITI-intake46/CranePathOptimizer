@@ -52,8 +52,8 @@ Weight computation assumes standard precast reinforced concrete density of $2400
     *   **Source File:** `CraneOptimizer.Infrastructure/Repositories/IfcDiagnosticAuditService.cs`, `IfcReaderRepository.cs`, `ElementWeightCalculator.cs`, `IfcLoadingService.cs`
     *   **Class:** `IfcDiagnosticAuditService`, `IfcReaderRepository`, `ElementWeightCalculator`, `IfcLoadingService`
     *   **Property:** `ConcreteDensityKgPerCubicMeter` (value = `2500.0`)
-    *   **Explanation:** The concrete density fallback is hardcoded at **$2500 \text{ kg/m}^3$**, not 2400. Furthermore, `IfcReaderRepository` and `ElementWeightCalculator` dynamically overrides this fallback based on element names to support Steel ($7850$), Aluminum ($2700$), Glass ($2500$), and Timber ($600$).
-*   **Recommended Correction:** Update the hardcoded density value to $2500 \text{ kg/m}^3$ and document the dynamic overrides for Steel, Aluminum, Glass, and Timber.
+    *   **Explanation:** The concrete density fallback is hardcoded at **$2500 \text{ kg/m}^3$**, not 2400. Import weights prefer explicit IFC weight/mass values and can fall back to direct IFC volume multiplied by concrete density. `ElementWeightCalculator` also provides a UI display/filter fallback using material/type heuristics for Steel ($7850$), Aluminum ($2700$), Glass ($2500$), and Timber ($600$).
+*   **Recommended Correction:** Update the hardcoded density value to $2500 \text{ kg/m}^3$ and distinguish import weight resolution from UI display/filter fallback estimation.
 
 ---
 
@@ -295,8 +295,8 @@ Serialization schemas like `ProjectFileSchema`, `CraneDataSchema`, `SiteDataSche
 ## 16. Agent Context & System Reference (`docs/agent/agent-context.md`)
 
 ### Claim 16.1
-Repetition of key engineering fictions:
-- Weight calculations assume $2400 \text{ kg/m}^3$ concrete density.
+Previous repetition of key engineering fictions:
+- Weight calculations assume the wrong concrete density or fail to distinguish import weight resolution from UI display/filter fallback estimation.
 - Capacity is resolved via linear interpolation.
 - Setup coordinates outside green zones receive a $-50$ penalty, inside obstacles $-100$, and outside boundaries $-200$.
 - ViewModels use Transient lifetimes.
@@ -341,7 +341,7 @@ ADR-005 states that saving and loading `.craneopt` files uses the `AppDbContext`
 
 | Document | Discrepancy | Recommended Correction |
 |---|---|---|
-| `ifc.md` | Nonexistent `IfcModelService.cs`, density of $2400 \text{ kg/m}^3$ | Update reference to `IfcReaderRepository.cs` and `IfcDiagnosticAuditService.cs`. Correct concrete density to $2500 \text{ kg/m}^3$ and detail dynamic material overrides. |
+| `ifc.md` | Nonexistent `IfcModelService.cs`, stale density and fallback-weight wording | Update references to `IfcModelSessionService.cs`, `IfcModelSession.cs`, `IfcReaderRepository.cs`, and `IfcDiagnosticAuditService.cs`. Correct concrete density to $2500 \text{ kg/m}^3$ and distinguish import weight resolution from UI display/filter fallback estimation. |
 | `crane-engine.md` | Nonexistent `CraneRecord` and `GetCapacityAtRadius` linear interpolation | Update entities to `CraneSpecification` and `TargetPoint`. Replace linear interpolation text/diagram with the `ConservativeStep` lookup mechanism of `LoadChartCapacityResolver`. |
 | `ga-engine.md` | Single $(X,Y)$ coordinate chromosome and flat additive penalties | Update to reflect the variable-length list chromosome representation (`CraneChromosome`). Replace flat penalties with normalized failure fractions and settings-defined weights. |
 | `system-overview.md` | Direct compilation dependency (technical debt warning) | Confirm that Application only references Domain, and remove references to the circular dependency. |

@@ -3,7 +3,7 @@
 The application uses **Entity Framework Core** with the **SQLite** provider for persistent storage.
 
 There are two distinct database configurations used in the application:
-1.  **Catalog & Project History Database (`CraneDbContext`):** Main database created at `%APPDATA%/CraneOptimizer/crane.db` (or under `bin/Debug/net8.0/Data/crane.db` during development) on app startup to store catalog items (crane specifications, load charts, historical projects list).
+1.  **Catalog & Project History Database (`CraneDbContext`):** Main database created under the runtime output directory's `Data/crane.db` path on app startup to store catalog items (crane specifications, load charts, historical projects list).
 2.  **Project Files (`.craneopt` / `CreatedProjectDbContext`):** Individual SQLite files created at user-specified paths that store site boundaries, obstacles, green zones, crane setups, and structural elements for a specific planning project.
 
 ---
@@ -73,43 +73,81 @@ erDiagram
     ProjectInfoEntity ||--o{ CraneSetupEntity : has
 
     ProjectInfoEntity {
-        Guid Id PK
+        int Id PK
+        string ProjectGuid
         string Name
-        string ProjectFolderPath
+        string UnitSystem
+        int SchemaVersion
+        int CacheVersion
     }
     ProjectIfcFileEntity {
         int Id PK
-        Guid ProjectInfoId FK
-        string LocalFilePath
-        string ServerFileId
+        int ProjectInfoId FK
+        string FileName
+        string RelativePath
+        string Role
+        string OriginalFullPath
+        long FileSizeBytes
+        DateTime LastWriteUtc
+        string SchemaVersion
+        string TransformJson
+        string MetadataJson
+        bool IsActive
+        bool IsCacheValid
+        int ElementCount
     }
     ProjectIfcElementEntity {
         int Id PK
-        Guid ProjectInfoId FK
+        int ProjectInfoId FK
+        int IfcFileId FK
         string GlobalId
         string Name
-        string IfcElementRole
-        double CenterOfGravityX
-        double CenterOfGravityY
-        double CenterOfGravityZ
-        double Length
-        double Width
-        double Height
-        double Weight
-        double Volume
+        string DisplayName
+        string Mark
+        string ElementType
+        string StoreyName
+        string Material
+        double LengthM
+        double WidthM
+        double HeightM
+        double VolumeM3
+        double WeightTons
+        double COG_X
+        double COG_Y
+        double COG_Z
+        double BBoxMinX
+        double BBoxMinY
+        double BBoxMinZ
+        double BBoxMaxX
+        double BBoxMaxY
+        double BBoxMaxZ
+        bool IsLiftable
+        string RawIfcType
+        string ResolvedCategory
+        string Role
         bool IncludeInRender
+        bool IncludeInElementTree
+        bool IncludeInGa
+        string WeightSource
+        string WeightTrustLevel
     }
     SiteZoneEntity {
         int Id PK
-        Guid ProjectInfoId FK
+        int ProjectInfoId FK
         string Name
         string ZoneType
-        string PolygonCoordinatesJson
+        string VerticesJson
     }
     CraneSetupEntity {
         int Id PK
-        Guid ProjectInfoId FK
-        string SetupCoordinatesJson
+        int ProjectInfoId FK
+        string SceneCraneGuid
+        string CraneName
+        double PositionX
+        double PositionY
+        double PositionZ
+        double BoomLength
+        bool IsValidPlacement
     }
 ```
 

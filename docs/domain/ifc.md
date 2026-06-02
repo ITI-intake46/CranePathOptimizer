@@ -10,13 +10,15 @@ The IFC Processing Workflow extracts structural geometry from BIM models to defi
 graph LR
     BIM[IFC File] --> Open[xBIM IfcStore.Open]
     Open --> Context[Create 3D Geometry Context]
-    Context --> Filter[Query IIfcBuildingElement]
-    Filter --> Parse[Extract coordinates, bbox & volume]
-    Parse --> Weight[Calculate Weight via density]
+    Context --> Audit[Run diagnostic audit]
+    Audit --> Normalize[Build normalization preview]
+    Normalize --> Filter[Query IIfcProduct / IIfcElement]
+    Filter --> Parse[Extract identity, geometry, quantities & material]
+    Parse --> Weight[Resolve explicit or fallback weight]
     Weight --> DTO[Output PrecastElement Schemas]
 ```
 
-The concrete implementation is found in [IfcReaderRepository.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcReaderRepository.cs) and [IfcModelSessionService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Ifc/IfcModelSessionService.cs).
+The concrete implementation is found in [IfcModelSession.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Ifc/IfcModelSession.cs), [IfcReaderRepository.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcReaderRepository.cs), [IfcDiagnosticAuditService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcDiagnosticAuditService.cs), and [IfcNormalizationDecisionService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcNormalizationDecisionService.cs).
 
 ### Implementation Reference
 
@@ -27,24 +29,20 @@ Class:
 `IfcReaderRepository`
 
 Method:
-`ReadElements()`
+`ReadElementsCore()` and nested `IfcEngineeringExtractor.ExtractNormalized()`
 
 ---
 
 ## 2. Element Classification
 
-The system parses IFC entities and maps them to a domain role `IfcElementRole`:
+The system parses physical IFC products and maps them to two different concepts:
 
-| IFC Entity Class | Enum Value | Role |
+| Concept | Implementation | Purpose |
 |---|---|---|
-| `IIfcColumn` | `IfcElementRole.Column` | Vertical load-bearing support |
-| `IIfcBeam` | `IfcElementRole.Beam` | Horizontal spanning support |
-| `IIfcSlab` | `IfcElementRole.Slab` | Floor and roof plates |
-| `IIfcWall` | `IfcElementRole.Wall` | Vertical boundaries |
-| `IIfcFooting` | `IfcElementRole.Footing` | Structural foundations |
-| `IIfcStairFlight` | `IfcElementRole.Stair` | Vertical circulation steps |
+| Resolved category | `IfcDiagnosticAuditService.ResolveCandidateCategory()` | Produces UI/filter categories such as `Column`, `Beam`, `Slab`, `Wall`, `Roof`, `Stair`, `Ramp`, `Footing`, `Pile`, `Plate`, `Member`, `Assembly`, `Proxy`, or `Unknown`. |
+| Normalization role | `IfcElementRole` | Controls behavior: `LiftableElement`, `LiftAssembly`, `GroupingOnly`, `InternalAuxiliary`, `Excluded`, or `NeedsReview`. |
 
-Any building elements that do not match these interfaces are processed as `IfcElementRole.Other` or ignored depending on the normalization policies.
+The extraction candidate set is `_model.Instances.OfType<IIfcProduct>().Where(IsEngineeringProduct)`. `IsEngineeringProduct()` requires an `IIfcElement` with `GlobalId` and `Name`, and excludes `IIfcOpeningElement`, `IIfcSpace`, and `IIfcVirtualElement`.
 
 ### Implementation Reference
 
@@ -54,28 +52,36 @@ File:
 Enum:
 `IfcElementRole`
 
+File:
+[IfcDiagnosticAuditService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcDiagnosticAuditService.cs)
+
+Method:
+`ResolveCandidateCategory()`
+
 ---
 
 ## 3. Weight Estimation Calculations
 
-Because IFC models do not always include explicit mass properties, the system calculates weights programmatically:
+Because IFC models do not always include explicit mass properties, the import and UI display layers use separate fallback paths.
 
-1. **Volume Extraction (`GetVolume`):**
-   * First, it searches the element properties for explicit physical volume declarations (`IIfcQuantityVolume`).
-   * If a declared quantity is found, it uses `VolumeValue`.
-   * If no explicit volume quantity exists, the system falls back to calculating the volume from the bounding box dimensions:
-     $$\text{Volume} = \text{Length} \times \text{Width} \times \text{Height}$$
+1. **Import weight resolution (`IfcDiagnosticAuditService.AuditWeight`):**
+   * First, it searches `IIfcElementQuantity` sets for `IIfcQuantityWeight` names containing `weight` or `mass`.
+   * If no quantity weight exists, it searches `IIfcPropertySet` values with names containing `weight` or `mass`.
+   * If no explicit weight is found, it looks for direct volume via `IIfcQuantityVolume` or numeric volume properties and applies the concrete fallback density:
+     $$\text{Weight (tonnes)} = \frac{\text{Volume (m}^3\text{)} \times 2500}{1000}$$
 
-2. **Weight Computation:**
-   Weight is calculated assuming dynamic densities based on element naming patterns or standard concrete density fallback:
-   * **Steel:** $7850 \text{ kg/m}^3$ (triggered by "STEEL", "REBAR", or "METAL" in the element name)
-   * **Aluminum:** $2700 \text{ kg/m}^3$ (triggered by "ALUMIN" in the element name)
-   * **Glass:** $2500 \text{ kg/m}^3$ (triggered by "GLASS" in the element name)
-   * **Timber:** $600 \text{ kg/m}^3$ (triggered by "TIMBER" or "WOOD" in the element name)
-   * **Concrete / Default Fallback:** $2500 \text{ kg/m}^3$
-   
-   $$\text{Weight (kg)} = \text{Volume (m}^3\text{)} \times \text{Density (kg/m}^3\text{)}$$
-   $$\text{Weight (tonnes)} = \frac{\text{Weight (kg)}}{1000}$$
+2. **Volume extraction (`IfcEngineeringExtractor.BuildSourceSnapshot`):**
+   * The importer reads `netvolume` / `volume` from quantities or numeric properties.
+   * The normalized import path does not assign a bounding-box volume fallback to `ElementVolume`.
+
+3. **UI/display estimated weight (`ElementWeightCalculator`):**
+   * When a `PrecastElement` lacks a positive `ElementWT`, the UI filter and element-management layer can estimate weight from `ElementVolume` or bounding-box dimensions.
+   * That display fallback uses `ElementMaterial` and `ElementType` heuristics:
+     * **Steel:** $7850 \text{ kg/m}^3$ (`STEEL`, `REBAR`, `REINFORC`)
+     * **Aluminum:** $2700 \text{ kg/m}^3$ (`ALUMIN`)
+     * **Glass:** $2500 \text{ kg/m}^3$ (`GLASS`)
+     * **Timber:** $600 \text{ kg/m}^3$ (`TIMBER`, `WOOD`)
+     * **Concrete / Default Fallback:** $2500 \text{ kg/m}^3$
 
 ### Implementation Reference
 
@@ -86,13 +92,27 @@ Class:
 `IfcReaderRepository`
 
 Method:
-`EstimateWeightFromMaterialName()` and `ExtractVolume()`
+`ReadElementsCore()` and nested `IfcEngineeringExtractor.BuildSourceSnapshot()`
+
+File:
+[IfcDiagnosticAuditService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcDiagnosticAuditService.cs)
+
+Method:
+`AuditWeight()` and `AuditVolumeMaterial()`
+
+File:
+[ElementWeightCalculator.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F16_Filter/Services/ElementWeightCalculator.cs)
+
+Method:
+`GetWeightTons()` and `GetDensityKgPerCubicMeter()`
 
 ---
 
 ## 4. Engineering Assumptions and Limitations
 
-*   **Concrete Density Fallback:** The default density factor of $2500 \text{ kg/m}^3$ is utilized inside `IfcReaderRepository.cs`, `IfcDiagnosticAuditService.cs`, and `ElementWeightCalculator.cs`.
-*   **Material Name Heuristics:** The system uses substring matching on element and material names to override concrete density with steel, wood, glass, or aluminum. If naming conventions differ in an exported IFC model, it will revert to the default concrete density.
-*   **Bounding Box Fallback:** Bounding box volume calculation assumes solid rectangular prisms. This will overestimate the volume and weight of hollow-core slabs, curved elements, and structural beams with I or T-shaped profiles.
-*   **Coordination Origin:** The coordinates of elements are extracted from local IFC placement structures. Site boundaries must share the same coordinate system unless a transformation is configured.
+*   **Schema Handling:** There is no project-specific allow-list for IFC2X3, IFC4, IFC4X1, IFC4X2, or IFC4X3. The project delegates file opening to `IfcStore.Open()` and records `model.SchemaVersion` in audit metadata.
+*   **Concrete Density Fallback:** The concrete fallback density is $2500 \text{ kg/m}^3$ in `IfcDiagnosticAuditService`, `IfcReaderRepository`, `ElementWeightCalculator`, and `IfcLoadingService`.
+*   **Material / Type Heuristics:** The active display/filter fallback in `ElementWeightCalculator` uses substring matching on `ElementMaterial` and `ElementType`. It is not the primary normalized import weight source.
+*   **Bounding Box Fallback:** Bounding-box volume is used by the UI display/filter fallback only when explicit element volume is missing. It assumes a solid rectangular prism and can overestimate hollow, curved, I-shaped, or T-shaped elements.
+*   **Spatial Structure:** `IfcProject` is read for units, and `IfcBuildingStorey` is read for model ground elevation and filter storey labels. `IfcSite`, `IfcBuilding`, and `IfcSpace` are not imported as optimization elements; `IfcSpace` is explicitly excluded.
+*   **Coordinate Origin:** Shape-instance bounding boxes and mesh centroids are transformed using `XbimShapeInstance.Transformation`. The UI then applies a user-selected placement offset when the IFC model is placed or restored.

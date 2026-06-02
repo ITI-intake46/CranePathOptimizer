@@ -23,7 +23,7 @@ Use this guide to determine which documentation files you must read, which archi
 Before performing **any** task, reading the following core documents is mandatory to establish proper context and align with the current implementation state:
 
 1.  **System and Context Safeguards:** Read [agent-context.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/agent/agent-context.md) to understand critical naming invariants, engineering limits, and coordinate safeguards.
-2.  **Current Project State:** Read [current-state.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/project/current-state.md) to obtain the list of active tasks, completed modules, and immediate environment details.
+2.  **Current Project State:** Inspect the current source tree, `git status`, and the latest available project audit documents before assuming module status. `docs/project/current-state.md` is not present in the current repository.
 
 ---
 
@@ -58,7 +58,7 @@ Use this index to route your research based on the specific subsystem or domain 
 
 ### If Working On Refactoring & Technical Debt Cleanup
 *   For the priority index of identified architectural flaws and rendering bottlenecks, read [refactoring-opportunities.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/project/refactoring-opportunities.md).
-*   For current tasks and build/test status, read [current-state.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/project/current-state.md).
+*   For current tasks and build/test status, inspect the current source tree, `git status`, and available audit reports; `docs/project/current-state.md` is not present in the current repository.
 *   Always read the relevant domain documentation ([ga-engine.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/ga-engine.md), [ifc.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/ifc.md), etc.) to understand standard mathematical logic before refactoring.
 
 ---

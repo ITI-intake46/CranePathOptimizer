@@ -6,9 +6,9 @@ The Minimum Viable Product (MVP) of the **Mobile Crane Path Optimizer** focuses 
 
 ### 1. BIM & IFC Model Processing
 *   **Model Loading:** Ingestion of Industry Foundation Classes (`.ifc`) files using the xBIM library.
-*   **Element Extraction:** Automatic parsing of standard building elements including columns, beams, slabs, walls, footings, and stairs.
-*   **Geometry Processing:** Extraction of local and global coordinates, bounding boxes (length, width, height), and volumes from 3D shape geometries.
-*   **Weight Calculation:** Estimation of structural weights using physical volumes and a default concrete density of $2500 \text{ kg/m}^3$ (with overrides for steel $7850$, aluminum $2700$, glass $2500$, timber $600$ based on element names).
+*   **Element Extraction:** Automatic parsing of physical IFC elements into resolved categories such as columns, beams, slabs, walls, footings, stairs, assemblies, proxies, or unknown items, then normalization into liftable, grouped, excluded, auxiliary, or review-required roles.
+*   **Geometry Processing:** Extraction of transformed bounding boxes and centers of gravity from xBIM shape instances and shape geometry, plus volume values when they are declared in IFC quantities or properties.
+*   **Weight Calculation:** Import weights prefer explicit IFC weight/mass quantities or properties. When those are missing and direct IFC volume exists, the import audit applies a concrete fallback density of $2500 \text{ kg/m}^3$. UI display/filter fallbacks can estimate missing weights from volume or bounding boxes with material/type density heuristics.
 
 ### 2. Site Constraint Modeling
 *   **Green Areas:** Defining 2D polygonal areas on site where it is permissible to set up the crane.

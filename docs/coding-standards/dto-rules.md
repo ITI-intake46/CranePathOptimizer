@@ -22,7 +22,7 @@ To maintain separation of concerns and prevent persistence models from leaking i
 The `IIfcReaderRepository` processes xBIM models and returns domain elements mapped to the [PrecastElement.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Domain/Schemas/PrecastElement.cs) domain schema.
 
 *   **Rule:** The IFC parsing service does not write to the database itself, nor does it create database entities directly.
-*   **Mapping:** The ViewModels receive these `PrecastElement` domain schemas. When saving the project, the `ProjectService` maps them to `ProjectIfcElementEntity` records to save them inside the `.craneopt` file.
+*   **Mapping:** The ViewModels receive these `PrecastElement` domain schemas. When saving the project, `ProjectStateService.SaveIfcAsync()` calls `PrecastElementMapper.ToEntity()` to map them to `ProjectIfcElementEntity` records inside the `.craneopt` file.
 
 ### Implementation Reference
 
@@ -34,3 +34,9 @@ Class:
 
 Method:
 `ReadElements()`
+
+File:
+[PrecastElementMapper.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F10_ProjectManagement/Mappers/PrecastElementMapper.cs)
+
+Method:
+`ToEntity()` and `ToDomain()`

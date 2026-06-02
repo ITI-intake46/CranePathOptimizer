@@ -17,7 +17,7 @@ To preserve Onion Architecture boundaries, follow these guidelines:
 
 Since this is a desktop application, blocking the UI thread will cause the app to freeze.
 
-* **Return Tasks:** All database accesses, file writing, IFC parsings, and optimization processes must be asynchronous and return `Task` or `Task<T>`.
+* **Return Tasks:** Database accesses, file writing, and optimization workflows should be asynchronous and return `Task` or `Task<T>`. IFC parsing repository methods may expose synchronous APIs, but UI command handlers must invoke them through an asynchronous workflow such as `Task.Run()`.
 * **No Blocking Calls:** Do not use `.Wait()`, `.Result`, or `.GetAwaiter().GetResult()`. Use the `await` keyword.
 * **Background Processing for Heavy Calculations:** Use `Task.Run()` to offload CPU-bound calculations (like running the Genetic Algorithm optimization loop) to background threads, keeping the WPF thread responsive.
 * **Use Async Commands:** ViewModels executing asynchronous actions must use the custom `AsyncRelayCommand` class rather than the blocking `RelayCommand`.
