@@ -60,8 +60,6 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
             }
             else
             {
-                MaxHeight = SystemParameters.WorkArea.Height + 16;
-                MaxWidth  = SystemParameters.WorkArea.Width  + 16;
                 WindowState = WindowState.Maximized;
                 MaximizeButton.Content = "❐";
             }
