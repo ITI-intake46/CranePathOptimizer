@@ -1,6 +1,11 @@
+using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
+using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F11_DXF.DTOs;
 using CraneOptimizer.UI.Features.F11_DXF.Models;
+using CraneOptimizer.UI.Features.F11_DXF.Services;
 using CraneOptimizer.UI.Features.F11_DXF.Views;
 using HelixToolkit.Wpf;
 using Microsoft.Win32;
@@ -12,20 +17,27 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
 {
     public class DxfTabViewModel : ViewModelBase
     {
+        private readonly IDxfZoneImportService _zoneImportService;
+        private readonly ISceneService _scene;
         private DxfUploader? _uploader;
         private string? _loadedFilePath;
         private string _loadedFileName = string.Empty;
         private string _statusMessage = "No DXF loaded";
         private bool _hasDxfLoaded;
+        private bool _useDxfColors;
         private Matrix3D? _pendingTransform;
         private double[] _savedTransformArray = NormalizeTransformArray(null);
         private bool _hasSavedTransformForLoadedFile;
         private DxfAlignmentDialog? _openDialog;
 
-        public DxfTabViewModel()
+        public DxfTabViewModel(IDxfZoneImportService zoneImportService, ISceneService scene)
         {
+            _zoneImportService = zoneImportService;
+            _scene = scene;
+
             UploadDxfCommand = new RelayCommand(ExecuteUploadDxf);
             AlignCommand = new RelayCommand(ExecuteAlign, () => HasDxfLoaded);
+            DrawZonesByLayerCommand = new RelayCommand(ExecuteDrawZonesByLayer, CanDrawZonesByLayer);
 
             AddAnotherDxfCommand = new RelayCommand(() => { });
             DeleteCommand = new RelayCommand(() => { });
@@ -35,6 +47,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
 
         public ICommand UploadDxfCommand { get; }
         public ICommand AlignCommand { get; }
+        public ICommand DrawZonesByLayerCommand { get; }
         public ICommand AddAnotherDxfCommand { get; }
         public ICommand DeleteCommand { get; }
         public ICommand SelectCommand { get; }
@@ -62,7 +75,26 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
         public bool HasDxfLoaded
         {
             get => _hasDxfLoaded;
-            private set { _hasDxfLoaded = value; OnPropertyChanged(); }
+            private set
+            {
+                _hasDxfLoaded = value;
+                OnPropertyChanged();
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        public bool UseDxfColors
+        {
+            get => _useDxfColors;
+            set
+            {
+                if (_useDxfColors == value) return;
+                _useDxfColors = value;
+                OnPropertyChanged();
+                if (_uploader != null)
+                    _uploader.UseDxfColors = value;
+                DxfStateChanged?.Invoke();
+            }
         }
 
         public Matrix3D? PendingTransform
@@ -77,6 +109,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
                 return;
 
             _uploader = new DxfUploader(viewport);
+            _uploader.UseDxfColors = UseDxfColors;
 
             if (!string.IsNullOrWhiteSpace(_loadedFilePath))
                 LoadCurrentDxfIntoUploader(raiseStateChanged: false);
@@ -148,6 +181,8 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
                     _savedTransformArray = dlg.GetTransformArray();
                     _hasSavedTransformForLoadedFile = true;
                     PendingTransform = dlg.GetResultTransform();
+                    if (_uploader != null)
+                        _uploader.AlignmentTransform = PendingTransform ?? Matrix3D.Identity;
                     _openDialog = null;
                     StatusMessage = $"Aligned: {LoadedFileName}";
                     DxfStateChanged?.Invoke();
@@ -177,7 +212,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
                 {
                     _uploader.AlignmentTransform = transform;
                     success = _uploader.LoadDxf(_loadedFilePath, showText);
-                    _uploader.ApplyDisplayState(transform, _uploader.Opacity, showText);
+                    _uploader.ApplyDisplayState(transform, _uploader.Opacity, showText, UseDxfColors);
                 }
                 catch (Exception ex)
                 {
@@ -208,6 +243,86 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
                 DxfStateChanged?.Invoke();
 
             return true;
+        }
+
+        private bool CanDrawZonesByLayer() =>
+            HasDxfLoaded && _uploader?.LoadedDocument != null;
+
+        private void ExecuteDrawZonesByLayer()
+        {
+            if (_uploader?.LoadedDocument == null)
+            {
+                StatusMessage = "Load a DXF before drawing zones by layer.";
+                return;
+            }
+
+            var transform = PendingTransform ?? MatrixFromTransformArray(_savedTransformArray);
+            var layers = _zoneImportService.GetLayerSummaries(_uploader.LoadedDocument, transform);
+            if (layers.Count == 0)
+            {
+                StatusMessage = "No DXF layers found.";
+                return;
+            }
+
+            var dialogViewModel = new DxfZoneImportDialogViewModel(
+                layers,
+                layerName => _zoneImportService.GetCandidates(_uploader.LoadedDocument, layerName, transform),
+                ImportCandidates,
+                RemoveImportedZones);
+
+            var dialog = new DxfZoneImportDialog
+            {
+                Owner = System.Windows.Application.Current?.MainWindow,
+                DataContext = dialogViewModel
+            };
+
+            dialog.ShowDialog();
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private IReadOnlyList<Guid> ImportCandidates(IReadOnlyList<DxfZoneCandidate> candidates, string zoneType)
+        {
+            var imported = new List<Guid>();
+            var type = string.Equals(zoneType, "Forbidden", StringComparison.OrdinalIgnoreCase)
+                ? ZoneType.Forbidden
+                : ZoneType.Allowed;
+
+            foreach (var candidate in candidates.Where(candidate => candidate.IsValid))
+            {
+                var zone = new GreenAreaZone
+                {
+                    ZoneId = Guid.NewGuid(),
+                    Vertices = candidate.Vertices.ToList(),
+                    Area = candidate.Area,
+                    Type = type,
+                    Name = $"{type} DXF Zone {_scene.GetZones().Count + 1}"
+                };
+
+                _scene.AddZone(zone);
+                imported.Add(zone.ZoneId);
+            }
+
+            StatusMessage = imported.Count == 1
+                ? "Imported 1 zone from DXF layer."
+                : $"Imported {imported.Count} zones from DXF layer.";
+            CommandManager.InvalidateRequerySuggested();
+            return imported;
+        }
+
+        private void RemoveImportedZones(IReadOnlyList<Guid> zoneIds)
+        {
+            var ids = zoneIds.ToHashSet();
+            var zones = _scene.GetZones()
+                .Where(zone => ids.Contains(zone.ZoneId))
+                .ToList();
+
+            foreach (var zone in zones)
+                _scene.RemoveZone(zone);
+
+            StatusMessage = zones.Count == 1
+                ? "Removed 1 imported zone."
+                : $"Removed {zones.Count} imported zones.";
+            CommandManager.InvalidateRequerySuggested();
         }
 
         private static double[] NormalizeTransformArray(double[]? transformArray)

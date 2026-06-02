@@ -17,6 +17,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         private readonly HelixViewport3D _viewport;
         private readonly List<ModelVisual3D> _dxfVisuals = new();
         private readonly List<TextVisual3D> _textVisuals = new();
+        private readonly Dictionary<LinesVisual3D, Color> _lineVisualColors = new();
         private readonly List<DxfTextVisualData> _rawTextItems = new();
         private readonly List<Point3D> _rawSnapPoints = new();
         private readonly List<(Point3D A, Point3D B)> _rawSnapSegments = new();
@@ -43,6 +44,19 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         public DxfDocument? LoadedDocument => _loadedDocument;
         public bool IsVisible { get; private set; } = true;
         public string LastLoadDiagnostic { get; private set; } = "";
+
+        private bool _useDxfColors;
+        public bool UseDxfColors
+        {
+            get => _useDxfColors;
+            set
+            {
+                if (_useDxfColors == value) return;
+                _useDxfColors = value;
+                if (IsLoaded && _loadedDocument != null)
+                    RedrawLoadedDocument();
+            }
+        }
 
         private bool _showText = true;
         public bool ShowText
@@ -154,7 +168,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
 
         private int RenderDxf(DxfDocument dxf)
         {
-            var pts = new Point3DCollection();
+            var linePointsByColor = new Dictionary<Color, Point3DCollection>();
             _dxfRebase = Matrix3D.Identity;
             _currentRenderTransform = Matrix3D.Identity;
             _rawTextItems.Clear();
@@ -168,9 +182,10 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                 {
                     try
                     {
+                        var points = GetSegmentPoints(linePointsByColor, ResolveColor(line.Color, line.Layer));
                         var a = TransformPoint(line.StartPoint.X, line.StartPoint.Y);
                         var b = TransformPoint(line.EndPoint.X, line.EndPoint.Y);
-                        AddSegment(pts, a, b, includeMidpointSnap: true);
+                        AddSegment(points, a, b, includeMidpointSnap: true);
                         _rawSnapPoints.Add(a);
                         _rawSnapPoints.Add(b);
                         lineCount++;
@@ -186,6 +201,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                 {
                     try
                     {
+                        var points = GetSegmentPoints(linePointsByColor, ResolveColor(poly.Color, poly.Layer));
                         var verts = new List<Point3D>();
                         foreach (var v in poly.Vertexes)
                             verts.Add(TransformPoint(v.Position.X, v.Position.Y));
@@ -194,7 +210,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
 
                         int count = poly.IsClosed ? verts.Count : verts.Count - 1;
                         for (int i = 0; i < count; i++)
-                            AddSegment(pts, verts[i], verts[(i + 1) % verts.Count], includeMidpointSnap: true);
+                            AddSegment(points, verts[i], verts[(i + 1) % verts.Count], includeMidpointSnap: true);
 
                         _rawSnapPoints.AddRange(verts);
                         polyCount++;
@@ -210,6 +226,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                 {
                     try
                     {
+                        var points = GetSegmentPoints(linePointsByColor, ResolveColor(circle.Color, circle.Layer));
                         var center = TransformPoint(circle.Center.X, circle.Center.Y);
                         _rawSnapCenters.Add(center);
 
@@ -219,7 +236,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                             double a1 = i * Math.PI * 2.0 / seg;
                             double a2 = (i + 1) * Math.PI * 2.0 / seg;
                             AddSegment(
-                                pts,
+                                points,
                                 TransformPoint(circle.Center.X + circle.Radius * Math.Cos(a1), circle.Center.Y + circle.Radius * Math.Sin(a1)),
                                 TransformPoint(circle.Center.X + circle.Radius * Math.Cos(a2), circle.Center.Y + circle.Radius * Math.Sin(a2)),
                                 includeMidpointSnap: false);
@@ -242,6 +259,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                 {
                     try
                     {
+                        var points = GetSegmentPoints(linePointsByColor, ResolveColor(arc.Color, arc.Layer));
                         double startDeg = arc.StartAngle;
                         double endDeg = arc.EndAngle;
                         if (endDeg <= startDeg) endDeg += 360;
@@ -257,7 +275,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                             double a1 = (startDeg + i * span / seg) * Math.PI / 180.0;
                             double a2 = (startDeg + (i + 1) * span / seg) * Math.PI / 180.0;
                             AddSegment(
-                                pts,
+                                points,
                                 TransformPoint(arc.Center.X + arc.Radius * Math.Cos(a1), arc.Center.Y + arc.Radius * Math.Sin(a1)),
                                 TransformPoint(arc.Center.X + arc.Radius * Math.Cos(a2), arc.Center.Y + arc.Radius * Math.Sin(a2)),
                                 includeMidpointSnap: false);
@@ -292,7 +310,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                     try
                     {
                         if (!ellipse.IsVisible) continue;
-                        AddEllipse(pts, ellipse);
+                        AddEllipse(GetSegmentPoints(linePointsByColor, ResolveColor(ellipse.Color, ellipse.Layer)), ellipse);
                         ellipseCount++;
                     }
                     catch { }
@@ -306,6 +324,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                 {
                     try
                     {
+                        var points = GetSegmentPoints(linePointsByColor, ResolveColor(spline.Color, spline.Layer));
                         var ctrlPts = new List<Point3D>();
                         foreach (var cp in spline.ControlPoints)
                         {
@@ -326,7 +345,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
 
                         if (ctrlPts.Count < 2) continue;
                         for (int i = 0; i < ctrlPts.Count - 1; i++)
-                            AddSegment(pts, ctrlPts[i], ctrlPts[i + 1], includeMidpointSnap: false);
+                            AddSegment(points, ctrlPts[i], ctrlPts[i + 1], includeMidpointSnap: false);
 
                         _rawSnapPoints.Add(ctrlPts[0]);
                         _rawSnapPoints.Add(ctrlPts[^1]);
@@ -343,17 +362,22 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
 
             Log($"Entities - Lines:{lineCount} Polys:{polyCount} Circles:{circleCount} Arcs:{arcCount} Ellipses:{ellipseCount} Splines:{splineCount} Text:{textCount} RenderedText:{LastRenderedTextCount}");
 
-            if (pts.Count > 0)
+            var pointCount = linePointsByColor.Values.Sum(points => points.Count);
+            if (pointCount > 0)
             {
                 byte alpha = (byte)(_opacity * 255);
-                var dxfLines = new LinesVisual3D
+                foreach (var (baseColor, points) in linePointsByColor)
                 {
-                    Color = Color.FromArgb(alpha, 160, 160, 160),
-                    Thickness = 1.0,
-                    Points = pts
-                };
-                _viewport.Children.Add(dxfLines);
-                _dxfVisuals.Add(dxfLines);
+                    var dxfLines = new LinesVisual3D
+                    {
+                        Color = Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B),
+                        Thickness = 1.0,
+                        Points = points
+                    };
+                    _viewport.Children.Add(dxfLines);
+                    _dxfVisuals.Add(dxfLines);
+                    _lineVisualColors[dxfLines] = baseColor;
+                }
             }
 
             if (ShowText)
@@ -361,7 +385,34 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
 
             ApplyCurrentTransform(raiseSnapChanged: false);
 
-            return pts.Count;
+            return pointCount;
+        }
+
+        private Point3DCollection GetSegmentPoints(Dictionary<Color, Point3DCollection> linePointsByColor, Color color)
+        {
+            var baseColor = UseDxfColors ? color : Color.FromRgb(160, 160, 160);
+            if (!linePointsByColor.TryGetValue(baseColor, out var points))
+            {
+                points = new Point3DCollection();
+                linePointsByColor[baseColor] = points;
+            }
+
+            return points;
+        }
+
+        private static Color ResolveColor(AciColor color, netDxf.Tables.Layer layer)
+        {
+            try
+            {
+                var resolved = color.IsByLayer ? layer.Color : color;
+                if (!resolved.IsByLayer && !resolved.IsByBlock)
+                    return Color.FromRgb(resolved.R, resolved.G, resolved.B);
+            }
+            catch
+            {
+            }
+
+            return Color.FromRgb(160, 160, 160);
         }
 
         private Point3D TransformPoint(double x, double y, double z = 0.002)
@@ -991,6 +1042,15 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             ApplyCurrentTransform();
         }
 
+        public void ApplyDisplayState(Matrix3D alignmentTransform, double opacity, bool showText, bool useDxfColors)
+        {
+            AlignmentTransform = alignmentTransform;
+            Opacity = opacity;
+            ShowText = showText;
+            UseDxfColors = useDxfColors;
+            ApplyCurrentTransform();
+        }
+
         private void EnsureTextVisualsCreated()
         {
             if (_textVisuals.Count > 0 || _rawTextItems.Count == 0)
@@ -1168,7 +1228,12 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             foreach (var visual in _dxfVisuals)
             {
                 if (visual is LinesVisual3D lines)
-                    lines.Color = Color.FromArgb(alpha, 160, 160, 160);
+                {
+                    var baseColor = _lineVisualColors.TryGetValue(lines, out var color)
+                        ? color
+                        : Color.FromRgb(160, 160, 160);
+                    lines.Color = Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B);
+                }
 
                 if (visual is TextVisual3D text)
                     text.Foreground = new SolidColorBrush(Color.FromArgb(alpha, 230, 230, 230));
@@ -1179,6 +1244,14 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         {
             if (!IsLoaded) return;
             ApplyCurrentTransform();
+        }
+
+        private void RedrawLoadedDocument()
+        {
+            if (_loadedDocument == null) return;
+            ClearVisualsAndSnapData();
+            RenderDxf(_loadedDocument);
+            RaiseSnapDataChanged();
         }
 
         public void Clear()
@@ -1195,6 +1268,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             foreach (var v in _dxfVisuals) _viewport.Children.Remove(v);
             _dxfVisuals.Clear();
             _textVisuals.Clear();
+            _lineVisualColors.Clear();
             _rawTextItems.Clear();
             _rawSnapPoints.Clear();
             _rawSnapSegments.Clear();
