@@ -127,7 +127,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasActiveSession));
                 OnPropertyChanged(nameof(ActiveProjectName));
-                ((RelayCommand)ReturnToProjectCommand).RaiseCanExecuteChanged();
+                CommandManager.InvalidateRequerySuggested();
             }
         }
 
