@@ -1,3 +1,5 @@
+using CraneOptimizer.Domain.Common;
+
 namespace CraneOptimizer.UI.Features.F11_DXF.DTOs
 {
     /// <summary>
@@ -34,4 +36,34 @@ namespace CraneOptimizer.UI.Features.F11_DXF.DTOs
         double GlobalOffsetY,
         int DxfUnitIndex,
         int GlobalOffsetUnitIndex);
+
+    /// <summary>
+    /// Import readiness summary for a DXF layer.
+    /// </summary>
+    public sealed record DxfImportLayerSummary(
+        string Name,
+        string ColorHex,
+        int TotalEntityCount,
+        int ValidClosedCount,
+        int InvalidCount);
+
+    /// <summary>
+    /// Candidate zone polygon extracted from a DXF layer.
+    /// </summary>
+    public sealed record DxfZoneCandidate(
+        Guid Id,
+        string LayerName,
+        IReadOnlyList<DomainPoint3D> Vertices,
+        double Area,
+        string SourceEntityType,
+        bool IsValid,
+        IReadOnlyList<string> Issues);
+
+    /// <summary>
+    /// Aggregated result for DXF zone import discovery.
+    /// </summary>
+    public sealed record DxfZoneImportResult(
+        IReadOnlyList<DxfImportLayerSummary> Layers,
+        IReadOnlyList<DxfZoneCandidate> Candidates,
+        IReadOnlyList<string> Issues);
 }

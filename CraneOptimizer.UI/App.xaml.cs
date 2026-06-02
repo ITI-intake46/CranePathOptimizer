@@ -14,6 +14,7 @@ using CraneOptimizer.UI.Features.F0_CoordinateSystem;
 using CraneOptimizer.UI.Features.F3_CraneSetup;
 using CraneOptimizer.UI.Features.F3_CraneSetup.Services;
 using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
+using CraneOptimizer.UI.Features.F11_DXF.Services;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
@@ -130,6 +131,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<ICoordinateReadoutFormatter, CoordinateReadoutFormatter>();
             services.AddSingleton<ICraneValidationService, CraneValidationService>();
             services.AddSingleton<IElementLiftStateService, ElementLiftStateService>();
+            services.AddSingleton<IDxfZoneImportService, DxfZoneImportService>();
 
             // =========================
             // GA

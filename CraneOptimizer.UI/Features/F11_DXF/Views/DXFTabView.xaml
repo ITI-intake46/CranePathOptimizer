@@ -85,6 +85,45 @@
 
             <Rectangle Style="{StaticResource RibbonSep}" />
 
+            <!--  ── IMPORT ─────────────────────────────────────────────────  -->
+            <Border Padding="4,4,0,0">
+                <DockPanel LastChildFill="False">
+                    <TextBlock
+                        DockPanel.Dock="Bottom"
+                        Style="{StaticResource GroupLabel}"
+                        Text="IMPORT" />
+                    <StackPanel Orientation="Horizontal">
+                        <Button
+                            Command="{Binding Dxf.DrawZonesByLayerCommand}"
+                            IsEnabled="{Binding Dxf.HasDxfLoaded}"
+                            Style="{StaticResource RibbonLargeBtn}"
+                            ToolTip="Draw zones from closed DXF polylines on a selected layer">
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock
+                                    Margin="0,8,0,2"
+                                    FontSize="26"
+                                    Text="🗂" />
+                                <TextBlock Text="By Layer" />
+                            </StackPanel>
+                        </Button>
+                        <StackPanel
+                            Width="122"
+                            Margin="8,10,0,0">
+                            <CheckBox
+                                Content="Use DXF Colors"
+                                FontFamily="{StaticResource FontPrimary}"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                IsChecked="{Binding Dxf.UseDxfColors, Mode=TwoWay}"
+                                IsEnabled="{Binding Dxf.HasDxfLoaded}"
+                                ToolTip="Render the DXF overlay with original entity and layer colors" />
+                        </StackPanel>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <Rectangle Style="{StaticResource RibbonSep}" />
+
             <!--  ── SELECTION ────────────────────────────────────────────────  -->
             <Border Padding="8,8,0,0">
                 <DockPanel>
