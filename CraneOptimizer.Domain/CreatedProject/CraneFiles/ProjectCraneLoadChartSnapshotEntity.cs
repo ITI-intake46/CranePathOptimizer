@@ -16,6 +16,16 @@
 
         public double CapacityTons { get; set; }
 
+        /// <summary>
+        /// Optional one-based visual column index for exact PDF load charts.
+        /// </summary>
+        public int? VisualColumnIndex { get; set; }
+
+        /// <summary>
+        /// Optional exact visual PDF column header, for example 39.1 (2).
+        /// </summary>
+        public string? VisualColumnHeader { get; set; }
+
         public string? Notes { get; set; }
 
         public ProjectCraneSnapshotEntity? CraneSnapshot { get; set; }

@@ -1,4 +1,4 @@
-using CraneOptimizer.Domain.Units;
+﻿using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.UI.Features.F4_LoadChart.DTOs;
 using CraneOptimizer.UI.Features.F4_LoadChart.Services;
@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Data;
 using System.Globalization;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -70,14 +71,21 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             DetailModel.Text = crane.Name;
             DetailMfg.Text = crane.Manufacturer;
             DetailDimensions.Text = BuildDimensionSummary(crane, _unitSettingsService.Current);
-            DetailOutrigger.Text = crane.OutriggerConfig;
+            DetailOutrigger.Text = crane.HasExactVisualLoadChart
+                ? $"{crane.OutriggerConfig} | exact PDF visual chart"
+                : crane.OutriggerConfig;
             DetailCounterweight.Text = UnitSystem.FormatMass(crane.Counterweight, _unitSettingsService.Current, CultureInfo.InvariantCulture);
-            DetailPointCount.Text = crane.Points.Count.ToString(CultureInfo.InvariantCulture);
+            DetailPointCount.Text = crane.HasExactVisualLoadChart
+                ? $"{crane.Points.Count} exact visual cell(s)"
+                : crane.Points.Count.ToString(CultureInfo.InvariantCulture);
             MiniGrid.ItemsSource = BuildPreviewTable(crane).DefaultView;
         }
 
         private static DataTable BuildPreviewTable(LoadChartCraneDto crane)
         {
+            if (crane.HasExactVisualLoadChart)
+                return BuildExactPreviewTable(crane);
+
             var booms = crane.Points
                 .Select(point => point.BoomLength)
                 .Distinct()
@@ -109,6 +117,101 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                         ? string.Empty
                         : point.Capacity.ToString(CultureInfo.InvariantCulture);
                 }
+
+                table.Rows.Add(row);
+            }
+
+            return table;
+        }
+
+        private static DataTable BuildExactPreviewTable(LoadChartCraneDto crane)
+        {
+            var rawGrid = TryReadExactRawGrid(crane.ExactLoadChartRawGridJson);
+            if (rawGrid.Count > 1)
+                return BuildTableFromRawGrid(rawGrid);
+
+            var orderedColumns = crane.Points
+                .Where(point => point.VisualColumnIndex.HasValue)
+                .GroupBy(point => point.VisualColumnIndex.Value)
+                .OrderBy(group => group.Key)
+                .Select(group => new
+                {
+                    Index = group.Key,
+                    Header = group.Select(point => point.VisualColumnHeader)
+                        .FirstOrDefault(header => !string.IsNullOrWhiteSpace(header))
+                        ?? group.First().BoomLength.ToString("G", CultureInfo.InvariantCulture)
+                })
+                .ToList();
+
+            var table = new DataTable();
+            table.Columns.Add("Radius");
+            foreach (var column in orderedColumns)
+                table.Columns.Add(column.Header);
+
+            foreach (double radius in crane.Points.Select(point => point.Radius).Distinct().OrderBy(value => value))
+            {
+                var row = table.NewRow();
+                row[0] = radius.ToString("G", CultureInfo.InvariantCulture);
+
+                for (int i = 0; i < orderedColumns.Count; i++)
+                {
+                    var column = orderedColumns[i];
+                    var point = crane.Points.FirstOrDefault(item =>
+                        item.VisualColumnIndex == column.Index && Math.Abs(item.Radius - radius) < 0.0001);
+
+                    row[i + 1] = point == null || point.Capacity == 0d
+                        ? string.Empty
+                        : point.Capacity.ToString("G", CultureInfo.InvariantCulture);
+                }
+
+                table.Rows.Add(row);
+            }
+
+            return table;
+        }
+
+        private static List<List<string>> TryReadExactRawGrid(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return new List<List<string>>();
+
+            try
+            {
+                return JsonSerializer.Deserialize<List<List<string>>>(json) ?? new List<List<string>>();
+            }
+            catch
+            {
+                return new List<List<string>>();
+            }
+        }
+
+        private static DataTable BuildTableFromRawGrid(IReadOnlyList<List<string>> rawGrid)
+        {
+            var table = new DataTable();
+            int columnCount = rawGrid.Max(row => row.Count);
+
+            for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
+            {
+                string header = rawGrid[0].Count > columnIndex && !string.IsNullOrWhiteSpace(rawGrid[0][columnIndex])
+                    ? rawGrid[0][columnIndex]
+                    : columnIndex == 0 ? "Radius" : $"Column {columnIndex + 1}";
+
+                string uniqueHeader = header;
+                int suffix = 2;
+                while (table.Columns.Contains(uniqueHeader))
+                {
+                    uniqueHeader = $"{header} ({suffix})";
+                    suffix++;
+                }
+
+                table.Columns.Add(uniqueHeader);
+            }
+
+            foreach (var sourceRow in rawGrid.Skip(1))
+            {
+                var row = table.NewRow();
+                for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
+                    row[columnIndex] = columnIndex < sourceRow.Count ? sourceRow[columnIndex] : string.Empty;
 
                 table.Rows.Add(row);
             }

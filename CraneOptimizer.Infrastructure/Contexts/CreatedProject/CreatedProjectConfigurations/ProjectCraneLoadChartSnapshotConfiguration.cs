@@ -1,11 +1,6 @@
 ﻿using CraneOptimizer.Domain.CreatedProject.CraneFiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject.CreatedProjectConfigurations
 {
@@ -26,12 +21,15 @@ namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject.CreatedProjectCo
             entity.Property(x => x.CapacityTons)
                 .IsRequired();
 
+            entity.Property(x => x.VisualColumnHeader)
+                .HasMaxLength(120);
+
             entity.Property(x => x.Notes)
                 .HasMaxLength(500);
 
             entity.HasIndex(x => x.CraneSnapshotId);
 
-            entity.HasIndex(x => new { x.CraneSnapshotId, x.RadiusM, x.BoomLengthM })
+            entity.HasIndex(x => new { x.CraneSnapshotId, x.RadiusM, x.BoomLengthM, x.VisualColumnIndex })
                 .IsUnique();
 
             entity.HasOne(x => x.CraneSnapshot)

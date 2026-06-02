@@ -20,7 +20,16 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.DTOs
         double MinBoomLength,
         double MaxBoomLength,
         double MaxCapacity,
-        IReadOnlyList<LoadChartPointDto> Points);
+        IReadOnlyList<LoadChartPointDto> Points,
+        string LoadChartStorageMode = "Standard2D",
+        string LoadChartCapacityPolicy = "Standard2D",
+        string ExactLoadChartRawGridJson = "",
+        string LoadChartSourceDescription = "")
+    {
+        public bool HasExactVisualLoadChart =>
+            string.Equals(LoadChartStorageMode, "ExactPdfVisual", StringComparison.OrdinalIgnoreCase)
+            || Points.Any(point => point.VisualColumnIndex.HasValue);
+    }
 
     /// <summary>
     /// Simple load chart point used by the load chart dialogs.
@@ -28,5 +37,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.DTOs
     public sealed record LoadChartPointDto(
         double Radius,
         double BoomLength,
-        double Capacity);
+        double Capacity,
+        int? VisualColumnIndex = null,
+        string VisualColumnHeader = "");
 }

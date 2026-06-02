@@ -360,6 +360,33 @@ namespace CraneOptimizer.Application.Tests
             Assert.Equal(2.0, result.AvailableCapacity);
         }
 
+
+        [Fact]
+        public void TestDuplicateVisualColumnsUseConservativeMinimumCapacity()
+        {
+            var craneSpec = new CraneSpecification
+            {
+                MaxRadius = 40,
+                MaxBoomLength = 70,
+                LoadChartStorageMode = "ExactPdfVisual",
+                LoadChartCapacityPolicy = "ConservativeMinimumAcrossDuplicateVisualColumns",
+                LoadChart = new List<TargetPoint>
+                {
+                    new TargetPoint { Radius = 10, BoomLength = 39.1, Capacity = 38.3, VisualColumnIndex = 1, VisualColumnHeader = "39.1" },
+                    new TargetPoint { Radius = 10, BoomLength = 39.1, Capacity = 35.1, VisualColumnIndex = 2, VisualColumnHeader = "39.1 (2)" },
+                    new TargetPoint { Radius = 10, BoomLength = 39.1, Capacity = 31.5, VisualColumnIndex = 3, VisualColumnHeader = "39.1 (3)" }
+                }
+            };
+
+            var result = _resolver.Resolve(craneSpec, 10, 39.1, 30.0, _settings);
+
+            Assert.Equal(LiftStatus.Liftable, result.LiftStatus);
+            Assert.Equal(ChartStatus.ListedCapacityFound, result.ChartStatus);
+            Assert.Equal(39.1, result.SelectedChartBoomLength, 1);
+            Assert.Equal(31.5, result.AvailableCapacity, 3);
+            Assert.Equal(1.5, result.SafetyMargin, 3);
+        }
+
         [Fact]
         public void TestSelectedRadiusUsesNextRadiusGteRequiredRadiusNotMinimum()
         {

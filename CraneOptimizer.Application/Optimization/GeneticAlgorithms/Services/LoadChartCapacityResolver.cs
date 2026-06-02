@@ -99,36 +99,52 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             TargetPoint? bestOverweightEntry = null;
             double bestOverweightCapacity = -1.0;
 
-            foreach (var tp in candidates)
+            // Full-fidelity PDF charts can preserve repeated visual columns with the same numeric boom length.
+            // Those duplicate columns may represent manufacturer-specific conditions such as line count,
+            // counterweight, operating mode, or region. Resolve each numeric boom group conservatively by
+            // using the minimum positive capacity in the duplicate group instead of an optimistic envelope.
+            var candidateGroups = candidates
+                .GroupBy(tp => Math.Round(tp.BoomLength, 4))
+                .OrderBy(group => group.Min(tp => tp.BoomLength));
+
+            foreach (var group in candidateGroups)
             {
-                checkedBooms.Add(tp.BoomLength);
+                var groupEntries = group
+                    .OrderBy(tp => tp.VisualColumnIndex ?? int.MaxValue)
+                    .ThenBy(tp => tp.Capacity)
+                    .ToList();
 
-                if (tp.Capacity <= -1.0)
+                double boom = groupEntries.Min(tp => tp.BoomLength);
+                checkedBooms.Add(boom);
+
+                var positiveEntries = groupEntries
+                    .Where(tp => tp.Capacity > 0.0)
+                    .OrderBy(tp => tp.Capacity)
+                    .ThenBy(tp => tp.VisualColumnIndex ?? int.MaxValue)
+                    .ToList();
+
+                if (positiveEntries.Count == 0)
                 {
-                    rejections.Add($"{tp.BoomLength:0.#} (InvalidBlankCell)");
+                    var invalidEntry = groupEntries.FirstOrDefault(tp => tp.Capacity == 0.0)
+                        ?? groupEntries.First();
+                    string status = invalidEntry.Capacity <= -1.0 ? "InvalidBlankCell" : "InvalidZeroCell";
+                    rejections.Add($"{boom:0.#} ({status})");
                     continue;
                 }
-                if (tp.Capacity == 0.0)
-                {
-                    rejections.Add($"{tp.BoomLength:0.#} (InvalidZeroCell)");
-                    continue;
-                }
 
-                // Positive capacity candidate found!
+                var tp = positiveEntries[0];
                 double available = tp.Capacity * settings.DeratingRatio * settings.SafetyFactor;
                 if (available >= elementWeight)
                 {
                     selectedEntry = tp;
-                    break; // Shortest compliant boom selected!
+                    break; // Shortest compliant boom selected after conservative duplicate-column grouping.
                 }
-                else
+
+                rejections.Add($"{boom:0.#} (Overweight: {available:0.###} < {elementWeight:0.###})");
+                if (available > bestOverweightCapacity)
                 {
-                    rejections.Add($"{tp.BoomLength:0.#} (Overweight: {available:0.###} < {elementWeight:0.###})");
-                    if (available > bestOverweightCapacity)
-                    {
-                        bestOverweightCapacity = available;
-                        bestOverweightEntry = tp;
-                    }
+                    bestOverweightCapacity = available;
+                    bestOverweightEntry = tp;
                 }
             }
 

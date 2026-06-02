@@ -145,7 +145,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cran
                 }
             }
 
-            return new CraneCapacityDiagnosticResult(
+return new CraneCapacityDiagnosticResult(
                 resolveResult.AvailableCapacity,
                 resolveResult.SelectedChartRadius,
                 resolveResult.SelectedChartBoomLength,

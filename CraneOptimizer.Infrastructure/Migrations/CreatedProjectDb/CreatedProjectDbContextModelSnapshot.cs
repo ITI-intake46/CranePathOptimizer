@@ -39,11 +39,18 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                     b.Property<double>("RadiusM")
                         .HasColumnType("REAL");
 
+                    b.Property<string>("VisualColumnHeader")
+                        .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("VisualColumnIndex")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CraneSnapshotId");
 
-                    b.HasIndex("CraneSnapshotId", "RadiusM", "BoomLengthM")
+                    b.HasIndex("CraneSnapshotId", "RadiusM", "BoomLengthM", "VisualColumnIndex")
                         .IsUnique();
 
                     b.ToTable("ProjectCraneLoadChartSnapshots", (string)null);
