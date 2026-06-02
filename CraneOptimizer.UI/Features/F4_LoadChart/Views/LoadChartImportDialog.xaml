@@ -1,4 +1,4 @@
-﻿<Window x:Class="CraneOptimizer.UI.Features.F4_LoadChart.Views.LoadChartImportDialog"
+<Window x:Class="CraneOptimizer.UI.Features.F4_LoadChart.Views.LoadChartImportDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Import Crane Load Chart"
@@ -188,6 +188,18 @@
 
                             <TextBlock x:Name="LblMaxCapacity" Text="Max Capacity (t)" Style="{StaticResource PropertyLabel}"/>
                             <TextBox x:Name="TxtMaxCap" Margin="0,0,0,8"/>
+                            <TextBlock x:Name="LblChartCapacityUnit" Text="Chart Capacity Unit" Style="{StaticResource PropertyLabel}"/>
+                            <ComboBox x:Name="CboChartCapacityUnit"
+                                      Style="{StaticResource DarkComboBox}"
+                                      ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                                      SelectedIndex="0"
+                                      Height="30"
+                                      Margin="0,0,0,8"
+                                      SelectionChanged="CboChartCapacityUnit_SelectionChanged">
+                                <ComboBoxItem Content="Auto (detect kg / t)" Tag="Auto"/>
+                                <ComboBoxItem Content="t" Tag="Ton"/>
+                                <ComboBoxItem Content="kg" Tag="Kilogram"/>
+                            </ComboBox>
 
                             <TextBlock x:Name="LblMaxRadius" Text="Max Radius (m)" Style="{StaticResource PropertyLabel}"/>
                             <TextBox x:Name="TxtMaxRadius" Margin="0,0,0,8"/>

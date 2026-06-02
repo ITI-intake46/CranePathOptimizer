@@ -28,7 +28,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Views
 
         private async void ViewSavedCharts_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new CraneCatalogBrowserDialog
+            var dialog = new CraneCatalogBrowserDialog(isReadOnlyView: true)
             {
                 Owner = Window.GetWindow(this)
             };
@@ -39,7 +39,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Views
 
         private async void CraneCatalog_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new CraneCatalogBrowserDialog
+            var dialog = new CraneCatalogBrowserDialog(isReadOnlyView: false)
             {
                 Owner = Window.GetWindow(this)
             };

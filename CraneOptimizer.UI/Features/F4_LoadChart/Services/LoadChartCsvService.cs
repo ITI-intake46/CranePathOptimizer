@@ -8,6 +8,12 @@ using System.Text.RegularExpressions;
 
 namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
 {
+    internal enum LoadChartCapacityUnitMode
+    {
+        Auto = 0,
+        Ton = 1,
+        Kilogram = 2
+    }
     internal sealed class ParsedLoadChart
     {
         public DataTable PreviewTable { get; init; } = new();
@@ -18,6 +24,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
         public double MinBoomLength { get; init; }
         public double MaxBoomLength { get; init; }
         public double MaxCapacity { get; init; }
+        public double RawMaxCapacity { get; init; }
+        public MassUnit EffectiveCapacityUnit { get; init; } = MassUnit.Ton;
+        public LoadChartCapacityUnitMode RequestedCapacityUnitMode { get; init; } = LoadChartCapacityUnitMode.Auto;
         public string LoadChartStorageMode { get; init; } = "Standard2D";
         public string LoadChartCapacityPolicy { get; init; } = "Standard2D";
         public string ExactLoadChartRawGridJson { get; init; } = string.Empty;
@@ -40,16 +49,21 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             return ParseRawGrid(rawGrid);
         }
 
-        public static ParsedLoadChart ParseRawGrid(IReadOnlyList<List<string>> rawGrid)
+        public static ParsedLoadChart ParseRawGrid(
+            IReadOnlyList<List<string>> rawGrid,
+            LoadChartCapacityUnitMode capacityUnitMode = LoadChartCapacityUnitMode.Auto)
         {
             if (rawGrid.Count < 2)
                 throw new FormatException("The load chart grid must contain a header row and at least one data row.");
 
             var previewTable = CreatePreviewTable(rawGrid, out var previewHeaders);
-            return ParseTable(previewTable, previewHeaders);
+            return ParseTable(previewTable, previewHeaders, capacityUnitMode);
         }
 
-        public static ParsedLoadChart ParseTable(DataTable table, IReadOnlyList<string>? previewHeaders = null)
+        public static ParsedLoadChart ParseTable(
+            DataTable table,
+            IReadOnlyList<string>? previewHeaders = null,
+            LoadChartCapacityUnitMode capacityUnitMode = LoadChartCapacityUnitMode.Auto)
         {
             return ParseTableCore(
                 table,
@@ -58,26 +72,29 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 storageMode: "Standard2D",
                 capacityPolicy: "Standard2D",
                 exactRawGridJson: string.Empty,
-                sourceDescription: string.Empty);
+                sourceDescription: string.Empty,
+                capacityUnitMode: capacityUnitMode);
         }
 
         public static ParsedLoadChart ParseExactVisualRawGrid(
             IReadOnlyList<List<string>> rawGrid,
-            string sourceDescription = "")
+            string sourceDescription = "",
+            LoadChartCapacityUnitMode capacityUnitMode = LoadChartCapacityUnitMode.Auto)
         {
             if (rawGrid.Count < 2)
                 throw new FormatException("The exact PDF visual grid must contain a header row and at least one data row.");
 
             var previewTable = CreateExactVisualPreviewTable(rawGrid, out var previewHeaders);
             string rawJson = JsonSerializer.Serialize(rawGrid);
-            return ParseExactVisualTable(previewTable, previewHeaders, rawJson, sourceDescription);
+            return ParseExactVisualTable(previewTable, previewHeaders, rawJson, sourceDescription, capacityUnitMode);
         }
 
         public static ParsedLoadChart ParseExactVisualTable(
             DataTable table,
             IReadOnlyList<string>? previewHeaders = null,
             string? exactRawGridJson = null,
-            string sourceDescription = "")
+            string sourceDescription = "",
+            LoadChartCapacityUnitMode capacityUnitMode = LoadChartCapacityUnitMode.Auto)
         {
             var headers = previewHeaders?.ToList()
                 ?? table.Columns.Cast<DataColumn>().Select(column => column.ColumnName).ToList();
@@ -93,7 +110,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 storageMode: "ExactPdfVisual",
                 capacityPolicy: "ConservativeMinimumAcrossDuplicateVisualColumns",
                 exactRawGridJson: rawJson,
-                sourceDescription: sourceDescription);
+                sourceDescription: sourceDescription,
+                capacityUnitMode: capacityUnitMode);
         }
 
         private static ParsedLoadChart ParseTableCore(
@@ -103,7 +121,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             string storageMode,
             string capacityPolicy,
             string exactRawGridJson,
-            string sourceDescription)
+            string sourceDescription,
+            LoadChartCapacityUnitMode capacityUnitMode)
         {
             if (table.Columns.Count < 2)
                 throw new FormatException("The load chart grid must contain a radius column and at least one boom column.");
@@ -141,6 +160,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             double? minBoom = null;
             double? maxBoom = null;
             double? maxCapacity = null;
+            var capacityUnitResolution = ResolveCapacityUnit(table, capacityUnitMode);
+            MassUnit effectiveCapacityUnit = capacityUnitResolution.EffectiveUnit;
+            double rawMaxCapacity = capacityUnitResolution.RawMaxCapacity;
 
             foreach (DataRow row in table.Rows)
             {
@@ -169,7 +191,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                                 $"Capacity value '{capacityText}' is invalid at radius '{radiusText}', boom '{boomLength}'.");
                         }
 
-                        capacity = NormalizeCapacityToTons(rawCapacityText, capacity);
+                        capacity = NormalizeCapacityToTons(rawCapacityText, capacity, effectiveCapacityUnit);
                         maxCapacity = !maxCapacity.HasValue || capacity > maxCapacity.Value ? capacity : maxCapacity;
                     }
 
@@ -201,6 +223,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 MinBoomLength = minBoom ?? 0d,
                 MaxBoomLength = maxBoom ?? 0d,
                 MaxCapacity = maxCapacity ?? 0d,
+                RawMaxCapacity = rawMaxCapacity,
+                EffectiveCapacityUnit = effectiveCapacityUnit,
+                RequestedCapacityUnitMode = capacityUnitMode,
                 LoadChartStorageMode = storageMode,
                 LoadChartCapacityPolicy = capacityPolicy,
                 ExactLoadChartRawGridJson = exactRawGridJson,
@@ -208,11 +233,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             };
         }
 
-        public static ParsedLoadChart TransposePreview(DataTable source, IReadOnlyList<string> previewHeaders)
+        public static ParsedLoadChart TransposePreview(
+            DataTable source,
+            IReadOnlyList<string> previewHeaders,
+            LoadChartCapacityUnitMode capacityUnitMode = LoadChartCapacityUnitMode.Auto)
         {
             var rawGrid = ToRawGrid(source, previewHeaders);
             var transposedGrid = TransposeRawGrid(rawGrid);
-            return ParseRawGrid(transposedGrid);
+            return ParseRawGrid(transposedGrid, capacityUnitMode);
         }
 
         internal static bool TryParseFlexibleNumber(string? input, out double value)
@@ -684,20 +712,77 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             return clean.Trim();
         }
 
-        private static double NormalizeCapacityToTons(string rawValue, double value)
+        public static string GetCapacityUnitSummary(ParsedLoadChart chart)
+        {
+            if (chart == null)
+                return string.Empty;
+
+            if (chart.RawMaxCapacity > 0d && chart.EffectiveCapacityUnit == MassUnit.Kilogram)
+            {
+                return $"Capacity values interpreted as kg; raw max {chart.RawMaxCapacity:0.###} kg = {chart.MaxCapacity:0.###} t.";
+            }
+
+            return "Capacity values interpreted as t.";
+        }
+
+        private static (MassUnit EffectiveUnit, double RawMaxCapacity) ResolveCapacityUnit(
+            DataTable table,
+            LoadChartCapacityUnitMode capacityUnitMode)
+        {
+            double rawMaxCapacity = 0d;
+            bool hasExplicitKilogram = false;
+            bool hasExplicitTon = false;
+
+            foreach (DataRow row in table.Rows)
+            {
+                for (int columnIndex = 1; columnIndex < table.Columns.Count; columnIndex++)
+                {
+                    string rawCapacityText = row[columnIndex]?.ToString() ?? string.Empty;
+                    string capacityText = NormalizeGridNumber(rawCapacityText);
+
+                    if (string.IsNullOrWhiteSpace(capacityText))
+                        continue;
+
+                    if (!TryParseFlexibleNumber(capacityText, out double rawCapacity))
+                        continue;
+
+                    if (rawCapacity > rawMaxCapacity)
+                        rawMaxCapacity = rawCapacity;
+
+                    if (Regex.IsMatch(rawCapacityText, @"(?i)\bkg\b"))
+                        hasExplicitKilogram = true;
+                    else if (Regex.IsMatch(rawCapacityText, @"(?i)\b(t|ton|tons|tonne|tonnes)\b"))
+                        hasExplicitTon = true;
+                }
+            }
+
+            if (capacityUnitMode == LoadChartCapacityUnitMode.Kilogram)
+                return (MassUnit.Kilogram, rawMaxCapacity);
+
+            if (capacityUnitMode == LoadChartCapacityUnitMode.Ton)
+                return (MassUnit.Ton, rawMaxCapacity);
+
+            if (hasExplicitKilogram && !hasExplicitTon)
+                return (MassUnit.Kilogram, rawMaxCapacity);
+
+            if (hasExplicitTon && !hasExplicitKilogram)
+                return (MassUnit.Ton, rawMaxCapacity);
+
+            return rawMaxCapacity > 1000d
+                ? (MassUnit.Kilogram, rawMaxCapacity)
+                : (MassUnit.Ton, rawMaxCapacity);
+        }
+
+        private static double NormalizeCapacityToTons(string rawValue, double value, MassUnit defaultUnit)
         {
             if (Regex.IsMatch(rawValue, @"(?i)\bkg\b"))
                 return UnitSystem.ToTons(value, MassUnit.Kilogram);
 
-            // Explicit ton/tons/tonne/t values and unitless crane load-chart values are already tons.
-            // Do not infer kilograms only because a capacity is greater than 100:
-            // values such as 180 t, 160 t, and 139.3 t are valid crane-chart capacities.
             if (Regex.IsMatch(rawValue, @"(?i)\b(t|ton|tons|tonne|tonnes)\b"))
                 return value;
 
-            return value;
+            return UnitSystem.ToTons(value, defaultUnit);
         }
-
         private static string NormalizeGridNumber(string? value)
         {
             return NormalizeFlexibleNumber(value);

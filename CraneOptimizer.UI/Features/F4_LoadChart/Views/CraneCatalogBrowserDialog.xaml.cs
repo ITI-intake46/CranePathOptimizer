@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Units;
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.UI.Features.F4_LoadChart.DTOs;
 using CraneOptimizer.UI.Features.F4_LoadChart.Services;
@@ -9,22 +9,51 @@ using System.Globalization;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
-
+using System.Windows.Data;
 namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 {
     public partial class CraneCatalogBrowserDialog : Window
     {
         private readonly LoadChartCatalogService _catalogService;
         private readonly IUnitSettingsService _unitSettingsService;
+        private readonly bool _isReadOnlyView;
         private List<LoadChartCraneDto> _allCranes = new();
 
         public CraneCatalogBrowserDialog()
+            : this(isReadOnlyView: false)
         {
+        }
+
+        public CraneCatalogBrowserDialog(bool isReadOnlyView)
+        {
+            _isReadOnlyView = isReadOnlyView;
             InitializeComponent();
+            ApplyDialogMode();
+
             var factory = App.ServiceProvider.GetRequiredService<IDbContextFactory<CraneDbContext>>();
             _catalogService = new LoadChartCatalogService(factory);
             _unitSettingsService = App.ServiceProvider.GetRequiredService<IUnitSettingsService>();
             Loaded += async (_, _) => await LoadCranesAsync();
+        }
+        private void ApplyDialogMode()
+        {
+            if (_isReadOnlyView)
+            {
+                Title = "View Saved Load Charts";
+                TxtHeaderTitle.Text = "Saved Crane Load Charts";
+                TxtHeaderSubtitle.Text = "Browse saved cranes and inspect stored load-chart specifications.";
+                BtnImport.Visibility = Visibility.Collapsed;
+                BtnEdit.Visibility = Visibility.Collapsed;
+                BtnDelete.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            Title = "Crane Catalog Manager";
+            TxtHeaderTitle.Text = "Crane Catalog Manager";
+            TxtHeaderSubtitle.Text = "Manage saved crane load charts: import new charts, edit specifications, or delete outdated catalog entries.";
+            BtnImport.Visibility = Visibility.Visible;
+            BtnEdit.Visibility = Visibility.Visible;
+            BtnDelete.Visibility = Visibility.Visible;
         }
 
         private async Task LoadCranesAsync()
@@ -65,6 +94,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 DetailCounterweight.Text = string.Empty;
                 DetailPointCount.Text = string.Empty;
                 MiniGrid.ItemsSource = null;
+                MiniGrid.Columns.Clear();
                 return;
             }
 
@@ -78,9 +108,37 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             DetailPointCount.Text = crane.HasExactVisualLoadChart
                 ? $"{crane.Points.Count} exact visual cell(s)"
                 : crane.Points.Count.ToString(CultureInfo.InvariantCulture);
-            MiniGrid.ItemsSource = BuildPreviewTable(crane).DefaultView;
+            var previewTable = BuildPreviewTable(crane);
+            ConfigureMiniGridColumns(previewTable);
+            MiniGrid.ItemsSource = previewTable.DefaultView;
         }
 
+
+        private void ConfigureMiniGridColumns(DataTable previewTable)
+        {
+            MiniGrid.Columns.Clear();
+
+            for (int columnIndex = 0; columnIndex < previewTable.Columns.Count; columnIndex++)
+            {
+                DataColumn dataColumn = previewTable.Columns[columnIndex];
+
+                MiniGrid.Columns.Add(new DataGridTextColumn
+                {
+                    Header = dataColumn.ColumnName,
+                    Binding = new Binding(BuildPreviewColumnBindingPath(columnIndex))
+                    {
+                        Mode = BindingMode.OneWay,
+                        FallbackValue = string.Empty,
+                        TargetNullValue = string.Empty
+                    }
+                });
+            }
+        }
+
+        private static string BuildPreviewColumnBindingPath(int columnIndex)
+        {
+            return $"[{columnIndex}]";
+        }
         private static DataTable BuildPreviewTable(LoadChartCraneDto crane)
         {
             if (crane.HasExactVisualLoadChart)
@@ -113,9 +171,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                     var point = crane.Points
                         .FirstOrDefault(item => Math.Abs(item.Radius - radius) < 0.0001 && Math.Abs(item.BoomLength - booms[i]) < 0.0001);
 
-                    row[i + 1] = point == null || point.Capacity == 0d
-                        ? string.Empty
-                        : point.Capacity.ToString(CultureInfo.InvariantCulture);
+                    row[i + 1] = FormatCapacityForDisplay(point?.Capacity);
                 }
 
                 table.Rows.Add(row);
@@ -159,9 +215,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                     var point = crane.Points.FirstOrDefault(item =>
                         item.VisualColumnIndex == column.Index && Math.Abs(item.Radius - radius) < 0.0001);
 
-                    row[i + 1] = point == null || point.Capacity == 0d
-                        ? string.Empty
-                        : point.Capacity.ToString("G", CultureInfo.InvariantCulture);
+                    row[i + 1] = FormatCapacityForDisplay(point?.Capacity);
                 }
 
                 table.Rows.Add(row);
@@ -211,7 +265,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             {
                 var row = table.NewRow();
                 for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
-                    row[columnIndex] = columnIndex < sourceRow.Count ? sourceRow[columnIndex] : string.Empty;
+                    row[columnIndex] = FormatRawGridCellForDisplay(columnIndex, columnIndex < sourceRow.Count ? sourceRow[columnIndex] : string.Empty);
 
                 table.Rows.Add(row);
             }
@@ -219,6 +273,24 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             return table;
         }
 
+        private static string FormatCapacityForDisplay(double? capacity)
+        {
+            double value = capacity.GetValueOrDefault();
+            return value > 0d
+                ? value.ToString("G", CultureInfo.InvariantCulture)
+                : string.Empty;
+        }
+
+        private static string FormatRawGridCellForDisplay(int columnIndex, string? value)
+        {
+            string text = value?.Trim() ?? string.Empty;
+            if (columnIndex == 0)
+                return text;
+
+            return LoadChartCsvService.TryParseFlexibleNumber(text, out double numericValue) && numericValue <= 0d
+                ? string.Empty
+                : text;
+        }
         private static string BuildDimensionSummary(LoadChartCraneDto crane, UnitSettings settings)
         {
             var parts = new List<string>();

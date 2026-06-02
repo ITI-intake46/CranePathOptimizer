@@ -15,12 +15,29 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
             if (maxBoom < minBoom)
                 (minBoom, maxBoom) = (maxBoom, minBoom);
 
+            var minReachFromPoints = loadChart != null && loadChart.Count > 0
+                ? loadChart.Where(point => point.Radius > 0.0).Select(point => point.Radius).DefaultIfEmpty(0.0).Min()
+                : 0.0;
             var maxReachFromPoints = loadChart != null && loadChart.Count > 0
                 ? loadChart.Max(point => point.Radius)
                 : 0.0;
             var maxCapacityFromPoints = loadChart != null && loadChart.Count > 0
-                ? loadChart.Max(point => point.Capacity)
+                ? loadChart.Where(point => point.Capacity > 0.0).Select(point => point.Capacity).DefaultIfEmpty(0.0).Max()
                 : 0.0;
+
+            var minReach = spec is { MinRadius: > 0.0 }
+                ? spec.MinRadius
+                : minReachFromPoints;
+            var maxReach = spec is { MaxRadius: > 0.0 }
+                ? spec.MaxRadius
+                : maxReachFromPoints;
+
+            if (maxReach <= 0.0)
+                maxReach = maxBoom;
+            if (minReach < 0.0)
+                minReach = 0.0;
+            if (minReach > maxReach)
+                (minReach, maxReach) = (maxReach, minReach);
 
             return new MobileCraneParameters
             {
@@ -45,13 +62,12 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
                 BoomSections = 4,
                 BoomBaseWidth = 0.8,
 
+                MinReach = minReach,
+                MaxReach = maxReach,
                 MinBoomLength = minBoom,
                 MaxBoomLength = maxBoom,
                 BoomLength = Math.Clamp(scene.BoomLength, minBoom, maxBoom),
                 BoomAngle = scene.BoomAngle,
-                MaxReach = (spec?.MaxRadius ?? 0.0) > 0.0
-                    ? spec!.MaxRadius
-                    : maxReachFromPoints,
                 MaxCapacity = maxCapacityFromPoints > 0.0
                     ? maxCapacityFromPoints
                     : (spec?.MaxCapacity ?? 0.0)
@@ -82,11 +98,11 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
             target.BoomSections = fresh.BoomSections;
             target.BoomBaseWidth = fresh.BoomBaseWidth;
 
+            target.MinReach = fresh.MinReach;
             target.MinBoomLength = fresh.MinBoomLength;
             target.MaxBoomLength = fresh.MaxBoomLength;
             target.BoomLength = fresh.BoomLength;
             target.BoomAngle = fresh.BoomAngle;
-            target.MaxReach = fresh.MaxReach;
             target.MaxCapacity = fresh.MaxCapacity;
         }
 

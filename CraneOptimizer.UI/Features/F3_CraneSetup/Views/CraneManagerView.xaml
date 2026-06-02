@@ -86,7 +86,10 @@
                            Margin="0,0,0,6"/>
                 <ComboBox Margin="0,0,0,10"
                           ItemsSource="{Binding DataContext.AvailableCranes, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                          SelectedItem="{Binding DataContext.SelectedDatabaseCrane, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}">
+                          SelectedItem="{Binding DataContext.SelectedDatabaseCrane, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
+                          Style="{StaticResource DarkComboBox}"
+                          ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                          TextSearch.TextPath="Name">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel>
@@ -284,7 +287,7 @@
                         <TextBlock Grid.Row="1" Grid.Column="1"
                                    FontSize="{StaticResource FontSizeXS}"
                                    Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" Margin="0,1">
-                            <Run Text="{Binding ExclusionRadiusM, Converter={StaticResource LengthDisplayConverter}, Mode=OneWay}"/>
+                            <Run Text="{Binding MinReach, Converter={StaticResource LengthDisplayConverter}, Mode=OneWay}"/>
                             <Run Text=" – "/>
                             <Run Text="{Binding MaxReach, Converter={StaticResource LengthDisplayConverter}, Mode=OneWay}"/>
                         </TextBlock>
@@ -359,8 +362,8 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <Slider Grid.Column="0"
-                            Minimum="0"
-                            Maximum="{Binding BoomLength}"
+                            Minimum="{Binding MinReach}"
+                            Maximum="{Binding MaxReach}"
                             Value="{Binding WorkingRadius, Mode=TwoWay}"
                             VerticalAlignment="Center"/>
                     <TextBlock Grid.Column="1"

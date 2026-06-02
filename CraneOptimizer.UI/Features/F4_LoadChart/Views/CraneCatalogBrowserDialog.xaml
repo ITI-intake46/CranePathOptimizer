@@ -18,9 +18,11 @@
                 Background="{DynamicResource SurfaceBrush}"
                 CornerRadius="6" Padding="18,14" Margin="0,0,0,12">
             <StackPanel>
-                <TextBlock Text="Saved Crane Load Charts"
+                <TextBlock x:Name="TxtHeaderTitle"
+                           Text="Saved Crane Load Charts"
                            Style="{StaticResource TextTitle}"/>
-                <TextBlock Text="Browse saved cranes, inspect the stored specification, then edit or delete it."
+                <TextBlock x:Name="TxtHeaderSubtitle"
+                           Text="Browse saved cranes, inspect the stored specification, then edit or delete it."
                            Margin="0,4,0,0"
                            Style="{StaticResource TextCaption}"/>
             </StackPanel>
@@ -113,7 +115,7 @@
                         BorderThickness="1" CornerRadius="6">
                     <DataGrid x:Name="MiniGrid"
                               IsReadOnly="True"
-                              AutoGenerateColumns="True"
+                              AutoGenerateColumns="False"
                               CanUserAddRows="False"
                               CanUserDeleteRows="False"
                               Background="Transparent"
@@ -146,13 +148,13 @@
                            Style="{StaticResource TextCaption}"
                            Text="Loading cranes..."/>
 
-                <Button Grid.Column="1" Width="120" Content="Import New"
+                <Button x:Name="BtnImport" Grid.Column="1" Width="120" Content="Import New"
                         Style="{StaticResource ButtonOutlined}"
                         Click="BtnImport_Click"/>
-                <Button Grid.Column="3" Width="90" Content="Edit"
+                <Button x:Name="BtnEdit" Grid.Column="3" Width="90" Content="Edit"
                         Style="{StaticResource ButtonPrimary}"
                         Click="BtnEdit_Click"/>
-                <Button Grid.Column="5" Width="90" Content="Delete"
+                <Button x:Name="BtnDelete" Grid.Column="5" Width="90" Content="Delete"
                         Style="{StaticResource ButtonDestructive}"
                         Click="BtnDelete_Click"/>
                 <Button Grid.Column="7" Width="80" Content="Close"

@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Units;
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.UI.Features.F4_LoadChart.DTOs;
 using CraneOptimizer.UI.Features.F4_LoadChart.Services;
@@ -29,6 +29,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         private List<string> _exactVisualPreviewHeaders = new();
         private bool _hasExactVisualPreview;
         private bool _isShowingExactVisualPreview;
+        private bool _suppressCapacityUnitRefresh;
         private double _vehicleLengthMeters;
         private double _vehicleHeightMeters;
         private double _vehicleWidthMeters;
@@ -58,6 +59,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             SelectOutriggerConfig(crane.OutriggerConfig);
             TxtCounterweight.Text = FormatMassInput(crane.Counterweight);
             TxtMaxRadius.Text = FormatLengthInput(crane.MaxRadius);
+            SetCapacityUnitMode(LoadChartCapacityUnitMode.Ton, suppressRefresh: true);
             _vehicleLengthMeters = crane.VehicleLengthMeters;
             _vehicleHeightMeters = crane.VehicleHeightMeters;
             _vehicleWidthMeters = crane.VehicleWidthMeters;
@@ -127,9 +129,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                     var point = crane.Points
                         .FirstOrDefault(item => Math.Abs(item.Radius - radius) < 0.0001 && Math.Abs(item.BoomLength - booms[i]) < 0.0001);
 
-                    row.Add(point == null || point.Capacity == 0d
-                        ? string.Empty
-                        : point.Capacity.ToString("G", CultureInfo.InvariantCulture));
+                    row.Add(FormatCapacityForRawGrid(point?.Capacity));
                 }
 
                 rawGrid.Add(row);
@@ -193,9 +193,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                     var point = crane.Points.FirstOrDefault(item =>
                         item.VisualColumnIndex == column.Index && Math.Abs(item.Radius - radius) < 0.0001);
 
-                    row.Add(point == null || point.Capacity == 0d
-                        ? string.Empty
-                        : point.Capacity.ToString("G", CultureInfo.InvariantCulture));
+                    row.Add(FormatCapacityForRawGrid(point?.Capacity));
                 }
 
                 rawGrid.Add(row);
@@ -241,6 +239,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
                 ClearExactVisualPreview();
                 _importableEnvelopeChart = importResult.ImportableEnvelopeChart;
+                SetCapacityUnitMode(importResult.Chart.RequestedCapacityUnitMode, suppressRefresh: true);
                 SetNominalChart(importResult.Chart);
                 ApplyExactVisualPreview(importResult);
 
@@ -254,7 +253,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
                 TxtMaxRadius.Text = _nominalChart == null ? string.Empty : FormatLengthInput(_nominalChart.MaxRadius);
 
-                TxtStatus.Text = importResult.BuildStatusMessage(Path.GetFileName(path));
+                TxtStatus.Text = importResult.BuildStatusMessage(Path.GetFileName(path)) + " " + LoadChartCsvService.GetCapacityUnitSummary(importResult.Chart);
 
                 if (importResult.HasActionableWarnings())
                 {
@@ -287,7 +286,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             {
                 try
                 {
-                    _nominalChart = LoadChartCsvService.ParseTable(dataView.Table, _gridHeaders);
+                    _nominalChart = LoadChartCsvService.ParseTable(dataView.Table, _gridHeaders, GetSelectedCapacityUnitMode());
                 }
                 catch (Exception ex)
                 {
@@ -299,7 +298,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             if (_nominalChart == null)
                 return;
 
-            SetNominalChart(LoadChartCsvService.TransposePreview(_nominalChart.PreviewTable, _gridHeaders));
+            SetNominalChart(LoadChartCsvService.TransposePreview(_nominalChart.PreviewTable, _gridHeaders, GetSelectedCapacityUnitMode()));
             TxtStatus.Text = "Grid orientation swapped.";
         }
 
@@ -361,7 +360,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 else
                 {
                     CommitGridEdits();
-                    chartForSave = LoadChartCsvService.ParseTable(dataView.Table, _gridHeaders);
+                    chartForSave = LoadChartCsvService.ParseTable(dataView.Table, _gridHeaders, GetSelectedCapacityUnitMode());
                     _nominalChart = chartForSave;
                 }
 
@@ -399,6 +398,92 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             }
         }
 
+
+        private LoadChartCapacityUnitMode GetSelectedCapacityUnitMode()
+        {
+            if (CboChartCapacityUnit.SelectedItem is ComboBoxItem item)
+            {
+                string tag = item.Tag?.ToString() ?? string.Empty;
+                if (Enum.TryParse(tag, ignoreCase: true, out LoadChartCapacityUnitMode mode))
+                    return mode;
+            }
+
+            return LoadChartCapacityUnitMode.Auto;
+        }
+
+        private void SetCapacityUnitMode(LoadChartCapacityUnitMode mode, bool suppressRefresh = false)
+        {
+            _suppressCapacityUnitRefresh = suppressRefresh;
+            try
+            {
+                foreach (ComboBoxItem item in CboChartCapacityUnit.Items)
+                {
+                    string tag = item.Tag?.ToString() ?? string.Empty;
+                    if (Enum.TryParse(tag, ignoreCase: true, out LoadChartCapacityUnitMode itemMode) && itemMode == mode)
+                    {
+                        CboChartCapacityUnit.SelectedItem = item;
+                        return;
+                    }
+                }
+
+                CboChartCapacityUnit.SelectedIndex = 0;
+            }
+            finally
+            {
+                _suppressCapacityUnitRefresh = false;
+            }
+        }
+
+        private void CboChartCapacityUnit_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressCapacityUnitRefresh || _nominalChart == null)
+                return;
+
+            ReparseCurrentChartWithSelectedCapacityUnit();
+        }
+
+        private void ReparseCurrentChartWithSelectedCapacityUnit()
+        {
+            if (_nominalChart == null)
+                return;
+
+            try
+            {
+                var capacityUnitMode = GetSelectedCapacityUnitMode();
+
+                if (_nominalChart.IsExactVisualChart)
+                {
+                    var reparsed = LoadChartCsvService.ParseExactVisualTable(
+                        _nominalChart.PreviewTable,
+                        _nominalChart.PreviewHeaders,
+                        _nominalChart.ExactLoadChartRawGridJson,
+                        _nominalChart.LoadChartSourceDescription,
+                        capacityUnitMode);
+
+                    _nominalChart = reparsed;
+                    _exactVisualPreviewTable = reparsed.PreviewTable;
+                    _exactVisualPreviewHeaders = reparsed.PreviewHeaders.ToList();
+                    ShowExactVisualPreview();
+                }
+                else
+                {
+                    CommitGridEdits();
+
+                    if (ChartGrid.ItemsSource is not DataView dataView || dataView.Table == null)
+                        return;
+
+                    var reparsed = LoadChartCsvService.ParseTable(dataView.Table, _gridHeaders, capacityUnitMode);
+                    SetNominalChart(reparsed);
+                }
+
+                TxtStatus.Text = $"{LoadChartCsvService.GetCapacityUnitSummary(_nominalChart)} Saved chart capacities are stored internally in tons.";
+            }
+            catch (Exception ex)
+            {
+                TxtStatus.Text = ex.Message;
+                MessageBox.Show(this, ex.Message, "Capacity Unit Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
         private string GetSelectedOutriggerConfig()
         {
             return CboOutriggerConfig.SelectedItem is ComboBoxItem item
@@ -572,7 +657,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 _nominalChart = LoadChartCsvService.ParseExactVisualTable(
                     dataView.Table,
                     _gridHeaders,
-                    sourceDescription: _nominalChart.LoadChartSourceDescription);
+                    _nominalChart.ExactLoadChartRawGridJson,
+                    _nominalChart.LoadChartSourceDescription,
+                    GetSelectedCapacityUnitMode());
                 _gridHeaders = _nominalChart.PreviewHeaders.ToList();
                 return true;
             }
@@ -645,9 +732,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
                 for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
                 {
-                    row[columnIndex] = columnIndex < rawRow.Count
-                        ? rawRow[columnIndex]
-                        : string.Empty;
+                    row[columnIndex] = FormatRawGridCellForUi(columnIndex, columnIndex < rawRow.Count ? rawRow[columnIndex] : string.Empty);
                 }
 
                 table.Rows.Add(row);
@@ -656,6 +741,24 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             return table;
         }
 
+        private static string FormatCapacityForRawGrid(double? capacity)
+        {
+            double value = capacity.GetValueOrDefault();
+            return value > 0d
+                ? value.ToString("G", CultureInfo.InvariantCulture)
+                : string.Empty;
+        }
+
+        private static string FormatRawGridCellForUi(int columnIndex, string? value)
+        {
+            string text = value?.Trim() ?? string.Empty;
+            if (columnIndex == 0)
+                return text;
+
+            return LoadChartCsvService.TryParseFlexibleNumber(text, out double numericValue) && numericValue <= 0d
+                ? string.Empty
+                : text;
+        }
         private void CommitGridEdits()
         {
             ChartGrid.CommitEdit(DataGridEditingUnit.Cell, true);
@@ -700,6 +803,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 MinBoomLength = source.MinBoomLength,
                 MaxBoomLength = source.MaxBoomLength,
                 MaxCapacity = maxCapacity ?? source.MaxCapacity,
+                RawMaxCapacity = source.RawMaxCapacity,
+                EffectiveCapacityUnit = source.EffectiveCapacityUnit,
+                RequestedCapacityUnitMode = source.RequestedCapacityUnitMode,
                 LoadChartStorageMode = source.LoadChartStorageMode,
                 LoadChartCapacityPolicy = source.LoadChartCapacityPolicy,
                 ExactLoadChartRawGridJson = source.ExactLoadChartRawGridJson,
