@@ -1,25 +1,31 @@
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.Domain.Interfaces;
 using HelixToolkit.Wpf;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace CraneOptimizer.UI.Features.F7_Zones
 {
     public class ZoneVisualBuilder : IVisualBuilder<GreenAreaZone>
     {
         private readonly ISceneService _scene;
+        private readonly IZoneGeometryService _geometryService;
 
-        public ZoneVisualBuilder(ISceneService scene)
+        public ZoneVisualBuilder(ISceneService scene, IZoneGeometryService? geometryService = null)
         {
             _scene = scene;
+            _geometryService = geometryService ?? ZoneGeometryServiceHolder.Instance ?? new CraneOptimizer.Domain.Services.ZoneGeometryService();
         }
 
         public Visual3D Build(GreenAreaZone zone)
         {
-            var points = zone.Vertices
+            var normalizedVertices = _geometryService.NormalizeVertices(zone.Vertices);
+            var points = normalizedVertices
                 .Select(v => new Point3D(v.X, v.Y, v.Z))
                 .ToList();
 
@@ -34,6 +40,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones
 
             var finalColor = isSelected ? Colors.Yellow : baseColor;
 
+            // Separate border visual with Z-offset to prevent z-fighting
             var border = new LinesVisual3D
             {
                 Color = finalColor,
@@ -42,24 +49,37 @@ namespace CraneOptimizer.UI.Features.F7_Zones
 
             for (int i = 0; i < points.Count; i++)
             {
-                border.Points.Add(points[i]);
-                border.Points.Add(points[(i + 1) % points.Count]);
+                var p1 = points[i];
+                var p2 = points[(i + 1) % points.Count];
+                // Apply a small Z offset (0.02 meters) to place the outline cleanly on top of the fill mesh
+                border.Points.Add(new Point3D(p1.X, p1.Y, p1.Z + 0.02));
+                border.Points.Add(new Point3D(p2.X, p2.Y, p2.Z + 0.02));
             }
 
-            var meshBuilder = new HelixToolkit.Geometry.MeshBuilder(false, false);
-            var vectors = zone.Vertices
-                .Select(v => new System.Numerics.Vector3((float)v.X, (float)v.Y, (float)v.Z))
-                .ToList();
+            // Triangulate using Ear Clipping for convex/concave polygon fill
+            var triangleIndices = _geometryService.TriangulateSimplePolygon(normalizedVertices);
 
-            meshBuilder.AddPolygon(vectors);
-            var helixMesh = meshBuilder.ToMesh();
-
-            var wpfMesh = new MeshGeometry3D
+            if (triangleIndices.Count == 0)
             {
-                Positions = new Point3DCollection(
-                    helixMesh.Positions.Select(p => new Point3D(p.X, p.Y, p.Z))),
-                TriangleIndices = new Int32Collection(helixMesh.TriangleIndices)
-            };
+                // Fallback to simple triangle fan for degenerate/extreme cases
+                for (int i = 1; i < points.Count - 1; i++)
+                {
+                    triangleIndices.Add(0);
+                    triangleIndices.Add(i);
+                    triangleIndices.Add(i + 1);
+                }
+            }
+
+            // Fill mesh geometry with small Z offset (0.005 meters) to avoid z-fighting with the grid/floors
+            var wpfMesh = new MeshGeometry3D();
+            foreach (var p in points)
+            {
+                wpfMesh.Positions.Add(new Point3D(p.X, p.Y, p.Z + 0.005));
+            }
+            foreach (var idx in triangleIndices)
+            {
+                wpfMesh.TriangleIndices.Add(idx);
+            }
 
             var material = new DiffuseMaterial(
                 new SolidColorBrush(finalColor)

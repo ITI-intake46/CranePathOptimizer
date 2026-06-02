@@ -11,6 +11,7 @@ using System.Text.Json;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers;
 using System.Diagnostics;
+using CraneOptimizer.Domain.Interfaces;
 
 namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 {
@@ -19,6 +20,17 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
         private const string IfcFolder = "Models/IFC";
         private const string DxfFolder = "Models/DXF";
         private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+        private readonly IProjectCoordinateTransformService _transformService;
+
+        public ProjectStateService() : this(new CraneOptimizer.Application.Services.ProjectCoordinateTransformService())
+        {
+        }
+
+        public ProjectStateService(IProjectCoordinateTransformService transformService)
+        {
+            _transformService = transformService ?? throw new ArgumentNullException(nameof(transformService));
+        }
 
         public async Task SaveProjectStateAsync(
             ProjectSession session,
@@ -29,6 +41,19 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 throw new ArgumentNullException(nameof(session));
             if (state == null)
                 throw new ArgumentNullException(nameof(state));
+
+            // Save coordinate reference to JSON
+            var refFilePath = Path.Combine(session.ProjectFolderPath, "coordinate_reference.json");
+            try
+            {
+                var refData = _transformService.CurrentReference;
+                var json = JsonSerializer.Serialize(refData, JsonOptions);
+                await File.WriteAllTextAsync(refFilePath, json, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to save coordinate reference: {ex}");
+            }
 
             await using var context = CreatedProjectDbContextFactory.Create(session.ProjectFolderPath);
             var projectInfo = await GetProjectInfoAsync(context, session.ProjectInfoId, cancellationToken)
@@ -54,6 +79,30 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
         {
             if (session == null)
                 throw new ArgumentNullException(nameof(session));
+
+            // Load coordinate reference from JSON
+            var refFilePath = Path.Combine(session.ProjectFolderPath, "coordinate_reference.json");
+            if (File.Exists(refFilePath))
+            {
+                try
+                {
+                    var json = await File.ReadAllTextAsync(refFilePath, cancellationToken).ConfigureAwait(false);
+                    var refData = JsonSerializer.Deserialize<ProjectCoordinateReference>(json, JsonOptions);
+                    if (refData != null)
+                    {
+                        _transformService.ApplyReference(refData, out _);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to load coordinate reference: {ex}");
+                    _transformService.ResetReference();
+                }
+            }
+            else
+            {
+                _transformService.ResetReference();
+            }
 
             await using var context = CreatedProjectDbContextFactory.Create(session.ProjectFolderPath);
             var projectInfo = await GetProjectInfoAsync(context, session.ProjectInfoId, cancellationToken)

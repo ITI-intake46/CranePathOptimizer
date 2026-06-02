@@ -1,4 +1,5 @@
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
@@ -13,8 +14,22 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 {
     public enum DrawingMode { None, Allowed, Forbidden }
 
+    public enum FinishReason
+    {
+        RightClick,
+        CtrlEnter,
+        CKey,
+        DoubleClick,
+        ToolbarFinishButton
+    }
+
     public class DrawingViewModel : ViewModelBase
     {
+        /// <summary>
+        /// Testing-only hook to bypass showing the ZoneFinalizationDialog during automated tests.
+        /// </summary>
+        internal static System.Func<double, string, (bool Success, string ZoneType, string ZoneName, double? MinHeight, double? MaxHeight)>? DialogShowHook { get; set; }
+
         // ── Services ─────────────────────────────────────────────────────────
         private readonly DrawingService _drawing;
         private readonly ISceneService _scene;
@@ -22,6 +37,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         private readonly IViewportInteractionService _interaction;
         private readonly IViewportHitTestService _hitTest;
         private readonly ZoneListViewModel _zoneList;
+        private readonly IZoneGeometryService _geometryService;
 
         // ── Timers ───────────────────────────────────────────────────────────
         private readonly DispatcherTimer _inlineWarningTimer;
@@ -62,13 +78,15 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             ISceneService scene,
             IRenderingService render,
             IViewportInteractionService interaction,
-            IViewportHitTestService hitTest)
+            IViewportHitTestService hitTest,
+            IZoneGeometryService geometryService)
         {
             _drawing = drawing;
             _scene = scene;
             _render = render;
             _interaction = interaction;
             _hitTest = hitTest;
+            _geometryService = geometryService;
             _zoneList = new ZoneListViewModel(scene);
 
             // Commands
@@ -208,11 +226,11 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         public void HandleRightClick()
         {
             if (IsMeasuring) { ResetMeasurement(); return; }
-            if (IsDrawing) { Finish(); }
+            if (IsDrawing) { FinishDrawingFromUserAction(FinishReason.RightClick); }
         }
 
         /// <summary>Entry point for double-click (left) from the viewport.</summary>
-        public void HandleDoubleClick() => Finish();
+        public void HandleDoubleClick() => FinishDrawingFromUserAction(FinishReason.DoubleClick);
 
         /// <summary>
         /// Update the rubber-band preview while the cursor moves during drawing
@@ -301,9 +319,17 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
                 return;
             }
 
+            if (e.Key == Key.Enter &&
+                (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            {
+                FinishDrawingFromUserAction(FinishReason.CtrlEnter);
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key == Key.C)
             {
-                Finish();
+                FinishDrawingFromUserAction(FinishReason.CKey);
                 e.Handled = true;
             }
         }
@@ -361,48 +387,86 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             RenderPreview();
         }
 
-        public void Finish()
+        public void Finish() => FinishDrawingFromUserAction(FinishReason.ToolbarFinishButton);
+
+        public void FinishDrawingFromUserAction(FinishReason reason)
         {
             if (!IsDrawing) return;
-            if (PointCount < 3)
+
+            var rawPoints = _drawing.GetPoints();
+            var uniquePoints = _geometryService.NormalizeVertices(rawPoints);
+
+            if (uniquePoints.Count < 3)
             {
-                ShowInlineWarning("⚠ At least 3 points required to create a zone", TimeSpan.FromSeconds(3));
+                ShowInlineWarning("⚠ At least 3 unique points required to create a zone", TimeSpan.FromSeconds(3));
                 return;
             }
 
-            var rawPoints = _drawing.GetPoints();
-            var polygonPoints = rawPoints.Select(p => new DomainPoint3D(p.X, p.Y, p.Z)).ToList();
-            EnsureClosed(polygonPoints);
-            var areaM2 = CalculatePolygonArea(polygonPoints);
-
-            var dialog = new ZoneFinalizationDialog(
-                areaM2,
-                _currentType == ZoneType.Allowed ? "Allowed" : "Forbidden")
+            if (!_geometryService.ValidatePolygon(uniquePoints, out var warning))
             {
-                Owner = System.Windows.Application.Current?.MainWindow
-            };
+                ShowInlineWarning(warning ?? "⚠ Invalid polygon", TimeSpan.FromSeconds(3));
+                return;
+            }
 
-            if (dialog.ShowDialog() != true)
+            double areaM2 = Math.Abs(_geometryService.CalculateSignedArea2D(uniquePoints));
+
+            bool isDialogSuccess = false;
+            string dialogZoneType = _currentType == ZoneType.Allowed ? "Allowed" : "Forbidden";
+            string dialogZoneName = "";
+            double? dialogMinHeight = null;
+            double? dialogMaxHeight = null;
+
+            if (DialogShowHook != null)
+            {
+                var hookRes = DialogShowHook(areaM2, dialogZoneType);
+                isDialogSuccess = hookRes.Success;
+                dialogZoneType = hookRes.ZoneType;
+                dialogZoneName = hookRes.ZoneName;
+                dialogMinHeight = hookRes.MinHeight;
+                dialogMaxHeight = hookRes.MaxHeight;
+            }
+            else
+            {
+                var dialog = new ZoneFinalizationDialog(
+                    areaM2,
+                    _currentType == ZoneType.Allowed ? "Allowed" : "Forbidden")
+                {
+                    Owner = System.Windows.Application.Current?.MainWindow
+                };
+
+                if (dialog.ShowDialog() == true)
+                {
+                    isDialogSuccess = true;
+                    dialogZoneType = dialog.ZoneType;
+                    dialogZoneName = dialog.ZoneName;
+                    dialogMinHeight = dialog.MinHeightValue;
+                    dialogMaxHeight = dialog.MaxHeightValue;
+                }
+            }
+
+            if (!isDialogSuccess)
             {
                 Cancel();
                 return;
             }
 
+            // Stored zone vertices must not duplicate the first vertex at the end.
             rawPoints.Clear();
-            rawPoints.AddRange(polygonPoints);
+            rawPoints.AddRange(uniquePoints);
+
             var zone = _drawing.BuildZone();
             if (zone != null)
             {
-                zone.Type = string.Equals(dialog.ZoneType, "Forbidden",
+                zone.Type = string.Equals(dialogZoneType, "Forbidden",
                                 StringComparison.OrdinalIgnoreCase)
                             ? ZoneType.Forbidden
                             : ZoneType.Allowed;
                 zone.Area = areaM2;
-                zone.Name = string.IsNullOrWhiteSpace(dialog.ZoneName)
+                zone.Name = string.IsNullOrWhiteSpace(dialogZoneName)
                             ? $"{zone.Type} Zone {_scene.GetZones().Count + 1}"
-                            : dialog.ZoneName;
+                            : dialogZoneName;
                 _scene.AddZone(zone);
-                _zoneList.AddOrUpdateFromZone(zone, dialog.MinHeightValue, dialog.MaxHeightValue);
+                _zoneList.AddOrUpdateFromZone(zone, dialogMinHeight, dialogMaxHeight);
             }
 
             EndDrawingSession();
@@ -726,28 +790,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             return System.Math.Max(
                 1.0,
                 System.Math.Max(maxX - minX, System.Math.Max(maxY - minY, maxZ - minZ)));
-        }
-
-        private static void EnsureClosed(List<DomainPoint3D> points)
-        {
-            if (points.Count < 3) return;
-            var first = points[0];
-            var last = points[^1];
-            if (System.Math.Abs(first.X - last.X) > PointEqualityTolerance ||
-                System.Math.Abs(first.Y - last.Y) > PointEqualityTolerance ||
-                System.Math.Abs(first.Z - last.Z) > PointEqualityTolerance)
-            {
-                points.Add(new DomainPoint3D(first.X, first.Y, first.Z));
-            }
-        }
-
-        private static double CalculatePolygonArea(List<DomainPoint3D> points)
-        {
-            if (points.Count < 4) return 0; // closed polygon = first point repeated
-            double sum = 0;
-            for (int i = 0; i < points.Count - 1; i++)
-                sum += (points[i].X * points[i + 1].Y) - (points[i + 1].X * points[i].Y);
-            return System.Math.Abs(sum) * 0.5;
         }
 
         // ════════════════════════════════════════════════════════════════════

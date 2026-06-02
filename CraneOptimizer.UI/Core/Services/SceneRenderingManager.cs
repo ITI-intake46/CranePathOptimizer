@@ -45,6 +45,7 @@ namespace CraneOptimizer.UI.Core.Services
             _diagnosticsStore = diagnosticsStore;
 
             _scene.ElementsChanged += OnElementsChanged;
+            _scene.ElementsSelectionChanged += OnElementsSelectionChanged;
             _filterService.StateChanged += OnFilterStateChanged;
             _scene.CraneAdded += OnCraneChanged;
             _scene.CraneMoved += OnCraneChanged;
@@ -96,12 +97,74 @@ namespace CraneOptimizer.UI.Core.Services
             var sw = System.Diagnostics.Stopwatch.StartNew();
             var memBefore = GetPrivateMemoryMB();
 
-            var statusMap = _context.GetLiftResults()
+            var liftResults = _context.GetLiftResults();
+            bool hasFinalAssignments = liftResults != null && liftResults.Any(r => r.IsFinalAssignedToPoint);
+            string selectedPointId = liftResults?.FirstOrDefault(r => !string.IsNullOrEmpty(r.CandidatePointId))?.CandidatePointId ?? string.Empty;
+
+            var viewMode = _context.GetGAViewMode?.Invoke() ?? GAViewMode.FinalAssignment;
+
+            var statusMap = liftResults
                 ?.Where(result => !string.IsNullOrWhiteSpace(result.ElementId))
                 .GroupBy(result => result.ElementId, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.Last().Status, StringComparer.OrdinalIgnoreCase);
+                .ToDictionary(
+                    group => group.Key,
+                    group =>
+                    {
+                        var itemForSelected = group.FirstOrDefault(r => r.CandidatePointId == selectedPointId);
+                        var item = itemForSelected
+                                   ?? group.FirstOrDefault(r => r.IsFinalAssignedToPoint)
+                                   ?? group.Last();
 
-            var selectedElementId = _context.GetSelectedElementId();
+                        if (viewMode == GAViewMode.SelectedPointFeasibility)
+                        {
+                            return (LiftStatus?)(itemForSelected?.Status ?? item.Status);
+                        }
+                        else // FinalAssignment or AllFeasibleDebug
+                        {
+                            if (hasFinalAssignments)
+                            {
+                                if (item.IsFinalAssignedToPoint || (!string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId == selectedPointId))
+                                {
+                                    return (LiftStatus?)item.Status;
+                                }
+                                else if (item.IsFinalAssigned && !string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId != selectedPointId)
+                                {
+                                    return null; // Dimmed/Blueprint Gray
+                                }
+                                else if (!item.IsFinalAssigned)
+                                {
+                                    return (LiftStatus?)item.BestFailedLiftStatus;
+                                }
+                                else
+                                {
+                                    return null; // Safe neutral fallback
+                                }
+                            }
+                            return (LiftStatus?)item.Status;
+                        }
+                    },
+                    StringComparer.OrdinalIgnoreCase);
+
+            var selectedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (_context.GetSelectedElementIds != null)
+            {
+                var ids = _context.GetSelectedElementIds();
+                if (ids != null)
+                {
+                    foreach (var id in ids)
+                    {
+                        if (id != null)
+                            selectedIds.Add(id);
+                    }
+                }
+            }
+            else
+            {
+                var singleId = _context.GetSelectedElementId();
+                if (singleId != null)
+                    selectedIds.Add(singleId);
+            }
+
             var origin = _context.GetOriginPoint();
             var placementOffset = _context.GetPlacementOffset();
 
@@ -115,7 +178,8 @@ namespace CraneOptimizer.UI.Core.Services
                     if (statusMap != null && statusMap.TryGetValue(element.ElementID, out var liftStatus))
                         status = liftStatus;
 
-                    return (element, status, element.ElementID == selectedElementId);
+                    bool isSelected = selectedIds.Contains(element.ElementID);
+                    return (element, status, isSelected);
                 }),
                 builder,
                 "Elements");
@@ -229,6 +293,11 @@ namespace CraneOptimizer.UI.Core.Services
             ReRenderElements();
         }
 
+        private void OnElementsSelectionChanged(List<PrecastElement> selected)
+        {
+            ReRenderElements();
+        }
+
         private void OnFilterStateChanged()
         {
             if (!_isSyncingSceneElements)
@@ -251,6 +320,7 @@ namespace CraneOptimizer.UI.Core.Services
 
             _disposed = true;
             _scene.ElementsChanged -= OnElementsChanged;
+            _scene.ElementsSelectionChanged -= OnElementsSelectionChanged;
             _filterService.StateChanged -= OnFilterStateChanged;
             _scene.CraneAdded -= OnCraneChanged;
             _scene.CraneMoved -= OnCraneChanged;

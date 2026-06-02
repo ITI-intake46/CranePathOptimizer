@@ -10,6 +10,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
         RadiusBeyondLoadChart,
         BoomBeyondLoadChart,
         NoDiscreteLoadChartEntry,
-        ZeroCapacityChartEntry
+        ZeroCapacityChartEntry, // kept for backward-compatibility if referenced elsewhere
+        NoListedCapacityForBoomRadius,
+        OutsideChartEnvelope,
+        InvalidBlankCell,
+        InvalidZeroCell
     }
 }

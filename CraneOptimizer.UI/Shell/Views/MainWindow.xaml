@@ -539,6 +539,28 @@
 
                 <!--  Col 8: Element count — already bound via Elements.Count  -->
                 <StackPanel
+                    Grid.Column="4"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Visibility="{Binding Selection.HasSelection, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource FontPrimary}"
+                        FontSize="{StaticResource FontSizeXS}"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource PrimaryBrush}"
+                        Text="{Binding Selection.StatusText}" />
+                </StackPanel>
+
+                <Rectangle
+                    Grid.Column="5"
+                    Width="1"
+                    Height="12"
+                    Margin="8,0"
+                    Fill="{DynamicResource BorderBrush}"
+                    Visibility="{Binding Selection.HasSelection, Converter={StaticResource BoolToVisibilityConverter}}" />
+
+                <StackPanel
                     Grid.Column="8"
                     VerticalAlignment="Center"
                     Orientation="Horizontal">

@@ -3,6 +3,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Interfaces;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.Ifc;
@@ -39,6 +40,9 @@ using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels;
 using CraneOptimizer.UI.Features.F9_Settings.Views;
 using CraneOptimizer.UI.F90_CraneSeedData.Services;
+using CraneOptimizer.UI.Features.F17_Selection.Interaction;
+using CraneOptimizer.UI.Features.F17_Selection.Services;
+using CraneOptimizer.UI.Features.F17_Selection.ViewModels;
 
 namespace CraneOptimizer.UI
 {
@@ -48,6 +52,9 @@ namespace CraneOptimizer.UI
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            // Initialize transitional static holder
+            ZoneGeometryServiceHolder.Instance = new CraneOptimizer.Domain.Services.ZoneGeometryService();
+
             // Global exception handlers
             DispatcherUnhandledException += OnDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
@@ -114,10 +121,13 @@ namespace CraneOptimizer.UI
             // =========================
             // Scene
             // =========================
+            services.AddSingleton<IZoneGeometryService, CraneOptimizer.Domain.Services.ZoneGeometryService>();
             services.AddSingleton<SceneService>();
             services.AddSingleton<DrawingService>();
             services.AddSingleton<CoordinateService>();
             services.AddSingleton<ICoordinateTransformService, CoordinateTransformService>();
+            services.AddSingleton<IProjectCoordinateTransformService, ProjectCoordinateTransformService>();
+            services.AddSingleton<ICoordinateReadoutFormatter, CoordinateReadoutFormatter>();
             services.AddSingleton<ICraneValidationService, CraneValidationService>();
             services.AddSingleton<IElementLiftStateService, ElementLiftStateService>();
 
@@ -162,7 +172,11 @@ namespace CraneOptimizer.UI
             services.AddSingleton<CranePlacementViewModel>();
             services.AddSingleton<IfcViewerViewModel>();
             services.AddSingleton<DxfTabViewModel>();
+            services.AddSingleton<CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel>();
             services.AddScoped<ElementManagementViewModel>();
+            services.AddSingleton<SelectionHandler>();
+            services.AddSingleton<HoverHitCache>();
+            services.AddTransient<SelectionViewModel>();
 
             // =========================
             // F15 Object Snap
@@ -324,6 +338,7 @@ namespace CraneOptimizer.UI
 
             services.AddScoped<ICraneConfigurationEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.CraneConfiguration.CraneConfigurationEngine>();
             services.AddScoped<ILiftingCalculationEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.LiftingCalculation.LiftingCalculationEngine>();
+            services.AddScoped<CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces.ILoadChartCapacityResolver, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.LoadChartCapacityResolver>();
             services.AddScoped<IConstraintEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Constraints.ConstraintEngine>();
             services.AddScoped<ICoverageEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Coverage.CoverageEngine>();
 

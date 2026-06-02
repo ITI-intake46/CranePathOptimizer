@@ -9,6 +9,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
     public interface ILiftingCalculationEngine
     {
         double CalculateRadius(DomainPoint3D cranePosition, PrecastElement element);
+        double CalculateRadius(DomainPoint3D cranePosition, PrecastElement element, GASettings settings);
         double CalculateLiftHeight(PrecastElement element, DomainPoint3D cranePosition, GASettings settings);
         double CalculateRequiredWeight(PrecastElement element, GASettings settings);
         LiftStatus DetermineLiftStatus(

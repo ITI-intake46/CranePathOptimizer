@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Entities;
+using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Units;
 using System.Data;
 using System.Globalization;
@@ -151,37 +151,36 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 if (!TryParseFlexibleNumber(radiusText, out double radius))
                     throw new FormatException($"Radius value '{radiusText}' is invalid.");
 
+                minRadius = !minRadius.HasValue || radius < minRadius.Value ? radius : minRadius;
+                maxRadius = !maxRadius.HasValue || radius > maxRadius.Value ? radius : maxRadius;
+
                 for (int i = 0; i < boomLengths.Count; i++)
                 {
                     double boomLength = boomLengths[i];
                     string rawCapacityText = row[i + 1]?.ToString() ?? string.Empty;
                     string capacityText = NormalizeGridNumber(rawCapacityText);
+                    double capacity = -1d;
 
-                    // Blank cells in manufacturer load charts usually mean this radius/boom combination
-                    // is outside the chart or not permitted. They must stay blank in the preview and must
-                    // not become real zero-capacity TargetPoint records.
-                    if (string.IsNullOrWhiteSpace(capacityText))
-                        continue;
-
-                    if (!TryParseFlexibleNumber(capacityText, out double capacity))
+                    if (!string.IsNullOrWhiteSpace(capacityText))
                     {
-                        throw new FormatException(
-                            $"Capacity value '{capacityText}' is invalid at radius '{radiusText}', boom '{boomLength}'.");
+                        if (!TryParseFlexibleNumber(capacityText, out capacity))
+                        {
+                            throw new FormatException(
+                                $"Capacity value '{capacityText}' is invalid at radius '{radiusText}', boom '{boomLength}'.");
+                        }
+
+                        capacity = NormalizeCapacityToTons(rawCapacityText, capacity);
+                        maxCapacity = !maxCapacity.HasValue || capacity > maxCapacity.Value ? capacity : maxCapacity;
                     }
 
-                    double normalizedCapacity = NormalizeCapacityToTons(rawCapacityText, capacity);
-
-                    minRadius = !minRadius.HasValue || radius < minRadius.Value ? radius : minRadius;
-                    maxRadius = !maxRadius.HasValue || radius > maxRadius.Value ? radius : maxRadius;
                     minBoom = !minBoom.HasValue || boomLength < minBoom.Value ? boomLength : minBoom;
                     maxBoom = !maxBoom.HasValue || boomLength > maxBoom.Value ? boomLength : maxBoom;
-                    maxCapacity = !maxCapacity.HasValue || normalizedCapacity > maxCapacity.Value ? normalizedCapacity : maxCapacity;
 
                     points.Add(new TargetPoint
                     {
                         Radius = radius,
                         BoomLength = boomLength,
-                        Capacity = normalizedCapacity,
+                        Capacity = capacity,
                         VisualColumnIndex = allowDuplicateBoomLengths ? i + 1 : null,
                         VisualColumnHeader = allowDuplicateBoomLengths ? boomHeaderLabels[i] : null
                     });
@@ -189,7 +188,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             }
 
             if (points.Count == 0)
-                throw new FormatException("The grid does not contain any real load chart capacity points.");
+                throw new FormatException("The grid does not contain any load chart points.");
 
             return new ParsedLoadChart
             {

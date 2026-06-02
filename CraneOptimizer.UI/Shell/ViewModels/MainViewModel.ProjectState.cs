@@ -54,6 +54,13 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private ProjectStateSnapshot BuildProjectStateSnapshot()
         {
             var ifcOffset = IfcViewer.PendingPlacementPoint ?? new Point3D(0, 0, 0);
+            var elements = Scene.GetElements();
+            var firstCOG = elements.FirstOrDefault()?.ElementCOG;
+
+            // Log [IfcSave Diagnosis] as strictly requested in safeguards
+            Debug.WriteLine($"[IfcSave Diagnosis] Saved InsertionOffset: ({ifcOffset.X:F3}, {ifcOffset.Y:F3}, {ifcOffset.Z:F3})");
+            Debug.WriteLine($"[IfcSave Diagnosis] First Element COG: {(firstCOG != null ? $"({firstCOG.X:F3}, {firstCOG.Y:F3}, {firstCOG.Z:F3})" : "null")}");
+            Debug.WriteLine($"[IfcSave Diagnosis] Element Count: {elements.Count}");
 
             return new ProjectStateSnapshot
             {
@@ -68,7 +75,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                         RotationDegrees = 0,
                         Scale = 1
                     },
-                IfcElements = Scene.GetElements(),
+                IfcElements = elements,
                 DxfFile = string.IsNullOrWhiteSpace(Dxf.LoadedFilePath)
                     ? null
                     : new ProjectModelFileState

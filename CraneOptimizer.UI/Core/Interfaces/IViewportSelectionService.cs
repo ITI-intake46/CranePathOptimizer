@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Models;
 
 namespace CraneOptimizer.UI.Core.Interfaces
@@ -30,7 +31,27 @@ namespace CraneOptimizer.UI.Core.Interfaces
         /// </summary>
         /// <param name="hitObj">The raw hit object from the hit-test service, or null for empty space.</param>
         /// <param name="isCtrlHeld">True when the Ctrl modifier key is held down.</param>
-        void Select(object? hitObj, bool isCtrlHeld);
+                void Select(object? hitObj, bool isCtrlHeld);
+
+        /// <summary>
+        /// Selects or toggles a set of elements (e.g., via box selection).
+        /// </summary>
+        void SelectElements(IEnumerable<PrecastElement> elements, bool isCtrlHeld);
+
+        /// <summary>
+        /// Replaces the active elements selection.
+        /// </summary>
+        void SetElements(IEnumerable<PrecastElement> elements);
+
+        /// <summary>
+        /// Toggles a single element's selection state.
+        /// </summary>
+        void ToggleElement(PrecastElement element);
+
+        /// <summary>
+        /// Clears all selection state.
+        /// </summary>
+        void Clear();
 
         /// <summary>Clear all selections across all object types.</summary>
         void ClearSelection();

@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using CraneOptimizer.Application.Optimization.Utilities;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.PlacementOrchestration
 {
@@ -173,6 +174,26 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                     .OrderByDescending(position => position.NewLiftableCount)
                     .ToList();
 
+                // Resolve final unique assignments
+                AssignmentPolicy.ResolveFinalAssignments(finalResult.Positions, allElements, input.CraneSpec!, input.Settings);
+
+                // Validation: no ElementGlobalId has more than one final AssignedPointId
+                var assignedTracker = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var pos in finalResult.Positions)
+                {
+                    foreach (var er in pos.ElementResults)
+                    {
+                        if (er.IsFinalAssignedToPoint)
+                        {
+                            if (assignedTracker.TryGetValue(er.ElementId, out var existingPointId))
+                            {
+                                throw new InvalidOperationException($"Duplicate assignment detected! Element {er.ElementId} is assigned to both {existingPointId} and {er.AssignedPointId}.");
+                            }
+                            assignedTracker[er.ElementId] = er.AssignedPointId;
+                        }
+                    }
+                }
+
                 _coverageEngine.RecalculateCoverage(finalResult, allElements.Count);
 
                 if (GAProfiler.Enabled)
@@ -308,30 +329,40 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 Radius = evaluation.Radius,
                 BoomLength = evaluation.BoomLength,
                 AvailableCapacity = evaluation.AvailableCapacity,
-                RequiredCapacity = evaluation.RequiredCapacity
+                RequiredCapacity = evaluation.RequiredCapacity,
+                ReachStatus = evaluation.ReachStatus,
+                ChartStatus = evaluation.ChartStatus,
+                IsExactMatch = evaluation.IsExactMatch,
+                IsSteppedRadius = evaluation.IsSteppedRadius,
+                IsBlankCell = evaluation.IsBlankCell,
+                IsZeroCell = evaluation.IsZeroCell,
+                SafetyMargin = evaluation.SafetyMargin,
+                LookupMode = evaluation.LookupMode,
+                RequiredRadius = evaluation.RequiredRadius,
+                SelectedChartRadius = evaluation.SelectedChartRadius,
+                SelectedChartBoomLength = evaluation.SelectedChartBoomLength,
+                CraneBaseX = evaluation.CraneBaseX,
+                CraneBaseY = evaluation.CraneBaseY,
+                CraneBaseZ = evaluation.CraneBaseZ,
+                SlewCenterX = evaluation.SlewCenterX,
+                SlewCenterY = evaluation.SlewCenterY,
+                SlewCenterZ = evaluation.SlewCenterZ,
+                BoomHingeX = evaluation.BoomHingeX,
+                BoomHingeY = evaluation.BoomHingeY,
+                BoomHingeZ = evaluation.BoomHingeZ,
+                LoadPointX = evaluation.LoadPointX,
+                LoadPointY = evaluation.LoadPointY,
+                LoadPointZ = evaluation.LoadPointZ,
+                RadiusOriginType = evaluation.RadiusOriginType,
+                BoomOriginType = evaluation.BoomOriginType,
+                CandidateBoomsChecked = evaluation.CandidateBoomsChecked,
+                RejectedCandidates = evaluation.RejectedCandidates
             };
         }
 
         private static void UpdateStatistics(LiftStatistics statistics, LiftStatus status)
         {
-            switch (status)
-            {
-                case LiftStatus.Liftable:
-                    statistics.Liftable++;
-                    break;
-                case LiftStatus.OutOfRadius:
-                    statistics.OutOfRadius++;
-                    break;
-                case LiftStatus.Overweight:
-                    statistics.Overweight++;
-                    break;
-                case LiftStatus.HeightFail:
-                    statistics.HeightFail++;
-                    break;
-                case LiftStatus.SpecialCase:
-                    statistics.SpecialCase++;
-                    break;
-            }
+            LiftClassificationPolicy.UpdateStatistics(statistics, status);
         }
 
 #if DEBUG
@@ -353,7 +384,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                     OutOfRadius = src.Statistics.OutOfRadius,
                     Overweight = src.Statistics.Overweight,
                     HeightFail = src.Statistics.HeightFail,
-                    SpecialCase = src.Statistics.SpecialCase
+                    SpecialCase = src.Statistics.SpecialCase,
+                    NotCharted = src.Statistics.NotCharted
                 },
                 Positions = src.Positions.Select(p => new CranePositionResult
                 {
@@ -374,7 +406,34 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                         Radius = er.Radius,
                         BoomLength = er.BoomLength,
                         AvailableCapacity = er.AvailableCapacity,
-                        RequiredCapacity = er.RequiredCapacity
+                        RequiredCapacity = er.RequiredCapacity,
+                        ReachStatus = er.ReachStatus,
+                        ChartStatus = er.ChartStatus,
+                        IsExactMatch = er.IsExactMatch,
+                        IsSteppedRadius = er.IsSteppedRadius,
+                        IsBlankCell = er.IsBlankCell,
+                        IsZeroCell = er.IsZeroCell,
+                        SafetyMargin = er.SafetyMargin,
+                        LookupMode = er.LookupMode,
+                        RequiredRadius = er.RequiredRadius,
+                        SelectedChartRadius = er.SelectedChartRadius,
+                        SelectedChartBoomLength = er.SelectedChartBoomLength,
+                        CraneBaseX = er.CraneBaseX,
+                        CraneBaseY = er.CraneBaseY,
+                        CraneBaseZ = er.CraneBaseZ,
+                        SlewCenterX = er.SlewCenterX,
+                        SlewCenterY = er.SlewCenterY,
+                        SlewCenterZ = er.SlewCenterZ,
+                        BoomHingeX = er.BoomHingeX,
+                        BoomHingeY = er.BoomHingeY,
+                        BoomHingeZ = er.BoomHingeZ,
+                        LoadPointX = er.LoadPointX,
+                        LoadPointY = er.LoadPointY,
+                        LoadPointZ = er.LoadPointZ,
+                        RadiusOriginType = er.RadiusOriginType,
+                        BoomOriginType = er.BoomOriginType,
+                        CandidateBoomsChecked = er.CandidateBoomsChecked,
+                        RejectedCandidates = er.RejectedCandidates
                     }).ToList()
                 }).ToList()
             };

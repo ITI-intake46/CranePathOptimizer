@@ -18,6 +18,7 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
+using CraneOptimizer.UI.Features.F17_Selection.ViewModels;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 
@@ -37,12 +38,14 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly IUnitSettingsService _unitSettings;
         private readonly CraneVisualBuilder _craneVisualBuilder;
         private readonly IProjectStateService _projectStateService;
+        private readonly IProjectCoordinateTransformService _transformService;
 
         private Crane? _selectedCrane;
         private bool _disposed;
         private bool _suppressProjectStateSave;
         private Guid? _currentProjectId;
         private ProjectSession? _currentProjectSession;
+        public ProjectSession? CurrentSession => _currentProjectSession;
         private string _currentProjectName = string.Empty;
         private string? _currentProjectIfcPath;
         private string _currentProjectFolderPath = string.Empty;
@@ -68,13 +71,19 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CraneManagerViewModel craneManager,
             IUnitSettingsService unitSettings,
             CraneVisualBuilder craneVisualBuilder,
-            IProjectStateService projectStateService)
+            IProjectStateService projectStateService,
+            SelectionViewModel selection,
+            CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel coordinateReference,
+            IProjectCoordinateTransformService transformService)
         {
             Scene = scene;
             Drawing = drawing;
             CranePlacement = cranePlacement;
             IfcViewer = ifcViewer;
             Dxf = dxf;
+            Selection = selection;
+            CoordinateReference = coordinateReference;
+            _transformService = transformService;
             CraneSetup = craneSetup;
             ElementManagement = elementManagement;
             CraneManager = craneManager;
@@ -91,6 +100,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _unitSettings = unitSettings;
             _craneVisualBuilder = craneVisualBuilder;
             _projectStateService = projectStateService;
+
+            _transformService.ReferenceChanged += OnReferenceChanged;
 
             _status.StatusChanged += OnStatusChanged;
             _status.HistoryChanged += OnHistoryChanged;
@@ -151,6 +162,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         public DrawingViewModel Drawing { get; }
         public IfcViewerViewModel IfcViewer { get; }
         public DxfTabViewModel Dxf { get; }
+        public SelectionViewModel Selection { get; }
+        public CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel CoordinateReference { get; }
 
         public ICommand StartDrawingCommand { get; }
         public ICommand OptimizeCommand { get; }
@@ -479,11 +492,38 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             }
         }
 
+        private double _lastCoordinateX;
+        private double _lastCoordinateY;
+        private bool _hasCoordinate;
+
+        private void OnReferenceChanged(object? sender, EventArgs e)
+        {
+            if (_hasCoordinate)
+            {
+                SetCoordinates(_lastCoordinateX, _lastCoordinateY);
+            }
+        }
+
         public void SetCoordinates(double x, double y)
         {
+            _lastCoordinateX = x;
+            _lastCoordinateY = y;
+            _hasCoordinate = true;
+
             var settings = _unitSettings.Current;
-            CoordX = UnitSystem.FormatLength(x, settings);
-            CoordY = UnitSystem.FormatLength(y, settings);
+            var zVal = 0.0; // ground/plane Z clearly shown as 0.0 as requested
+            if (_transformService != null && _transformService.IsEnabled)
+            {
+                var localPt = new DomainPoint3D(x, y, zVal);
+                var surveyPt = _transformService.LocalToSurvey(localPt);
+                CoordX = $"{UnitSystem.FormatLength(x, settings)} (E: {surveyPt.X:F3}m)";
+                CoordY = $"{UnitSystem.FormatLength(y, settings)} (N: {surveyPt.Y:F3}m) [Z: {UnitSystem.FormatLength(zVal, settings)} / H: {surveyPt.Z:F3}m Ground]";
+            }
+            else
+            {
+                CoordX = UnitSystem.FormatLength(x, settings);
+                CoordY = $"{UnitSystem.FormatLength(y, settings)} [Z: {UnitSystem.FormatLength(zVal, settings)} Ground]";
+            }
         }
 
         private void OnStatusChanged() => OnPropertyChanged(nameof(StatusText));

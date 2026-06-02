@@ -1,4 +1,4 @@
-﻿namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
+namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
 {
     /// <summary>
     /// Represents the possible lift evaluation outcomes.
@@ -9,6 +9,7 @@
         OutOfRadius,
         Overweight,
         HeightFail,
-        SpecialCase
+        SpecialCase,
+        NotCharted
     }
 }

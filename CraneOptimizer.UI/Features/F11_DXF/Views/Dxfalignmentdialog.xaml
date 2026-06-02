@@ -112,7 +112,7 @@
                     <!-- DXF FILE -->
                     <GroupBox Header="DXF FILE" Style="{StaticResource DxfDialogGroupBox}" Margin="0,0,0,10">
                         <StackPanel>
-                            <Button Content="📂  Load DXF…"
+                            <Button Content="📂  Load DXF"
                                     Command="{Binding LoadDxfCommand}"
                                     Style="{StaticResource ButtonPrimary}"
                                     HorizontalAlignment="Stretch" Margin="0,0,0,6"/>

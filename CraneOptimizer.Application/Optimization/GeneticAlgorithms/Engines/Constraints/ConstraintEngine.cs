@@ -2,6 +2,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using System;
 using System.Collections.Generic;
@@ -11,6 +12,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
 {
     public class ConstraintEngine : IConstraintEngine
     {
+        private readonly IZoneGeometryService _geometryService;
+
+        public ConstraintEngine(IZoneGeometryService? geometryService = null)
+        {
+            _geometryService = geometryService ?? ZoneGeometryServiceHolder.Instance ?? new CraneOptimizer.Domain.Services.ZoneGeometryService();
+        }
+
         public bool IsValidSetupPoint(
             DomainPoint3D point,
             IReadOnlyList<GreenAreaZone> allowedZones,
@@ -22,13 +30,45 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
                 if (allowedZones == null || allowedZones.Count == 0)
                     return false;
 
+                // Validate and filter zones, exposing warnings for invalid ones
+                var validAllowedZones = new List<GreenAreaZone>();
+                foreach (var zone in allowedZones)
+                {
+                    if (_geometryService.ValidatePolygon(zone.Vertices, out var warning))
+                    {
+                        validAllowedZones.Add(zone);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[GA Warning] Allowed zone '{zone.Name}' is invalid: {warning}");
+                        Console.WriteLine($"[GA Warning] Allowed zone '{zone.Name}' is invalid: {warning}");
+                    }
+                }
+
+                if (validAllowedZones.Count == 0)
+                    return false;
+
                 double footprintRadius = Math.Max(0, settings.CraneFootprintRadius);
-                bool fitsAllowed = allowedZones.Any(zone => IsCircleInsidePolygon(point, footprintRadius, zone.Vertices));
+                bool fitsAllowed = validAllowedZones.Any(zone => IsCircleInsidePolygon(point, footprintRadius, _geometryService.NormalizeVertices(zone.Vertices)));
 
                 if (!fitsAllowed)
                     return false;
 
-                return !forbiddenZones.Any(zone => DoesCircleOverlapPolygon(point, footprintRadius, zone.Vertices));
+                var validForbiddenZones = new List<GreenAreaZone>();
+                foreach (var zone in forbiddenZones)
+                {
+                    if (_geometryService.ValidatePolygon(zone.Vertices, out var warning))
+                    {
+                        validForbiddenZones.Add(zone);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[GA Warning] Forbidden zone '{zone.Name}' is invalid: {warning}");
+                        Console.WriteLine($"[GA Warning] Forbidden zone '{zone.Name}' is invalid: {warning}");
+                    }
+                }
+
+                return !validForbiddenZones.Any(zone => DoesCircleOverlapPolygon(point, footprintRadius, _geometryService.NormalizeVertices(zone.Vertices)));
             }
         }
 
@@ -130,7 +170,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
             double radius,
             IReadOnlyList<DomainPoint3D> polygon)
         {
-            if (polygon == null || polygon.Count < 3 || !SpatialMath.PointInPolygon(center, polygon))
+            if (polygon == null || polygon.Count < 3 || !_geometryService.PointInPolygon(center, polygon))
                 return false;
 
             if (radius <= 0)
@@ -156,7 +196,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
             if (polygon == null || polygon.Count < 3)
                 return false;
 
-            if (SpatialMath.PointInPolygon(center, polygon))
+            if (_geometryService.PointInPolygon(center, polygon))
                 return true;
 
             if (radius <= 0)

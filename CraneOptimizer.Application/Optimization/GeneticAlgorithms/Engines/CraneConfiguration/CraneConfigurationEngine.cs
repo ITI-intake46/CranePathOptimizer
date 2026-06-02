@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
@@ -7,6 +7,9 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using CraneOptimizer.Application.Optimization.Utilities;
 using System.Linq;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.CraneConfiguration
 {
@@ -20,6 +23,16 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cran
     public class CraneConfigurationEngine : ICraneConfigurationEngine
     {
         private readonly ConcurrentDictionary<CapacityCacheKey, double> _capacityCache = new();
+        private readonly ILoadChartCapacityResolver _capacityResolver;
+
+        public CraneConfigurationEngine() : this(null)
+        {
+        }
+
+        public CraneConfigurationEngine(ILoadChartCapacityResolver? capacityResolver)
+        {
+            _capacityResolver = capacityResolver ?? new LoadChartCapacityResolver();
+        }
 
         public void ClearCache()
         {
@@ -29,6 +42,23 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cran
         public double CalculateRequiredBoomLength(double radius, double height)
         {
             return Math.Sqrt(radius * radius + height * height);
+        }
+
+        public double CalculateRequiredBoomLength(DomainPoint3D cranePosition, PrecastElement element, GASettings settings)
+        {
+            double hingeX = cranePosition.X + settings.BoomHingeOffsetX;
+            double hingeY = cranePosition.Y + settings.BoomHingeOffsetY;
+            double hingeZ = cranePosition.Z + settings.BoomHingeOffsetZ;
+
+            double dx = element.ElementCOG.X - hingeX;
+            double dy = element.ElementCOG.Y - hingeY;
+            double dHinge = Math.Sqrt(dx * dx + dy * dy);
+
+            double elementHalfHeight = (element.ElementHeight ?? 0) / 2.0;
+            double zHook = element.ElementCOG.Z + elementHalfHeight + settings.WireLength;
+            double hHinge = Math.Max(0.0, zHook - hingeZ);
+
+            return Math.Sqrt(dHinge * dHinge + hHinge * hHinge);
         }
 
         public double CraneCapacity(
@@ -93,71 +123,33 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cran
             double boomLength,
             GASettings settings)
         {
-            if (craneSpec == null || craneSpec.LoadChart == null || craneSpec.LoadChart.Count == 0)
-            {
-                return new CraneCapacityDiagnosticResult(0, 0, 0, CapacityFailureReason.MissingLoadChartData);
-            }
+            var resolveResult = _capacityResolver.Resolve(craneSpec, radius, boomLength, 0.0, settings);
 
-            // Check if radius exceeds all radii in load chart
-            bool hasValidRadius = craneSpec.LoadChart.Any(tp => tp.Radius >= radius);
-            if (!hasValidRadius)
+            CapacityFailureReason reason = CapacityFailureReason.None;
+            if (resolveResult.LiftStatus != LiftStatus.Liftable)
             {
-                return new CraneCapacityDiagnosticResult(0, 0, 0, CapacityFailureReason.RadiusBeyondLoadChart);
-            }
-
-            // Check if any entry satisfies both Radius >= radius and BoomLength >= boomLength
-            var validEntries = craneSpec.LoadChart
-                .Where(tp => tp.Radius >= radius && tp.BoomLength >= boomLength)
-                .ToList();
-
-            if (validEntries.Count == 0)
-            {
-                // Check if any entry with BoomLength >= boomLength exists at all in the load chart
-                bool hasAnyValidBoom = craneSpec.LoadChart.Any(tp => tp.BoomLength >= boomLength);
-                if (!hasAnyValidBoom)
+                if (Enum.TryParse<CapacityFailureReason>(resolveResult.FailureReason, out var parsedReason))
                 {
-                    return new CraneCapacityDiagnosticResult(0, 0, 0, CapacityFailureReason.BoomBeyondLoadChart);
+                    reason = parsedReason;
                 }
                 else
                 {
-                    return new CraneCapacityDiagnosticResult(0, 0, 0, CapacityFailureReason.NoDiscreteLoadChartEntry);
+                    reason = resolveResult.ChartStatus switch
+                    {
+                        ChartStatus.InvalidBlankCell => CapacityFailureReason.InvalidBlankCell,
+                        ChartStatus.InvalidZeroCell => CapacityFailureReason.InvalidZeroCell,
+                        ChartStatus.OutsideChartEnvelope => CapacityFailureReason.OutsideChartEnvelope,
+                        ChartStatus.NoListedCapacity => CapacityFailureReason.NoListedCapacityForBoomRadius,
+                        _ => CapacityFailureReason.MissingLoadChartData
+                    };
                 }
             }
 
-            // Find the most conservative nearest actual chart point
-            double minRadius = validEntries.Min(tp => tp.Radius);
-            var minRadiusEntries = validEntries.Where(tp => tp.Radius == minRadius).ToList();
-
-            double minBoom = minRadiusEntries.Min(tp => tp.BoomLength);
-            var finalEntries = minRadiusEntries
-                .Where(tp => Math.Abs(tp.BoomLength - minBoom) < 0.0001)
-                .ToList();
-
-            if (finalEntries.Count == 0)
-            {
-                return new CraneCapacityDiagnosticResult(0, minRadius, minBoom, CapacityFailureReason.NoDiscreteLoadChartEntry);
-            }
-
-            var positiveEntries = finalEntries
-                .Where(tp => tp.Capacity > 0)
-                .ToList();
-
-            if (positiveEntries.Count == 0)
-            {
-                var firstEntry = finalEntries[0];
-                return new CraneCapacityDiagnosticResult(0, firstEntry.Radius, firstEntry.BoomLength, CapacityFailureReason.ZeroCapacityChartEntry);
-            }
-
-            // Full-fidelity PDF charts may preserve repeated visual columns with the same numeric boom length.
-            // Those repeated columns can represent different line counts, counterweights, modes, or other
-            // manufacturer-specific conditions. Use the conservative minimum capacity across duplicates
-            // rather than the optimistic maximum envelope.
-            var finalEntry = positiveEntries
-                .OrderBy(tp => tp.Capacity)
-                .First();
-
-            double calculatedCapacity = finalEntry.Capacity * settings.DeratingRatio * settings.SafetyFactor;
-            return new CraneCapacityDiagnosticResult(calculatedCapacity, finalEntry.Radius, finalEntry.BoomLength, CapacityFailureReason.None);
+return new CraneCapacityDiagnosticResult(
+                resolveResult.AvailableCapacity,
+                resolveResult.SelectedChartRadius,
+                resolveResult.SelectedChartBoomLength,
+                reason);
         }
 
         public bool ExceedsMaxRadius(double radius, CraneSpecification craneSpec)

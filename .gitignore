@@ -29,7 +29,11 @@ Thumbs.db
 
 # files
 *.txt
-*.md
 *.csv
+
 # Local patch backups
 .patch-backups/
+
+# IFC Diagnostic reports
+Reports/
+**/Reports/

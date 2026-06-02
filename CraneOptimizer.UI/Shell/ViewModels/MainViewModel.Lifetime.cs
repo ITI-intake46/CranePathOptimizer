@@ -12,6 +12,10 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _status.StatusChanged -= OnStatusChanged;
             _status.HistoryChanged -= OnHistoryChanged;
             _originService.OriginChanged -= OnOriginChanged;
+            if (_transformService != null)
+            {
+                _transformService.ReferenceChanged -= OnReferenceChanged;
+            }
             _originService.PickingChanged -= OnOriginPickingChanged;
             _craneSceneInteraction.StateChanged -= OnCraneInteractionStateChanged;
             _unitSettings.SettingsChanged -= OnUnitSettingsChanged;

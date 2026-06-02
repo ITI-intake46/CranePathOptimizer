@@ -98,6 +98,19 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             }
         }
 
+        private GAViewMode _currentGAViewMode = GAViewMode.FinalAssignment;
+        public GAViewMode CurrentGAViewMode
+        {
+            get => _currentGAViewMode;
+            set
+            {
+                if (_currentGAViewMode == value) return;
+                _currentGAViewMode = value;
+                OnPropertyChanged();
+                RenderElementsWithCurrentStatus?.Invoke();
+            }
+        }
+
         private CranePositionResult? _selectedPosition;
         public CranePositionResult? SelectedPosition
         {
@@ -163,16 +176,22 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             if (!CanShowResults() || Result == null)
                 return;
 
-            _resultsWindowService.Show(Result, point =>
-            {
-                SelectedPosition = point;
-                RenderElementsWithCurrentStatus?.Invoke();
-            });
+            _resultsWindowService.Show(Result, 
+                point =>
+                {
+                    SelectedPosition = point;
+                    RenderElementsWithCurrentStatus?.Invoke();
+                },
+                viewMode =>
+                {
+                    CurrentGAViewMode = viewMode;
+                },
+                CurrentGAViewMode);
         }
 
         private void OpenDiagnostics()
         {
-            _diagnosticsWindowService.Show();
+            _diagnosticsWindowService.Show(CurrentGAViewMode);
         }
 
         private void PublishLiftStates(CranePositionResult? position)
@@ -201,6 +220,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
                 LiftStatus.Overweight => "Overweight",
                 LiftStatus.HeightFail => "Height fail",
                 LiftStatus.SpecialCase => "Special case",
+                LiftStatus.NotCharted => "Not charted",
                 _ => status.ToString()
             };
         }

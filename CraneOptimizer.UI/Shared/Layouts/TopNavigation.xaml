@@ -8,6 +8,7 @@
     xmlns:F9Views="clr-namespace:CraneOptimizer.UI.Features.F9_Settings.Views"
     xmlns:IfcViews="clr-namespace:CraneOptimizer.UI.Features.F2_IfcViewer.Views"
     xmlns:ZonesViews="clr-namespace:CraneOptimizer.UI.Features.F7_Zones.Views"
+    xmlns:F18Views="clr-namespace:CraneOptimizer.UI.Features.F18_CoordinateReference.Views"
     xmlns:project="clr-namespace:CraneOptimizer.UI.F10_ProjectManagement.Views">
 
     <Border
@@ -80,6 +81,13 @@
                         GroupName="RibbonTabs"
                         Style="{StaticResource RibbonTabBtn}" />
 
+                    <RadioButton
+                        x:Name="TabCoordinateReference"
+                        Checked="Tab_Checked"
+                        Content="COORDINATE REFERENCE"
+                        GroupName="RibbonTabs"
+                        Style="{StaticResource RibbonTabBtn}" />
+
                 </StackPanel>
             </Border>
 
@@ -108,6 +116,8 @@
                     Visibility="Collapsed" />
 
                 <F9Views:UserSettingsView x:Name="PanelSettings" Visibility="Collapsed" />
+
+                <F18Views:CoordinateReferenceView x:Name="PanelCoordinateReference" DataContext="{Binding CoordinateReference}" Visibility="Collapsed" />
 
             </Grid>
         </Grid>

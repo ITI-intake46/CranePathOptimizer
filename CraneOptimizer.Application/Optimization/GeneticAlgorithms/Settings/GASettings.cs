@@ -211,5 +211,35 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// Enables high-resolution timing and profiling for the Genetic Algorithm pipeline.
         /// </summary>
         public bool EnableProfiling { get; set; } = true;
+
+        /// <summary>
+        /// Slew center horizontal offset X relative to crane base.
+        /// </summary>
+        public double SlewOffsetX { get; set; } = 0.0;
+
+        /// <summary>
+        /// Slew center horizontal offset Y relative to crane base.
+        /// </summary>
+        public double SlewOffsetY { get; set; } = 0.0;
+
+        /// <summary>
+        /// Slew center vertical offset Z relative to crane base.
+        /// </summary>
+        public double SlewOffsetZ { get; set; } = 0.0;
+
+        /// <summary>
+        /// Boom foot hinge horizontal offset X relative to crane base.
+        /// </summary>
+        public double BoomHingeOffsetX { get; set; } = 0.0;
+
+        /// <summary>
+        /// Boom foot hinge horizontal offset Y relative to crane base.
+        /// </summary>
+        public double BoomHingeOffsetY { get; set; } = 0.0;
+
+        /// <summary>
+        /// Boom foot hinge vertical offset Z relative to crane base.
+        /// </summary>
+        public double BoomHingeOffsetZ { get; set; } = 0.0;
     }
 }

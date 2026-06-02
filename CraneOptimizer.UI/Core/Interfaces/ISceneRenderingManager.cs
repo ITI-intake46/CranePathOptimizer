@@ -1,3 +1,4 @@
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Models;
@@ -23,6 +24,8 @@ namespace CraneOptimizer.UI.Core.Interfaces
         public required Func<DomainPoint3D?> GetPlacementOffset { get; init; }
         public required Func<IReadOnlyList<ElementLiftResult>?> GetLiftResults { get; init; }
         public required Func<string?> GetSelectedElementId { get; init; }
+        public Func<IReadOnlyList<string>>? GetSelectedElementIds { get; init; }
         public required Func<IReadOnlyList<GreenAreaZone>> GetZones { get; init; }
+        public Func<GAViewMode>? GetGAViewMode { get; init; }
     }
 }

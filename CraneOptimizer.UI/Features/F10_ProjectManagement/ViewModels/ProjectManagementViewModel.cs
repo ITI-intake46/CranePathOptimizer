@@ -23,6 +23,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
         private bool _favoritesOnly;
         private bool _isBusy;
         private string _statusText = "Select a project to continue";
+        private ProjectSession? _activeSession;
+
 
         public ProjectManagementViewModel(
             IProjectWorkspaceService workspaceService,
@@ -42,6 +44,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             DeleteProjectCommand = new AsyncRelayCommand<ProjectCardViewModel>(DeleteProjectAsync, project => project != null);
             ToggleFavoriteCommand = new AsyncRelayCommand<ProjectCardViewModel>(ToggleFavoriteAsync, project => project != null);
             ShowInFolderCommand = new RelayCommand<ProjectCardViewModel>(ShowInFolder, project => project != null);
+            ReturnToProjectCommand = new RelayCommand(ReturnToProject, () => _activeSession != null);
+
         }
 
         public ObservableCollection<ProjectCardViewModel> Projects { get; } = new();
@@ -107,10 +111,86 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
         public ICommand DeleteProjectCommand { get; }
         public ICommand ToggleFavoriteCommand { get; }
         public ICommand ShowInFolderCommand { get; }
+        public ICommand ReturnToProjectCommand { get; }
+
+        /// <summary>
+        /// The project session that was open when the user navigated back to the startup screen.
+        /// Bound to the Home panel's "Return to project" banner.
+        /// </summary>
+        public ProjectSession? ActiveSession
+        {
+            get => _activeSession;
+            set
+            {
+                if (_activeSession == value) return;
+                _activeSession = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasActiveSession));
+                OnPropertyChanged(nameof(ActiveProjectName));
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        public bool HasActiveSession => _activeSession != null;
+        public string ActiveProjectName => _activeSession?.ProjectName ?? string.Empty;
+
 
         public Task InitializeAsync()
         {
             return RefreshAsync();
+        }
+
+        /// <summary>
+        /// Called by the window code-behind when the user clicks CREATE PROJECT
+        /// inside the embedded <see cref="CreateProjectPanel"/> (no dialog).
+        /// </summary>
+        public async Task CreateWithPanelAsync(CreateProjectViewModel createViewModel, System.Windows.Window owner)
+        {
+            try
+            {
+                IsBusy = true;
+                var session = await _workspaceService.CreateProjectAsync(
+                    new CreateProjectRequest
+                    {
+                        ProjectName      = createViewModel.ProjectName,
+                        ParentFolderPath = createViewModel.ParentFolderPath,
+                        UnitSettings     = createViewModel.BuildUnitSettings(),
+                        Country          = string.IsNullOrWhiteSpace(createViewModel.Country) ? null : createViewModel.Country,
+                        SiteLocation     = string.IsNullOrWhiteSpace(createViewModel.SiteLocation) ? null : createViewModel.SiteLocation,
+                        ProjectImagePath = createViewModel.ProjectImagePath
+                    },
+                    _lifetime.Token);
+
+                _navigationService.OpenMainWindow(session);
+                owner.Close();
+            }
+            catch (Exception ex)
+            {
+                _dialogService.ShowNonBlockingError(ex.Message, "Create Project Error");
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
+        /// <summary>
+        /// Opens a project folder directly (called by the code-behind Open Folder nav button).
+        /// Returns the session, or <c>null</c> if the user cancelled.
+        /// </summary>
+        public async Task<ProjectSession?> OpenFolderDirectAsync(string folderPath)
+        {
+            try
+            {
+                IsBusy = true;
+                var session = await _workspaceService.OpenProjectFolderAsync(folderPath, _lifetime.Token);
+                _navigationService.OpenMainWindow(session);
+                return session;
+            }
+            finally
+            {
+                IsBusy = false;
+            }
         }
 
         private async Task RefreshAsync()
@@ -173,7 +253,10 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
                     {
                         ProjectName = createViewModel.ProjectName,
                         ParentFolderPath = createViewModel.ParentFolderPath,
-                        UnitSettings = createViewModel.BuildUnitSettings()
+                        UnitSettings = createViewModel.BuildUnitSettings(),
+                        Country = string.IsNullOrWhiteSpace(createViewModel.Country) ? null : createViewModel.Country,
+                        SiteLocation = string.IsNullOrWhiteSpace(createViewModel.SiteLocation) ? null : createViewModel.SiteLocation,
+                        ProjectImagePath = createViewModel.ProjectImagePath
                     },
                     _lifetime.Token);
 
@@ -334,6 +417,13 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
                     return;
                 }
             }
+        }
+
+        private void ReturnToProject()
+        {
+            if (_activeSession == null) return;
+            _navigationService.OpenMainWindow(_activeSession);
+            CloseEntryWindow();
         }
     }
 }

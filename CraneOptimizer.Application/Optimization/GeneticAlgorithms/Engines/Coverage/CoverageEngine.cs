@@ -19,11 +19,24 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cove
             {
                 var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+                // Check if final assignments are resolved
+                bool hasFinalAssignments = result.Positions.Any(p => p.ElementResults.Any(er => er.IsFinalAssignedToPoint));
+
                 foreach (var position in result.Positions)
                 {
-                    var newlyCovered = position.ElementResults
-                        .Where(item => item.Status == LiftStatus.Liftable && covered.Add(item.ElementId))
-                        .Count();
+                    int newlyCovered;
+                    if (hasFinalAssignments)
+                    {
+                        newlyCovered = position.ElementResults
+                            .Where(item => item.IsFinalAssignedToPoint && item.Status == LiftStatus.Liftable && covered.Add(item.ElementId))
+                            .Count();
+                    }
+                    else
+                    {
+                        newlyCovered = position.ElementResults
+                            .Where(item => item.Status == LiftStatus.Liftable && covered.Add(item.ElementId))
+                            .Count();
+                    }
 
                     position.NewLiftableCount = newlyCovered;
                 }
