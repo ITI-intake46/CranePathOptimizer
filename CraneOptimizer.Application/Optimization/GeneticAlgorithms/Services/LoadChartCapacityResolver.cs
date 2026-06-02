@@ -14,7 +14,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             double radius,
             double boomLength,
             double elementWeight,
-            GASettings settings)
+            GASettings settings,
+            bool buildDiagnostics = true,
+            LoadChartIndex? index = null)
         {
             var result = new LoadChartResolverResult
             {
@@ -25,12 +27,20 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 ReachStatus = ReachStatus.Reachable
             };
 
+            // Use pre-indexed path when available
+            if (index != null)
+            {
+                return ResolveWithIndex(result, index, radius, boomLength, elementWeight, settings, buildDiagnostics);
+            }
+
+            // ── Legacy path (unchanged logic, diagnostics gated) ──
+
             // 1. Validate Crane Spec & Load Chart presence
             if (craneSpec == null || craneSpec.LoadChart == null || craneSpec.LoadChart.Count == 0)
             {
                 result.ChartStatus = ChartStatus.NoListedCapacity;
                 result.LiftStatus = LiftStatus.NotCharted;
-                result.FailureReason = CapacityFailureReason.MissingLoadChartData.ToString();
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.MissingLoadChartData.ToString();
                 return result;
             }
 
@@ -52,7 +62,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 result.ReachStatus = ReachStatus.OutOfRadius;
                 result.ChartStatus = ChartStatus.OutsideChartEnvelope;
                 result.LiftStatus = LiftStatus.OutOfRadius; // Keep LiftStatus value for GA backward-compatibility
-                result.FailureReason = CapacityFailureReason.RadiusBeyondLoadChart.ToString();
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.RadiusBeyondLoadChart.ToString();
                 return result;
             }
 
@@ -61,7 +71,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 result.ReachStatus = ReachStatus.OutOfHeight;
                 result.ChartStatus = ChartStatus.OutsideChartEnvelope;
                 result.LiftStatus = LiftStatus.HeightFail; // Keep LiftStatus value for GA backward-compatibility
-                result.FailureReason = CapacityFailureReason.BoomBeyondLoadChart.ToString();
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.BoomBeyondLoadChart.ToString();
                 return result;
             }
 
@@ -71,7 +81,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             {
                 result.ChartStatus = ChartStatus.OutsideChartEnvelope;
                 result.LiftStatus = LiftStatus.NotCharted;
-                result.FailureReason = CapacityFailureReason.OutsideChartEnvelope.ToString();
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.OutsideChartEnvelope.ToString();
                 return result;
             }
 
@@ -88,13 +98,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             {
                 result.ChartStatus = ChartStatus.OutsideChartEnvelope;
                 result.LiftStatus = LiftStatus.NotCharted;
-                result.FailureReason = CapacityFailureReason.OutsideChartEnvelope.ToString();
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.OutsideChartEnvelope.ToString();
                 return result;
             }
 
             // 4. Candidate Selection Loop
-            var checkedBooms = new System.Collections.Generic.List<double>();
-            var rejections = new System.Collections.Generic.List<string>();
+            var checkedBooms = buildDiagnostics ? new System.Collections.Generic.List<double>() : null;
+            var rejections = buildDiagnostics ? new System.Collections.Generic.List<string>() : null;
             TargetPoint? selectedEntry = null;
             TargetPoint? bestOverweightEntry = null;
             double bestOverweightCapacity = -1.0;
@@ -115,7 +125,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     .ToList();
 
                 double boom = groupEntries.Min(tp => tp.BoomLength);
-                checkedBooms.Add(boom);
+                checkedBooms?.Add(boom);
 
                 var positiveEntries = groupEntries
                     .Where(tp => tp.Capacity > 0.0)
@@ -125,10 +135,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
                 if (positiveEntries.Count == 0)
                 {
-                    var invalidEntry = groupEntries.FirstOrDefault(tp => tp.Capacity == 0.0)
-                        ?? groupEntries.First();
-                    string status = invalidEntry.Capacity <= -1.0 ? "InvalidBlankCell" : "InvalidZeroCell";
-                    rejections.Add($"{boom:0.#} ({status})");
+                    if (buildDiagnostics)
+                    {
+                        var invalidEntry = groupEntries.FirstOrDefault(tp => tp.Capacity == 0.0)
+                            ?? groupEntries.First();
+                        string status = invalidEntry.Capacity <= -1.0 ? "InvalidBlankCell" : "InvalidZeroCell";
+                        rejections!.Add($"{boom:0.#} ({status})");
+                    }
                     continue;
                 }
 
@@ -140,7 +153,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     break; // Shortest compliant boom selected after conservative duplicate-column grouping.
                 }
 
-                rejections.Add($"{boom:0.#} (Overweight: {available:0.###} < {elementWeight:0.###})");
+                if (buildDiagnostics)
+                {
+                    rejections!.Add($"{boom:0.#} (Overweight: {available:0.###} < {elementWeight:0.###})");
+                }
                 if (available > bestOverweightCapacity)
                 {
                     bestOverweightCapacity = available;
@@ -148,9 +164,166 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 }
             }
 
-            result.CandidateBoomsChecked = string.Join(", ", checkedBooms.Select(b => b.ToString("0.#")));
-            result.RejectedCandidates = string.Join(" | ", rejections);
+            if (buildDiagnostics)
+            {
+                result.CandidateBoomsChecked = string.Join(", ", checkedBooms!.Select(b => b.ToString("0.#")));
+                result.RejectedCandidates = string.Join(" | ", rejections!);
+            }
 
+            return PopulateFinalResult(result, selectedEntry, bestOverweightEntry, candidates.First(),
+                radius, boomLength, elementWeight, settings, buildDiagnostics);
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // INDEXED PATH — uses pre-built LoadChartIndex
+        // ══════════════════════════════════════════════════════════════
+
+        private static LoadChartResolverResult ResolveWithIndex(
+            LoadChartResolverResult result,
+            LoadChartIndex index,
+            double radius,
+            double boomLength,
+            double elementWeight,
+            GASettings settings,
+            bool buildDiagnostics)
+        {
+            // 1. Validate index
+            if (!index.IsValid)
+            {
+                result.ChartStatus = ChartStatus.NoListedCapacity;
+                result.LiftStatus = LiftStatus.NotCharted;
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.MissingLoadChartData.ToString();
+                return result;
+            }
+
+            // 2. Geometric reach checks
+            if (radius > index.MaxRadius)
+            {
+                result.ReachStatus = ReachStatus.OutOfRadius;
+                result.ChartStatus = ChartStatus.OutsideChartEnvelope;
+                result.LiftStatus = LiftStatus.OutOfRadius;
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.RadiusBeyondLoadChart.ToString();
+                return result;
+            }
+
+            if (boomLength > index.MaxBoomLength)
+            {
+                result.ReachStatus = ReachStatus.OutOfHeight;
+                result.ChartStatus = ChartStatus.OutsideChartEnvelope;
+                result.LiftStatus = LiftStatus.HeightFail;
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.BoomBeyondLoadChart.ToString();
+                return result;
+            }
+
+            // 3. Binary search for smallest chart radius >= required
+            int radiusIdx = index.FindFirstRadiusIndex(radius);
+            if (radiusIdx < 0)
+            {
+                result.ChartStatus = ChartStatus.OutsideChartEnvelope;
+                result.LiftStatus = LiftStatus.NotCharted;
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.OutsideChartEnvelope.ToString();
+                return result;
+            }
+
+            double selectedChartRadius = index.SortedRadii[radiusIdx];
+            result.SelectedChartRadius = selectedChartRadius;
+
+            // 4. Get pre-grouped boom configurations at selected radius
+            if (!index.BoomGroupsByRadius.TryGetValue(selectedChartRadius, out var boomGroups))
+            {
+                result.ChartStatus = ChartStatus.OutsideChartEnvelope;
+                result.LiftStatus = LiftStatus.NotCharted;
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.OutsideChartEnvelope.ToString();
+                return result;
+            }
+
+            // 5. Candidate selection loop — iterate pre-sorted boom groups
+            var checkedBooms = buildDiagnostics ? new System.Collections.Generic.List<double>() : null;
+            var rejections = buildDiagnostics ? new System.Collections.Generic.List<string>() : null;
+            TargetPoint? selectedEntry = null;
+            TargetPoint? bestOverweightEntry = null;
+            double bestOverweightCapacity = -1.0;
+            TargetPoint? firstCandidate = null;
+            bool hasCandidates = false;
+
+            foreach (var group in boomGroups)
+            {
+                // Skip boom groups shorter than required
+                if (group.BoomLength < boomLength)
+                    continue;
+
+                hasCandidates = true;
+                if (firstCandidate == null)
+                {
+                    firstCandidate = group.AllEntries.Count > 0 ? group.AllEntries[0] : null;
+                }
+
+                checkedBooms?.Add(group.BoomLength);
+
+                if (!group.HasPositiveCapacity)
+                {
+                    if (buildDiagnostics)
+                    {
+                        var invalidEntry = group.FirstInvalidEntry;
+                        string status = (invalidEntry != null && invalidEntry.Capacity <= -1.0)
+                            ? "InvalidBlankCell" : "InvalidZeroCell";
+                        rejections!.Add($"{group.BoomLength:0.#} ({status})");
+                    }
+                    continue;
+                }
+
+                var tp = group.MinPositiveEntry!;
+                double available = tp.Capacity * settings.DeratingRatio * settings.SafetyFactor;
+                if (available >= elementWeight)
+                {
+                    selectedEntry = tp;
+                    break;
+                }
+
+                if (buildDiagnostics)
+                {
+                    rejections!.Add($"{group.BoomLength:0.#} (Overweight: {available:0.###} < {elementWeight:0.###})");
+                }
+                if (available > bestOverweightCapacity)
+                {
+                    bestOverweightCapacity = available;
+                    bestOverweightEntry = tp;
+                }
+            }
+
+            if (!hasCandidates)
+            {
+                result.ChartStatus = ChartStatus.OutsideChartEnvelope;
+                result.LiftStatus = LiftStatus.NotCharted;
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.OutsideChartEnvelope.ToString();
+                return result;
+            }
+
+            if (buildDiagnostics)
+            {
+                result.CandidateBoomsChecked = string.Join(", ", checkedBooms!.Select(b => b.ToString("0.#")));
+                result.RejectedCandidates = string.Join(" | ", rejections!);
+            }
+
+            return PopulateFinalResult(result, selectedEntry, bestOverweightEntry, firstCandidate!,
+                radius, boomLength, elementWeight, settings, buildDiagnostics);
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // SHARED FINAL RESULT POPULATION
+        // ══════════════════════════════════════════════════════════════
+
+        private static LoadChartResolverResult PopulateFinalResult(
+            LoadChartResolverResult result,
+            TargetPoint? selectedEntry,
+            TargetPoint? bestOverweightEntry,
+            TargetPoint fallbackEntry,
+            double radius,
+            double boomLength,
+            double elementWeight,
+            GASettings settings,
+            bool buildDiagnostics)
+        {
             TargetPoint finalEntry;
 
             if (selectedEntry != null)
@@ -166,7 +339,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 result.SafetyMargin = available - elementWeight;
                 result.ChartStatus = ChartStatus.ListedCapacityFound;
                 result.LiftStatus = LiftStatus.Liftable;
-                result.FailureReason = CapacityFailureReason.None.ToString();
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.None.ToString();
             }
             else if (bestOverweightEntry != null)
             {
@@ -181,12 +354,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 result.SafetyMargin = available - elementWeight;
                 result.ChartStatus = ChartStatus.ListedCapacityFound;
                 result.LiftStatus = LiftStatus.Overweight;
-                result.FailureReason = CapacityFailureReason.NoListedCapacityForBoomRadius.ToString();
+                if (buildDiagnostics) result.FailureReason = CapacityFailureReason.NoListedCapacityForBoomRadius.ToString();
             }
             else
             {
                 // Case C: All candidates are blank/zero
-                finalEntry = candidates.First();
+                finalEntry = fallbackEntry;
                 result.SelectedChartBoomLength = finalEntry.BoomLength;
                 result.IsExactMatch = Math.Abs(finalEntry.Radius - radius) < 1e-5 && Math.Abs(finalEntry.BoomLength - boomLength) < 1e-5;
                 result.IsSteppedRadius = finalEntry.Radius > radius;
@@ -196,14 +369,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     result.IsBlankCell = true;
                     result.ChartStatus = ChartStatus.InvalidBlankCell;
                     result.LiftStatus = LiftStatus.NotCharted;
-                    result.FailureReason = CapacityFailureReason.InvalidBlankCell.ToString();
+                    if (buildDiagnostics) result.FailureReason = CapacityFailureReason.InvalidBlankCell.ToString();
                 }
                 else
                 {
                     result.IsZeroCell = true;
                     result.ChartStatus = ChartStatus.InvalidZeroCell;
                     result.LiftStatus = LiftStatus.NotCharted;
-                    result.FailureReason = CapacityFailureReason.InvalidZeroCell.ToString();
+                    if (buildDiagnostics) result.FailureReason = CapacityFailureReason.InvalidZeroCell.ToString();
                 }
             }
 

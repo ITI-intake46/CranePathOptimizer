@@ -1,4 +1,5 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
@@ -41,6 +42,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
             GASettings settings);
 
         /// <summary>
+        /// Hot-path overload for the GA generation loop.
+        /// Accepts pre-built LoadChartIndex and ElementStaticCache to
+        /// avoid per-call LINQ and repeated null-coalescing arithmetic.
+        /// Diagnostics are disabled on this path.
+        /// </summary>
+        AssignmentResult EvaluateAssignment(
+            CraneSolution solution,
+            List<PrecastElement> elements,
+            Dictionary<int, List<string>> assignment,
+            CraneSpecification craneSpec,
+            GASettings settings,
+            LoadChartIndex index,
+            ElementStaticCache elementCache);
+
+        /// <summary>
         /// Evaluates every element against one specific crane position.
         /// This is used for viewport result previews where each GA point must
         /// have its own independent color classification.
@@ -53,3 +69,4 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
             GASettings settings);
     }
 }
+

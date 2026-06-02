@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using CraneOptimizer.Application.Optimization.Utilities;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization
 {
@@ -65,6 +66,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                     input.Settings.MaxCranePositions,
                     input.Settings);
 
+                // ── Phase 1 Performance: Build pre-indexed data structures ──
+                var loadChartIndex = new LoadChartIndex(input.CraneSpec);
+                var elementCache = new ElementStaticCache(input.Elements, input.Settings);
+
                 for (int generation = 0; generation < input.Settings.MaxGenerations; generation++)
                 {
                     using (new GAProfiler.ProfileScope("GAEngine.GenerationLoop"))
@@ -84,7 +89,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                                 input.Elements,
                                 input.Assignment,
                                 input.CraneSpec,
-                                input.Settings);
+                                input.Settings,
+                                loadChartIndex,
+                                elementCache);
 
                             var fitness = _fitnessEvaluator.EvaluateFitness(
                                 solution,
@@ -175,7 +182,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                                 input.Elements,
                                 input.Assignment,
                                 input.CraneSpec,
-                                input.Settings);
+                                input.Settings,
+                                loadChartIndex,
+                                elementCache);
 
                             var fitness = _fitnessEvaluator.EvaluateFitness(
                                 child,

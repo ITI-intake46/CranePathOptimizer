@@ -1,4 +1,5 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 
@@ -11,6 +12,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
             double radius,
             double boomLength,
             double elementWeight,
-            GASettings settings);
+            GASettings settings,
+            bool buildDiagnostics = true,
+            LoadChartIndex? index = null);
     }
 }
