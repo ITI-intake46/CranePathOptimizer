@@ -94,7 +94,22 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 ConvergenceThresholdPercent = ParseDouble(options.DevConvergenceText, 0.0),
                 PopulationSize = ParseInt(options.PopulationSizeText, 30),
                 MaxGenerations = ParseInt(options.MaxGenerationsText, 30),
-                TargetElementTypes = options.TargetElementTypes
+                TargetElementTypes = options.TargetElementTypes,
+
+                // New dynamic and diagnostic options mapped to GASettings
+                EnableAdaptiveSigma = ParseBool(options.EnableAdaptiveSigmaText, false),
+                SigmaCoolingExponent = ParseDouble(options.SigmaCoolingExponentText, 1.5),
+                MinimumMutationSigma = ParseDouble(options.MinimumMutationSigmaText, 0.5),
+                EnableConcurrentOptimization = ParseBool(options.EnableConcurrentOptimizationText, true),
+                SlewOffsetX = ParseDouble(options.SlewOffsetXText, 0.0),
+                SlewOffsetY = ParseDouble(options.SlewOffsetYText, 0.0),
+                SlewOffsetZ = ParseDouble(options.SlewOffsetZText, 0.0),
+                BoomHingeOffsetX = ParseDouble(options.BoomHingeOffsetXText, 0.0),
+                BoomHingeOffsetY = ParseDouble(options.BoomHingeOffsetYText, 0.0),
+                BoomHingeOffsetZ = ParseDouble(options.BoomHingeOffsetZText, 0.0),
+                CraneFootprintRadius = ParseDouble(options.CraneFootprintRadiusText, 0.0),
+                EnableProfiling = ParseBool(options.EnableProfilingText, true),
+                ProfilingLogDirectory = options.ProfilingLogDirectoryText
             };
         }
 
@@ -120,6 +135,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         private static double ParseDouble(string? value, double fallback)
         {
             return double.TryParse(value, out var parsed) ? parsed : fallback;
+        }
+
+        private static bool ParseBool(string? value, bool fallback)
+        {
+            return bool.TryParse(value, out var parsed) ? parsed : fallback;
         }
 
         private static int? ParseNullableInt(string? value, int? fallback)
@@ -161,7 +181,21 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         string? DevCrossoverRateText,
         string? DevRandomSeedText,
         string? DevConvergenceText,
-        IReadOnlyCollection<string> TargetElementTypes);
+        IReadOnlyCollection<string> TargetElementTypes,
+        // Added properties
+        string? EnableAdaptiveSigmaText,
+        string? SigmaCoolingExponentText,
+        string? MinimumMutationSigmaText,
+        string? EnableConcurrentOptimizationText,
+        string? SlewOffsetXText,
+        string? SlewOffsetYText,
+        string? SlewOffsetZText,
+        string? BoomHingeOffsetXText,
+        string? BoomHingeOffsetYText,
+        string? BoomHingeOffsetZText,
+        string? CraneFootprintRadiusText,
+        string? EnableProfilingText,
+        string? ProfilingLogDirectoryText);
 
     public sealed class CraneOptimizerPointListItem
     {
