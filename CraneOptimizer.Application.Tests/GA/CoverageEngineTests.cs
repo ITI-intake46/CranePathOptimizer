@@ -5,6 +5,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Schemas;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace CraneOptimizer.Application.Tests
 {
@@ -77,6 +78,53 @@ namespace CraneOptimizer.Application.Tests
 
             Assert.Single(remaining);
             Assert.Equal("E2", remaining[0].ElementID);
+        }
+
+        [Fact]
+        public void RecalculateCoverage_PositionWithAllDuplicateElements_HasZeroNewLiftableCount()
+        {
+            // Arrange: Position 1 covers {E1, E2, E3}. Position 2 covers {E2, E3} (all duplicates).
+            // After RecalculateCoverage, Position 2 should have NewLiftableCount == 0.
+            var engine = new CoverageEngine();
+
+            var result = new PlacementResult
+            {
+                Positions = new List<CranePositionResult>
+                {
+                    new CranePositionResult
+                    {
+                        X = 0, Y = 0, Z = 0,
+                        ElementResults = new List<ElementLiftResult>
+                        {
+                            new ElementLiftResult { ElementId = "E1", Status = LiftStatus.Liftable },
+                            new ElementLiftResult { ElementId = "E2", Status = LiftStatus.Liftable },
+                            new ElementLiftResult { ElementId = "E3", Status = LiftStatus.Liftable }
+                        }
+                    },
+                    new CranePositionResult
+                    {
+                        X = 5, Y = 5, Z = 0,
+                        ElementResults = new List<ElementLiftResult>
+                        {
+                            // All elements already covered by Position 1
+                            new ElementLiftResult { ElementId = "E2", Status = LiftStatus.Liftable },
+                            new ElementLiftResult { ElementId = "E3", Status = LiftStatus.Liftable }
+                        }
+                    }
+                }
+            };
+
+            // Act
+            engine.RecalculateCoverage(result, 3);
+
+            // Assert: Position 1 should have 3 new liftable, Position 2 should have 0
+            Assert.Equal(3, result.Positions[0].NewLiftableCount);
+            Assert.Equal(0, result.Positions[1].NewLiftableCount);
+
+            // This is the condition CranePlacementEngine uses to filter zero-lifting positions:
+            var activePositions = result.Positions.Where(p => p.NewLiftableCount > 0).ToList();
+            Assert.Single(activePositions);
+            Assert.Equal(0, activePositions[0].X);
         }
 
         [Fact]

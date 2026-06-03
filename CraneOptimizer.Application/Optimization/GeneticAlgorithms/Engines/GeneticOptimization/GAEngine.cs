@@ -145,8 +145,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
 
                             if (GARandomManager.Instance.NextDouble() < input.Settings.CrossoverRate)
                             {
-                                var child1 = _crossover.Crossover(parents[i], parents[i + 1]);
-                                var child2 = _crossover.Crossover(parents[i + 1], parents[i]);
+                                var child1 = _crossover.Crossover(parents[i], parents[i + 1], input.Settings);
+                                var child2 = _crossover.Crossover(parents[i + 1], parents[i], input.Settings);
                                 SanitizeSolution(child1, input);
                                 SanitizeSolution(child2, input);
                                 children.Add(child1);

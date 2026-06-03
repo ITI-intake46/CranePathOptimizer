@@ -256,5 +256,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// Boom foot hinge vertical offset Z relative to crane base.
         /// </summary>
         public double BoomHingeOffsetZ { get; set; } = 0.0;
+
+        /// <summary>
+        /// Enables the concurrent multi-setup optimization engine.
+        /// </summary>
+        public bool EnableConcurrentOptimization { get; set; } = true;
     }
 }

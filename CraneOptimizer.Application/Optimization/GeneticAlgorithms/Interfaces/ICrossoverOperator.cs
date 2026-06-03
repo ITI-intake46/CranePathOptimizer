@@ -1,4 +1,5 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
 {
@@ -10,6 +11,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
         /// <summary>
         /// Generates a new solution from two parents.
         /// </summary>
-        CraneSolution Crossover(CraneSolution parent1, CraneSolution parent2);
+        CraneSolution Crossover(CraneSolution parent1, CraneSolution parent2, GASettings settings);
     }
 }

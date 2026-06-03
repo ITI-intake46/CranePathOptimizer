@@ -292,11 +292,64 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                     : groundedCentroid;
             }
 
-            // Case 2: find the closest zone and sample inside it
+            // Case 2: Project centroid onto the closest zone boundary
+            var projected = SnapPointToGrid(ProjectPointToZoneBoundary(groundedCentroid, closestZone), settings.GridStep);
+            if (_constraintEngine.IsValidSetupPoint(projected, zones, forbiddenZones, settings)
+                && _constraintEngine.IsMeaningfullySeparated(projected, existingPoints, settings))
+            {
+                return projected;
+            }
+
+            // Case 3: find the closest zone and sample inside it
             var sampled = GenerateRandomPointInsideZone(closestZone, forbiddenZones, settings);
             return _constraintEngine.IsMeaningfullySeparated(sampled, existingPoints, settings)
                 ? sampled
                 : GenerateDiversePointInsideZones(zones, forbiddenZones, existingPoints, settings);
+        }
+
+        private DomainPoint3D ProjectPointToZoneBoundary(DomainPoint3D point, GreenAreaZone zone)
+        {
+            if (zone.Vertices == null || zone.Vertices.Count == 0)
+                return point;
+
+            double minDistance = double.MaxValue;
+            DomainPoint3D closestProjection = point;
+
+            for (int i = 0; i < zone.Vertices.Count; i++)
+            {
+                var p1 = zone.Vertices[i];
+                var p2 = zone.Vertices[(i + 1) % zone.Vertices.Count];
+
+                var projection = ProjectPointOntoSegment2D(point, p1, p2);
+                double dist = SpatialMath.Distance2D(point, projection);
+
+                if (dist < minDistance)
+                {
+                    minDistance = dist;
+                    closestProjection = projection;
+                }
+            }
+
+            return closestProjection;
+        }
+
+        private DomainPoint3D ProjectPointOntoSegment2D(DomainPoint3D point, DomainPoint3D a, DomainPoint3D b)
+        {
+            double vx = b.X - a.X;
+            double vy = b.Y - a.Y;
+            double wx = point.X - a.X;
+            double wy = point.Y - a.Y;
+
+            double c1 = vx * wx + vy * wy;
+            if (c1 <= 0)
+                return new DomainPoint3D(a.X, a.Y, point.Z);
+
+            double c2 = vx * vx + vy * vy;
+            if (c2 <= c1)
+                return new DomainPoint3D(b.X, b.Y, point.Z);
+
+            double t = c1 / c2;
+            return new DomainPoint3D(a.X + t * vx, a.Y + t * vy, point.Z);
         }
 
         /// <summary>

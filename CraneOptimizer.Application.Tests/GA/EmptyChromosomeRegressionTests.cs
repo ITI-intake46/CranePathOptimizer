@@ -8,6 +8,10 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.PlacementOrchestration;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Coverage;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 using System.Collections.Generic;
@@ -108,6 +112,114 @@ namespace CraneOptimizer.Application.Tests
 
             // 4. Verify Diagnostics counter incremented (called once for slow, once for fast path)
             Assert.Equal(2, GAProfiler.EmptyChromosomeCount);
+        }
+
+        private class StubGAEngine : IGeneticAlgorithmEngine
+        {
+            private readonly CraneSolution _solution;
+            public StubGAEngine(CraneSolution solution) => _solution = solution;
+            public CraneSolution Run(PlacementInput input, System.Threading.CancellationToken cancellationToken = default) => _solution;
+        }
+
+        private class StubDiagnosticsService : IGACsvDiagnosticsService
+        {
+            public string GenerateDiagnostics(PlacementInput input, PlacementResult result) => string.Empty;
+        }
+
+        [Fact]
+        public void TestZeroLiftingSetupPositionsFilteredOut()
+        {
+            var solution = new CraneSolution
+            {
+                Chromosome = new CraneChromosome
+                {
+                    CranePositions = new List<DomainPoint3D>
+                    {
+                        new DomainPoint3D(1.1, 1.1, 0),
+                        new DomainPoint3D(9.0, 9.0, 0)
+                    }
+                },
+                Fitness = 0.8,
+                CoverageRatio = 1.0
+            };
+
+            var gaEngine = new StubGAEngine(solution);
+            var configEngine = new CraneConfigurationEngine();
+            var liftingEngine = new LiftingCalculationEngine(configEngine);
+            var assignmentService = new ElementAssignmentService(liftingEngine, configEngine);
+            var coverageEngine = new CoverageEngine();
+            var diagnosticsService = new StubDiagnosticsService();
+
+            var placementEngine = new CranePlacementEngine(
+                gaEngine,
+                assignmentService,
+                coverageEngine,
+                configEngine,
+                diagnosticsService);
+
+            var settings = new GASettings
+            {
+                EnableConcurrentOptimization = true,
+                CraneFootprintRadius = 1.0,
+                MinimumRelocationDistance = 3.0,
+                WireLength = 2.0,
+                DeratingRatio = 1.0,
+                SafetyFactor = 1.0,
+                MaxCranePositions = 3,
+                DuplicatePositionDistance = 2.0,
+                RelocationWeight = 5.0,
+                CoverageWeight = 10.0,
+                MaxRadiusForNormalisation = 50.0
+            };
+
+            var craneSpec = new CraneSpecification
+            {
+                Id = 1,
+                MaxRadius = 15,
+                MaxBoomLength = 20,
+                LoadChart = new List<TargetPoint>
+                {
+                    new TargetPoint { Radius = 1.0, BoomLength = 10.0, Capacity = 50.0 },
+                    new TargetPoint { Radius = 12.0, BoomLength = 15.0, Capacity = 50.0 }
+                }
+            };
+
+            var allowedZone = new GreenAreaZone
+            {
+                Vertices = new List<DomainPoint3D>
+                {
+                    new DomainPoint3D(-50, -50, 0),
+                    new DomainPoint3D(50, -50, 0),
+                    new DomainPoint3D(50, 50, 0),
+                    new DomainPoint3D(-50, 50, 0)
+                }
+            };
+
+            var elements = new List<PrecastElement>
+            {
+                new PrecastElement { ElementID = "EL-T1", ElementCOG = new DomainPoint3D(1.1, 1.1, 0), ElementHeight = 1.0, ElementWT = 10.0 },
+                new PrecastElement { ElementID = "EL-T2", ElementCOG = new DomainPoint3D(1.1, 1.1, 0), ElementHeight = 1.0, ElementWT = 10.0 }
+            };
+
+            var input = new PlacementInput
+            {
+                Zones = new List<GreenAreaZone> { allowedZone },
+                ForbiddenZones = new List<GreenAreaZone>(),
+                Elements = elements,
+                Assignment = new Dictionary<int, List<string>>(),
+                CraneSpec = craneSpec,
+                Settings = settings,
+                TotalElementsCount = elements.Count
+            };
+
+            var result = placementEngine.RunOptimization(input);
+
+            // The position (9.0, 9.0, 0) should cover 0 elements uniquely and be filtered out.
+            // Only (1.1, 1.1, 0) should remain.
+            Assert.Single(result.Positions);
+            Assert.Equal(1.1, result.Positions[0].X);
+            Assert.Equal(1.1, result.Positions[0].Y);
+            Assert.Equal(2, result.Positions[0].NewLiftableCount);
         }
     }
 }

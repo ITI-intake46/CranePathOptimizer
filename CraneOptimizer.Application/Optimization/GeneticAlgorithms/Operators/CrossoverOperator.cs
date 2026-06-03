@@ -1,7 +1,10 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization;
+using CraneOptimizer.Application.Optimization.Utilities;
 using System;
+using System.Linq;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators
 {
@@ -16,7 +19,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators
         /// <summary>
         /// Generates a child solution by combining positions from two parents.
         /// </summary>
-        public CraneSolution Crossover(CraneSolution parent1, CraneSolution parent2)
+        public CraneSolution Crossover(CraneSolution parent1, CraneSolution parent2, GASettings settings)
         {
             var child = new CraneSolution
             {
@@ -26,29 +29,49 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators
             var p1 = parent1.Chromosome.CranePositions;
             var p2 = parent2.Chromosome.CranePositions;
 
-            int minLength = Math.Min(p1.Count, p2.Count);
+            int maxCount = Math.Max(p1.Count, p2.Count);
 
-            // Guard: if one of them is empty, take from the other
-            if (minLength == 0)
+            // Dynamic footprint guard: use 2 * settings.CraneFootprintRadius as duplicate threshold
+            double duplicateThreshold = settings.CraneFootprintRadius > 0
+                ? 2.0 * settings.CraneFootprintRadius
+                : 3.0; // safe fallback
+
+            for (int i = 0; i < maxCount; i++)
             {
-                child.Chromosome.CranePositions.AddRange(p1.Count > 0 ? p1 : p2);
-                return child;
+                Domain.Common.DomainPoint3D? inheritedPoint = null;
+
+                if (i < p1.Count && i < p2.Count)
+                {
+                    inheritedPoint = _random.NextDouble() < 0.5 ? p1[i] : p2[i];
+                }
+                else if (i < p1.Count)
+                {
+                    inheritedPoint = p1[i];
+                }
+                else if (i < p2.Count)
+                {
+                    inheritedPoint = p2[i];
+                }
+
+                if (inheritedPoint != null)
+                {
+                    // Ensure no duplicate points are inherited close to existing child points
+                    bool isDuplicate = child.Chromosome.CranePositions.Any(p =>
+                        SpatialMath.Distance2D(p, inheritedPoint) < duplicateThreshold);
+
+                    if (!isDuplicate)
+                    {
+                        child.Chromosome.CranePositions.Add(inheritedPoint);
+                    }
+                }
             }
 
-            // 1️⃣ choose crossover point
-            int cut = _random.Next(1, minLength);
-
-            // 2️⃣ take from parent1
-            for (int i = 0; i < cut; i++)
-                child.Chromosome.CranePositions.Add(p1[i]);
-
-            // 3️⃣ take from parent2
-            for (int i = cut; i < p2.Count; i++)
-                child.Chromosome.CranePositions.Add(p2[i]);
-
-            // 4️⃣ ensure not empty
+            // Ensure child has at least one setup point
             if (child.Chromosome.CranePositions.Count == 0)
-                child.Chromosome.CranePositions.Add(p1[0]);
+            {
+                if (p1.Count > 0) child.Chromosome.CranePositions.Add(p1[0]);
+                else if (p2.Count > 0) child.Chromosome.CranePositions.Add(p2[0]);
+            }
 
             return child;
         }

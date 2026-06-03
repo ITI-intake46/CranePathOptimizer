@@ -156,6 +156,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 // ══════════════════════════════════════════════════════
                 int craneCount = solution.Chromosome.CranePositions.Count;
 
+                // Step-wise relocation penalty (1 setup = 0 penalty, 2 setups = RelocationWeight, etc.)
+                double relocationPenaltyVal = craneCount > 1
+                    ? settings.RelocationWeight * (craneCount - 1)
+                    : 0;
+
                 double normalisedRelocation = settings.MaxCranePositions > 0
                     ? (double)craneCount / settings.MaxCranePositions
                     : 0;
@@ -248,7 +253,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 // ══════════════════════════════════════════════════════
                 double fitness =
                       settings.CoverageWeight * coverageRatio
-                    - settings.RelocationWeight * normalisedRelocation
+                    - relocationPenaltyVal
                     - settings.RadiusPenaltyWeight * normOutOfRadius
                     - settings.OverweightPenaltyWeight * normOverweight
                     - settings.HeightPenaltyWeight * normHeightFail
