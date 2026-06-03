@@ -283,18 +283,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 GetZoneElevation(closestZone));
 
             // Case 1: centroid falls inside one of the zones
-            if (_constraintEngine.IsValidSetupPoint(groundedCentroid, zones, forbiddenZones, settings)
+            if (IsValidSetupPointWithTracking(groundedCentroid, zones, forbiddenZones, settings)
                 && _constraintEngine.IsMeaningfullySeparated(groundedCentroid, existingPoints, settings))
             {
                 var snappedCentroid = SnapPointToGrid(groundedCentroid, settings.GridStep);
-                return _constraintEngine.IsValidSetupPoint(snappedCentroid, zones, forbiddenZones, settings)
+                return IsValidSetupPointWithTracking(snappedCentroid, zones, forbiddenZones, settings)
                     ? snappedCentroid
                     : groundedCentroid;
             }
 
             // Case 2: Project centroid onto the closest zone boundary
             var projected = SnapPointToGrid(ProjectPointToZoneBoundary(groundedCentroid, closestZone), settings.GridStep);
-            if (_constraintEngine.IsValidSetupPoint(projected, zones, forbiddenZones, settings)
+            if (IsValidSetupPointWithTracking(projected, zones, forbiddenZones, settings)
                 && _constraintEngine.IsMeaningfullySeparated(projected, existingPoints, settings))
             {
                 return projected;
@@ -424,7 +424,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
 
                 var point = SnapPointToGrid(new DomainPoint3D(x, y, GetZoneElevation(zone)), settings.GridStep);
 
-                if (_constraintEngine.IsValidSetupPoint(point, new[] { zone }, forbiddenZones, settings))
+                if (IsValidSetupPointWithTracking(point, new[] { zone }, forbiddenZones, settings))
                     return point;
             }
 
@@ -452,6 +452,27 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             return zone.Vertices.Count == 0
                 ? 0d
                 : zone.Vertices.Average(vertex => vertex.Z);
+        }
+
+        private bool IsValidSetupPointWithTracking(
+            DomainPoint3D point,
+            IReadOnlyList<GreenAreaZone> allowedZones,
+            IReadOnlyList<GreenAreaZone> forbiddenZones,
+            GASettings settings)
+        {
+            if (GAProfiler.Enabled)
+            {
+                System.Threading.Interlocked.Increment(ref GAProfiler.CandidatePointsGenerated);
+            }
+
+            bool isValid = _constraintEngine.IsValidSetupPoint(point, allowedZones, forbiddenZones, settings);
+
+            if (isValid && GAProfiler.Enabled)
+            {
+                System.Threading.Interlocked.Increment(ref GAProfiler.ValidPointsGenerated);
+            }
+
+            return isValid;
         }
     }
 }

@@ -32,7 +32,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private CancellationTokenSource? _runCts;
         private bool _isRunning;
         private bool _isAdvancedPanelOpen;
-        private bool _isTargetPanelOpen;
         private List<PrecastElement> _cachedElements = new();
         private List<ElementTypeFilterOption> _targetElementTypes = new();
 
@@ -337,7 +336,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtEarlyStopping.Text,
                 TxtGridStep.Text,
                 TxtRadiusPenaltyWeight.Text,
-                "1.0", // RadiusQualityPenaltyWeightText (not yet in UI, defaulting to 1.0)
+                TxtRadiusQualityPenaltyWeight.Text,
                 TxtBalancePenaltyWeight.Text,
                 TxtOverweightPenaltyWeight.Text,
                 TxtHeightPenaltyWeight.Text,
@@ -356,7 +355,21 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtDevCrossoverRate.Text,
                 TxtDevRandomSeed.Text,
                 TxtDevConvergence.Text,
-                GetSelectedTargetElementTypes());
+                GetSelectedTargetElementTypes(),
+                // New options added
+                ChkEnableAdaptiveSigma.IsChecked == true ? "true" : "false",
+                TxtSigmaCoolingExponent.Text,
+                TxtMinimumMutationSigma.Text,
+                ChkEnableConcurrentOptimization.IsChecked == true ? "true" : "false",
+                TxtSlewOffsetX.Text,
+                TxtSlewOffsetY.Text,
+                TxtSlewOffsetZ.Text,
+                TxtBoomHingeOffsetX.Text,
+                TxtBoomHingeOffsetY.Text,
+                TxtBoomHingeOffsetZ.Text,
+                TxtCraneFootprintRadius.Text,
+                ChkEnableProfiling.IsChecked == true ? "true" : "false",
+                TxtProfilingLogDirectory.Text);
         }
 
         private void RefreshSceneCache()
@@ -430,37 +443,18 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             UpdateSidePanels();
         }
 
-        private void BtnTargetElementsToggle_Click(object sender, RoutedEventArgs e)
-        {
-            _isTargetPanelOpen = !_isTargetPanelOpen;
-            UpdateSidePanels();
-        }
-
         private void UpdateSidePanels()
         {
-            TargetColumn.Width = _isTargetPanelOpen
-                ? new GridLength(SidePanelWidth)
-                : new GridLength(0);
-
             AdvancedColumn.Width = _isAdvancedPanelOpen
                 ? new GridLength(SidePanelWidth)
                 : new GridLength(0);
-
-            PanelTargetElements.Visibility = _isTargetPanelOpen
-                ? Visibility.Visible
-                : Visibility.Collapsed;
 
             PanelAdvanced.Visibility = _isAdvancedPanelOpen
                 ? Visibility.Visible
                 : Visibility.Collapsed;
 
             Width = CompactDialogWidth
-                + (_isTargetPanelOpen ? SidePanelWidth : 0)
                 + (_isAdvancedPanelOpen ? SidePanelWidth : 0);
-
-            BtnTargetElementsToggle.Content = _isTargetPanelOpen
-                ? "Hide Targets"
-                : "Target Elements";
 
             BtnAdvancedToggle.Content = _isAdvancedPanelOpen
                 ? "Hide Advanced"

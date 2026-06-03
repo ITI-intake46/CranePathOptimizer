@@ -27,6 +27,10 @@ namespace CraneOptimizer.Application.Optimization.Utilities
         public static int PopulationSize { get; set; }
         public static int ConfiguredGenerationCount { get; set; }
         public static int ActualGenerationLoopCount;
+        public static int CandidatePointsGenerated;
+        public static int ValidPointsGenerated;
+        public static bool StoppedByConvergence;
+        public static bool StoppedByMaxGenerations;
         public static int EmptyChromosomeCount;
         public static int GreedySetCoverIterationCount { get; set; }
         public static int FinalCraneSetupCount { get; set; }
@@ -66,6 +70,10 @@ namespace CraneOptimizer.Application.Optimization.Utilities
             PopulationSize = 0;
             ConfiguredGenerationCount = 0;
             ActualGenerationLoopCount = 0;
+            CandidatePointsGenerated = 0;
+            ValidPointsGenerated = 0;
+            StoppedByConvergence = false;
+            StoppedByMaxGenerations = false;
             GreedySetCoverIterationCount = 0;
             FinalCraneSetupCount = 0;
             LiftedElementCount = 0;

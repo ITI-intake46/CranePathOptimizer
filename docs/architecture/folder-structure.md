@@ -32,8 +32,15 @@ CraneOptimizer/
 *   [Units/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Domain/Units) — Unit conversion systems (`UnitSystem.cs`, `UnitConversions.cs`).
 
 ### 2. Application Layer (`CraneOptimizer.Application/`)
-*   [Optimization/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization) — The Genetic Algorithm engine folders: `GeneticAlgorithms/` (containing `Engines/`, `Models/`, `Operators/`, `Services/`, `Settings/`).
-*   [Services/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services) — Coordinates formatter (`CoordinateReadoutFormatter.cs`).
+*   [Optimization/GeneticAlgorithms/Engines/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines) — Implements the 7 core optimization engines.
+*   [Optimization/GeneticAlgorithms/Operators/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Operators) — Crossover, mutation, selection, and replacement genetic operators.
+*   [Optimization/GeneticAlgorithms/Services/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services) — Pre-built indexes, load chart capacity resolving, and diagnostic logic.
+*   [Optimization/GeneticAlgorithms/Models/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Models) — Domain modeling for populations, solutions, chromosomes, and evaluations.
+*   [Optimization/GeneticAlgorithms/Settings/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Settings) — Configuration classes for GA parameters ([GASettings.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Settings/GASettings.cs)).
+*   [Optimization/GeneticAlgorithms/DTOs/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/DTOs) — Diagnostic and optimization input/output payload structures.
+*   [Optimization/GeneticAlgorithms/Interfaces/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Interfaces) — Extensibility and testing decoupled boundaries.
+*   [Optimization/Utilities/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/Utilities) — Performance profile tracing ([GAProfiler.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/Utilities/GAProfiler.cs)) and geometry math ([SpatialMath.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/Utilities/SpatialMath.cs)).
+*   [Services/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services) — Coordinates reader formatters and coordinate translation services.
 
 ### 3. Infrastructure Layer (`CraneOptimizer.Infrastructure/`)
 *   [Contexts/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Contexts) — DbContext classes: `CraneDbContext.cs` and project subfolder `CreatedProject/` containing `CreatedProjectDbContext.cs` and factories.

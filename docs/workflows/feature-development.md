@@ -51,7 +51,7 @@ gitGraph
 ## 3. Commit Message Standards
 
 Commits must follow the Conventional Commits format:
-* **`feat:`** Introducing a new feature (e.g. `feat: implement linear load chart interpolation`).
+* **`feat:`** Introducing a new feature (e.g. `feat: implement stepped load chart capacity resolver for tower cranes`).
 * **`fix:`** Fixing a bug (e.g. `fix: correct ray-casting boundary edge checks`).
 * **`refactor:`** Code modifications that do not add features or fix bugs (e.g. `refactor: decouple viewmodel instantiation`).
 * **`docs:`** Documentation modifications (e.g. `docs: add database architecture schema`).
