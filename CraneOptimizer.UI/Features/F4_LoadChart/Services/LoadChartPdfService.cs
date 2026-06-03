@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -140,6 +140,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 warnings.Add($"Imported {chart.Points.Count} real capacity point(s) from {selectedTable.NonEmptyCapacityCellCount} non-empty PDF capacity cell(s).");
                 warnings.Add($"Detected {selectedTable.BoomColumnCount} boom-length column(s), {selectedTable.RadiusRowCount} radius row(s), and max capacity {chart.MaxCapacity:0.###} t.");
             }
+
+            warnings.Add(LoadChartCsvService.GetCapacityUnitSummary(chart));
 
             warnings.AddRange(hasSeparateImportGrid
                 ? NormalizeExactVisualImportWarnings(selectedTable.Warnings)
