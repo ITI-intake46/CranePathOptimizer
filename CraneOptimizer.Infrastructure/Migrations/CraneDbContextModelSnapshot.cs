@@ -121,6 +121,11 @@ namespace CraneOptimizer.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("TEXT");
 
+                    b.Property<double>("ConcreteDensityKgPerM3")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("REAL")
+                        .HasDefaultValue(2500.0);
+
                     b.Property<int>("DisplayAreaUnit")
                         .HasColumnType("INTEGER");
 

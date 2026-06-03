@@ -80,17 +80,31 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         public List<PrecastElement> ReadElements(string ifcPath)
         {
-            return ReadElementsCore(ifcPath, null, CancellationToken.None);
+            return ReadElementsCore(ifcPath, null, null, CancellationToken.None);
+        }
+
+        public List<PrecastElement> ReadElements(string ifcPath, IfcReadingOptions? options)
+        {
+            return ReadElementsCore(ifcPath, null, options, CancellationToken.None);
         }
 
         public List<PrecastElement> ReadElements(string path, IProgress<double> progress)
         {
-            return ReadElementsCore(path, progress, CancellationToken.None);
+            return ReadElementsCore(path, progress, null, CancellationToken.None);
+        }
+
+        public List<PrecastElement> ReadElements(
+            string path,
+            IProgress<double> progress,
+            IfcReadingOptions? options,
+            CancellationToken cancellationToken = default)
+        {
+            return ReadElementsCore(path, progress, options, cancellationToken);
         }
 
         public List<PrecastElement> ReadElements(string path, IProgress<double> progress, CancellationToken cancellationToken)
         {
-            return ReadElementsCore(path, progress, cancellationToken);
+            return ReadElementsCore(path, progress, null, cancellationToken);
         }
 
         public Task InitializeSessionForRenderingAsync(string ifcPath, CancellationToken cancellationToken = default)
@@ -104,21 +118,24 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private List<PrecastElement> ReadElementsCore(
             string ifcPath,
             IProgress<double>? progress,
+            IfcReadingOptions? options,
             CancellationToken cancellationToken)
         {
             try
             {
+                var concreteDensityKgPerM3 = ResolveConcreteDensity(options);
                 var loadMemoryBefore = GetPrivateMemoryBytes();
                 var session = _sessionService.OpenSession(ifcPath, cancellationToken);
 
                 var extractor = new IfcEngineeringExtractor(
                     session.Model,
                     session.GeometryContext,
-                    session.ModelLengthFactor);
+                    session.ModelLengthFactor,
+                    concreteDensityKgPerM3);
 
                 // Run synchronous diagnostics audit and normalization decision preview (Task 3 & 4)
                 var auditTimer = Stopwatch.StartNew();
-                var auditResult = _auditService.RunAuditAsync(ifcPath, null, cancellationToken).GetAwaiter().GetResult();
+                var auditResult = _auditService.RunAuditAsync(ifcPath, options, null, cancellationToken).GetAwaiter().GetResult();
                 auditTimer.Stop();
                 var previewResult = _normalizationService.GenerateNormalizationPreviewAsync(auditResult, cancellationToken).GetAwaiter().GetResult();
 
@@ -278,6 +295,14 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private static string FormatBytes(long bytes) =>
             $"{bytes / (1024d * 1024d):F1} MB";
 
+        private static double ResolveConcreteDensity(IfcReadingOptions? options)
+        {
+            var density = options?.ConcreteDensityKgPerM3;
+            return density.HasValue && density.Value > 0
+                ? density.Value
+                : ConcreteDensityKgPerCubicMeter;
+        }
+
         // -------------------------------------------------------------------------
         // Extractor
         // -------------------------------------------------------------------------
@@ -288,6 +313,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             private readonly Xbim3DModelContext _geometryContext;
             private readonly double _lengthToMetersFactor;
             private readonly double _volumeToCubicMetersFactor;
+            private readonly double _concreteDensityKgPerCubicMeter;
 
             private readonly Dictionary<int, SourceElementSnapshot> _sourceCache = new();
             private readonly Dictionary<int, AggregateSnapshot> _aggregateCache = new();
@@ -295,12 +321,14 @@ namespace CraneOptimizer.Infrastructure.Repositories
             public IfcEngineeringExtractor(
                 IfcStore model,
                 Xbim3DModelContext geometryContext,
-                double lengthToMetersFactor)
+                double lengthToMetersFactor,
+                double concreteDensityKgPerCubicMeter)
             {
                 _model = model;
                 _geometryContext = geometryContext;
                 _lengthToMetersFactor = lengthToMetersFactor;
                 _volumeToCubicMetersFactor = Math.Pow(lengthToMetersFactor, 3);
+                _concreteDensityKgPerCubicMeter = concreteDensityKgPerCubicMeter;
             }
 
             public List<PrecastElement> Extract(IProgress<double>? progress, CancellationToken cancellationToken)
@@ -400,10 +428,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var material = GetMaterial(product);
                 var weight = GetWeight(product);
                 
-                // Fallback: If Weight is 0 or missing, use Volume * 2500
+                // Fallback: If Weight is 0 or missing, use direct volume and the project concrete density.
                 if ((weight ?? 0) <= 0 && volume.HasValue && volume.Value > 0)
                 {
-                    weight = (volume.Value * ConcreteDensityKgPerCubicMeter) / UnitSystem.KilogramsPerTon;
+                    weight = (volume.Value * _concreteDensityKgPerCubicMeter) / UnitSystem.KilogramsPerTon;
                 }
 
                 var revitId = GetRevitId(product);
@@ -991,7 +1019,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }
             }
 
-            private static double? EstimateWeightFromMaterial(string? material, double volumeInCubicMeters)
+            private double? EstimateWeightFromMaterial(string? material, double volumeInCubicMeters)
             {
                 var name = string.IsNullOrWhiteSpace(material) ? string.Empty : material.ToUpperInvariant();
 
@@ -1000,7 +1028,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     name.ContainsAny("ALUMIN") ? AluminumDensityKgPerCubicMeter :
                     name.ContainsAny("GLASS") ? GlassDensityKgPerCubicMeter :
                     name.ContainsAny("TIMBER", "WOOD") ? TimberDensityKgPerCubicMeter :
-                    ConcreteDensityKgPerCubicMeter;
+                    _concreteDensityKgPerCubicMeter;
 
                 return (volumeInCubicMeters * densityKgPerCubicMeter) / UnitSystem.KilogramsPerTon;
             }

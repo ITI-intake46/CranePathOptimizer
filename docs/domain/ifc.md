@@ -67,8 +67,8 @@ Because IFC models do not always include explicit mass properties, the import an
 1. **Import weight resolution (`IfcDiagnosticAuditService.AuditWeight`):**
    * First, it searches `IIfcElementQuantity` sets for `IIfcQuantityWeight` names containing `weight` or `mass`.
    * If no quantity weight exists, it searches `IIfcPropertySet` values with names containing `weight` or `mass`.
-   * If no explicit weight is found, it looks for direct volume via `IIfcQuantityVolume` or numeric volume properties and applies the concrete fallback density:
-     $$\text{Weight (tonnes)} = \frac{\text{Volume (m}^3\text{)} \times 2500}{1000}$$
+   * If no explicit weight is found, it looks for direct volume via `IIfcQuantityVolume` or numeric volume properties and applies the project concrete fallback density:
+     $$\text{Weight (tonnes)} = \frac{\text{Volume (m}^3\text{)} \times \text{Density (kg/m}^3\text{)}}{1000}$$
 
 2. **Volume extraction (`IfcEngineeringExtractor.BuildSourceSnapshot`):**
    * The importer reads `netvolume` / `volume` from quantities or numeric properties.
@@ -81,7 +81,14 @@ Because IFC models do not always include explicit mass properties, the import an
      * **Aluminum:** $2700 \text{ kg/m}^3$ (`ALUMIN`)
      * **Glass:** $2500 \text{ kg/m}^3$ (`GLASS`)
      * **Timber:** $600 \text{ kg/m}^3$ (`TIMBER`, `WOOD`)
-     * **Concrete / Default Fallback:** $2500 \text{ kg/m}^3$
+    * **Concrete / Default Fallback:** $2500 \text{ kg/m}^3$
+
+### Concrete Density Setting
+
+*   Default: **2500 kg/m3**.
+*   Users can change concrete density per project from the Element Management UI.
+*   Import fallback uses `Mass = Density x Volume` when explicit IFC weight/mass is missing.
+*   Fallback elements remain `EstimatedFallback_NotAllowedForGA` and are not used in GA unless explicitly approved through a future workflow.
 
 ### Implementation Reference
 
@@ -111,7 +118,7 @@ Method:
 ## 4. Engineering Assumptions and Limitations
 
 *   **Schema Handling:** There is no project-specific allow-list for IFC2X3, IFC4, IFC4X1, IFC4X2, or IFC4X3. The project delegates file opening to `IfcStore.Open()` and records `model.SchemaVersion` in audit metadata.
-*   **Concrete Density Fallback:** The concrete fallback density is $2500 \text{ kg/m}^3$ in `IfcDiagnosticAuditService`, `IfcReaderRepository`, `ElementWeightCalculator`, and `IfcLoadingService`.
+*   **Concrete Density Fallback:** The import fallback density defaults to $2500 \text{ kg/m}^3$ and can be changed per project. `IfcDiagnosticAuditService` and `IfcReaderRepository` receive the project density through reading options; UI display/filter helpers still keep their own display fallback heuristics.
 *   **Material / Type Heuristics:** The active display/filter fallback in `ElementWeightCalculator` uses substring matching on `ElementMaterial` and `ElementType`. It is not the primary normalized import weight source.
 *   **Bounding Box Fallback:** Bounding-box volume is used by the UI display/filter fallback only when explicit element volume is missing. It assumes a solid rectangular prism and can overestimate hollow, curved, I-shaped, or T-shaped elements.
 *   **Spatial Structure:** `IfcProject` is read for units, and `IfcBuildingStorey` is read for model ground elevation and filter storey labels. `IfcSite`, `IfcBuilding`, and `IfcSpace` are not imported as optimization elements; `IfcSpace` is explicitly excluded.

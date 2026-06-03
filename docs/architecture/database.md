@@ -43,9 +43,10 @@ erDiagram
         double Capacity
     }
     Project {
-        int Id PK
+        Guid Id PK
         string Name
         string ProjectFolderPath
+        double ConcreteDensityKgPerM3
         string Notes
         bool IsFavorite
         bool IsDeleted
@@ -58,6 +59,10 @@ erDiagram
         string FileName
     }
 ```
+
+### Project Entity
+
+*   `ConcreteDensityKgPerM3` (`double`, default `2500.0`) stores the per-project concrete density used by IFC volume-based weight fallback.
 
 ---
 

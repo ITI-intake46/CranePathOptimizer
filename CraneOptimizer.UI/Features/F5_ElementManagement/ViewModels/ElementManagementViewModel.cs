@@ -1,11 +1,14 @@
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Converters;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.Services;
 using CraneOptimizer.UI.Features.F16_Filter.DTOs;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
@@ -23,8 +26,11 @@ using CraneOptimizer.UI.Features.F5_ElementManagement.DTOs;
 
 namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 {
-    public class ElementManagementViewModel : ViewModelBase, IDisposable
+    public class ElementManagementViewModel : ViewModelBase, IDisposable, IDataErrorInfo
     {
+        private const double MinConcreteDensityKgPerM3 = 1000.0;
+        private const double MaxConcreteDensityKgPerM3 = 4000.0;
+
         private readonly ISceneService _scene;
         private readonly ISceneGridSizingService _gridSizingService;
         private readonly IElementVisibilityFilterService _visibilityFilterService;
@@ -32,8 +38,12 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         private readonly IUnitSettingsService _unitSettingsService;
         private readonly IProjectCoordinateTransformService _transformService;
         private readonly ICoordinateReadoutFormatter _readoutFormatter;
+        private readonly IProjectMaterialSettingsService _materialSettingsService;
+        private readonly IProjectWorkspaceService _workspaceService;
         private string _selectedElementName = "No element selected";
         private PrecastElement? _selectedElement;
+        private double _concreteDensityKgPerM3 = ProjectMaterialSettingsService.DefaultConcreteDensityKgPerM3;
+        private string _densityValidationMessage = string.Empty;
         private double _minWeight;
         private double _maxWeight = 50000;
         private List<string> _selectedTypes = new();
@@ -54,7 +64,9 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             IElementVisibilityFilterService visibilityFilterService,
             IUnitSettingsService unitSettingsService,
             IProjectCoordinateTransformService transformService,
-            ICoordinateReadoutFormatter readoutFormatter)
+            ICoordinateReadoutFormatter readoutFormatter,
+            IProjectMaterialSettingsService materialSettingsService,
+            IProjectWorkspaceService workspaceService)
         {
             _scene = scene;
             _gridSizingService = gridSizing;
@@ -63,6 +75,8 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             _unitSettingsService = unitSettingsService;
             _transformService = transformService;
             _readoutFormatter = readoutFormatter;
+            _materialSettingsService = materialSettingsService;
+            _workspaceService = workspaceService;
             _scene.ElementsChanged += OnElementsChanged;
             _scene.ElementsSelectionChanged += OnElementsSelectionChanged;
             _liftStateService.StateChanged += OnLiftStateChanged;
@@ -70,6 +84,8 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             _transformService.ReferenceChanged += OnReferenceChanged;
             ShowFilterDialogCommand = new RelayCommand(ShowFilterDialog);
             ApplyFilterCommand = new RelayCommand(ApplyFilters);
+            SaveDensityCommand = new AsyncRelayCommand(SaveDensityAsync);
+            _ = LoadDensityAsync();
         }
 
         public void Dispose()
@@ -98,8 +114,43 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
         public ICommand ShowFilterDialogCommand { get; }
         public ICommand ApplyFilterCommand { get; }
+        public AsyncRelayCommand SaveDensityCommand { get; }
 
         public string FilterStatus => $"Showing {GetVisibleElementCount()} of {Elements.Count} elements";
+
+        public string Error => DensityValidationMessage;
+
+        public string this[string columnName] =>
+            columnName == nameof(ConcreteDensityKgPerM3)
+                ? ValidateConcreteDensity(ConcreteDensityKgPerM3)
+                : string.Empty;
+
+        public double ConcreteDensityKgPerM3
+        {
+            get => _concreteDensityKgPerM3;
+            set
+            {
+                if (Math.Abs(_concreteDensityKgPerM3 - value) < 0.000001)
+                    return;
+
+                _concreteDensityKgPerM3 = value;
+                DensityValidationMessage = ValidateConcreteDensity(value);
+                OnPropertyChanged();
+            }
+        }
+
+        public string DensityValidationMessage
+        {
+            get => _densityValidationMessage;
+            private set
+            {
+                if (_densityValidationMessage == value)
+                    return;
+
+                _densityValidationMessage = value;
+                OnPropertyChanged();
+            }
+        }
 
         public string SelectedElementName
         {
@@ -274,6 +325,60 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         private void ShowFilterDialog() => new ElementFilterDialog(this).ShowDialog();
 
         private void ApplyFilters() => ApplySearchFilter();
+
+        private async Task LoadDensityAsync()
+        {
+            var session = _workspaceService.CurrentSession;
+            if (session == null)
+            {
+                ConcreteDensityKgPerM3 = ProjectMaterialSettingsService.DefaultConcreteDensityKgPerM3;
+                return;
+            }
+
+            try
+            {
+                ConcreteDensityKgPerM3 = await _materialSettingsService
+                    .GetConcreteDensityKgPerM3Async(session.ProjectId);
+            }
+            catch (Exception ex)
+            {
+                DensityValidationMessage = $"Could not load density: {ex.Message}";
+            }
+        }
+
+        private async Task SaveDensityAsync()
+        {
+            var validation = ValidateConcreteDensity(ConcreteDensityKgPerM3);
+            DensityValidationMessage = validation;
+            if (!string.IsNullOrWhiteSpace(validation))
+                return;
+
+            var session = _workspaceService.CurrentSession;
+            if (session == null)
+            {
+                DensityValidationMessage = "Open a project before saving density.";
+                return;
+            }
+
+            try
+            {
+                await _materialSettingsService
+                    .SetConcreteDensityKgPerM3Async(session.ProjectId, ConcreteDensityKgPerM3);
+
+                DensityValidationMessage = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                DensityValidationMessage = $"Could not save density: {ex.Message}";
+            }
+        }
+
+        private static string ValidateConcreteDensity(double density)
+        {
+            return density is < MinConcreteDensityKgPerM3 or > MaxConcreteDensityKgPerM3
+                ? "Density must be between 1000 and 4000 kg/m3"
+                : string.Empty;
+        }
 
         private void ApplySearchFilter()
         {

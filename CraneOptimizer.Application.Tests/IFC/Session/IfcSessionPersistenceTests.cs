@@ -429,7 +429,23 @@ namespace CraneOptimizer.Application.Tests
                 return new List<PrecastElement>();
             }
 
+            public List<PrecastElement> ReadElements(string ifcPath, IfcReadingOptions? options)
+            {
+                ReadElementsSimpleCalled = true;
+                return new List<PrecastElement>();
+            }
+
             public List<PrecastElement> ReadElements(string path, IProgress<double> progress)
+            {
+                ReadElementsWithProgressCalled = true;
+                return new List<PrecastElement>();
+            }
+
+            public List<PrecastElement> ReadElements(
+                string path,
+                IProgress<double> progress,
+                IfcReadingOptions? options,
+                CancellationToken cancellationToken = default)
             {
                 ReadElementsWithProgressCalled = true;
                 return new List<PrecastElement>();
