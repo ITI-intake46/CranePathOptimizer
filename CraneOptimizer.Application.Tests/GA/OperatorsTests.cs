@@ -43,7 +43,12 @@ namespace CraneOptimizer.Application.Tests
 
             GARandomManager.Initialize(42); // Seed to guarantee determinism
 
-            var child = op.Crossover(parent1, parent2);
+            var settings = new GASettings
+            {
+                CraneFootprintRadius = 3.0
+            };
+
+            var child = op.Crossover(parent1, parent2, settings);
 
             Assert.NotNull(child);
             Assert.NotEmpty(child.Chromosome.CranePositions);
@@ -101,7 +106,7 @@ namespace CraneOptimizer.Application.Tests
             bool modified = false;
             for (int i = 0; i < 10; i++)
             {
-                op.Mutate(solution, zones, forbiddenZones, settings);
+                op.Mutate(solution, zones, forbiddenZones, settings, 0);
                 if (solution.Chromosome.CranePositions[0].X != 10.0 || solution.Chromosome.CranePositions[0].Y != 10.0)
                 {
                     modified = true;

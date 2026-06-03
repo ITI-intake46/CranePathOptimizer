@@ -50,7 +50,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         }
 
         // ══════════════════════════════════════════════════════════════
-        // PUBLIC ENTRY POINT
+        // PUBLIC ENTRY POINT (original — full diagnostics)
         // ══════════════════════════════════════════════════════════════
 
         public AssignmentResult EvaluateAssignment(
@@ -62,6 +62,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         {
             using (new GAProfiler.ProfileScope("ElementAssignmentService.EvaluateAssignment"))
             {
+                if (solution.Chromosome.CranePositions.Count == 0)
+                {
+                    System.Threading.Interlocked.Increment(ref GAProfiler.EmptyChromosomeCount);
+                }
+
                 var result = new AssignmentResult();
 
                 // ── Optimization: pre-process assignment list into dictionary lookup ──
@@ -121,6 +126,89 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             }
         }
 
+        // ══════════════════════════════════════════════════════════════
+        // PUBLIC ENTRY POINT (hot-path — diagnostics disabled, indexed)
+        // ══════════════════════════════════════════════════════════════
+
+        public AssignmentResult EvaluateAssignment(
+            CraneSolution solution,
+            List<PrecastElement> elements,
+            Dictionary<int, List<string>> assignment,
+            CraneSpecification craneSpec,
+            GASettings settings,
+            LoadChartIndex index,
+            ElementStaticCache elementCache)
+        {
+            using (new GAProfiler.ProfileScope("ElementAssignmentService.EvaluateAssignment"))
+            {
+                if (solution.Chromosome.CranePositions.Count == 0)
+                {
+                    System.Threading.Interlocked.Increment(ref GAProfiler.EmptyChromosomeCount);
+                }
+
+                var result = new AssignmentResult();
+
+                // ── Optimization: pre-process assignment list into dictionary lookup ──
+                Dictionary<string, int>? assignmentLookup = null;
+                if (assignment != null && assignment.Count > 0)
+                {
+                    assignmentLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var entry in assignment)
+                    {
+                        if (entry.Value != null)
+                        {
+                            foreach (var id in entry.Value)
+                            {
+                                if (id != null)
+                                {
+                                    assignmentLookup[id] = entry.Key;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                foreach (var element in elements)
+                {
+                    ElementEvaluationResult evaluation;
+
+                    // ── Check for user-defined assignment ─────────────────
+                    int? userAssignedIndex = ResolveUserAssignment(element, assignmentLookup);
+
+                    if (userAssignedIndex.HasValue)
+                    {
+                        // User forced this element to a specific crane position
+                        evaluation = EvaluateSinglePositionFast(
+                            element,
+                            solution,
+                            userAssignedIndex.Value,
+                            craneSpec,
+                            settings,
+                            assignmentLookup,
+                            index,
+                            elementCache);
+                    }
+                    else
+                    {
+                        // No user override → try all positions and pick the best
+                        evaluation = EvaluateBestPositionFast(
+                            element,
+                            solution,
+                            craneSpec,
+                            settings,
+                            index,
+                            elementCache);
+                    }
+
+                    result.EvaluationResults.Add(evaluation);
+                }
+
+                UpdateAssignmentSummary(result);
+
+                return result;
+            }
+        }
+
         public IReadOnlyList<ElementEvaluationResult> EvaluatePosition(
             CraneSolution solution,
             int craneIndex,
@@ -160,7 +248,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         }
 
         // ══════════════════════════════════════════════════════════════
-        // SINGLE POSITION EVALUATION (user override)
+        // SINGLE POSITION EVALUATION (user override — original path)
         // ══════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -185,6 +273,26 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             return ComputeEvaluationResult(element, solution, craneIndex, craneSpec, settings);
         }
 
+        /// <summary>
+        /// Hot-path version: evaluates single position with index + cache, diagnostics disabled.
+        /// </summary>
+        private ElementEvaluationResult EvaluateSinglePositionFast(
+            PrecastElement element,
+            CraneSolution solution,
+            int craneIndex,
+            CraneSpecification craneSpec,
+            GASettings settings,
+            Dictionary<string, int>? assignmentLookup,
+            LoadChartIndex index,
+            ElementStaticCache elementCache)
+        {
+            // Guard: if craneIndex is out of range, fall back to best-position
+            if (craneIndex >= solution.Chromosome.CranePositions.Count)
+                return EvaluateBestPositionFast(element, solution, craneSpec, settings, index, elementCache);
+
+            return ComputeEvaluationResultFast(element, solution, craneIndex, craneSpec, settings, index, elementCache);
+        }
+
         // ══════════════════════════════════════════════════════════════
         // BEST POSITION SELECTION (automatic — main logic)
         // ══════════════════════════════════════════════════════════════
@@ -199,6 +307,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             CraneSpecification craneSpec,
             GASettings settings)
         {
+            if (solution.Chromosome.CranePositions.Count == 0)
+            {
+                return CreateEmptyPositionEvaluationResult(element);
+            }
+
             ElementEvaluationResult? best = null;
 
             // ── Evaluate all crane positions ───────────────────────
@@ -206,6 +319,39 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             {
                 var candidate = ComputeEvaluationResult(
                     element, solution, i, craneSpec, settings);
+
+                if (best == null || IsBetterThan(candidate, best))
+                {
+                    best = candidate;
+                }
+            }
+
+            return best!;
+        }
+
+        /// <summary>
+        /// Hot-path version: tries all positions with index + cache, diagnostics disabled.
+        /// </summary>
+        private ElementEvaluationResult EvaluateBestPositionFast(
+            PrecastElement element,
+            CraneSolution solution,
+            CraneSpecification craneSpec,
+            GASettings settings,
+            LoadChartIndex index,
+            ElementStaticCache elementCache)
+        {
+            if (solution.Chromosome.CranePositions.Count == 0)
+            {
+                return CreateEmptyPositionEvaluationResult(element);
+            }
+
+            ElementEvaluationResult? best = null;
+
+            // ── Evaluate all crane positions ───────────────────────
+            for (int i = 0; i < solution.Chromosome.CranePositions.Count; i++)
+            {
+                var candidate = ComputeEvaluationResultFast(
+                    element, solution, i, craneSpec, settings, index, elementCache);
 
                 if (best == null || IsBetterThan(candidate, best))
                 {
@@ -264,7 +410,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         }
 
         // ══════════════════════════════════════════════════════════════
-        // CORE LIFT COMPUTATION
+        // CORE LIFT COMPUTATION (original — full diagnostics)
         // ══════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -343,6 +489,151 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         }
 
         // ══════════════════════════════════════════════════════════════
+        // CORE LIFT COMPUTATION (hot-path — no diagnostics, indexed)
+        // ══════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Hot-path version of ComputeEvaluationResult.
+        /// Uses pre-built LoadChartIndex and ElementStaticCache.
+        /// Passes buildDiagnostics=false to the resolver.
+        /// </summary>
+        private ElementEvaluationResult ComputeEvaluationResultFast(
+            PrecastElement element,
+            CraneSolution solution,
+            int craneIndex,
+            CraneSpecification craneSpec,
+            GASettings settings,
+            LoadChartIndex index,
+            ElementStaticCache elementCache)
+        {
+            // Step 1 — Get crane position
+            var cranePosition = solution.Chromosome.CranePositions[craneIndex];
+
+            // Step 2 — Working radius using cached COG (avoid nullable property access)
+            double slewX = cranePosition.X + settings.SlewOffsetX;
+            double slewY = cranePosition.Y + settings.SlewOffsetY;
+
+            double cogX, cogY, cogZ, halfHeight, requiredCapacity;
+
+            if (elementCache.ByElementId.TryGetValue(element.ElementID, out var cached))
+            {
+                cogX = cached.CogX;
+                cogY = cached.CogY;
+                cogZ = cached.CogZ;
+                halfHeight = cached.HalfHeight;
+                requiredCapacity = cached.RequiredWeight;
+            }
+            else
+            {
+                // Fallback: compute directly (should not happen in normal flow)
+                cogX = element.ElementCOG.X;
+                cogY = element.ElementCOG.Y;
+                cogZ = element.ElementCOG.Z;
+                halfHeight = (element.ElementHeight ?? 0) / 2.0;
+                requiredCapacity = (element.ElementWT ?? 0) + settings.AdditionalWt;
+            }
+
+            double dx = slewX - cogX;
+            double dy = slewY - cogY;
+            double radius = Math.Sqrt(dx * dx + dy * dy);
+
+            // Step 3 — Required boom length (hinge-offset-aware) using cached values
+            double hingeX = cranePosition.X + settings.BoomHingeOffsetX;
+            double hingeY = cranePosition.Y + settings.BoomHingeOffsetY;
+            double hingeZ = cranePosition.Z + settings.BoomHingeOffsetZ;
+
+            double dxHinge = cogX - hingeX;
+            double dyHinge = cogY - hingeY;
+            double dHinge = Math.Sqrt(dxHinge * dxHinge + dyHinge * dyHinge);
+
+            double zHook = cogZ + halfHeight + settings.WireLength;
+            double hHinge = Math.Max(0.0, zHook - hingeZ);
+            double boomLength = Math.Sqrt(dHinge * dHinge + hHinge * hHinge);
+
+            // Step 4 — Resolve via ILoadChartCapacityResolver (indexed, no diagnostics)
+            var resolveResult = _capacityResolver.Resolve(
+                craneSpec, radius, boomLength, requiredCapacity, settings,
+                buildDiagnostics: false, index: index);
+
+            return new ElementEvaluationResult
+            {
+                ElementId = element.ElementID,
+                AssignedCraneIndex = craneIndex,
+                Status = resolveResult.LiftStatus,
+                Radius = radius,
+                BoomLength = boomLength,
+                AvailableCapacity = resolveResult.AvailableCapacity,
+                RequiredCapacity = requiredCapacity,
+                ReachStatus = resolveResult.ReachStatus,
+                ChartStatus = resolveResult.ChartStatus,
+                IsExactMatch = resolveResult.IsExactMatch,
+                IsSteppedRadius = resolveResult.IsSteppedRadius,
+                IsBlankCell = resolveResult.IsBlankCell,
+                IsZeroCell = resolveResult.IsZeroCell,
+                SafetyMargin = resolveResult.SafetyMargin,
+                LookupMode = resolveResult.LookupMode,
+                RequiredRadius = radius,
+                SelectedChartRadius = resolveResult.SelectedChartRadius,
+                SelectedChartBoomLength = resolveResult.SelectedChartBoomLength,
+                CraneBaseX = cranePosition.X,
+                CraneBaseY = cranePosition.Y,
+                CraneBaseZ = cranePosition.Z,
+                SlewCenterX = slewX,
+                SlewCenterY = slewY,
+                SlewCenterZ = cranePosition.Z + settings.SlewOffsetZ,
+                BoomHingeX = hingeX,
+                BoomHingeY = hingeY,
+                BoomHingeZ = hingeZ,
+                LoadPointX = cogX,
+                LoadPointY = cogY,
+                LoadPointZ = cogZ,
+                RadiusOriginType = "SlewCenter",
+                BoomOriginType = "BoomHinge"
+            };
+        }
+
+        private ElementEvaluationResult CreateEmptyPositionEvaluationResult(PrecastElement element)
+        {
+            return new ElementEvaluationResult
+            {
+                ElementId = element.ElementID,
+                AssignedCraneIndex = -1,
+                Status = LiftStatus.OutOfRadius,
+                Radius = double.MaxValue,
+                BoomLength = double.MaxValue,
+                AvailableCapacity = 0,
+                RequiredCapacity = 0,
+                ReachStatus = ReachStatus.OutOfRadius,
+                ChartStatus = ChartStatus.OutsideChartEnvelope,
+                IsExactMatch = false,
+                IsSteppedRadius = false,
+                IsBlankCell = false,
+                IsZeroCell = false,
+                SafetyMargin = double.MinValue,
+                CraneBaseX = 0,
+                CraneBaseY = 0,
+                CraneBaseZ = 0,
+                SlewCenterX = 0,
+                SlewCenterY = 0,
+                SlewCenterZ = 0,
+                BoomHingeX = 0,
+                BoomHingeY = 0,
+                BoomHingeZ = 0,
+                LoadPointX = element.ElementCOG != null ? element.ElementCOG.X : 0,
+                LoadPointY = element.ElementCOG != null ? element.ElementCOG.Y : 0,
+                LoadPointZ = element.ElementCOG != null ? element.ElementCOG.Z : 0,
+                LookupMode = "None",
+                RequiredRadius = 0,
+                SelectedChartRadius = 0,
+                SelectedChartBoomLength = 0,
+                RadiusOriginType = "SlewCenter",
+                BoomOriginType = "BoomHinge",
+                CandidateBoomsChecked = string.Empty,
+                RejectedCandidates = string.Empty
+            };
+        }
+
+        // ══════════════════════════════════════════════════════════════
         // ASSIGNMENT SUMMARY
         // ══════════════════════════════════════════════════════════════
 
@@ -366,6 +657,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
 
             foreach (var eval in result.EvaluationResults)
             {
+                if (eval.AssignedCraneIndex < 0)
+                {
+                    continue;
+                }
+
                 // All assigned elements (regardless of status)
                 if (!result.AssignedElements.ContainsKey(eval.AssignedCraneIndex))
                     result.AssignedElements[eval.AssignedCraneIndex] = new List<string>();

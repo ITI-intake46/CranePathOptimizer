@@ -77,65 +77,98 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 double minImprovement = 0.05;
                 int iteration = 0;
 
-                while (remainingElements.Count > 0 && iteration < maxPoints)
+                if (input.Settings.EnableConcurrentOptimization)
                 {
-                    using (new GAProfiler.ProfileScope("CranePlacementEngine.SetCoverIteration"))
+                    using (new GAProfiler.ProfileScope("CranePlacementEngine.ConcurrentRun"))
                     {
                         cancellationToken.ThrowIfCancellationRequested();
-                        iteration++;
+                        iteration = 1;
 
-                        input.Elements = remainingElements;
+                        input.Elements = allElements; // Optimizing all elements together
 
                         var solution = _gaEngine.Run(input, cancellationToken);
 
-                        var iterationResult = MapResult(
+                        var concurrentResult = MapResult(
                             solution,
                             allElements,
                             input.CraneSpec,
                             input.Settings);
 
-                        if (iterationResult.Positions.Count == 0)
-                            break;
-
-                        var bestPoint = iterationResult.Positions
-                            .OrderByDescending(point => point.ElementResults.Count(result => result.Status == LiftStatus.Liftable && !coveredElements.Contains(result.ElementId)))
-                            .ThenByDescending(point => point.LiftableCount)
-                            .First();
-
-                        var newElements = bestPoint.ElementResults
-                            .Where(result => result.Status == LiftStatus.Liftable && !coveredElements.Contains(result.ElementId))
-                            .ToList();
-
-                        if (newElements.Count == 0)
-                            break;
-
-                        foreach (var element in newElements)
-                            coveredElements.Add(element.ElementId);
-
-                        finalResult.Positions.Add(new CranePositionResult
+                        foreach (var pos in concurrentResult.Positions)
                         {
-                            X = bestPoint.X,
-                            Y = bestPoint.Y,
-                            Z = bestPoint.Z,
-                            NewLiftableCount = newElements.Count,
-                            ElementResults = bestPoint.ElementResults
-                        });
+                            finalResult.Positions.Add(new CranePositionResult
+                            {
+                                X = pos.X,
+                                Y = pos.Y,
+                                Z = pos.Z,
+                                NewLiftableCount = pos.ElementResults.Count(r => r.Status == LiftStatus.Liftable),
+                                ElementResults = pos.ElementResults
+                            });
+                        }
+                    }
+                }
+                else
+                {
+                    while (remainingElements.Count > 0 && iteration < maxPoints)
+                    {
+                        using (new GAProfiler.ProfileScope("CranePlacementEngine.SetCoverIteration"))
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            iteration++;
 
-                        double currentCoverage = allElements.Count == 0
-                            ? 0
-                            : (double)coveredElements.Count / allElements.Count;
+                            input.Elements = remainingElements;
 
-                        double improvement = currentCoverage - previousCoverage;
+                            var solution = _gaEngine.Run(input, cancellationToken);
 
-                        if (currentCoverage >= targetCoverage)
-                            break;
+                            var iterationResult = MapResult(
+                                solution,
+                                allElements,
+                                input.CraneSpec,
+                                input.Settings);
 
-                        if (improvement < minImprovement)
-                            break;
+                            if (iterationResult.Positions.Count == 0)
+                                break;
 
-                        previousCoverage = currentCoverage;
+                            var bestPoint = iterationResult.Positions
+                                .OrderByDescending(point => point.ElementResults.Count(result => result.Status == LiftStatus.Liftable && !coveredElements.Contains(result.ElementId)))
+                                .ThenByDescending(point => point.LiftableCount)
+                                .First();
 
-                        remainingElements = _coverageEngine.FilterRemainingElements(allElements, coveredElements);
+                            var newElements = bestPoint.ElementResults
+                                .Where(result => result.Status == LiftStatus.Liftable && !coveredElements.Contains(result.ElementId))
+                                .ToList();
+
+                            if (newElements.Count == 0)
+                                break;
+
+                            foreach (var element in newElements)
+                                coveredElements.Add(element.ElementId);
+
+                            finalResult.Positions.Add(new CranePositionResult
+                            {
+                                X = bestPoint.X,
+                                Y = bestPoint.Y,
+                                Z = bestPoint.Z,
+                                NewLiftableCount = newElements.Count,
+                                ElementResults = bestPoint.ElementResults
+                            });
+
+                            double currentCoverage = allElements.Count == 0
+                                ? 0
+                                : (double)coveredElements.Count / allElements.Count;
+
+                            double improvement = currentCoverage - previousCoverage;
+
+                            if (currentCoverage >= targetCoverage)
+                                break;
+
+                            if (improvement < minImprovement)
+                                break;
+
+                            previousCoverage = currentCoverage;
+
+                            remainingElements = _coverageEngine.FilterRemainingElements(allElements, coveredElements);
+                        }
                     }
                 }
 
@@ -195,6 +228,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 }
 
                 _coverageEngine.RecalculateCoverage(finalResult, allElements.Count);
+
+                // Filter out any setup positions that do not lift any elements uniquely (zero lifting points)
+                finalResult.Positions = finalResult.Positions
+                    .Where(p => p.NewLiftableCount > 0)
+                    .ToList();
 
                 if (GAProfiler.Enabled)
                 {

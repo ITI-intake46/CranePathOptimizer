@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using CraneOptimizer.Application.Optimization.Utilities;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization
 {
@@ -65,6 +66,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                     input.Settings.MaxCranePositions,
                     input.Settings);
 
+                // ── Phase 1 Performance: Build pre-indexed data structures ──
+                var loadChartIndex = new LoadChartIndex(input.CraneSpec);
+                var elementCache = new ElementStaticCache(input.Elements, input.Settings);
+
                 for (int generation = 0; generation < input.Settings.MaxGenerations; generation++)
                 {
                     using (new GAProfiler.ProfileScope("GAEngine.GenerationLoop"))
@@ -84,7 +89,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                                 input.Elements,
                                 input.Assignment,
                                 input.CraneSpec,
-                                input.Settings);
+                                input.Settings,
+                                loadChartIndex,
+                                elementCache);
 
                             var fitness = _fitnessEvaluator.EvaluateFitness(
                                 solution,
@@ -138,8 +145,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
 
                             if (GARandomManager.Instance.NextDouble() < input.Settings.CrossoverRate)
                             {
-                                var child1 = _crossover.Crossover(parents[i], parents[i + 1]);
-                                var child2 = _crossover.Crossover(parents[i + 1], parents[i]);
+                                var child1 = _crossover.Crossover(parents[i], parents[i + 1], input.Settings);
+                                var child2 = _crossover.Crossover(parents[i + 1], parents[i], input.Settings);
                                 SanitizeSolution(child1, input);
                                 SanitizeSolution(child2, input);
                                 children.Add(child1);
@@ -161,7 +168,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                             cancellationToken.ThrowIfCancellationRequested();
 
                             if (GARandomManager.Instance.NextDouble() < input.Settings.MutationRate)
-                                _mutation.Mutate(child, input.Zones, input.ForbiddenZones, input.Settings);
+                                _mutation.Mutate(child, input.Zones, input.ForbiddenZones, input.Settings, generation);
 
                             SanitizeSolution(child, input);
                         }
@@ -175,7 +182,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                                 input.Elements,
                                 input.Assignment,
                                 input.CraneSpec,
-                                input.Settings);
+                                input.Settings,
+                                loadChartIndex,
+                                elementCache);
 
                             var fitness = _fitnessEvaluator.EvaluateFitness(
                                 child,

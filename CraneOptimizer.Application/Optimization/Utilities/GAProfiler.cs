@@ -27,6 +27,7 @@ namespace CraneOptimizer.Application.Optimization.Utilities
         public static int PopulationSize { get; set; }
         public static int ConfiguredGenerationCount { get; set; }
         public static int ActualGenerationLoopCount;
+        public static int EmptyChromosomeCount;
         public static int GreedySetCoverIterationCount { get; set; }
         public static int FinalCraneSetupCount { get; set; }
         public static int LiftedElementCount { get; set; }
@@ -70,6 +71,7 @@ namespace CraneOptimizer.Application.Optimization.Utilities
             LiftedElementCount = 0;
             CoverageRatio = 0;
             ProfilingLogPath = null;
+            EmptyChromosomeCount = 0;
 
             MemoryBeforeBytes = 0;
             MemoryAfterBytes = 0;
@@ -149,6 +151,10 @@ namespace CraneOptimizer.Application.Optimization.Utilities
             sb.AppendLine($"║ GC Gen 0 Collections:   {GcCount0Before} -> {GcCount0After} (Delta: {GcCount0After - GcCount0Before})".PadRight(87) + "║");
             sb.AppendLine($"║ GC Gen 1 Collections:   {GcCount1Before} -> {GcCount1After} (Delta: {GcCount1After - GcCount1Before})".PadRight(87) + "║");
             sb.AppendLine($"║ GC Gen 2 Collections:   {GcCount2Before} -> {GcCount2After} (Delta: {GcCount2After - GcCount2Before})".PadRight(87) + "║");
+            sb.AppendLine("╠═══════════════════════════════════════════════════════════════════════════════════════╣");
+            sb.AppendLine("║                               OPTIMIZATION DIAGNOSTICS                                ║");
+            sb.AppendLine("╠═══════════════════════════════════════════════════════════════════════════════════════╣");
+            sb.AppendLine($"║ Empty Chromosomes Encountered: {EmptyChromosomeCount}".PadRight(87) + "║");
             sb.AppendLine("╠═══════════════════════════════════════════════════════════════════════════════════════╣");
             sb.AppendLine("║                           GA PIPELINE PERFORMANCE PROFILE                             ║");
             sb.AppendLine("╠═══════════════════════════════════════════════════════════════════════════════════════╣");
