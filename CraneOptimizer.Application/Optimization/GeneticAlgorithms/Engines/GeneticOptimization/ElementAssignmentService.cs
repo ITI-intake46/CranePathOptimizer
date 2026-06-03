@@ -62,6 +62,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         {
             using (new GAProfiler.ProfileScope("ElementAssignmentService.EvaluateAssignment"))
             {
+                if (solution.Chromosome.CranePositions.Count == 0)
+                {
+                    System.Threading.Interlocked.Increment(ref GAProfiler.EmptyChromosomeCount);
+                }
+
                 var result = new AssignmentResult();
 
                 // ── Optimization: pre-process assignment list into dictionary lookup ──
@@ -136,6 +141,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         {
             using (new GAProfiler.ProfileScope("ElementAssignmentService.EvaluateAssignment"))
             {
+                if (solution.Chromosome.CranePositions.Count == 0)
+                {
+                    System.Threading.Interlocked.Increment(ref GAProfiler.EmptyChromosomeCount);
+                }
+
                 var result = new AssignmentResult();
 
                 // ── Optimization: pre-process assignment list into dictionary lookup ──
@@ -297,6 +307,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             CraneSpecification craneSpec,
             GASettings settings)
         {
+            if (solution.Chromosome.CranePositions.Count == 0)
+            {
+                return CreateEmptyPositionEvaluationResult(element);
+            }
+
             ElementEvaluationResult? best = null;
 
             // ── Evaluate all crane positions ───────────────────────
@@ -325,6 +340,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             LoadChartIndex index,
             ElementStaticCache elementCache)
         {
+            if (solution.Chromosome.CranePositions.Count == 0)
+            {
+                return CreateEmptyPositionEvaluationResult(element);
+            }
+
             ElementEvaluationResult? best = null;
 
             // ── Evaluate all crane positions ───────────────────────
@@ -572,6 +592,47 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             };
         }
 
+        private ElementEvaluationResult CreateEmptyPositionEvaluationResult(PrecastElement element)
+        {
+            return new ElementEvaluationResult
+            {
+                ElementId = element.ElementID,
+                AssignedCraneIndex = -1,
+                Status = LiftStatus.OutOfRadius,
+                Radius = double.MaxValue,
+                BoomLength = double.MaxValue,
+                AvailableCapacity = 0,
+                RequiredCapacity = 0,
+                ReachStatus = ReachStatus.OutOfRadius,
+                ChartStatus = ChartStatus.OutsideChartEnvelope,
+                IsExactMatch = false,
+                IsSteppedRadius = false,
+                IsBlankCell = false,
+                IsZeroCell = false,
+                SafetyMargin = double.MinValue,
+                CraneBaseX = 0,
+                CraneBaseY = 0,
+                CraneBaseZ = 0,
+                SlewCenterX = 0,
+                SlewCenterY = 0,
+                SlewCenterZ = 0,
+                BoomHingeX = 0,
+                BoomHingeY = 0,
+                BoomHingeZ = 0,
+                LoadPointX = element.ElementCOG != null ? element.ElementCOG.X : 0,
+                LoadPointY = element.ElementCOG != null ? element.ElementCOG.Y : 0,
+                LoadPointZ = element.ElementCOG != null ? element.ElementCOG.Z : 0,
+                LookupMode = "None",
+                RequiredRadius = 0,
+                SelectedChartRadius = 0,
+                SelectedChartBoomLength = 0,
+                RadiusOriginType = "SlewCenter",
+                BoomOriginType = "BoomHinge",
+                CandidateBoomsChecked = string.Empty,
+                RejectedCandidates = string.Empty
+            };
+        }
+
         // ══════════════════════════════════════════════════════════════
         // ASSIGNMENT SUMMARY
         // ══════════════════════════════════════════════════════════════
@@ -596,6 +657,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
 
             foreach (var eval in result.EvaluationResults)
             {
+                if (eval.AssignedCraneIndex < 0)
+                {
+                    continue;
+                }
+
                 // All assigned elements (regardless of status)
                 if (!result.AssignedElements.ContainsKey(eval.AssignedCraneIndex))
                     result.AssignedElements[eval.AssignedCraneIndex] = new List<string>();
