@@ -185,6 +185,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public double MutationExplorationMultiplier { get; set; } = 2.0;
 
         /// <summary>
+        /// Enables generation-dependent cooling schedule for mutation sigma.
+        /// </summary>
+        public bool EnableAdaptiveSigma { get; set; } = false;
+
+        /// <summary>
+        /// Cooling exponent (alpha) that controls the decay shape of the mutation sigma.
+        /// </summary>
+        public double SigmaCoolingExponent { get; set; } = 1.5;
+
+        /// <summary>
+        /// Minimum mutation sigma floor in meters to prevent complete search freeze.
+        /// </summary>
+        public double MinimumMutationSigma { get; set; } = 0.5;
+
+        /// <summary>
         /// Number of attempts used when sampling valid and spatially separated setup points.
         /// </summary>
         public int PositionSamplingAttempts { get; set; } = 80;

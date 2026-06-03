@@ -168,7 +168,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                             cancellationToken.ThrowIfCancellationRequested();
 
                             if (GARandomManager.Instance.NextDouble() < input.Settings.MutationRate)
-                                _mutation.Mutate(child, input.Zones, input.ForbiddenZones, input.Settings);
+                                _mutation.Mutate(child, input.Zones, input.ForbiddenZones, input.Settings, generation);
 
                             SanitizeSolution(child, input);
                         }

@@ -34,7 +34,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators
             CraneSolution solution,
             List<GreenAreaZone> zones,
             List<GreenAreaZone> forbiddenZones,
-            GASettings settings)
+            GASettings settings,
+            int currentGeneration)
         {
             var positions = solution.Chromosome.CranePositions;
 
@@ -44,7 +45,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators
             int index = _random.Next(positions.Count);
             var point = positions[index];
 
-            double sigma = ResolveMutationSigma(settings);
+            double sigma = ResolveMutationSigma(settings, currentGeneration);
             var otherPositions = positions
                 .Where((_, positionIndex) => positionIndex != index)
                 .ToList();
@@ -72,16 +73,24 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators
             }
         }
 
-        private double ResolveMutationSigma(GASettings settings)
+        private double ResolveMutationSigma(GASettings settings, int currentGeneration)
         {
             if (settings.MutationSigma <= 0)
                 return 5.0;
 
-            double sigma = settings.MutationSigma <= 1.0
+            double sigmaBase = settings.MutationSigma <= 1.0
                 ? settings.MutationSigma * settings.MaxRadiusForNormalisation
                 : settings.MutationSigma;
 
-            return Math.Max(1.0, sigma * Math.Max(1.0, settings.MutationExplorationMultiplier));
+            sigmaBase = Math.Max(1.0, sigmaBase * Math.Max(1.0, settings.MutationExplorationMultiplier));
+
+            if (settings.EnableAdaptiveSigma && settings.MaxGenerations > 0)
+            {
+                double progress = Math.Max(0.0, 1.0 - ((double)currentGeneration / settings.MaxGenerations));
+                return sigmaBase * Math.Pow(progress, settings.SigmaCoolingExponent) + settings.MinimumMutationSigma;
+            }
+
+            return sigmaBase;
         }
 
         private double NextGaussian()

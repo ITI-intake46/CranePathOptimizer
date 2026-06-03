@@ -359,6 +359,7 @@ namespace CraneOptimizer.Application.Tests
                 SafetyFactor = 0.90,
                 PopulationSize = 15,
                 MaxGenerations = 10,
+                MutationRate = 0.1,
                 MaxCranePositions = 4,
                 RandomSeed = 42,
                 CraneFootprintRadius = 2.0,
@@ -376,7 +377,10 @@ namespace CraneOptimizer.Application.Tests
                 RadiusQualityPenaltyWeight = 10.0,
                 SimilarPositionPenaltyWeight = 10.0,
                 RelocationDistancePenaltyWeight = 15.0,
-                EnableProfiling = true
+                EnableProfiling = true,
+                EnableAdaptiveSigma = false,
+                SigmaCoolingExponent = 1.5,
+                MinimumMutationSigma = 0.5
             };
 
             var craneSpec = new CraneSpecification
@@ -420,6 +424,7 @@ namespace CraneOptimizer.Application.Tests
             var smallElements = GenerateMockElements(10);
             var inputSmall1 = CreateInput("Small Set (Scenario 1)", smallElements, allowedZone, forbiddenZone, craneSpec, settings);
             var resultSmall1 = placementEngine.RunOptimization(inputSmall1);
+            _output.WriteLine($"Scenario 1 Fitness: {resultSmall1.FitnessScore:F4}, Coverage: {resultSmall1.CoverageRatio:P2}");
             _output.WriteLine(GAProfiler.GetSummaryReport());
 
             var inputSmall2 = CreateInput("Small Set (Scenario 1)", smallElements, allowedZone, forbiddenZone, craneSpec, settings);
@@ -431,6 +436,7 @@ namespace CraneOptimizer.Application.Tests
             var mediumElements = GenerateMockElements(50);
             var inputMed1 = CreateInput("Medium Set (Scenario 2)", mediumElements, allowedZone, forbiddenZone, craneSpec, settings);
             var resultMed1 = placementEngine.RunOptimization(inputMed1);
+            _output.WriteLine($"Scenario 2 Fitness: {resultMed1.FitnessScore:F4}, Coverage: {resultMed1.CoverageRatio:P2}");
             _output.WriteLine(GAProfiler.GetSummaryReport());
 
             var inputMed2 = CreateInput("Medium Set (Scenario 2)", mediumElements, allowedZone, forbiddenZone, craneSpec, settings);
@@ -442,6 +448,7 @@ namespace CraneOptimizer.Application.Tests
             var largeElements = GenerateMockElements(200);
             var inputLarge1 = CreateInput("Large Set (Scenario 3)", largeElements, allowedZone, forbiddenZone, craneSpec, settings);
             var resultLarge1 = placementEngine.RunOptimization(inputLarge1);
+            _output.WriteLine($"Scenario 3 Fitness: {resultLarge1.FitnessScore:F4}, Coverage: {resultLarge1.CoverageRatio:P2}");
             _output.WriteLine(GAProfiler.GetSummaryReport());
 
             var inputLarge2 = CreateInput("Large Set (Scenario 3)", largeElements, allowedZone, forbiddenZone, craneSpec, settings);
