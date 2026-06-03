@@ -13,6 +13,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
+using CraneOptimizer.Application.Optimization.Utilities;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 {
@@ -25,6 +28,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         private readonly CoordinateService _coordinateService;
         private readonly IProjectWorkspaceService _workspaceService;
         private readonly IfcViewerViewModel _ifcViewer;
+        private readonly IOptimizationHistoryLogger _historyLogger;
 
         public CranePlacementService(
             IOptimizationInputBuilder inputBuilder,
@@ -33,7 +37,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             ISceneService sceneService,
             CoordinateService coordinateService,
             IProjectWorkspaceService workspaceService,
-            IfcViewerViewModel ifcViewer)
+            IfcViewerViewModel ifcViewer,
+            IOptimizationHistoryLogger historyLogger)
         {
             _inputBuilder = inputBuilder;
             _placementEngine = placementEngine;
@@ -42,6 +47,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             _coordinateService = coordinateService;
             _workspaceService = workspaceService;
             _ifcViewer = ifcViewer;
+            _historyLogger = historyLogger;
         }
 
         public async Task<CranePlacementResult> RunOptimizationAsync(
@@ -200,12 +206,85 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             input.IfcFileName = ifcFileName;
 
             // Run optimization in a Task
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             var appResult = await Task.Run(
                 () => _placementEngine.RunOptimization(input, cancellationToken),
                 cancellationToken);
+            sw.Stop();
 
             // Map results back to UI DTOs
             var finalResult = MapPlacementResult(appResult, sceneElements, input.CraneSpec, input.Settings);
+
+            // Log optimization run history
+            if (!string.IsNullOrWhiteSpace(projectFolder))
+            {
+                try
+                {
+                    var bestPos = finalResult.Positions.FirstOrDefault();
+                    var allLiftedElements = finalResult.Positions
+                        .SelectMany(p => p.ElementResults)
+                        .Where(e => e.Status == LiftStatus.Liftable)
+                        .ToList();
+
+                    double maxRadius = allLiftedElements.Any() ? allLiftedElements.Max(e => e.Radius) : 0.0;
+                    double averageRadius = allLiftedElements.Any() ? allLiftedElements.Average(e => e.Radius) : 0.0;
+
+                    var entry = new OptimizationRunEntry
+                    {
+                        Timestamp = DateTime.Now,
+                        ProjectName = input.ProjectName ?? string.Empty,
+                        IfcFileName = input.IfcFileName ?? string.Empty,
+                        CraneModel = crane.Name ?? string.Empty,
+
+                        PopulationSize = settings.PopulationSize,
+                        MaxGenerations = settings.MaxGenerations,
+                        MutationRate = settings.MutationRate,
+                        CrossoverRate = settings.CrossoverRate,
+                        EliteCount = (int)(settings.PopulationSize * 0.1),
+                        TournamentSize = 3,
+                        ConvergenceThreshold = settings.ConvergenceThresholdPercent,
+                        EarlyStopGenerations = settings.EarlyStoppingGenerations,
+                        WireLength = settings.WireLength,
+                        AdditionalWt = settings.AdditionalWt,
+                        SafetyFactor = settings.SafetyFactor,
+                        DeratingRatio = settings.DeratingRatio,
+                        MaxCranePositions = settings.MaxCranePositions,
+                        MinimumRelocationDistance = settings.MinimumRelocationDistance,
+                        MutationSigma = settings.MutationSigma,
+                        GridStep = settings.GridStep,
+
+                        CandidatePointsGenerated = GAProfiler.CandidatePointsGenerated,
+                        ValidPointsGenerated = GAProfiler.ValidPointsGenerated,
+                        FinalSolutionsCount = appResult.Positions.Count,
+                        BestFitness = appResult.FitnessScore,
+                        CoveragePercent = appResult.CoverageRatio * 100.0,
+                        ExecutionTimeMs = sw.ElapsedMilliseconds,
+
+                        TotalElements = appResult.TotalElementCount,
+                        LiftableElements = appResult.Statistics.Liftable,
+                        UnliftableElements = appResult.TotalElementCount - appResult.Statistics.Liftable,
+
+                        BestPointX = bestPos?.X ?? 0.0,
+                        BestPointY = bestPos?.Y ?? 0.0,
+                        BestPointZ = bestPos?.Z ?? 0.0,
+                        ElementsLiftedByBestPoint = bestPos?.LiftableCount ?? 0,
+                        CoveragePercentBestPoint = appResult.TotalElementCount > 0 ? (double)(bestPos?.LiftableCount ?? 0) / appResult.TotalElementCount * 100.0 : 0.0,
+                        AverageRadius = averageRadius,
+                        MaxRadius = maxRadius,
+
+                        GenerationReached = GAProfiler.ActualGenerationLoopCount,
+                        StoppedByConvergence = GAProfiler.StoppedByConvergence,
+                        StoppedByMaxGenerations = GAProfiler.StoppedByMaxGenerations
+                    };
+
+                    // Execute logging asynchronously in background context (failsafe)
+                    _ = Task.Run(async () => await _historyLogger.LogRunAsync(entry, projectFolder));
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[History Logger Pre-Check Error] {ex.Message}");
+                }
+            }
 
             // Map the newly generated per-project diagnostics path to DebugReportPath
             // (Note: This now points to the project-scoped GA diagnostics CSV instead of the old global one)

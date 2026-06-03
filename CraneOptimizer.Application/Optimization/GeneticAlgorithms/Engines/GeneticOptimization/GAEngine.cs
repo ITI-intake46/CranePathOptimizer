@@ -199,6 +199,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                     }
                 }
 
+                if (GAProfiler.Enabled)
+                {
+                    if (stagnantGenerations >= input.Settings.EarlyStoppingGenerations)
+                    {
+                        if (input.Settings.ConvergenceThresholdPercent > 0)
+                        {
+                            GAProfiler.StoppedByConvergence = true;
+                        }
+                    }
+                    else
+                    {
+                        GAProfiler.StoppedByMaxGenerations = true;
+                    }
+                }
+
                 return bestSolution;
             }
         }

@@ -1,74 +1,40 @@
-# UI Implementation Notes - F8_GA Run View
+# UI Implementation Notes — GA Parameter Help System & Run History Logger
 
-This document records the UI architectural decisions, layout structures, dynamic visibility strategies, and future extension plans for the **F8_GA Run View** within the Crane Path Optimizer.
+This document records the architectural decisions, design patterns, and future requirements for the Genetic Algorithm (GA) Parameter Help System and the Optimization Run History Logger.
 
----
+## GA Parameter Help System
 
-## 1. Architectural UI Decisions
+### Design Decisions
+1. **Centralized code-only static registry (`GAParameterHelpRegistry`)**: 
+   - Keeps XAML files clean and prevents duplication.
+   - Simplifies translation, localization, and updates to descriptions without modifying UI bindings.
+   - Avoids database overhead for static metadata.
+2. **Unified Custom UserControl (`ParameterHelpIcon`)**:
+   - Represents the standard visual cue `ⓘ`.
+   - Utilizes themed brushes (`TextSecondaryBrush`, `SurfaceBrush`, `BorderBrush`) and typography keys from the design system (`FontPrimary`, `FontSizeSM`, `FontSizeXS`).
+   - Dynamically resolves parameter details from `GAParameterHelpRegistry` on load or parameter key changes.
 
-The user interface for adjusting solver settings utilizes a code-behind manual retrieval and validation model rather than a dynamic bindings-only Model-View-ViewModel (MVVM) approach for performance, simpler data coercion, and instant UI state-validation feedback. 
-
-*   **Validation Context**: Input conversion (e.g., parsing strings in `TextBox.Text` to `double` or `int` parameters) occurs during settings construction/extraction.
-*   **Controls Design**: To maintain styling consistency, the UI uses the existing color palette (including gradient borders, dark grey backgrounds, and modern rounded input elements).
-*   **Layout Container**: A single, scrollable vertical layout (`ScrollViewer` nested with collapsible sections or styled group headers) is used inside the `PanelAdvanced` SideWindow. This ensures all settings remain easily accessible in one location.
-
----
-
-## 2. Future GA Parameters Expected to Become User-Facing
-
-The following optimization parameters are currently hardcoded in the solver implementation but are slated for future exposure through `GASettings` and the WPF UI:
-
-*   **`TournamentSize`** (integer selection pool size for tournament selection)
-*   **`HeuristicSeedingRatio`** (ratio of initial population generated via greedy heuristic vs random placement)
-*   **`Mutation Distribution Weights (80/10/10)`** (relative proportions of mutation operators applied: Position Shift / Crane Selection / Set Mutation)
-*   **`ElitismPreservationRate`** (fraction of top chromosomes preserved directly into the next generation)
-*   **`SpecialCasePenaltyWeight`** (penalty applied to layouts violating non-overlapping setups or restricted crane placements)
-*   **`GreedyMaxSetups`** (upper setup limit constraint used inside Greedy Set-Covering heuristic)
-*   **`GreedyTargetCoverage`** (percentage of elements required to be covered in Greedy Phase)
-*   **`GreedyMinImprovement`** (minimum percentage gain required to add another crane position in Greedy Phase)
-
-### Extensibility Plan
-To add these settings without causing layout bloat:
-1.  **Group Alignment**:
-    *   `TournamentSize`, `HeuristicSeedingRatio`, and `ElitismPreservationRate` will be added to the **Advanced GA** section.
-    *   `SpecialCasePenaltyWeight` will be placed under the **Fitness Strategy** section.
-    *   `GreedyMaxSetups`, `GreedyTargetCoverage`, and `GreedyMinImprovement` will be added to the **Layout Constraints** or **Advanced GA** section depending on user optimization flow.
-2.  **UI Layout Grid**: Each new setting will use the standard `<DockPanel>` or grid-aligned label/textbox pair.
+### Future UI Requirements / Deferred Improvements
+- **Localization**: Connect the metadata fields in `GAParameterHelpRegistry` to resource files (`.resx`) to support multi-language environments.
+- **Rich Interactive UI**: Add interactive links in help tooltips referencing pages in the developer/user documentation for deep-dive tutorials on complex variables (e.g. `EnableAdaptiveSigma` or `DeratingRatio`).
+- **Dynamic Help Side-Panel**: Implement a toggleable help panel next to the advanced settings scrollable panel, displaying full details of the currently focused property, rather than relying solely on tooltips.
 
 ---
 
-## 3. Dynamic Visibility Preparation
+## Optimization Run History Logger
 
-Although the current UI exposes all settings unconditionally, the layout architecture is structured to allow conditional toggling based on parent values using WPF `BooleanToVisibilityConverter` or manual visibility assignment in code-behind.
+### Design Decisions
+1. **Consolidated Logging Integration Point (`CranePlacementService.cs`)**:
+   - The UI-layer service `CranePlacementService` was chosen as the integration point (instead of `CranePlacementViewModel.cs`) to ensure every run initiated within the active dialog session is persistently logged.
+   - Decoupled from the ViewModel to maintain single-responsibility separation of concerns.
+2. **Robust Thread-Safe File Access (`CsvOptimizationHistoryLogger.cs`)**:
+   - Implements `IOptimizationHistoryLogger` utilizing `SemaphoreSlim(1, 1)` to serialize async file writes, preventing lock errors from parallel tasks.
+   - Applies strict culture-invariant decimal parsing (`CultureInfo.InvariantCulture`) to ensure CSV files are parseable on machines using German, French, or other non-English OS locale settings.
+   - Automatically handles escaping for special characters (quotes, commas, newlines) inside text fields like `ProjectName`, `IfcFileName`, or `CraneModel`.
+3. **Failsafe Catch-Block Protection**:
+   - Contains a try-catch block that swallows logging exceptions, logging them to `Debug.WriteLine`. This prevents disk write errors or file locking failures from ever crashing the main optimization process or UI thread.
 
-### Visibility Rules Planned:
-1.  **If `EnableAdaptiveSigma` = `false`**:
-    *   **Hide**: `SigmaCoolingExponent`
-    *   **Hide**: `MinimumMutationSigma`
-    *   *Rationale*: These cooling schedule parameters have no effect when adaptive sigma is disabled.
-2.  **If `EnableConcurrentOptimization` = `false`** (i.e. running greedy setup covers):
-    *   **Show**: `GreedyMaxSetups`, `GreedyTargetCoverage`, `GreedyMinImprovement`
-    *   *Rationale*: These settings govern the set cover process and are irrelevant in concurrent multi-setup GA runs.
-
-### Implementation Checklist for Future Visibility Hooks:
-*   Wrap related controls inside nested `<StackPanel x:Name="AdaptiveSigmaSettingsPanel" Visibility="Visible">` to allow group toggling.
-*   Bind the `Visibility` property of the nested panel to the toggle control (e.g., `ChkEnableAdaptiveSigma` checkbox) using a converter.
-
----
-
-## 4. Future GA Modes (Upcoming Roadmap)
-
-The upcoming roadmap outlines four GA Modes that will partition optimization runs by functional goals:
-
-*   **GA Mode 1: Static Single Crane** (Optimizes coordinate position and boom length for a single fixed crane setup).
-*   **GA Mode 2: Multi-Crane Cover** (Solves minimum-set relocation coverage using a single mobile crane moving between multiple setup positions).
-*   **GA Mode 3: Dynamic Relocation Routing** (Solves sequencing, path planning, and movement logistics between sequential setups).
-*   **GA Mode 4: Collaborative Swarm** (Coordinates multiple active cranes operating simultaneously with collision avoidance).
-
-### Design Assumptions:
-*   **Common Settings**: Fitness strategy weights (Coverage, Relocation, Radius Penalty) apply to all four modes.
-*   **Mode-Specific Settings**:
-    *   *Mode 1*: Setup counts (`MaxCranePositions`) is locked to 1.
-    *   *Mode 2*: Relocation-specific penalties (`SimilarPositionPenaltyWeight`, `RelocationDistancePenaltyWeight`) are heavily exposed and tuned.
-    *   *Mode 3*: Dynamic route calculations will require exposing path-finding step limits.
-    *   *Mode 4*: Collision clearance offsets and safety margins will join the Diagnostics/Engineering sections.
+### Upcoming Changes / Future Roadmap
+- **GA Modes Integration**: When standard presets (e.g., *Fast Run*, *Standard Run*, *Deep Search*) are implemented, the mode classification should be recorded in the CSV logger.
+- **Visual Analytics Dashboard**: A future analytics tab will read `OptimizationHistory.csv` and plot parameter convergence trends, execution times, and solution quality across consecutive runs.
+- **Database Storage Transition**: Consider migrating run entries from CSV to the SQLite embedded database (`crane.db`) once query/filtering capabilities are requested by end users.
