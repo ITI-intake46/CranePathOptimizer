@@ -19,6 +19,7 @@ namespace CraneOptimizer.UI.Core.Services
         private readonly IElementVisibilityFilterService _filterService;
         private readonly IRenderDiagnosticsStore _diagnosticsStore;
         private readonly List<PrecastElement> _sceneElements = new();
+        private Dictionary<string, List<System.Windows.Media.Media3D.GeometryModel3D>> _renderedElementModels = new(StringComparer.OrdinalIgnoreCase);
         // Persistent builder so per-crane MobileCraneVisual3D and the
         // INotifyPropertyChanged -> Rebuild plumbing survive across renders.
         private readonly CraneVisualBuilder _craneBuilder;
@@ -89,7 +90,10 @@ namespace CraneOptimizer.UI.Core.Services
             var visibleElements = _filterService.VisibleElements;
 
             if (_sceneElements.Count == 0 || visibleElements.Count == 0)
+            {
+                _renderedElementModels.Clear();
                 return;
+            }
 
             Debug.WriteLine("Rendering Elements: " + visibleElements.Count);
 
@@ -184,6 +188,8 @@ namespace CraneOptimizer.UI.Core.Services
                 builder,
                 "Elements");
 
+            _renderedElementModels = builder.ElementModelRegistry;
+
             sw.Stop();
             var memAfter = GetPrivateMemoryMB();
 
@@ -233,6 +239,106 @@ namespace CraneOptimizer.UI.Core.Services
                 $"HQCacheHits={stats.HighQualityMeshCacheHitCount} HQCacheMisses={stats.HighQualityMeshCacheMissCount} " +
                 $"HQMeshesCreated={stats.HighQualityMeshesCreatedCount} HQCacheSize={stats.HighQualityCacheCount} " +
                 $"DurationMs={stats.RenderDurationMs:F1} MemBefore={memBefore:F1}MB MemAfter={memAfter:F1}MB");
+        }
+
+        public void UpdateElementMaterials(System.Collections.Generic.IReadOnlyList<CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs.ElementLiftResult>? results = null)
+        {
+            if (_context == null)
+                return;
+
+            if (_renderedElementModels.Count == 0 || _sceneElements.Count == 0)
+            {
+                ReRenderElements();
+                return;
+            }
+
+            var liftResults = results ?? _context.GetLiftResults();
+            bool hasFinalAssignments = liftResults != null && liftResults.Any(r => r.IsFinalAssignedToPoint);
+            string selectedPointId = liftResults?.FirstOrDefault(r => !string.IsNullOrEmpty(r.CandidatePointId))?.CandidatePointId ?? string.Empty;
+
+            var viewMode = _context.GetGAViewMode?.Invoke() ?? GAViewMode.FinalAssignment;
+
+            var statusMap = liftResults
+                ?.Where(result => !string.IsNullOrWhiteSpace(result.ElementId))
+                .GroupBy(result => result.ElementId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group =>
+                    {
+                        var itemForSelected = group.FirstOrDefault(r => r.CandidatePointId == selectedPointId);
+                        var item = itemForSelected
+                                   ?? group.FirstOrDefault(r => r.IsFinalAssignedToPoint)
+                                   ?? group.Last();
+
+                        if (viewMode == GAViewMode.SelectedPointFeasibility)
+                        {
+                            return (LiftStatus?)(itemForSelected?.Status ?? item.Status);
+                        }
+                        else // FinalAssignment or AllFeasibleDebug
+                        {
+                            if (hasFinalAssignments)
+                            {
+                                if (item.IsFinalAssignedToPoint || (!string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId == selectedPointId))
+                                {
+                                    return (LiftStatus?)item.Status;
+                                }
+                                else if (item.IsFinalAssigned && !string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId != selectedPointId)
+                                {
+                                    return null; // Dimmed/Blueprint Gray
+                                }
+                                else if (!item.IsFinalAssigned)
+                                {
+                                    return (LiftStatus?)item.BestFailedLiftStatus;
+                                }
+                                else
+                                {
+                                    return null; // Safe neutral fallback
+                                }
+                            }
+                            return (LiftStatus?)item.Status;
+                        }
+                    },
+                    StringComparer.OrdinalIgnoreCase);
+
+            var selectedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (_context.GetSelectedElementIds != null)
+            {
+                var ids = _context.GetSelectedElementIds();
+                if (ids != null)
+                {
+                    foreach (var id in ids)
+                    {
+                        if (id != null)
+                            selectedIds.Add(id);
+                    }
+                }
+            }
+            else
+            {
+                var singleId = _context.GetSelectedElementId();
+                if (singleId != null)
+                    selectedIds.Add(singleId);
+            }
+
+            foreach (var element in _sceneElements)
+            {
+                if (!_renderedElementModels.TryGetValue(element.ElementID, out var models))
+                    continue;
+
+                LiftStatus? liftStatus = null;
+                if (statusMap != null && statusMap.TryGetValue(element.ElementID, out var s))
+                    liftStatus = s;
+
+                bool isSelected = selectedIds.Contains(element.ElementID);
+                var visualStatus = ElementMaterialProvider.GetStatus(element, liftStatus, isSelected);
+                var material = ElementMaterialProvider.GetMaterial(visualStatus, ElementVisualBuilder.CurrentQuality);
+
+                foreach (var model in models)
+                {
+                    model.Material = material;
+                    model.BackMaterial = material;
+                }
+            }
         }
 
         private static double GetPrivateMemoryMB()
@@ -295,7 +401,7 @@ namespace CraneOptimizer.UI.Core.Services
 
         private void OnElementsSelectionChanged(List<PrecastElement> selected)
         {
-            ReRenderElements();
+            UpdateElementMaterials();
         }
 
         private void OnFilterStateChanged()

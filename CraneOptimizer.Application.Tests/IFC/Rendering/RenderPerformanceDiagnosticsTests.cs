@@ -596,8 +596,10 @@ namespace CraneOptimizer.Application.Tests
                     var visualEnabled = builderEnabled.BuildBatch(items);
 
                     // Verify batching results
-                    Assert.True(builderEnabled.DiagBatchedGroups > 0);
-                    Assert.True(builderEnabled.DiagRenderGeometryModel3DCount < items.Count); // Should be significantly fewer than per-element count
+                    // Under direct material coloring architecture, vertex concatenation is disabled.
+                    // Elements are kept as separate GeometryModel3D instances.
+                    Assert.Equal(0, builderEnabled.DiagBatchedGroups);
+                    Assert.True(builderEnabled.DiagRenderGeometryModel3DCount >= items.Count(i => i.element.IncludeInRender));
                     Assert.Equal(builderEnabled.DiagHitTestBoxes, builderEnabled.DiagHitTestGeometryModel3DCount);
                     Assert.Equal(builderEnabled.DiagRenderGeometryModel3DCount + builderEnabled.DiagHitTestGeometryModel3DCount, builderEnabled.DiagGeometryModel3DCount);
 

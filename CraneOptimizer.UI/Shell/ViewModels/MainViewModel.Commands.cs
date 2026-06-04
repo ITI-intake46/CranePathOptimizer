@@ -19,9 +19,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 _craneRepo,
                 Scene,
                 CraneSetup,
-                _ifcReader,
-                OriginPoint,
-                GetPlacementOffset());
+                _sceneRendering);
 
             if (System.Windows.Application.Current?.MainWindow != null)
                 dialog.Owner = System.Windows.Application.Current.MainWindow;
