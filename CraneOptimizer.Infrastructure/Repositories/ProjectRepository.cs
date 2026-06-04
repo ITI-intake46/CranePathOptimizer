@@ -58,6 +58,30 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return project;
         }
 
+        public Task<Project?> GetProjectByIdAsync(Guid id, CancellationToken ct = default)
+        {
+            return GetByIdAsync(id, ct);
+        }
+
+        public async Task UpdateConcreteDensityAsync(Guid projectId, double density, CancellationToken ct = default)
+        {
+            if (density <= 0)
+                throw new ArgumentOutOfRangeException(nameof(density), "Density must be > 0");
+
+            await using var db = await _dbFactory.CreateDbContextAsync(ct);
+            var project = await db.Projects.FirstOrDefaultAsync(x => x.Id == projectId, ct);
+            if (project == null)
+                throw new KeyNotFoundException($"Project {projectId} not found");
+
+            project.ConcreteDensityKgPerM3 = density;
+            project.LastModifiedDate = DateTime.UtcNow;
+
+            db.Entry(project).Property(x => x.ConcreteDensityKgPerM3).IsModified = true;
+            db.Entry(project).Property(x => x.LastModifiedDate).IsModified = true;
+
+            await db.SaveChangesAsync(ct);
+        }
+
         public async Task<bool> SoftDeleteAsync(Guid id, CancellationToken ct)
         {
             await using var db = await _dbFactory.CreateDbContextAsync(ct);

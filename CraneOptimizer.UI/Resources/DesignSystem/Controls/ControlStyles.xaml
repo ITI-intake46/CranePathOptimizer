@@ -203,6 +203,10 @@
         </Setter>
     </Style>
 
+    <!-- Backward-compatible aliases for older XAML resource names. -->
+    <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonPrimary}"/>
+    <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonSecondary}"/>
+
     <!-- Default Button = Primary -->
     <Style TargetType="Button" BasedOn="{StaticResource ButtonPrimary}"/>
 

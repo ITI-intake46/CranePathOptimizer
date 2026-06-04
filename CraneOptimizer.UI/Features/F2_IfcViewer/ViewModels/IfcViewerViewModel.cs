@@ -1,5 +1,7 @@
 using CraneOptimizer.Domain.Interfaces;
+using CraneOptimizer.Domain.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
@@ -27,8 +29,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly IElementVisibilityFilterService _filterService;
         private readonly IIfcSceneOperationService _ifcSceneOperations;
         private readonly IIfcDiagnosticAuditService _auditService;
-        private readonly IProjectWorkspaceService _workspaceService;
+        private readonly IProjectWorkspaceService? _workspaceService;
         private readonly IIfcNormalizationDecisionService _normalizationService;
+        private readonly IProjectMaterialSettingsService? _materialSettingsService;
         private List<PrecastElement>? _pendingIfcElements;
         private IfcLoadOptionsDto? _pendingFilterOptions;
         private bool _isMovingExistingIfc;
@@ -101,8 +104,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IElementVisibilityFilterService filterService,
             IIfcSceneOperationService ifcSceneOperations,
             IIfcDiagnosticAuditService auditService,
-            IProjectWorkspaceService workspaceService,
-            IIfcNormalizationDecisionService normalizationService)
+            IProjectWorkspaceService? workspaceService,
+            IIfcNormalizationDecisionService normalizationService,
+            IProjectMaterialSettingsService? materialSettingsService = null)
         {
             _ifcReader = ifcReader;
             _scene = scene;
@@ -115,6 +119,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _auditService = auditService;
             _workspaceService = workspaceService;
             _normalizationService = normalizationService;
+            _materialSettingsService = materialSettingsService;
 
             LoadIfcCommand = new RelayCommand(async () => await LoadIfcAsync(), () => !IsLoading && !IsPlacementMode);
             MergeIfcCommand = new RelayCommand(ShowMergeIfcPlaceholder, () => !IsLoading && !IsPlacementMode);
@@ -149,8 +154,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     Status = $"Reading IFC... {p:F0}%";
                 });
 
+                var readingOptions = await GetCurrentIfcReadingOptionsAsync();
                 var all = await Task.Run(() =>
-                    _ifcReader.ReadElements(path, progress));
+                    _ifcReader.ReadElements(path, progress, readingOptions));
 
                 Debug.WriteLine("IFC Loaded: " + (all?.Count ?? 0));
 
@@ -170,8 +176,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 {
                     try
                     {
-                        var auditResult = await _auditService.RunAuditAsync(auditPath);
-                        var projectFolder = _workspaceService.CurrentSession?.ProjectFolderPath;
+                        var auditOptions = await GetCurrentIfcReadingOptionsAsync();
+                        var auditResult = await _auditService.RunAuditAsync(auditPath, auditOptions);
+                        var projectFolder = _workspaceService?.CurrentSession?.ProjectFolderPath;
                         await _auditService.GenerateReportsAsync(auditResult, projectFolder);
                         Debug.WriteLine("[IfcViewerViewModel] Background diagnostic audit completed successfully.");
 
@@ -309,7 +316,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                         Status = $"Reading IFC... {p:F0}%";
                     });
 
-                    elements = await Task.Run(() => _ifcReader.ReadElements(filePath, progress));
+                    var readingOptions = await GetCurrentIfcReadingOptionsAsync();
+                    elements = await Task.Run(() => _ifcReader.ReadElements(filePath, progress, readingOptions));
 
                     if (elements != null && elements.Count > 0)
                     {
@@ -319,8 +327,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                         {
                             try
                             {
-                                var auditResult = await _auditService.RunAuditAsync(auditPath);
-                                var projectFolder = _workspaceService.CurrentSession?.ProjectFolderPath;
+                                var auditOptions = await GetCurrentIfcReadingOptionsAsync();
+                                var auditResult = await _auditService.RunAuditAsync(auditPath, auditOptions);
+                                var projectFolder = _workspaceService?.CurrentSession?.ProjectFolderPath;
                                 await _auditService.GenerateReportsAsync(auditResult, projectFolder);
                                 Debug.WriteLine("[IfcViewerViewModel] Background diagnostic audit completed successfully.");
 
@@ -545,6 +554,19 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private void ShowMergeIfcPlaceholder()
         {
             Status = "Merge IFC is available in the ribbon for multi-building workflow, but shared multi-model geometry loading is not implemented yet.";
+        }
+
+        private async Task<IfcReadingOptions> GetCurrentIfcReadingOptionsAsync()
+        {
+            var session = _workspaceService?.CurrentSession;
+            if (session == null || _materialSettingsService == null)
+                return new IfcReadingOptions(ProjectMaterialSettingsService.DefaultConcreteDensityKgPerM3);
+
+            var density = await _materialSettingsService
+                .GetConcreteDensityKgPerM3Async(session.ProjectId)
+                .ConfigureAwait(false);
+
+            return new IfcReadingOptions(density);
         }
 
         private bool CanEditPlacedIfc() => !IsLoading && !IsPlacementMode && _ifcSceneOperations.HasIfcModel;

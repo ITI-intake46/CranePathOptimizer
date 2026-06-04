@@ -1,4 +1,5 @@
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Schemas.Enums;
@@ -792,7 +793,9 @@ namespace CraneOptimizer.Application.Tests
             public bool InitializeSessionForRenderingCalled { get; set; }
 
             public List<PrecastElement> ReadElements(string ifcPath) => ElementsToReturn;
+            public List<PrecastElement> ReadElements(string ifcPath, IfcReadingOptions? options) => ElementsToReturn;
             public List<PrecastElement> ReadElements(string path, IProgress<double> progress) => ElementsToReturn;
+            public List<PrecastElement> ReadElements(string path, IProgress<double> progress, IfcReadingOptions? options, CancellationToken cancellationToken = default) => ElementsToReturn;
 
             public Task InitializeSessionForRenderingAsync(string ifcPath, CancellationToken cancellationToken = default)
             {
