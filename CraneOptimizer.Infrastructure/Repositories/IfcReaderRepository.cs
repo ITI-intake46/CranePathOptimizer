@@ -1263,6 +1263,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     result.Add(pe);
                 }
 
+                // Propagate materials for concrete elements of the same family/type
+                PropagateConcreteMaterials(result);
+
                 // Log a comprehensive diagnostic summary via Debug.WriteLine
                 Debug.WriteLine("=== Phase 2A Normalization Element Extraction Diagnostics ===");
                 Debug.WriteLine($"Total Normalized Elements Extracted: {result.Count}");
@@ -1297,6 +1300,64 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     BBoxWidth = snapshot.Geometry?.Width,
                     BBoxHeight = snapshot.Geometry?.Height
                 };
+            }
+
+            private static void PropagateConcreteMaterials(List<PrecastElement> elements)
+            {
+                var familyGroups = elements.GroupBy(GetFamilyTypeName, StringComparer.OrdinalIgnoreCase);
+
+                foreach (var group in familyGroups)
+                {
+                    var representativeMaterial = group
+                        .Select(e => e.ElementMaterial)
+                        .Where(m => !string.IsNullOrWhiteSpace(m))
+                        .GroupBy(m => m, StringComparer.OrdinalIgnoreCase)
+                        .OrderByDescending(g => g.Count())
+                        .Select(g => g.Key)
+                        .FirstOrDefault();
+
+                    if (string.IsNullOrWhiteSpace(representativeMaterial))
+                        continue;
+
+                    foreach (var e in group)
+                    {
+                        if (string.IsNullOrWhiteSpace(e.ElementMaterial) && IsConcreteElement(e))
+                        {
+                            e.ElementMaterial = representativeMaterial;
+                        }
+                    }
+                }
+            }
+
+            private static string GetFamilyTypeName(PrecastElement e)
+            {
+                var mark = e.ElementMark ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(e.ElementRevitId))
+                {
+                    var suffix = ":" + e.ElementRevitId;
+                    if (mark.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return mark.Substring(0, mark.Length - suffix.Length);
+                    }
+                    var suffix2 = "-" + e.ElementRevitId;
+                    if (mark.EndsWith(suffix2, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return mark.Substring(0, mark.Length - suffix2.Length);
+                    }
+                    if (mark.EndsWith(e.ElementRevitId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return mark.Substring(0, mark.Length - e.ElementRevitId.Length).TrimEnd(':', '-', ' ');
+                    }
+                }
+                return mark;
+            }
+
+            private static bool IsConcreteElement(PrecastElement e)
+            {
+                var source = $"{(e.ElementMaterial ?? string.Empty)} {(e.ElementType ?? string.Empty)} {(e.ElementMark ?? string.Empty)}".ToUpperInvariant();
+                if (source.ContainsAny("STEEL", "REBAR", "ALUMIN", "GLASS", "TIMBER", "WOOD"))
+                    return false;
+                return true;
             }
         }
 

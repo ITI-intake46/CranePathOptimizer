@@ -473,7 +473,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 GetElementID(element),
                 GetPrecastDisplayName(element),
                 CleanElementType(element.ElementType),
-                element.ElementMaterial ?? "Concrete",
+                string.IsNullOrWhiteSpace(element.ElementMaterial) ? "N/A" : element.ElementMaterial,
                 element.ElementLength,
                 element.ElementWidth,
                 element.ElementHeight,
@@ -575,8 +575,12 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         }
 
         // Revit Integer ID
-        private static string GetElementID(PrecastElement e) =>
-            !string.IsNullOrEmpty(e.ElementID) ? e.ElementID : "-";
+        private static string GetElementID(PrecastElement e)
+        {
+            if (!string.IsNullOrWhiteSpace(e.ElementRevitId))
+                return e.ElementRevitId;
+            return !string.IsNullOrEmpty(e.ElementID) ? e.ElementID : "-";
+        }
 
         private static string GetPrecastDisplayName(PrecastElement e)
         {
@@ -739,7 +743,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         }
 
         private static string NormalizeMaterial(string? material) =>
-            string.IsNullOrWhiteSpace(material) ? "Unspecified" : material.Trim();
+            string.IsNullOrWhiteSpace(material) ? "N/A" : material.Trim();
     }
 
 }

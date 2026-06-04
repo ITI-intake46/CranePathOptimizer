@@ -51,7 +51,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
 
             BuildStoreyMap();
             ElementTypes = BuildOptions(_allElements.Select(e => Normalize(e.ElementType, "Unknown type")));
-            Materials = BuildOptions(_allElements.Select(e => Normalize(e.ElementMaterial, "Unspecified")));
+            Materials = BuildOptions(_allElements.Select(e => Normalize(e.ElementMaterial, "N/A")));
             Storeys = BuildOptions(_allElements.Select(GetStorey));
 
             ResetEnabledSets();
@@ -72,7 +72,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         }
 
         public void SetTypeEnabled(string type, bool enabled) => SetEnabled(_enabledTypes, Normalize(type, "Unknown type"), enabled);
-        public void SetMaterialEnabled(string material, bool enabled) => SetEnabled(_enabledMaterials, Normalize(material, "Unspecified"), enabled);
+        public void SetMaterialEnabled(string material, bool enabled) => SetEnabled(_enabledMaterials, Normalize(material, "N/A"), enabled);
         public void SetStoreyEnabled(string storey, bool enabled) => SetEnabled(_enabledStoreys, Normalize(storey, "Unassigned"), enabled);
 
         public void SetWeightRange(double minWeightKg, double maxWeightKg)
@@ -167,7 +167,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         }
 
         public bool IsTypeEnabled(string type) => _enabledTypes.Contains(Normalize(type, "Unknown type"));
-        public bool IsMaterialEnabled(string material) => _enabledMaterials.Contains(Normalize(material, "Unspecified"));
+        public bool IsMaterialEnabled(string material) => _enabledMaterials.Contains(Normalize(material, "N/A"));
         public bool IsStoreyEnabled(string storey) => _enabledStoreys.Contains(Normalize(storey, "Unassigned"));
         public bool IsElementIncluded(PrecastElement element) =>
             _includedElementIds == null
@@ -208,7 +208,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             if (!_enabledTypes.Contains(Normalize(element.ElementType, "Unknown type")))
                 return false;
 
-            if (!_enabledMaterials.Contains(Normalize(element.ElementMaterial, "Unspecified")))
+            if (!_enabledMaterials.Contains(Normalize(element.ElementMaterial, "N/A")))
                 return false;
 
             if (!_enabledStoreys.Contains(GetStorey(element)))

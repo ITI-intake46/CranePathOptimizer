@@ -69,8 +69,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             CultureInfo? culture = null)
         {
             culture ??= CultureInfo.CurrentCulture;
-            var prefix = estimated ? "~" : string.Empty;
-            return $"{prefix}{UnitSystem.FormatMass(weightTons, settings, culture)}";
+            return UnitSystem.FormatMass(weightTons, settings, culture);
         }
 
         private static double GetVolumeCubicMeters(PrecastElement element)
