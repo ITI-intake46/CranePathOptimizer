@@ -1,4 +1,4 @@
-# PDF Load Chart Import
+﻿# PDF Load Chart Import
 
 This document describes the PDF load-chart import workflow and the current extraction rules used by
 `CraneOptimizer.UI/Features/F4_LoadChart/Services/LoadChartPdfService.cs`.
@@ -76,16 +76,16 @@ Correct behavior:
 Incorrect behavior:
 
 ```text
-13.1 *, 13.1 360°, 17.6, 22.1, ...
+13.1 *, 13.1 360Â°, 17.6, 22.1, ...
 ```
 
-unless `360°` is actually printed as a local subheader marker inside the second visual lane.
+unless `360Â°` is actually printed as a local subheader marker inside the second visual lane.
 
 ## Local annotation labels
 
 Semantic duplicate-header labels must be faithful to the actual PDF table annotation.
 
-A visual column label may use a marker such as `*`, `360°`, `rear`, `front`, or `side` only when
+A visual column label may use a marker such as `*`, `360Â°`, `rear`, `front`, or `side` only when
 that marker appears inside the local table header/subheader band above the body rows and inside that
 column's exclusive horizontal lane region.
 
@@ -97,12 +97,40 @@ Examples:
 | PDF evidence | Preview labels |
 |---|---|
 | First duplicate lane has a local `*`; second duplicate lane has no local marker | `13.1 *`, `13.1` |
-| First duplicate lane has local `*`; second duplicate lane has local `360°` | `13.1 *`, `13.1 360°` |
+| First duplicate lane has local `*`; second duplicate lane has local `360Â°` | `13.1 *`, `13.1 360Â°` |
 | Duplicate lanes have no local marker evidence | `13.1`, `13.1` |
-| A `360°` icon appears globally above the table, not in the local subheader band | do not attach `360°` to a lane |
+| A `360Â°` icon appears globally above the table, not in the local subheader band | do not attach `360Â°` to a lane |
 
 Each local marker is assigned to at most one visual lane. A single `*` marker must not label multiple
 duplicate columns.
+
+
+## Annotated visual boom-header parsing
+
+Exact PDF visual import preserves the manufacturer-facing column label for review and audit, but
+parses the numeric boom length from a single leading number when the remaining text is a local
+operational annotation.
+
+Examples that resolve to numeric boom length `13.1` while preserving their visual labels include:
+
+```text
+13.1 *
+13.1*
+13,1 *
+13.1 m *
+13.1 360°
+13.1 over rear
+13.1 rear
+```
+
+This rule is intentionally generic. It is not tied to a specific PDF, page, or manufacturer table.
+It accepts a single leading boom length followed by a local annotation marker or text, while still
+rejecting ambiguous headers that contain another non-360 numeric boom-like value, such as
+`13.1 17.6`, `13.1 / 17.6`, or `13.1-17.6`.
+
+The original visual header remains stored in `VisualColumnHeader`; only the internal numeric
+`BoomLength` uses the parsed leading number. Duplicate exact-visual columns continue to use the
+conservative minimum capacity policy during optimization lookup.
 
 ## Exact visual import and conservative capacity behavior
 
@@ -110,7 +138,7 @@ The exact visual grid can contain repeated numeric boom lengths. This is expecte
 spanning-header tables.
 
 Numeric parsing still extracts the boom length from each visual header, so labels such as `13.1 *`
-and `13.1 360°` both resolve numerically to boom length `13.1`.
+and `13.1 360Â°` both resolve numerically to boom length `13.1`.
 
 Optimization capacity lookup remains conservative when duplicate same-radius/same-boom visual
 columns exist. The resolver uses the minimum positive capacity among duplicates, preserving the
