@@ -70,6 +70,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 var remainingElements = new List<PrecastElement>(allElements);
                 var coveredElements = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var finalResult = new PlacementResult();
+                LiftStatistics? concurrentStats = null;
 
                 double previousCoverage = 0;
                 int maxPoints = 4;
@@ -93,6 +94,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                             allElements,
                             input.CraneSpec,
                             input.Settings);
+
+                        concurrentStats = concurrentResult.Statistics;
 
                         foreach (var pos in concurrentResult.Positions)
                         {
@@ -274,7 +277,20 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
 
                     // Keep Console and Debug output optional (do not add console spam)
                     Console.WriteLine(summary);
-                    Debug.WriteLine(summary);
+                }
+
+                // Populate final Statistics
+                if (input.Settings.EnableConcurrentOptimization && concurrentStats != null)
+                {
+                    finalResult.Statistics = concurrentStats;
+                    finalResult.Statistics.Liftable = finalResult.LiftedElementCount;
+                }
+                else
+                {
+                    finalResult.Statistics = new LiftStatistics
+                    {
+                        Liftable = finalResult.LiftedElementCount
+                    };
                 }
 
                 // Generate project-scoped diagnostics reports post-run (Phase 8)
