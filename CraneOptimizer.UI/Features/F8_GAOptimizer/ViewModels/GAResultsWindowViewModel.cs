@@ -326,7 +326,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             if (SelectedPoint != null)
                 SelectedPointRenderer.RenderPlacementPoint(
                     _renderingService,
-                    new DomainPoint3D(SelectedPoint.X, SelectedPoint.Y, 0));
+                    new DomainPoint3D(SelectedPoint.X, SelectedPoint.Y, SelectedPoint.Z));
 
             // Move the existing crane to the selected GA point
             if (SelectedPoint != null)
@@ -334,7 +334,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
                 var sceneCrane = _sceneService.GetCranes().FirstOrDefault();
                 if (sceneCrane != null)
                 {
-                    sceneCrane.Position = new DomainPoint3D(SelectedPoint.X, SelectedPoint.Y, 0);
+                    sceneCrane.Position = new DomainPoint3D(SelectedPoint.X, SelectedPoint.Y, SelectedPoint.Z);
                     _sceneService.UpdateCrane(sceneCrane);
                 }
             }
