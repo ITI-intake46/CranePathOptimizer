@@ -23,7 +23,8 @@ Use this guide to determine which documentation files you must read, which archi
 Before performing **any** task, reading the following core documents is mandatory to establish proper context and align with the current implementation state:
 
 1.  **System and Context Safeguards:** Read [agent-context.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/agent/agent-context.md) to understand critical naming invariants, engineering limits, and coordinate safeguards.
-2.  **Current Project State:** Inspect the current source tree, `git status`, and the latest available project audit documents before assuming module status. `docs/project/current-state.md` is not present in the current repository.
+2.  **Limitations & Assumptions:** Read [limitations.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/limitations.md) to understand reach calculations, rigging, and coordinate limitations.
+3.  **GA & Optimization Reference:** Read [ga-reference.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/ga-reference.md) for a complete analysis of GASettings and hardcoded constants.
 
 ---
 
@@ -39,11 +40,14 @@ Use this index to route your research based on the specific subsystem or domain 
 
 ### If Working On the Genetic Algorithm
 *   For chromosome encoding, selection, crossover operators, and fitness formulas, read [ga-engine.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/ga-engine.md).
+*   For fitness weights definitions and sensitivity impacts, read [fitness-weights.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/ga/fitness-weights.md).
+*   For GA selection alternatives and operators design rationale, read [ga-design-decisions.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/architecture/ga-design-decisions.md).
 *   For boom configurations and `ConservativeStep` load chart lookups, read [crane-engine.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/crane-engine.md).
-*   For performance optimizations in fitness calculations, read [refactoring-opportunities.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/project/refactoring-opportunities.md).
+*   For performance optimizations and profiling parameters, read [refactoring-opportunities.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/project/refactoring-opportunities.md).
 
 ### If Working On IFC Processing
 *   For parsing normalization pipelines, categories, and role classifications, read [ifc.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/ifc.md).
+*   For length scaling, mass extraction, fallback density estimations, and display unit preferences, read [units.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/units.md).
 *   For EF Core entity mapping and DB schema layouts, read [database.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/architecture/database.md).
 
 ### If Working On Database & Persistence Features
@@ -118,3 +122,46 @@ Before proposing or editing any codebase files, copy and verify this checklist:
 *   [ ] Checked that no hypothetical or planned features are treated as existing.
 *   [ ] Verified that the planned changes do not violate Clean Architecture layer isolation.
 *   [ ] Verified that the planned changes do not violate MVVM databinding rules.
+
+---
+
+## 8. End-to-End Optimization Pipeline Flow
+
+The flowchart below illustrates the execution path and data flow from the initial IFC model parsing to the final genetic optimization outputs:
+
+```mermaid
+graph TD
+    %% IFC Data Stage
+    IFC[IFC Model File] --> Import[IfcReaderRepository <br/> Parse IIfcElement instances]
+    Import --> Norm[IfcNormalizationDecisionService <br/> Categorize & Assign Roles]
+    Norm --> Filter[OptimizationScopeFilter <br/> Filter targets in OptimizationScopeEngine]
+    
+    %% Setup Database & Placement Input
+    Filter --> ExtractedElements[PrecastElement Target List]
+    ExtractedElements --> InputBuilder[OptimizationInputBuilder <br/> Load Crane Specs & Allowed/Forbidden Zones]
+    InputBuilder --> InputData[PlacementInput Bundle]
+    
+    %% Genetic Algorithm Loop
+    InputData --> CPE[CranePlacementEngine <br/> Run Concurrent GA or Greedy Set-Cover]
+    CPE --> GAInit[GAInitializer <br/> Generate Diverse Random & Morton Seed Population]
+    
+    subgraph Evolutionary Loop
+        GAInit --> Population[GA Population]
+        Population --> Eval[ElementAssignmentService <br/> Fast-path 2D Operating Radius & Slew/Hinge Offset checks]
+        Eval --> LoadChart[LoadChartCapacityResolver <br/> ConservativeStep Lookup with pre-sorted LoadChartIndex]
+        LoadChart --> CheckWT{Capacity >= Weight?}
+        CheckWT --> Status[Assign LiftStatus]
+        Status --> Fitness[FitnessEvaluator <br/> Calculate Weighted Fitness Deductions]
+        
+        Fitness --> CheckStagnation{Converged or Stagnated?}
+        CheckStagnation -- No --> Select[Tournament Selection of size k=3]
+        Select --> Cross[CrossoverOperator <br/> Uniform Swaps & Overlap Merges]
+        Cross --> Mutate[MutationOperator <br/> 80/10/10 split: Perturb/Add/Remove setups]
+        Mutate --> Population
+    end
+    
+    %% Final Result Diagnostics Stage
+    CheckStagnation -- Yes --> Sanitize[Deduplicate Setup Positions & Recalculate Final Coverage]
+    Sanitize --> Diagnostics[GACsvDiagnosticsService <br/> Generate detailed CSV reports & run history logs]
+    Diagnostics --> Output[Final PlacementResult Bundle]
+```

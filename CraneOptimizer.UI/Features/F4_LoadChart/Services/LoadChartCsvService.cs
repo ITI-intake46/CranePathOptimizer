@@ -1,4 +1,4 @@
-using CraneOptimizer.Domain.Entities;
+﻿using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Units;
 using System.Data;
 using System.Globalization;
@@ -656,12 +656,97 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             if (string.IsNullOrWhiteSpace(header))
                 return string.Empty;
 
+            string clean = RemoveVisualDuplicateSuffix(header);
+
+            string normalized = NormalizeGridNumber(clean);
+            if (TryParseFlexibleNumber(normalized, out _))
+                return normalized;
+
+            return TryExtractAnnotatedBoomLength(clean, out string numericBoomLength)
+                ? numericBoomLength
+                : normalized;
+        }
+
+        private static string RemoveVisualDuplicateSuffix(string header)
+        {
             string clean = header.Trim();
             clean = Regex.Replace(clean, @"\s*\(\d+\)\s*$", string.Empty);
             clean = Regex.Replace(clean, @"_\d+$", string.Empty);
-            return NormalizeGridNumber(clean);
+            return clean.Trim();
         }
 
+        private static bool TryExtractAnnotatedBoomLength(string header, out string numericBoomLength)
+        {
+            numericBoomLength = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(header))
+                return false;
+
+            string clean = header.Trim().Trim('"').Trim();
+            clean = clean.Replace('\u00A0', ' ');
+            clean = Regex.Replace(clean, @"\s+", " ").Trim();
+
+            Match match = Regex.Match(
+                clean,
+                @"^\s*(?<number>[+-]?(?:\d+(?:[\.,]\d+)?|[\.,]\d+))\s*(?<unit>m|meter|meters|metre|metres)?\s*(?<annotation>.*)$",
+                RegexOptions.IgnoreCase);
+
+            if (!match.Success)
+                return false;
+
+            string numberToken = match.Groups["number"].Value;
+            if (!TryParseFlexibleNumber(numberToken, out double boomLength))
+                return false;
+
+            string annotation = match.Groups["annotation"].Value.Trim();
+            if (string.IsNullOrWhiteSpace(annotation))
+            {
+                numericBoomLength = boomLength.ToString("G", CultureInfo.InvariantCulture);
+                return true;
+            }
+
+            if (ContainsDisallowedAdditionalBoomHeaderNumber(annotation))
+                return false;
+
+            if (!LooksLikeVisualOperationalAnnotation(annotation))
+                return false;
+
+            numericBoomLength = boomLength.ToString("G", CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        private static bool ContainsDisallowedAdditionalBoomHeaderNumber(string annotation)
+        {
+            MatchCollection numberMatches = Regex.Matches(annotation, @"[+-]?(?:\d+(?:[\.,]\d+)?|[\.,]\d+)");
+            if (numberMatches.Count == 0)
+                return false;
+
+            foreach (Match numberMatch in numberMatches.Cast<Match>())
+            {
+                if (!TryParseFlexibleNumber(numberMatch.Value, out double annotationNumber))
+                    return true;
+
+                if (Math.Abs(annotationNumber - 360d) > 0.001d)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool LooksLikeVisualOperationalAnnotation(string annotation)
+        {
+            if (string.IsNullOrWhiteSpace(annotation))
+                return false;
+
+            string compact = Regex.Replace(annotation, @"\s+", string.Empty);
+            if (compact.Length == 0)
+                return false;
+
+            if (compact.All(character => character == '/' || character == '-' || character == '–' || character == '—'))
+                return false;
+
+            return compact.Any(character => !char.IsWhiteSpace(character));
+        }
         private static string NormalizeFlexibleNumber(string? input)
         {
             if (string.IsNullOrWhiteSpace(input))

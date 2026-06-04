@@ -415,6 +415,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             if (candidateGrid.Density < 0.08)
                 return null;
 
+            bool usesPhysicalLaneReconstruction = HasDuplicateNumericValues(candidateGrid.HeaderValues);
+            var importGrid = usesPhysicalLaneReconstruction
+                ? BuildConservativeImportGrid(candidateGrid.RawGrid)
+                : new List<List<string>>();
+
             var boundsWords = includeHeaderInBounds
                 ? header.RowWords
                     .Concat(candidateGrid.UsedRows.SelectMany(row => row.OriginalRow))
@@ -428,9 +433,18 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
 
             var warnings = new List<string>
             {
-                "Row-stream extractor parsed visual rows as radius plus ordered capacity values.",
-                "X positions were used only to estimate the first capacity column. Review the preview before saving."
+                "Row-stream extractor parsed visual rows as radius plus ordered capacity values."
             };
+
+            if (usesPhysicalLaneReconstruction)
+            {
+                warnings.Add("PHYSICAL_LANE_RECONSTRUCTION: Capacity columns were reconstructed from PDF body-cell X positions because at least one boom header spans multiple physical lanes.");
+                warnings.Add("The exact PDF visual table is preserved with repeated boom headers; optimization uses the conservative minimum capacity across duplicate same-radius/same-boom columns.");
+            }
+            else
+            {
+                warnings.Add("X positions were used only to estimate the first capacity column. Review the preview before saving.");
+            }
 
             if (candidateGrid.SkippedBodyValues > 0)
                 warnings.Add($"{candidateGrid.SkippedBodyValues} body value(s) were outside the supported boom-column range and were skipped.");
@@ -451,7 +465,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 warnings.Add("Nearby load-chart keywords were not detected. This can be normal in multilingual manufacturer PDFs; verify the parsed grid before saving.");
 
             string summary =
-                $"{candidateGrid.ColumnCount} boom columns, {candidateGrid.RadiusRowCount} radius rows, density {candidateGrid.Density:P0}, top-row density {candidateGrid.TopRowsDensity:P0}.";
+                usesPhysicalLaneReconstruction
+                    ? $"{candidateGrid.ColumnCount} visual boom columns, {candidateGrid.RadiusRowCount} radius rows, density {candidateGrid.Density:P0}, top-row density {candidateGrid.TopRowsDensity:P0}. Physical lane reconstruction detected spanning header(s)."
+                    : $"{candidateGrid.ColumnCount} boom columns, {candidateGrid.RadiusRowCount} radius rows, density {candidateGrid.Density:P0}, top-row density {candidateGrid.TopRowsDensity:P0}.";
 
             return new PdfTableCandidateDto
             {
@@ -468,6 +484,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 ConfidenceLabel = GetConfidenceLabel(candidateGrid.Score),
                 Summary = summary,
                 RawGrid = candidateGrid.RawGrid,
+                ImportGrid = importGrid,
                 Warnings = warnings.Distinct().ToList()
             };
         }
@@ -666,18 +683,43 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             List<RowStreamData> streamRows,
             List<PdfWordInfo> allWords)
         {
-            var fullHeaderValues = header.Numbers
+            var orderedHeaderTokens = header.Numbers
                 .OrderBy(token => token.Word.CenterX)
+                .ToList();
+
+            var fullHeaderValues = orderedHeaderTokens
                 .Select(token => token.Value)
                 .ToList();
 
-            // Repeated boom headers cannot be represented by the current 2D model:
-            // Radius + BoomLength -> Capacity. They usually indicate an extra dimension
-            // such as angle, mode, jib, counterweight, or configuration.
+            // Explicit repeated numeric header tokens usually indicate an extra chart
+            // dimension such as mode, counterweight, jib, or line count. The row-stream
+            // path below is for single-header rows, including headers that visually span
+            // several physical body lanes.
             if (HasDuplicateNumericValues(fullHeaderValues))
                 return null;
 
-            int headerCount = header.Numbers.Count;
+            int headerCount = orderedHeaderTokens.Count;
+            var gridOptions = new List<CandidateGrid>();
+
+            var physicalLaneCenters = InferPhysicalCapacityLaneCenters(streamRows, orderedHeaderTokens);
+            var physicalHeaderValues = MapHeaderValuesToPhysicalLanes(orderedHeaderTokens, physicalLaneCenters);
+
+            if (physicalHeaderValues.Count >= MinimumBoomColumnCount
+                && physicalLaneCenters.Count == physicalHeaderValues.Count
+                && physicalHeaderValues.Count > headerCount
+                && HasDuplicateNumericValues(physicalHeaderValues))
+            {
+                var physicalGrid = BuildGrid(
+                    header,
+                    streamRows,
+                    physicalHeaderValues,
+                    allWords,
+                    physicalLaneCenters);
+
+                if (physicalGrid != null)
+                    gridOptions.Add(physicalGrid);
+            }
+
             var columnCountOptions = new HashSet<int> { headerCount };
 
             if (headerCount > 4)
@@ -686,43 +728,49 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 columnCountOptions.Add(headerCount - 2);
             }
 
-            CandidateGrid? best = null;
-
             foreach (int columnCount in columnCountOptions.Where(count => count >= MinimumBoomColumnCount))
             {
-                var grid = BuildGrid(header, streamRows, columnCount, allWords);
-                if (grid == null)
-                    continue;
+                var headerValues = fullHeaderValues.Take(columnCount).ToList();
+                var grid = BuildGrid(
+                    header,
+                    streamRows,
+                    headerValues,
+                    allWords,
+                    physicalLaneCenters: null);
 
-                if (best == null || grid.Score > best.Score)
-                    best = grid;
+                if (grid != null)
+                    gridOptions.Add(grid);
             }
 
-            return best;
+            return gridOptions
+                .OrderByDescending(grid => grid.Score)
+                .FirstOrDefault();
         }
 
         private static CandidateGrid? BuildGrid(
             HeaderCandidate header,
             List<RowStreamData> streamRows,
-            int columnCount,
-            List<PdfWordInfo> allWords)
+            List<double> headerValues,
+            List<PdfWordInfo> allWords,
+            List<double>? physicalLaneCenters)
         {
-            var headerValues = header.Numbers
-                .OrderBy(token => token.Word.CenterX)
-                .Take(columnCount)
-                .Select(token => token.Value)
-                .ToList();
+            int columnCount = headerValues.Count;
 
             if (headerValues.Count < MinimumBoomColumnCount)
                 return null;
 
-            if (HasDuplicateNumericValues(headerValues))
+            bool usesPhysicalLaneReconstruction = physicalLaneCenters != null
+                && physicalLaneCenters.Count == headerValues.Count;
+
+            if (!usesPhysicalLaneReconstruction && HasDuplicateNumericValues(headerValues))
                 return null;
+
+            var displayHeaderLabels = BuildVisualHeaderLabels(headerValues, allWords, physicalLaneCenters);
 
             var rawGrid = new List<List<string>>
             {
                 new List<string> { "Radius (m)" }
-                    .Concat(headerValues.Select(FormatNumber))
+                    .Concat(displayHeaderLabels)
                     .ToList()
             };
 
@@ -739,7 +787,10 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
 
                 for (int i = 0; i < streamRow.BodyNumbers.Count; i++)
                 {
-                    int column = streamRow.StartColumn + i;
+                    var bodyNumber = streamRow.BodyNumbers[i];
+                    int column = usesPhysicalLaneReconstruction && physicalLaneCenters != null
+                        ? FindNearestLaneIndex(physicalLaneCenters, bodyNumber.Word.CenterX)
+                        : streamRow.StartColumn + i;
 
                     if (column < 0 || column >= columnCount)
                     {
@@ -747,7 +798,21 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                         continue;
                     }
 
-                    row[column + 1] = FormatNumber(streamRow.BodyNumbers[i].Value);
+                    if (usesPhysicalLaneReconstruction
+                        && physicalLaneCenters != null
+                        && !IsWithinLaneTolerance(physicalLaneCenters, column, bodyNumber.Word.CenterX))
+                    {
+                        skippedBodyValues++;
+                        continue;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(row[column + 1]))
+                    {
+                        skippedBodyValues++;
+                        continue;
+                    }
+
+                    row[column + 1] = FormatNumber(bodyNumber.Value);
                     assigned++;
                     nonEmptyCells++;
                 }
@@ -769,7 +834,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             double columnCoverage = GetColumnCoverage(rawGrid);
             double radiusIncreasingRatio = GetRadiusIncreasingRatio(rawGrid);
             double capacityTrendRatio = GetCapacityTrendRatio(rawGrid);
-            double headerIncreasingRatio = GetIncreasingRatio(headerValues);
+            double headerIncreasingRatio = GetNonDecreasingRatio(headerValues);
             double keywordScore = ScoreKeywords(allWords);
 
             bool emptyTopLeftPenalty = topRowsDensity < 0.25 || firstColumnDensity < 0.25;
@@ -786,6 +851,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 capacityTrendRatio * 45 +
                 headerIncreasingRatio * 45 +
                 keywordScore;
+
+            if (usesPhysicalLaneReconstruction)
+                score += 180;
 
             if (columnCount == header.Numbers.Count && columnCount >= 8)
                 score += 90;
@@ -823,6 +891,610 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 capacityTrendRatio,
                 emptyTopLeftPenalty,
                 score);
+        }
+
+        private static List<string> BuildVisualHeaderLabels(
+            IReadOnlyList<double> headerValues,
+            IReadOnlyList<PdfWordInfo> allWords,
+            IReadOnlyList<double>? physicalLaneCenters)
+        {
+            if (physicalLaneCenters == null)
+                return headerValues.Select(FormatNumber).ToList();
+
+            var markerWords = allWords
+                .Where(IsConditionMarkerWord)
+                .Where(word => IsWithinVisualLabelHorizontalRange(word.CenterX, physicalLaneCenters))
+                .ToList();
+
+            if (TryInferLocalHeaderLabelBand(
+                    headerValues,
+                    physicalLaneCenters,
+                    allWords,
+                    out double localBandUpperY,
+                    out double localBandLowerY))
+            {
+                return BuildVisualHeaderLabelsForTesting(
+                    headerValues,
+                    physicalLaneCenters,
+                    markerWords.Select(word => word.Text).ToList(),
+                    markerWords.Select(word => word.CenterX).ToList(),
+                    markerWords.Select(word => word.CenterY).ToList(),
+                    localBandUpperY,
+                    localBandLowerY);
+            }
+
+            // Conservative fallback: if the table-local subheader band cannot be inferred,
+            // only direct symbol markers can label duplicate visual lanes. Textual/global
+            // operation markers such as 360 degrees are intentionally ignored.
+            var symbolMarkerWords = markerWords
+                .Where(IsConditionSymbolMarkerWord)
+                .ToList();
+
+            return BuildVisualHeaderLabelsForTesting(
+                headerValues,
+                physicalLaneCenters,
+                symbolMarkerWords.Select(word => word.Text).ToList(),
+                symbolMarkerWords.Select(word => word.CenterX).ToList(),
+                symbolMarkerWords.Select(word => word.CenterY).ToList());
+        }
+
+        private static List<string> BuildVisualHeaderLabelsForTesting(
+            IReadOnlyList<double> headerValues,
+            IReadOnlyList<double> laneCenters,
+            IReadOnlyList<string> markerTexts,
+            IReadOnlyList<double> markerCenters,
+            IReadOnlyList<double>? markerCenterYs = null,
+            double? localBandUpperY = null,
+            double? localBandLowerY = null)
+        {
+            var labels = headerValues.Select(FormatNumber).ToList();
+
+            if (headerValues.Count == 0
+                || headerValues.Count != laneCenters.Count
+                || markerTexts.Count != markerCenters.Count
+                || (markerCenterYs != null && markerCenterYs.Count != markerTexts.Count)
+                || !HasDuplicateNumericValues(headerValues))
+            {
+                return labels;
+            }
+
+            var duplicateIndexes = Enumerable.Range(0, headerValues.Count)
+                .GroupBy(index => headerValues[index])
+                .Where(group => group.Count() > 1)
+                .SelectMany(group => group)
+                .ToHashSet();
+
+            if (duplicateIndexes.Count == 0)
+                return labels;
+
+            var candidateMarkers = new List<ConditionMarkerCandidate>();
+
+            for (int i = 0; i < markerTexts.Count; i++)
+            {
+                if (markerCenterYs != null && localBandUpperY.HasValue && localBandLowerY.HasValue)
+                {
+                    double y = markerCenterYs[i];
+                    if (y > localBandUpperY.Value + 0.001 || y < localBandLowerY.Value - 0.001)
+                        continue;
+                }
+
+                string marker = NormalizeConditionMarker(markerTexts[i]);
+                if (string.IsNullOrWhiteSpace(marker))
+                    continue;
+
+                int laneIndex = GetExclusiveLaneIndex(markerCenters[i], laneCenters);
+                if (laneIndex < 0 || !duplicateIndexes.Contains(laneIndex))
+                    continue;
+
+                candidateMarkers.Add(new ConditionMarkerCandidate(
+                    Marker: marker,
+                    CenterX: markerCenters[i],
+                    LaneIndex: laneIndex,
+                    DistanceToLaneCenter: Math.Abs(markerCenters[i] - laneCenters[laneIndex]),
+                    Priority: GetConditionMarkerPriority(marker)));
+            }
+
+            if (candidateMarkers.Count == 0)
+                return labels;
+
+            foreach (var laneGroup in candidateMarkers.GroupBy(marker => marker.LaneIndex))
+            {
+                var selected = laneGroup
+                    .OrderByDescending(marker => marker.Priority)
+                    .ThenBy(marker => marker.DistanceToLaneCenter)
+                    .First();
+
+                labels[selected.LaneIndex] = $"{FormatNumber(headerValues[selected.LaneIndex])} {selected.Marker}";
+            }
+
+            return labels;
+        }
+
+        private static int GetExclusiveLaneIndex(
+            double centerX,
+            IReadOnlyList<double> laneCenters)
+        {
+            if (laneCenters.Count == 0)
+                return -1;
+
+            for (int index = 0; index < laneCenters.Count; index++)
+            {
+                double leftBoundary = index == 0
+                    ? double.NegativeInfinity
+                    : (laneCenters[index - 1] + laneCenters[index]) / 2.0;
+
+                double rightBoundary = index == laneCenters.Count - 1
+                    ? double.PositiveInfinity
+                    : (laneCenters[index] + laneCenters[index + 1]) / 2.0;
+
+                if (centerX >= leftBoundary && centerX < rightBoundary)
+                    return index;
+            }
+
+            return laneCenters.Count - 1;
+        }
+
+        private static int GetConditionMarkerPriority(string marker)
+        {
+            return marker switch
+            {
+                "*" => 100,
+                "â€ " => 95,
+                "#" => 90,
+                "360Â°" => 80,
+                "rear" => 70,
+                "front" => 70,
+                "side" => 70,
+                "over" => 60,
+                _ => 10
+            };
+        }
+
+        private static bool TryInferLocalHeaderLabelBand(
+            IReadOnlyList<double> headerValues,
+            IReadOnlyList<double> laneCenters,
+            IReadOnlyList<PdfWordInfo> allWords,
+            out double localBandUpperY,
+            out double localBandLowerY)
+        {
+            localBandUpperY = 0;
+            localBandLowerY = 0;
+
+            if (headerValues.Count == 0 || laneCenters.Count == 0 || allWords.Count == 0)
+                return false;
+
+            var potentialHeaderWords = allWords
+                .Where(word => IsWithinVisualLabelHorizontalRange(word.CenterX, laneCenters))
+                .Where(word => IsLikelyHeaderValueWord(word, headerValues))
+                .ToList();
+
+            if (potentialHeaderWords.Count == 0)
+                return false;
+
+            var headerRows = ClusterRows(potentialHeaderWords)
+                .Select(row => new
+                {
+                    Words = row,
+                    CenterY = row.Average(word => word.CenterY),
+                    DistinctHeaderMatches = row
+                        .Select(word => TryExtractNumber(word.Text, out double value) ? Math.Round(value, 2) : double.NaN)
+                        .Where(value => !double.IsNaN(value))
+                        .Distinct()
+                        .Count()
+                })
+                .Where(row => row.DistinctHeaderMatches >= Math.Min(3, headerValues.Distinct().Count()))
+                .OrderByDescending(row => row.DistinctHeaderMatches)
+                .ThenByDescending(row => row.CenterY)
+                .ToList();
+
+            var headerRow = headerRows.FirstOrDefault();
+            if (headerRow == null)
+                return false;
+
+            double headerCenterY = headerRow.CenterY;
+
+            var candidateBodyWords = allWords
+                .Where(word => IsWithinVisualLabelHorizontalRange(word.CenterX, laneCenters))
+                .Where(word => word.CenterY < headerCenterY - 2.0)
+                .Where(IsLikelyCapacityBodyWord)
+                .ToList();
+
+            if (candidateBodyWords.Count == 0)
+                return false;
+
+            var firstDataRow = ClusterRows(candidateBodyWords)
+                .Select(row => new
+                {
+                    Words = row,
+                    CenterY = row.Average(word => word.CenterY),
+                    Count = row.Count
+                })
+                .Where(row => row.CenterY < headerCenterY - 2.0)
+                .OrderByDescending(row => row.CenterY)
+                .FirstOrDefault();
+
+            if (firstDataRow == null)
+                return false;
+
+            double firstDataCenterY = firstDataRow.CenterY;
+            double gap = headerCenterY - firstDataCenterY;
+
+            if (gap < 4.0)
+                return false;
+
+            double margin = Math.Max(0.5, gap * 0.08);
+            localBandUpperY = headerCenterY - margin;
+            localBandLowerY = firstDataCenterY + margin;
+
+            if (localBandLowerY >= localBandUpperY)
+            {
+                localBandUpperY = headerCenterY;
+                localBandLowerY = firstDataCenterY;
+            }
+
+            return localBandLowerY < localBandUpperY;
+        }
+
+        private static bool IsWithinVisualLabelHorizontalRange(
+            double centerX,
+            IReadOnlyList<double> laneCenters)
+        {
+            if (laneCenters.Count == 0)
+                return false;
+
+            double medianGap = GetMedianPositiveGap(laneCenters.ToList());
+            double margin = Math.Max(10.0, medianGap);
+
+            return centerX >= laneCenters.Min() - margin
+                && centerX <= laneCenters.Max() + margin;
+        }
+
+        private static bool IsLikelyHeaderValueWord(
+            PdfWordInfo word,
+            IReadOnlyList<double> headerValues)
+        {
+            if (!TryExtractNumber(word.Text, out double value))
+                return false;
+
+            return headerValues.Any(headerValue => Math.Abs(headerValue - value) < 0.05);
+        }
+
+        private static bool IsLikelyCapacityBodyWord(PdfWordInfo word)
+        {
+            if (!TryExtractNumber(word.Text, out double value))
+                return false;
+
+            return value > 0 && value <= 1000;
+        }
+
+        private static bool IsConditionSymbolMarkerWord(PdfWordInfo word)
+        {
+            string marker = NormalizeConditionMarker(word.Text);
+            return marker is "*" or "â€ " or "#";
+        }
+
+        private sealed record ConditionMarkerCandidate(
+            string Marker,
+            double CenterX,
+            int LaneIndex,
+            double DistanceToLaneCenter,
+            int Priority);
+
+        private static string? FindNearestConditionMarker(
+            double laneCenter,
+            IReadOnlyList<double> laneCenters,
+            IReadOnlyList<double> markerCenters,
+            IReadOnlyList<string> normalizedMarkers)
+        {
+            // Retained for compatibility with older generated diagnostics/tests. New label
+            // assignment uses exclusive visual lane regions through GetExclusiveLaneIndex.
+            if (markerCenters.Count == 0 || laneCenters.Count == 0)
+                return null;
+
+            int laneIndex = FindNearestLaneIndex(laneCenters.ToList(), laneCenter);
+            if (laneIndex < 0)
+                return null;
+
+            var candidates = new List<(string Marker, double Distance, int Priority)>();
+
+            for (int i = 0; i < markerCenters.Count; i++)
+            {
+                if (GetExclusiveLaneIndex(markerCenters[i], laneCenters) != laneIndex)
+                    continue;
+
+                string marker = normalizedMarkers[i];
+                if (string.IsNullOrWhiteSpace(marker))
+                    continue;
+
+                candidates.Add((marker, Math.Abs(markerCenters[i] - laneCenter), GetConditionMarkerPriority(marker)));
+            }
+
+            return candidates
+                .OrderByDescending(candidate => candidate.Priority)
+                .ThenBy(candidate => candidate.Distance)
+                .Select(candidate => candidate.Marker)
+                .FirstOrDefault();
+        }
+
+        private static bool IsConditionMarkerWord(PdfWordInfo word)
+        {
+            return !string.IsNullOrWhiteSpace(NormalizeConditionMarker(word.Text));
+        }
+
+        private static string NormalizeConditionMarker(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return string.Empty;
+
+            string normalized = text
+                .Trim()
+                .Replace("â”¬â–‘", "Â°", StringComparison.Ordinal)
+                .Replace("Âº", "Â°", StringComparison.Ordinal)
+                .Replace("Ëš", "Â°", StringComparison.Ordinal);
+
+            if (normalized.Equals("*", StringComparison.Ordinal)
+                || normalized.Equals("â€ ", StringComparison.Ordinal)
+                || normalized.Equals("#", StringComparison.Ordinal))
+            {
+                return normalized;
+            }
+
+            if (normalized.Contains("360", StringComparison.OrdinalIgnoreCase))
+                return "360Â°";
+
+            if (normalized.Contains("rear", StringComparison.OrdinalIgnoreCase))
+                return "rear";
+
+            if (normalized.Contains("front", StringComparison.OrdinalIgnoreCase))
+                return "front";
+
+            if (normalized.Contains("side", StringComparison.OrdinalIgnoreCase))
+                return "side";
+
+            if (normalized.Contains("over", StringComparison.OrdinalIgnoreCase))
+                return "over";
+
+            return string.Empty;
+        }
+private static List<double> InferPhysicalCapacityLaneCenters(
+            List<RowStreamData> streamRows,
+            List<NumericToken> orderedHeaderTokens)
+        {
+            if (streamRows.Count == 0 || orderedHeaderTokens.Count == 0)
+                return new List<double>();
+
+            double medianHeaderGap = GetMedianPositiveGap(
+                orderedHeaderTokens.Select(token => token.Word.CenterX).ToList());
+
+            if (medianHeaderGap <= 0)
+                return new List<double>();
+
+            var capacityXs = streamRows
+                .SelectMany(row => row.BodyNumbers.Select(token => token.Word.CenterX))
+                .OrderBy(value => value)
+                .ToList();
+
+            if (capacityXs.Count == 0)
+                return new List<double>();
+
+            double clusterTolerance = Math.Max(3.0, medianHeaderGap * 0.24);
+            var clusters = new List<List<double>>();
+
+            foreach (double x in capacityXs)
+            {
+                var lastCluster = clusters.LastOrDefault();
+                if (lastCluster == null || Math.Abs(lastCluster.Average() - x) > clusterTolerance)
+                {
+                    clusters.Add(new List<double> { x });
+                    continue;
+                }
+
+                lastCluster.Add(x);
+            }
+
+            int minimumClusterSupport = Math.Max(2, (int)Math.Ceiling(streamRows.Count * 0.06));
+
+            var lanes = clusters
+                .Where(cluster => cluster.Count >= minimumClusterSupport)
+                .Select(cluster => cluster.Average())
+                .OrderBy(center => center)
+                .ToList();
+
+            int headerCount = orderedHeaderTokens.Count;
+            if (lanes.Count < headerCount || lanes.Count > headerCount + 2)
+                return new List<double>();
+
+            return lanes;
+        }
+
+        private static List<double> MapHeaderValuesToPhysicalLanes(
+            List<NumericToken> orderedHeaderTokens,
+            List<double> laneCenters)
+        {
+            var headerValues = orderedHeaderTokens.Select(token => token.Value).ToList();
+            var headerCenters = orderedHeaderTokens.Select(token => token.Word.CenterX).ToList();
+
+            return ReconstructPhysicalLaneHeaderValuesForTesting(
+                headerValues,
+                headerCenters,
+                laneCenters);
+        }
+
+        private static List<double> ReconstructPhysicalLaneHeaderValuesForTesting(
+            IReadOnlyList<double> headerValues,
+            IReadOnlyList<double> headerCenters,
+            IReadOnlyList<double> laneCenters)
+        {
+            if (headerValues.Count == 0
+                || headerValues.Count != headerCenters.Count
+                || laneCenters.Count < headerValues.Count
+                || laneCenters.Count > headerValues.Count + 2)
+            {
+                return new List<double>();
+            }
+
+            var mapped = new List<double>();
+
+            foreach (double laneCenter in laneCenters)
+            {
+                int nearestHeaderIndex = 0;
+                double nearestDistance = Math.Abs(headerCenters[0] - laneCenter);
+
+                for (int i = 1; i < headerCenters.Count; i++)
+                {
+                    double distance = Math.Abs(headerCenters[i] - laneCenter);
+                    if (distance < nearestDistance)
+                    {
+                        nearestDistance = distance;
+                        nearestHeaderIndex = i;
+                    }
+                }
+
+                mapped.Add(headerValues[nearestHeaderIndex]);
+            }
+
+            if (GetNonDecreasingRatio(mapped) < 0.90)
+                return new List<double>();
+
+            if (laneCenters.Count > headerValues.Count && !HasDuplicateNumericValues(mapped))
+                return new List<double>();
+
+            return mapped;
+        }
+
+        private static int FindNearestLaneIndex(List<double> laneCenters, double x)
+        {
+            if (laneCenters.Count == 0)
+                return -1;
+
+            int nearestIndex = 0;
+            double nearestDistance = Math.Abs(laneCenters[0] - x);
+
+            for (int i = 1; i < laneCenters.Count; i++)
+            {
+                double distance = Math.Abs(laneCenters[i] - x);
+                if (distance < nearestDistance)
+                {
+                    nearestDistance = distance;
+                    nearestIndex = i;
+                }
+            }
+
+            return nearestIndex;
+        }
+
+        private static bool IsWithinLaneTolerance(List<double> laneCenters, int laneIndex, double x)
+        {
+            if (laneCenters.Count <= 1)
+                return true;
+
+            double medianGap = GetMedianPositiveGap(laneCenters);
+            double tolerance = Math.Max(5.0, medianGap * 0.58);
+
+            return Math.Abs(laneCenters[laneIndex] - x) <= tolerance;
+        }
+
+        private static double GetMedianPositiveGap(List<double> centers)
+        {
+            if (centers.Count < 2)
+                return 0;
+
+            var sorted = centers.OrderBy(value => value).ToList();
+            var gaps = new List<double>();
+
+            for (int i = 1; i < sorted.Count; i++)
+            {
+                double gap = sorted[i] - sorted[i - 1];
+                if (gap > 0.001)
+                    gaps.Add(gap);
+            }
+
+            if (gaps.Count == 0)
+                return 0;
+
+            return Median(gaps);
+        }
+
+        private static double GetNonDecreasingRatio(IReadOnlyList<double> values)
+        {
+            if (values.Count < 2)
+                return 0;
+
+            int nonDecreasing = 0;
+            for (int i = 1; i < values.Count; i++)
+            {
+                if (values[i] >= values[i - 1] - 0.001)
+                    nonDecreasing++;
+            }
+
+            return (double)nonDecreasing / (values.Count - 1);
+        }
+
+        private static List<List<string>> BuildConservativeImportGrid(IReadOnlyList<List<string>> exactGrid)
+        {
+            if (exactGrid.Count < 2 || exactGrid[0].Count < 2)
+                return new List<List<string>>();
+
+            var headerGroups = new List<(double BoomLength, string DisplayHeader, List<int> Columns)>();
+
+            for (int columnIndex = 1; columnIndex < exactGrid[0].Count; columnIndex++)
+            {
+                string headerText = exactGrid[0][columnIndex];
+                if (!TryExtractNumber(headerText, out double boomLength))
+                    continue;
+
+                int existingIndex = headerGroups.FindIndex(group =>
+                    Math.Abs(group.BoomLength - boomLength) < 0.001);
+
+                if (existingIndex >= 0)
+                {
+                    headerGroups[existingIndex].Columns.Add(columnIndex);
+                }
+                else
+                {
+                    headerGroups.Add((boomLength, FormatNumber(boomLength), new List<int> { columnIndex }));
+                }
+            }
+
+            if (headerGroups.Count == 0)
+                return new List<List<string>>();
+
+            var importGrid = new List<List<string>>
+            {
+                new List<string> { "Radius (m)" }
+                    .Concat(headerGroups.Select(group => group.DisplayHeader))
+                    .ToList()
+            };
+
+            foreach (var sourceRow in exactGrid.Skip(1))
+            {
+                if (sourceRow.Count == 0 || !TryExtractNumber(sourceRow[0], out double radius))
+                    continue;
+
+                var row = new List<string> { FormatNumber(radius) };
+
+                foreach (var group in headerGroups)
+                {
+                    var positiveValues = new List<double>();
+
+                    foreach (int columnIndex in group.Columns)
+                    {
+                        if (columnIndex >= sourceRow.Count)
+                            continue;
+
+                        if (TryExtractNumber(sourceRow[columnIndex], out double capacity) && capacity > 0)
+                            positiveValues.Add(capacity);
+                    }
+
+                    row.Add(positiveValues.Count == 0
+                        ? string.Empty
+                        : FormatNumber(positiveValues.Min()));
+                }
+
+                importGrid.Add(row);
+            }
+
+            return importGrid;
         }
 
         private static NumericToken? FindLeftRadius(

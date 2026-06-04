@@ -14,6 +14,7 @@
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+        <SolidColorBrush x:Key="InfoBrush" Color="#38BDF8" />
     </Window.Resources>
 
     <Grid Margin="{StaticResource Space4}">
@@ -92,7 +93,7 @@
                                         VerticalAlignment="Center"
                                         FontSize="{StaticResource FontSizeSM}"
                                         FontWeight="SemiBold"
-                                        Text="{Binding PositionDisplayText}" />
+                                        Text="{Binding PositionDisplayText, Mode=OneWay}" />
 
                                     <TextBlock
                                         Grid.Column="1"
@@ -133,7 +134,7 @@
                     <TextBlock Grid.Row="0" Text="SELECTED SETUP GEOMETRY DETAILS" FontWeight="Bold" FontSize="14" Foreground="{StaticResource PrimaryBrush}" />
                     <TextBlock Grid.Row="2" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}">
                         <Run Text="Active BIM Element: " FontWeight="Bold" />
-                        <Run Text="{Binding ActiveElementName}" Foreground="{StaticResource InfoBrush}" FontWeight="SemiBold" />
+                        <Run Text="{Binding ActiveElementName, Mode=OneWay}" Foreground="{StaticResource InfoBrush}" FontWeight="SemiBold" />
                     </TextBlock>
 
                     <ScrollViewer Grid.Row="4" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
@@ -149,15 +150,15 @@
                                     <TextBlock Grid.Row="0" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" FontSize="12" Text="1. Candidate Point (Setup Center)" />
                                     <TextBlock Grid.Row="1" FontSize="11" Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}">
                                         <Run Text="Model Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="X = "/><Run Text="{Binding CandidateModelX}"/><Run Text=" m"/>
-                                        <Run Text=", Y = "/><Run Text="{Binding CandidateModelY}"/><Run Text=" m"/>
-                                        <Run Text=", Z = "/><Run Text="{Binding CandidateModelZ}"/><Run Text=" m"/>
+                                        <Run Text="X = "/><Run Text="{Binding CandidateModelX, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Y = "/><Run Text="{Binding CandidateModelY, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Z = "/><Run Text="{Binding CandidateModelZ, Mode=OneWay}"/><Run Text=" m"/>
                                     </TextBlock>
                                     <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
                                         <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Easting = "/><Run Text="{Binding CandidateSiteE}"/><Run Text=" m"/>
-                                        <Run Text=", Northing = "/><Run Text="{Binding CandidateSiteN}"/><Run Text=" m"/>
-                                        <Run Text=", Elevation = "/><Run Text="{Binding CandidateSiteH}"/><Run Text=" m"/>
+                                        <Run Text="Easting = "/><Run Text="{Binding CandidateSiteE, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Northing = "/><Run Text="{Binding CandidateSiteN, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Elevation = "/><Run Text="{Binding CandidateSiteH, Mode=OneWay}"/><Run Text=" m"/>
                                     </TextBlock>
                                 </Grid>
                             </Border>
@@ -173,15 +174,15 @@
                                     <TextBlock Grid.Row="0" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" FontSize="12" Text="2. Crane Base Point" />
                                     <TextBlock Grid.Row="1" FontSize="11" Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}">
                                         <Run Text="Model Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="X = "/><Run Text="{Binding CraneBaseModelX}"/><Run Text=" m"/>
-                                        <Run Text=", Y = "/><Run Text="{Binding CraneBaseModelY}"/><Run Text=" m"/>
-                                        <Run Text=", Z = "/><Run Text="{Binding CraneBaseModelZ}"/><Run Text=" m"/>
+                                        <Run Text="X = "/><Run Text="{Binding CraneBaseModelX, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Y = "/><Run Text="{Binding CraneBaseModelY, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Z = "/><Run Text="{Binding CraneBaseModelZ, Mode=OneWay}"/><Run Text=" m"/>
                                     </TextBlock>
                                     <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
                                         <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Easting = "/><Run Text="{Binding CraneBaseSiteE}"/><Run Text=" m"/>
-                                        <Run Text=", Northing = "/><Run Text="{Binding CraneBaseSiteN}"/><Run Text=" m"/>
-                                        <Run Text=", Elevation = "/><Run Text="{Binding CraneBaseSiteH}"/><Run Text=" m"/>
+                                        <Run Text="Easting = "/><Run Text="{Binding CraneBaseSiteE, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Northing = "/><Run Text="{Binding CraneBaseSiteN, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Elevation = "/><Run Text="{Binding CraneBaseSiteH, Mode=OneWay}"/><Run Text=" m"/>
                                     </TextBlock>
                                 </Grid>
                             </Border>
@@ -197,15 +198,15 @@
                                     <TextBlock Grid.Row="0" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" FontSize="12" Text="3. Slew Center Point" />
                                     <TextBlock Grid.Row="1" FontSize="11" Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}">
                                         <Run Text="Model Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="X = "/><Run Text="{Binding SlewCenterModelX}"/><Run Text=" m"/>
-                                        <Run Text=", Y = "/><Run Text="{Binding SlewCenterModelY}"/><Run Text=" m"/>
-                                        <Run Text=", Z = "/><Run Text="{Binding SlewCenterModelZ}"/><Run Text=" m"/>
+                                        <Run Text="X = "/><Run Text="{Binding SlewCenterModelX, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Y = "/><Run Text="{Binding SlewCenterModelY, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Z = "/><Run Text="{Binding SlewCenterModelZ, Mode=OneWay}"/><Run Text=" m"/>
                                     </TextBlock>
                                     <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
                                         <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Easting = "/><Run Text="{Binding SlewCenterSiteE}"/><Run Text=" m"/>
-                                        <Run Text=", Northing = "/><Run Text="{Binding SlewCenterSiteN}"/><Run Text=" m"/>
-                                        <Run Text=", Elevation = "/><Run Text="{Binding SlewCenterSiteH}"/><Run Text=" m"/>
+                                        <Run Text="Easting = "/><Run Text="{Binding SlewCenterSiteE, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Northing = "/><Run Text="{Binding SlewCenterSiteN, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Elevation = "/><Run Text="{Binding SlewCenterSiteH, Mode=OneWay}"/><Run Text=" m"/>
                                     </TextBlock>
                                 </Grid>
                             </Border>
@@ -221,15 +222,15 @@
                                     <TextBlock Grid.Row="0" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" FontSize="12" Text="4. Boom Hinge Point" />
                                     <TextBlock Grid.Row="1" FontSize="11" Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}">
                                         <Run Text="Model Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="X = "/><Run Text="{Binding BoomHingeModelX}"/><Run Text=" m"/>
-                                        <Run Text=", Y = "/><Run Text="{Binding BoomHingeModelY}"/><Run Text=" m"/>
-                                        <Run Text=", Z = "/><Run Text="{Binding BoomHingeModelZ}"/><Run Text=" m"/>
+                                        <Run Text="X = "/><Run Text="{Binding BoomHingeModelX, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Y = "/><Run Text="{Binding BoomHingeModelY, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Z = "/><Run Text="{Binding BoomHingeModelZ, Mode=OneWay}"/><Run Text=" m"/>
                                     </TextBlock>
                                     <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
                                         <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Easting = "/><Run Text="{Binding BoomHingeSiteE}"/><Run Text=" m"/>
-                                        <Run Text=", Northing = "/><Run Text="{Binding BoomHingeSiteN}"/><Run Text=" m"/>
-                                        <Run Text=", Elevation = "/><Run Text="{Binding BoomHingeSiteH}"/><Run Text=" m"/>
+                                        <Run Text="Easting = "/><Run Text="{Binding BoomHingeSiteE, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Northing = "/><Run Text="{Binding BoomHingeSiteN, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Elevation = "/><Run Text="{Binding BoomHingeSiteH, Mode=OneWay}"/><Run Text=" m"/>
                                     </TextBlock>
                                 </Grid>
                             </Border>
@@ -245,15 +246,15 @@
                                     <TextBlock Grid.Row="0" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" FontSize="12" Text="5. Load Point (Element COG)" />
                                     <TextBlock Grid.Row="1" FontSize="11" Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}">
                                         <Run Text="Model Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="X = "/><Run Text="{Binding LoadPointModelX}"/><Run Text=" m"/>
-                                        <Run Text=", Y = "/><Run Text="{Binding LoadPointModelY}"/><Run Text=" m"/>
-                                        <Run Text=", Z = "/><Run Text="{Binding LoadPointModelZ}"/><Run Text=" m"/>
+                                        <Run Text="X = "/><Run Text="{Binding LoadPointModelX, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Y = "/><Run Text="{Binding LoadPointModelY, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Z = "/><Run Text="{Binding LoadPointModelZ, Mode=OneWay}"/><Run Text=" m"/>
                                     </TextBlock>
                                     <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
                                         <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Easting = "/><Run Text="{Binding LoadPointSiteE}"/><Run Text=" m"/>
-                                        <Run Text=", Northing = "/><Run Text="{Binding LoadPointSiteN}"/><Run Text=" m"/>
-                                        <Run Text=", Elevation = "/><Run Text="{Binding LoadPointSiteH}"/><Run Text=" m"/>
+                                        <Run Text="Easting = "/><Run Text="{Binding LoadPointSiteE, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Northing = "/><Run Text="{Binding LoadPointSiteN, Mode=OneWay}"/><Run Text=" m"/>
+                                        <Run Text=", Elevation = "/><Run Text="{Binding LoadPointSiteH, Mode=OneWay}"/><Run Text=" m"/>
                                     </TextBlock>
                                 </Grid>
                             </Border>
@@ -265,23 +266,23 @@
                         <UniformGrid Columns="5">
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="RADIUS" HorizontalAlignment="Center" />
-                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding RadiusVal}" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding RadiusVal, Mode=OneWay}" HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="BOOM LENGTH" HorizontalAlignment="Center" />
-                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding BoomLengthVal}" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding BoomLengthVal, Mode=OneWay}" HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="REQ CAPACITY" HorizontalAlignment="Center" />
-                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding RequiredCapacityVal}" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding RequiredCapacityVal, Mode=OneWay}" HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="AVAIL CAPACITY" HorizontalAlignment="Center" />
-                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding AvailableCapacityVal}" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding AvailableCapacityVal, Mode=OneWay}" HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="SAFETY MARGIN" HorizontalAlignment="Center" />
-                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding SafetyMarginVal}" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding SafetyMarginVal, Mode=OneWay}" HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
                         </UniformGrid>
                     </Border>
@@ -302,7 +303,7 @@
                     HorizontalAlignment="Center"
                     FontWeight="Bold"
                     Foreground="{StaticResource SuccessBrush}"
-                    Text="{Binding TotalLiftedText}" />
+                    Text="{Binding TotalLiftedText, Mode=OneWay}" />
 
                 <TextBlock
                     HorizontalAlignment="Center"
