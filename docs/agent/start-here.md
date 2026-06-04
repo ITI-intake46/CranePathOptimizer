@@ -47,6 +47,7 @@ Use this index to route your research based on the specific subsystem or domain 
 
 ### If Working On IFC Processing
 *   For parsing normalization pipelines, categories, and role classifications, read [ifc.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/ifc.md).
+*   For length scaling, mass extraction, fallback density estimations, and display unit preferences, read [units.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/units.md).
 *   For EF Core entity mapping and DB schema layouts, read [database.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/architecture/database.md).
 
 ### If Working On Database & Persistence Features

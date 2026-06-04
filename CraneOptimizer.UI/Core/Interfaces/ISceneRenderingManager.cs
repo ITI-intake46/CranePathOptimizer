@@ -16,6 +16,7 @@ namespace CraneOptimizer.UI.Core.Interfaces
         void Configure(SceneRenderingContext context);
         void ReRenderElements();
         void ReRenderCranes();
+        void UpdateElementMaterials(System.Collections.Generic.IReadOnlyList<CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs.ElementLiftResult>? results = null);
     }
 
     public sealed class SceneRenderingContext
