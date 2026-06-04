@@ -13,6 +13,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         private readonly ICraneRepository _craneRepository;
         private readonly ISceneService _sceneService;
         private readonly CraneSetupViewModel _craneSetup;
+        private readonly IIfcReaderRepository _ifcReader;
 
         public CraneOptimizerDialogService(
             ICranePlacementService placementService,
@@ -20,7 +21,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             IDialogService dialogService,
             ICraneRepository craneRepository,
             ISceneService sceneService,
-            CraneSetupViewModel craneSetup)
+            CraneSetupViewModel craneSetup,
+            IIfcReaderRepository ifcReader)
         {
             _placementService = placementService;
             _renderingService = renderingService;
@@ -28,6 +30,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             _craneRepository = craneRepository;
             _sceneService = sceneService;
             _craneSetup = craneSetup;
+            _ifcReader = ifcReader;
         }
 
         public CraneOptimizerDialogOutcome? ShowDialog()
@@ -38,7 +41,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 _dialogService,
                 _craneRepository,
                 _sceneService,
-                _craneSetup);
+                _craneSetup,
+                _ifcReader);
 
             if (System.Windows.Application.Current?.MainWindow != null)
                 dialog.Owner = System.Windows.Application.Current.MainWindow;
