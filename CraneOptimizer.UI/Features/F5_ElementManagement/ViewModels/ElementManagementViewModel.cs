@@ -136,6 +136,12 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 _concreteDensityKgPerM3 = value;
                 DensityValidationMessage = ValidateConcreteDensity(value);
                 OnPropertyChanged();
+
+                if (string.IsNullOrWhiteSpace(DensityValidationMessage))
+                {
+                    ElementWeightCalculator.ConcreteDensityKgPerCubicMeter = value;
+                    RecalculateElementWeights();
+                }
             }
         }
 
@@ -150,6 +156,22 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 _densityValidationMessage = value;
                 OnPropertyChanged();
             }
+        }
+
+        private void RecalculateElementWeights()
+        {
+            foreach (var element in Elements)
+            {
+                if (ElementWeightCalculator.IsEstimated(element))
+                {
+                    var newWeight = ElementWeightCalculator.GetWeightTons(element);
+                    element.ElementWT = newWeight;
+                    element.WeightTons = newWeight;
+                }
+            }
+
+            ApplySearchFilter();
+            LoadElementProperties();
         }
 
         public string SelectedElementName
@@ -286,6 +308,8 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 Elements.Add(e);
                 FilteredElements.Add(e);
             }
+
+            _ = LoadDensityAsync();
 
             ApplySearchFilter();
 

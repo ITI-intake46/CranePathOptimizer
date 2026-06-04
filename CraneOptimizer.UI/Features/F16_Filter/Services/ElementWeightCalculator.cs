@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Units;
 using System;
@@ -7,7 +8,21 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
 {
     internal static class ElementWeightCalculator
     {
-        private const double ConcreteDensityKgPerCubicMeter = 2500d;
+        private static double _concreteDensityKgPerCubicMeter = 2500d;
+        public static double ConcreteDensityKgPerCubicMeter
+        {
+            get => _concreteDensityKgPerCubicMeter;
+            set
+            {
+                if (Math.Abs(_concreteDensityKgPerCubicMeter - value) < 0.000001)
+                    return;
+                _concreteDensityKgPerCubicMeter = value;
+                ConcreteDensityChanged?.Invoke(null, EventArgs.Empty);
+            }
+        }
+
+        public static event EventHandler? ConcreteDensityChanged;
+
         private const double SteelDensityKgPerCubicMeter = 7850d;
         private const double AluminumDensityKgPerCubicMeter = 2700d;
         private const double GlassDensityKgPerCubicMeter = 2500d;
@@ -15,8 +30,11 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
 
         public static double GetWeightTons(PrecastElement element)
         {
-            if (element.ElementWT.HasValue && element.ElementWT.Value > 0d)
-                return element.ElementWT.Value;
+            if (!IsEstimated(element))
+            {
+                if (element.ElementWT.HasValue && element.ElementWT.Value > 0d)
+                    return element.ElementWT.Value;
+            }
 
             var volumeM3 = GetVolumeCubicMeters(element);
             if (volumeM3 <= 0d)
@@ -29,8 +47,8 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             UnitSystem.FromTons(GetWeightTons(element), MassUnit.Kilogram);
 
         public static bool IsEstimated(PrecastElement element) =>
-            !(element.ElementWT.HasValue && element.ElementWT.Value > 0d)
-            && GetWeightTons(element) > 0d;
+            element.WeightTrustLevel != IfcWeightTrustLevel.ExplicitQuantity &&
+            element.WeightTrustLevel != IfcWeightTrustLevel.ExplicitProperty;
 
         public static string FormatWeight(PrecastElement element, CultureInfo? culture = null)
         {
