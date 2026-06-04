@@ -110,21 +110,12 @@
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource RibbonSmallBtn}"
-                                Width="142" Margin="0,0,0,3"
+                                Width="142"
                                 ToolTip="All site zones: name, type, vertex coordinates"
                                 Click="SiteZonesReport_Click">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="📌" Margin="0,0,6,0" />
                                 <TextBlock Text="Site Zones Report" />
-                            </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource RibbonSmallBtn}"
-                                Width="142"
-                                ToolTip="Last GA run outcome: best placement, coverage %, fitness score"
-                                Click="OptimizationResultSummary_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="🏆" Margin="0,0,6,0" />
-                                <TextBlock Text="Optimization Results" />
                             </StackPanel>
                         </Button>
                     </StackPanel>

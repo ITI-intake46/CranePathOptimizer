@@ -50,11 +50,6 @@ namespace CraneOptimizer.UI.Features.F12_Reports.Views
             // TODO: All site zones: name, type, vertex coordinates.
         }
 
-        private void OptimizationResultSummary_Click(object sender, RoutedEventArgs e)
-        {
-            // TODO: Last GA run outcome: best placement, coverage %, fitness score.
-        }
-
         // ── ANALYSIS (wired commands — moved from AnalyzeTabView) ────────────
         // GA Diagnostics wired via Command="{Binding ShowDiagnosticsCommand}"
         // View Results    wired via Command="{Binding ShowResultsCommand}"
