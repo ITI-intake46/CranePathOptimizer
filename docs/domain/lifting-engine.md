@@ -21,6 +21,9 @@ Where:
 *   $Y_{\text{slew}} = Y_{\text{crane}} + \text{settings.SlewOffsetY}$
 *   $X_{\text{COG}}, Y_{\text{COG}}$ represent the element center of gravity.
 
+Implemented in:
+*   [LiftingCalculationEngine.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/LiftingCalculation/LiftingCalculationEngine.cs#L29-L43) (`CalculateRadius` methods)
+
 ---
 
 ### B. Hoist Lift Height ($H$)
@@ -34,6 +37,9 @@ Where:
 *   $Z_{\text{crane}}$ is the crane setup elevation.
 *   `settings.WireLength` is the length of the wire rope/rigging gear (default 2.0m).
 
+Implemented in:
+*   [LiftingCalculationEngine.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/LiftingCalculation/LiftingCalculationEngine.cs#L45-L54) (`CalculateLiftHeight` method)
+
 ---
 
 ### C. Required Lifting Weight ($W_{\text{req}}$)
@@ -45,6 +51,9 @@ Where:
 *   `ElementWT` is the precast element's weight in metric tons.
 *   `settings.AdditionalWt` is the rigging weight adjustment (default 0.0 tons).
 
+Implemented in:
+*   [LiftingCalculationEngine.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/LiftingCalculation/LiftingCalculationEngine.cs#L56-L59) (`CalculateRequiredWeight` method)
+
 ---
 
 ### D. Required Boom Length ($B$)
@@ -53,22 +62,34 @@ Calculates the minimum boom/jib length required to reach the suspended element h
 $$B = \sqrt{(R_{\text{hinge}})^2 + (H_{\text{hinge}})^2}$$
 
 Where:
-*   $R_{\text{hinge}} = \sqrt{(X_{\text{hinge}} - X_{\text{COG}})^2 + (Y_{\text{hinge}} - Y_{\text{COG}})^2}$ is the horizontal distance from the boom hinge to the COG.
+*   $R_{\text{hinge}} = \sqrt{(X_{\text{hinge}} - X_{\text{COG}})^2 + (Y_{\text{hinge}} - Y_{\text{COG}})^2}$ is the horizontal distance from the boom foot hinge to the element COG.
 *   $X_{\text{hinge}} = X_{\text{crane}} + \text{settings.BoomHingeOffsetX}$
 *   $Y_{\text{hinge}} = Y_{\text{crane}} + \text{settings.BoomHingeOffsetY}$
-*   $H_{\text{hinge}} = Z_{\text{COG}} + H_{\text{half}} + \text{settings.WireLength} - \left(Z_{\text{crane}} + \text{settings.BoomHingeOffsetZ}\right)$ is the vertical distance from the boom foot hinge to the hook point.
+*   $H_{\text{hinge}} = \max\left(0, Z_{\text{COG}} + H_{\text{half}} + \text{settings.WireLength} - \left(Z_{\text{crane}} + \text{settings.BoomHingeOffsetZ}\right)\right)$ is the non-negative vertical distance from the boom foot hinge to the hook point.
+
+Implemented in:
+*   [CraneConfigurationEngine.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/CraneConfiguration/CraneConfigurationEngine.cs#L42-L62) (`CalculateRequiredBoomLength` methods)
 
 ---
 
-## 2. Planned Features (Future Design Roadmap)
+## 2. Load Chart Resolver Integration
+
+The lifting engine does not calculate crane capacities in isolation. It coordinates with the load chart solver component:
+*   **Resolution Method:** [LiftingCalculationEngine.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/LiftingCalculation/LiftingCalculationEngine.cs#L61-L70) (`DetermineLiftStatus`) delegates capacity checks to [LoadChartCapacityResolver.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/LoadChartCapacityResolver.cs#L14-L62) (implementing [ILoadChartCapacityResolver.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Interfaces/ILoadChartCapacityResolver.cs)).
+*   **Capacity Resolution Workflow:** The solver receives the computed operating radius $R$, required boom length $B$, required capacity $W_{\text{req}}$, and the crane specification. It queries the `ConservativeStep` load chart using a pre-sorted indexing mechanism to find the best configuration that meets or exceeds $R$ and $B$, scales the capacity, and determines the final `LiftStatus`.
+
+---
+
+## 3. Planned Features (Future Design Roadmap)
 
 Subsequent updates are planned to introduce 3D dynamic clearance and sequence tracking:
 
-### Sequence-Based Obstacle Modeling
+### Sequence-Based Obstacle Modeling [Planned Feature]
 As elements are erected, they will be dynamically added as active 3D collision obstacles for subsequent lifts based on erection schedules.
 
-### Boom & Jib 3D Collision Clearance
+### Boom & Jib 3D Collision Clearance [Planned Feature]
 Vector-based intersection checks of the physical crane boom and jib structures against already installed elements.
 
-### Hoist Rope Trajectory Traversal
+### Hoist Rope Trajectory Traversal [Planned Feature]
 Tracing cables to ensure rigging ropes do not catch or scrape against adjacent structural components.
+
