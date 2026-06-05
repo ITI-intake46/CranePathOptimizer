@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>false</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CraneOptimizer.Domain\CraneOptimizer.Domain.csproj" />
+    <ProjectReference Include="..\CraneOptimizer.Application\CraneOptimizer.Application.csproj" />
+    <ProjectReference Include="..\CraneOptimizer.Infrastructure\CraneOptimizer.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CraneOptimizer.UI", "CraneO
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CraneOptimizer.Application.Tests", "CraneOptimizer.Application.Tests\CraneOptimizer.Application.Tests.csproj", "{667EB84F-E227-4C1F-BCD1-F33B9ED341CD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CraneOptimizer.GAExperiment", "CraneOptimizer.GAExperiment\CraneOptimizer.GAExperiment.csproj", "{B8117506-28CD-449B-8BD5-47D17A79CEAB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -83,6 +85,18 @@ Global
 		{667EB84F-E227-4C1F-BCD1-F33B9ED341CD}.Release|x64.Build.0 = Release|Any CPU
 		{667EB84F-E227-4C1F-BCD1-F33B9ED341CD}.Release|x86.ActiveCfg = Release|Any CPU
 		{667EB84F-E227-4C1F-BCD1-F33B9ED341CD}.Release|x86.Build.0 = Release|Any CPU
+		{B8117506-28CD-449B-8BD5-47D17A79CEAB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B8117506-28CD-449B-8BD5-47D17A79CEAB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B8117506-28CD-449B-8BD5-47D17A79CEAB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B8117506-28CD-449B-8BD5-47D17A79CEAB}.Debug|x64.Build.0 = Debug|Any CPU
+		{B8117506-28CD-449B-8BD5-47D17A79CEAB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B8117506-28CD-449B-8BD5-47D17A79CEAB}.Debug|x86.Build.0 = Debug|Any CPU
+		{B8117506-28CD-449B-8BD5-47D17A79CEAB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B8117506-28CD-449B-8BD5-47D17A79CEAB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B8117506-28CD-449B-8BD5-47D17A79CEAB}.Release|x64.ActiveCfg = Release|Any CPU
+		{B8117506-28CD-449B-8BD5-47D17A79CEAB}.Release|x64.Build.0 = Release|Any CPU
+		{B8117506-28CD-449B-8BD5-47D17A79CEAB}.Release|x86.ActiveCfg = Release|Any CPU
+		{B8117506-28CD-449B-8BD5-47D17A79CEAB}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
