@@ -55,6 +55,8 @@ Settings governing adaptive scaling models and alternative optimization executio
 *   `MutationRate`
 *   `ConvergenceThresholdPercent`
 *   `EnableConcurrentOptimization`
+*   `EnableReachabilitySeeding`
+*   `HotSpotSeedingRatio`
 
 ### D. Diagnostic Settings
 Options managing performance profilers and trace folder targets:
@@ -131,6 +133,22 @@ For every actively used setting, we detail its purpose, default, range, impacts,
 *   **Performance Impact:** High. Chromosome size scales array sizes in assignment checks.
 *   **Risk of Incorrect Values:** Setting too small prevents reaching 100% coverage on large sites.
 *   **Tuning Recommendation:** Match layout mobilization targets.
+
+### `EnableReachabilitySeeding`
+*   **Purpose:** Toggles pre-computation of reachability hot spots before starting GA.
+*   **Default:** `true` | **Allowed Range:** `true` or `false`
+*   **Engineering Impact:** None directly.
+*   **Optimization Impact:** Prunes search space by seeding initial GA population near coordinates with high coverage.
+*   **Performance Impact:** Lightweight pre-computation step (<3s).
+*   **Risk of Incorrect Values:** Disabling may cause GA to waste generations on unreachable areas on highly constrained sites.
+
+### `HotSpotSeedingRatio`
+*   **Purpose:** Fraction of GA initial population seeded from reachability hot spots.
+*   **Default:** `0.30` | **Allowed Range:** `0.0` (disabled) to `1.0` (all)
+*   **Engineering Impact:** None.
+*   **Optimization Impact:** Balances early exploit pressure (hot spots) with explore diversity (random placements).
+*   **Performance Impact:** None.
+*   **Risk of Incorrect Values:** Setting to `1.0` reduces genetic diversity, risking local entrapment. Setting to `0.0` disables reachability seeding.
 
 ---
 

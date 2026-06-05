@@ -126,6 +126,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 LatestResult = result;
                 _currentResult = result;
 
+                if (result.ReachabilityDiagnostics != null && result.ReachabilityDiagnostics.MaxHotSpotCoverage < 0.20)
+                {
+                    _dialogService.ShowMessage("The current allowed zones may not provide sufficient crane reach. Consider expanding or relocating the allowed zones.");
+                }
+
                 PointsList.ItemsSource = _workflow.CreatePointItems(result);
 
                 if (PointsList.Items.Count > 0)

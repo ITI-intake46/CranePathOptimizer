@@ -20,10 +20,14 @@ graph TD
     GAE --> FE[FitnessEvaluator]
     GAE --> CE[ConstraintEngine <br/> Constraints]
     
+    GAI --> RMS[ReachabilityMapService]
+    RMS --> CE
+    RMS --> LCCR[LoadChartCapacityResolver]
+    
     EAS --> LCE[LiftingCalculationEngine <br/> LiftingCalculation]
     EAS --> CCE[CraneConfigurationEngine <br/> CraneConfiguration]
     
-    LCE --> LCCR[LoadChartCapacityResolver]
+    LCE --> LCCR
     CCE --> LCCR
     
     FE --> CE
@@ -49,7 +53,7 @@ graph TD
 
 ```mermaid
 graph TD
-    Start([Start GA Run]) --> Init[Initialize Population 70% Rand / 30% Morton Seed]
+    Start([Start GA Run]) --> Init[Initialize Population: <br/> HotSpot Seeding (30%) vs Centroid/Random (70%)]
     Init --> Eval[Evaluate Population Fitness using Fast-Path Overload]
     Eval --> CheckStop{Converged or Stagnation Limit?}
     CheckStop -- Yes --> Sanitize[Sanitize & Filter Final Solution]
@@ -90,6 +94,11 @@ graph TD
 *   **Path:** [OptimizationScopeEngine.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/OptimizationScope/OptimizationScopeEngine.cs)
 *   **Interface:** `IOptimizationScopeEngine`
 *   **Responsibility:** Filters precast elements prior to optimization based on criteria like allowed IDs, excluded IDs, categories, and 2D bounding boxes.
+
+### 8. ReachabilityMapService (Phase 15)
+*   **Path:** [ReachabilityMapService.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/ReachabilityMapService.cs)
+*   **Interface:** [IReachabilityMapService](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Interfaces/IReachabilityMapService.cs)
+*   **Responsibility:** Pre-computes coverage and lifting capability for every grid point in the allowed zones. It checks grid coordinates using a custom `GridStep` to ensure they are inside allowed zones and outside forbidden zones (using the `ConstraintEngine`), and uses the `LoadChartCapacityResolver` to determine lifting feasibility. It returns the top-N coordinates sorted by coverage to seed the GA initial population (with `HotSpotSeedingRatio`).
 
 ---
 

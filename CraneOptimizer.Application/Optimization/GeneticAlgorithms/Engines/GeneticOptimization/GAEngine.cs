@@ -64,7 +64,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                     input.Elements,
                     input.Settings.PopulationSize,
                     input.Settings.MaxCranePositions,
-                    input.Settings);
+                    input.Settings,
+                    input.CraneSpec);
 
                 // ── Phase 1 Performance: Build pre-indexed data structures ──
                 var loadChartIndex = new LoadChartIndex(input.CraneSpec);

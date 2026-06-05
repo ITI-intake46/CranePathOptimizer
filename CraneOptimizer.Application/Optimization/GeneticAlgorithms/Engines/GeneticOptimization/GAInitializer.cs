@@ -27,11 +27,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
     public class GAInitializer : IGAInitializer
     {
         private readonly IConstraintEngine _constraintEngine;
+        private readonly IReachabilityMapService? _reachabilityMapService;
         private Random Rng => GARandomManager.Instance;
 
         public GAInitializer(IConstraintEngine constraintEngine)
+            : this(constraintEngine, null)
+        {
+        }
+
+        public GAInitializer(IConstraintEngine constraintEngine, IReachabilityMapService? reachabilityMapService)
         {
             _constraintEngine = constraintEngine;
+            _reachabilityMapService = reachabilityMapService;
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -44,29 +51,132 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             List<PrecastElement> elements,
             int populationSize,
             int maxCranePositions,
-            GASettings settings)
+            GASettings settings,
+            CraneSpecification craneSpec)
         {
             var population = new Population();
 
-            // ── Split population into random vs heuristic ──────────
-            int heuristicCount = (int)(populationSize * 0.30);
-            int randomCount = populationSize - heuristicCount;
+            bool useReachability = settings.EnableReachabilitySeeding 
+                                   && _reachabilityMapService != null 
+                                   && settings.HotSpotSeedingRatio > 0;
 
-            // ── 70% Pure Random ────────────────────────────────────
-            for (int i = 0; i < randomCount; i++)
+            IReadOnlyList<ScoredCoordinate> hotSpots = Array.Empty<ScoredCoordinate>();
+            if (useReachability)
             {
-                var solution = CreateRandomSolution(zones, forbiddenZones, maxCranePositions, settings);
-                population.Individuals.Add(solution);
+                int topN = Math.Max(100, (int)(populationSize * maxCranePositions * 1.5));
+                hotSpots = _reachabilityMapService!.ComputeHotSpots(elements, zones, forbiddenZones, craneSpec, settings, topN);
             }
 
-            // ── 30% Heuristic (element-centroid guided) ────────────
-            for (int i = 0; i < heuristicCount; i++)
+            if (useReachability && hotSpots.Count > 0)
             {
-                var solution = CreateHeuristicSolution(zones, forbiddenZones, elements, maxCranePositions, settings);
-                population.Individuals.Add(solution);
+                // Seed HotSpotSeedingRatio% of the population from hot spots
+                int hotSpotCount = (int)(populationSize * settings.HotSpotSeedingRatio);
+                int randomCount = populationSize - hotSpotCount;
+
+                for (int i = 0; i < hotSpotCount; i++)
+                {
+                    var solution = CreateHotSpotSolution(hotSpots.ToList(), zones, forbiddenZones, maxCranePositions, settings);
+                    population.Individuals.Add(solution);
+                }
+
+                for (int i = 0; i < randomCount; i++)
+                {
+                    var solution = CreateRandomSolution(zones, forbiddenZones, maxCranePositions, settings);
+                    population.Individuals.Add(solution);
+                }
+            }
+            else
+            {
+                // Legacy Strategy: 30% heuristic / 70% random
+                int heuristicCount = (int)(populationSize * 0.30);
+                int randomCount = populationSize - heuristicCount;
+
+                // ── 70% Pure Random ────────────────────────────────────
+                for (int i = 0; i < randomCount; i++)
+                {
+                    var solution = CreateRandomSolution(zones, forbiddenZones, maxCranePositions, settings);
+                    population.Individuals.Add(solution);
+                }
+
+                // ── 30% Heuristic (element-centroid guided) ────────────
+                for (int i = 0; i < heuristicCount; i++)
+                {
+                    var solution = CreateHeuristicSolution(zones, forbiddenZones, elements, maxCranePositions, settings);
+                    population.Individuals.Add(solution);
+                }
             }
 
             return population;
+        }
+
+        private CraneSolution CreateHotSpotSolution(
+            List<ScoredCoordinate> hotSpots,
+            List<GreenAreaZone> zones,
+            List<GreenAreaZone> forbiddenZones,
+            int maxCranePositions,
+            GASettings settings)
+        {
+            var chromosome = new CraneChromosome();
+            int craneCount = Rng.Next(1, maxCranePositions + 1);
+
+            var selectedIndices = new HashSet<int>();
+            int attempts = 0;
+
+            while (chromosome.CranePositions.Count < craneCount && attempts < craneCount * 3 && hotSpots.Count > 0)
+            {
+                attempts++;
+                int idx = Rng.Next(hotSpots.Count);
+                if (selectedIndices.Contains(idx))
+                    continue;
+
+                selectedIndices.Add(idx);
+                var spot = hotSpots[idx];
+                var point = new DomainPoint3D(spot.X, spot.Y, GetZoneElevationForPoint(spot.X, spot.Y, zones));
+
+                if (_constraintEngine.IsMeaningfullySeparated(point, chromosome.CranePositions, settings))
+                {
+                    chromosome.CranePositions.Add(point);
+                }
+            }
+
+            // Fallback: if we couldn't get enough distinct hot spot positions, fill the rest as random
+            while (chromosome.CranePositions.Count < craneCount)
+            {
+                var point = GenerateDiversePointInsideZones(
+                    zones,
+                    forbiddenZones,
+                    chromosome.CranePositions,
+                    settings);
+
+                chromosome.CranePositions.Add(point);
+            }
+
+            return new CraneSolution
+            {
+                Chromosome = chromosome,
+                Fitness = 0,
+                Penalty = 0,
+                CoverageRatio = 0
+            };
+        }
+
+        private double GetZoneElevationForPoint(double x, double y, List<GreenAreaZone> zones)
+        {
+            foreach (var zone in zones)
+            {
+                if (zone.Vertices == null)
+                    continue;
+
+                if (SpatialMath.PointInPolygon(new DomainPoint3D(x, y, 0), zone.Vertices))
+                {
+                    return GetZoneElevation(zone);
+                }
+            }
+
+            if (zones.Count > 0)
+                return GetZoneElevation(zones[0]);
+
+            return 0d;
         }
 
         // ══════════════════════════════════════════════════════════════

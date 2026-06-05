@@ -306,6 +306,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 CoverageRatio = appResult.CoverageRatio,
                 LiftedElementCount = appResult.LiftedElementCount,
                 TotalElementCount = appResult.TotalElementCount,
+                ReachabilityDiagnostics = appResult.ReachabilityDiagnostics,
                 Statistics = new DTOs.LiftStatistics
                 {
                     Liftable = appResult.Statistics.Liftable,

@@ -21,6 +21,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
         private readonly ICoverageEngine _coverageEngine;
         private readonly ICraneConfigurationEngine _configEngine;
         private readonly IGACsvDiagnosticsService _diagnosticsService;
+        private readonly IReachabilityMapService? _reachabilityMapService;
 
         public CranePlacementEngine(
             IGeneticAlgorithmEngine gaEngine,
@@ -28,12 +29,24 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
             ICoverageEngine coverageEngine,
             ICraneConfigurationEngine configEngine,
             IGACsvDiagnosticsService diagnosticsService)
+            : this(gaEngine, assignmentService, coverageEngine, configEngine, diagnosticsService, null)
+        {
+        }
+
+        public CranePlacementEngine(
+            IGeneticAlgorithmEngine gaEngine,
+            IElementAssignmentService assignmentService,
+            ICoverageEngine coverageEngine,
+            ICraneConfigurationEngine configEngine,
+            IGACsvDiagnosticsService diagnosticsService,
+            IReachabilityMapService? reachabilityMapService)
         {
             _gaEngine = gaEngine;
             _assignmentService = assignmentService;
             _coverageEngine = coverageEngine;
             _configEngine = configEngine;
             _diagnosticsService = diagnosticsService;
+            _reachabilityMapService = reachabilityMapService;
         }
 
         public PlacementResult RunOptimization(
@@ -304,6 +317,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                     Debug.WriteLine($"Failed to generate GA CSV diagnostics: {ex.Message}");
                     Console.WriteLine($"Failed to generate GA CSV diagnostics: {ex.Message}");
                 }
+
+                finalResult.ReachabilityDiagnostics = _reachabilityMapService?.LastDiagnostics;
 
                 return finalResult;
             }

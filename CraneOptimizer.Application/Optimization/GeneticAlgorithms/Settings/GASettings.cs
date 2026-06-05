@@ -261,5 +261,15 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// Enables the concurrent multi-setup optimization engine.
         /// </summary>
         public bool EnableConcurrentOptimization { get; set; } = true;
+
+        /// <summary>
+        /// Fraction of initial population seeded at reachability hot spots (0.0 = disabled, 1.0 = all).
+        /// </summary>
+        public double HotSpotSeedingRatio { get; set; } = 0.30;
+
+        /// <summary>
+        /// Whether to run reachability pre-computation before GA.
+        /// </summary>
+        public bool EnableReachabilitySeeding { get; set; } = true;
     }
 }
