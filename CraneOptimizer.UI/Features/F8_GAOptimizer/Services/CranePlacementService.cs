@@ -85,11 +85,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             {
                 var element = filteredElements[i];
 
-                if (!element.IncludeInGa)
-                {
-                    blockedElements.Add((element, $"IncludeInGa flag is false (Role: {element.Role}, Reason: {element.NormalizationDecisionReason})"));
-                    continue;
-                }
+                //if (!element.IncludeInGa)
+                //{
+                //    blockedElements.Add((element, $"IncludeInGa flag is false (Role: {element.Role}, Reason: {element.NormalizationDecisionReason})"));
+                //    continue;
+                //}
 
                 if (element.Role == CraneOptimizer.Domain.Diagnostics.IfcElementRole.NeedsReview)
                 {
@@ -127,13 +127,50 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     continue;
                 }
 
-                if (element.WeightTrustLevel != CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.ExplicitQuantity &&
-                    element.WeightTrustLevel != CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.ExplicitProperty)
+                var hasExplicitTrustedWeight =
+     element.WeightTrustLevel == CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.ExplicitQuantity ||
+     element.WeightTrustLevel == CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.ExplicitProperty;
+
+                var source = element.WeightSource ?? string.Empty;
+
+                var hasTrustedRepairedFallback =
+                    element.WeightTrustLevel == CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA
+                    && element.WeightTons is > 0
+                    && element.ElementWT is > 0
+                    && !string.IsNullOrWhiteSpace(element.ElementMaterial)
+                    && !element.ElementMaterial.Equals("N/A", StringComparison.OrdinalIgnoreCase)
+                    && !element.ElementMaterial.Equals("<Unnamed>", StringComparison.OrdinalIgnoreCase)
+                    && (
+                        source.Contains("MaterialDensityFallback", StringComparison.OrdinalIgnoreCase)
+                        || source.Contains("DensityFallback", StringComparison.OrdinalIgnoreCase)
+                        || source.Contains("PostPropagation", StringComparison.OrdinalIgnoreCase)
+                        || source.Contains("InheritedParent", StringComparison.OrdinalIgnoreCase)
+                    );
+                var isEffectivelyGaIncluded =
+    element.IncludeInGa ||
+    (
+        element.Role == CraneOptimizer.Domain.Diagnostics.IfcElementRole.LiftableElement
+        && hasTrustedRepairedFallback
+    );
+
+                if (!isEffectivelyGaIncluded)
                 {
-                    blockedElements.Add((element, $"Untrusted weight source/trust level (TrustLevel: {element.WeightTrustLevel}, Source: {element.WeightSource})."));
+                    blockedElements.Add((element,
+                        $"IncludeInGa flag is false and element was not repair-approved (Role: {element.Role}, TrustLevel: {element.WeightTrustLevel}, Source: {element.WeightSource}, Reason: {element.NormalizationDecisionReason})"));
                     continue;
                 }
 
+
+                if (!hasExplicitTrustedWeight && !hasTrustedRepairedFallback)
+                {
+                    blockedElements.Add((element,
+                        $"Untrusted weight source/trust level (TrustLevel: {element.WeightTrustLevel}, Source: {element.WeightSource})."));
+                    continue;
+                }
+                System.Diagnostics.Debug.WriteLine(
+    $"[GA_GATE_PASS_CANDIDATE] Id={element.ElementID}, Role={element.Role}, IncludeInGa={element.IncludeInGa}, " +
+    $"Trust={element.WeightTrustLevel}, Source='{element.WeightSource}', WeightTons={element.WeightTons}, " +
+    $"ElementWT={element.ElementWT}, Material='{element.ElementMaterial}', COG=({element.ElementCOG?.X}, {element.ElementCOG?.Y}, {element.ElementCOG?.Z})");
                 if (!_coordinateService.IsValidPoint(element.ElementCOG))
                 {
                     blockedElements.Add((element, "Invalid COG coordinates."));
