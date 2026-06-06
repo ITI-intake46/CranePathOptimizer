@@ -44,3 +44,13 @@ The Hungarian solver is implemented as an $O(N \cdot M^2)$ successive relocation
    - Calculates the path capacity $K$ (maximum number of elements that can be shifted without violating capacity limits or creating new overloads).
    - Relocates multiple elements along the shortest augmenting path in one iteration.
    - Repeats until all setup capacities are satisfied or no further paths exist.
+
+---
+
+## 4. Runtime Dynamic Routing
+
+To bridge the gap between static Dependency Injection (DI) initialization and runtime UI parameter changes, the system implements the [RoutingAssignmentService](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/RoutingAssignmentService.cs). 
+
+This routing proxy dynamically delegates assignment evaluation to either the greedy or Hungarian solver on a per-call basis:
+- If `settings.UseHungarianAssignment` is `true`, it delegates to [HungarianAssignmentService](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/HungarianAssignmentService.cs).
+- Otherwise, it delegates to the legacy [ElementAssignmentService](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/GeneticOptimization/ElementAssignmentService.cs).

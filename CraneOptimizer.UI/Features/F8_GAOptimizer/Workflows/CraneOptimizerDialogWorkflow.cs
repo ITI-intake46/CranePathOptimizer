@@ -133,12 +133,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
 
         private static int ParseInt(string? value, int fallback)
         {
-            return int.TryParse(value, out var parsed) ? parsed : fallback;
+            return int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
         }
 
         private static double ParseDouble(string? value, double fallback)
         {
-            return double.TryParse(value, out var parsed) ? parsed : fallback;
+            return double.TryParse(value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
         }
 
         private static bool ParseBool(string? value, bool fallback)
@@ -151,7 +151,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
             if (string.IsNullOrWhiteSpace(value))
                 return null;
 
-            return int.TryParse(value, out var parsed) ? parsed : fallback;
+            return int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
         }
     }
 

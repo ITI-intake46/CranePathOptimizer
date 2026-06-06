@@ -54,8 +54,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         {
             using (new GAProfiler.ProfileScope("HungarianAssignmentService.EvaluateAssignment"))
             {
-                int M = solution.Chromosome.CranePositions.Count;
-                if (M == 0)
+                if (elements == null || !elements.Any())
+                {
+                    return new AssignmentResult();
+                }
+
+                if (solution?.Chromosome?.CranePositions == null || !solution.Chromosome.CranePositions.Any())
                 {
                     var result = new AssignmentResult();
                     foreach (var element in elements)
@@ -65,6 +69,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                     UpdateAssignmentSummary(result);
                     return result;
                 }
+
+                int M = solution.Chromosome.CranePositions.Count;
 
                 // Pre-process user assignment overrides
                 Dictionary<string, int>? assignmentLookup = null;
@@ -124,8 +130,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         {
             using (new GAProfiler.ProfileScope("HungarianAssignmentService.EvaluateAssignment"))
             {
-                int M = solution.Chromosome.CranePositions.Count;
-                if (M == 0)
+                if (elements == null || !elements.Any())
+                {
+                    return new AssignmentResult();
+                }
+
+                if (solution?.Chromosome?.CranePositions == null || !solution.Chromosome.CranePositions.Any())
                 {
                     var result = new AssignmentResult();
                     foreach (var element in elements)
@@ -135,6 +145,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                     UpdateAssignmentSummary(result);
                     return result;
                 }
+
+                int M = solution.Chromosome.CranePositions.Count;
 
                 // Pre-process user assignment overrides
                 Dictionary<string, int>? assignmentLookup = null;
@@ -385,12 +397,23 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 // Reconstruct augmenting path
                 path.Clear();
                 int curr = targetSetup;
+                bool[] visited = new bool[M];
                 while (curr != -1)
                 {
+                    if (visited[curr])
+                    {
+                        break;
+                    }
+                    visited[curr] = true;
                     path.Add(curr);
                     curr = parent[curr];
                 }
                 path.Reverse();
+
+                if (path.Count == 0 || path[0] != overloadedSetup)
+                {
+                    break;
+                }
 
                 // Compute path capacity K = min(excess at source, deficit at target)
                 int excess = O[overloadedSetup] - capacity;

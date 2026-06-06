@@ -67,6 +67,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                             baseSettings.AdaptiveRelocationScaleFactor);
                     }
 
+                    System.Diagnostics.Debug.WriteLine($"[MultiStageGAOrchestrator] Running Stage {stagesExecuted}: MaxCranePositions={posCount}, RelocationWeight={stageSettings.RelocationWeight:F4}, AdaptiveRelocationScaleFactor={baseSettings.AdaptiveRelocationScaleFactor:F4}");
+
                     // 2. Prepare input for this run
                     var stageInput = CloneInput(project, stageSettings);
 
@@ -74,6 +76,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     var sw = Stopwatch.StartNew();
                     var runResult = await Task.Run(() => _placementEngine.RunOptimization(stageInput, cancellationToken), cancellationToken);
                     sw.Stop();
+
+                    System.Diagnostics.Debug.WriteLine($"[MultiStageGAOrchestrator] Stage {stagesExecuted} Finished: Coverage={runResult.CoverageRatio:P2}, ActivePositions={runResult.Positions.Count}, Fitness={runResult.FitnessScore:F4}, Time={sw.ElapsedMilliseconds}ms");
 
                     allStageResults.Add(runResult);
 

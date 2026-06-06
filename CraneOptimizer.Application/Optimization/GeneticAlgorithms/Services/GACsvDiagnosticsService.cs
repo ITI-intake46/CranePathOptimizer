@@ -585,7 +585,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         "MemoryBeforeMB", "MemoryAfterMB", "MemoryDeltaMB", "GCGen0Delta", "GCGen1Delta", "GCGen2Delta",
                         "ProfilingLogPath", "DetailedDiagnosticsCsvPath", "FailureBreakdownCsvPath",
                         "CoordinateReferenceEnabled", "CoordinateSystemName", "EPSGCode", "RotationToNorthDegrees",
-                        "LocalReferencePoint", "SurveyReferencePoint"
+                        "LocalReferencePoint", "SurveyReferencePoint",
+                        "EnableMultiStageDiscovery", "MultiStageCoverageTarget", "AdaptiveRelocationScaleFactor", "UseHungarianAssignment"
                     }));
                 }
 
@@ -664,7 +665,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     Escape(_transformService?.CurrentReference?.EPSGCode ?? "N/A"),
                     (_transformService?.CurrentReference?.RotationToNorthDegrees ?? 0.0).ToString("0.###", Invariant),
                     Escape(_transformService != null && _transformService.IsEnabled ? $"({_transformService.CurrentReference.LocalReferenceX.ToString("0.###", Invariant)}; {_transformService.CurrentReference.LocalReferenceY.ToString("0.###", Invariant)}; {_transformService.CurrentReference.LocalReferenceZ.ToString("0.###", Invariant)})" : "N/A"),
-                    Escape(_transformService != null && _transformService.IsEnabled ? $"({_transformService.CurrentReference.SurveyEasting.ToString("0.###", Invariant)}; {_transformService.CurrentReference.SurveyNorthing.ToString("0.###", Invariant)}; {_transformService.CurrentReference.SurveyElevation.ToString("0.###", Invariant)})" : "N/A")
+                    Escape(_transformService != null && _transformService.IsEnabled ? $"({_transformService.CurrentReference.SurveyEasting.ToString("0.###", Invariant)}; {_transformService.CurrentReference.SurveyNorthing.ToString("0.###", Invariant)}; {_transformService.CurrentReference.SurveyElevation.ToString("0.###", Invariant)})" : "N/A"),
+                    (input.Settings?.EnableMultiStageDiscovery ?? true).ToString().ToLower(),
+                    (input.Settings?.MultiStageCoverageTarget ?? 0.95).ToString("0.###", Invariant),
+                    (input.Settings?.AdaptiveRelocationScaleFactor ?? 0.40).ToString("0.###", Invariant),
+                    (input.Settings?.UseHungarianAssignment ?? false).ToString().ToLower()
                 }));
             }
 

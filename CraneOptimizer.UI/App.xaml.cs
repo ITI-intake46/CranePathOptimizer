@@ -349,18 +349,7 @@ namespace CraneOptimizer.UI
             services.AddScoped<IReachabilityMapService, ReachabilityMapService>();
             services.AddScoped<ElementAssignmentService>();
             services.AddScoped<HungarianAssignmentService>();
-            services.AddScoped<IElementAssignmentService>(sp =>
-            {
-                var settings = sp.GetRequiredService<GASettings>();
-                if (settings.UseHungarianAssignment)
-                {
-                    return sp.GetRequiredService<HungarianAssignmentService>();
-                }
-                else
-                {
-                    return sp.GetRequiredService<ElementAssignmentService>();
-                }
-            });
+            services.AddScoped<IElementAssignmentService, RoutingAssignmentService>();
             services.AddScoped<IMultiStageGAOrchestrator, MultiStageGAOrchestrator>();
             services.AddScoped<IFitnessEvaluator, FitnessEvaluator>();
             services.AddScoped<IGACsvDiagnosticsService, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GACsvDiagnosticsService>();

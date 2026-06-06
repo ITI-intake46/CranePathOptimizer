@@ -462,7 +462,8 @@ namespace CraneOptimizer.Application.Tests.GA
                 // Multi-stage settings
                 EnableMultiStageDiscovery = true,
                 MultiStageCoverageTarget = 0.95,
-                AdaptiveRelocationScaleFactor = 0.10
+                AdaptiveRelocationScaleFactor = 0.10,
+                UseHungarianAssignment = true
             };
 
             var configEngine = new CraneConfigurationEngine();
@@ -472,7 +473,9 @@ namespace CraneOptimizer.Application.Tests.GA
             var capacityResolver = new LoadChartCapacityResolver();
             var reachabilityMapService = new ReachabilityMapService(constraintEngine, capacityResolver);
             var initializer = new GAInitializer(constraintEngine, reachabilityMapService);
-            var assignmentService = new ElementAssignmentService(liftingEngine, configEngine);
+            var greedyService = new ElementAssignmentService(liftingEngine, configEngine, capacityResolver);
+            var hungarianService = new HungarianAssignmentService(liftingEngine, configEngine, capacityResolver);
+            var assignmentService = new RoutingAssignmentService(greedyService, hungarianService);
             var fitnessEvaluator = new FitnessEvaluator(constraintEngine);
             var selection = new TournamentSelection();
             var crossover = new CrossoverOperator();
