@@ -2,6 +2,8 @@ using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F2_IfcViewer;
+using System.Collections.Generic;
 
 namespace CraneOptimizer.UI.Core.Services
 {
@@ -56,7 +58,10 @@ namespace CraneOptimizer.UI.Core.Services
             _scene.ClearElements();
 
             if (clearReaderData)
+            {
                 _ifcReader.ClearData();
+                ElementVisualBuilder.ClearMeshCache("IFC unloaded");
+            }
         }
 
         private static PrecastElement TranslateElement(PrecastElement element, DomainPoint3D offset)
@@ -79,7 +84,33 @@ namespace CraneOptimizer.UI.Core.Services
                     element.ElementCOG.Z + offset.Z),
                 BBoxLength = element.BBoxLength,
                 BBoxWidth = element.BBoxWidth,
-                BBoxHeight = element.BBoxHeight
+                BBoxHeight = element.BBoxHeight,
+
+                // Copy all Phase 2A Normalization properties
+                RawIfcType = element.RawIfcType,
+                ResolvedCategory = element.ResolvedCategory,
+                Role = element.Role,
+                ParentGlobalId = element.ParentGlobalId,
+                ChildGlobalIds = new List<string>(element.ChildGlobalIds ?? new()),
+                VisibleGeometryOwnerGlobalIds = new List<string>(element.VisibleGeometryOwnerGlobalIds ?? new()),
+                HiddenInternalGeometryOwnerGlobalIds = new List<string>(element.HiddenInternalGeometryOwnerGlobalIds ?? new()),
+                IncludeInRender = element.IncludeInRender,
+                IncludeInElementTree = element.IncludeInElementTree,
+                IncludeInGa = element.IncludeInGa,
+                WeightTons = element.WeightTons,
+                WeightSource = element.WeightSource,
+                WeightTrustLevel = element.WeightTrustLevel,
+                VolumeM3 = element.VolumeM3,
+                COG_M = new DomainPoint3D(
+                    element.COG_M.X + offset.X,
+                    element.COG_M.Y + offset.Y,
+                    element.COG_M.Z + offset.Z),
+                BoundingBox_M = new DomainPoint3D(
+                    element.BoundingBox_M.X,
+                    element.BoundingBox_M.Y,
+                    element.BoundingBox_M.Z),
+                ExtractionWarnings = new List<string>(element.ExtractionWarnings ?? new()),
+                NormalizationDecisionReason = element.NormalizationDecisionReason
             };
         }
     }

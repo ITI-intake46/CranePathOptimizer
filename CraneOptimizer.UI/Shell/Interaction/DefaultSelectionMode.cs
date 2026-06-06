@@ -14,13 +14,19 @@ namespace CraneOptimizer.UI.Shell.Interaction
     {
         private readonly MainViewModel _vm;
         private readonly IViewportHitTestService _hitTest;
+        private readonly IViewportSelectionService _viewportSelection;
         private readonly Action _updateCameraClipping;
 
-        public DefaultSelectionMode(MainViewModel vm, IViewportHitTestService hitTest, Action updateCameraClipping)
+        public DefaultSelectionMode(
+            MainViewModel vm,
+            IViewportHitTestService hitTest,
+            IViewportSelectionService viewportSelection,
+            Action updateCameraClipping)
         {
-            _vm = vm;
-            _hitTest = hitTest;
-            _updateCameraClipping = updateCameraClipping;
+            _vm = vm ?? throw new ArgumentNullException(nameof(vm));
+            _hitTest = hitTest ?? throw new ArgumentNullException(nameof(hitTest));
+            _viewportSelection = viewportSelection ?? throw new ArgumentNullException(nameof(viewportSelection));
+            _updateCameraClipping = updateCameraClipping ?? throw new ArgumentNullException(nameof(updateCameraClipping));
         }
 
         public void OnMouseDown(HelixViewport3D viewport, MouseButtonEventArgs e)
@@ -32,7 +38,8 @@ namespace CraneOptimizer.UI.Shell.Interaction
                 if (_hitTest.TryGetWorldPoint(viewport, pickPos, out var pickWorld)
                     && _hitTest.TryGetHitCrane(viewport, pickPos, out var hitCrane))
                 {
-                    _vm.SelectedSceneCrane = hitCrane;
+                    // Selecting the crane we are about to drag clears other selections
+                    _viewportSelection.Select(hitCrane, false);
                     _vm.StartDrag(new DomainPoint3D(pickWorld.X, pickWorld.Y, pickWorld.Z));
                     e.Handled = true;
                     return;
@@ -75,33 +82,9 @@ namespace CraneOptimizer.UI.Shell.Interaction
         private bool HandleSelection(HelixViewport3D viewport, MouseButtonEventArgs e)
         {
             var hitObj = _hitTest.GetHitObject(viewport, e.GetPosition(viewport));
-            _vm.Scene.SetSelectedObject(hitObj);
-
-            if (hitObj == null)
-            {
-                _vm.Scene.SetSelectedZone(null);
-                _vm.Scene.SetSelectedCrane(null);
-                _vm.Scene.SetSelectedElements(new List<PrecastElement>());
-                return false;
-            }
-
-            if (hitObj is GreenAreaZone zone)
-            {
-                _vm.Scene.SetSelectedZone(zone);
-                return true;
-            }
-
-            if (hitObj is SceneCrane crane)
-            {
-                _vm.Scene.SetSelectedCrane(crane);
-                return true;
-            }
-
-            if (hitObj is PrecastElement element)
-            {
-                _vm.Scene.SetSelectedElements(new List<PrecastElement> { element });
-                return true;
-            }
+            
+            bool isCtrlHeld = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+            _viewportSelection.Select(hitObj, isCtrlHeld);
 
             return true;
         }

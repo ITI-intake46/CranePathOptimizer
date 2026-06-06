@@ -8,22 +8,22 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
 {
     public class BestPointVisualBuilder : IVisualBuilder<(double x, double y, double z)>
     {
-        private readonly double _markerRadiusInMillimeters;
+        private readonly double _markerRadiusMeters;
 
-        public BestPointVisualBuilder(double markerRadiusInMillimeters)
+        public BestPointVisualBuilder(double markerRadiusMeters)
         {
-            _markerRadiusInMillimeters = Math.Max(1.0, markerRadiusInMillimeters);
+            _markerRadiusMeters = Math.Max(0.01, markerRadiusMeters);
         }
 
         public Visual3D Build((double x, double y, double z) item)
         {
-            // Use raw mm coordinates so GA markers align with IFC scene geometry.
+            // Use normalized meter coordinates so GA markers align with IFC scene geometry.
             var center = new Point3D(item.x, item.y, item.z);
 
             var meshBuilder = new MeshBuilder(true, true);
             meshBuilder.AddSphere(
                 new Vector3((float)center.X, (float)center.Y, (float)center.Z),
-                (float)_markerRadiusInMillimeters,
+                (float)_markerRadiusMeters,
                 18,
                 12);
 

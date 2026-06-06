@@ -1,104 +1,35 @@
-using CraneOptimizer.Domain.Entities;
-using CraneOptimizer.Infrastructure.Contexts;
-using CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 {
     public sealed class ProjectService : IProjectService
     {
-        private readonly IDbContextFactory<CraneDbContext> _contextFactory;
+        private readonly IProjectWorkspaceService _workspaceService;
 
-        public ProjectService(IDbContextFactory<CraneDbContext> contextFactory)
+        public ProjectService(IProjectWorkspaceService workspaceService)
         {
-            _contextFactory = contextFactory;
-        }
-
-        public async Task<ProjectCardModel> CreateProjectAsync(
-            string name,
-            CancellationToken cancellationToken)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-                throw new ArgumentException("Project name is required.", nameof(name));
-
-            var now = DateTime.UtcNow;
-            var project = new Project
-            {
-                Id = Guid.NewGuid(),
-                Name = name.Trim(),
-                CreatedDate = now,
-                LastOpenedDate = now,
-                LastModifiedDate = now,
-                Notes = string.Empty,
-                IsFavorite = false,
-                IsDeleted = false
-            };
-
-            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-            await context.Projects.AddAsync(project, cancellationToken);
-            await context.SaveChangesAsync(cancellationToken);
-
-            return project.ToProjectCardDto().ToModel();
+            _workspaceService = workspaceService;
         }
 
         public async Task<IReadOnlyList<ProjectCardModel>> GetRecentProjectsAsync(CancellationToken cancellationToken)
         {
-            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-            var projects = await QueryProjects(context)
-                .OrderByDescending(project => project.LastOpenedDate)
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            return projects
-                .Select(project => project.ToProjectCardDto().ToModel())
-                .ToList();
+            return await _workspaceService.GetRecentProjectsAsync(cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<ProjectCardModel?> OpenProjectAsync(Guid projectId, CancellationToken cancellationToken)
         {
-            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-            var project = await context.Projects
-                .Include(project => project.IfcFiles)
-                .FirstOrDefaultAsync(project => project.Id == projectId, cancellationToken);
-
-            if (project == null)
-                return null;
-
-            var now = DateTime.UtcNow;
-            project.LastOpenedDate = now;
-            project.LastModifiedDate = now;
-            await context.SaveChangesAsync(cancellationToken);
-
-            return project.ToProjectCardDto().ToModel();
+            var session = await _workspaceService.OpenProjectAsync(projectId, cancellationToken).ConfigureAwait(false);
+            return session?.ProjectCard;
         }
 
         public async Task DeleteProjectAsync(Guid projectId, CancellationToken cancellationToken)
         {
-            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-            var project = await context.Projects
-                .FirstOrDefaultAsync(project => project.Id == projectId, cancellationToken);
-
-            if (project == null)
-                return;
-
-            project.IsDeleted = true;
-            project.LastModifiedDate = DateTime.UtcNow;
-            await context.SaveChangesAsync(cancellationToken);
+            await _workspaceService.DeleteProjectAsync(projectId, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task ToggleFavoriteAsync(Guid projectId, bool isFavorite, CancellationToken cancellationToken)
         {
-            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-            var project = await context.Projects
-                .FirstOrDefaultAsync(project => project.Id == projectId, cancellationToken);
-
-            if (project == null)
-                return;
-
-            project.IsFavorite = isFavorite;
-            project.LastModifiedDate = DateTime.UtcNow;
-            await context.SaveChangesAsync(cancellationToken);
+            await _workspaceService.ToggleFavoriteAsync(projectId, isFavorite, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<IReadOnlyList<ProjectCardModel>> SearchProjectsAsync(
@@ -106,35 +37,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             bool favoritesOnly,
             CancellationToken cancellationToken)
         {
-            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-            var query = QueryProjects(context);
-
-            if (favoritesOnly)
-                query = query.Where(project => project.IsFavorite);
-
-            if (!string.IsNullOrWhiteSpace(searchText))
-            {
-                var term = searchText.Trim();
-                query = query.Where(project =>
-                    project.Name.Contains(term) ||
-                    project.IfcFiles.Any(file => file.FileName.Contains(term) || file.FilePath.Contains(term)));
-            }
-
-            var projects = await query
-                .OrderByDescending(project => project.LastOpenedDate)
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            return projects
-                .Select(project => project.ToProjectCardDto().ToModel())
-                .ToList();
-        }
-
-        private IQueryable<Project> QueryProjects(CraneDbContext context)
-        {
-            return context.Projects
-                .AsNoTracking()
-                .Include(project => project.IfcFiles);
+            return await _workspaceService.SearchProjectsAsync(searchText, favoritesOnly, cancellationToken).ConfigureAwait(false);
         }
     }
 }

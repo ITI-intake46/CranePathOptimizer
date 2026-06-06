@@ -12,7 +12,9 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
             var argument = File.Exists(filePath)
                 ? $"/select,\"{filePath}\""
-                : $"\"{Path.GetDirectoryName(filePath) ?? filePath}\"";
+                : Directory.Exists(filePath)
+                    ? $"\"{filePath}\""
+                    : $"\"{Path.GetDirectoryName(filePath) ?? filePath}\"";
 
             Process.Start(new ProcessStartInfo
             {

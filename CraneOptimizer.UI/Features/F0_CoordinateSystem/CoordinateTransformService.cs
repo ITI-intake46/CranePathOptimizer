@@ -12,7 +12,7 @@ namespace CraneOptimizer.UI.Features.F0_CoordinateSystem
             _coordinateService = coordinateService;
         }
 
-        // IFC is treated as millimeters from xBIM extraction.
+        // IFC import is normalized to meters at the repository boundary.
         // Scene is meters (engineering canonical runtime space).
         public DomainPoint3D IfcToScene(DomainPoint3D ifcPoint) => _coordinateService.NormalizePoint(ifcPoint);
         public DomainPoint3D SceneToIfc(DomainPoint3D scenePoint) => _coordinateService.DenormalizePoint(scenePoint);

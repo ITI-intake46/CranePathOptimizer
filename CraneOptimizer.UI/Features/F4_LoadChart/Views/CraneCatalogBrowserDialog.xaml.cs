@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.UI.Features.F4_LoadChart.DTOs;
 using CraneOptimizer.UI.Features.F4_LoadChart.Services;
@@ -5,22 +6,54 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Data;
 using System.Globalization;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
-
+using System.Windows.Data;
 namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 {
     public partial class CraneCatalogBrowserDialog : Window
     {
         private readonly LoadChartCatalogService _catalogService;
+        private readonly IUnitSettingsService _unitSettingsService;
+        private readonly bool _isReadOnlyView;
         private List<LoadChartCraneDto> _allCranes = new();
 
         public CraneCatalogBrowserDialog()
+            : this(isReadOnlyView: false)
         {
+        }
+
+        public CraneCatalogBrowserDialog(bool isReadOnlyView)
+        {
+            _isReadOnlyView = isReadOnlyView;
             InitializeComponent();
+            ApplyDialogMode();
+
             var factory = App.ServiceProvider.GetRequiredService<IDbContextFactory<CraneDbContext>>();
             _catalogService = new LoadChartCatalogService(factory);
+            _unitSettingsService = App.ServiceProvider.GetRequiredService<IUnitSettingsService>();
             Loaded += async (_, _) => await LoadCranesAsync();
+        }
+        private void ApplyDialogMode()
+        {
+            if (_isReadOnlyView)
+            {
+                Title = "View Saved Load Charts";
+                TxtHeaderTitle.Text = "Saved Crane Load Charts";
+                TxtHeaderSubtitle.Text = "Browse saved cranes and inspect stored load-chart specifications.";
+                BtnImport.Visibility = Visibility.Collapsed;
+                BtnEdit.Visibility = Visibility.Collapsed;
+                BtnDelete.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            Title = "Crane Catalog Manager";
+            TxtHeaderTitle.Text = "Crane Catalog Manager";
+            TxtHeaderSubtitle.Text = "Manage saved crane load charts: import new charts, edit specifications, or delete outdated catalog entries.";
+            BtnImport.Visibility = Visibility.Visible;
+            BtnEdit.Visibility = Visibility.Visible;
+            BtnDelete.Visibility = Visibility.Visible;
         }
 
         private async Task LoadCranesAsync()
@@ -61,20 +94,56 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 DetailCounterweight.Text = string.Empty;
                 DetailPointCount.Text = string.Empty;
                 MiniGrid.ItemsSource = null;
+                MiniGrid.Columns.Clear();
                 return;
             }
 
             DetailModel.Text = crane.Name;
             DetailMfg.Text = crane.Manufacturer;
-            DetailDimensions.Text = BuildDimensionSummary(crane);
-            DetailOutrigger.Text = crane.OutriggerConfig;
-            DetailCounterweight.Text = $"{crane.Counterweight.ToString("F0", CultureInfo.InvariantCulture)} kg";
-            DetailPointCount.Text = crane.Points.Count.ToString(CultureInfo.InvariantCulture);
-            MiniGrid.ItemsSource = BuildPreviewTable(crane).DefaultView;
+            DetailDimensions.Text = BuildDimensionSummary(crane, _unitSettingsService.Current);
+            DetailOutrigger.Text = crane.HasExactVisualLoadChart
+                ? $"{crane.OutriggerConfig} | exact PDF visual chart"
+                : crane.OutriggerConfig;
+            DetailCounterweight.Text = UnitSystem.FormatMass(crane.Counterweight, _unitSettingsService.Current, CultureInfo.InvariantCulture);
+            DetailPointCount.Text = crane.HasExactVisualLoadChart
+                ? $"{crane.Points.Count} exact visual cell(s)"
+                : crane.Points.Count.ToString(CultureInfo.InvariantCulture);
+            var previewTable = BuildPreviewTable(crane);
+            ConfigureMiniGridColumns(previewTable);
+            MiniGrid.ItemsSource = previewTable.DefaultView;
         }
 
+
+        private void ConfigureMiniGridColumns(DataTable previewTable)
+        {
+            MiniGrid.Columns.Clear();
+
+            for (int columnIndex = 0; columnIndex < previewTable.Columns.Count; columnIndex++)
+            {
+                DataColumn dataColumn = previewTable.Columns[columnIndex];
+
+                MiniGrid.Columns.Add(new DataGridTextColumn
+                {
+                    Header = dataColumn.ColumnName,
+                    Binding = new Binding(BuildPreviewColumnBindingPath(columnIndex))
+                    {
+                        Mode = BindingMode.OneWay,
+                        FallbackValue = string.Empty,
+                        TargetNullValue = string.Empty
+                    }
+                });
+            }
+        }
+
+        private static string BuildPreviewColumnBindingPath(int columnIndex)
+        {
+            return $"[{columnIndex}]";
+        }
         private static DataTable BuildPreviewTable(LoadChartCraneDto crane)
         {
+            if (crane.HasExactVisualLoadChart)
+                return BuildExactPreviewTable(crane);
+
             var booms = crane.Points
                 .Select(point => point.BoomLength)
                 .Distinct()
@@ -102,9 +171,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                     var point = crane.Points
                         .FirstOrDefault(item => Math.Abs(item.Radius - radius) < 0.0001 && Math.Abs(item.BoomLength - booms[i]) < 0.0001);
 
-                    row[i + 1] = point == null || point.Capacity == 0d
-                        ? string.Empty
-                        : point.Capacity.ToString(CultureInfo.InvariantCulture);
+                    row[i + 1] = FormatCapacityForDisplay(point?.Capacity);
                 }
 
                 table.Rows.Add(row);
@@ -113,29 +180,140 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             return table;
         }
 
-        private static string BuildDimensionSummary(LoadChartCraneDto crane)
+        private static DataTable BuildExactPreviewTable(LoadChartCraneDto crane)
+        {
+            var rawGrid = TryReadExactRawGrid(crane.ExactLoadChartRawGridJson);
+            if (rawGrid.Count > 1)
+                return BuildTableFromRawGrid(rawGrid);
+
+            var orderedColumns = crane.Points
+                .Where(point => point.VisualColumnIndex.HasValue)
+                .GroupBy(point => point.VisualColumnIndex.Value)
+                .OrderBy(group => group.Key)
+                .Select(group => new
+                {
+                    Index = group.Key,
+                    Header = group.Select(point => point.VisualColumnHeader)
+                        .FirstOrDefault(header => !string.IsNullOrWhiteSpace(header))
+                        ?? group.First().BoomLength.ToString("G", CultureInfo.InvariantCulture)
+                })
+                .ToList();
+
+            var table = new DataTable();
+            table.Columns.Add("Radius");
+            foreach (var column in orderedColumns)
+                table.Columns.Add(column.Header);
+
+            foreach (double radius in crane.Points.Select(point => point.Radius).Distinct().OrderBy(value => value))
+            {
+                var row = table.NewRow();
+                row[0] = radius.ToString("G", CultureInfo.InvariantCulture);
+
+                for (int i = 0; i < orderedColumns.Count; i++)
+                {
+                    var column = orderedColumns[i];
+                    var point = crane.Points.FirstOrDefault(item =>
+                        item.VisualColumnIndex == column.Index && Math.Abs(item.Radius - radius) < 0.0001);
+
+                    row[i + 1] = FormatCapacityForDisplay(point?.Capacity);
+                }
+
+                table.Rows.Add(row);
+            }
+
+            return table;
+        }
+
+        private static List<List<string>> TryReadExactRawGrid(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return new List<List<string>>();
+
+            try
+            {
+                return JsonSerializer.Deserialize<List<List<string>>>(json) ?? new List<List<string>>();
+            }
+            catch
+            {
+                return new List<List<string>>();
+            }
+        }
+
+        private static DataTable BuildTableFromRawGrid(IReadOnlyList<List<string>> rawGrid)
+        {
+            var table = new DataTable();
+            int columnCount = rawGrid.Max(row => row.Count);
+
+            for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
+            {
+                string header = rawGrid[0].Count > columnIndex && !string.IsNullOrWhiteSpace(rawGrid[0][columnIndex])
+                    ? rawGrid[0][columnIndex]
+                    : columnIndex == 0 ? "Radius" : $"Column {columnIndex + 1}";
+
+                string uniqueHeader = header;
+                int suffix = 2;
+                while (table.Columns.Contains(uniqueHeader))
+                {
+                    uniqueHeader = $"{header} ({suffix})";
+                    suffix++;
+                }
+
+                table.Columns.Add(uniqueHeader);
+            }
+
+            foreach (var sourceRow in rawGrid.Skip(1))
+            {
+                var row = table.NewRow();
+                for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
+                    row[columnIndex] = FormatRawGridCellForDisplay(columnIndex, columnIndex < sourceRow.Count ? sourceRow[columnIndex] : string.Empty);
+
+                table.Rows.Add(row);
+            }
+
+            return table;
+        }
+
+        private static string FormatCapacityForDisplay(double? capacity)
+        {
+            double value = capacity.GetValueOrDefault();
+            return value > 0d
+                ? value.ToString("G", CultureInfo.InvariantCulture)
+                : string.Empty;
+        }
+
+        private static string FormatRawGridCellForDisplay(int columnIndex, string? value)
+        {
+            string text = value?.Trim() ?? string.Empty;
+            if (columnIndex == 0)
+                return text;
+
+            return LoadChartCsvService.TryParseFlexibleNumber(text, out double numericValue) && numericValue <= 0d
+                ? string.Empty
+                : text;
+        }
+        private static string BuildDimensionSummary(LoadChartCraneDto crane, UnitSettings settings)
         {
             var parts = new List<string>();
 
-            if (crane.VehicleLengthMm > 0 || crane.VehicleWidthMm > 0 || crane.VehicleHeightMm > 0)
+            if (crane.VehicleLengthMeters > 0 || crane.VehicleWidthMeters > 0 || crane.VehicleHeightMeters > 0)
             {
                 parts.Add(
-                    $"Transport L {FormatMillimetres(crane.VehicleLengthMm)}  W {FormatMillimetres(crane.VehicleWidthMm)}  H {FormatMillimetres(crane.VehicleHeightMm)}");
+                    $"Transport L {FormatLength(crane.VehicleLengthMeters, settings)}  W {FormatLength(crane.VehicleWidthMeters, settings)}  H {FormatLength(crane.VehicleHeightMeters, settings)}");
             }
 
-            if (crane.OutriggerWidthMm.HasValue || crane.OutriggerLengthMm.HasValue)
+            if (crane.OutriggerWidthMeters.HasValue || crane.OutriggerLengthMeters.HasValue)
             {
                 parts.Add(
-                    $"Outriggers W {FormatMillimetres(crane.OutriggerWidthMm)}  B {FormatMillimetres(crane.OutriggerLengthMm)}");
+                    $"Outriggers W {FormatLength(crane.OutriggerWidthMeters, settings)}  B {FormatLength(crane.OutriggerLengthMeters, settings)}");
             }
 
             return parts.Count > 0 ? string.Join("   |   ", parts) : "No crane dimensions saved.";
         }
 
-        private static string FormatMillimetres(double? value)
+        private static string FormatLength(double? value, UnitSettings settings)
         {
             return value.HasValue && value.Value > 0
-                ? $"{value.Value.ToString("F0", CultureInfo.InvariantCulture)} mm"
+                ? UnitSystem.FormatLength(value.Value, settings, CultureInfo.InvariantCulture)
                 : "-";
         }
 

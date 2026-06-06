@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -77,10 +77,15 @@
   <ItemGroup>
     <PackageReference Include="HelixToolkit.Geometry" Version="3.1.2" />
     <PackageReference Include="HelixToolkit.Wpf" Version="3.1.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.14">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.13" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.13" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.14" />
     <PackageReference Include="netDxf" Version="2023.11.10" />
+    <PackageReference Include="PdfPig" Version="0.1.14" />
     <PackageReference Include="Xbim.Essentials" Version="6.0.587" />
     <PackageReference Include="Xbim.Geometry" Version="5.1.820" />
     <PackageReference Include="Xbim.Ifc" Version="6.0.587" />
@@ -111,19 +116,13 @@
     </Resource>
   </ItemGroup>
 
-	<Target Name="CopyXbimNativeDll" AfterTargets="Build">
-		<!-- Find DLL dynamically from Infrastructure output -->
-		<ItemGroup>
-			<XbimNativeDll Include="..\CraneOptimizer.Infrastructure\bin\**\Xbim.Geometry.Engine64.dll" />
-		</ItemGroup>
-
-		<!-- Copy to UI output -->
-		<Copy SourceFiles="@(XbimNativeDll)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(XbimNativeDll)' != ''" />
-
-		<!-- Logging -->
-		<Message Importance="High" Text="Xbim DLL copied to $(OutputPath)" Condition="'@(XbimNativeDll)' != ''" />
-
-		<Warning Text="❌ Xbim.Geometry.Engine64.dll NOT FOUND in Infrastructure build output" Condition="'@(XbimNativeDll)' == ''" />
-	</Target>
+  <Target Name="CopyXbimNativeDll" AfterTargets="Build">
+    <ItemGroup>
+      <XbimNativeDll Include="..\CraneOptimizer.Infrastructure\bin\**\Xbim.Geometry.Engine64.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(XbimNativeDll)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(XbimNativeDll)' != ''" />
+    <Message Importance="High" Text="Xbim DLL copied to $(OutputPath)" Condition="'@(XbimNativeDll)' != ''" />
+    <Warning Text="Xbim.Geometry.Engine64.dll NOT FOUND in Infrastructure build output" Condition="'@(XbimNativeDll)' == ''" />
+  </Target>
 
 </Project>

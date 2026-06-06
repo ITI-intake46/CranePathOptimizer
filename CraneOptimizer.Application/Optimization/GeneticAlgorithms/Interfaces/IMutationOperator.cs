@@ -17,6 +17,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
             CraneSolution solution,
             List<GreenAreaZone> zones,
             List<GreenAreaZone> forbiddenZones,
-            GASettings settings);
+            GASettings settings,
+            int currentGeneration);
     }
 }

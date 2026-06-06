@@ -289,9 +289,9 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
             {
                 int oldIndex = Transform.GlobalOffsetUnitIndex;
                 if (TryParseDouble(GlobalOffsetXText, out double x))
-                    Transform.GlobalOffsetX = UnitToSceneMillimeters(x, oldIndex);
+                    Transform.GlobalOffsetX = UnitToSceneMeters(x, oldIndex);
                 if (TryParseDouble(GlobalOffsetYText, out double y))
-                    Transform.GlobalOffsetY = UnitToSceneMillimeters(y, oldIndex);
+                    Transform.GlobalOffsetY = UnitToSceneMeters(y, oldIndex);
 
                 int index = UnitIndexFromLabel(value);
                 if (Transform.GlobalOffsetUnitIndex == index) return;
@@ -335,8 +335,8 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
             get
             {
                 string global =
-                    $"Global({SceneMillimetersToUnit(Transform.GlobalOffsetX, Transform.GlobalOffsetUnitIndex):F2}, " +
-                    $"{SceneMillimetersToUnit(Transform.GlobalOffsetY, Transform.GlobalOffsetUnitIndex):F2}) {SelectedGlobalOffsetUnit}";
+                    $"Global({SceneMetersToUnit(Transform.GlobalOffsetX, Transform.GlobalOffsetUnitIndex):F2}, " +
+                    $"{SceneMetersToUnit(Transform.GlobalOffsetY, Transform.GlobalOffsetUnitIndex):F2}) {SelectedGlobalOffsetUnit}";
                 string common = $"{global}  DXF={DxfUnitSummary}  Scale={Transform.Scale:F4}  Rot={Transform.RotationDegrees:F1} deg";
 
                 if (UseCustomDxfReference)
@@ -347,12 +347,12 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
 
                 if (UseDetectedDxfReference)
                 {
-                    double x = SceneMillimetersToUnit(Transform.GlobalOffsetX, 2);
-                    double y = SceneMillimetersToUnit(Transform.GlobalOffsetY, 2);
+                    double x = SceneMetersToUnit(Transform.GlobalOffsetX, 2);
+                    double y = SceneMetersToUnit(Transform.GlobalOffsetY, 2);
                     return $"DXF original -> ({x:F2}, {y:F2}) m  {common}";
                 }
 
-                return $"Offset({SceneMillimetersToUnit(Transform.OffsetX, 2):F2}, {SceneMillimetersToUnit(Transform.OffsetY, 2):F2}) m  {common}";
+                return $"Offset({SceneMetersToUnit(Transform.OffsetX, 2):F2}, {SceneMetersToUnit(Transform.OffsetY, 2):F2}) m  {common}";
             }
         }
 
@@ -632,9 +632,9 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
                 globalY = parsedGlobalY;
             }
 
-            double targetX = globalX + UnitToSceneMillimeters(dxfX, Transform.ResolvedDxfUnitIndex);
-            double targetY = globalY + UnitToSceneMillimeters(dxfY, Transform.ResolvedDxfUnitIndex);
-            return (SceneMillimetersToUnit(targetX, 2), SceneMillimetersToUnit(targetY, 2));
+            double targetX = globalX + UnitToSceneMeters(dxfX, Transform.ResolvedDxfUnitIndex);
+            double targetY = globalY + UnitToSceneMeters(dxfY, Transform.ResolvedDxfUnitIndex);
+            return (SceneMetersToUnit(targetX, 2), SceneMetersToUnit(targetY, 2));
         }
 
         private void ConvertReferenceTextsForDxfUnitChange(int oldUnitIndex, int newUnitIndex)
@@ -653,8 +653,8 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
 
         private static string ConvertReferenceValue(double value, int oldUnitIndex, int newUnitIndex)
         {
-            double sceneMillimeters = UnitToSceneMillimeters(value, oldUnitIndex);
-            return FormatReferenceValue(SceneMillimetersToUnit(sceneMillimeters, newUnitIndex));
+            double sceneMeters = UnitToSceneMeters(value, oldUnitIndex);
+            return FormatReferenceValue(SceneMetersToUnit(sceneMeters, newUnitIndex));
         }
 
         private static string FormatReferenceValue(double value)
@@ -699,9 +699,9 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
         {
             _scaleText    = Transform.Scale.ToString("F4");
             _rotationText = Transform.RotationDegrees.ToString("F2");
-            _globalOffsetXText = SceneMillimetersToUnit(Transform.GlobalOffsetX, Transform.GlobalOffsetUnitIndex)
+            _globalOffsetXText = SceneMetersToUnit(Transform.GlobalOffsetX, Transform.GlobalOffsetUnitIndex)
                 .ToString("F2", CultureInfo.InvariantCulture);
-            _globalOffsetYText = SceneMillimetersToUnit(Transform.GlobalOffsetY, Transform.GlobalOffsetUnitIndex)
+            _globalOffsetYText = SceneMetersToUnit(Transform.GlobalOffsetY, Transform.GlobalOffsetUnitIndex)
                 .ToString("F2", CultureInfo.InvariantCulture);
 
             OnPropertyChanged(nameof(ScaleText));
@@ -815,21 +815,21 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
                 ? TryParseDetectedRefPoint(out x, out y, out error)
                 : TryParseRefPoint(out x, out y, out error);
 
-        private bool TryParseGlobalOffset(out double xSceneMillimeters, out double ySceneMillimeters, out string error)
+        private bool TryParseGlobalOffset(out double xSceneMeters, out double ySceneMeters, out string error)
         {
             bool okX = TryParseDouble(GlobalOffsetXText, out double x);
             bool okY = TryParseDouble(GlobalOffsetYText, out double y);
 
             if (okX && okY)
             {
-                xSceneMillimeters = UnitToSceneMillimeters(x, Transform.GlobalOffsetUnitIndex);
-                ySceneMillimeters = UnitToSceneMillimeters(y, Transform.GlobalOffsetUnitIndex);
+                xSceneMeters = UnitToSceneMeters(x, Transform.GlobalOffsetUnitIndex);
+                ySceneMeters = UnitToSceneMeters(y, Transform.GlobalOffsetUnitIndex);
                 error = "";
                 return true;
             }
 
-            xSceneMillimeters = 0;
-            ySceneMillimeters = 0;
+            xSceneMeters = 0;
+            ySceneMeters = 0;
             error = "Global offset X and Y must be numbers.";
             return false;
         }
@@ -870,11 +870,11 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
             return UnitIndexFromLabel(label);
         }
 
-        private static double UnitToSceneMillimeters(double value, int unitIndex)
-            => value * DxfTransformModel.UnitScaleToSceneMillimeters(unitIndex);
+        private static double UnitToSceneMeters(double value, int unitIndex)
+            => value * DxfTransformModel.UnitScaleToSceneMeters(unitIndex);
 
-        private static double SceneMillimetersToUnit(double sceneMillimeters, int unitIndex)
-            => sceneMillimeters / DxfTransformModel.UnitScaleToSceneMillimeters(unitIndex);
+        private static double SceneMetersToUnit(double sceneMeters, int unitIndex)
+            => sceneMeters / DxfTransformModel.UnitScaleToSceneMeters(unitIndex);
 
         private static int CountDxfTextEntities(DxfDocument doc)
         {

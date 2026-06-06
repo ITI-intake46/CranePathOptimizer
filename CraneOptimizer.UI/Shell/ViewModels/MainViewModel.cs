@@ -1,7 +1,10 @@
 using CraneOptimizer.Domain.Common;
+using Microsoft.Extensions.DependencyInjection;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
@@ -13,6 +16,9 @@ using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
+using CraneOptimizer.UI.Features.F17_Selection.ViewModels;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 
@@ -29,13 +35,21 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly IStatusService _status;
         private readonly IOriginService _originService;
         private readonly ICraneSceneInteractionService _craneSceneInteraction;
+        private readonly IUnitSettingsService _unitSettings;
         private readonly CraneVisualBuilder _craneVisualBuilder;
+        private readonly IProjectStateService _projectStateService;
+        private readonly IProjectCoordinateTransformService _transformService;
 
         private Crane? _selectedCrane;
         private bool _disposed;
+        private bool _suppressProjectStateSave;
         private Guid? _currentProjectId;
+        private ProjectSession? _currentProjectSession;
+        public ProjectSession? CurrentSession => _currentProjectSession;
         private string _currentProjectName = string.Empty;
         private string? _currentProjectIfcPath;
+        private string _currentProjectFolderPath = string.Empty;
+        private string _currentProjectDatabasePath = string.Empty;
 
         public MainViewModel(
             ISceneService scene,
@@ -55,13 +69,21 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IOriginService originService,
             ICraneSceneInteractionService craneSceneInteraction,
             CraneManagerViewModel craneManager,
-            CraneVisualBuilder craneVisualBuilder)
+            IUnitSettingsService unitSettings,
+            CraneVisualBuilder craneVisualBuilder,
+            IProjectStateService projectStateService,
+            SelectionViewModel selection,
+            CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel coordinateReference,
+            IProjectCoordinateTransformService transformService)
         {
             Scene = scene;
             Drawing = drawing;
             CranePlacement = cranePlacement;
             IfcViewer = ifcViewer;
             Dxf = dxf;
+            Selection = selection;
+            CoordinateReference = coordinateReference;
+            _transformService = transformService;
             CraneSetup = craneSetup;
             ElementManagement = elementManagement;
             CraneManager = craneManager;
@@ -75,13 +97,30 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _status = status;
             _originService = originService;
             _craneSceneInteraction = craneSceneInteraction;
+            _unitSettings = unitSettings;
             _craneVisualBuilder = craneVisualBuilder;
+            _projectStateService = projectStateService;
+
+            _transformService.ReferenceChanged += OnReferenceChanged;
 
             _status.StatusChanged += OnStatusChanged;
             _status.HistoryChanged += OnHistoryChanged;
             _originService.OriginChanged += OnOriginChanged;
             _originService.PickingChanged += OnOriginPickingChanged;
             _craneSceneInteraction.StateChanged += OnCraneInteractionStateChanged;
+            _unitSettings.SettingsChanged += OnUnitSettingsChanged;
+            Scene.ZoneAdded += OnProjectStateZoneChanged;
+            Scene.ZoneRemoved += OnProjectStateZoneChanged;
+            Scene.ZoneUpdated += OnProjectStateZoneChanged;
+            Scene.ZonesCleared += OnProjectStateChanged;
+            Scene.CraneAdded += OnProjectStateCraneChanged;
+            Scene.CraneRemoved += OnProjectStateCraneChanged;
+            Scene.CraneMoved += OnProjectStateCraneChanged;
+            Scene.CraneRotated += OnProjectStateCraneChanged;
+            Scene.CraneUpdated += OnProjectStateCraneChanged;
+            Scene.CranesCleared += OnProjectStateChanged;
+            IfcViewer.IfcModelChanged += OnProjectStateChanged;
+            Dxf.DxfStateChanged += OnProjectStateChanged;
 
             // When any crane is built/re-rendered, push its parameters to the right panel.
             _craneVisualBuilder.CraneParametersReady += (scene, p) =>
@@ -123,6 +162,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         public DrawingViewModel Drawing { get; }
         public IfcViewerViewModel IfcViewer { get; }
         public DxfTabViewModel Dxf { get; }
+        public SelectionViewModel Selection { get; }
+        public CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel CoordinateReference { get; }
 
         public ICommand StartDrawingCommand { get; }
         public ICommand OptimizeCommand { get; }
@@ -156,6 +197,26 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             private set
             {
                 _currentProjectIfcPath = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string CurrentProjectFolderPath
+        {
+            get => _currentProjectFolderPath;
+            private set
+            {
+                _currentProjectFolderPath = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string CurrentProjectDatabasePath
+        {
+            get => _currentProjectDatabasePath;
+            private set
+            {
+                _currentProjectDatabasePath = value;
                 OnPropertyChanged();
             }
         }
@@ -213,9 +274,21 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             double offsetX = (maxX - minX) * 0.1 + 10; // 10% of model width + 10m offset
             double craneX = maxX + offsetX;
             double craneY = (minY + maxY) / 2.0; // Center of model in Y
-            double craneZ = minZ; // Ground level
+            double craneZ = CalculateSceneGroundElevation();
 
             return new DomainPoint3D(craneX, craneY, craneZ);
+        }
+
+        private double CalculateSceneGroundElevation()
+        {
+            var zoneVertices = Scene.GetZones()
+                .Where(zone => zone.Vertices.Count > 0)
+                .SelectMany(zone => zone.Vertices)
+                .ToList();
+
+            return zoneVertices.Count > 0
+                ? zoneVertices.Average(vertex => vertex.Z)
+                : 0d;
         }
 
         public CraneSpecification? SelectedCraneSpec =>
@@ -261,18 +334,196 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             set { _renderQualityLabel = value; OnPropertyChanged(); }
         }
 
+        // ── Unit selector ──────────────────────────────────────────────
+
+        public IReadOnlyList<string> AvailableUnits { get; } = new[] { "m", "mm" };
+
+        private string _selectedUnit = "m";
+        public string SelectedUnit
+        {
+            get => _selectedUnit;
+            set
+            {
+                if (_selectedUnit == value) return;
+                _selectedUnit = value;
+                OnPropertyChanged();
+                ApplySelectedUnit();
+            }
+        }
+
+        // ── Building info (populated after IFC load) ───────────────────
+
+        private double _buildingArea;
+        public double BuildingArea
+        {
+            get => _buildingArea;
+            private set { _buildingArea = value; OnPropertyChanged(); }
+        }
+
+        private double _buildingHeight;
+        public double BuildingHeight
+        {
+            get => _buildingHeight;
+            private set { _buildingHeight = value; OnPropertyChanged(); }
+        }
+
+        private string _areaUnit = "m²";
+        public string AreaUnit
+        {
+            get => _areaUnit;
+            private set { _areaUnit = value; OnPropertyChanged(); }
+        }
+
+        private string _buildingName = "No Building Loaded";
+        public string BuildingName
+        {
+            get => _buildingName;
+            private set { _buildingName = value; OnPropertyChanged(); }
+        }
+
+        private void ApplySelectedUnit()
+        {
+            var lengthUnit = _selectedUnit == "mm" ? LengthUnit.Millimeter : LengthUnit.Meter;
+            var current = _unitSettings.Current;
+
+            if (current.DisplayLengthUnit == lengthUnit)
+                return;
+
+            var updated = current.Clone();
+            updated.DisplayLengthUnit = lengthUnit;
+            _unitSettings.ApplyRuntimeSettings(updated);
+        }
+
+        private void OnUnitSettingsChanged(object? sender, UnitSettings settings)
+        {
+            // Sync the ComboBox selection with the service state
+            var symbol = UnitSystem.LengthSymbol(settings.DisplayLengthUnit);
+            if (_selectedUnit != symbol)
+            {
+                _selectedUnit = symbol;
+                OnPropertyChanged(nameof(SelectedUnit));
+            }
+
+            AreaUnit = UnitSystem.AreaSymbol(settings.DisplayAreaUnit);
+
+            // Re-format building metrics with new units
+            RefreshBuildingMetrics();
+        }
+
+        /// <summary>
+        /// Computes building bounding-box area (footprint) and height from loaded elements.
+        /// </summary>
+        public void RefreshBuildingMetrics()
+        {
+            var elements = Scene.GetElements();
+            if (elements == null || elements.Count == 0)
+            {
+                BuildingArea = 0;
+                BuildingHeight = 0;
+                return;
+            }
+
+            double minX = double.MaxValue, maxX = double.MinValue;
+            double minY = double.MaxValue, maxY = double.MinValue;
+            double minZ = double.MaxValue, maxZ = double.MinValue;
+
+            foreach (var el in elements)
+            {
+                var cog = el.ElementCOG;
+                var hL = (el.BBoxLength ?? 0) / 2.0;
+                var hW = (el.BBoxWidth ?? 0) / 2.0;
+                var hH = (el.BBoxHeight ?? 0) / 2.0;
+
+                minX = Math.Min(minX, cog.X - hL);
+                maxX = Math.Max(maxX, cog.X + hL);
+                minY = Math.Min(minY, cog.Y - hW);
+                maxY = Math.Max(maxY, cog.Y + hW);
+                minZ = Math.Min(minZ, cog.Z - hH);
+                maxZ = Math.Max(maxZ, cog.Z + hH);
+            }
+
+            var settings = _unitSettings.Current;
+
+            double areaM2 = (maxX - minX) * (maxY - minY);
+            BuildingArea = UnitSystem.FromSquareMeters(areaM2, settings.DisplayAreaUnit);
+            AreaUnit = UnitSystem.AreaSymbol(settings.DisplayAreaUnit);
+
+            double heightM = maxZ - minZ;
+            BuildingHeight = UnitSystem.FromMeters(heightM, settings.DisplayLengthUnit);
+        }
+
         public void OpenProject(Guid projectId, string projectName, string? ifcFilePath)
         {
+            var osnap = App.ServiceProvider?.GetService<IOsnapService>();
+            osnap?.SetMasterEnabled(false);
+
             CurrentProjectId = projectId;
             CurrentProjectName = projectName;
             CurrentProjectIfcPath = ifcFilePath;
+            _ = LoadProjectUnitsAsync(projectId);
             _status.Set($"Project opened: {projectName}", "Load IFC when needed.");
+        }
+
+        public void OpenProject(ProjectSession session)
+        {
+            var osnap = App.ServiceProvider?.GetService<IOsnapService>();
+            osnap?.SetMasterEnabled(false);
+
+            _currentProjectSession = session;
+            CurrentProjectId = session.ProjectId;
+            CurrentProjectName = session.ProjectName;
+            CurrentProjectFolderPath = session.ProjectFolderPath;
+            CurrentProjectDatabasePath = session.ProjectDatabasePath;
+            CurrentProjectIfcPath = session.ProjectCard.IfcFilePath;
+            _ = LoadProjectUnitsAsync(session.ProjectId);
+            _ = LoadProjectStateAsync(session);
+            _status.Set($"Project opened: {session.ProjectName}", "Load IFC when needed.");
+        }
+
+        private async Task LoadProjectUnitsAsync(Guid projectId)
+        {
+            try
+            {
+                await _unitSettings.LoadProjectSettingsAsync(projectId);
+            }
+            catch (Exception ex)
+            {
+                _status.Set($"Project opened, but unit settings could not be loaded: {ex.Message}");
+            }
+        }
+
+        private double _lastCoordinateX;
+        private double _lastCoordinateY;
+        private bool _hasCoordinate;
+
+        private void OnReferenceChanged(object? sender, EventArgs e)
+        {
+            if (_hasCoordinate)
+            {
+                SetCoordinates(_lastCoordinateX, _lastCoordinateY);
+            }
         }
 
         public void SetCoordinates(double x, double y)
         {
-            CoordX = $"{x:F2}M";
-            CoordY = $"{y:F2}M";
+            _lastCoordinateX = x;
+            _lastCoordinateY = y;
+            _hasCoordinate = true;
+
+            var settings = _unitSettings.Current;
+            var zVal = 0.0; // ground/plane Z clearly shown as 0.0 as requested
+            if (_transformService != null && _transformService.IsEnabled)
+            {
+                var localPt = new DomainPoint3D(x, y, zVal);
+                var surveyPt = _transformService.LocalToSurvey(localPt);
+                CoordX = $"{UnitSystem.FormatLength(x, settings)} (E: {surveyPt.X:F3}m)";
+                CoordY = $"{UnitSystem.FormatLength(y, settings)} (N: {surveyPt.Y:F3}m) [Z: {UnitSystem.FormatLength(zVal, settings)} / H: {surveyPt.Z:F3}m Ground]";
+            }
+            else
+            {
+                CoordX = UnitSystem.FormatLength(x, settings);
+                CoordY = $"{UnitSystem.FormatLength(y, settings)} [Z: {UnitSystem.FormatLength(zVal, settings)} Ground]";
+            }
         }
 
         private void OnStatusChanged() => OnPropertyChanged(nameof(StatusText));

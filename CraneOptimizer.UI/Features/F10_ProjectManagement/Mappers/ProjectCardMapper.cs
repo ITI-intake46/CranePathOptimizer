@@ -14,13 +14,14 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers
             return new ProjectCardDto(
                 project.Id,
                 project.Name,
+                project.ProjectFolderPath,
                 project.IfcFiles
                     .OrderBy(file => file.FileName)
                     .Select(file => file.FilePath)
                     .FirstOrDefault(),
-                project.CreatedDate,
-                project.LastOpenedDate,
-                project.LastModifiedDate,
+                ToLocalTime(project.CreatedDate),
+                ToLocalTime(project.LastOpenedDate),
+                ToLocalTime(project.LastModifiedDate),
                 project.IsFavorite,
                 project.Notes ?? string.Empty);
         }
@@ -31,12 +32,26 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers
             {
                 Id = dto.Id,
                 Name = dto.Name,
+                ProjectFolderPath = dto.ProjectFolderPath,
                 IfcFilePath = dto.IfcFilePath,
                 CreatedDate = dto.CreatedDateUtc,
                 LastOpenedDate = dto.LastOpenedDateUtc,
                 LastModifiedDate = dto.LastModifiedDateUtc,
                 IsFavorite = dto.IsFavorite,
                 Notes = dto.Notes
+            };
+        }
+
+        private static DateTime ToLocalTime(DateTime value)
+        {
+            if (value == default)
+                return value;
+
+            return value.Kind switch
+            {
+                DateTimeKind.Local => value,
+                DateTimeKind.Utc => value.ToLocalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc).ToLocalTime()
             };
         }
     }

@@ -86,7 +86,10 @@
                            Margin="0,0,0,6"/>
                 <ComboBox Margin="0,0,0,10"
                           ItemsSource="{Binding DataContext.AvailableCranes, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                          SelectedItem="{Binding DataContext.SelectedDatabaseCrane, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}">
+                          SelectedItem="{Binding DataContext.SelectedDatabaseCrane, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
+                          Style="{StaticResource DarkComboBox}"
+                          ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                          TextSearch.TextPath="Name">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel>
@@ -117,25 +120,25 @@
                         <TextBlock FontSize="{StaticResource FontSizeXS}"
                                    Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold">
                             <Run Text="Carrier "/>
-                            <Run Text="{Binding CarrierLength, StringFormat={}{0:F2} m}"/>
+                            <Run Text="{Binding CarrierLength, Converter={StaticResource LengthDisplayConverter}}"/>
                             <Run Text=" x "/>
-                            <Run Text="{Binding CarrierWidth, StringFormat={}{0:F2} m}"/>
+                            <Run Text="{Binding CarrierWidth, Converter={StaticResource LengthDisplayConverter}}"/>
                             <Run Text=" x "/>
-                            <Run Text="{Binding CarrierHeight, StringFormat={}{0:F2} m}"/>
+                            <Run Text="{Binding CarrierHeight, Converter={StaticResource LengthDisplayConverter}}"/>
                         </TextBlock>
                         <TextBlock FontSize="{StaticResource FontSizeXS}"
                                    Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold">
                             <Run Text="Outrigger "/>
-                            <Run Text="{Binding OutriggerSpanM, StringFormat={}{0:F2} m}"/>
+                            <Run Text="{Binding OutriggerSpanM, Converter={StaticResource LengthDisplayConverter}}"/>
                             <Run Text=" x "/>
-                            <Run Text="{Binding SpanToSpanM, StringFormat={}{0:F2} m}"/>
+                            <Run Text="{Binding SpanToSpanM, Converter={StaticResource LengthDisplayConverter}}"/>
                         </TextBlock>
                         <TextBlock FontSize="{StaticResource FontSizeXS}"
                                    Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold">
                             <Run Text="Boom "/>
-                            <Run Text="{Binding MinBoomLength, StringFormat={}{0:F1} m}"/>
+                            <Run Text="{Binding MinBoomLength, Converter={StaticResource LengthDisplayConverter}}"/>
                             <Run Text=" - "/>
-                            <Run Text="{Binding MaxBoomLength, StringFormat={}{0:F1} m}"/>
+                            <Run Text="{Binding MaxBoomLength, Converter={StaticResource LengthDisplayConverter}}"/>
                         </TextBlock>
                     </StackPanel>
                 </Border>
@@ -156,20 +159,20 @@
                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <TextBox Grid.Column="1"
                              Margin="0,0,8,0"
-                             Text="{Binding PositionX, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:F2}}"/>
+                             Text="{Binding PositionX, Mode=TwoWay, UpdateSourceTrigger=LostFocus, Converter={StaticResource LengthDisplayConverter}}"/>
                     <TextBlock Grid.Column="2" Text="Y" FontWeight="Bold"
                                FontSize="{StaticResource FontSizeSM}"
                                Foreground="{StaticResource PrimaryBrush}"
                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <TextBox Grid.Column="3"
                              Margin="0,0,8,0"
-                             Text="{Binding PositionY, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:F2}}"/>
+                             Text="{Binding PositionY, Mode=TwoWay, UpdateSourceTrigger=LostFocus, Converter={StaticResource LengthDisplayConverter}}"/>
                     <TextBlock Grid.Column="4" Text="Z" FontWeight="Bold"
                                FontSize="{StaticResource FontSizeSM}"
                                Foreground="{StaticResource PrimaryBrush}"
                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <TextBox Grid.Column="5"
-                             Text="{Binding PositionZ, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat={}{0:F2}}"/>
+                             Text="{Binding PositionZ, Mode=TwoWay, UpdateSourceTrigger=LostFocus, Converter={StaticResource LengthDisplayConverter}}"/>
                 </Grid>
 
                 <!-- ── BODY ANGLE ───────────────────────────────────── -->
@@ -240,7 +243,7 @@
                             Value="{Binding CableLength, Mode=TwoWay}"
                             VerticalAlignment="Center"/>
                     <TextBlock Grid.Column="1"
-                               Text="{Binding CableLength, StringFormat={}{0:F2} m}"
+                               Text="{Binding CableLength, Converter={StaticResource LengthDisplayConverter}}"
                                FontSize="{StaticResource FontSizeSM}"
                                Foreground="{StaticResource PrimaryBrush}"
                                FontWeight="SemiBold"
@@ -274,7 +277,7 @@
                                    FontSize="{StaticResource FontSizeXS}"
                                    Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,1"/>
                         <TextBlock Grid.Row="0" Grid.Column="1"
-                                   Text="{Binding MaxCapacity, StringFormat={}{0:F1} t}"
+                                   Text="{Binding MaxCapacity, Converter={StaticResource MassDisplayConverter}}"
                                    FontSize="{StaticResource FontSizeXS}"
                                    Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" Margin="0,1"/>
                         <!-- Radius range -->
@@ -284,9 +287,9 @@
                         <TextBlock Grid.Row="1" Grid.Column="1"
                                    FontSize="{StaticResource FontSizeXS}"
                                    Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" Margin="0,1">
-                            <Run Text="{Binding ExclusionRadiusM, StringFormat={}{0:F1}, Mode=OneWay}"/>
+                            <Run Text="{Binding MinReach, Converter={StaticResource LengthDisplayConverter}, Mode=OneWay}"/>
                             <Run Text=" – "/>
-                            <Run Text="{Binding MaxReach, StringFormat={}{0:F1} m, Mode=OneWay}"/>
+                            <Run Text="{Binding MaxReach, Converter={StaticResource LengthDisplayConverter}, Mode=OneWay}"/>
                         </TextBlock>
                         <!-- Boom range -->
                         <TextBlock Grid.Row="2" Grid.Column="0" Text="Boom"
@@ -295,9 +298,9 @@
                         <TextBlock Grid.Row="2" Grid.Column="1"
                                    FontSize="{StaticResource FontSizeXS}"
                                    Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" Margin="0,1">
-                            <Run Text="{Binding MinBoomLength, StringFormat={}{0:F0}, Mode=OneWay}"/>
+                            <Run Text="{Binding MinBoomLength, Converter={StaticResource LengthDisplayConverter}, Mode=OneWay}"/>
                             <Run Text=" – "/>
-                            <Run Text="{Binding MaxBoomLength, StringFormat={}{0:F0} m, Mode=OneWay}"/>
+                            <Run Text="{Binding MaxBoomLength, Converter={StaticResource LengthDisplayConverter}, Mode=OneWay}"/>
                         </TextBlock>
                         <!-- Outrigger -->
                         <TextBlock Grid.Row="3" Grid.Column="0" Text="Outrigger"
@@ -341,7 +344,7 @@
                             Value="{Binding BoomLength, Mode=TwoWay}"
                             VerticalAlignment="Center"/>
                     <TextBlock Grid.Column="1"
-                               Text="{Binding BoomLength, StringFormat={}{0:F2} m}"
+                               Text="{Binding BoomLength, Converter={StaticResource LengthDisplayConverter}}"
                                FontSize="{StaticResource FontSizeSM}"
                                Foreground="{StaticResource PrimaryBrush}"
                                FontWeight="SemiBold"
@@ -359,12 +362,12 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <Slider Grid.Column="0"
-                            Minimum="0"
-                            Maximum="{Binding BoomLength}"
+                            Minimum="{Binding MinReach}"
+                            Maximum="{Binding MaxReach}"
                             Value="{Binding WorkingRadius, Mode=TwoWay}"
                             VerticalAlignment="Center"/>
                     <TextBlock Grid.Column="1"
-                               Text="{Binding WorkingRadius, StringFormat={}{0:F1} m}"
+                               Text="{Binding WorkingRadius, Converter={StaticResource LengthDisplayConverter}}"
                                FontSize="{StaticResource FontSizeSM}"
                                Foreground="{StaticResource PrimaryBrush}"
                                FontWeight="SemiBold"
@@ -386,7 +389,7 @@
                             Value="{Binding ExclusionRadiusM, Mode=TwoWay}"
                             VerticalAlignment="Center"/>
                     <TextBlock Grid.Column="1"
-                               Text="{Binding ExclusionRadiusM, StringFormat={}{0:F2} m}"
+                               Text="{Binding ExclusionRadiusM, Converter={StaticResource LengthDisplayConverter}}"
                                FontSize="{StaticResource FontSizeSM}"
                                Foreground="{StaticResource PrimaryBrush}"
                                FontWeight="SemiBold"
@@ -408,7 +411,7 @@
                             Value="{Binding OutriggerSpanM, Mode=TwoWay}"
                             VerticalAlignment="Center"/>
                     <TextBlock Grid.Column="1"
-                               Text="{Binding OutriggerSpanM, StringFormat={}{0:F1} m}"
+                               Text="{Binding OutriggerSpanM, Converter={StaticResource LengthDisplayConverter}}"
                                FontSize="{StaticResource FontSizeSM}"
                                Foreground="{StaticResource PrimaryBrush}"
                                FontWeight="SemiBold"

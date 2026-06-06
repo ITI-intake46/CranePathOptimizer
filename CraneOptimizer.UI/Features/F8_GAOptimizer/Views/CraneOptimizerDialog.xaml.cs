@@ -22,17 +22,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private readonly IRenderingService _renderingService;
         private readonly IDialogService _dialogService;
         private readonly ISceneService _sceneService;
-        private readonly IIfcReaderRepository? _ifcReader;
         private readonly CraneSetupViewModel _craneSetup;
+        private readonly ISceneRenderingManager _sceneRenderingManager;
         private readonly CraneOptimizerDialogWorkflow _workflow;
-        private readonly DomainPoint3D? _origin;
-        private readonly DomainPoint3D? _placementOffset;
 
         private CranePlacementResult? _currentResult;
         private CancellationTokenSource? _runCts;
         private bool _isRunning;
         private bool _isAdvancedPanelOpen;
-        private bool _isTargetPanelOpen;
         private List<PrecastElement> _cachedElements = new();
         private List<ElementTypeFilterOption> _targetElementTypes = new();
 
@@ -53,20 +50,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             ICraneRepository craneRepository,
             ISceneService sceneService,
             CraneSetupViewModel craneSetup,
-            IIfcReaderRepository? ifcReader = null,
-            DomainPoint3D? origin = null,
-            DomainPoint3D? placementOffset = null)
+            ISceneRenderingManager sceneRenderingManager)
         {
             InitializeComponent();
 
             _renderingService = renderingService;
             _dialogService = dialogService;
             _sceneService = sceneService;
-            _ifcReader = ifcReader;
-            _craneSetup = craneSetup;        
+            _craneSetup = craneSetup;
+            _sceneRenderingManager = sceneRenderingManager;
             _workflow = new CraneOptimizerDialogWorkflow(placementService, craneRepository);
-            _origin = origin;
-            _placementOffset = placementOffset;
 
             Loaded += OnLoaded;
             Closed += OnClosed;
@@ -168,6 +161,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 _currentResult = null;
                 ClearResultPanel();
                 SelectedPointRenderer.Clear(_renderingService);
+                _sceneRenderingManager.UpdateElementMaterials();
                 TxtStatus.Text = "Optimization cancelled.";
                 ProgBar.IsIndeterminate = false;
                 ProgBar.Value = 0;
@@ -178,6 +172,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 _currentResult = null;
                 ClearResultPanel();
                 SelectedPointRenderer.Clear(_renderingService);
+                _sceneRenderingManager.UpdateElementMaterials();
                 TxtStatus.Text = "Optimization failed.";
                 ProgBar.IsIndeterminate = false;
                 ProgBar.Value = 0;
@@ -206,17 +201,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private void ShowPoint(CranePositionResult point)
         {
-            // Color all elements by their GA status for this position
-            // Issue 3 fix: pass null for placementOffset because elements
-            // from the scene have already had the placementOffset applied
-            // to their ElementCOG.
             SelectedPointRenderer.Render(
                 _renderingService,
-                _cachedElements,
-                point,
-                _ifcReader,
-                _origin,
-                null);
+                new DomainPoint3D(point.X, point.Y, point.Z));
+
+            _sceneRenderingManager.UpdateElementMaterials(point.ElementResults);
 
             // Move the persistent scene crane to this GA position (creates it if needed)
             if (CboCrane.SelectedItem is Crane crane)
@@ -241,7 +230,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                              activeSpec.MaxBoomLength)
                 : 20;
 
-            var position = new DomainPoint3D(point.X, point.Y, 0);
+            var position = new DomainPoint3D(point.X, point.Y, point.Z);
             var pivotOffset = new DomainPoint3D(0, 0, Math.Max(1.2, crane.VehicleHeight));
 
             // Check whether our tracked crane is still in the scene
@@ -337,7 +326,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtEarlyStopping.Text,
                 TxtGridStep.Text,
                 TxtRadiusPenaltyWeight.Text,
-                "1.0", // RadiusQualityPenaltyWeightText (not yet in UI, defaulting to 1.0)
+                TxtRadiusQualityPenaltyWeight.Text,
                 TxtBalancePenaltyWeight.Text,
                 TxtOverweightPenaltyWeight.Text,
                 TxtHeightPenaltyWeight.Text,
@@ -356,7 +345,21 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtDevCrossoverRate.Text,
                 TxtDevRandomSeed.Text,
                 TxtDevConvergence.Text,
-                GetSelectedTargetElementTypes());
+                GetSelectedTargetElementTypes(),
+                // New options added
+                ChkEnableAdaptiveSigma.IsChecked == true ? "true" : "false",
+                TxtSigmaCoolingExponent.Text,
+                TxtMinimumMutationSigma.Text,
+                ChkEnableConcurrentOptimization.IsChecked == true ? "true" : "false",
+                TxtSlewOffsetX.Text,
+                TxtSlewOffsetY.Text,
+                TxtSlewOffsetZ.Text,
+                TxtBoomHingeOffsetX.Text,
+                TxtBoomHingeOffsetY.Text,
+                TxtBoomHingeOffsetZ.Text,
+                TxtCraneFootprintRadius.Text,
+                ChkEnableProfiling.IsChecked == true ? "true" : "false",
+                TxtProfilingLogDirectory.Text);
         }
 
         private void RefreshSceneCache()
@@ -430,37 +433,18 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             UpdateSidePanels();
         }
 
-        private void BtnTargetElementsToggle_Click(object sender, RoutedEventArgs e)
-        {
-            _isTargetPanelOpen = !_isTargetPanelOpen;
-            UpdateSidePanels();
-        }
-
         private void UpdateSidePanels()
         {
-            TargetColumn.Width = _isTargetPanelOpen
-                ? new GridLength(SidePanelWidth)
-                : new GridLength(0);
-
             AdvancedColumn.Width = _isAdvancedPanelOpen
                 ? new GridLength(SidePanelWidth)
                 : new GridLength(0);
-
-            PanelTargetElements.Visibility = _isTargetPanelOpen
-                ? Visibility.Visible
-                : Visibility.Collapsed;
 
             PanelAdvanced.Visibility = _isAdvancedPanelOpen
                 ? Visibility.Visible
                 : Visibility.Collapsed;
 
             Width = CompactDialogWidth
-                + (_isTargetPanelOpen ? SidePanelWidth : 0)
                 + (_isAdvancedPanelOpen ? SidePanelWidth : 0);
-
-            BtnTargetElementsToggle.Content = _isTargetPanelOpen
-                ? "Hide Targets"
-                : "Target Elements";
 
             BtnAdvancedToggle.Content = _isAdvancedPanelOpen
                 ? "Hide Advanced"
@@ -481,8 +465,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         // ============================
         // HELPERS
         // ============================
-        private double CalculateMarkerRadius() => 200;
-        private double CalculateMarkerZ(double r) => 500;
+        private double CalculateMarkerRadius() => 0.2;
+        private double CalculateMarkerZ(double r) => 0.5;
 
         private void CboCrane_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
         private void RbExclusion_Checked(object sender, RoutedEventArgs e) { }
@@ -500,7 +484,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
             // Sync position into CraneSetupViewModel (for compatibility with F3 UI)
             // Guard against null in case the service was not fully injected.
-            _craneSetup?.LockPosition(new DomainPoint3D(item.Point.X, item.Point.Y, 0));
+            _craneSetup?.LockPosition(new DomainPoint3D(item.Point.X, item.Point.Y, item.Point.Z));
 
             // The scene crane is already at the correct position (moved by ShowPoint).
             // Just close — the crane persists in the scene.
@@ -511,6 +495,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         {
             // Only remove the sphere marker; the scene crane stays at its last position.
             SelectedPointRenderer.Clear(_renderingService);
+            _sceneRenderingManager.UpdateElementMaterials();
         }
 
         private void BtnIncludeAll_Click(object sender, RoutedEventArgs e) => SetAllTargetElementTypes(true);

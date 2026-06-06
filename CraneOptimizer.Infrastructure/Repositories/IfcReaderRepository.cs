@@ -1,9 +1,17 @@
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Units;
+using CraneOptimizer.Infrastructure.Ifc;
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Xbim.Common.Geometry;
 using Xbim.Common.XbimExtensions;
 using Xbim.Ifc;
@@ -14,26 +22,38 @@ namespace CraneOptimizer.Infrastructure.Repositories
 {
     public class IfcReaderRepository : IIfcReaderRepository
     {
-        private const double DefaultLengthToMillimetersFactor = 1000d;
-        private const double CubicMillimetersPerCubicMeter = 1_000_000_000d;
+        private const double DefaultLengthToMetersFactor = 1d;
         private const double ConcreteDensityKgPerCubicMeter = 2500d;
         private const double SteelDensityKgPerCubicMeter = 7850d;
         private const double AluminumDensityKgPerCubicMeter = 2700d;
         private const double GlassDensityKgPerCubicMeter = 2500d;
         private const double TimberDensityKgPerCubicMeter = 600d;
 
-        public IfcStore? CurrentModel { get; private set; }
-        public Xbim3DModelContext? GeometryContext { get; private set; }
-        public double ModelLengthFactor { get; private set; } = 1.0;
+        private readonly IIfcDiagnosticAuditService _auditService;
+        private readonly IIfcNormalizationDecisionService _normalizationService;
+        private readonly IIfcModelSessionService _sessionService;
+
+        public IfcReaderRepository(
+            IIfcDiagnosticAuditService auditService,
+            IIfcNormalizationDecisionService normalizationService,
+            IIfcModelSessionService sessionService)
+        {
+            _auditService = auditService;
+            _normalizationService = normalizationService;
+            _sessionService = sessionService;
+        }
+
+        public IfcStore? CurrentModel => _sessionService.Current?.Model;
+        public Xbim3DModelContext? GeometryContext => _sessionService.Current?.GeometryContext;
+        public Guid? CurrentSessionId => _sessionService.Current?.SessionId;
+        public string? CurrentFileIdentity => _sessionService.Current?.FileIdentity;
+        public double ModelLengthFactor => _sessionService.Current?.ModelLengthFactor ?? 1.0;
+        public double? ModelGroundElevation => _sessionService.Current?.ModelGroundElevation;
+
 
         public void ClearData()
         {
-            if (CurrentModel != null)
-            {
-                try { CurrentModel.Close(); CurrentModel.Dispose(); } catch { }
-                CurrentModel = null;
-            }
-            GeometryContext = null;
+            _sessionService.Clear();
         }
 
         public void Dispose()
@@ -60,41 +80,80 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         public List<PrecastElement> ReadElements(string ifcPath)
         {
-            return ReadElementsCore(ifcPath, null, CancellationToken.None);
+            return ReadElementsCore(ifcPath, null, null, CancellationToken.None);
+        }
+
+        public List<PrecastElement> ReadElements(string ifcPath, IfcReadingOptions? options)
+        {
+            return ReadElementsCore(ifcPath, null, options, CancellationToken.None);
         }
 
         public List<PrecastElement> ReadElements(string path, IProgress<double> progress)
         {
-            return ReadElementsCore(path, progress, CancellationToken.None);
+            return ReadElementsCore(path, progress, null, CancellationToken.None);
+        }
+
+        public List<PrecastElement> ReadElements(
+            string path,
+            IProgress<double> progress,
+            IfcReadingOptions? options,
+            CancellationToken cancellationToken = default)
+        {
+            return ReadElementsCore(path, progress, options, cancellationToken);
         }
 
         public List<PrecastElement> ReadElements(string path, IProgress<double> progress, CancellationToken cancellationToken)
         {
-            return ReadElementsCore(path, progress, cancellationToken);
+            return ReadElementsCore(path, progress, null, cancellationToken);
+        }
+
+        public Task InitializeSessionForRenderingAsync(string ifcPath, CancellationToken cancellationToken = default)
+        {
+            return Task.Run(() =>
+            {
+                _sessionService.OpenSession(ifcPath, cancellationToken);
+            }, cancellationToken);
         }
 
         private List<PrecastElement> ReadElementsCore(
             string ifcPath,
             IProgress<double>? progress,
+            IfcReadingOptions? options,
             CancellationToken cancellationToken)
         {
             try
             {
-                ClearData();
-                CurrentModel = IfcStore.Open(ifcPath);
-
-                _ = new Xbim.Geometry.Engine.Interop.XbimGeometryEngine();
-                GeometryContext = new Xbim3DModelContext(CurrentModel);
-                GeometryContext.CreateContext();
-
-                ModelLengthFactor = GetLengthToMillimetersFactor(CurrentModel);
+                var concreteDensityKgPerM3 = ResolveConcreteDensity(options);
+                var loadMemoryBefore = GetPrivateMemoryBytes();
+                var session = _sessionService.OpenSession(ifcPath, cancellationToken);
 
                 var extractor = new IfcEngineeringExtractor(
-                    CurrentModel,
-                    GeometryContext,
-                    ModelLengthFactor);
+                    session.Model,
+                    session.GeometryContext,
+                    session.ModelLengthFactor,
+                    concreteDensityKgPerM3);
 
-                return extractor.Extract(progress, cancellationToken);
+                // Run synchronous diagnostics audit and normalization decision preview (Task 3 & 4)
+                var auditTimer = Stopwatch.StartNew();
+                var auditResult = _auditService.RunAuditAsync(ifcPath, options, null, cancellationToken).GetAwaiter().GetResult();
+                auditTimer.Stop();
+                var previewResult = _normalizationService.GenerateNormalizationPreviewAsync(auditResult, cancellationToken).GetAwaiter().GetResult();
+
+                var extractionTimer = Stopwatch.StartNew();
+                var elements = extractor.ExtractNormalized(previewResult, auditResult, progress, cancellationToken);
+                extractionTimer.Stop();
+
+                Debug.WriteLine(
+                    $"[IfcReaderRepository] Load complete. SessionId={session.SessionId}, " +
+                    $"Open={session.OpenDuration.TotalMilliseconds:F0} ms, " +
+                    $"CreateContext={session.CreateContextDuration.TotalMilliseconds:F0} ms, " +
+                    $"Audit={auditTimer.ElapsedMilliseconds} ms, " +
+                    $"Extraction={extractionTimer.ElapsedMilliseconds} ms, " +
+                    $"Elements={elements.Count}, ShapeInstances={session.ShapeInstanceCount}, " +
+                    $"MemoryBeforeLoad={FormatBytes(loadMemoryBefore)}, " +
+                    $"MemoryAfterLoad={FormatBytes(GetPrivateMemoryBytes())}");
+
+                return elements;
             }
             catch (OperationCanceledException)
             {
@@ -107,33 +166,34 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
         }
 
-        private static double GetLengthToMillimetersFactor(IfcStore model)
+
+        private static double GetLengthToMetersFactor(IfcStore model)
         {
             var project = model.Instances.OfType<IIfcProject>().FirstOrDefault();
             var units = project?.UnitsInContext?.Units;
 
             if (units == null)
-                return DefaultLengthToMillimetersFactor;
+                return DefaultLengthToMetersFactor;
 
             foreach (var unit in units)
             {
                 if (unit is IIfcSIUnit siUnit &&
                     siUnit.UnitType.ToString().Contains("LENGTH", StringComparison.OrdinalIgnoreCase))
                 {
-                    return GetSiUnitToMillimetersFactor(siUnit);
+                    return GetSiUnitToMetersFactor(siUnit);
                 }
 
                 if (unit is IIfcConversionBasedUnit conversionUnit &&
                     conversionUnit.UnitType.ToString().Contains("LENGTH", StringComparison.OrdinalIgnoreCase))
                 {
-                    return GetConversionUnitToMillimetersFactor(conversionUnit);
+                    return GetConversionUnitToMetersFactor(conversionUnit);
                 }
             }
 
-            return DefaultLengthToMillimetersFactor;
+            return DefaultLengthToMetersFactor;
         }
 
-        private static double GetSiUnitToMillimetersFactor(IIfcSIUnit siUnit)
+        private static double GetSiUnitToMetersFactor(IIfcSIUnit siUnit)
         {
             var name = siUnit.Name.ToString();
             var prefix = siUnit.Prefix?.ToString() ?? string.Empty;
@@ -141,43 +201,106 @@ namespace CraneOptimizer.Infrastructure.Repositories
             if (!name.Contains("METRE", StringComparison.OrdinalIgnoreCase) &&
                 !name.Contains("METER", StringComparison.OrdinalIgnoreCase))
             {
-                return DefaultLengthToMillimetersFactor;
+                return DefaultLengthToMetersFactor;
             }
 
             if (prefix.Contains("MILLI", StringComparison.OrdinalIgnoreCase))
-                return 1d;
+                return 0.001d;
 
             if (prefix.Contains("CENTI", StringComparison.OrdinalIgnoreCase))
-                return 10d;
+                return 0.01d;
 
             if (prefix.Contains("DECI", StringComparison.OrdinalIgnoreCase))
-                return 100d;
+                return 0.1d;
 
-            return DefaultLengthToMillimetersFactor;
+            return DefaultLengthToMetersFactor;
         }
 
-        private static double GetConversionUnitToMillimetersFactor(IIfcConversionBasedUnit conversionUnit)
+        private static double GetConversionUnitToMetersFactor(IIfcConversionBasedUnit conversionUnit)
         {
             var unitName = conversionUnit.Name.ToString();
 
             if (unitName.Contains("MILLIMET", StringComparison.OrdinalIgnoreCase))
-                return 1d;
+                return 0.001d;
 
             if (unitName.Contains("CENTIMET", StringComparison.OrdinalIgnoreCase))
-                return 10d;
+                return 0.01d;
+
+            // Explicit imperial handling — common in Revit-exported IFC files
+            if (unitName.Contains("FOOT", StringComparison.OrdinalIgnoreCase) ||
+                unitName.Contains("FEET", StringComparison.OrdinalIgnoreCase))
+                return 0.3048d;
+
+            if (unitName.Contains("INCH", StringComparison.OrdinalIgnoreCase))
+                return 0.0254d;
 
             if (unitName.Contains("MET", StringComparison.OrdinalIgnoreCase))
-                return DefaultLengthToMillimetersFactor;
+                return DefaultLengthToMetersFactor;
 
             var valueComponent = conversionUnit.ConversionFactor?.ValueComponent?.ToString();
             if (!double.TryParse(valueComponent, NumberStyles.Any, CultureInfo.InvariantCulture, out var factorToBase))
-                return DefaultLengthToMillimetersFactor;
+                return DefaultLengthToMetersFactor;
 
-            var baseFactor = DefaultLengthToMillimetersFactor;
+            var baseFactor = DefaultLengthToMetersFactor;
             if (conversionUnit.ConversionFactor?.UnitComponent is IIfcSIUnit baseSiUnit)
-                baseFactor = GetSiUnitToMillimetersFactor(baseSiUnit);
+                baseFactor = GetSiUnitToMetersFactor(baseSiUnit);
 
             return factorToBase * baseFactor;
+        }
+
+        private static double? GetModelGroundElevation(IfcStore model, double lengthToMetersFactor)
+        {
+            var elevations = model.Instances
+                .OfType<IIfcBuildingStorey>()
+                .Select(storey => storey.Elevation.HasValue
+                    ? storey.Elevation.Value * lengthToMetersFactor
+                    : (double?)null)
+                .Where(value => value.HasValue && IsFinite(value.Value))
+                .Select(value => value!.Value)
+                .Distinct()
+                .OrderBy(value => value)
+                .ToList();
+
+            if (elevations.Count == 0)
+                return null;
+
+            const double zeroToleranceMeters = 0.05;
+            if (elevations.Any(value => Math.Abs(value) <= zeroToleranceMeters))
+                return 0d;
+
+            var nonNegative = elevations.FirstOrDefault(value => value > 0d);
+            if (nonNegative > 0d)
+                return nonNegative;
+
+            return elevations
+                .OrderBy(value => Math.Abs(value))
+                .First();
+        }
+
+        private static bool IsFinite(double value) =>
+            !double.IsNaN(value) && !double.IsInfinity(value);
+
+        private static long GetPrivateMemoryBytes()
+        {
+            try
+            {
+                return Process.GetCurrentProcess().PrivateMemorySize64;
+            }
+            catch
+            {
+                return GC.GetTotalMemory(false);
+            }
+        }
+
+        private static string FormatBytes(long bytes) =>
+            $"{bytes / (1024d * 1024d):F1} MB";
+
+        private static double ResolveConcreteDensity(IfcReadingOptions? options)
+        {
+            var density = options?.ConcreteDensityKgPerM3;
+            return density.HasValue && density.Value > 0
+                ? density.Value
+                : ConcreteDensityKgPerCubicMeter;
         }
 
         // -------------------------------------------------------------------------
@@ -188,8 +311,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
         {
             private readonly IfcStore _model;
             private readonly Xbim3DModelContext _geometryContext;
-            private readonly double _lengthToMillimetersFactor;
-            private readonly double _volumeToCubicMillimetersFactor;
+            private readonly double _lengthToMetersFactor;
+            private readonly double _volumeToCubicMetersFactor;
+            private readonly double _concreteDensityKgPerCubicMeter;
 
             private readonly Dictionary<int, SourceElementSnapshot> _sourceCache = new();
             private readonly Dictionary<int, AggregateSnapshot> _aggregateCache = new();
@@ -197,12 +321,14 @@ namespace CraneOptimizer.Infrastructure.Repositories
             public IfcEngineeringExtractor(
                 IfcStore model,
                 Xbim3DModelContext geometryContext,
-                double lengthToMillimetersFactor)
+                double lengthToMetersFactor,
+                double concreteDensityKgPerCubicMeter)
             {
                 _model = model;
                 _geometryContext = geometryContext;
-                _lengthToMillimetersFactor = lengthToMillimetersFactor;
-                _volumeToCubicMillimetersFactor = Math.Pow(lengthToMillimetersFactor, 3);
+                _lengthToMetersFactor = lengthToMetersFactor;
+                _volumeToCubicMetersFactor = Math.Pow(lengthToMetersFactor, 3);
+                _concreteDensityKgPerCubicMeter = concreteDensityKgPerCubicMeter;
             }
 
             public List<PrecastElement> Extract(IProgress<double>? progress, CancellationToken cancellationToken)
@@ -302,10 +428,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var material = GetMaterial(product);
                 var weight = GetWeight(product);
                 
-                // Fallback: If Weight is 0 or missing, use Volume * 2500
-                if ((weight ?? 0) <= 0 && (volume ?? 0) > 0)
+                // Fallback: If Weight is 0 or missing, use direct volume and the project concrete density.
+                if ((weight ?? 0) <= 0 && volume.HasValue && volume.Value > 0)
                 {
-                    weight = (volume.Value / CubicMillimetersPerCubicMeter) * ConcreteDensityKgPerCubicMeter;
+                    weight = (volume.Value * _concreteDensityKgPerCubicMeter) / UnitSystem.KilogramsPerTon;
                 }
 
                 var revitId = GetRevitId(product);
@@ -638,10 +764,22 @@ namespace CraneOptimizer.Infrastructure.Repositories
             // Property / Quantity readers
             // -------------------------------------------------------------------------
 
+            /// <summary>
+            /// Reads weight/mass from IFC quantity sets or property sets.
+            /// </summary>
+            /// <remarks>
+            /// IFC 4 standard stores IIfcQuantityWeight values in kilograms.
+            /// Runtime element weights are canonical metric tons, matching crane
+            /// load charts and GA capacity checks.
+            ///
+            /// LIMITATION: If a non-standard IFC file encodes mass in a
+            /// different unit (e.g. lbs) via IfcPropertySingleValue, the
+            /// value will be misinterpreted. Such files are rare but exist.
+            /// </remarks>
             private double? GetWeight(IIfcProduct product)
             {
-                return GetQuantity(product, "weight", "mass")
-                    ?? GetPropertyDouble(product, "weight", "mass");
+                return GetQuantityWeightTons(product, "weight", "mass")
+                    ?? GetPropertyWeightTons(product, "weight", "mass");
             }
 
             private static string? GetRevitId(IIfcProduct product)
@@ -741,6 +879,37 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return null;
             }
 
+            private double? GetQuantityWeightTons(IIfcProduct product, params string[] keywords)
+            {
+                var quantitySets = product.IsDefinedBy
+                    .Where(r => r.RelatingPropertyDefinition is IIfcElementQuantity)
+                    .Select(r => (IIfcElementQuantity)r.RelatingPropertyDefinition);
+
+                foreach (var quantitySet in quantitySets)
+                {
+                    foreach (var quantity in quantitySet.Quantities.OfType<IIfcQuantityWeight>())
+                    {
+                        if (!ContainsAny(quantity.Name.ToString(), keywords))
+                            continue;
+
+                        return UnitSystem.ToTons(quantity.WeightValue, MassUnit.Kilogram);
+                    }
+                }
+
+                return null;
+            }
+
+            /// <summary>
+            /// Searches property sets for a numeric property matching the keywords.
+            /// </summary>
+            /// <remarks>
+            /// Returns the raw numeric value without any unit conversion.
+            /// This works for dimensionless properties and standard IFC files
+            /// where property values follow the project's declared unit context.
+            /// If a property stores a value in a non-standard unit (e.g. a
+            /// "weight" property in tons instead of kg), the caller will
+            /// receive an unconverted raw number.
+            /// </remarks>
             private double? GetPropertyDouble(IIfcProduct product, params string[] keywords)
             {
                 var propertySets = product.IsDefinedBy
@@ -766,6 +935,59 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }
 
                 return null;
+            }
+
+            private double? GetPropertyWeightTons(IIfcProduct product, params string[] keywords)
+            {
+                var propertySets = product.IsDefinedBy
+                    .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
+                    .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition);
+
+                foreach (var propertySet in propertySets)
+                {
+                    foreach (var property in propertySet.HasProperties.OfType<IIfcPropertySingleValue>())
+                    {
+                        var propertyName = property.Name.ToString();
+                        if (!ContainsAny(propertyName, keywords))
+                            continue;
+
+                        if (!double.TryParse(
+                            property.NominalValue?.ToString(),
+                            NumberStyles.Any,
+                            CultureInfo.InvariantCulture,
+                            out var parsed))
+                        {
+                            continue;
+                        }
+
+                        return ConvertWeightPropertyToTons(parsed, propertyName, property.Unit?.ToString());
+                    }
+                }
+
+                return null;
+            }
+
+            private static double ConvertWeightPropertyToTons(double value, string propertyName, string? unitName)
+            {
+                var source = $"{propertyName} {unitName}".Trim();
+
+                if (source.Contains("kg", StringComparison.OrdinalIgnoreCase) ||
+                    source.Contains("kilo", StringComparison.OrdinalIgnoreCase))
+                {
+                    return UnitSystem.ToTons(value, MassUnit.Kilogram);
+                }
+
+                if (source.Contains("ton", StringComparison.OrdinalIgnoreCase) ||
+                    source.Contains("tonne", StringComparison.OrdinalIgnoreCase))
+                {
+                    return value;
+                }
+
+                // Tekla often writes plain numeric "Weight" properties in kilograms.
+                // Smaller values are kept as tons to avoid changing hand-authored data.
+                return value > 100d
+                    ? UnitSystem.ToTons(value, MassUnit.Kilogram)
+                    : value;
             }
 
             private string? GetMaterial(IIfcProduct product)
@@ -797,7 +1019,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }
             }
 
-            private static double? EstimateWeightFromMaterial(string? material, double volumeInCubicMillimeters)
+            private double? EstimateWeightFromMaterial(string? material, double volumeInCubicMeters)
             {
                 var name = string.IsNullOrWhiteSpace(material) ? string.Empty : material.ToUpperInvariant();
 
@@ -806,9 +1028,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     name.ContainsAny("ALUMIN") ? AluminumDensityKgPerCubicMeter :
                     name.ContainsAny("GLASS") ? GlassDensityKgPerCubicMeter :
                     name.ContainsAny("TIMBER", "WOOD") ? TimberDensityKgPerCubicMeter :
-                    ConcreteDensityKgPerCubicMeter;
+                    _concreteDensityKgPerCubicMeter;
 
-                return (volumeInCubicMillimeters / CubicMillimetersPerCubicMeter) * densityKgPerCubicMeter;
+                return (volumeInCubicMeters * densityKgPerCubicMeter) / UnitSystem.KilogramsPerTon;
             }
 
             // -------------------------------------------------------------------------
@@ -830,13 +1052,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
             // Conversion helpers
             // -------------------------------------------------------------------------
 
-            private double ConvertLength(double rawLength) => rawLength * _lengthToMillimetersFactor;
+            private double ConvertLength(double rawLength) => rawLength * _lengthToMetersFactor;
 
             private double? ConvertLength(double? rawLength) =>
                 rawLength.HasValue ? ConvertLength(rawLength.Value) : null;
 
             private double? ConvertVolume(double? rawVolume) =>
-                rawVolume.HasValue ? rawVolume.Value * _volumeToCubicMillimetersFactor : null;
+                rawVolume.HasValue ? rawVolume.Value * _volumeToCubicMetersFactor : null;
 
             // -------------------------------------------------------------------------
             // Static helpers
@@ -880,6 +1102,185 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return distinct.Count > 0 ? string.Join(", ", distinct) : null;
             }
 
+            public List<PrecastElement> ExtractNormalized(
+                IfcNormalizationPreviewSummary previewSummary,
+                IfcAuditResult auditResult,
+                IProgress<double>? progress,
+                CancellationToken cancellationToken)
+            {
+                // 1. Get all engineering products to build the _sourceCache
+                var physicalProducts = _model.Instances
+                    .OfType<IIfcProduct>()
+                    .Where(IsEngineeringProduct)
+                    .ToList();
+
+                if (physicalProducts.Count > 0)
+                {
+                    CacheSourceProducts(physicalProducts, progress, cancellationToken);
+                }
+
+                // Create a fast lookup by GlobalId for IIfcProduct
+                var productByGlobalId = physicalProducts
+                    .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
+                    .ToLookup(p => (string)p.GlobalId)
+                    .ToDictionary(g => g.Key, g => g.First());
+
+                var result = new List<PrecastElement>();
+
+                // 2. Loop through elements from the previewSummary
+                foreach (var preview in previewSummary.Elements)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    // Try to retrieve cached SourceElementSnapshot
+                    SourceElementSnapshot? sourceSnapshot = null;
+                    if (productByGlobalId.TryGetValue(preview.GlobalId, out var product))
+                    {
+                        _sourceCache.TryGetValue(product.EntityLabel, out sourceSnapshot);
+                    }
+
+                    // Map all values to a new PrecastElement
+                    var pe = new PrecastElement();
+                    pe.ElementID = preview.GlobalId;
+                    pe.ElementRevitId = sourceSnapshot?.RevitId ?? (product != null ? GetRevitId(product) : null);
+                    pe.ElementMark = string.IsNullOrWhiteSpace(preview.Name) ? (product != null ? CleanElementName(GetMark(product) ?? product.Name?.ToString() ?? string.Empty) : string.Empty) : preview.Name;
+                    
+                    // Set ElementType = preview.CandidateCategory to fix UI filter labels (Requirement)
+                    pe.ElementType = preview.CandidateCategory;
+
+                    // Set standard fields
+                    pe.RawIfcType = preview.RawIfcType;
+                    pe.ResolvedCategory = preview.CandidateCategory;
+                    pe.Role = preview.Role;
+                    pe.ParentGlobalId = preview.ParentGlobalId;
+                    pe.ChildGlobalIds = new List<string>(preview.ChildGlobalIds);
+                    pe.VisibleGeometryOwnerGlobalIds = new List<string>(preview.VisibleGeometryOwnerGlobalIds);
+                    pe.HiddenInternalGeometryOwnerGlobalIds = new List<string>(preview.HiddenInternalGeometryOwnerGlobalIds);
+                    pe.IncludeInRender = preview.IncludeInRenderPreview;
+                    pe.IncludeInElementTree = preview.IncludeInElementTreePreview;
+                    pe.IncludeInGa = preview.IncludeInGaPreview;
+
+                    // Weight setup
+                    pe.WeightTons = preview.WeightStandardValueTons;
+                    pe.WeightSource = preview.WeightSource;
+                    pe.WeightTrustLevel = preview.WeightTrustLevel;
+                    // For ElementWT, set to WeightStandardValueTons to align with UI expectations
+                    pe.ElementWT = preview.WeightStandardValueTons;
+
+                    // Decision/Warnings
+                    pe.NormalizationDecisionReason = preview.DecisionReason;
+                    pe.ExtractionWarnings = new List<string>(preview.Warnings);
+
+                    // Material
+                    if (sourceSnapshot != null)
+                    {
+                        pe.ElementMaterial = sourceSnapshot.Material ?? string.Empty;
+                    }
+                    else if (product != null)
+                    {
+                        pe.ElementMaterial = GetMaterial(product) ?? string.Empty;
+                    }
+                    else
+                    {
+                        pe.ElementMaterial = string.Empty;
+                    }
+
+                    // Geometry / COG / Volume / BoundingBox setup
+                    if (preview.Role == IfcElementRole.LiftAssembly)
+                    {
+                        // Consolidated assembly: we should resolve aggregate geometry/COG/bounds
+                        if (product is IIfcElementAssembly assembly)
+                        {
+                            var aggregate = BuildAggregateSnapshot(assembly, new HashSet<int>());
+                            if (aggregate != null)
+                            {
+                                pe.ElementVolume = aggregate.Volume;
+                                pe.VolumeM3 = aggregate.Volume; // standardized unit is m^3
+
+                                // BoundingBox and COG must be standard METERS
+                                if (aggregate.Geometry != null)
+                                {
+                                    pe.BBoxLength = aggregate.Geometry.Length;
+                                    pe.BBoxWidth = aggregate.Geometry.Width;
+                                    pe.BBoxHeight = aggregate.Geometry.Height;
+                                    pe.BoundingBox_M = new DomainPoint3D
+                                    {
+                                        X = aggregate.Geometry.Length,
+                                        Y = aggregate.Geometry.Width,
+                                        Z = aggregate.Geometry.Height
+                                    };
+                                }
+                                pe.ElementCOG = aggregate.CenterOfGravity;
+                                pe.COG_M = aggregate.CenterOfGravity; // standardized unit is meters
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Single / standard element
+                        if (sourceSnapshot != null)
+                        {
+                            pe.ElementVolume = sourceSnapshot.Volume;
+                            pe.VolumeM3 = sourceSnapshot.Volume;
+
+                            if (sourceSnapshot.Geometry != null)
+                            {
+                                pe.BBoxLength = sourceSnapshot.Geometry.Length;
+                                pe.BBoxWidth = sourceSnapshot.Geometry.Width;
+                                pe.BBoxHeight = sourceSnapshot.Geometry.Height;
+                                pe.BoundingBox_M = new DomainPoint3D
+                                {
+                                    X = sourceSnapshot.Geometry.Length,
+                                    Y = sourceSnapshot.Geometry.Width,
+                                    Z = sourceSnapshot.Geometry.Height
+                                };
+                            }
+                            else
+                            {
+                                pe.BBoxLength = sourceSnapshot.ElementLength;
+                                pe.BBoxWidth = sourceSnapshot.ElementWidth;
+                                pe.BBoxHeight = sourceSnapshot.ElementHeight;
+                                pe.BoundingBox_M = new DomainPoint3D
+                                {
+                                    X = sourceSnapshot.ElementLength ?? 0,
+                                    Y = sourceSnapshot.ElementWidth ?? 0,
+                                    Z = sourceSnapshot.ElementHeight ?? 0
+                                };
+                            }
+
+                            pe.ElementCOG = sourceSnapshot.CenterOfGravity;
+                            pe.COG_M = sourceSnapshot.CenterOfGravity;
+                        }
+                    }
+
+                    // Make sure standardized units are enforced (everything scaled to meters, tons, m3)
+                    // If a NeedsReview parent/child exists, block it from GA
+                    if (preview.Role == IfcElementRole.NeedsReview)
+                    {
+                        pe.IncludeInGa = false;
+                    }
+
+                    result.Add(pe);
+                }
+
+                // Propagate materials for concrete elements of the same family/type
+                PropagateConcreteMaterials(result);
+
+                // Log a comprehensive diagnostic summary via Debug.WriteLine
+                Debug.WriteLine("=== Phase 2A Normalization Element Extraction Diagnostics ===");
+                Debug.WriteLine($"Total Normalized Elements Extracted: {result.Count}");
+                Debug.WriteLine($"GA-Ready Elements: {result.Count(r => r.IncludeInGa)}");
+                Debug.WriteLine($"GA-Blocked (Hiding/Auxiliary/NeedsReview/Excluded): {result.Count(r => !r.IncludeInGa)}");
+                Debug.WriteLine($"IncludeInRender Elements: {result.Count(r => r.IncludeInRender)}");
+                Debug.WriteLine($"ExcludeInRender Elements: {result.Count(r => !r.IncludeInRender)}");
+                Debug.WriteLine($"Explicit Weights (Quantity/Property): {result.Count(r => r.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity || r.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty)}");
+                Debug.WriteLine($"Zero/Fallback/Missing Weights: {result.Count(r => r.WeightTrustLevel != IfcWeightTrustLevel.ExplicitQuantity && r.WeightTrustLevel != IfcWeightTrustLevel.ExplicitProperty)}");
+                Debug.WriteLine("=============================================================");
+
+                progress?.Report(100d);
+                return result;
+            }
+
             private static PrecastElement ToPrecastElement(IEngineeringSnapshot snapshot)
             {
                 return new PrecastElement
@@ -899,6 +1300,64 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     BBoxWidth = snapshot.Geometry?.Width,
                     BBoxHeight = snapshot.Geometry?.Height
                 };
+            }
+
+            private static void PropagateConcreteMaterials(List<PrecastElement> elements)
+            {
+                var familyGroups = elements.GroupBy(GetFamilyTypeName, StringComparer.OrdinalIgnoreCase);
+
+                foreach (var group in familyGroups)
+                {
+                    var representativeMaterial = group
+                        .Select(e => e.ElementMaterial)
+                        .Where(m => !string.IsNullOrWhiteSpace(m))
+                        .GroupBy(m => m, StringComparer.OrdinalIgnoreCase)
+                        .OrderByDescending(g => g.Count())
+                        .Select(g => g.Key)
+                        .FirstOrDefault();
+
+                    if (string.IsNullOrWhiteSpace(representativeMaterial))
+                        continue;
+
+                    foreach (var e in group)
+                    {
+                        if (string.IsNullOrWhiteSpace(e.ElementMaterial) && IsConcreteElement(e))
+                        {
+                            e.ElementMaterial = representativeMaterial;
+                        }
+                    }
+                }
+            }
+
+            private static string GetFamilyTypeName(PrecastElement e)
+            {
+                var mark = e.ElementMark ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(e.ElementRevitId))
+                {
+                    var suffix = ":" + e.ElementRevitId;
+                    if (mark.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return mark.Substring(0, mark.Length - suffix.Length);
+                    }
+                    var suffix2 = "-" + e.ElementRevitId;
+                    if (mark.EndsWith(suffix2, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return mark.Substring(0, mark.Length - suffix2.Length);
+                    }
+                    if (mark.EndsWith(e.ElementRevitId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return mark.Substring(0, mark.Length - e.ElementRevitId.Length).TrimEnd(':', '-', ' ');
+                    }
+                }
+                return mark;
+            }
+
+            private static bool IsConcreteElement(PrecastElement e)
+            {
+                var source = $"{(e.ElementMaterial ?? string.Empty)} {(e.ElementType ?? string.Empty)} {(e.ElementMark ?? string.Empty)}".ToUpperInvariant();
+                if (source.ContainsAny("STEEL", "REBAR", "ALUMIN", "GLASS", "TIMBER", "WOOD"))
+                    return false;
+                return true;
             }
         }
 

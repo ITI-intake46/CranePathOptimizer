@@ -1,7 +1,11 @@
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace CraneOptimizer.UI.Features.F3_CraneSetup.Services
 {
@@ -16,6 +20,12 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Services
         }
 
         private readonly Dictionary<Guid, ZoneCache> _cache = new();
+        private readonly IZoneGeometryService _geometryService;
+
+        public CraneValidationService(IZoneGeometryService? geometryService = null)
+        {
+            _geometryService = geometryService ?? ZoneGeometryServiceHolder.Instance ?? new CraneOptimizer.Domain.Services.ZoneGeometryService();
+        }
 
         public bool ValidatePlacement(SceneCrane crane, IReadOnlyList<GreenAreaZone> zones)
         {
@@ -43,7 +53,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Services
                 if (!IsPointInBounds(center, zone.Bounds))
                     continue;
 
-                var allFootprintInside = footprint.All(p => IsPointInPolygon2D(p, zone.Vertices));
+                var allFootprintInside = footprint.All(p => _geometryService.PointInPolygon(p, zone.Vertices));
                 if (!allFootprintInside)
                     continue;
 
@@ -112,7 +122,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Services
             foreach (var z in zones)
             {
                 var id = z.ZoneId == Guid.Empty ? Guid.NewGuid() : z.ZoneId;
-                var vertices = z.Vertices.ToList();
+                var vertices = _geometryService.NormalizeVertices(z.Vertices);
                 var edges = new List<(DomainPoint3D A, DomainPoint3D B)>();
 
                 for (int i = 0; i < vertices.Count; i++)
@@ -121,6 +131,8 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Services
                     var b = vertices[(i + 1) % vertices.Count];
                     edges.Add((a, b));
                 }
+
+                if (vertices.Count == 0) continue;
 
                 var minX = vertices.Min(v => v.X);
                 var minY = vertices.Min(v => v.Y);
@@ -137,10 +149,10 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Services
             }
         }
 
-        private static bool IsCircleInsidePolygonFast(DomainPoint3D center, double radius, ZoneCache zone)
+        private bool IsCircleInsidePolygonFast(DomainPoint3D center, double radius, ZoneCache zone)
         {
             // Must be inside and at least radius away from every edge
-            if (!IsPointInPolygon2D(center, zone.Vertices))
+            if (!_geometryService.PointInPolygon(center, zone.Vertices))
                 return false;
 
             foreach (var (a, b) in zone.Edges)
@@ -187,26 +199,6 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Services
             var ry = x * sin + y * cos;
 
             return new DomainPoint3D(c.X + rx, c.Y + ry, c.Z);
-        }
-
-        private static bool IsPointInPolygon2D(DomainPoint3D p, List<DomainPoint3D> polygon)
-        {
-            if (polygon == null || polygon.Count < 3)
-                return false;
-
-            var inside = false;
-            for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
-            {
-                var xi = polygon[i].X; var yi = polygon[i].Y;
-                var xj = polygon[j].X; var yj = polygon[j].Y;
-
-                var intersect = ((yi > p.Y) != (yj > p.Y))
-                                && (p.X < (xj - xi) * (p.Y - yi) / ((yj - yi) + 1e-12) + xi);
-                if (intersect)
-                    inside = !inside;
-            }
-
-            return inside;
         }
     }
 }

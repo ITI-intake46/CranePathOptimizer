@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Create Project"
         Width="520"
-        Height="220"
+        Height="500"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="{DynamicResource BackgroundBrush}"
@@ -12,16 +12,21 @@
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
+        <!--  Title  -->
         <TextBlock Text="Create Project"
                    FontSize="{StaticResource FontSizeLG}"
                    FontWeight="SemiBold"
                    Foreground="{DynamicResource TextPrimaryBrush}" />
 
-        <StackPanel Grid.Row="1" Margin="0,24,0,0">
+        <!--  Project Name  -->
+        <StackPanel Grid.Row="1" Margin="0,20,0,0">
             <TextBlock Text="Project Name"
                        Style="{StaticResource PropertyLabel}" />
             <TextBox Text="{Binding ProjectName, UpdateSourceTrigger=PropertyChanged}"
@@ -30,7 +35,92 @@
                      Padding="8,4" />
         </StackPanel>
 
-        <StackPanel Grid.Row="2"
+        <!--  Project Location  -->
+        <StackPanel Grid.Row="2" Margin="0,14,0,0">
+            <TextBlock Text="Project Location"
+                       Style="{StaticResource PropertyLabel}" />
+            <Grid Margin="0,6,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="94" />
+                </Grid.ColumnDefinitions>
+
+                <TextBox Text="{Binding ParentFolderPath, UpdateSourceTrigger=PropertyChanged}"
+                         Height="34"
+                         Padding="8,4" />
+                <Button Grid.Column="2"
+                        Content="Browse"
+                        Height="34"
+                        Style="{StaticResource ButtonSecondary}"
+                        Command="{Binding BrowseLocationCommand}" />
+            </Grid>
+        </StackPanel>
+
+        <!--  Separator  -->
+        <Rectangle Grid.Row="3"
+                   Height="1"
+                   Margin="0,18,0,0"
+                   Fill="{DynamicResource BorderBrush}" />
+
+        <!--  Default Units  -->
+        <StackPanel Grid.Row="4" Margin="0,12,0,0">
+            <TextBlock Text="DEFAULT UNITS"
+                       Style="{StaticResource PanelSectionHeader}" />
+
+            <!--  Length  -->
+            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                <TextBlock Style="{StaticResource PropertyLabel}" Width="120" Text="Length:" />
+                <ComboBox Width="200"
+                          SelectedIndex="{Binding SelectedLengthIndex, Mode=TwoWay}"
+                          ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                          Style="{StaticResource DarkComboBox}">
+                    <ComboBoxItem Content="Millimetres (mm)" />
+                    <ComboBoxItem Content="Metres (m)" />
+                </ComboBox>
+            </StackPanel>
+
+            <!--  Area  -->
+            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                <TextBlock Style="{StaticResource PropertyLabel}" Width="120" Text="Area:" />
+                <ComboBox Width="200"
+                          SelectedIndex="{Binding SelectedAreaIndex, Mode=TwoWay}"
+                          ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                          Style="{StaticResource DarkComboBox}">
+                    <ComboBoxItem Content="m²" />
+                    <ComboBoxItem Content="ft²" />
+                </ComboBox>
+            </StackPanel>
+
+            <!--  Weight  -->
+            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                <TextBlock Style="{StaticResource PropertyLabel}" Width="120" Text="Weight:" />
+                <ComboBox Width="200"
+                          SelectedIndex="{Binding SelectedMassIndex, Mode=TwoWay}"
+                          ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                          Style="{StaticResource DarkComboBox}">
+                    <ComboBoxItem Content="Kilograms (kg)" />
+                    <ComboBoxItem Content="Tons (t)" />
+                </ComboBox>
+            </StackPanel>
+
+            <!--  Precision  -->
+            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                <TextBlock Style="{StaticResource PropertyLabel}" Width="120" Text="Decimals:" />
+                <ComboBox Width="100"
+                          SelectedIndex="{Binding SelectedPrecisionIndex, Mode=TwoWay}"
+                          ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                          Style="{StaticResource DarkComboBox}">
+                    <ComboBoxItem Content="0" />
+                    <ComboBoxItem Content="1" />
+                    <ComboBoxItem Content="2" />
+                    <ComboBoxItem Content="3" />
+                </ComboBox>
+            </StackPanel>
+        </StackPanel>
+
+        <!--  Buttons  -->
+        <StackPanel Grid.Row="5"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right">
             <Button Content="Cancel"

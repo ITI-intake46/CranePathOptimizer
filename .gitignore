@@ -26,3 +26,14 @@ packages/
 # OS
 .DS_Store
 Thumbs.db
+
+# files
+*.txt
+*.csv
+
+# Local patch backups
+.patch-backups/
+
+# IFC Diagnostic reports
+Reports/
+**/Reports/

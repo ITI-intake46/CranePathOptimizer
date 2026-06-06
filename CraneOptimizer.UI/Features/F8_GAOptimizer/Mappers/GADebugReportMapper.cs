@@ -38,7 +38,18 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Mappers
                         element.RequiredCapacity,
                         element.AvailableCapacity,
                         element.Status.ToString(),
-                        newlyCovered));
+                        newlyCovered,
+                        element.ReachStatus.ToString(),
+                        element.ChartStatus.ToString(),
+                        element.IsExactMatch,
+                        element.IsSteppedRadius,
+                        element.IsBlankCell,
+                        element.IsZeroCell,
+                        element.SafetyMargin,
+                        element.LookupMode,
+                        element.RequiredRadius,
+                        element.SelectedChartRadius,
+                        element.SelectedChartBoomLength));
                 }
             }
 

@@ -33,12 +33,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// <summary>
         /// Additional wire/hoist rope length (m) that increases required hook height.
         /// </summary>
+        /// <remarks>Unit: Meters (SI length)</remarks>
         public double WireLength { get; set; } = 2.0;
 
         /// <summary>
         /// Additional lifting weight (tons) for hook block and accessories.
         /// Added to element weight before capacity validation.
         /// </summary>
+        /// <remarks>Unit: Metric Tons (SI mass)</remarks>
         public double AdditionalWt { get; set; } = 0.0;
 
         /// <summary>
@@ -121,6 +123,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// Normalisation factor for working radius penalty.
         /// Converts raw radius values into a [0, 1] scale for consistent fitness evaluation.
         /// </summary>
+        /// <remarks>Unit: Meters (SI length)</remarks>
         public double MaxRadiusForNormalisation { get; set; } = 50;
 
         /// <summary>
@@ -182,6 +185,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public double MutationExplorationMultiplier { get; set; } = 2.0;
 
         /// <summary>
+        /// Enables generation-dependent cooling schedule for mutation sigma.
+        /// </summary>
+        public bool EnableAdaptiveSigma { get; set; } = false;
+
+        /// <summary>
+        /// Cooling exponent (alpha) that controls the decay shape of the mutation sigma.
+        /// </summary>
+        public double SigmaCoolingExponent { get; set; } = 1.5;
+
+        /// <summary>
+        /// Minimum mutation sigma floor in meters to prevent complete search freeze.
+        /// </summary>
+        public double MinimumMutationSigma { get; set; } = 0.5;
+
+        /// <summary>
         /// Number of attempts used when sampling valid and spatially separated setup points.
         /// </summary>
         public int PositionSamplingAttempts { get; set; } = 80;
@@ -197,5 +215,51 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// types are included in the optimization target set.
         /// </summary>
         public IReadOnlyCollection<string>? TargetElementTypes { get; set; }
+
+        /// <summary>
+        /// Directory where the GA profiling log should be saved.
+        /// If not specified, falls back to %LocalAppData%/CraneOptimizer/Logs/GA/.
+        /// </summary>
+        public string? ProfilingLogDirectory { get; set; }
+
+        /// <summary>
+        /// Enables high-resolution timing and profiling for the Genetic Algorithm pipeline.
+        /// </summary>
+        public bool EnableProfiling { get; set; } = true;
+
+        /// <summary>
+        /// Slew center horizontal offset X relative to crane base.
+        /// </summary>
+        public double SlewOffsetX { get; set; } = 0.0;
+
+        /// <summary>
+        /// Slew center horizontal offset Y relative to crane base.
+        /// </summary>
+        public double SlewOffsetY { get; set; } = 0.0;
+
+        /// <summary>
+        /// Slew center vertical offset Z relative to crane base.
+        /// </summary>
+        public double SlewOffsetZ { get; set; } = 0.0;
+
+        /// <summary>
+        /// Boom foot hinge horizontal offset X relative to crane base.
+        /// </summary>
+        public double BoomHingeOffsetX { get; set; } = 0.0;
+
+        /// <summary>
+        /// Boom foot hinge horizontal offset Y relative to crane base.
+        /// </summary>
+        public double BoomHingeOffsetY { get; set; } = 0.0;
+
+        /// <summary>
+        /// Boom foot hinge vertical offset Z relative to crane base.
+        /// </summary>
+        public double BoomHingeOffsetZ { get; set; } = 0.0;
+
+        /// <summary>
+        /// Enables the concurrent multi-setup optimization engine.
+        /// </summary>
+        public bool EnableConcurrentOptimization { get; set; } = true;
     }
 }

@@ -17,11 +17,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         private readonly IRenderingService _renderingService;
         private readonly ICraneOptimizerDialogService _optimizerDialogService;
         private readonly IGAResultsWindowService _resultsWindowService;
+        private readonly IGADiagnosticsWindowService _diagnosticsWindowService;
         private readonly IViewportInteractionService _interaction;
         private readonly IViewportHitTestService _hitTest;
         private readonly IElementLiftStateService _liftStateService;
         private readonly RelayCommand _optimizeCommand;
         private readonly RelayCommand _showResultsCommand;
+        private readonly RelayCommand _showDiagnosticsCommand;
 
         private bool _isPlacing;
         private DomainPoint3D? _currentPosition;
@@ -32,6 +34,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             IRenderingService renderingService,
             ICraneOptimizerDialogService optimizerDialogService,
             IGAResultsWindowService resultsWindowService,
+            IGADiagnosticsWindowService diagnosticsWindowService,
             IViewportInteractionService interaction,
             IViewportHitTestService hitTest,
             IElementLiftStateService liftStateService)
@@ -39,12 +42,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             _renderingService = renderingService;
             _optimizerDialogService = optimizerDialogService;
             _resultsWindowService = resultsWindowService;
+            _diagnosticsWindowService = diagnosticsWindowService;
             _interaction = interaction;
             _hitTest = hitTest;
             _liftStateService = liftStateService;
 
             _optimizeCommand = new RelayCommand(ExecuteOptimize);
             _showResultsCommand = new RelayCommand(OpenResults, CanShowResults);
+            _showDiagnosticsCommand = new RelayCommand(OpenDiagnostics);
             StartPlacementCommand = new RelayCommand(StartPlacement);
         }
 
@@ -93,6 +98,19 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             }
         }
 
+        private GAViewMode _currentGAViewMode = GAViewMode.FinalAssignment;
+        public GAViewMode CurrentGAViewMode
+        {
+            get => _currentGAViewMode;
+            set
+            {
+                if (_currentGAViewMode == value) return;
+                _currentGAViewMode = value;
+                OnPropertyChanged();
+                RenderElementsWithCurrentStatus?.Invoke();
+            }
+        }
+
         private CranePositionResult? _selectedPosition;
         public CranePositionResult? SelectedPosition
         {
@@ -112,6 +130,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 
         public ICommand OptimizeCommand => _optimizeCommand;
         public ICommand ShowResultsCommand => _showResultsCommand;
+        public ICommand ShowDiagnosticsCommand => _showDiagnosticsCommand;
         public ICommand StartPlacementCommand { get; }
         public Action<DomainPoint3D>? PlaceCraneInScene { get; set; }
         public Action? RenderElementsWithCurrentStatus { get; set; }
@@ -157,11 +176,22 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             if (!CanShowResults() || Result == null)
                 return;
 
-            _resultsWindowService.Show(Result, point =>
-            {
-                SelectedPosition = point;
-                RenderElementsWithCurrentStatus?.Invoke();
-            });
+            _resultsWindowService.Show(Result, 
+                point =>
+                {
+                    SelectedPosition = point;
+                    RenderElementsWithCurrentStatus?.Invoke();
+                },
+                viewMode =>
+                {
+                    CurrentGAViewMode = viewMode;
+                },
+                CurrentGAViewMode);
+        }
+
+        private void OpenDiagnostics()
+        {
+            _diagnosticsWindowService.Show(CurrentGAViewMode);
         }
 
         private void PublishLiftStates(CranePositionResult? position)
@@ -190,6 +220,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
                 LiftStatus.Overweight => "Overweight",
                 LiftStatus.HeightFail => "Height fail",
                 LiftStatus.SpecialCase => "Special case",
+                LiftStatus.NotCharted => "Not charted",
                 _ => status.ToString()
             };
         }

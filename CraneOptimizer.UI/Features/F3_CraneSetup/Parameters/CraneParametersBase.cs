@@ -15,6 +15,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
         private bool _isVisible = true;
         private bool _showSwingRadius = true;
         private double _exclusionRadiusM;
+        private double _minReach;
         private double _maxReach;
         private double _maxCapacity;
 
@@ -28,7 +29,8 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
         public bool IsVisible { get => _isVisible; set => SetField(ref _isVisible, value); }
         public bool ShowSwingRadius { get => _showSwingRadius; set => SetField(ref _showSwingRadius, value); }
         public double ExclusionRadiusM { get => _exclusionRadiusM; set => SetField(ref _exclusionRadiusM, value); }
-        public double MaxReach { get => _maxReach; set => SetField(ref _maxReach, value); }
+        public double MinReach { get => _minReach; set => SetField(ref _minReach, Math.Max(0.0, value)); }
+        public double MaxReach { get => _maxReach; set => SetField(ref _maxReach, Math.Max(0.0, value)); }
         public double MaxCapacity { get => _maxCapacity; set => SetField(ref _maxCapacity, value); }
 
         protected bool SetField<T>(ref T field, T value, [CallerMemberName] string? name = null)

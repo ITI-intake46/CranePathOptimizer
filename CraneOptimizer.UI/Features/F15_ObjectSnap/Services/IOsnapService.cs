@@ -9,6 +9,12 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
     public interface IOsnapService
     {
         OsnapSettings Settings { get; }
+        event Action<bool>? MasterEnabledChanged;
+
+        int SnapCacheBuiltCount { get; }
+        int SnapPointCount { get; }
+        double SnapBuildDurationMs { get; }
+        double SnapMemoryDeltaMB { get; }
 
         void SetMasterEnabled(bool enabled);
         void SetSnapEnabled(OsnapType type, bool enabled);

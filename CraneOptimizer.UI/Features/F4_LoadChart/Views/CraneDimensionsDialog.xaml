@@ -37,23 +37,23 @@
                                Style="{StaticResource PanelSectionHeader}"
                                Margin="0,0,0,8"/>
 
-                    <TextBlock Text="Total Length (mm)" Style="{StaticResource PropertyLabel}"/>
+                    <TextBlock x:Name="LblVehicleLength" Text="Total Length (m)" Style="{StaticResource PropertyLabel}"/>
                     <TextBox x:Name="TxtVehicleLength" Margin="0,0,0,8"/>
 
-                    <TextBlock Text="Transport Height (mm)" Style="{StaticResource PropertyLabel}"/>
+                    <TextBlock x:Name="LblVehicleHeight" Text="Transport Height (m)" Style="{StaticResource PropertyLabel}"/>
                     <TextBox x:Name="TxtVehicleHeight" Margin="0,0,0,8"/>
 
-                    <TextBlock Text="Travel Width (mm)" Style="{StaticResource PropertyLabel}"/>
+                    <TextBlock x:Name="LblVehicleWidth" Text="Travel Width (m)" Style="{StaticResource PropertyLabel}"/>
                     <TextBox x:Name="TxtVehicleWidth" Margin="0,0,0,12"/>
 
                     <TextBlock Text="OUTRIGGER CONFIGURATION"
                                Style="{StaticResource PanelSectionHeader}"
                                Margin="0,0,0,8"/>
 
-                    <TextBlock Text="Outrigger Span (pad to pad) (mm)" Style="{StaticResource PropertyLabel}"/>
+                    <TextBlock x:Name="LblOutriggerWidth" Text="Outrigger Span (pad to pad) (m)" Style="{StaticResource PropertyLabel}"/>
                     <TextBox x:Name="TxtOutriggerWidth" Margin="0,0,0,8"/>
 
-                    <TextBlock Text="Span to Span (front to rear) (mm)" Style="{StaticResource PropertyLabel}"/>
+                    <TextBlock x:Name="LblOutriggerLength" Text="Span to Span (front to rear) (m)" Style="{StaticResource PropertyLabel}"/>
                     <TextBox x:Name="TxtOutriggerLength"/>
                 </StackPanel>
             </ScrollViewer>

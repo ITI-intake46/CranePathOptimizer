@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Features.F4_LoadChart.Services;
 using System.Globalization;
 using System.Windows;
@@ -6,43 +7,48 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 {
     public partial class CraneDimensionsDialog : Window
     {
-        public double VehicleLengthMm { get; private set; }
-        public double VehicleHeightMm { get; private set; }
-        public double VehicleWidthMm { get; private set; }
-        public double? OutriggerWidthMm { get; private set; }
-        public double? OutriggerLengthMm { get; private set; }
+        public double VehicleLengthMeters { get; private set; }
+        public double VehicleHeightMeters { get; private set; }
+        public double VehicleWidthMeters { get; private set; }
+        public double? OutriggerWidthMeters { get; private set; }
+        public double? OutriggerLengthMeters { get; private set; }
+        private readonly UnitSettings _unitSettings;
 
         public CraneDimensionsDialog(
-            double vehicleLengthMm,
-            double vehicleHeightMm,
-            double vehicleWidthMm,
-            double? outriggerWidthMm,
-            double? outriggerLengthMm)
+            double vehicleLengthMeters,
+            double vehicleHeightMeters,
+            double vehicleWidthMeters,
+            double? outriggerWidthMeters,
+            double? outriggerLengthMeters)
         {
             InitializeComponent();
+            _unitSettings = App.ServiceProvider.GetService(typeof(IUnitSettingsService)) is IUnitSettingsService unitSettingsService
+                ? unitSettingsService.Current
+                : UnitSettings.Default;
 
-            VehicleLengthMm = vehicleLengthMm;
-            VehicleHeightMm = vehicleHeightMm;
-            VehicleWidthMm = vehicleWidthMm;
-            OutriggerWidthMm = outriggerWidthMm;
-            OutriggerLengthMm = outriggerLengthMm;
+            VehicleLengthMeters = vehicleLengthMeters;
+            VehicleHeightMeters = vehicleHeightMeters;
+            VehicleWidthMeters = vehicleWidthMeters;
+            OutriggerWidthMeters = outriggerWidthMeters;
+            OutriggerLengthMeters = outriggerLengthMeters;
 
-            TxtVehicleLength.Text = FormatNumber(vehicleLengthMm);
-            TxtVehicleHeight.Text = FormatNumber(vehicleHeightMm);
-            TxtVehicleWidth.Text = FormatNumber(vehicleWidthMm);
-            TxtOutriggerWidth.Text = FormatNumber(outriggerWidthMm);
-            TxtOutriggerLength.Text = FormatNumber(outriggerLengthMm);
+            ApplyUnitLabels();
+            TxtVehicleLength.Text = FormatLengthInput(vehicleLengthMeters);
+            TxtVehicleHeight.Text = FormatLengthInput(vehicleHeightMeters);
+            TxtVehicleWidth.Text = FormatLengthInput(vehicleWidthMeters);
+            TxtOutriggerWidth.Text = FormatLengthInput(outriggerWidthMeters);
+            TxtOutriggerLength.Text = FormatLengthInput(outriggerLengthMeters);
         }
 
         private void BtnApply_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                VehicleLengthMm = ParseNumberOrZero(TxtVehicleLength.Text, "Total Length");
-                VehicleHeightMm = ParseNumberOrZero(TxtVehicleHeight.Text, "Transport Height");
-                VehicleWidthMm = ParseNumberOrZero(TxtVehicleWidth.Text, "Travel Width");
-                OutriggerWidthMm = TryParseOptionalNumber(TxtOutriggerWidth.Text, "Outrigger Span", out double width) ? width : null;
-                OutriggerLengthMm = TryParseOptionalNumber(TxtOutriggerLength.Text, "Span to Span", out double length) ? length : null;
+                VehicleLengthMeters = ParseLengthOrZero(TxtVehicleLength.Text, "Total Length");
+                VehicleHeightMeters = ParseLengthOrZero(TxtVehicleHeight.Text, "Transport Height");
+                VehicleWidthMeters = ParseLengthOrZero(TxtVehicleWidth.Text, "Travel Width");
+                OutriggerWidthMeters = TryParseOptionalLength(TxtOutriggerWidth.Text, "Outrigger Span", out double width) ? width : null;
+                OutriggerLengthMeters = TryParseOptionalLength(TxtOutriggerLength.Text, "Span to Span", out double length) ? length : null;
 
                 DialogResult = true;
                 Close();
@@ -60,18 +66,28 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             Close();
         }
 
-        private static double ParseNumberOrZero(string text, string fieldName)
+        private void ApplyUnitLabels()
+        {
+            var symbol = UnitSystem.LengthSymbol(_unitSettings.DisplayLengthUnit);
+            LblVehicleLength.Text = $"Total Length ({symbol})";
+            LblVehicleHeight.Text = $"Transport Height ({symbol})";
+            LblVehicleWidth.Text = $"Travel Width ({symbol})";
+            LblOutriggerWidth.Text = $"Outrigger Span (pad to pad) ({symbol})";
+            LblOutriggerLength.Text = $"Span to Span (front to rear) ({symbol})";
+        }
+
+        private double ParseLengthOrZero(string text, string fieldName)
         {
             if (string.IsNullOrWhiteSpace(text))
                 return 0d;
 
             if (LoadChartCsvService.TryParseFlexibleNumber(text, out double value))
-                return value;
+                return UnitSystem.ToMeters(value, _unitSettings.DisplayLengthUnit);
 
             throw new FormatException($"{fieldName} value '{text}' is invalid.");
         }
 
-        private static bool TryParseOptionalNumber(string text, string fieldName, out double value)
+        private bool TryParseOptionalLength(string text, string fieldName, out double value)
         {
             if (string.IsNullOrWhiteSpace(text))
             {
@@ -80,15 +96,19 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             }
 
             if (LoadChartCsvService.TryParseFlexibleNumber(text, out value))
+            {
+                value = UnitSystem.ToMeters(value, _unitSettings.DisplayLengthUnit);
                 return true;
+            }
 
             throw new FormatException($"{fieldName} value '{text}' is invalid.");
         }
 
-        private static string FormatNumber(double? value)
+        private string FormatLengthInput(double? value)
         {
             return value.HasValue && value.Value > 0
-                ? value.Value.ToString("F0", CultureInfo.InvariantCulture)
+                ? UnitSystem.FromMeters(value.Value, _unitSettings.DisplayLengthUnit)
+                    .ToString("0.###", CultureInfo.InvariantCulture)
                 : string.Empty;
         }
     }

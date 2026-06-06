@@ -1,9 +1,13 @@
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engine;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization;
 using CraneOptimizer.Domain.Interfaces;
+using CraneOptimizer.Application.Services;
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
+using CraneOptimizer.Infrastructure.Ifc;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
@@ -11,6 +15,7 @@ using CraneOptimizer.UI.Features.F0_CoordinateSystem;
 using CraneOptimizer.UI.Features.F3_CraneSetup;
 using CraneOptimizer.UI.Features.F3_CraneSetup.Services;
 using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
+using CraneOptimizer.UI.Features.F11_DXF.Services;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
@@ -35,7 +40,11 @@ using System.Windows;
 using System.Windows.Threading;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels;
+using CraneOptimizer.UI.Features.F9_Settings.Views;
 using CraneOptimizer.UI.F90_CraneSeedData.Services;
+using CraneOptimizer.UI.Features.F17_Selection.Interaction;
+using CraneOptimizer.UI.Features.F17_Selection.Services;
+using CraneOptimizer.UI.Features.F17_Selection.ViewModels;
 
 namespace CraneOptimizer.UI
 {
@@ -45,6 +54,9 @@ namespace CraneOptimizer.UI
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            // Initialize transitional static holder
+            ZoneGeometryServiceHolder.Instance = new CraneOptimizer.Domain.Services.ZoneGeometryService();
+
             // Global exception handlers
             DispatcherUnhandledException += OnDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
@@ -76,8 +88,14 @@ namespace CraneOptimizer.UI
             // Infrastructure
             // =========================
             services.AddScoped<ICraneRepository, CraneRepository>();
+            services.AddSingleton<IIfcModelSessionService, IfcModelSessionService>();
             services.AddSingleton<IIfcReaderRepository, IfcReaderRepository>();
-            services.AddScoped<IProjectRepository, ProjectRepository>();
+            services.AddSingleton<IProjectRepository, ProjectRepository>();
+            services.AddSingleton<IProjectMaterialSettingsService, ProjectMaterialSettingsService>();
+            services.AddSingleton<IUnitSettingsService, UnitSettingsService>();
+            services.AddSingleton<IIfcDiagnosticAuditService, IfcDiagnosticAuditService>();
+            services.AddSingleton<IIfcExporterProfileResolver, IfcExporterProfileResolver>();
+            services.AddSingleton<IIfcNormalizationDecisionService, IfcNormalizationDecisionService>();
 
             // =========================
             // Core Services
@@ -91,6 +109,8 @@ namespace CraneOptimizer.UI
             // =========================
             // F10 Project Management
             // =========================
+            services.AddSingleton<IProjectWorkspaceService, ProjectWorkspaceService>();
+            services.AddSingleton<IProjectStateService, ProjectStateService>();
             services.AddTransient<IProjectService, ProjectService>();
             services.AddSingleton<IProjectShellService, ProjectShellService>();
             services.AddSingleton<IProjectNavigationService, ProjectNavigationService>();
@@ -104,26 +124,36 @@ namespace CraneOptimizer.UI
             // =========================
             // Scene
             // =========================
+            services.AddSingleton<IZoneGeometryService, CraneOptimizer.Domain.Services.ZoneGeometryService>();
             services.AddSingleton<SceneService>();
             services.AddSingleton<DrawingService>();
             services.AddSingleton<CoordinateService>();
             services.AddSingleton<ICoordinateTransformService, CoordinateTransformService>();
+            services.AddSingleton<IProjectCoordinateTransformService, ProjectCoordinateTransformService>();
+            services.AddSingleton<ICoordinateReadoutFormatter, CoordinateReadoutFormatter>();
             services.AddSingleton<ICraneValidationService, CraneValidationService>();
             services.AddSingleton<IElementLiftStateService, ElementLiftStateService>();
+            services.AddSingleton<IDxfZoneImportService, DxfZoneImportService>();
 
             // =========================
             // GA
             // =========================
             RegisterGAServices(services);
 
-            services.AddScoped<GAInputBuilder>();
+            services.AddScoped<IOptimizationInputBuilder, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.OptimizationScope.OptimizationInputBuilder>();
+            services.AddScoped<ICranePlacementEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.PlacementOrchestration.CranePlacementEngine>();
+            services.AddScoped<IOptimizationScopeEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.OptimizationScope.OptimizationScopeEngine>();
             services.AddScoped<ICranePlacementService, CranePlacementService>();
             services.AddSingleton<ICraneOptimizerDialogService, CraneOptimizerDialogService>();
             services.AddSingleton<IGAResultsWindowService, GAResultsWindowService>();
+            services.AddSingleton<CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces.IGADiagnosticsReaderService, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GADiagnosticsReaderService>();
+            services.AddSingleton<CraneOptimizer.UI.Features.F8_GAOptimizer.Services.IGADiagnosticsWindowService, CraneOptimizer.UI.Features.F8_GAOptimizer.Services.GADiagnosticsWindowService>();
+
 
             // =========================
             // Rendering
             // =========================
+            services.AddSingleton<IRenderDiagnosticsStore, RenderDiagnosticsStore>();
             services.AddSingleton<ElementVisualBuilder>();
             services.AddSingleton<CraneVisualBuilder>();       // shared singleton — carries CraneParametersReady event
             services.AddSingleton<IRenderingService, HelixRenderingService>();
@@ -134,6 +164,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IOriginService, OriginService>();
             services.AddSingleton<ICraneSceneInteractionService, CraneSceneInteractionService>();
             services.AddSingleton<ISceneService>(provider => provider.GetRequiredService<SceneService>());
+            services.AddSingleton<IViewportSelectionService, ViewportSelectionService>();
             services.AddSingleton<IIfcOptionsDialogService, IfcOptionsDialogService>();
 
             // =========================
@@ -145,7 +176,11 @@ namespace CraneOptimizer.UI
             services.AddSingleton<CranePlacementViewModel>();
             services.AddSingleton<IfcViewerViewModel>();
             services.AddSingleton<DxfTabViewModel>();
+            services.AddSingleton<CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel>();
             services.AddScoped<ElementManagementViewModel>();
+            services.AddSingleton<SelectionHandler>();
+            services.AddSingleton<HoverHitCache>();
+            services.AddTransient<SelectionViewModel>();
 
             // =========================
             // F15 Object Snap
@@ -161,6 +196,7 @@ namespace CraneOptimizer.UI
             // Views
             // =========================
             services.AddTransient<MainWindow>();
+            services.AddTransient<UnitsSettingsDialog>();
             services.AddScoped<CraneSeedService>();
 
             ServiceProvider = services.BuildServiceProvider();
@@ -304,15 +340,23 @@ namespace CraneOptimizer.UI
         {
             services.AddScoped<IGeneticAlgorithmEngine, GAEngine>();
 
+            services.AddScoped<ICraneConfigurationEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.CraneConfiguration.CraneConfigurationEngine>();
+            services.AddScoped<ILiftingCalculationEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.LiftingCalculation.LiftingCalculationEngine>();
+            services.AddScoped<CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces.ILoadChartCapacityResolver, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.LoadChartCapacityResolver>();
+            services.AddScoped<IConstraintEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Constraints.ConstraintEngine>();
+            services.AddScoped<ICoverageEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Coverage.CoverageEngine>();
+
             services.AddScoped<IGAInitializer, GAInitializer>();
             services.AddScoped<IElementAssignmentService, ElementAssignmentService>();
             services.AddScoped<IFitnessEvaluator, FitnessEvaluator>();
+            services.AddScoped<IGACsvDiagnosticsService, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GACsvDiagnosticsService>();
             services.AddSingleton<CraneSetupViewModel>();
             services.AddScoped<ISelectionStrategy, TournamentSelection>();
             services.AddScoped<ICrossoverOperator, CrossoverOperator>();
             services.AddScoped<IMutationOperator, MutationOperator>();
             services.AddScoped<IReplacementStrategy, ReplacementStrategy>();
 
+            services.AddSingleton<IOptimizationHistoryLogger, CsvOptimizationHistoryLogger>();
             services.AddSingleton<GASettings>();
         }
     }

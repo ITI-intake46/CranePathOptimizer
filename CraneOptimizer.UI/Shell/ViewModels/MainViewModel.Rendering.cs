@@ -16,6 +16,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
                 _sceneRendering.ShowCraneRadius = value;
                 OnPropertyChanged();
+                QueueProjectStateSave();
             }
         }
 
@@ -55,7 +56,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 GetPlacementOffset = GetPlacementOffset,
                 GetLiftResults = () => CranePlacement.SelectedPosition?.ElementResults,
                 GetSelectedElementId = () => ElementManagement.SelectedElement?.ElementID,
-                GetZones = () => Scene.GetZones()
+                GetSelectedElementIds = () => Scene.GetSelectedElements().Select(x => x.ElementID).ToList(),
+                GetZones = () => Scene.GetZones(),
+                GetGAViewMode = () => CranePlacement.CurrentGAViewMode
             });
 
             _sceneRendering.ElementsCleared += OnSceneElementsCleared;
@@ -78,6 +81,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _originService.ClearOrigin();
             _originService.CancelPicking();
             IsModelLoaded = false;
+            BuildingArea = 0;
+            BuildingHeight = 0;
+            BuildingName = "No Building Loaded";
             StatusText = "Model cleared";
         }
 
@@ -86,12 +92,15 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _originService.ClearOrigin();
             _originService.CancelPicking();
             IsModelLoaded = true;
+            RefreshBuildingMetrics();
+            BuildingName = CurrentProjectName;
             StatusText = $"Model loaded ({elements.Count} elements).";
         }
 
         private void OnOriginChanged()
         {
             OnPropertyChanged(nameof(OriginPoint));
+            QueueProjectStateSave();
         }
 
         private void OnOriginPickingChanged()

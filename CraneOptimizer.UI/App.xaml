@@ -10,6 +10,8 @@
             <local:LiftStatusToBrushConverter x:Key="LiftStatusToBrushConverter"/>
             <local:BoolToTextConverter x:Key="BoolToTextConverter"/>
             <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
+            <local:LengthDisplayConverter x:Key="LengthDisplayConverter"/>
+            <local:MassDisplayConverter x:Key="MassDisplayConverter"/>
             
             <ResourceDictionary.MergedDictionaries>
 

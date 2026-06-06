@@ -73,7 +73,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.ViewModels
                 DisplayName = name,
                 WeightText = weight,
                 WeightValue = weightValue,
-                MaterialLabel = string.IsNullOrWhiteSpace(material) ? "Unspecified" : material.Trim(),
+                MaterialLabel = string.IsNullOrWhiteSpace(material) ? "N/A" : material.Trim(),
                 WeightLabel = weight,
                 IsChecked = isChecked,
                 Parent = parent

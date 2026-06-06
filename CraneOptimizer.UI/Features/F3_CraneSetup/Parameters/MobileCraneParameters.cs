@@ -90,7 +90,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
             get => _workingRadius;
             set
             {
-                double clamped = Math.Max(0, Math.Min(value, BoomLength));
+                double clamped = ClampWorkingRadius(value);
                 if (SetField(ref _workingRadius, clamped))
                 {
                     // Back-calculate BoomAngle from working radius
@@ -101,11 +101,26 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
             }
         }
 
-        private void RecalcWorkingRadius()
+                private double ClampWorkingRadius(double value)
+        {
+            double upperBound = BoomLength;
+
+            if (MaxReach > 0.0)
+                upperBound = Math.Min(upperBound, MaxReach);
+
+            upperBound = Math.Max(0.0, upperBound);
+
+            double lowerBound = Math.Max(0.0, MinReach);
+            if (lowerBound > upperBound)
+                lowerBound = upperBound;
+
+            return Math.Clamp(value, lowerBound, upperBound);
+        }
+private void RecalcWorkingRadius()
         {
             double rad = BoomAngle * Math.PI / 180.0;
-            double r = BoomLength * Math.Cos(rad);
-            SetField(ref _workingRadius, Math.Round(r, 2), nameof(WorkingRadius));
+            double r = Math.Round(BoomLength * Math.Cos(rad), 2);
+            SetField(ref _workingRadius, ClampWorkingRadius(r), nameof(WorkingRadius));
         }
     }
 }

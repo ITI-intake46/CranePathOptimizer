@@ -24,6 +24,18 @@ namespace CraneOptimizer.Domain.Entities
 
         public bool IsDeleted { get; set; }
 
+        public int DisplayLengthUnit { get; set; } = 2;
+
+        public int DisplayMassUnit { get; set; } = 1;
+
+        public int DisplayAreaUnit { get; set; } = 0;
+
+        public int UnitDecimalPlaces { get; set; } = 2;
+
+        public double ConcreteDensityKgPerM3 { get; set; } = 2500.0;
+
+        public string ProjectFolderPath { get; set; } = string.Empty;
+
         public ICollection<ProjectIfcFile> IfcFiles { get; set; } = new List<ProjectIfcFile>();
     }
 }
