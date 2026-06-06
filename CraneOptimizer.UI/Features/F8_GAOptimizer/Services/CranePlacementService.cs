@@ -9,6 +9,7 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
@@ -153,6 +154,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 System.Diagnostics.Debug.WriteLine($"  - Reason: {blocked.Key} -> Count: {blocked.Count()}");
             }
             System.Diagnostics.Debug.WriteLine("==========================================================");
+
+            if (filteredElements.Count > 0 && elements.Count == 0)
+            {
+                throw new InvalidOperationException(BuildGaEligibilityFailureMessage(
+                    sceneElements.Count,
+                    filteredElements.Count,
+                    blockedElements));
+            }
 
             // Normalize zones to meters
             var zones = new List<GreenAreaZone>(sceneZones.Count);
@@ -425,6 +434,48 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 result.DebugReportPath = null;
                 result.DebugReportError = ex.Message;
             }
+        }
+
+        private static string BuildGaEligibilityFailureMessage(
+            int sceneElementCount,
+            int filteredElementCount,
+            IReadOnlyList<(PrecastElement element, string reason)> blockedElements)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("Elements are visible in the IFC viewer, but none are eligible for optimization.");
+            sb.AppendLine($"Visible scene elements: {sceneElementCount}. Selected/filtered elements checked: {filteredElementCount}. Blocked elements: {blockedElements.Count}.");
+
+            var firstReason = blockedElements.Count > 0 ? blockedElements[0].reason : "Unknown.";
+            sb.AppendLine($"First rule that converted a visible element to non-eligible: {firstReason}");
+            sb.AppendLine("Blocked reasons:");
+
+            foreach (var group in blockedElements.GroupBy(b => b.reason).Take(8))
+            {
+                sb.AppendLine($"- {group.Count()} element(s): {group.Key}");
+            }
+
+            var sampleBlocked = blockedElements
+                .Where(b => b.element != null)
+                .Take(5)
+                .Select(b =>
+                {
+                    var id = string.IsNullOrWhiteSpace(b.element.ElementID) ? "<missing id>" : b.element.ElementID;
+                    var name = string.IsNullOrWhiteSpace(b.element.ElementName) ? b.element.ElementType : b.element.ElementName;
+                    return $"{id} ({name})";
+                })
+                .ToList();
+
+            if (sampleBlocked.Count > 0)
+            {
+                sb.AppendLine("Sample blocked elements:");
+                foreach (var sample in sampleBlocked)
+                {
+                    sb.AppendLine($"- {sample}");
+                }
+            }
+
+            sb.Append("Check the IFC normalization report for Role, IncludeInGa, WeightTrustLevel, and DecisionReason.");
+            return sb.ToString();
         }
     }
 }

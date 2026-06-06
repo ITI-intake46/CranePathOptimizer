@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Xbim.Common;
@@ -746,7 +747,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 if (detail.WeightRawValue.HasValue) break;
             }
 
-            // Search Properties if not found in quantities
+            // Search Properties if not found in quantities.
+            // Revit often exports explicit user/shared parameters with names that do not
+            // include the simple "weight" token. Keep this lookup explicit-only: volume
+            // or density-derived values are still handled later as non-GA fallback.
             if (!detail.WeightRawValue.HasValue)
             {
                 var propertySets = product.IsDefinedBy
@@ -758,15 +762,16 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     foreach (var prop in pSet.HasProperties.OfType<IIfcPropertySingleValue>())
                     {
                         var name = prop.Name.ToString();
-                        if (name.ContainsAny("weight", "mass"))
+                        if (IsExplicitWeightPropertyName(name, pSet.Name.ToString()))
                         {
-                            var valStr = prop.NominalValue?.ToString();
-                            if (double.TryParse(valStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedVal))
+                            if (TryReadNumericPropertyValue(prop, out var parsedVal))
                             {
                                 detail.WeightRawValue = parsedVal;
                                 detail.WeightPropertyName = name;
                                 detail.QuantitySetNameOrPropertySetName = pSet.Name.ToString();
-                                detail.WeightSource = "PropertySet.Instance";
+                                detail.WeightSource = IsLikelyRevitWeightProperty(name, pSet.Name.ToString())
+                                    ? "RevitPropertySet.Instance"
+                                    : "PropertySet.Instance";
                                 detail.WeightUnitDetected = prop.Unit?.ToString() ?? "Unspecified";
 
                                 // Convert to Standard Value (Tons) based on heuristics
@@ -789,7 +794,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                     detail.WeightStandardValueTons = parsedVal > 100.0 ? parsedVal / 1000.0 : parsedVal;
                                     if (parsedVal > 100.0)
                                     {
-                                        detail.WeightSource = "PropertySet.Instance (Heuristically Scaled)";
+                                        detail.WeightSource = $"{detail.WeightSource} (Heuristically Scaled)";
                                         detail.Warning = "Weight property value exceeded 100. Assumed kilograms and converted to metric tons.";
                                     }
                                 }
@@ -844,6 +849,107 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
 
             return detail;
+        }
+
+        private static bool TryReadNumericPropertyValue(IIfcPropertySingleValue property, out double value)
+        {
+            value = 0;
+
+            var nominal = property.NominalValue;
+            if (nominal == null)
+                return false;
+
+            object? rawValue = nominal;
+            var valueProperty = nominal.GetType().GetProperty("Value");
+            if (valueProperty != null)
+            {
+                rawValue = valueProperty.GetValue(nominal);
+            }
+
+            if (rawValue is double doubleValue)
+            {
+                value = doubleValue;
+                return true;
+            }
+
+            if (rawValue is float floatValue)
+            {
+                value = floatValue;
+                return true;
+            }
+
+            if (rawValue is decimal decimalValue)
+            {
+                value = (double)decimalValue;
+                return true;
+            }
+
+            if (rawValue is int intValue)
+            {
+                value = intValue;
+                return true;
+            }
+
+            if (rawValue is long longValue)
+            {
+                value = longValue;
+                return true;
+            }
+
+            var valueText = Convert.ToString(rawValue, CultureInfo.InvariantCulture);
+            if (double.TryParse(valueText, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
+                return true;
+
+            valueText = Convert.ToString(nominal, CultureInfo.InvariantCulture);
+            if (double.TryParse(valueText, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
+                return true;
+
+            var numericMatch = Regex.Match(valueText ?? string.Empty, @"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?");
+            return numericMatch.Success &&
+                   double.TryParse(numericMatch.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out value);
+        }
+
+        private static bool IsExplicitWeightPropertyName(string propertyName, string propertySetName)
+        {
+            if (string.IsNullOrWhiteSpace(propertyName))
+                return false;
+
+            var combined = $"{propertySetName} {propertyName}";
+            return combined.ContainsAny(
+                "weight",
+                "mass",
+                "netweight",
+                "grossweight",
+                "net weight",
+                "gross weight",
+                "self weight",
+                "selfweight",
+                "dead load",
+                "deadload",
+                "shipping weight",
+                "shippingweight",
+                "lifting weight",
+                "liftingweight",
+                "assembly weight",
+                "assemblyweight",
+                "precast weight",
+                "precastweight",
+                "revit weight",
+                "revit mass");
+        }
+
+        private static bool IsLikelyRevitWeightProperty(string propertyName, string propertySetName)
+        {
+            var combined = $"{propertySetName} {propertyName}";
+            return combined.ContainsAny(
+                "revit",
+                "identity data",
+                "dimensions",
+                "structural",
+                "netweight",
+                "grossweight",
+                "assembly weight",
+                "precast weight");
         }
 
         private static double ResolveConcreteDensity(IfcReadingOptions? options)
