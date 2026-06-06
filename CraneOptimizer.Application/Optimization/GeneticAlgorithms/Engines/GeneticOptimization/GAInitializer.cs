@@ -120,14 +120,38 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             int craneCount = Rng.Next(1, maxCranePositions + 1);
 
             var selectedIndices = new HashSet<int>();
+            var selectedZones = new HashSet<Guid>();
             int attempts = 0;
 
-            while (chromosome.CranePositions.Count < craneCount && attempts < craneCount * 3 && hotSpots.Count > 0)
+            while (chromosome.CranePositions.Count < craneCount && attempts < craneCount * 5 && hotSpots.Count > 0)
             {
                 attempts++;
-                int idx = Rng.Next(hotSpots.Count);
-                if (selectedIndices.Contains(idx))
-                    continue;
+
+                int idx = -1;
+                var unselectedZoneIndices = new List<int>();
+                for (int j = 0; j < hotSpots.Count; j++)
+                {
+                    if (!selectedIndices.Contains(j) && !selectedZones.Contains(hotSpots[j].ZoneId))
+                    {
+                        unselectedZoneIndices.Add(j);
+                    }
+                }
+
+                if (unselectedZoneIndices.Count > 0)
+                {
+                    idx = unselectedZoneIndices[Rng.Next(unselectedZoneIndices.Count)];
+                }
+                else
+                {
+                    var eligible = Enumerable.Range(0, hotSpots.Count).Where(j => !selectedIndices.Contains(j)).ToList();
+                    if (eligible.Count > 0)
+                    {
+                        idx = eligible[Rng.Next(eligible.Count)];
+                    }
+                }
+
+                if (idx == -1)
+                    break;
 
                 selectedIndices.Add(idx);
                 var spot = hotSpots[idx];
@@ -136,6 +160,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 if (_constraintEngine.IsMeaningfullySeparated(point, chromosome.CranePositions, settings))
                 {
                     chromosome.CranePositions.Add(point);
+                    selectedZones.Add(spot.ZoneId);
                 }
             }
 

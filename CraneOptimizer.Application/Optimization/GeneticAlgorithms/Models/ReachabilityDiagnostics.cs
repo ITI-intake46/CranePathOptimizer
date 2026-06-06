@@ -8,5 +8,5 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
         double AverageHotSpotCoverage
     );
 
-    public record ScoredCoordinate(double X, double Y, int ReachableCount);
+    public record ScoredCoordinate(double X, double Y, int ReachableCount, Guid ZoneId = default);
 }

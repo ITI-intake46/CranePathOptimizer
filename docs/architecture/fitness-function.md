@@ -16,12 +16,24 @@ To resolve this penalty death, the [MultiStageGAOrchestrator](file:///f:/06-ITI/
 
 ## 2. Mathematical Formula
 
+The overall fitness value of a solution is computed using the following weighted penalty deduction formula:
+
+$$\text{fitness} = \text{CoverageWeight} \times 100.0 \times \text{coverageRatio} - \text{Penalties}$$
+
+Where the penalties are:
+
+$$\text{Penalties} = \text{relocationPenaltyVal} + \text{RadiusPenaltyWeight} \times \text{outOfRadiusFraction} + \dots$$
+
+> [!NOTE]
+> **Coverage Scaling:** The coverage term is scaled by a factor of `100.0`. This ensures that coverage improvements (the dominant signal) always override other penalties (like relocation, std-dev, and balance penalties) when coverage increases.
+
+### Adaptive Relocation Weighting
 The adaptive relocation weight is computed as follows:
 
 $$\text{adaptiveWeight} = (1.0 - \text{previousCoverage}) \times \text{CoverageWeight} \times \text{AdaptiveRelocationScaleFactor}$$
 
 ### Guard Clamping
-To prevent the relocation weight from dominating the coverage fitness bonus (which must remain the dominant search signal), a safety guard clamps the weight strictly below the `CoverageWeight`:
+To prevent the relocation weight from dominating the coverage fitness bonus, a safety guard clamps the weight strictly below the `CoverageWeight`:
 
 $$\text{adaptiveWeight} = \min(\text{adaptiveWeight}, \text{CoverageWeight} \times 0.99)$$
 

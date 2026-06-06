@@ -166,12 +166,52 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     }
                 }
 
-                scoredResults.Add(new ScoredCoordinate(pt.X, pt.Y, reachableCount));
+                Guid zoneId = Guid.Empty;
+                foreach (var zone in allowedZonesList)
+                {
+                    if (zone.Vertices != null && SpatialMath.PointInPolygon(pt, zone.Vertices))
+                    {
+                        zoneId = zone.ZoneId;
+                        break;
+                    }
+                }
+
+                scoredResults.Add(new ScoredCoordinate(pt.X, pt.Y, reachableCount, zoneId));
             });
 
             int totalPoints = validPoints.Count;
             int zeroCoveragePoints = scoredResults.Count(sc => sc.ReachableCount == 0);
-            var sortedList = scoredResults
+
+            // Group scoredResults by ZoneId to ensure zone diversity in hot spots seeding
+            var pointsByZone = scoredResults
+                .GroupBy(sc => sc.ZoneId)
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(sc => sc.ReachableCount).ToList());
+
+            var selectedList = new List<ScoredCoordinate>();
+            int zonesCount = allowedZonesList.Count;
+            int targetPerZone = Math.Max(50, topN / zonesCount); // Ensure a healthy minimum per zone
+
+            // First pass: Take up to targetPerZone from each zone
+            foreach (var kv in pointsByZone)
+            {
+                var zonePoints = kv.Value;
+                selectedList.AddRange(zonePoints.Take(targetPerZone));
+            }
+
+            // Second pass: If we still need more to reach topN, fill with remaining best points overall
+            if (selectedList.Count < topN)
+            {
+                var takenSet = new HashSet<ScoredCoordinate>(selectedList);
+                var remaining = scoredResults
+                    .Where(sc => !takenSet.Contains(sc))
+                    .OrderByDescending(sc => sc.ReachableCount)
+                    .ThenBy(sc => sc.X)
+                    .ThenBy(sc => sc.Y);
+
+                selectedList.AddRange(remaining.Take(topN - selectedList.Count));
+            }
+
+            var sortedList = selectedList
                 .OrderByDescending(sc => sc.ReachableCount)
                 .ThenBy(sc => sc.X)
                 .ThenBy(sc => sc.Y)

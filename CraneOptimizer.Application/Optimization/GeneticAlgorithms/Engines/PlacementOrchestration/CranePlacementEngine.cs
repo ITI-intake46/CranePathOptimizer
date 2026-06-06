@@ -109,6 +109,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                             input.Settings);
 
                         concurrentStats = concurrentResult.Statistics;
+                        finalResult.FitnessScore = concurrentResult.FitnessScore;
 
                         foreach (var pos in concurrentResult.Positions)
                         {
@@ -217,8 +218,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
 
                 _coverageEngine.DeduplicateFinalPositions(finalResult, input.Settings);
                 _coverageEngine.RecalculateCoverage(finalResult, allElements.Count);
-
-                finalResult.FitnessScore = finalResult.CoverageRatio;
                 finalResult.Positions = finalResult.Positions
                     .OrderByDescending(position => position.NewLiftableCount)
                     .ToList();
@@ -319,6 +318,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 }
 
                 finalResult.ReachabilityDiagnostics = _reachabilityMapService?.LastDiagnostics;
+
+                if (!input.Settings.EnableConcurrentOptimization)
+                {
+                    finalResult.FitnessScore = finalResult.CoverageRatio;
+                }
 
                 return finalResult;
             }
