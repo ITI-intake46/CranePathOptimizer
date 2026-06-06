@@ -180,7 +180,7 @@
                                     HorizontalAlignment="Center"
                                     FontSize="{StaticResource FontSizeXS}"
                                     Foreground="{DynamicResource TextSecondaryBrush}"
-                                    Text="Liftable" />
+                                    Text="Selected Point Liftable" />
                             </StackPanel>
 
                             <StackPanel>
@@ -194,7 +194,7 @@
                                     HorizontalAlignment="Center"
                                     FontSize="{StaticResource FontSizeXS}"
                                     Foreground="{DynamicResource TextSecondaryBrush}"
-                                    Text="Non-Liftable" />
+                                    Text="Selected Point Non-Liftable" />
                             </StackPanel>
 
                             <StackPanel>
@@ -208,7 +208,7 @@
                                     HorizontalAlignment="Center"
                                     FontSize="{StaticResource FontSizeXS}"
                                     Foreground="{DynamicResource TextSecondaryBrush}"
-                                    Text="Unreachable" />
+                                    Text="Selected Point Unreachable" />
                             </StackPanel>
                         </UniformGrid>
 

@@ -283,8 +283,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         {
             PanelResults.Visibility = Visibility.Visible;
 
-            TxtScore.Text = $"Fitness: {result.FitnessScore:F2}";
-            TxtCoverage.Text = $"Total Lifted: {result.LiftedElementCount} / {result.TotalElementCount}";
+            double coveragePct = result.TotalElementCount > 0
+                ? ((double)result.LiftedElementCount / result.TotalElementCount * 100.0)
+                : 0.0;
+
+            TxtScore.Text = $"Coverage: {coveragePct:F2}%";
+            TxtCoverage.Text = $"Lifted: {result.LiftedElementCount} / {result.TotalElementCount} | GA Score: {result.FitnessScore:F2}";
 
             if (!result.Positions.Any())
             {

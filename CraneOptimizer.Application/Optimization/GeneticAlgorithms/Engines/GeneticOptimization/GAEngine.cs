@@ -131,6 +131,29 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                             stagnantGenerations++;
                         }
 
+                        if (GAProfiler.Enabled)
+                        {
+                            int stageIdx = input.Settings.EnableMultiStageDiscovery ? input.Settings.MaxCranePositions : 1;
+                            var logEntry = new GAProfiler.GenerationLogEntry
+                            {
+                                RunId = input.Settings.RunId ?? string.Empty,
+                                StageIndex = stageIdx,
+                                GenerationIndex = generation,
+                                BestFitness = currentBest.Fitness,
+                                AverageFitness = population.Individuals.Average(s => s.Fitness),
+                                BestCoverageRatio = currentBest.CoverageRatio,
+                                AverageCoverageRatio = population.Individuals.Average(s => s.CoverageRatio),
+                                BestPositionCount = currentBest.Chromosome.CranePositions.Count,
+                                Count1Position = population.Individuals.Count(s => s.Chromosome.CranePositions.Count == 1),
+                                Count2Positions = population.Individuals.Count(s => s.Chromosome.CranePositions.Count == 2),
+                                Count3Positions = population.Individuals.Count(s => s.Chromosome.CranePositions.Count == 3),
+                                MutationSuccessRate = 0.0,
+                                InvalidMutationCount = 0,
+                                StagnationCounter = stagnantGenerations
+                            };
+                            GAProfiler.GenerationLogs.Add(logEntry);
+                        }
+
                         if (stagnantGenerations >= input.Settings.EarlyStoppingGenerations)
                             break;
 

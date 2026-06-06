@@ -2,6 +2,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 using System;
@@ -53,8 +54,20 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
             PlacementInput input,
             CancellationToken cancellationToken = default)
         {
+            var sw = Stopwatch.StartNew();
+            if (string.IsNullOrEmpty(input.Settings.RunId))
+            {
+                input.Settings.RunId = Guid.NewGuid().ToString();
+            }
+
             GAProfiler.Enabled = input.Settings.EnableProfiling;
-            GAProfiler.Reset();
+
+            if (GAProfiler.CurrentRunId != input.Settings.RunId)
+            {
+                GAProfiler.Reset();
+                GAProfiler.CurrentRunId = input.Settings.RunId;
+            }
+
             _configEngine.ClearCache();
 
             if (GAProfiler.Enabled)
@@ -309,6 +322,43 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 try
                 {
                     input.Elements = allElements;
+
+                    if (GAProfiler.Enabled)
+                    {
+                        var usedZoneIdsList = finalResult.Positions.Select(pos => {
+                            var containingZone = input.Zones?.FirstOrDefault(z => SpatialMath.PointInPolygon(new DomainPoint3D(pos.X, pos.Y, 0), z.Vertices));
+                            return containingZone?.ZoneId.ToString() ?? Guid.Empty.ToString();
+                        }).Distinct().ToList();
+
+                        string usedZoneIds = string.Join(";", usedZoneIdsList);
+
+                        string stageTermReason = "MaxGenerationsReached";
+                        if (cancellationToken.IsCancellationRequested) stageTermReason = "Cancelled";
+                        else if (GAProfiler.StoppedByConvergence) stageTermReason = "Convergence";
+                        else if (GAProfiler.ActualGenerationLoopCount < input.Settings.EarlyStoppingGenerations) stageTermReason = "EarlyStopping";
+
+                        double stageTime = sw.ElapsedMilliseconds;
+
+                        var stageLog = new GAProfiler.StageLogEntry
+                        {
+                            RunId = input.Settings.RunId ?? string.Empty,
+                            StageIndex = input.Settings.EnableMultiStageDiscovery ? input.Settings.MaxCranePositions : 1,
+                            MaxPositions = input.Settings.MaxCranePositions,
+                            RelocationWeight = input.Settings.RelocationWeight,
+                            BestCoverageRatio = finalResult.CoverageRatio,
+                            BestCoveragePercent = finalResult.CoverageRatio * 100.0,
+                            BestLiftedCount = finalResult.LiftedElementCount,
+                            BestFitnessScore = finalResult.FitnessScore,
+                            RawPositionCount = finalResult.Positions.Count,
+                            FinalPositionCount = finalResult.Positions.Count,
+                            UsedZoneIds = usedZoneIds,
+                            RuntimeMs = stageTime,
+                            Escalated = finalResult.CoverageRatio < input.Settings.MultiStageCoverageTarget,
+                            TerminationReason = stageTermReason
+                        };
+                        GAProfiler.StageLogs.Add(stageLog);
+                    }
+
                     finalResult.DiagnosticsReportPath = _diagnosticsService.GenerateDiagnostics(input, finalResult);
                 }
                 catch (Exception ex)

@@ -91,6 +91,13 @@ Below is the trace for every property defined in [GASettings.cs](file:///f:/06-I
 *   **Behavioral Impact:** Controls coverage priority in fitness scoring. Affects **solution quality** (tunes setup layout towards maximum coverage).
 *   **Recommendation:** Keep. Move to Advanced Settings.
 
+### 13b. `CoverageDominanceMultiplier`
+*   **Classification:** Actively Used
+*   **Where Read:** [FitnessEvaluator.cs:L255](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/GeneticOptimization/FitnessEvaluator.cs#L255), [GACsvDiagnosticsService.cs:L754](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/GACsvDiagnosticsService.cs#L754)
+*   **Behavioral Impact:** Scaling factor that multiplies `CoverageWeight` to ensure coverage ratio dominance over other penalization metrics.
+*   **Recommendation:** Keep.
+
+
 ### 14. `RelocationWeight`
 *   **Classification:** Actively Used
 *   **Where Read:** [FitnessEvaluator.cs:L161](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/GeneticOptimization/FitnessEvaluator.cs#L161), [CraneOptimizerDialogWorkflow.cs:L67](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Workflows/CraneOptimizerDialogWorkflow.cs#L67)

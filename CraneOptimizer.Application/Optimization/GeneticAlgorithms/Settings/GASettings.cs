@@ -88,6 +88,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public double CoverageWeight { get; set; } = 10;
 
         /// <summary>
+        /// Scaling multiplier for the coverage term to ensure it dominates relocation and failure penalties.
+        /// </summary>
+        public double CoverageDominanceMultiplier { get; set; } = 100.0;
+
+        /// <summary>
         /// Weight applied to crane relocation penalty.
         /// Higher value discourages multiple crane setups.
         /// </summary>
@@ -291,6 +296,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// Use Hungarian bipartite matching for element assignment (false = legacy greedy).
         /// </summary>
         public bool UseHungarianAssignment { get; set; } = false;
+
+        /// <summary>
+        /// A unique identifier for the optimization run.
+        /// </summary>
+        public string RunId { get; set; } = string.Empty;
 
         /// <summary>
         /// Performs a shallow copy of the settings.
