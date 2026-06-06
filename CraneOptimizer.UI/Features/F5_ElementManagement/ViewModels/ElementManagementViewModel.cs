@@ -468,6 +468,31 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         {
             var liftState = _liftStateService.GetState(element.ElementID);
 
+            var displayVolumeM3 =
+    element.VolumeM3 is > 0d
+        ? element.VolumeM3
+        : element.ElementVolume is > 0d
+            ? element.ElementVolume
+            : element.BBoxLength is > 0d && element.BBoxWidth is > 0d && element.BBoxHeight is > 0d
+                ? element.BBoxLength.Value * element.BBoxWidth.Value * element.BBoxHeight.Value
+                : null;
+
+            var displayWeightTons =
+                element.WeightTons is > 0d
+                    ? element.WeightTons.Value
+                    : element.ElementWT is > 0d
+                        ? element.ElementWT.Value
+                        : ElementWeightCalculator.GetWeightTons(element);
+
+            var displayWeight =
+                displayWeightTons > 0d
+                    ? ElementWeightCalculator.FormatWeight(
+                        displayWeightTons,
+                        _unitSettingsService.Current,
+                        ElementWeightCalculator.IsEstimated(element),
+                        CultureInfo.CurrentCulture)
+                    : "-";
+
             return new ElementPanelDto(
                 BuildLiftStateDto(liftState),
                 GetElementID(element),
@@ -477,8 +502,8 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 element.ElementLength,
                 element.ElementWidth,
                 element.ElementHeight,
-                GetWeightDisplay(element),
-                element.ElementVolume,
+                displayWeight,
+                displayVolumeM3,
                 element.ElementCOG.X,
                 element.ElementCOG.Y,
                 element.ElementCOG.Z);
@@ -613,9 +638,19 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
         private string GetWeightDisplay(PrecastElement e)
         {
-            var weight = ElementWeightCalculator.GetWeightTons(e);
+            var weight =
+                e.WeightTons is > 0d
+                    ? e.WeightTons.Value
+                    : e.ElementWT is > 0d
+                        ? e.ElementWT.Value
+                        : ElementWeightCalculator.GetWeightTons(e);
+
             return weight > 0d
-                ? ElementWeightCalculator.FormatWeight(weight, _unitSettingsService.Current, ElementWeightCalculator.IsEstimated(e), CultureInfo.CurrentCulture)
+                ? ElementWeightCalculator.FormatWeight(
+                    weight,
+                    _unitSettingsService.Current,
+                    ElementWeightCalculator.IsEstimated(e),
+                    CultureInfo.CurrentCulture)
                 : "-";
         }
 
