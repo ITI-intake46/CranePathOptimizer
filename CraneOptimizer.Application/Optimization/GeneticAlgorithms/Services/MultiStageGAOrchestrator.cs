@@ -36,6 +36,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             var allStageResults = new List<GAResult>();
             int stagesExecuted = 0;
             string terminationReason = "MaxStagesReached";
+            string optimizationRunId = Guid.NewGuid().ToString();
 
             int targetMaxPositions = Math.Min(3, baseSettings.MaxCranePositions);
             if (targetMaxPositions < 1)
@@ -53,6 +54,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     // 1. Prepare settings for this stage
                     var stageSettings = baseSettings.Clone();
                     stageSettings.MaxCranePositions = posCount;
+                    stageSettings.OptimizationRunId = optimizationRunId;
+                    stageSettings.StageRunId = Guid.NewGuid().ToString();
 
                     if (posCount == 1)
                     {

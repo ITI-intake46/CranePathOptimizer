@@ -53,6 +53,8 @@ namespace CraneOptimizer.Application.Optimization.Utilities
         public class GenerationLogEntry
         {
             public string RunId { get; set; } = "";
+            public string OptimizationRunId { get; set; } = "";
+            public string StageRunId { get; set; } = "";
             public int StageIndex { get; set; }
             public int GenerationIndex { get; set; }
             public double BestFitness { get; set; }
@@ -71,6 +73,8 @@ namespace CraneOptimizer.Application.Optimization.Utilities
         public class StageLogEntry
         {
             public string RunId { get; set; } = "";
+            public string OptimizationRunId { get; set; } = "";
+            public string StageRunId { get; set; } = "";
             public int StageIndex { get; set; }
             public int MaxPositions { get; set; }
             public double RelocationWeight { get; set; }

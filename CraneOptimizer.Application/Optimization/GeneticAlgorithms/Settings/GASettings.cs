@@ -298,9 +298,24 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public bool UseHungarianAssignment { get; set; } = false;
 
         /// <summary>
-        /// A unique identifier for the optimization run.
+        /// A unique identifier for the overall optimization execution (shared by all stages of a run).
         /// </summary>
-        public string RunId { get; set; } = string.Empty;
+        public string OptimizationRunId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// A unique identifier for the specific stage execution within the optimization run.
+        /// </summary>
+        public string StageRunId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// A unique identifier for the optimization run (maps to StageRunId for backward compatibility).
+        /// </summary>
+        [Obsolete("Use StageRunId instead.")]
+        public string RunId
+        {
+            get => StageRunId;
+            set => StageRunId = value;
+        }
 
         /// <summary>
         /// Performs a shallow copy of the settings.

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Globalization;
 using System.Collections.Generic;
+using System.Text;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Constraints;
@@ -13,6 +14,12 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.LiftingCalculation;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.CraneConfiguration;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Coverage;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.PlacementOrchestration;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 
 namespace CraneOptimizer.Application.Tests.GA
 {
@@ -240,6 +247,190 @@ namespace CraneOptimizer.Application.Tests.GA
             {
                 CultureInfo.CurrentCulture = originalCulture;
             }
+        }
+
+        [Fact]
+        public void TestCsvDiagnostics_SchemasAndHeaderColumnCountsMatch()
+        {
+            // Create a temporary directory
+            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            try
+            {
+                // Arrange
+                var configEngine = new CraneConfigurationEngine();
+                var liftingEngine = new LiftingCalculationEngine(configEngine);
+                var constraintEngine = new ConstraintEngine();
+                var coverageEngine = new CoverageEngine();
+
+                var initializer = new GAInitializer(constraintEngine);
+                var assignmentService = new ElementAssignmentService(liftingEngine, configEngine);
+                var fitnessEvaluator = new FitnessEvaluator(constraintEngine);
+                var selection = new TournamentSelection();
+                var crossover = new CrossoverOperator();
+                var mutation = new MutationOperator(constraintEngine);
+                var replacement = new ReplacementStrategy();
+
+                var gaEngine = new GAEngine(
+                    initializer,
+                    assignmentService,
+                    fitnessEvaluator,
+                    selection,
+                    crossover,
+                    mutation,
+                    replacement,
+                    constraintEngine
+                );
+
+                var diagnosticsService = new GACsvDiagnosticsService(liftingEngine, configEngine);
+                var placementEngine = new CranePlacementEngine(
+                    gaEngine,
+                    assignmentService,
+                    coverageEngine,
+                    configEngine,
+                    diagnosticsService
+                );
+
+                var settings = new GASettings
+                {
+                    WireLength = 3.0,
+                    DeratingRatio = 0.85,
+                    SafetyFactor = 0.90,
+                    PopulationSize = 10,
+                    MaxGenerations = 2, // Keep it fast!
+                    MaxCranePositions = 2,
+                    RandomSeed = 12345,
+                    CraneFootprintRadius = 2.0,
+                    MinimumRelocationDistance = 5.0,
+                    MaxRadiusForNormalisation = 40.0,
+                    ConvergenceThresholdPercent = 0.05,
+                    EarlyStoppingGenerations = 2,
+                    PositionSamplingAttempts = 50,
+                    GridStep = 0.5,
+                    EnableProfiling = true
+                };
+
+                var craneSpec = new CraneSpecification
+                {
+                    Id = 1,
+                    MaxRadius = 40,
+                    MaxBoomLength = 50,
+                    LoadChart = new List<TargetPoint>
+                    {
+                        new TargetPoint { Radius = 10, BoomLength = 20, Capacity = 50 },
+                        new TargetPoint { Radius = 20, BoomLength = 30, Capacity = 30 }
+                    }
+                };
+
+                var allowedZone = new GreenAreaZone
+                {
+                    Vertices = new List<DomainPoint3D>
+                    {
+                        new DomainPoint3D(-50, -50, 0),
+                        new DomainPoint3D(50, -50, 0),
+                        new DomainPoint3D(50, 50, 0),
+                        new DomainPoint3D(-50, 50, 0)
+                    }
+                };
+
+                var elements = new List<PrecastElement>
+                {
+                    new PrecastElement { ElementID = "EL-1", ElementCOG = new DomainPoint3D(10, 10, 1), ElementHeight = 4.0, ElementWT = 12.0 },
+                    new PrecastElement { ElementID = "EL-2", ElementCOG = new DomainPoint3D(20, -5, 2), ElementHeight = 3.5, ElementWT = 15.5 },
+                    new PrecastElement { ElementID = "EL-3", ElementCOG = new DomainPoint3D(-15, 25, 3), ElementHeight = 5.0, ElementWT = 8.0 }
+                };
+
+                var input = new PlacementInput
+                {
+                    Zones = new List<GreenAreaZone> { allowedZone },
+                    ForbiddenZones = new List<GreenAreaZone>(),
+                    Elements = elements,
+                    Assignment = new Dictionary<int, List<string>>(),
+                    CraneSpec = craneSpec,
+                    Settings = settings,
+                    TotalElementsCount = elements.Count,
+                    DiagnosticsReportsDirectory = tempDir
+                };
+
+                // Act
+                var result = placementEngine.RunOptimization(input);
+
+                // Assert
+                Assert.True(Directory.Exists(tempDir), "Diagnostics directory should exist");
+
+                var csvFiles = Directory.GetFiles(tempDir, "*.csv");
+                Assert.True(csvFiles.Length >= 7, $"At least the 7 core diagnostic CSV files should be generated. Found: {csvFiles.Length}");
+
+                foreach (var csvFile in csvFiles)
+                {
+                    var lines = File.ReadAllLines(csvFile);
+                    Assert.True(lines.Length > 0, $"CSV file {Path.GetFileName(csvFile)} is empty");
+
+                    string header = lines[0];
+                    string[] headers = SplitCsvLine(header);
+                    Assert.NotEmpty(headers);
+
+                    // Assert schema version and run IDs check where applicable
+                    bool hasOptRunId = headers[0] == "OptimizationRunId";
+                    bool hasStageRunId = headers.Length > 1 && headers[1] == "StageRunId";
+                    bool hasSchemaVersion = headers.Contains("DiagnosticsSchemaVersion");
+
+                    for (int i = 1; i < lines.Length; i++)
+                    {
+                        if (string.IsNullOrWhiteSpace(lines[i])) continue;
+
+                        string[] columns = SplitCsvLine(lines[i]);
+                        Assert.True(headers.Length == columns.Length,
+                            $"Column count mismatch in file {Path.GetFileName(csvFile)} at line {i + 1}. Expected: {headers.Length} ({header}), Got: {columns.Length} ({lines[i]})");
+
+                        if (hasOptRunId)
+                        {
+                            Assert.Equal(settings.OptimizationRunId, columns[0]);
+                        }
+                        if (hasStageRunId)
+                        {
+                            Assert.Equal(settings.StageRunId, columns[1]);
+                        }
+                        if (hasSchemaVersion)
+                        {
+                            int schemaIndex = Array.IndexOf(headers, "DiagnosticsSchemaVersion");
+                            Assert.Equal("1.0", columns[schemaIndex]);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        private static string[] SplitCsvLine(string line)
+        {
+            var result = new List<string>();
+            bool inQuotes = false;
+            var current = new StringBuilder();
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+                if (c == '\"')
+                {
+                    inQuotes = !inQuotes;
+                }
+                else if (c == ',' && !inQuotes)
+                {
+                    result.Add(current.ToString());
+                    current.Clear();
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+            result.Add(current.ToString());
+            return result.ToArray();
         }
     }
 }

@@ -55,17 +55,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
             CancellationToken cancellationToken = default)
         {
             var sw = Stopwatch.StartNew();
-            if (string.IsNullOrEmpty(input.Settings.RunId))
+            if (string.IsNullOrEmpty(input.Settings.OptimizationRunId))
             {
-                input.Settings.RunId = Guid.NewGuid().ToString();
+                input.Settings.OptimizationRunId = Guid.NewGuid().ToString();
+            }
+            if (string.IsNullOrEmpty(input.Settings.StageRunId))
+            {
+                input.Settings.StageRunId = Guid.NewGuid().ToString();
             }
 
             GAProfiler.Enabled = input.Settings.EnableProfiling;
 
-            if (GAProfiler.CurrentRunId != input.Settings.RunId)
+            if (GAProfiler.CurrentRunId != input.Settings.OptimizationRunId)
             {
                 GAProfiler.Reset();
-                GAProfiler.CurrentRunId = input.Settings.RunId;
+                GAProfiler.CurrentRunId = input.Settings.OptimizationRunId;
             }
 
             _configEngine.ClearCache();
@@ -342,6 +346,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                         var stageLog = new GAProfiler.StageLogEntry
                         {
                             RunId = input.Settings.RunId ?? string.Empty,
+                            OptimizationRunId = input.Settings.OptimizationRunId ?? string.Empty,
+                            StageRunId = input.Settings.StageRunId ?? string.Empty,
                             StageIndex = input.Settings.EnableMultiStageDiscovery ? input.Settings.MaxCranePositions : 1,
                             MaxPositions = input.Settings.MaxCranePositions,
                             RelocationWeight = input.Settings.RelocationWeight,

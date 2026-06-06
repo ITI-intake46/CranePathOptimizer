@@ -137,6 +137,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                             var logEntry = new GAProfiler.GenerationLogEntry
                             {
                                 RunId = input.Settings.RunId ?? string.Empty,
+                                OptimizationRunId = input.Settings.OptimizationRunId ?? string.Empty,
+                                StageRunId = input.Settings.StageRunId ?? string.Empty,
                                 StageIndex = stageIdx,
                                 GenerationIndex = generation,
                                 BestFitness = currentBest.Fitness,
