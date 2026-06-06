@@ -7,7 +7,7 @@ This consolidated document explains chromosome encoding, selection, crossover, a
 
 The optimization engine is responsible for finding the most effective sequence of coordinate positions to set up a mobile crane to maximize precast erection coverage while minimizing costs and satisfying safety regulations.
 
-For a detailed walkthrough of the complete execution workflow, please refer to the [ga-pipeline.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/ga/ga-engine-design.md) document.
+For a detailed walkthrough of the complete execution pipeline flow, see the pipeline section below.
 
 ---
 
@@ -36,9 +36,11 @@ Constraints are evaluated at different stages to ensure valid search spaces:
 
 The fitness of a solution is calculated in [FitnessEvaluator.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/GeneticOptimization/FitnessEvaluator.cs#L254-L265) using a multi-objective weighted deduction formula:
 
-$$\text{Fitness} = \max\left(0, W_{\text{cov}} \cdot R_{\text{cov}} - \text{Penalty}_{\text{rel}} - W_{\text{rad}} \cdot P_{\text{rad}} - W_{\text{ow}} \cdot P_{\text{ow}} - W_{\text{h}} \cdot P_{\text{h}} - W_{\text{sc}} \cdot P_{\text{sc}} - W_{\text{rq}} \cdot P_{\text{rq}} - P_{\text{bal}} - P_{\text{sd}} - W_{\text{sim}} \cdot P_{\text{sim}} - W_{\text{dist}} \cdot P_{\text{dist}}\right)$$
+$$\text{Fitness} = \max\left(0, W_{\text{cov}} \cdot M_{\text{dom}} \cdot R_{\text{cov}} - \text{Penalty}_{\text{rel}} - W_{\text{rad}} \cdot P_{\text{rad}} - W_{\text{ow}} \cdot P_{\text{ow}} - W_{\text{h}} \cdot P_{\text{h}} - W_{\text{sc}} \cdot P_{\text{sc}} - W_{\text{rq}} \cdot P_{\text{rq}} - P_{\text{bal}} - P_{\text{sd}} - W_{\text{sim}} \cdot P_{\text{sim}} - W_{\text{dist}} \cdot P_{\text{dist}}\right)$$
 
 ### Components & Deductions
+
+*   **Coverage Dominance Multiplier ($M_{\text{dom}}$):** The coverage term is scaled by `CoverageDominanceMultiplier` (default `100.0`) times `CoverageWeight` to ensure that any coverage improvement overrides all penalties combined. This is critical for multi-zone discovery where a coverage gain might otherwise be cancelled by relocation or failure penalties. `CoverageDominanceMultiplier` does not change the physical lift safety checks — unsafe overweight elements remain unliftable regardless of fitness scaling.
 
 *   **Coverage Ratio ($R_{\text{cov}}$):** Number of successfully liftable elements divided by total elements. A coverage ratio of 0 immediately results in a total fitness of 0.
 *   **Step-wise Relocation Penalty ($\text{Penalty}_{\text{rel}}$):** In [FitnessEvaluator.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/GeneticOptimization/FitnessEvaluator.cs#L160-L162), this is calculated as `settings.RelocationWeight * (craneCount - 1)` for crane counts greater than 1 (0 penalty for a single setup). Note: This is an un-normalized step-wise deduction, whereas the diagnostic CSV logs the normalized fraction `(double)craneCount / MaxCranePositions` for `RelocationPenalty`.
@@ -263,10 +265,19 @@ The core GA selection pressure is driven by the fitness formula implemented in [
     *   **Special Case / Uncharted Fraction:** $P_{\text{sc}} = \frac{\text{specialCaseCount}}{\text{total}}$
 
 4.  **Complete Fitness Equation:**
-    $$\text{Fitness} = \max\left(0, W_{\text{cov}} \times R_{\text{cov}} - \text{Penalty}_{\text{rel}} - W_{\text{rad}} \times P_{\text{rad}} - W_{\text{ow}} \times P_{\text{ow}} - W_{\text{h}} \times P_{\text{h}} - W_{\text{sc}} \times P_{\text{sc}} - W_{\text{rq}} \times P_{\text{rq}} - P_{\text{bal}} - P_{\text{sd}} - W_{\text{sim}} \times P_{\text{sim}} - W_{\text{dist}} \times P_{\text{dist}}\right)$$
+    $$\text{Fitness} = \max\left(0, W_{\text{cov}} \times M_{\text{dom}} \times R_{\text{cov}} - \text{Penalty}_{\text{rel}} - W_{\text{rad}} \times P_{\text{rad}} - W_{\text{ow}} \times P_{\text{ow}} - W_{\text{h}} \times P_{\text{h}} - W_{\text{sc}} \times P_{\text{sc}} - W_{\text{rq}} \times P_{\text{rq}} - P_{\text{bal}} - P_{\text{sd}} - W_{\text{sim}} \times P_{\text{sim}} - W_{\text{dist}} \times P_{\text{dist}}\right)$$
 
     *   **Double Penalization Caveat:** Under this formula, any unliftable element decreases positive $R_{\text{cov}}$ *and* simultaneously increases its corresponding failure fraction (e.g. $P_{\text{rad}}$). This creates a steep fitness gradient to quickly weed out unfeasible coordinates.
 
+### Coverage vs Fitness Score Separation
+
+| Metric | Scope | Range | Description |
+|---|---|---|---|
+| `CoverageRatio` | User-facing | 0.0 – 1.0 | Fraction of elements lifted (internal storage) |
+| `CoveragePercent` | User-facing | 0 – 100 | `CoverageRatio × 100`, displayed to users |
+| `FitnessScore` | Internal GA | ≥ 0 (may be >> 1) | Raw GA score used for selection pressure, scaled by `CoverageWeight × CoverageDominanceMultiplier`. Not comparable across different settings. |
+
+> **UI Rule:** Show Coverage % and lifted count in the result panel. Raw `FitnessScore` must be labeled **GA Score** if shown.
 
 ---
 

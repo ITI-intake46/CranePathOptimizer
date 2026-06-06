@@ -27,6 +27,16 @@ $$\text{Penalties} = \text{relocationPenaltyVal} + \text{RadiusPenaltyWeight} \t
 > [!NOTE]
 > **Coverage Scaling:** The coverage term is scaled by `CoverageDominanceMultiplier` (default `100.0`). This ensures that coverage improvements (the dominant signal) always override other penalties (like relocation, std-dev, and balance penalties) when coverage increases.
 
+### Coverage vs Fitness Score Separation
+
+| Metric | Scope | Range | Description |
+|---|---|---|---|
+| `CoverageRatio` | User-facing | 0.0 – 1.0 | Fraction of elements lifted (e.g. 0.75 = 75%) |
+| `CoveragePercent` | User-facing | 0 – 100 | `CoverageRatio × 100` (e.g. 75%) |
+| `FitnessScore` | Internal GA | ≥ 0 (may be >> 1) | Raw GA score used for selection pressure. Scaled by `CoverageWeight × CoverageDominanceMultiplier`, and may be much larger than 1.0. Not comparable across different settings or runs. |
+
+**UI Rule:** The result panel must display Coverage % (CoveragePercent) and lifted element count. Raw `FitnessScore` may be shown in diagnostic sections but must be labeled **GA Score** to prevent confusion with coverage percentage.
+
 ### Adaptive Relocation Weighting
 The adaptive relocation weight is computed as follows:
 

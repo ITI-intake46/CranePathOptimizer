@@ -313,6 +313,7 @@ These are mandatory core inputs that influence candidate evolution and mechanica
 ### Settings Affecting GA Quality (Fitness Weights & Operators)
 These parameters govern selection pressure, exploration/exploitation ratios, and penalty scaling:
 *   `CoverageWeight`
+*   `CoverageDominanceMultiplier` (default `100.0`) — scales the coverage term to ensure coverage improvements override all penalties. Does not affect physical lift safety.
 *   `RelocationWeight`
 *   `RadiusPenaltyWeight`
 *   `RadiusQualityPenaltyWeight`
