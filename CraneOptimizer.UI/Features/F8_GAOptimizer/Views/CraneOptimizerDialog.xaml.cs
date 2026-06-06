@@ -11,6 +11,7 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows;
 using System.Windows;
 using System.Windows.Controls;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 {
@@ -60,6 +61,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             _craneSetup = craneSetup;
             _sceneRenderingManager = sceneRenderingManager;
             _workflow = new CraneOptimizerDialogWorkflow(placementService, craneRepository);
+
+            DataContext = new CraneOptimizerDialogViewModel();
 
             Loaded += OnLoaded;
             Closed += OnClosed;
@@ -320,6 +323,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private CraneOptimizerDialogOptions CaptureOptions()
         {
+            var vm = (CraneOptimizerDialogViewModel)DataContext;
             return new CraneOptimizerDialogOptions(
                 TxtCoverageWeight.Text,
                 TxtRelocationWeight.Text,
@@ -364,7 +368,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtBoomHingeOffsetZ.Text,
                 TxtCraneFootprintRadius.Text,
                 ChkEnableProfiling.IsChecked == true ? "true" : "false",
-                TxtProfilingLogDirectory.Text);
+                TxtProfilingLogDirectory.Text,
+                vm.EnableMultiStageDiscovery ? "true" : "false",
+                vm.MultiStageCoverageTarget.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                vm.AdaptiveRelocationScaleFactor.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                vm.UseHungarianAssignment ? "true" : "false");
         }
 
         private void RefreshSceneCache()

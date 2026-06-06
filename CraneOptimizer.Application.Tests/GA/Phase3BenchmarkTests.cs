@@ -403,6 +403,139 @@ namespace CraneOptimizer.Application.Tests.GA
             return (spec, footprint);
         }
 
+        [Fact]
+        public async Task Phase3_Try4_MultiStage_STC800_Verification()
+        {
+            if (!File.Exists(ProjectDbPath) || !File.Exists(CraneDbPath))
+            {
+                _output.WriteLine("SKIP: try4 project.db or crane.db not found on this machine.");
+                return;
+            }
+
+            // 1. Load project data
+            var elements = LoadElements(ProjectDbPath);
+            var (allowedZones, forbiddenZones) = LoadZones(ProjectDbPath);
+            var (craneSpec, footprintRadius) = LoadCraneSpec(CraneDbPath, craneId: 1); // 1 = STC800
+
+            // 2. Build multi-stage input settings matching the prompt:
+            // - EnableMultiStageDiscovery = true
+            // - MultiStageCoverageTarget = 0.95
+            // - MaxCranePositions = 3
+            var settings = new GASettings
+            {
+                PopulationSize = 100,
+                MaxGenerations = 100,
+                MutationRate = 0.15,
+                MutationSigma = 0.05,
+                CrossoverRate = 0.8,
+                WireLength = 2.0,
+                AdditionalWt = 0.0,
+                DeratingRatio = 0.9,
+                SafetyFactor = 0.95,
+                MaxCranePositions = 3,
+                RandomSeed = 42,
+                CoverageWeight = 10,
+                RelocationWeight = 5,
+                RadiusPenaltyWeight = 3,
+                RadiusQualityPenaltyWeight = 1.0,
+                OverweightPenaltyWeight = 10,
+                HeightPenaltyWeight = 5,
+                MaxRadiusForNormalisation = 50,
+                GridStep = 0,
+                EarlyStoppingGenerations = 20,
+                ConvergenceThresholdPercent = 0,
+                RadiusStdDevPenaltyWeight = 2.0,
+                BalancePenaltyWeight = 2.0,
+                MinimumRelocationDistance = 10.0,
+                DuplicatePositionDistance = 2.0 * footprintRadius,
+                SimilarPositionPenaltyWeight = 8.0,
+                RelocationDistancePenaltyWeight = 1.5,
+                MutationExplorationMultiplier = 2.0,
+                EnableAdaptiveSigma = false,
+                SigmaCoolingExponent = 1.5,
+                MinimumMutationSigma = 0.5,
+                PositionSamplingAttempts = 80,
+                CraneFootprintRadius = footprintRadius,
+                EnableProfiling = true,
+                EnableConcurrentOptimization = true,
+
+                // Multi-stage settings
+                EnableMultiStageDiscovery = true,
+                MultiStageCoverageTarget = 0.95,
+                AdaptiveRelocationScaleFactor = 0.10
+            };
+
+            var configEngine = new CraneConfigurationEngine();
+            var liftingEngine = new LiftingCalculationEngine(configEngine);
+            var constraintEngine = new ConstraintEngine();
+            var coverageEngine = new CoverageEngine();
+            var capacityResolver = new LoadChartCapacityResolver();
+            var reachabilityMapService = new ReachabilityMapService(constraintEngine, capacityResolver);
+            var initializer = new GAInitializer(constraintEngine, reachabilityMapService);
+            var assignmentService = new ElementAssignmentService(liftingEngine, configEngine);
+            var fitnessEvaluator = new FitnessEvaluator(constraintEngine);
+            var selection = new TournamentSelection();
+            var crossover = new CrossoverOperator();
+            var mutation = new MutationOperator(constraintEngine);
+            var replacement = new ReplacementStrategy();
+
+            var gaEngine = new GAEngine(
+                initializer, assignmentService, fitnessEvaluator,
+                selection, crossover, mutation, replacement, constraintEngine);
+
+            var diagnosticsService = new GACsvDiagnosticsService(liftingEngine, configEngine);
+            var placementEngine = new CranePlacementEngine(
+                gaEngine, assignmentService, coverageEngine, configEngine, diagnosticsService, reachabilityMapService);
+
+            var orchestrator = new MultiStageGAOrchestrator(placementEngine);
+
+            var input = new PlacementInput
+            {
+                Zones = allowedZones,
+                ForbiddenZones = forbiddenZones,
+                Elements = new List<PrecastElement>(elements),
+                Assignment = new Dictionary<int, List<string>>(),
+                CraneSpec = craneSpec,
+                Settings = settings,
+                ProjectName = "try4_MultiStageVerification",
+                TotalElementsCount = elements.Count
+            };
+
+            _output.WriteLine("Starting Multi-Stage GA Orchestration Run...");
+            var multiStageResult = await orchestrator.RunAsync(
+                input,
+                craneSpec.Crane,
+                settings,
+                settings.MultiStageCoverageTarget,
+                CancellationToken.None);
+
+            _output.WriteLine($"Finished. Stages executed: {multiStageResult.StagesExecuted}");
+            _output.WriteLine($"Termination reason: {multiStageResult.TerminationReason}");
+            for (int i = 0; i < multiStageResult.AllStageResults.Count; i++)
+            {
+                var stageRes = multiStageResult.AllStageResults[i];
+                _output.WriteLine($"Stage {i+1} (MaxPositions={i+1}): Coverage={stageRes.CoverageRatio:P2}, Fitness={stageRes.FitnessScore:F4}, Positions={stageRes.Positions.Count}");
+            }
+            _output.WriteLine($"Best result coverage: {multiStageResult.BestResult.CoverageRatio:P2}");
+            _output.WriteLine($"Best result fitness: {multiStageResult.BestResult.FitnessScore:F4}");
+            _output.WriteLine($"Setup count: {multiStageResult.BestResult.Positions.Count}");
+
+            foreach (var pos in multiStageResult.BestResult.Positions)
+            {
+                _output.WriteLine($"Setup Point: ({pos.X:F3}, {pos.Y:F3}, {pos.Z:F3}) -> Lifted: {pos.NewLiftableCount}");
+            }
+
+            // Verify:
+            // 1. Triggers Stage 2 (or more): since Stage 1 with MaxCranePositions=1 cannot reach 0.95 coverage, it must run Stage 2.
+            Assert.True(multiStageResult.StagesExecuted >= 2, "Orchestrator should escalate to at least Stage 2.");
+
+            // 2. Places 2+ crane positions:
+            Assert.True(multiStageResult.BestResult.Positions.Count >= 2, "Best placement should have 2+ positions.");
+
+            // 3. Reaches fitness > 0.65:
+            Assert.True(multiStageResult.BestResult.FitnessScore > 0.65, $"Best fitness ({multiStageResult.BestResult.FitnessScore:F4}) should exceed 0.65.");
+        }
+
         private GASettings CloneSettings(GASettings src)
         {
             return new GASettings

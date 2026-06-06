@@ -109,7 +109,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 BoomHingeOffsetZ = ParseDouble(options.BoomHingeOffsetZText, 0.0),
                 CraneFootprintRadius = ParseDouble(options.CraneFootprintRadiusText, 0.0),
                 EnableProfiling = ParseBool(options.EnableProfilingText, true),
-                ProfilingLogDirectory = options.ProfilingLogDirectoryText
+                ProfilingLogDirectory = options.ProfilingLogDirectoryText,
+                EnableMultiStageDiscovery = ParseBool(options.EnableMultiStageDiscoveryText, true),
+                MultiStageCoverageTarget = ParseDouble(options.MultiStageCoverageTargetText, 0.95),
+                AdaptiveRelocationScaleFactor = ParseDouble(options.AdaptiveRelocationScaleFactorText, 0.40),
+                UseHungarianAssignment = ParseBool(options.UseHungarianAssignmentText, false)
             };
         }
 
@@ -195,7 +199,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         string? BoomHingeOffsetZText,
         string? CraneFootprintRadiusText,
         string? EnableProfilingText,
-        string? ProfilingLogDirectoryText);
+        string? ProfilingLogDirectoryText,
+        string? EnableMultiStageDiscoveryText,
+        string? MultiStageCoverageTargetText,
+        string? AdaptiveRelocationScaleFactorText,
+        string? UseHungarianAssignmentText);
 
     public sealed class CraneOptimizerPointListItem
     {
