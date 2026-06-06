@@ -460,7 +460,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 .Select(b =>
                 {
                     var id = string.IsNullOrWhiteSpace(b.element.ElementID) ? "<missing id>" : b.element.ElementID;
-                    var name = string.IsNullOrWhiteSpace(b.element.ElementName) ? b.element.ElementType : b.element.ElementName;
+                    var name = string.IsNullOrWhiteSpace(b.element.ElementMark) ? b.element.ElementType : b.element.ElementMark;
                     return $"{id} ({name})";
                 })
                 .ToList();
