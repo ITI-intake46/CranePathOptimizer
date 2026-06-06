@@ -1,114 +1,93 @@
-# Domain: IFC Processing Workflow
+# IFC Processing Workflow
 
-The IFC Processing Workflow extracts structural geometry from BIM models to define optimization targets.
+This document details parsing and categorizing IFC models using xBIM.
 
----
+## Consolidated from: IFC Documentation Verification Audit (domain/ifc.md)
 
-## 1. Extraction Pipeline Process Flow
 
-```mermaid
-graph TD
-    BIM[IFC File] --> Open[IfcStore.Open<br/>IfcModelSession.Open]
-    Open --> Context[Create 3D Geometry Context<br/>Xbim3DModelContext]
-    Context --> Audit[Run Diagnostic Audit<br/>IfcDiagnosticAuditService.RunAuditAsync]
-    Audit --> Normalize[Build Normalization Preview<br/>IfcNormalizationDecisionService.GenerateNormalizationPreviewAsync]
-    Normalize --> Filter[Query IIfcProduct / IIfcElement<br/>IfcReaderRepository.IfcEngineeringExtractor.ExtractNormalized]
-    Filter --> Parse[Extract Identity, Geometry, Quantities & Material<br/>IfcEngineeringExtractor.BuildSourceSnapshot]
-    Parse --> Weight[Resolve Explicit or Fallback Weight<br/>IfcDiagnosticAuditService.AuditWeight]
-    Weight --> DTO[Output PrecastElement Schemas]
-```
+## Executive Summary
 
-The concrete implementation is found in:
-*   [IfcModelSession.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Ifc/IfcModelSession.cs) (Class: `IfcModelSession`, Method: `Open`)
-*   [IfcReaderRepository.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcReaderRepository.cs) (Class: `IfcReaderRepository`, Method: `ReadElementsCore` and nested `IfcEngineeringExtractor.ExtractNormalized`)
-*   [IfcDiagnosticAuditService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcDiagnosticAuditService.cs) (Class: `IfcDiagnosticAuditService`, Method: `ResolveCandidateCategory`, `AuditWeight`, and `AuditVolumeMaterial`)
-*   [IfcNormalizationDecisionService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcNormalizationDecisionService.cs) (Class: `IfcNormalizationDecisionService`, Method: `GenerateNormalizationPreviewAsync`)
+This audit verifies the IFC documentation against the current C# implementation. Source code is the source of truth.
 
----
+The implementation currently uses xBIM through `IfcModelSession.Open`, `IfcReaderRepository.ReadElementsCore`, `IfcDiagnosticAuditService.RunAuditAsync`, `IfcNormalizationDecisionService.GenerateNormalizationPreviewAsync`, and UI restoration/rendering services. The current documentation was broadly accurate about using xBIM, creating a geometry context, extracting `PrecastElement` objects, and persisting IFC element caches, but several details were stale:
 
-## 2. Element Classification
+* IFC extraction is based on `IIfcProduct` / `IIfcElement`, not only `IIfcBuildingElement`.
+* `IfcElementRole` no longer contains structural roles such as `Column`, `Beam`, or `Slab`; those are resolved categories, not roles.
+* Import weight selection is explicit IFC quantity/property first, then concrete-density fallback from direct IFC volume. Material-density overrides exist in helper/display paths but are not the primary normalized import weight source.
+* No project-specific schema allow-list for IFC2X3, IFC4, IFC4X1, IFC4X2, or IFC4X3 exists. The project delegates opening to `IfcStore.Open()` and records `model.SchemaVersion`.
+* Spatial structure is only partially used: `IfcProject` units and `IfcBuildingStorey` elevation/storey mapping are read; `IfcSite`, `IfcBuilding`, and `IfcSpace` are not imported as optimization elements.
+* Requested files `docs/domain/ifc-architecture-review.md`, `docs/domain/ifc-feature-matrix.md`, and `docs/project/current-state.md` are absent.
 
-The system parses physical IFC products and maps them to two distinct concepts:
+## Verified Statements
 
-### A. Resolved Category
-Resolved via `IfcDiagnosticAuditService.ResolveCandidateCategory` using heuristic text matching on the raw IFC class name, element name, and object type description.
-*   **Resolved Values:** `Column`, `Beam`, `Slab`, `Wall`, `Roof`, `Stair`, `Ramp`, `Footing`, `Pile`, `Plate`, `Member`, `Assembly`, `Proxy`, `Unknown`
+| Statement | Evidence |
+|---|---|
+| The application opens IFC files with xBIM. | `CraneOptimizer.Infrastructure/Ifc/IfcModelSession.cs`, class `IfcModelSession`, method `Open`, call `IfcStore.Open(fullPath)`. |
+| A 3D xBIM geometry context is created for loaded models. | `CraneOptimizer.Infrastructure/Ifc/IfcModelSession.cs`, class `IfcModelSession`, method `Open`, property `GeometryContext`, calls `new Xbim3DModelContext(model)` and `CreateContext()`. |
+| The import returns domain `PrecastElement` schemas. | `CraneOptimizer.Infrastructure/Repositories/IfcReaderRepository.cs`, class `IfcReaderRepository`, method `ReadElementsCore`; `CraneOptimizer.Domain/Schemas/PrecastElement.cs`, class `PrecastElement`. |
+| IFC diagnostics extract schema metadata. | `CraneOptimizer.Infrastructure/Repositories/IfcDiagnosticAuditService.cs`, class `IfcDiagnosticAuditService`, method `ExtractMetadata`, property assignment `SchemaVersion = model.SchemaVersion.ToString()`. |
+| Shape instances and shape geometry are used. | `IfcReaderRepository.cs`, nested class `IfcEngineeringExtractor`, methods `GetGeometrySnapshot`, `UpdateBounds`, `CalculateCentroidFromShapeGeometry`; `ElementVisualBuilder.cs`, class `ElementVisualBuilder`, mesh rendering methods. |
+| Bounding boxes are computed from transformed shape-instance bounding-box corners. | `IfcReaderRepository.cs`, nested class `IfcEngineeringExtractor`, method `UpdateBounds`, properties `XbimShapeInstance.BoundingBox` and `XbimShapeInstance.Transformation`. |
+| Mesh centroid calculation decodes `XbimShapeGeometry.ShapeData`. | `IfcReaderRepository.cs`, nested class `IfcEngineeringExtractor`, method `CalculateCentroidFromShapeGeometry`, property `ShapeData`, method `ReadShapeTriangulation()`. |
+| IFC material associations are extracted when present. | `IfcReaderRepository.cs`, nested class `IfcEngineeringExtractor`, method `GetMaterial`, relationship `IIfcRelAssociatesMaterial`; `IfcDiagnosticAuditService.cs`, method `AuditVolumeMaterial`. |
+| Explicit weight quantities and weight/mass properties are audited before fallback. | `IfcDiagnosticAuditService.cs`, class `IfcDiagnosticAuditService`, method `AuditWeight`, properties `IIfcQuantityWeight.WeightValue` and `IIfcPropertySingleValue.NominalValue`. |
+| `IfcSpace`, `IfcOpeningElement`, and `IfcVirtualElement` are excluded from physical extraction. | `IfcReaderRepository.cs`, nested class `IfcEngineeringExtractor`, method `IsEngineeringProduct`; `IfcDiagnosticAuditService.cs`, method `IsPhysicalProduct`. |
+| `.craneopt` saves IFC file metadata and element cache rows. | `CraneOptimizer.UI/Features/F10_ProjectManagement/Services/ProjectStateService.cs`, method `SaveIfcAsync`; `ProjectIfcFileEntity.cs`; `ProjectIfcElementEntity.cs`; `PrecastElementMapper.cs`. |
 
-### B. Normalization Role
-Defined by the enum `IfcElementRole` inside [IfcNormalizationModels.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Domain/Diagnostics/IfcNormalizationModels.cs). Mapped during the normalization decision phase to determine how the optimizer interacts with each element:
-*   `LiftableElement`: Standalone structural items that can be erected individually.
-*   `LiftAssembly`: Grouped elements (e.g. nested precast assemblies) that are lifted as a single consolidated load.
-*   `GroupingOnly`: Container assemblies (like `IIfcElementAssembly` parents) whose sub-components are extracted as independent liftable entities.
-*   `InternalAuxiliary`: Internal reinforcing objects (like embedded rebar, plates, or joints) whose weight and geometry are swallowed by the parent liftable element.
-*   `Excluded`: Elements completely ignored by the optimization (e.g., spaces, openings, openings templates).
-*   `NeedsReview`: Elements with missing or contradictory metadata (e.g. missing weight or volume) that are hidden from the GA until resolved.
+## Inaccurate Statements
 
-### Product Filtering
-The extraction candidate set is resolved using `_model.Instances.OfType<IIfcProduct>().Where(IsEngineeringProduct)`. The predicate `IsEngineeringProduct()` requires an `IIfcElement` with a valid `GlobalId` and non-empty `Name`, while explicitly excluding non-physical or spatial items:
-*   `IIfcOpeningElement` (Excluded)
-*   `IIfcSpace` (Excluded)
-*   `IIfcVirtualElement` (Excluded)
+| Statement | Classification | Evidence | Correction |
+|---|---|---|---|
+| IFC pipeline queries `IIfcBuildingElement`. | Inaccurate | `IfcReaderRepository.cs`, `ExtractNormalized`, uses `_model.Instances.OfType<IIfcProduct>().Where(IsEngineeringProduct)`; `IsEngineeringProduct` checks `product is IIfcElement`. | Document `IIfcProduct` / `IIfcElement` filtering. |
+| Structural types are mapped to `IfcElementRole.Column`, `Beam`, `Slab`, `Wall`, `Footing`, `Stair`, or `Other`. | Inaccurate | `IfcNormalizationModels.cs`, enum `IfcElementRole` contains `LiftableElement`, `LiftAssembly`, `GroupingOnly`, `InternalAuxiliary`, `Excluded`, `NeedsReview`. | Document resolved category separately from role. |
+| Missing volume falls back to bounding-box volume during import. | Inaccurate | `IfcReaderRepository.cs`, `BuildSourceSnapshot`, `volume = ConvertVolume(GetQuantity(...volume...) ?? GetPropertyDouble(...volume...))`; no bounding-box volume fallback is assigned to `ElementVolume` in normalized import. | Document direct IFC quantity/property volume extraction; note UI display helper can estimate from bounding box when needed. |
+| Import weight fallback uses material overrides for steel, aluminum, glass, and timber. | Partially Accurate | `IfcDiagnosticAuditService.cs`, `AuditWeight`, fallback uses direct volume times `ConcreteDensityKgPerCubicMeter`; `ElementWeightCalculator.cs`, `GetDensityKgPerCubicMeter`, uses material/type heuristics only when displayed/filter weight is estimated from a `PrecastElement` lacking positive `ElementWT`. | Separate import weight source from UI/display fallback. |
+| Material overrides are based on element names. | Inaccurate | `ElementWeightCalculator.cs`, `GetDensityKgPerCubicMeter`, combines `ElementMaterial` and `ElementType`; `IfcReaderRepository.cs`, `EstimateWeightFromMaterial`, accepts `material`. | Use material/type wording, not element-name-only wording. |
+| `ElementWeightCalculator.cs` is part of IFC import weight computation. | Partially Accurate | `ElementWeightCalculator.cs` is in UI filter services and is used by filter/element-management display code; `IfcReaderRepository.ReadElementsCore` does not call it. | Document it as post-import UI/display estimation only. |
+| The project explicitly supports IFC2X3, IFC4, IFC4X1, IFC4X2, and IFC4X3. | Missing Evidence | No project allow-list or schema switch exists. `IfcModelSession.Open` delegates to `IfcStore.Open`; `IfcDiagnosticAuditService.ExtractMetadata` records `model.SchemaVersion`. | Document accepted schema as xBIM-openable, with no project-specific schema validation gate. |
+| xBIM geometry context is explicitly disposed. | Inaccurate | `IfcModelSession.Dispose` closes/disposes `Model`; no explicit `GeometryContext.Dispose()` call exists. | Document current disposal behavior exactly. |
+| `ProjectService` maps IFC elements to project entities. | Inaccurate | `ProjectStateService.SaveIfcAsync` calls `PrecastElementMapper.ToEntity`; `IProjectService` is a separate transient service. | Reference `ProjectStateService` and `PrecastElementMapper`. |
+| Current onboarding docs require `docs/project/current-state.md`. | Missing Evidence | `Test-Path docs/project/current-state.md` returned false. | Remove or redirect the link until the file exists. |
 
----
+## Missing Evidence
 
-## 3. Weight Resolution & Fallbacks
+| Claim Area | Finding |
+|---|---|
+| IFC2X3 / IFC4 / IFC4X1 / IFC4X2 / IFC4X3 support matrix | No project-specific support matrix or validation code found. Runtime support is whatever configured xBIM packages can open. |
+| IFC validation | No explicit IFC schema validation pass was found. Error handling is try/catch around open/audit/extraction, with warnings captured in audit metadata. |
+| `IfcSite` import behavior | No import of `IfcSite` as a planning element found. UI filter options may hide site types if present, but physical extraction excludes non-`IIfcElement` products. |
+| `IfcBuilding` import behavior | No building extraction or building-name assignment found in the import path. `ProjectIfcFileEntity.BuildingName` exists but is not assigned by `ProjectStateService.SaveIfcAsync`. |
+| `IfcSpace` optimization behavior | `IfcSpace` is explicitly excluded from physical extraction. |
+| Direct storey persistence on imported elements | `ProjectIfcElementEntity.StoreyName` exists, and `ElementVisibilityFilterService.TryBuildIfcStoreyMap` can build a UI storey map from active xBIM relations, but `PrecastElementMapper.ToEntity` does not set `StoreyName`. |
 
-Because IFC models do not always include explicit mass properties, the import path and UI display layers use separate fallback paths.
+## Planned Features Presented As Implemented
 
-### A. Import Weight Priority Chain (`IfcDiagnosticAuditService.AuditWeight`)
-During the normalized import path, the element weight is resolved in a strict priority chain:
-1.  **Explicit Quantity Weight (`IIfcQuantityWeight`):** Searches the element's quantity sets for a weight property containing `"weight"` or `"mass"`. Values are converted from kilograms to metric tons:
-    $$\text{Weight}_{\text{Tons}} = \frac{\text{Weight}_{\text{kg}}}{1000}$$
-2.  **Explicit Property Set Weight (`IIfcPropertySingleValue`):** Searches property sets for single value properties containing `"weight"` or `"mass"`. Properties are parsed and scaled based on unit indicators (`kg`, `lb`, `ton`, `tonne`). Tekla-specific weights $>100.0$ are heuristically scaled to tons assuming the raw property was exported in kilograms.
-3.  **Direct Volume Fallback:** If no explicit weight property exists, the importer fetches direct volume (from `IIfcQuantityVolume` or volume properties) and applies the concrete density fallback:
-    $$\text{Weight}_{\text{Tons}} = \frac{\text{Volume (m}^3\text{)} \times 2500 \text{ kg/m}^3}{1000}$$
-4.  **No Bounding Box Fallback:** The normalized import path does **not** fall back to bounding-box volume to estimate the import weight. If volume is missing, the element is flagged with `IfcElementRole.NeedsReview` and blocked from the GA.
+| Statement | Evidence |
+|---|---|
+| Merge IFC multi-model geometry loading is available. | `IfcViewerViewModel.ShowMergeIfcPlaceholder` sets status text that shared multi-model geometry loading is not implemented yet. |
+| User-driven weight/density rule editor is implemented. | `IfcNormalizationDecisionService` report text lists this as a recommendation; no UI implementation found. |
+| `docs/domain/ifc-architecture-review.md`, `docs/domain/ifc-feature-matrix.md`, and `docs/project/current-state.md` exist as active documentation. | These requested paths do not exist in the current tree. |
 
-### B. UI / Display Estimated Weight (`ElementWeightCalculator`)
-When a restored `PrecastElement` lacks a positive `ElementWT` in the database, the UI filter and element-management display code uses [ElementWeightCalculator.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F16_Filter/Services/ElementWeightCalculator.cs) (Methods: `GetWeightTons()`, `GetDensityKgPerCubicMeter()`) as a display-only estimation helper. It uses the following material and type heuristics:
-*   **Steel:** $7850 \text{ kg/m}^3$ (Matches keywords `STEEL`, `REBAR`, `REINFORC`, `METAL`)
-*   **Aluminum:** $2700 \text{ kg/m}^3$ (Matches keyword `ALUMIN`)
-*   **Glass:** $2500 \text{ kg/m}^3$ (Matches keyword `GLASS`)
-*   **Timber:** $600 \text{ kg/m}^3$ (Matches keywords `TIMBER`, `WOOD`)
-*   **Concrete / Default Fallback:** $2500 \text{ kg/m}^3$
+## Recommended Corrections
 
----
+1. Replace `IIfcBuildingElement` pipeline wording with `IIfcProduct` / `IIfcElement` extraction and explicit exclusions.
+2. Replace the stale structural `IfcElementRole` table with current roles and resolved categories.
+3. Document import weight flow as explicit weight quantity, explicit weight/mass property, then concrete-density fallback from direct IFC volume.
+4. Document material/type density heuristics as UI/display fallback behavior, not as the normalized import source.
+5. State that project schema support is delegated to `IfcStore.Open()` and recorded through `model.SchemaVersion`; no project allow-list exists.
+6. Correct `.craneopt` IFC persistence docs to match `ProjectIfcFileEntity`, `ProjectIfcElementEntity`, and `PrecastElementMapper`.
+7. Remove links to missing `current-state.md` or mark them as absent.
 
-## 4. IFC Schema Coverage
+## Documentation Accuracy Score
 
-The application does not enforce a project-specific schema allow-list. File opening is delegated to `IfcStore.Open()` inside `IfcModelSession.Open`, and the schema version is recorded in metadata through `model.SchemaVersion` (saved in [IfcDiagnosticAuditService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcDiagnosticAuditService.cs#L214) via `SchemaVersion = model.SchemaVersion.ToString()`).
+**Before alignment:** 62 / 100
 
-| Schema | xBIM Support | Known Differences |
-|---|---|---|
-| **IFC2X3** | Full | Property set names (`Pset_BeamCommon` vs `Pset_BeamCommon`) and quantity names frequently differ from IFC4. Unit designations and classification associations require heuristic mappings. |
-| **IFC4** | Full | Standardized quantities (`Qto_BeamBaseQuantities` and `BaseQuantities`) are queryable directly. Material layer sets and element profiles are highly structured. |
-| **IFC4X1 / IFC4X2 / IFC4X3** | Partial (via xBIM) | Supported via the underlying xBIM Interop engine. Geometry representation conventions can vary, but standard extrusion and boundary representation meshes extract successfully. |
+The documentation correctly identified the broad xBIM-based IFC workflow, but several implementation-level claims were stale or overspecified.
 
----
+**After alignment in this audit pass:** 88 / 100
 
-## 5. Authoring Tool Compatibility
+Remaining risk is mostly in broad planning/vision documents whose wording is intentionally aspirational, and in existing historical audit/refactoring notes that mention IFC as context rather than current behavior.
 
-Revit-exported and Tekla-exported IFC files carry metadata and spatial structures differently, which triggers specific normalization role mappings:
-
-### Revit IFC Exports
-*   **Property Sets:** Weight/mass quantities are typically carried in `Pset_BeamCommon` or `Pset_ColumnCommon`.
-*   **Volume:** Volume is expressed as `GrossVolume` or `NetVolume` inside quantity sets, or under custom Revit property tabs.
-*   **Storey Assignments:** Visual spatial elements are assigned to `IfcBuildingStorey` containers via `IfcRelContainedInSpatialStructure`.
-*   **Assemblies:** Revit exports nested elements as flat lists of independent elements or groups assemblies as `IfcElementAssembly` (often with both parent and children carrying geometry). This triggers `GroupingOnly` for the parent container to extract the children independently, or `LiftAssembly` if consolidated.
-*   **Naming Pattern:** Naming conventions typically match family names followed by Revit Element IDs (e.g. `M_Concrete-Column : 400x400mm : 185430`).
-
-### Tekla Structures IFC Exports
-*   **Property Sets:** Weights are usually found in `BaseQuantities` or custom sets such as `TeklaQuantities`.
-*   **Volume:** Volumes are represented as `Volume` or computed from bounding profiles.
-*   **Naming Conventions:** Often contain descriptive prefix names (e.g. `COLUMN`, `BEAM`, `SLAB`) and detail-level marks in the `Name` or `Description` fields (e.g. `C-1`, `B-12`).
-*   **Embedded Elements:** Tekla exports frequently include tiny embedded rebar, anchors, or connection plates. These are categorized as `InternalAuxiliary` under `IfcNormalizationDecisionService` and swallowed by their respective parents.
 
 ---
 
-## 6. Spatial Structure Handling
-
-*   **IfcProject:** Evaluated in `IfcModelSession.Open` to retrieve units in context (e.g., `LENGTHUNIT` millimetre vs metre scaling).
-*   **IfcBuildingStorey:** Mapped to resolve model ground elevation and filter building storeys in the UI sidebar.
-*   **IfcSite / IfcBuilding:** Not imported as physical optimization targets.
-*   **IfcSpace:** Explicitly excluded from physical extraction inside `IfcReaderRepository.IfcEngineeringExtractor.IsEngineeringProduct()`.
-*   **Placement Offset:** The user-selected coordinate reference offset (configured in the UI and processed in [ProjectStateService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F10_ProjectManagement/Services/ProjectStateService.cs)) is applied to the shape geometry mesh centroids and bounding boxes when the model coordinates are saved or restored.

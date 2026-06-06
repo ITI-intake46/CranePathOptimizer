@@ -34,9 +34,9 @@ Both buttons in both tabs are wired to the same command. Clicking either one doe
 
 ### How to add a new shared button
 
-1. Define the command and its logic once in [CranePlacementViewModel.cs](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/ViewModels/CranePlacementViewModel.cs)
-2. Add a button to [AnalyzeTabView.xaml](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Views/AnalyzeTabView.xaml) bound to that command
-3. Add the same button to [ReportsTabView.xaml](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Features/F12_Reports/Views/ReportsTabView.xaml) bound to the same command
+1. Define the command and its logic once in [CranePlacementViewModel.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/ViewModels/CranePlacementViewModel.cs)
+2. Add a button to [AnalyzeTabView.xaml](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Views/AnalyzeTabView.xaml) bound to that command
+3. Add the same button to [ReportsTabView.xaml](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F12_Reports/Views/ReportsTabView.xaml) bound to the same command
 4. Done — both tabs now trigger the same logic, no code repeated anywhere
 
 ---
@@ -45,12 +45,12 @@ Both buttons in both tabs are wired to the same command. Clicking either one doe
 
 | File | What happened |
 |---|---|
-| [ReportsTabView.xaml](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Features/F12_Reports/Views/ReportsTabView.xaml) | **Created** — the new Reports ribbon panel with 6 groups |
-| [ReportsTabView.xaml.cs](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Features/F12_Reports/Views/ReportsTabView.xaml.cs) | **Created** — placeholder click handlers, all marked TODO |
-| [TopNavigation.xaml](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Shared/Layouts/TopNavigation.xaml) | Reports tab button added to the strip; Reports panel added to the content area |
-| [TopNavigation.xaml.cs](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Shared/Layouts/TopNavigation.xaml.cs) | Reports panel included in the hide/show switching logic |
-| [AnalyzeTabView.xaml](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Views/AnalyzeTabView.xaml) | Restored the original 3-column layout (OPTIMIZE · REPORTS · RESULTS) |
-| [GAResultsWindow.xaml](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Views/GAResultsWindow.xaml) | Two bug fixes applied (see section 6) |
+| [ReportsTabView.xaml](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F12_Reports/Views/ReportsTabView.xaml) | **Created** — the new Reports ribbon panel with 6 groups |
+| [ReportsTabView.xaml.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F12_Reports/Views/ReportsTabView.xaml.cs) | **Created** — placeholder click handlers, all marked TODO |
+| [TopNavigation.xaml](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Shared/Layouts/TopNavigation.xaml) | Reports tab button added to the strip; Reports panel added to the content area |
+| [TopNavigation.xaml.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Shared/Layouts/TopNavigation.xaml.cs) | Reports panel included in the hide/show switching logic |
+| [AnalyzeTabView.xaml](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Views/AnalyzeTabView.xaml) | Restored the original 3-column layout (OPTIMIZE · REPORTS · RESULTS) |
+| [GAResultsWindow.xaml](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Views/GAResultsWindow.xaml) | Two bug fixes applied (see section 6) |
 
 ---
 
