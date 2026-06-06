@@ -41,6 +41,8 @@ Use this index to route your research based on the specific subsystem or domain 
 ### If Working On the Genetic Algorithm
 *   For chromosome encoding, selection, crossover operators, and fitness formulas, read [ga-engine.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/ga-engine.md).
 *   For fitness weights definitions and sensitivity impacts, read [fitness-weights.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/ga/fitness-weights.md).
+*   For GA settings properties and cloning details, read [ga-settings.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/architecture/ga-settings.md).
+*   For the adaptive relocation weight formula and fitness calculations, read [fitness-function.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/architecture/fitness-function.md).
 *   For GA selection alternatives and operators design rationale, read [ga-design-decisions.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/architecture/ga-design-decisions.md).
 *   For boom configurations and `ConservativeStep` load chart lookups, read [crane-engine.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/crane-engine.md).
 *   For performance optimizations and profiling parameters, read [refactoring-opportunities.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/project/refactoring-opportunities.md).
@@ -57,6 +59,8 @@ Use this index to route your research based on the specific subsystem or domain 
 ### If Working On System Architecture
 *   For overall layer structures and compile dependencies, read [system-overview.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/architecture/system-overview.md).
 *   For the orchestration of spatial engines and calculations, read [engines.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/architecture/engines.md).
+*   For the dynamic position discovery and GA stage orchestration, read [optimization-engine.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/architecture/optimization-engine.md).
+*   For the Hungarian global assignment solver and min-cost flow architecture, read [assignment-engine.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/architecture/assignment-engine.md).
 *   For Clean Code principles, naming standards, and formatting, read [clean-code.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/coding-standards/clean-code.md).
 *   For identified architectural vulnerabilities and refactoring opportunities, read [refactoring-opportunities.md](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/project/refactoring-opportunities.md).
 

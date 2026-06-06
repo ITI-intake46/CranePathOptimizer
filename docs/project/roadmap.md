@@ -25,11 +25,13 @@ This document outlines the implementation phases of the Mobile Crane Path Optimi
 *   **Implementation Notes:**
     - Created [IMultiStageGAOrchestrator.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Interfaces/IMultiStageGAOrchestrator.cs) and [MultiStageGAOrchestrator.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/MultiStageGAOrchestrator.cs).
     - Integrates into [CranePlacementService.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Services/CranePlacementService.cs) to scale setups dynamically when target coverage is not reached.
+    - Verified with 312 tests passing successfully under branch `phase16-17_HungarianAlgorithms`.
 
 ### Phase 17 - Bipartite Matching Assignment Engine (Hungarian Solver)
 *   **Status:** ✅ Complete
 *   **Description:** Built the Hungarian Assignment Solver using successive relocation min-cost flow to globally optimize element assignment across crane positions.
 *   **Implementation Notes:**
     - Created [HungarianAssignmentService.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/HungarianAssignmentService.cs) implementing [IElementAssignmentService.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Interfaces/IElementAssignmentService.cs).
-    - Solves bipartite assignment globally under capacity limits and load balancing in $O(N \cdot M^2)$ time ($M \le 3$), executing in `< 50ms` on 3,940 elements (try9).
+    - Solves bipartite assignment globally under capacity limits and load balancing in $O(N \cdot M^2)$ time ($M \le 3$), executing in **38ms** (under 50ms budget) on 3,940 elements (try9).
     - Registered dynamically in DI in [App.xaml.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/App.xaml.cs) switchable based on the `UseHungarianAssignment` flag in `GASettings`.
+    - Fully validated under branch `phase16-17_HungarianAlgorithms`.
