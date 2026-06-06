@@ -1,9 +1,46 @@
-# Project Roadmap & Performance Assessments
+# Mobile Crane Path Optimizer - Project Roadmap
 
-This consolidated guide covers project milestones and GA performance assessments.
+This document outlines the implementation phases of the Mobile Crane Path Optimizer application.
 
-## Consolidated from: Executive Summary (project/roadmap.md)
+---
 
+## Roadmap Phases
+
+### Phase 14 - Caching and Performance Optimization
+*   **Status:** ✅ Complete
+*   **Notes:** Implemented pre-indexed load charts and static element caches.
+
+### Phase 15 - Reachability Intelligence & Search Space Pruning
+*   **Status:** ✅ Complete
+*   **Description:** Built pre-computation service to map allowed zone grid reachability before starting GA.
+*   **Implementation Notes:**
+    - Created [ReachabilityMapService.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/ReachabilityMapService.cs) implementing [IReachabilityMapService.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Interfaces/IReachabilityMapService.cs).
+    - Added settings properties to [GASettings.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Settings/GASettings.cs).
+    - Seeding is split between 30% reachability hot spots and 70% random inside [GAInitializer.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/GeneticOptimization/GAInitializer.cs).
+    - UI warning is shown in [CraneOptimizerDialog.xaml.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Views/CraneOptimizerDialog.xaml.cs) when coverage is low (<20%).
+
+### Phase 16 - Dynamic Position Count Discovery & Adaptive Relocation Weighting
+*   **Status:** ✅ Complete
+*   **Description:** Implemented a multi-stage Genetic Algorithm orchestration loop to dynamically discover the optimal number of crane setups (1, 2, or 3 positions) and apply adaptive relocation weights.
+*   **Implementation Notes:**
+    - Created [IMultiStageGAOrchestrator.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Interfaces/IMultiStageGAOrchestrator.cs) and [MultiStageGAOrchestrator.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/MultiStageGAOrchestrator.cs).
+    - Integrates into [CranePlacementService.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Services/CranePlacementService.cs) to scale setups dynamically when target coverage is not reached.
+    - Fully verified with **312 tests passing** successfully under branch `phase16-17_HungarianAlgorithms`.
+
+### Phase 17 - Bipartite Matching Assignment Engine (Hungarian Solver)
+*   **Status:** ✅ Complete
+*   **Description:** Built the Hungarian Assignment Solver using successive relocation min-cost flow to globally optimize element assignment across crane positions.
+*   **Implementation Notes:**
+    - Created [HungarianAssignmentService.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/HungarianAssignmentService.cs) implementing [IElementAssignmentService.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Interfaces/IElementAssignmentService.cs).
+    - Solves bipartite assignment globally under capacity limits and load balancing in $O(N \cdot M^2)$ time ($M \le 3$), executing in **38ms** (well under the 50ms budget) on 3,940 elements (try9).
+    - Registered dynamically in DI in [App.xaml.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/App.xaml.cs) switchable based on the `UseHungarianAssignment` flag in `GASettings`.
+    - Fully validated with **312 tests passing** successfully under branch `phase16-17_HungarianAlgorithms`.
+
+---
+
+## Historical Performance Assessments & Research
+
+## Consolidated from: Executive Summary (project/ga-performance-assessment.md)
 
 The GA feels slow because the hot path repeatedly evaluates every element against every crane setup for every solution, generation, child population, and greedy set-cover iteration. The dominant cost is not selection, crossover, mutation, or final coverage accounting; it is assignment evaluation plus load-chart resolution inside `ElementAssignmentService`.
 
@@ -276,11 +313,9 @@ Expected ROI by phase:
 
 Highest ROI sequence: measure resolver detail, index load charts, reduce diagnostic allocations, then parallelize population scoring after random/profiler/thread-safety issues are solved.
 
-
 ---
 
-## Consolidated from: Phase 15 Research Findings & GA Validation Report (project/roadmap.md)
-
+## Consolidated from: Phase 15 Research Findings & GA Validation Report (project/phase-findings.md)
 
 ## Executive Summary
 
@@ -304,7 +339,3 @@ Based on the completed `Benchmark_v1` parametric sweep (consisting of 972 GA opt
 - **Centroid-Based Seeding:** Seeding chromosomes at coordinates that represent reachability centroids/hot spots is expected to improve the initial generation's average fitness by **15% to 30%** for highly constrained cranes.
 - **Search Space Pruning:** By focusing early generations on areas with non-zero coverage, the GA can allocate genetic mutation and crossover operations to refine local offsets instead of searching for reachable coordinates from scratch.
 - **Diversity Maintenance:** Preserving a 70% random coordinate distribution ensures that global search capability is not lost while exploiting the pre-computed reachability hot spots in the remaining 30%.
-
-
----
-
