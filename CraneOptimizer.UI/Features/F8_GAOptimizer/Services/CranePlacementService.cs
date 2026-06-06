@@ -23,6 +23,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
     {
         private readonly IOptimizationInputBuilder _inputBuilder;
         private readonly ICranePlacementEngine _placementEngine;
+        private readonly IMultiStageGAOrchestrator _multiStageGAOrchestrator;
         private readonly IOptimizationScopeEngine _scopeEngine;
         private readonly ISceneService _sceneService;
         private readonly CoordinateService _coordinateService;
@@ -33,6 +34,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         public CranePlacementService(
             IOptimizationInputBuilder inputBuilder,
             ICranePlacementEngine placementEngine,
+            IMultiStageGAOrchestrator multiStageGAOrchestrator,
             IOptimizationScopeEngine scopeEngine,
             ISceneService sceneService,
             CoordinateService coordinateService,
@@ -42,6 +44,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         {
             _inputBuilder = inputBuilder;
             _placementEngine = placementEngine;
+            _multiStageGAOrchestrator = multiStageGAOrchestrator;
             _scopeEngine = scopeEngine;
             _sceneService = sceneService;
             _coordinateService = coordinateService;
@@ -207,9 +210,23 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             // Run optimization in a Task
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            var appResult = await Task.Run(
-                () => _placementEngine.RunOptimization(input, cancellationToken),
-                cancellationToken);
+            PlacementResult appResult;
+            if (settings.EnableMultiStageDiscovery)
+            {
+                var multiStageResult = await _multiStageGAOrchestrator.RunAsync(
+                    input,
+                    crane,
+                    settings,
+                    settings.MultiStageCoverageTarget,
+                    cancellationToken);
+                appResult = multiStageResult.BestResult;
+            }
+            else
+            {
+                appResult = await Task.Run(
+                    () => _placementEngine.RunOptimization(input, cancellationToken),
+                    cancellationToken);
+            }
             sw.Stop();
 
             // Map results back to UI DTOs

@@ -9,29 +9,35 @@ The system is organized around several specialized logic components called "Engi
 The optimization pipeline runs within the application layer under [Optimization/GeneticAlgorithms/Engines/](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines). It consists of 7 specialized engines that manage different stages of the optimization process:
 
 ### Architectural Engine Map
-
-```mermaid
-graph TD
-    CPE[CranePlacementEngine <br/> PlacementOrchestration] --> GAE[GAEngine <br/> GeneticOptimization]
-    CPE --> OSE[OptimizationScopeEngine <br/> OptimizationScope]
-    
-    GAE --> GAI[GAInitializer]
-    GAE --> EAS[ElementAssignmentService]
-    GAE --> FE[FitnessEvaluator]
-    GAE --> CE[ConstraintEngine <br/> Constraints]
-    
-    GAI --> RMS[ReachabilityMapService]
-    RMS --> CE
-    RMS --> LCCR[LoadChartCapacityResolver]
-    
-    EAS --> LCE[LiftingCalculationEngine <br/> LiftingCalculation]
-    EAS --> CCE[CraneConfigurationEngine <br/> CraneConfiguration]
-    
-    LCE --> LCCR
-    CCE --> LCCR
-    
-    FE --> CE
-```
+ 
+ ```mermaid
+ graph TD
++    CPS[CranePlacementService] --> MSGAO[MultiStageGAOrchestrator]
++    MSGAO --> CPE[CranePlacementEngine <br/> PlacementOrchestration]
++    CPS --> CPE
+     CPE[CranePlacementEngine <br/> PlacementOrchestration] --> GAE[GAEngine <br/> GeneticOptimization]
+     CPE --> OSE[OptimizationScopeEngine <br/> OptimizationScope]
+     
+     GAE --> GAI[GAInitializer]
+     GAE --> EAS[ElementAssignmentService]
++    GAE --> HAS[HungarianAssignmentService]
+     GAE --> FE[FitnessEvaluator]
+     GAE --> CE[ConstraintEngine <br/> Constraints]
+     
+     GAI --> RMS[ReachabilityMapService]
+     RMS --> CE
+     RMS --> LCCR[LoadChartCapacityResolver]
+     
+     EAS --> LCE[LiftingCalculationEngine <br/> LiftingCalculation]
+     EAS --> CCE[CraneConfigurationEngine <br/> CraneConfiguration]
++    HAS --> LCE
++    HAS --> CCE
+     
+     LCE --> LCCR
+     CCE --> LCCR
+     
+     FE --> CE
+ ```
 
 ---
 
@@ -99,6 +105,16 @@ graph TD
 *   **Path:** [ReachabilityMapService.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/ReachabilityMapService.cs)
 *   **Interface:** [IReachabilityMapService](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Interfaces/IReachabilityMapService.cs)
 *   **Responsibility:** Pre-computes coverage and lifting capability for every grid point in the allowed zones. It checks grid coordinates using a custom `GridStep` to ensure they are inside allowed zones and outside forbidden zones (using the `ConstraintEngine`), and uses the `LoadChartCapacityResolver` to determine lifting feasibility. It returns the top-N coordinates sorted by coverage to seed the GA initial population (with `HotSpotSeedingRatio`).
+
+### 9. MultiStageGAOrchestrator (Phase 16)
+*   **Path:** [MultiStageGAOrchestrator.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/MultiStageGAOrchestrator.cs)
+*   **Interface:** [IMultiStageGAOrchestrator.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Interfaces/IMultiStageGAOrchestrator.cs)
+*   **Responsibility:** Executes the multi-stage Genetic Algorithm optimization loop. It scales allowed positions dynamically from 1 up to Math.Min(3, MaxCranePositions), calculates adaptive relocation weights per stage, and stops early if target coverage is achieved.
+
+### 10. HungarianAssignmentService (Phase 17)
+*   **Path:** [HungarianAssignmentService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/HungarianAssignmentService.cs)
+*   **Interface:** [IElementAssignmentService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Interfaces/IElementAssignmentService.cs)
+*   **Responsibility:** Globally optimizes element assignments across crane setups using a bipartite matching model solved via an $O(N \cdot M^2)$ successive relocation min-cost flow solver. Enforces global capacity constraints and balanced load distribution without greedy fallbacks for unconstrained setups.
 
 ---
 

@@ -271,5 +271,33 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// Whether to run reachability pre-computation before GA.
         /// </summary>
         public bool EnableReachabilitySeeding { get; set; } = true;
+
+        /// <summary>
+        /// Coverage threshold above which multi-stage escalation stops (0.0–1.0).
+        /// </summary>
+        public double MultiStageCoverageTarget { get; set; } = 0.95;
+
+        /// <summary>
+        /// Enable multi-stage dynamic position discovery (false = legacy single-run behavior).
+        /// </summary>
+        public bool EnableMultiStageDiscovery { get; set; } = true;
+
+        /// <summary>
+        /// Scaling factor for adaptive relocation weight formula.
+        /// </summary>
+        public double AdaptiveRelocationScaleFactor { get; set; } = 0.40;
+
+        /// <summary>
+        /// Use Hungarian bipartite matching for element assignment (false = legacy greedy).
+        /// </summary>
+        public bool UseHungarianAssignment { get; set; } = false;
+
+        /// <summary>
+        /// Performs a shallow copy of the settings.
+        /// </summary>
+        public GASettings Clone()
+        {
+            return (GASettings)this.MemberwiseClone();
+        }
     }
 }
