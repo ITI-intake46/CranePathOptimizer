@@ -37,3 +37,27 @@ Thumbs.db
 # IFC Diagnostic reports
 Reports/
 **/Reports/
+
+# GA generated diagnostics CSVs (research/benchmark artifacts)
+**/Diagnostics/ga_diagnostics_*.csv
+**/Diagnostics/ga_assignment_matrix_*.csv
+**/Diagnostics/ga_final_assignments_*.csv
+**/Diagnostics/ga_failure_breakdown_*.csv
+
+# GA profiler logs
+**/Logs/ga_profile_*.txt
+
+# GAExperiment build output (generated diagnostics)
+CraneOptimizer.GAExperiment/bin/
+
+# GAExperiment generated CSV results
+CraneOptimizer.GAExperiment/ExperimentResults.csv
+CraneOptimizer.GAExperiment/baselines/
+
+# GAExperiment smoke output
+CraneOptimizer.GAExperiment/smoke/
+
+# Analytics generated datasets
+Analytics/datasets/
+Analytics/charts/
+Analytics/scripts/__pycache__/

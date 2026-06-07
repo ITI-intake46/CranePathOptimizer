@@ -29,7 +29,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             string reportsDirectory,
             string timestamp,
             PlacementInput input,
-            PlacementResult result)
+            PlacementResult result,
+            bool includeResearchFiles = true)
         {
             BenchmarkDiagnosticsIdentity.Ensure(input);
 
@@ -38,16 +39,22 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 .LastOrDefault(stage => stage.StageRunId == input.Settings.StageRunId)
                 ?? GAProfiler.StageLogs.LastOrDefault();
 
+            // Summary-level files (always emitted for Summary and Research)
             WriteRunSummary(reportsDirectory, timestamp, input, result, stageLog);
             WriteSettingsSnapshot(reportsDirectory, timestamp, input);
             WriteStageSummary(reportsDirectory, timestamp, input, result, stageLog);
-            WriteGenerationSummary(reportsDirectory, timestamp, input);
-            WriteReachabilityHotSpots(reportsDirectory, timestamp, input);
             WritePositions(reportsDirectory, timestamp, input, result);
             WriteElementAssignments(reportsDirectory, timestamp, input, assignments);
-            WriteProjectFeatures(reportsDirectory, timestamp, input);
-            WriteSolutionQualityMetrics(reportsDirectory, timestamp, input, result, assignments, stageLog);
-            WriteZoneReachabilitySummary(reportsDirectory, timestamp, input);
+
+            // Research-only files
+            if (includeResearchFiles)
+            {
+                WriteGenerationSummary(reportsDirectory, timestamp, input);
+                WriteReachabilityHotSpots(reportsDirectory, timestamp, input);
+                WriteProjectFeatures(reportsDirectory, timestamp, input);
+                WriteSolutionQualityMetrics(reportsDirectory, timestamp, input, result, assignments, stageLog);
+                WriteZoneReachabilitySummary(reportsDirectory, timestamp, input);
+            }
         }
 
         private static void WriteRunSummary(
