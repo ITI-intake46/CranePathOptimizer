@@ -54,3 +54,19 @@ To bridge the gap between static Dependency Injection (DI) initialization and ru
 This routing proxy dynamically delegates assignment evaluation to either the greedy or Hungarian solver on a per-call basis:
 - If `settings.UseHungarianAssignment` is `true`, it delegates to [HungarianAssignmentService](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/HungarianAssignmentService.cs).
 - Otherwise, it delegates to the legacy [ElementAssignmentService](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/GeneticOptimization/ElementAssignmentService.cs).
+
+---
+
+## 5. Benchmark_v2 Assignment Diagnostics
+
+Compact diagnostics record both the configured routing flag and resolved engine name. Final element rows expose:
+
+```text
+RequiredCapacity = ElementWeight + AdditionalWt
+CapacityUtilization = RequiredCapacity / AvailableCapacity
+CapacityMarginTons = AvailableCapacity - RequiredCapacity
+RadiusUtilization = Radius / CraneMaxRadius
+BoomUtilization = RequiredBoomLength / CraneMaxBoomLength
+```
+
+Division-derived values are `N/A` when their denominator is not positive. These measurements support later Crane-Friendly analysis but do not add a runtime mode or utilization threshold. See [Benchmark_v2 diagnostics](../ga/benchmark-v2-diagnostics.md).

@@ -229,8 +229,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
 
         /// <summary>
         /// Enables high-resolution timing and profiling for the Genetic Algorithm pipeline.
+        /// Default is false for Release; set to true when DiagnosticsLevel is Research.
         /// </summary>
-        public bool EnableProfiling { get; set; } = true;
+        public bool EnableProfiling { get; set; } = false;
+
+        /// <summary>
+        /// Controls which diagnostics files are emitted.
+        /// Off     = No CSV diagnostics except critical error logs.
+        /// Summary = Compact, user-readable summaries only (default for Release).
+        /// Research= All files including heavy profiler, assignment matrix, generation summary.
+        /// </summary>
+        public DiagnosticsLevel DiagnosticsLevel { get; set; } = DiagnosticsLevel.Summary;
 
         /// <summary>
         /// Slew center horizontal offset X relative to crane base.
@@ -306,6 +315,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// A unique identifier for the specific stage execution within the optimization run.
         /// </summary>
         public string StageRunId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// One-based stage ordinal for the current optimization execution.
+        /// The current multi-stage orchestrator maps stages 1/2/3 to maximum
+        /// position counts 1/2/3, while single-stage runs use 1.
+        /// </summary>
+        public int StageIndex { get; set; } = 1;
 
         /// <summary>
         /// A unique identifier for the optimization run (maps to StageRunId for backward compatibility).

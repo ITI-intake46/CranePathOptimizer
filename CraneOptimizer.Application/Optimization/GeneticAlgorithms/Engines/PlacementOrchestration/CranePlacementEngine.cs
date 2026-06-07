@@ -64,7 +64,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 input.Settings.StageRunId = Guid.NewGuid().ToString();
             }
 
-            GAProfiler.Enabled = input.Settings.EnableProfiling;
+            GAProfiler.Enabled = input.Settings.EnableProfiling && input.Settings.DiagnosticsLevel >= DiagnosticsLevel.Research;
 
             if (GAProfiler.CurrentRunId != input.Settings.OptimizationRunId)
             {
@@ -348,7 +348,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                             RunId = input.Settings.RunId ?? string.Empty,
                             OptimizationRunId = input.Settings.OptimizationRunId ?? string.Empty,
                             StageRunId = input.Settings.StageRunId ?? string.Empty,
-                            StageIndex = input.Settings.EnableMultiStageDiscovery ? input.Settings.MaxCranePositions : 1,
+                            StageIndex = input.Settings.StageIndex,
                             MaxPositions = input.Settings.MaxCranePositions,
                             RelocationWeight = input.Settings.RelocationWeight,
                             BestCoverageRatio = finalResult.CoverageRatio,
@@ -365,7 +365,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                         GAProfiler.StageLogs.Add(stageLog);
                     }
 
-                    finalResult.DiagnosticsReportPath = _diagnosticsService.GenerateDiagnostics(input, finalResult);
+                    if (input.Settings.DiagnosticsLevel != DiagnosticsLevel.Off)
+                    {
+                        finalResult.DiagnosticsReportPath = _diagnosticsService.GenerateDiagnostics(input, finalResult);
+                    }
                 }
                 catch (Exception ex)
                 {

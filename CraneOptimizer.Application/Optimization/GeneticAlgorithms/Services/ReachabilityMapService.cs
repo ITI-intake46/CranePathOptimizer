@@ -18,8 +18,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     {
         private readonly IConstraintEngine _constraintEngine;
         private readonly ILoadChartCapacityResolver _capacityResolver;
+        private readonly object _summaryLock = new();
+        private List<ZoneReachabilitySummary> _lastZoneSummaries = new();
+        private readonly Dictionary<(Guid ZoneId, double X, double Y), int> _selectedSeedCounts = new();
 
         public ReachabilityDiagnostics? LastDiagnostics { get; private set; }
+        public IReadOnlyList<ScoredCoordinate> LastHotSpots { get; private set; } = Array.Empty<ScoredCoordinate>();
+        public IReadOnlyList<ZoneReachabilitySummary> LastZoneSummaries => _lastZoneSummaries;
 
         public ReachabilityMapService(
             IConstraintEngine constraintEngine,
@@ -40,6 +45,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             var elementsList = elements?.ToList() ?? new List<PrecastElement>();
             var allowedZonesList = allowedZones?.ToList() ?? new List<GreenAreaZone>();
             var forbiddenZonesList = forbiddenZones?.ToList() ?? new List<GreenAreaZone>();
+            LastDiagnostics = null;
+            LastHotSpots = Array.Empty<ScoredCoordinate>();
+            _lastZoneSummaries = new List<ZoneReachabilitySummary>();
+            lock (_summaryLock)
+            {
+                _selectedSeedCounts.Clear();
+            }
 
             if (elementsList.Count == 0 || allowedZonesList.Count == 0 || craneSpec == null)
             {
@@ -72,7 +84,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             }
 
             // Filter unique points to only valid setup coordinates
-            var validPoints = new ConcurrentBag<DomainPoint3D>();
+            var validPoints = new ConcurrentBag<(DomainPoint3D Point, Guid ZoneId)>();
+            var candidateCounts = new ConcurrentDictionary<Guid, int>();
             Parallel.ForEach(uniquePoints, point =>
             {
                 // Find matching zones to get correct elevation (if multiple zones overlap, we can use the first matching one)
@@ -92,16 +105,41 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
                 if (elevation.HasValue && matchedZone != null)
                 {
+                    candidateCounts.AddOrUpdate(matchedZone.ZoneId, 1, (_, count) => count + 1);
                     var testPoint = new DomainPoint3D(point.X, point.Y, elevation.Value);
                     if (_constraintEngine.IsValidSetupPoint(testPoint, new[] { matchedZone }, forbiddenZonesList, settings))
                     {
-                        validPoints.Add(testPoint);
+                        validPoints.Add((testPoint, matchedZone.ZoneId));
                     }
                 }
             });
 
             if (validPoints.Count == 0)
             {
+                _lastZoneSummaries = allowedZonesList
+                    .Select(zone =>
+                    {
+                        int candidateCount = candidateCounts.GetValueOrDefault(zone.ZoneId);
+                        return new ZoneReachabilitySummary
+                        {
+                            ZoneId = zone.ZoneId,
+                            CandidateGridPointCount = candidateCount,
+                            ValidGridPointCount = 0,
+                            RejectedGridPointCount = candidateCount
+                        };
+                    })
+                    .ToList();
+                int candidateCount = candidateCounts.Values.Sum();
+                LastDiagnostics = new ReachabilityDiagnostics(
+                    candidateCount,
+                    0,
+                    candidateCount,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0);
                 return Array.Empty<ScoredCoordinate>();
             }
 
@@ -125,8 +163,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
             var scoredResults = new ConcurrentBag<ScoredCoordinate>();
 
-            Parallel.ForEach(validPoints, pt =>
+            Parallel.ForEach(validPoints, validPoint =>
             {
+                DomainPoint3D pt = validPoint.Point;
                 int reachableCount = 0;
                 double slewX = pt.X + settings.SlewOffsetX;
                 double slewY = pt.Y + settings.SlewOffsetY;
@@ -166,19 +205,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     }
                 }
 
-                Guid zoneId = Guid.Empty;
-                foreach (var zone in allowedZonesList)
-                {
-                    if (zone.Vertices != null && SpatialMath.PointInPolygon(pt, zone.Vertices))
-                    {
-                        zoneId = zone.ZoneId;
-                        break;
-                    }
-                }
-
-                scoredResults.Add(new ScoredCoordinate(pt.X, pt.Y, reachableCount, zoneId));
+                scoredResults.Add(new ScoredCoordinate(pt.X, pt.Y, reachableCount, validPoint.ZoneId));
             });
 
+            int totalCandidatePoints = candidateCounts.Values.Sum();
             int totalPoints = validPoints.Count;
             int zeroCoveragePoints = scoredResults.Count(sc => sc.ReachableCount == 0);
 
@@ -225,15 +255,78 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 avgCoverage = sortedList.Average(sc => (double)sc.ReachableCount / elementsList.Count);
             }
 
+            double reachabilityMean = scoredResults.Count == 0
+                ? 0
+                : scoredResults.Average(result => (double)result.ReachableCount);
+            double reachabilityStdDev = CalculateStdDev(
+                scoredResults.Select(result => (double)result.ReachableCount),
+                reachabilityMean);
+
+            _lastZoneSummaries = allowedZonesList
+                .Select(zone =>
+                {
+                    List<ScoredCoordinate> zonePoints = scoredResults
+                        .Where(result => result.ZoneId == zone.ZoneId)
+                        .ToList();
+                    int candidateCount = candidateCounts.GetValueOrDefault(zone.ZoneId);
+                    double mean = zonePoints.Count == 0
+                        ? 0
+                        : zonePoints.Average(result => (double)result.ReachableCount);
+
+                    return new ZoneReachabilitySummary
+                    {
+                        ZoneId = zone.ZoneId,
+                        CandidateGridPointCount = candidateCount,
+                        ValidGridPointCount = zonePoints.Count,
+                        RejectedGridPointCount = Math.Max(0, candidateCount - zonePoints.Count),
+                        ZeroReachabilityPointCount = zonePoints.Count(result => result.ReachableCount == 0),
+                        ReachabilityMax = zonePoints.Count == 0 ? 0 : zonePoints.Max(result => result.ReachableCount),
+                        ReachabilityMean = mean,
+                        ReachabilityStdDev = CalculateStdDev(
+                            zonePoints.Select(result => (double)result.ReachableCount),
+                            mean)
+                    };
+                })
+                .ToList();
+
             LastDiagnostics = new ReachabilityDiagnostics(
-                TotalCandidatePoints: totalPoints,
+                TotalCandidatePoints: totalCandidatePoints,
+                ValidCandidatePoints: totalPoints,
+                RejectedCandidatePoints: Math.Max(0, totalCandidatePoints - totalPoints),
                 ZeroCoveragePoints: zeroCoveragePoints,
                 HotSpotCount: sortedList.Count,
                 MaxHotSpotCoverage: maxCoverage,
-                AverageHotSpotCoverage: avgCoverage
+                AverageHotSpotCoverage: avgCoverage,
+                ReachabilityMean: reachabilityMean,
+                ReachabilityStdDev: reachabilityStdDev
             );
 
-            return sortedList.Take(topN).ToList();
+            LastHotSpots = sortedList.Take(topN).ToList();
+            return LastHotSpots;
+        }
+
+        public void RecordSelectedSeed(ScoredCoordinate coordinate)
+        {
+            lock (_summaryLock)
+            {
+                ZoneReachabilitySummary? summary = _lastZoneSummaries
+                    .FirstOrDefault(item => item.ZoneId == coordinate.ZoneId);
+                if (summary != null)
+                {
+                    summary.SelectedSeedCount++;
+                }
+
+                var key = (coordinate.ZoneId, coordinate.X, coordinate.Y);
+                _selectedSeedCounts[key] = _selectedSeedCounts.GetValueOrDefault(key) + 1;
+            }
+        }
+
+        public bool WasSelectedAsSeed(ScoredCoordinate coordinate)
+        {
+            lock (_summaryLock)
+            {
+                return _selectedSeedCounts.ContainsKey((coordinate.ZoneId, coordinate.X, coordinate.Y));
+            }
         }
 
         private static double GetZoneElevation(GreenAreaZone zone)
@@ -241,6 +334,16 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             return zone.Vertices == null || zone.Vertices.Count == 0
                 ? 0d
                 : zone.Vertices.Average(vertex => vertex.Z);
+        }
+
+        private static double CalculateStdDev(IEnumerable<double> values, double mean)
+        {
+            double[] materialized = values.ToArray();
+            if (materialized.Length == 0)
+                return 0;
+
+            double variance = materialized.Average(value => Math.Pow(value - mean, 2));
+            return Math.Sqrt(variance);
         }
     }
 }

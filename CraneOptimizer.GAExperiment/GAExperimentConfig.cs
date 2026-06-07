@@ -8,12 +8,15 @@ namespace CraneOptimizer.GAExperiment
         public List<string> ProjectFiles { get; set; } = new();
         public List<string> Cranes { get; set; } = new();
         public string ExperimentResultsCsvPath { get; set; } = string.Empty;
+        public string DiagnosticsDirectoryPath { get; set; } = string.Empty;
         public string BenchmarkVersion { get; set; } = "Benchmark_v1";
         public string SeedMode { get; set; } = "Fixed"; // "Fixed", "Random"
         public List<int> Seeds { get; set; } = new();
         public int RandomSeedCount { get; set; } = 5;
         public int MaxRuns { get; set; } = 10000;
         public bool ResumeEnabled { get; set; } = true;
+        public bool UseHungarianAssignment { get; set; }
+        public bool EnableReachabilitySeeding { get; set; }
         public MatrixSettings Matrix { get; set; } = new();
     }
 

@@ -34,6 +34,7 @@ using CraneOptimizer.Infrastructure.Contexts.CreatedProject;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Services;
 
 namespace CraneOptimizer.GAExperiment
 {
@@ -57,7 +58,9 @@ namespace CraneOptimizer.GAExperiment
                 cts.Cancel();
             };
 
-            string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GAExperimentConfig.json");
+            string configPath = args.Length > 0
+                ? Path.GetFullPath(args[0])
+                : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GAExperimentConfig.json");
 
             // Generate default config if missing
             if (!File.Exists(configPath))
@@ -129,6 +132,7 @@ namespace CraneOptimizer.GAExperiment
             // Core registries
             services.AddScoped<ICraneRepository, CraneRepository>();
             services.AddSingleton<IUnitSettingsService, UnitSettingsService>();
+            services.AddSingleton<IProjectCoordinateTransformService, ProjectCoordinateTransformService>();
 
             // GA Registrations
             services.AddScoped<IGeneticAlgorithmEngine, GAEngine>();
@@ -139,7 +143,10 @@ namespace CraneOptimizer.GAExperiment
             services.AddScoped<ICoverageEngine, CoverageEngine>();
 
             services.AddScoped<IGAInitializer, GAInitializer>();
-            services.AddScoped<IElementAssignmentService, ElementAssignmentService>();
+            services.AddScoped<IReachabilityMapService, ReachabilityMapService>();
+            services.AddScoped<ElementAssignmentService>();
+            services.AddScoped<HungarianAssignmentService>();
+            services.AddScoped<IElementAssignmentService, RoutingAssignmentService>();
             services.AddScoped<IFitnessEvaluator, FitnessEvaluator>();
             services.AddScoped<IGACsvDiagnosticsService, GACsvDiagnosticsService>();
             services.AddScoped<ISelectionStrategy, TournamentSelection>();
@@ -188,7 +195,10 @@ namespace CraneOptimizer.GAExperiment
             }
 
             // Generate parameter matrix combinations
-            var settingsCombinations = GenerateMatrixCombinations(config.Matrix).ToList();
+            var settingsCombinations = GenerateMatrixCombinations(
+                config.Matrix,
+                config.UseHungarianAssignment,
+                config.EnableReachabilitySeeding).ToList();
             if (settingsCombinations.Count == 0)
             {
                 Console.WriteLine("No parameter matrix combinations configured. Exiting.");
@@ -283,7 +293,11 @@ namespace CraneOptimizer.GAExperiment
             int skippedCount = 0;
 
             // Temp directory for GA CSV diagnostics output
-            string tempDiagnosticsDir = Path.Combine(configDir, "Diagnostics");
+            string tempDiagnosticsDir = string.IsNullOrWhiteSpace(config.DiagnosticsDirectoryPath)
+                ? Path.Combine(configDir, "Diagnostics")
+                : Path.GetFullPath(Path.IsPathRooted(config.DiagnosticsDirectoryPath)
+                    ? config.DiagnosticsDirectoryPath
+                    : Path.Combine(configDir, config.DiagnosticsDirectoryPath));
             Directory.CreateDirectory(tempDiagnosticsDir);
 
             foreach (var projFile in resolvedProjectFiles)
@@ -293,13 +307,16 @@ namespace CraneOptimizer.GAExperiment
                 List<PrecastElement> elements;
                 List<GreenAreaZone> allowedZones;
                 List<GreenAreaZone> forbiddenZones;
+                List<PrecastElement> scopeElements;
                 string projectName;
+                string projectId;
                 string ifcFileName;
+                int rawElementCount;
 
                 try
                 {
                     // Lifetime safety: Open and dispose DbContext immediately
-                    (elements, allowedZones, forbiddenZones, projectName, ifcFileName) = LoadProjectData(projFile);
+                    (elements, scopeElements, allowedZones, forbiddenZones, projectName, projectId, ifcFileName, rawElementCount) = LoadProjectData(projFile);
                 }
                 catch (Exception ex)
                 {
@@ -351,9 +368,13 @@ namespace CraneOptimizer.GAExperiment
                                 {
                                     input = inputBuilder.Build(settings, crane, elements, allowedZones.Concat(forbiddenZones).ToList());
                                     input.ProjectName = projectName;
+                                    input.ProjectId = projectId;
                                     input.ProjectFolderPath = Path.GetDirectoryName(projFile);
                                     input.IfcFileName = ifcFileName;
-                                    input.TotalElementsCount = elements.Count;
+                                    input.RawElementCount = rawElementCount;
+                                    input.OptimizationScopeElementCount = scopeElements.Count;
+                                    input.FeatureScopeElements = scopeElements;
+                                    input.TotalElementsCount = rawElementCount;
                                     input.DiagnosticsReportsDirectory = tempDiagnosticsDir;
                                 }
                                 catch (Exception ex)
@@ -485,7 +506,15 @@ namespace CraneOptimizer.GAExperiment
             return 0;
         }
 
-        private static (List<PrecastElement> Elements, List<GreenAreaZone> AllowedZones, List<GreenAreaZone> ForbiddenZones, string ProjectName, string IfcFileName) LoadProjectData(string projectFilePath)
+        private static (
+            List<PrecastElement> Elements,
+            List<PrecastElement> ScopeElements,
+            List<GreenAreaZone> AllowedZones,
+            List<GreenAreaZone> ForbiddenZones,
+            string ProjectName,
+            string ProjectId,
+            string IfcFileName,
+            int RawElementCount) LoadProjectData(string projectFilePath)
         {
             var options = new DbContextOptionsBuilder<CreatedProjectDbContext>()
                 .UseSqlite($"Data Source={projectFilePath}")
@@ -516,9 +545,11 @@ namespace CraneOptimizer.GAExperiment
                 string ifcFileName = activeIfcFile?.FileName ?? "unknown.ifc";
 
                 var elements = new List<PrecastElement>();
+                var scopeElements = new List<PrecastElement>();
                 foreach (var entity in elementsInDb)
                 {
                     var domainElement = MapElementToDomain(entity);
+                    scopeElements.Add(domainElement);
                     
                     if (!domainElement.IncludeInGa) continue;
                     if (domainElement.Role == IfcElementRole.NeedsReview) continue;
@@ -551,7 +582,15 @@ namespace CraneOptimizer.GAExperiment
                     }
                 }
 
-                return (elements, allowedZones, forbiddenZones, projectInfo.Name, ifcFileName);
+                return (
+                    elements,
+                    scopeElements,
+                    allowedZones,
+                    forbiddenZones,
+                    projectInfo.Name,
+                    projectInfo.ProjectGuid,
+                    ifcFileName,
+                    elementsInDb.Count);
             }
         }
 
@@ -680,7 +719,10 @@ namespace CraneOptimizer.GAExperiment
             return configuredPath;
         }
 
-        private static IEnumerable<GASettings> GenerateMatrixCombinations(MatrixSettings matrix)
+        private static IEnumerable<GASettings> GenerateMatrixCombinations(
+            MatrixSettings matrix,
+            bool useHungarianAssignment,
+            bool enableReachabilitySeeding)
         {
             var popSizes = matrix.PopulationSize.DefaultIfEmpty(30).ToList();
             var maxGens = matrix.MaxGenerations.DefaultIfEmpty(30).ToList();
@@ -715,7 +757,9 @@ namespace CraneOptimizer.GAExperiment
                     SafetyFactor = 0.9,
                     DeratingRatio = 0.9,
                     EnableProfiling = true,
-                    EnableConcurrentOptimization = true
+                    EnableConcurrentOptimization = true,
+                    UseHungarianAssignment = useHungarianAssignment,
+                    EnableReachabilitySeeding = enableReachabilitySeeding
                 };
             }
         }
@@ -737,7 +781,9 @@ namespace CraneOptimizer.GAExperiment
                 SafetyFactor = src.SafetyFactor,
                 DeratingRatio = src.DeratingRatio,
                 EnableProfiling = src.EnableProfiling,
-                EnableConcurrentOptimization = src.EnableConcurrentOptimization
+                EnableConcurrentOptimization = src.EnableConcurrentOptimization,
+                UseHungarianAssignment = src.UseHungarianAssignment,
+                EnableReachabilitySeeding = src.EnableReachabilitySeeding
             };
         }
 
@@ -771,12 +817,15 @@ namespace CraneOptimizer.GAExperiment
                 ProjectFiles = new List<string> { "..\\tryProjects\\try4\\project.craneopt" },
                 Cranes = new List<string> { "LTM 1050" },
                 ExperimentResultsCsvPath = "ExperimentResults.csv",
+                DiagnosticsDirectoryPath = "Diagnostics",
                 BenchmarkVersion = "Benchmark_v1",
                 SeedMode = "Fixed",
                 Seeds = new List<int> { 42 },
                 RandomSeedCount = 5,
                 MaxRuns = 10000,
                 ResumeEnabled = true,
+                UseHungarianAssignment = false,
+                EnableReachabilitySeeding = false,
                 Matrix = new MatrixSettings
                 {
                     PopulationSize = new List<int> { 30, 50 },

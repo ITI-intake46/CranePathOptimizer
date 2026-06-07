@@ -9,6 +9,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
     public interface IReachabilityMapService
     {
         ReachabilityDiagnostics? LastDiagnostics { get; }
+        IReadOnlyList<ScoredCoordinate> LastHotSpots { get; }
+        IReadOnlyList<ZoneReachabilitySummary> LastZoneSummaries { get; }
 
         IReadOnlyList<ScoredCoordinate> ComputeHotSpots(
             IEnumerable<PrecastElement> elements,
@@ -17,5 +19,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
             CraneSpecification craneSpec,
             GASettings settings,
             int topN);
+
+        void RecordSelectedSeed(ScoredCoordinate coordinate);
+        bool WasSelectedAsSeed(ScoredCoordinate coordinate);
     }
 }

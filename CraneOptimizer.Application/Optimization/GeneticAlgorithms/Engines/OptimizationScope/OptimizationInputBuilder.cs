@@ -98,7 +98,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
                 Elements = candidateElements,
                 Assignment = new Dictionary<int, List<string>>(),
                 CraneSpec = craneSpec,
-                Settings = settings
+                Settings = settings,
+                RequestedMaxCranePositions = settings.MaxCranePositions
             };
         }
 

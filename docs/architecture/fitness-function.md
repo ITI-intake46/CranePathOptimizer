@@ -80,3 +80,11 @@ $$\text{adaptiveWeight} = \min(\text{adaptiveWeight}, \text{CoverageWeight} \tim
   Since $13.50 \ge 10.0$, the guard condition is met:
   $$\text{adaptiveWeight} = 10.0 \times 0.99 = 9.90$$
 - **Outcome:** The relocation weight is clamped to `9.90` to guarantee that coverage remains the dominant signal.
+
+---
+
+## 4. Benchmark_v2 Exposure
+
+The diagnostics extension does not change this fitness function. It records coverage separately from raw fitness and exposes stage gain, position count, relocation distance, runtime, and crane-stress aggregates in `ga_solution_quality_metrics.csv`.
+
+Balanced Coverage and Minimum Relocation are future analysis labels, not implemented runtime modes. No thresholds or alternate fitness weights were introduced. See [Benchmark_v2 diagnostics](../ga/benchmark-v2-diagnostics.md).

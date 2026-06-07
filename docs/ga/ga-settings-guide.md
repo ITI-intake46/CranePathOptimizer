@@ -828,6 +828,16 @@ These are values embedded directly in code without explanation or constants mapp
 *   **Rationale:** Epsilon check used to detect whether settings retain their uninitialized defaults.
 *   **Recommendation:** Define as a named constant `DefaultDetectionEpsilon` within the builder.
 
+---
+
+## Benchmark_v2 Diagnostics Identity
+
+`GASettings` now carries `StageIndex`, a one-based stage ordinal used only for diagnostics and joins. Single-stage execution uses `1`; current multi-stage orchestration assigns successive ordinals `1`, `2`, and `3`. It does not select optimizer behavior.
+
+The schema 2.0 settings snapshot records active GA settings, fitness weights, safety factors, crane limits, offsets, assignment routing, scope counts, and the stable keys `OptimizationRunId`, `StageRunId`, `StageIndex`, `ScenarioId`, and `ProjectFeatureSnapshotId`.
+
+No diagnostics-level setting has been added. Existing detailed files remain enabled and are classified as research/heavy outputs in [Benchmark_v2 diagnostics](benchmark-v2-diagnostics.md).
+
 
 ---
 

@@ -161,6 +161,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 {
                     chromosome.CranePositions.Add(point);
                     selectedZones.Add(spot.ZoneId);
+                    _reachabilityMapService?.RecordSelectedSeed(spot);
                 }
             }
 
