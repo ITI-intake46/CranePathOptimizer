@@ -64,7 +64,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                     input.Elements,
                     input.Settings.PopulationSize,
                     input.Settings.MaxCranePositions,
-                    input.Settings);
+                    input.Settings,
+                    input.CraneSpec);
 
                 // ── Phase 1 Performance: Build pre-indexed data structures ──
                 var loadChartIndex = new LoadChartIndex(input.CraneSpec);
@@ -128,6 +129,31 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                         else
                         {
                             stagnantGenerations++;
+                        }
+
+                        if (GAProfiler.Enabled)
+                        {
+                            int stageIdx = input.Settings.EnableMultiStageDiscovery ? input.Settings.MaxCranePositions : 1;
+                            var logEntry = new GAProfiler.GenerationLogEntry
+                            {
+                                RunId = input.Settings.RunId ?? string.Empty,
+                                OptimizationRunId = input.Settings.OptimizationRunId ?? string.Empty,
+                                StageRunId = input.Settings.StageRunId ?? string.Empty,
+                                StageIndex = stageIdx,
+                                GenerationIndex = generation,
+                                BestFitness = currentBest.Fitness,
+                                AverageFitness = population.Individuals.Average(s => s.Fitness),
+                                BestCoverageRatio = currentBest.CoverageRatio,
+                                AverageCoverageRatio = population.Individuals.Average(s => s.CoverageRatio),
+                                BestPositionCount = currentBest.Chromosome.CranePositions.Count,
+                                Count1Position = population.Individuals.Count(s => s.Chromosome.CranePositions.Count == 1),
+                                Count2Positions = population.Individuals.Count(s => s.Chromosome.CranePositions.Count == 2),
+                                Count3Positions = population.Individuals.Count(s => s.Chromosome.CranePositions.Count == 3),
+                                MutationSuccessRate = 0.0,
+                                InvalidMutationCount = 0,
+                                StagnationCounter = stagnantGenerations
+                            };
+                            GAProfiler.GenerationLogs.Add(logEntry);
                         }
 
                         if (stagnantGenerations >= input.Settings.EarlyStoppingGenerations)

@@ -347,7 +347,11 @@ namespace CraneOptimizer.UI
             services.AddScoped<ICoverageEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Coverage.CoverageEngine>();
 
             services.AddScoped<IGAInitializer, GAInitializer>();
-            services.AddScoped<IElementAssignmentService, ElementAssignmentService>();
+            services.AddScoped<IReachabilityMapService, ReachabilityMapService>();
+            services.AddScoped<ElementAssignmentService>();
+            services.AddScoped<HungarianAssignmentService>();
+            services.AddScoped<IElementAssignmentService, RoutingAssignmentService>();
+            services.AddScoped<IMultiStageGAOrchestrator, MultiStageGAOrchestrator>();
             services.AddScoped<IFitnessEvaluator, FitnessEvaluator>();
             services.AddScoped<IGACsvDiagnosticsService, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GACsvDiagnosticsService>();
             services.AddSingleton<CraneSetupViewModel>();

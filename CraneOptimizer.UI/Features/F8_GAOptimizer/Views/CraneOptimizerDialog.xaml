@@ -180,7 +180,7 @@
                                     HorizontalAlignment="Center"
                                     FontSize="{StaticResource FontSizeXS}"
                                     Foreground="{DynamicResource TextSecondaryBrush}"
-                                    Text="Liftable" />
+                                    Text="Selected Point Liftable" />
                             </StackPanel>
 
                             <StackPanel>
@@ -194,7 +194,7 @@
                                     HorizontalAlignment="Center"
                                     FontSize="{StaticResource FontSizeXS}"
                                     Foreground="{DynamicResource TextSecondaryBrush}"
-                                    Text="Non-Liftable" />
+                                    Text="Selected Point Non-Liftable" />
                             </StackPanel>
 
                             <StackPanel>
@@ -208,7 +208,7 @@
                                     HorizontalAlignment="Center"
                                     FontSize="{StaticResource FontSizeXS}"
                                     Foreground="{DynamicResource TextSecondaryBrush}"
-                                    Text="Unreachable" />
+                                    Text="Selected Point Unreachable" />
                             </StackPanel>
                         </UniformGrid>
 
@@ -252,15 +252,51 @@
                             Text="Fine-tune optimization behavior, engineering conservatism, and search performance."
                             TextWrapping="Wrap" />
 
+                        <!-- Search Bar -->
+                        <Grid Margin="{StaticResource Space1}">
+                            <TextBox x:Name="TxtSearchParameters"
+                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                     FontSize="{StaticResource FontSizeSM}"
+                                     MinHeight="{StaticResource InputHeight}"
+                                     Padding="8,4"
+                                     VerticalContentAlignment="Center"
+                                     Background="{DynamicResource SurfaceBrush}"
+                                     BorderBrush="{DynamicResource BorderBrush}"
+                                     BorderThickness="1"
+                                     Foreground="{DynamicResource TextPrimaryBrush}">
+                                <TextBox.Style>
+                                    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                        <Style.Triggers>
+                                            <Trigger Property="Text" Value="">
+                                                <Setter Property="Background">
+                                                    <Setter.Value>
+                                                        <VisualBrush Stretch="None" AlignmentX="Left" AlignmentY="Center">
+                                                            <VisualBrush.Visual>
+                                                                <TextBlock Text="Search parameters..."
+                                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                           FontStyle="Italic"
+                                                                           Margin="8,0,0,0" />
+                                                            </VisualBrush.Visual>
+                                                        </VisualBrush>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBox.Style>
+                            </TextBox>
+                        </Grid>
+
                         <!-- 1. Core Calibration -->
                         <Expander
                             Margin="{StaticResource Space1}"
                             BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1"
                             Header="1. Core Calibration"
+                            Visibility="{Binding SectionCoreCalibration.Visibility}"
                             IsExpanded="True">
                             <StackPanel Margin="{StaticResource Space2}">
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamPopulationSize.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -272,7 +308,7 @@
                                     <TextBox x:Name="TxtPopulationSize" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="30" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamMaxGenerations.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -284,7 +320,7 @@
                                     <TextBox x:Name="TxtMaxGenerations" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="30" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamMutationRate.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -296,7 +332,7 @@
                                     <TextBox x:Name="TxtDevMutationRate" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.10" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamMutationSigma.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -308,7 +344,7 @@
                                     <TextBox x:Name="TxtDevMutationSigma" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.05" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamMaxCranePositions.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -320,7 +356,7 @@
                                     <TextBox x:Name="TxtMaxCranePositions" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="3" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamEarlyStopGenerations.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -332,7 +368,7 @@
                                     <TextBox x:Name="TxtEarlyStopping" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="20" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamConvergenceThreshold.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -352,9 +388,10 @@
                             BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1"
                             Header="2. Fitness Strategy"
+                            Visibility="{Binding SectionFitnessStrategy.Visibility}"
                             IsExpanded="True">
                             <StackPanel Margin="{StaticResource Space2}">
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamCoverageWeight.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -366,7 +403,7 @@
                                     <TextBox x:Name="TxtCoverageWeight" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="10" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamRelocationWeight.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -378,7 +415,7 @@
                                     <TextBox x:Name="TxtRelocationWeight" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="5" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamRadiusPenaltyWeight.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -390,7 +427,7 @@
                                     <TextBox x:Name="TxtRadiusPenaltyWeight" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="3" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamRadiusQualityWeight.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -402,7 +439,7 @@
                                     <TextBox x:Name="TxtRadiusQualityPenaltyWeight" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="1.0" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamBalancePenaltyWeight.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -414,7 +451,7 @@
                                     <TextBox x:Name="TxtBalancePenaltyWeight" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="2" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamRadiusStdDevWeight.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -426,7 +463,7 @@
                                     <TextBox x:Name="TxtRadiusStdDevPenaltyWeight" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="2" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamSimilarPositionWeight.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -438,7 +475,7 @@
                                     <TextBox x:Name="TxtSimilarPositionPenaltyWeight" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="8" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamRelocationDistWeight.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -450,7 +487,7 @@
                                     <TextBox x:Name="TxtRelocationDistancePenaltyWeight" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="1.5" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamOverweightWeight.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -462,7 +499,7 @@
                                     <TextBox x:Name="TxtOverweightPenaltyWeight" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="10" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamHeightPenaltyWeight.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -482,9 +519,10 @@
                             BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1"
                             Header="3. Layout Constraints"
+                            Visibility="{Binding SectionLayoutConstraints.Visibility}"
                             IsExpanded="True">
                             <StackPanel Margin="{StaticResource Space2}">
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamMinRelocationDist.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -496,7 +534,7 @@
                                     <TextBox x:Name="TxtMinimumRelocationDistance" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="10" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamGridStep.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -508,71 +546,73 @@
                                     <TextBox x:Name="TxtGridStep" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0" />
                                 </Grid>
 
-                                <StackPanel Orientation="Horizontal" Margin="0,8,0,4">
-                                    <TextBlock FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Text="TARGET ELEMENTS ALLOW-LIST" VerticalAlignment="Center" />
-                                    <controls:ParameterHelpIcon ParameterKey="TargetElementTypes" Margin="4,0,0,0" VerticalAlignment="Center" />
+                                <StackPanel Visibility="{Binding ParamTargetElementsAllowList.Visibility}">
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,4">
+                                        <TextBlock FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Text="TARGET ELEMENTS ALLOW-LIST" VerticalAlignment="Center" />
+                                        <controls:ParameterHelpIcon ParameterKey="TargetElementTypes" Margin="4,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    
+                                    <Grid Margin="{StaticResource Space1}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="4" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock
+                                            x:Name="TxtTargetElementSummary"
+                                            Grid.Column="0"
+                                            VerticalAlignment="Center"
+                                            FontSize="{StaticResource FontSizeXS}"
+                                            Foreground="{DynamicResource TextSecondaryBrush}"
+                                            TextWrapping="Wrap" />
+
+                                        <Button
+                                            Grid.Column="1"
+                                            MinHeight="22"
+                                            Padding="6,2"
+                                            Click="BtnIncludeAll_Click"
+                                            Content="All"
+                                            Style="{StaticResource ButtonSecondary}" />
+
+                                        <Button
+                                            Grid.Column="3"
+                                            MinHeight="22"
+                                            Padding="6,2"
+                                            Click="BtnExcludeAll_Click"
+                                            Content="None"
+                                            Style="{StaticResource ButtonSecondary}" />
+                                    </Grid>
+
+                                    <Border
+                                        Margin="{StaticResource Space1}"
+                                        Padding="{StaticResource Space2}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="{StaticResource CardCornerRadius}"
+                                        Background="{DynamicResource SurfaceBrush}">
+                                        <ScrollViewer
+                                            MaxHeight="200"
+                                            HorizontalScrollBarVisibility="Disabled"
+                                            VerticalScrollBarVisibility="Auto">
+                                            <ItemsControl x:Name="TargetElementTypesList">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <CheckBox
+                                                            Margin="0,3"
+                                                            VerticalContentAlignment="Center"
+                                                            Content="{Binding DisplayText}"
+                                                            Foreground="{DynamicResource TextPrimaryBrush}"
+                                                            IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                            Checked="TargetElementType_Changed"
+                                                            Unchecked="TargetElementType_Changed" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Border>
                                 </StackPanel>
-                                
-                                <Grid Margin="{StaticResource Space1}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="4" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <TextBlock
-                                        x:Name="TxtTargetElementSummary"
-                                        Grid.Column="0"
-                                        VerticalAlignment="Center"
-                                        FontSize="{StaticResource FontSizeXS}"
-                                        Foreground="{DynamicResource TextSecondaryBrush}"
-                                        TextWrapping="Wrap" />
-
-                                    <Button
-                                        Grid.Column="1"
-                                        MinHeight="22"
-                                        Padding="6,2"
-                                        Click="BtnIncludeAll_Click"
-                                        Content="All"
-                                        Style="{StaticResource ButtonSecondary}" />
-
-                                    <Button
-                                        Grid.Column="3"
-                                        MinHeight="22"
-                                        Padding="6,2"
-                                        Click="BtnExcludeAll_Click"
-                                        Content="None"
-                                        Style="{StaticResource ButtonSecondary}" />
-                                </Grid>
-
-                                <Border
-                                    Margin="{StaticResource Space1}"
-                                    Padding="{StaticResource Space2}"
-                                    BorderBrush="{DynamicResource BorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="{StaticResource CardCornerRadius}"
-                                    Background="{DynamicResource SurfaceBrush}">
-                                    <ScrollViewer
-                                        MaxHeight="200"
-                                        HorizontalScrollBarVisibility="Disabled"
-                                        VerticalScrollBarVisibility="Auto">
-                                        <ItemsControl x:Name="TargetElementTypesList">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <CheckBox
-                                                        Margin="0,3"
-                                                        VerticalContentAlignment="Center"
-                                                        Content="{Binding DisplayText}"
-                                                        Foreground="{DynamicResource TextPrimaryBrush}"
-                                                        IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                        Checked="TargetElementType_Changed"
-                                                        Unchecked="TargetElementType_Changed" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </ScrollViewer>
-                                </Border>
                             </StackPanel>
                         </Expander>
 
@@ -582,9 +622,10 @@
                             BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1"
                             Header="4. Engineering Model"
+                            Visibility="{Binding SectionEngineeringModel.Visibility}"
                             IsExpanded="False">
                             <StackPanel Margin="{StaticResource Space2}">
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamWireLength.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -596,7 +637,7 @@
                                     <TextBox x:Name="TxtWireLength" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="2.0" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamHookWeight.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -608,7 +649,7 @@
                                     <TextBox x:Name="TxtAdditionalWt" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.0" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamDerating.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -620,7 +661,7 @@
                                     <TextBox x:Name="TxtDeratingRatio" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.9" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamSafetyFactor.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -640,9 +681,10 @@
                             BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1"
                             Header="5. Advanced GA"
+                            Visibility="{Binding SectionAdvancedGA.Visibility}"
                             IsExpanded="False">
                             <StackPanel Margin="{StaticResource Space2}">
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamRandomSeed.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -654,7 +696,7 @@
                                     <TextBox x:Name="TxtDevRandomSeed" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="42" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamCrossoverRate.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -666,7 +708,7 @@
                                     <TextBox x:Name="TxtDevCrossoverRate" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.80" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamMutationExploreMult.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -678,7 +720,7 @@
                                     <TextBox x:Name="TxtMutationExplorationMultiplier" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="2.0" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamEnableAdaptiveSigma.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -690,7 +732,7 @@
                                     <CheckBox x:Name="ChkEnableAdaptiveSigma" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="False" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamSigmaCoolingExponent.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -702,7 +744,7 @@
                                     <TextBox x:Name="TxtSigmaCoolingExponent" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="1.5" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamMinMutationSigma.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -714,7 +756,7 @@
                                     <TextBox x:Name="TxtMinimumMutationSigma" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.5" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamSamplingAttempts.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -726,7 +768,7 @@
                                     <TextBox x:Name="TxtPositionSamplingAttempts" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="80" />
                                 </Grid>
 
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamConcurrentOpt.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -737,6 +779,65 @@
                                     </StackPanel>
                                     <CheckBox x:Name="ChkEnableConcurrentOptimization" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="True" />
                                 </Grid>
+
+                                <!-- Multi-Stage Discovery Sub-section -->
+                                <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Margin="0,8,0,8" Padding="0,8,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="MULTI-STAGE DISCOVERY" FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4" />
+                                        
+                                        <!-- 1. Enable Multi-Stage Discovery -->
+                                        <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamEnableMultiStageDiscovery.Visibility}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="120" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Enable Multi-Stage Discovery" VerticalAlignment="Center" />
+                                                <controls:ParameterHelpIcon ParameterKey="EnableMultiStageDiscovery" Margin="4,0,0,0" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <CheckBox x:Name="ChkEnableMultiStageDiscovery" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding EnableMultiStageDiscovery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Run GA in multiple stages, escalating crane positions if coverage target is not met." />
+                                        </Grid>
+
+                                        <!-- 2. Coverage Target -->
+                                        <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamMultiStageCoverageTarget.Visibility}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="120" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Coverage Target" VerticalAlignment="Center" />
+                                                <controls:ParameterHelpIcon ParameterKey="MultiStageCoverageTarget" Margin="4,0,0,0" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <TextBox x:Name="TxtMultiStageCoverageTarget" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="{Binding MultiStageCoverageTarget, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" ToolTip="GA stops escalating when this coverage ratio is reached." />
+                                        </Grid>
+
+                                        <!-- 3. Adaptive Relocation Scale -->
+                                        <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamAdaptiveRelocationScaleFactor.Visibility}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="120" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Adaptive Relocation Scale" VerticalAlignment="Center" />
+                                                <controls:ParameterHelpIcon ParameterKey="AdaptiveRelocationScaleFactor" Margin="4,0,0,0" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <TextBox x:Name="TxtAdaptiveRelocationScaleFactor" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="{Binding AdaptiveRelocationScaleFactor, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" ToolTip="Scales the relocation penalty for Stage 2 and Stage 3." />
+                                        </Grid>
+
+                                        <!-- 4. Use Hungarian Assignment -->
+                                        <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamUseHungarianAssignment.Visibility}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="120" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Use Hungarian Assignment" VerticalAlignment="Center" />
+                                                <controls:ParameterHelpIcon ParameterKey="UseHungarianAssignment" Margin="4,0,0,0" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <CheckBox x:Name="ChkUseHungarianAssignment" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding UseHungarianAssignment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Use global bipartite matching instead of greedy assignment." />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Expander>
 
@@ -746,10 +847,11 @@
                             BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1"
                             Header="6. Diagnostics"
+                            Visibility="{Binding SectionDiagnostics.Visibility}"
                             IsExpanded="False">
                             <StackPanel Margin="{StaticResource Space2}">
                                 <TextBlock FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Text="SLEW CENTER OFFSETS" />
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamSlewOffsetX.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -760,7 +862,7 @@
                                     </StackPanel>
                                     <TextBox x:Name="TxtSlewOffsetX" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.0" />
                                 </Grid>
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamSlewOffsetY.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -771,7 +873,7 @@
                                     </StackPanel>
                                     <TextBox x:Name="TxtSlewOffsetY" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.0" />
                                 </Grid>
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamSlewOffsetZ.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -784,7 +886,7 @@
                                 </Grid>
 
                                 <TextBlock Margin="0,8,0,0" FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Text="BOOM HINGE OFFSETS" />
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamBoomHingeOffsetX.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -795,7 +897,7 @@
                                     </StackPanel>
                                     <TextBox x:Name="TxtBoomHingeOffsetX" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.0" />
                                 </Grid>
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamBoomHingeOffsetY.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -806,7 +908,7 @@
                                     </StackPanel>
                                     <TextBox x:Name="TxtBoomHingeOffsetY" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.0" />
                                 </Grid>
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamBoomHingeOffsetZ.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -819,7 +921,7 @@
                                 </Grid>
 
                                 <TextBlock Margin="0,8,0,0" FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Text="NORMALIZATION &amp; SEPARATION" />
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamMaxRadiusNorm.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -830,7 +932,7 @@
                                     </StackPanel>
                                     <TextBox x:Name="TxtMaxRadiusForNormalisation" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="50" />
                                 </Grid>
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamDuplicateDist.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -841,7 +943,7 @@
                                     </StackPanel>
                                     <TextBox x:Name="TxtDuplicatePositionDistance" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="3" />
                                 </Grid>
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamFootprintRadius.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -854,7 +956,7 @@
                                 </Grid>
 
                                 <TextBlock Margin="0,8,0,0" FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Text="PROFILING" />
-                                <Grid Margin="{StaticResource Space1}">
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamEnableProfiling.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="120" />
@@ -865,18 +967,21 @@
                                     </StackPanel>
                                     <CheckBox x:Name="ChkEnableProfiling" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="True" />
                                 </Grid>
-                                <Grid Margin="{StaticResource Space1}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Profiling Log Directory" VerticalAlignment="Center" />
-                                        <controls:ParameterHelpIcon ParameterKey="ProfilingLogDirectory" Margin="4,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Grid>
-                                <Grid Margin="{StaticResource Space1}">
-                                    <TextBox x:Name="TxtProfilingLogDirectory" MinHeight="{StaticResource InputHeight}" VerticalContentAlignment="Center" Padding="4" Text="" />
-                                </Grid>
+                                
+                                <StackPanel Visibility="{Binding ParamProfilingLogDirectory.Visibility}">
+                                    <Grid Margin="{StaticResource Space1}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Profiling Log Directory" VerticalAlignment="Center" />
+                                            <controls:ParameterHelpIcon ParameterKey="ProfilingLogDirectory" Margin="4,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Margin="{StaticResource Space1}">
+                                        <TextBox x:Name="TxtProfilingLogDirectory" MinHeight="{StaticResource InputHeight}" VerticalContentAlignment="Center" Padding="4" Text="" />
+                                    </Grid>
+                                </StackPanel>
                             </StackPanel>
                         </Expander>
                     </StackPanel>

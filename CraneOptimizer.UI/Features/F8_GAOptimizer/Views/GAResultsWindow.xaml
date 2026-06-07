@@ -298,7 +298,7 @@
             BorderThickness="1"
             CornerRadius="{StaticResource CardCornerRadius}">
 
-            <UniformGrid Columns="2">
+            <UniformGrid Columns="3">
                 <TextBlock
                     HorizontalAlignment="Center"
                     FontWeight="Bold"
@@ -307,7 +307,11 @@
 
                 <TextBlock
                     HorizontalAlignment="Center"
-                    Text="{Binding CoverageRatio, StringFormat=Coverage: {0:P0}}" />
+                    Text="{Binding CoverageRatio, StringFormat=Coverage: {0:P2}}" />
+
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Text="{Binding FitnessScore, StringFormat=GA Score: {0:F2}}" />
             </UniformGrid>
         </Border>
     </Grid>

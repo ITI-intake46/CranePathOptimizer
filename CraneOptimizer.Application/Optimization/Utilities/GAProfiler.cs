@@ -17,6 +17,8 @@ namespace CraneOptimizer.Application.Optimization.Utilities
         public static long CapacityCacheHits;
         public static long CapacityCacheMisses;
 
+        public static string? CurrentRunId { get; set; }
+
         // Benchmark Metadata
         public static string? ProjectName { get; set; }
         public static string? ProjectFolderPath { get; set; }
@@ -48,6 +50,49 @@ namespace CraneOptimizer.Application.Optimization.Utilities
         public static int GcCount1After { get; set; }
         public static int GcCount2After { get; set; }
 
+        public class GenerationLogEntry
+        {
+            public string RunId { get; set; } = "";
+            public string OptimizationRunId { get; set; } = "";
+            public string StageRunId { get; set; } = "";
+            public int StageIndex { get; set; }
+            public int GenerationIndex { get; set; }
+            public double BestFitness { get; set; }
+            public double AverageFitness { get; set; }
+            public double BestCoverageRatio { get; set; }
+            public double AverageCoverageRatio { get; set; }
+            public int BestPositionCount { get; set; }
+            public int Count1Position { get; set; }
+            public int Count2Positions { get; set; }
+            public int Count3Positions { get; set; }
+            public double MutationSuccessRate { get; set; }
+            public int InvalidMutationCount { get; set; }
+            public int StagnationCounter { get; set; }
+        }
+
+        public class StageLogEntry
+        {
+            public string RunId { get; set; } = "";
+            public string OptimizationRunId { get; set; } = "";
+            public string StageRunId { get; set; } = "";
+            public int StageIndex { get; set; }
+            public int MaxPositions { get; set; }
+            public double RelocationWeight { get; set; }
+            public double BestCoverageRatio { get; set; }
+            public double BestCoveragePercent { get; set; }
+            public int BestLiftedCount { get; set; }
+            public double BestFitnessScore { get; set; }
+            public int RawPositionCount { get; set; }
+            public int FinalPositionCount { get; set; }
+            public string UsedZoneIds { get; set; } = "";
+            public double RuntimeMs { get; set; }
+            public bool Escalated { get; set; }
+            public string TerminationReason { get; set; } = "";
+        }
+
+        public static readonly System.Collections.Generic.List<GenerationLogEntry> GenerationLogs = new System.Collections.Generic.List<GenerationLogEntry>();
+        public static readonly System.Collections.Generic.List<StageLogEntry> StageLogs = new System.Collections.Generic.List<StageLogEntry>();
+
         private static readonly ConcurrentDictionary<string, long> Accumulators = new ConcurrentDictionary<string, long>();
         private static readonly ConcurrentDictionary<string, long> HitCounts = new ConcurrentDictionary<string, long>();
 
@@ -60,6 +105,9 @@ namespace CraneOptimizer.Application.Optimization.Utilities
             HitCounts.Clear();
             CapacityCacheHits = 0;
             CapacityCacheMisses = 0;
+            GenerationLogs.Clear();
+            StageLogs.Clear();
+            CurrentRunId = null;
 
             ProjectName = null;
             ProjectFolderPath = null;

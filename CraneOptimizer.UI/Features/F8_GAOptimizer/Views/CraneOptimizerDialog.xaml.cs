@@ -11,6 +11,7 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows;
 using System.Windows;
 using System.Windows.Controls;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 {
@@ -60,6 +61,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             _craneSetup = craneSetup;
             _sceneRenderingManager = sceneRenderingManager;
             _workflow = new CraneOptimizerDialogWorkflow(placementService, craneRepository);
+
+            DataContext = new CraneOptimizerDialogViewModel();
 
             Loaded += OnLoaded;
             Closed += OnClosed;
@@ -125,6 +128,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
                 LatestResult = result;
                 _currentResult = result;
+
+                if (result.ReachabilityDiagnostics != null && result.ReachabilityDiagnostics.MaxHotSpotCoverage < 0.20)
+                {
+                    _dialogService.ShowMessage("The current allowed zones may not provide sufficient crane reach. Consider expanding or relocating the allowed zones.");
+                }
 
                 PointsList.ItemsSource = _workflow.CreatePointItems(result);
 
@@ -275,8 +283,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         {
             PanelResults.Visibility = Visibility.Visible;
 
-            TxtScore.Text = $"Fitness: {result.FitnessScore:F2}";
-            TxtCoverage.Text = $"Total Lifted: {result.LiftedElementCount} / {result.TotalElementCount}";
+            double coveragePct = result.TotalElementCount > 0
+                ? ((double)result.LiftedElementCount / result.TotalElementCount * 100.0)
+                : 0.0;
+
+            TxtScore.Text = $"Coverage: {coveragePct:F2}%";
+            TxtCoverage.Text = $"Lifted: {result.LiftedElementCount} / {result.TotalElementCount} | GA Score: {result.FitnessScore:F2}";
 
             if (!result.Positions.Any())
             {
@@ -315,6 +327,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private CraneOptimizerDialogOptions CaptureOptions()
         {
+            var vm = (CraneOptimizerDialogViewModel)DataContext;
             return new CraneOptimizerDialogOptions(
                 TxtCoverageWeight.Text,
                 TxtRelocationWeight.Text,
@@ -359,7 +372,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtBoomHingeOffsetZ.Text,
                 TxtCraneFootprintRadius.Text,
                 ChkEnableProfiling.IsChecked == true ? "true" : "false",
-                TxtProfilingLogDirectory.Text);
+                TxtProfilingLogDirectory.Text,
+                vm.EnableMultiStageDiscovery ? "true" : "false",
+                vm.MultiStageCoverageTarget.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                vm.AdaptiveRelocationScaleFactor.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                vm.UseHungarianAssignment ? "true" : "false");
         }
 
         private void RefreshSceneCache()

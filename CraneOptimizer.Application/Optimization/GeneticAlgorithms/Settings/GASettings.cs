@@ -88,6 +88,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public double CoverageWeight { get; set; } = 10;
 
         /// <summary>
+        /// Scaling multiplier for the coverage term to ensure it dominates relocation and failure penalties.
+        /// </summary>
+        public double CoverageDominanceMultiplier { get; set; } = 100.0;
+
+        /// <summary>
         /// Weight applied to crane relocation penalty.
         /// Higher value discourages multiple crane setups.
         /// </summary>
@@ -261,5 +266,63 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// Enables the concurrent multi-setup optimization engine.
         /// </summary>
         public bool EnableConcurrentOptimization { get; set; } = true;
+
+        /// <summary>
+        /// Fraction of initial population seeded at reachability hot spots (0.0 = disabled, 1.0 = all).
+        /// </summary>
+        public double HotSpotSeedingRatio { get; set; } = 0.30;
+
+        /// <summary>
+        /// Whether to run reachability pre-computation before GA.
+        /// </summary>
+        public bool EnableReachabilitySeeding { get; set; } = true;
+
+        /// <summary>
+        /// Coverage threshold above which multi-stage escalation stops (0.0–1.0).
+        /// </summary>
+        public double MultiStageCoverageTarget { get; set; } = 0.95;
+
+        /// <summary>
+        /// Enable multi-stage dynamic position discovery (false = legacy single-run behavior).
+        /// </summary>
+        public bool EnableMultiStageDiscovery { get; set; } = true;
+
+        /// <summary>
+        /// Scaling factor for adaptive relocation weight formula.
+        /// </summary>
+        public double AdaptiveRelocationScaleFactor { get; set; } = 0.40;
+
+        /// <summary>
+        /// Use Hungarian bipartite matching for element assignment (false = legacy greedy).
+        /// </summary>
+        public bool UseHungarianAssignment { get; set; } = false;
+
+        /// <summary>
+        /// A unique identifier for the overall optimization execution (shared by all stages of a run).
+        /// </summary>
+        public string OptimizationRunId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// A unique identifier for the specific stage execution within the optimization run.
+        /// </summary>
+        public string StageRunId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// A unique identifier for the optimization run (maps to StageRunId for backward compatibility).
+        /// </summary>
+        [Obsolete("Use StageRunId instead.")]
+        public string RunId
+        {
+            get => StageRunId;
+            set => StageRunId = value;
+        }
+
+        /// <summary>
+        /// Performs a shallow copy of the settings.
+        /// </summary>
+        public GASettings Clone()
+        {
+            return (GASettings)this.MemberwiseClone();
+        }
     }
 }

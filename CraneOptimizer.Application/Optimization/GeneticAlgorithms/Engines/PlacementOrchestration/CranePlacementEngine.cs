@@ -2,6 +2,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 using System;
@@ -21,6 +22,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
         private readonly ICoverageEngine _coverageEngine;
         private readonly ICraneConfigurationEngine _configEngine;
         private readonly IGACsvDiagnosticsService _diagnosticsService;
+        private readonly IReachabilityMapService? _reachabilityMapService;
 
         public CranePlacementEngine(
             IGeneticAlgorithmEngine gaEngine,
@@ -28,20 +30,48 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
             ICoverageEngine coverageEngine,
             ICraneConfigurationEngine configEngine,
             IGACsvDiagnosticsService diagnosticsService)
+            : this(gaEngine, assignmentService, coverageEngine, configEngine, diagnosticsService, null)
+        {
+        }
+
+        public CranePlacementEngine(
+            IGeneticAlgorithmEngine gaEngine,
+            IElementAssignmentService assignmentService,
+            ICoverageEngine coverageEngine,
+            ICraneConfigurationEngine configEngine,
+            IGACsvDiagnosticsService diagnosticsService,
+            IReachabilityMapService? reachabilityMapService)
         {
             _gaEngine = gaEngine;
             _assignmentService = assignmentService;
             _coverageEngine = coverageEngine;
             _configEngine = configEngine;
             _diagnosticsService = diagnosticsService;
+            _reachabilityMapService = reachabilityMapService;
         }
 
         public PlacementResult RunOptimization(
             PlacementInput input,
             CancellationToken cancellationToken = default)
         {
+            var sw = Stopwatch.StartNew();
+            if (string.IsNullOrEmpty(input.Settings.OptimizationRunId))
+            {
+                input.Settings.OptimizationRunId = Guid.NewGuid().ToString();
+            }
+            if (string.IsNullOrEmpty(input.Settings.StageRunId))
+            {
+                input.Settings.StageRunId = Guid.NewGuid().ToString();
+            }
+
             GAProfiler.Enabled = input.Settings.EnableProfiling;
-            GAProfiler.Reset();
+
+            if (GAProfiler.CurrentRunId != input.Settings.OptimizationRunId)
+            {
+                GAProfiler.Reset();
+                GAProfiler.CurrentRunId = input.Settings.OptimizationRunId;
+            }
+
             _configEngine.ClearCache();
 
             if (GAProfiler.Enabled)
@@ -96,6 +126,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                             input.Settings);
 
                         concurrentStats = concurrentResult.Statistics;
+                        finalResult.FitnessScore = concurrentResult.FitnessScore;
 
                         foreach (var pos in concurrentResult.Positions)
                         {
@@ -204,8 +235,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
 
                 _coverageEngine.DeduplicateFinalPositions(finalResult, input.Settings);
                 _coverageEngine.RecalculateCoverage(finalResult, allElements.Count);
-
-                finalResult.FitnessScore = finalResult.CoverageRatio;
                 finalResult.Positions = finalResult.Positions
                     .OrderByDescending(position => position.NewLiftableCount)
                     .ToList();
@@ -297,12 +326,58 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 try
                 {
                     input.Elements = allElements;
+
+                    if (GAProfiler.Enabled)
+                    {
+                        var usedZoneIdsList = finalResult.Positions.Select(pos => {
+                            var containingZone = input.Zones?.FirstOrDefault(z => SpatialMath.PointInPolygon(new DomainPoint3D(pos.X, pos.Y, 0), z.Vertices));
+                            return containingZone?.ZoneId.ToString() ?? Guid.Empty.ToString();
+                        }).Distinct().ToList();
+
+                        string usedZoneIds = string.Join(";", usedZoneIdsList);
+
+                        string stageTermReason = "MaxGenerationsReached";
+                        if (cancellationToken.IsCancellationRequested) stageTermReason = "Cancelled";
+                        else if (GAProfiler.StoppedByConvergence) stageTermReason = "Convergence";
+                        else if (GAProfiler.ActualGenerationLoopCount < input.Settings.EarlyStoppingGenerations) stageTermReason = "EarlyStopping";
+
+                        double stageTime = sw.ElapsedMilliseconds;
+
+                        var stageLog = new GAProfiler.StageLogEntry
+                        {
+                            RunId = input.Settings.RunId ?? string.Empty,
+                            OptimizationRunId = input.Settings.OptimizationRunId ?? string.Empty,
+                            StageRunId = input.Settings.StageRunId ?? string.Empty,
+                            StageIndex = input.Settings.EnableMultiStageDiscovery ? input.Settings.MaxCranePositions : 1,
+                            MaxPositions = input.Settings.MaxCranePositions,
+                            RelocationWeight = input.Settings.RelocationWeight,
+                            BestCoverageRatio = finalResult.CoverageRatio,
+                            BestCoveragePercent = finalResult.CoverageRatio * 100.0,
+                            BestLiftedCount = finalResult.LiftedElementCount,
+                            BestFitnessScore = finalResult.FitnessScore,
+                            RawPositionCount = finalResult.Positions.Count,
+                            FinalPositionCount = finalResult.Positions.Count,
+                            UsedZoneIds = usedZoneIds,
+                            RuntimeMs = stageTime,
+                            Escalated = finalResult.CoverageRatio < input.Settings.MultiStageCoverageTarget,
+                            TerminationReason = stageTermReason
+                        };
+                        GAProfiler.StageLogs.Add(stageLog);
+                    }
+
                     finalResult.DiagnosticsReportPath = _diagnosticsService.GenerateDiagnostics(input, finalResult);
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"Failed to generate GA CSV diagnostics: {ex.Message}");
                     Console.WriteLine($"Failed to generate GA CSV diagnostics: {ex.Message}");
+                }
+
+                finalResult.ReachabilityDiagnostics = _reachabilityMapService?.LastDiagnostics;
+
+                if (!input.Settings.EnableConcurrentOptimization)
+                {
+                    finalResult.FitnessScore = finalResult.CoverageRatio;
                 }
 
                 return finalResult;

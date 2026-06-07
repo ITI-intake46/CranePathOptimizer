@@ -20,12 +20,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         private readonly ICraneConfigurationEngine _configEngine;
         private readonly ILoadChartCapacityResolver _capacityResolver;
         private readonly IProjectCoordinateTransformService? _transformService;
+        private readonly IReachabilityMapService? _reachabilityMapService;
         private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
         public GACsvDiagnosticsService(
             ILiftingCalculationEngine liftingEngine,
             ICraneConfigurationEngine configEngine)
-            : this(liftingEngine, configEngine, null, null)
+            : this(liftingEngine, configEngine, null, null, null)
         {
         }
 
@@ -33,7 +34,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             ILiftingCalculationEngine liftingEngine,
             ICraneConfigurationEngine configEngine,
             ILoadChartCapacityResolver? capacityResolver)
-            : this(liftingEngine, configEngine, capacityResolver, null)
+            : this(liftingEngine, configEngine, capacityResolver, null, null)
         {
         }
 
@@ -41,7 +42,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             ILiftingCalculationEngine liftingEngine,
             ICraneConfigurationEngine configEngine,
             IProjectCoordinateTransformService? transformService)
-            : this(liftingEngine, configEngine, null, transformService)
+            : this(liftingEngine, configEngine, null, transformService, null)
         {
         }
 
@@ -50,11 +51,22 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             ICraneConfigurationEngine configEngine,
             ILoadChartCapacityResolver? capacityResolver,
             IProjectCoordinateTransformService? transformService)
+            : this(liftingEngine, configEngine, capacityResolver, transformService, null)
+        {
+        }
+
+        public GACsvDiagnosticsService(
+            ILiftingCalculationEngine liftingEngine,
+            ICraneConfigurationEngine configEngine,
+            ILoadChartCapacityResolver? capacityResolver,
+            IProjectCoordinateTransformService? transformService,
+            IReachabilityMapService? reachabilityMapService)
         {
             _liftingEngine = liftingEngine;
             _configEngine = configEngine;
             _capacityResolver = capacityResolver ?? new LoadChartCapacityResolver();
             _transformService = transformService;
+            _reachabilityMapService = reachabilityMapService;
         }
 
         public string GenerateDiagnostics(PlacementInput input, PlacementResult finalResult)
@@ -239,6 +251,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             {
                 writer.WriteLine(string.Join(",", new[]
                 {
+                    "OptimizationRunId", "StageRunId", "DiagnosticsSchemaVersion",
                     "Timestamp", "ProjectName", "IfcFileName", "CraneNameOrId", "ElementId", "ElementName", "ElementType",
                     "StoreyOrElevation", "Weight", "COG_X", "COG_Y", "COG_Z", "AssignedSetupIndex", "AssignedCraneX",
                     "AssignedCraneY", "AssignedCraneZ", "BestRadius", "RequiredBoomLength", "RequiredCapacity",
@@ -300,6 +313,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
                     writer.WriteLine(string.Join(",", new[]
                     {
+                        input.Settings.OptimizationRunId ?? string.Empty,
+                        input.Settings.StageRunId ?? string.Empty,
+                        "1.0",
                         row.Timestamp,
                         Escape(row.ProjectName),
                         Escape(row.IfcFileName),
@@ -440,6 +456,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             {
                 writer.WriteLine(string.Join(",", new[]
                 {
+                    "OptimizationRunId", "StageRunId", "DiagnosticsSchemaVersion",
                     "Timestamp", "ProjectName", "IfcFileName", "ElementGlobalId", "CandidatePointId", "CandidatePointIndex",
                     "CraneBasePoint", "SlewCenterPoint", "BoomHingePoint", "LoadPoint", "RequiredRadius", "RequiredBoomLength",
                     "SelectedChartRadius", "SelectedChartBoomLength", "AvailableCapacity", "ReachStatus", "ChartStatus",
@@ -466,6 +483,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
                         writer.WriteLine(string.Join(",", new[]
                         {
+                            input.Settings.OptimizationRunId ?? string.Empty,
+                            input.Settings.StageRunId ?? string.Empty,
+                            "1.0",
                             timeFormatted,
                             Escape(input.ProjectName ?? "N/A"),
                             Escape(input.IfcFileName ?? "N/A"),
@@ -502,6 +522,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             {
                 writer.WriteLine(string.Join(",", new[]
                 {
+                    "OptimizationRunId", "StageRunId", "DiagnosticsSchemaVersion",
                     "Timestamp", "ProjectName", "IfcFileName", "ElementGlobalId", "AssignedPointId", "AssignedPointIndex",
                     "AssignedCraneId", "AssignmentStatus", "AssignmentReason", "AssignmentScore", "IsFinalAssigned",
                     "BestFailedPointId", "BestFailureReason"
@@ -511,6 +532,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 {
                     writer.WriteLine(string.Join(",", new[]
                     {
+                        input.Settings.OptimizationRunId ?? string.Empty,
+                        input.Settings.StageRunId ?? string.Empty,
+                        "1.0",
                         row.Timestamp,
                         Escape(row.ProjectName),
                         Escape(row.IfcFileName),
@@ -552,13 +576,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // 5. Write breakdown CSV file
             using (var writer = new StreamWriter(breakdownPath, false, new UTF8Encoding(true)))
             {
-                writer.WriteLine("FailureCategory,Count,PercentageOfFailedElements,PercentageOfSelectedElements");
+                writer.WriteLine("OptimizationRunId,StageRunId,Timestamp,FailureCategory,Count,PercentageOfFailedElements,PercentageOfSelectedElements,DiagnosticsSchemaVersion");
                 foreach (var cat in categories)
                 {
                     int count = failureCounts[cat];
                     double pctFailed = totalFailed > 0 ? (double)count / totalFailed * 100.0 : 0.0;
                     double pctSelected = totalSelected > 0 ? (double)count / totalSelected * 100.0 : 0.0;
-                    writer.WriteLine($"{cat},{count},{pctFailed.ToString("F2", Invariant)}%,{pctSelected.ToString("F2", Invariant)}%");
+                    writer.WriteLine($"{input.Settings.OptimizationRunId ?? string.Empty},{input.Settings.StageRunId ?? string.Empty},{timeFormatted},{cat},{count},{pctFailed.ToString("F2", Invariant)}%,{pctSelected.ToString("F2", Invariant)}%,1.0");
                 }
             }
 
@@ -570,6 +594,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             else if (coverage >= 0.40) healthLabel = "Warning";
 
             bool writeHeader = !File.Exists(historyPath);
+            int stageIndex = input.Settings.EnableMultiStageDiscovery ? input.Settings.MaxCranePositions : 1;
 
             using (var writer = new StreamWriter(historyPath, true, new UTF8Encoding(true)))
             {
@@ -577,6 +602,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 {
                     writer.WriteLine(string.Join(",", new[]
                     {
+                        "OptimizationRunId", "StageRunId", "StageIndex", "DiagnosticsSchemaVersion",
                         "Timestamp", "ProjectName", "ProjectFolderPath", "IfcFileName", "CraneNameOrId", "TotalTargetElements",
                         "SelectedElements", "LiftedElements", "FailedElements", "CoverageRatio", "HealthLabel",
                         "FinalCraneSetupCount", "GreedyIterations", "PopulationSize", "ConfiguredGenerations",
@@ -585,7 +611,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         "MemoryBeforeMB", "MemoryAfterMB", "MemoryDeltaMB", "GCGen0Delta", "GCGen1Delta", "GCGen2Delta",
                         "ProfilingLogPath", "DetailedDiagnosticsCsvPath", "FailureBreakdownCsvPath",
                         "CoordinateReferenceEnabled", "CoordinateSystemName", "EPSGCode", "RotationToNorthDegrees",
-                        "LocalReferencePoint", "SurveyReferencePoint"
+                        "LocalReferencePoint", "SurveyReferencePoint",
+                        "EnableMultiStageDiscovery", "MultiStageCoverageTarget", "AdaptiveRelocationScaleFactor", "UseHungarianAssignment"
                     }));
                 }
 
@@ -600,14 +627,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 if (GAProfiler.Enabled)
                 {
                     logPath = GAProfiler.ProfilingLogPath ?? "N/A";
-                    // Accumulators are thread-safe and timing exists
-                    // Let's get times from GAProfiler
-                    // Total time: CranePlacementEngine.TotalRun or sum
-                    // Let's use simple logic or N/A
                 }
 
-                // If GAProfiler was enabled we can output timing, otherwise "N/A"
-                // Let's check hit counters
                 long lookupHits = GAProfiler.CapacityCacheHits;
                 long lookupMisses = GAProfiler.CapacityCacheMisses;
                 long totalLookups = lookupHits + lookupMisses;
@@ -628,6 +649,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 // Let's write the history row
                 writer.WriteLine(string.Join(",", new[]
                 {
+                    input.Settings.OptimizationRunId ?? string.Empty,
+                    input.Settings.StageRunId ?? string.Empty,
+                    stageIndex.ToString(),
+                    "1.0",
                     timeFormatted,
                     Escape(input.ProjectName ?? "N/A"),
                     Escape(input.ProjectFolderPath ?? "N/A"),
@@ -664,8 +689,427 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     Escape(_transformService?.CurrentReference?.EPSGCode ?? "N/A"),
                     (_transformService?.CurrentReference?.RotationToNorthDegrees ?? 0.0).ToString("0.###", Invariant),
                     Escape(_transformService != null && _transformService.IsEnabled ? $"({_transformService.CurrentReference.LocalReferenceX.ToString("0.###", Invariant)}; {_transformService.CurrentReference.LocalReferenceY.ToString("0.###", Invariant)}; {_transformService.CurrentReference.LocalReferenceZ.ToString("0.###", Invariant)})" : "N/A"),
-                    Escape(_transformService != null && _transformService.IsEnabled ? $"({_transformService.CurrentReference.SurveyEasting.ToString("0.###", Invariant)}; {_transformService.CurrentReference.SurveyNorthing.ToString("0.###", Invariant)}; {_transformService.CurrentReference.SurveyElevation.ToString("0.###", Invariant)})" : "N/A")
+                    Escape(_transformService != null && _transformService.IsEnabled ? $"({_transformService.CurrentReference.SurveyEasting.ToString("0.###", Invariant)}; {_transformService.CurrentReference.SurveyNorthing.ToString("0.###", Invariant)}; {_transformService.CurrentReference.SurveyElevation.ToString("0.###", Invariant)})" : "N/A"),
+                    (input.Settings?.EnableMultiStageDiscovery ?? true).ToString().ToLower(),
+                    (input.Settings?.MultiStageCoverageTarget ?? 0.95).ToString("0.###", Invariant),
+                    (input.Settings?.AdaptiveRelocationScaleFactor ?? 0.40).ToString("0.###", Invariant),
+                    (input.Settings?.UseHungarianAssignment ?? false).ToString().ToLower()
                 }));
+            }
+
+            // ══════════════════════════════════════════════════════
+            // 7 NEW CSV DIAGNOSTIC FILES WRITING (Task 4)
+            // ══════════════════════════════════════════════════════
+
+            // 1. ga_run_summary.csv
+            string runSummaryPath = Path.Combine(reportsDir, "ga_run_summary.csv");
+            bool runSummaryExists = File.Exists(runSummaryPath);
+            using (var writer = new StreamWriter(runSummaryPath, true, new UTF8Encoding(true)))
+            {
+                if (!runSummaryExists)
+                {
+                    writer.WriteLine("OptimizationRunId,StageRunId,Timestamp,ProjectNameOrId,CraneModel,TotalElementCount,GaReadyElementCount,LiftedElementCount,CoverageRatio,CoveragePercent,FitnessScore,PositionCount,MaxCranePositions,RuntimeMs,TerminationReason,DiagnosticsSchemaVersion");
+                }
+                
+                string runTermReason = "MaxGenerationsReached";
+                if (GAProfiler.StoppedByConvergence) runTermReason = "Convergence";
+                else if (GAProfiler.ActualGenerationLoopCount < input.Settings.EarlyStoppingGenerations) runTermReason = "EarlyStopping";
+
+                writer.WriteLine(string.Join(",", new[]
+                {
+                    input.Settings.OptimizationRunId ?? string.Empty,
+                    input.Settings.StageRunId ?? string.Empty,
+                    timeFormatted,
+                    Escape(input.ProjectName ?? "N/A"),
+                    Escape(input.CraneSpec?.Crane?.Name ?? "N/A"),
+                    input.TotalElementsCount.ToString(),
+                    (input.Elements?.Count ?? 0).ToString(),
+                    finalResult.LiftedElementCount.ToString(),
+                    finalResult.CoverageRatio.ToString("F6", Invariant),
+                    (finalResult.CoverageRatio * 100.0).ToString("F4", Invariant),
+                    finalResult.FitnessScore.ToString("F4", Invariant),
+                    finalResult.Positions.Count.ToString(),
+                    input.Settings.MaxCranePositions.ToString(),
+                    GAProfiler.GetElapsedTimeMs("GAEngine.Run").ToString("F2", Invariant),
+                    runTermReason,
+                    "1.0"
+                }));
+            }
+
+            // 2. ga_settings_snapshot.csv
+            string settingsSnapshotPath = Path.Combine(reportsDir, "ga_settings_snapshot.csv");
+            bool settingsSnapshotExists = File.Exists(settingsSnapshotPath);
+            using (var writer = new StreamWriter(settingsSnapshotPath, true, new UTF8Encoding(true)))
+            {
+                if (!settingsSnapshotExists)
+                {
+                    writer.WriteLine("OptimizationRunId,StageRunId,DiagnosticsSchemaVersion,Timestamp,PopulationSize,MaxGenerations,MutationRate,MutationSigma,CrossoverRate,WireLength,AdditionalWt,DeratingRatio,SafetyFactor,RiggingLength,MaxCranePositions,RandomSeed,CoverageWeight,CoverageDominanceMultiplier,RelocationWeight,RadiusPenaltyWeight,RadiusQualityPenaltyWeight,OverweightPenaltyWeight,HeightPenaltyWeight,MaxRadiusForNormalisation,GridStep,EarlyStoppingGenerations,ConvergenceThresholdPercent,RadiusStdDevPenaltyWeight,BalancePenaltyWeight,MinimumRelocationDistance,DuplicatePositionDistance,SimilarPositionPenaltyWeight,RelocationDistancePenaltyWeight,MutationExplorationMultiplier,EnableAdaptiveSigma,SigmaCoolingExponent,MinimumMutationSigma,PositionSamplingAttempts,CraneFootprintRadius,TargetElementTypes,ProfilingLogDirectory,EnableProfiling,SlewOffsetX,SlewOffsetY,SlewOffsetZ,BoomHingeOffsetX,BoomHingeOffsetY,BoomHingeOffsetZ,EnableConcurrentOptimization,HotSpotSeedingRatio,EnableReachabilitySeeding,MultiStageCoverageTarget,EnableMultiStageDiscovery,AdaptiveRelocationScaleFactor,UseHungarianAssignment,ProjectName,IfcFileName,ProjectFolderPath,DiagnosticsReportsDirectory,TotalElementsCount,CraneModelName,RunId");
+                }
+
+                writer.WriteLine(string.Join(",", new[]
+                {
+                    input.Settings.OptimizationRunId ?? string.Empty,
+                    input.Settings.StageRunId ?? string.Empty,
+                    "1.0",
+                    timeFormatted,
+                    input.Settings.PopulationSize.ToString(),
+                    input.Settings.MaxGenerations.ToString(),
+                    input.Settings.MutationRate.ToString("F4", Invariant),
+                    input.Settings.MutationSigma.ToString("F4", Invariant),
+                    input.Settings.CrossoverRate.ToString("F4", Invariant),
+                    input.Settings.WireLength.ToString("F4", Invariant),
+                    input.Settings.AdditionalWt.ToString("F4", Invariant),
+                    input.Settings.DeratingRatio.ToString("F4", Invariant),
+                    input.Settings.SafetyFactor.ToString("F4", Invariant),
+                    input.Settings.RiggingLength.ToString("F4", Invariant),
+                    input.Settings.MaxCranePositions.ToString(),
+                    input.Settings.RandomSeed?.ToString() ?? "null",
+                    input.Settings.CoverageWeight.ToString("F4", Invariant),
+                    input.Settings.CoverageDominanceMultiplier.ToString("F4", Invariant),
+                    input.Settings.RelocationWeight.ToString("F4", Invariant),
+                    input.Settings.RadiusPenaltyWeight.ToString("F4", Invariant),
+                    input.Settings.RadiusQualityPenaltyWeight.ToString("F4", Invariant),
+                    input.Settings.OverweightPenaltyWeight.ToString("F4", Invariant),
+                    input.Settings.HeightPenaltyWeight.ToString("F4", Invariant),
+                    input.Settings.MaxRadiusForNormalisation.ToString("F4", Invariant),
+                    input.Settings.GridStep.ToString("F4", Invariant),
+                    input.Settings.EarlyStoppingGenerations.ToString(),
+                    input.Settings.ConvergenceThresholdPercent.ToString("F4", Invariant),
+                    input.Settings.RadiusStdDevPenaltyWeight.ToString("F4", Invariant),
+                    input.Settings.BalancePenaltyWeight.ToString("F4", Invariant),
+                    input.Settings.MinimumRelocationDistance.ToString("F4", Invariant),
+                    input.Settings.DuplicatePositionDistance.ToString("F4", Invariant),
+                    input.Settings.SimilarPositionPenaltyWeight.ToString("F4", Invariant),
+                    input.Settings.RelocationDistancePenaltyWeight.ToString("F4", Invariant),
+                    input.Settings.MutationExplorationMultiplier.ToString("F4", Invariant),
+                    input.Settings.EnableAdaptiveSigma.ToString().ToLower(),
+                    input.Settings.SigmaCoolingExponent.ToString("F4", Invariant),
+                    input.Settings.MinimumMutationSigma.ToString("F4", Invariant),
+                    input.Settings.PositionSamplingAttempts.ToString(),
+                    input.Settings.CraneFootprintRadius.ToString("F4", Invariant),
+                    Escape(input.Settings.TargetElementTypes != null ? string.Join(";", input.Settings.TargetElementTypes) : "null"),
+                    Escape(input.Settings.ProfilingLogDirectory ?? "null"),
+                    input.Settings.EnableProfiling.ToString().ToLower(),
+                    input.Settings.SlewOffsetX.ToString("F4", Invariant),
+                    input.Settings.SlewOffsetY.ToString("F4", Invariant),
+                    input.Settings.SlewOffsetZ.ToString("F4", Invariant),
+                    input.Settings.BoomHingeOffsetX.ToString("F4", Invariant),
+                    input.Settings.BoomHingeOffsetY.ToString("F4", Invariant),
+                    input.Settings.BoomHingeOffsetZ.ToString("F4", Invariant),
+                    input.Settings.EnableConcurrentOptimization.ToString().ToLower(),
+                    input.Settings.HotSpotSeedingRatio.ToString("F4", Invariant),
+                    input.Settings.EnableReachabilitySeeding.ToString().ToLower(),
+                    input.Settings.MultiStageCoverageTarget.ToString("F4", Invariant),
+                    input.Settings.EnableMultiStageDiscovery.ToString().ToLower(),
+                    input.Settings.AdaptiveRelocationScaleFactor.ToString("F4", Invariant),
+                    input.Settings.UseHungarianAssignment.ToString().ToLower(),
+                    Escape(input.ProjectName ?? "N/A"),
+                    Escape(input.IfcFileName ?? "N/A"),
+                    Escape(input.ProjectFolderPath ?? "N/A"),
+                    Escape(input.DiagnosticsReportsDirectory ?? "N/A"),
+                    input.TotalElementsCount.ToString(),
+                    Escape(input.CraneSpec?.Crane?.Name ?? "N/A"),
+                    input.Settings.RunId ?? string.Empty
+                }));
+            }
+
+            // 3. ga_stage_summary.csv
+            string stageSummaryPath = Path.Combine(reportsDir, "ga_stage_summary.csv");
+            bool stageSummaryExists = File.Exists(stageSummaryPath);
+            using (var writer = new StreamWriter(stageSummaryPath, true, new UTF8Encoding(true)))
+            {
+                if (!stageSummaryExists)
+                {
+                    writer.WriteLine("OptimizationRunId,StageRunId,DiagnosticsSchemaVersion,Timestamp,StageIndex,MaxPositions,RelocationWeight,BestCoverageRatio,BestCoveragePercent,BestLiftedCount,BestFitnessScore,RawPositionCount,FinalPositionCount,UsedZoneIds,RuntimeMs,Escalated,TerminationReason,AssignmentEngineUsed,TargetCoverage,PopulationSize,MaxGenerations,EarlyStoppingGenerations,Placeholder1,Placeholder2");
+                }
+
+                var lastStage = GAProfiler.StageLogs.LastOrDefault();
+                if (lastStage != null)
+                {
+                    string optRunId = string.IsNullOrWhiteSpace(lastStage.OptimizationRunId) ? (input.Settings.OptimizationRunId ?? string.Empty) : lastStage.OptimizationRunId;
+                    string stgRunId = string.IsNullOrWhiteSpace(lastStage.StageRunId) ? (input.Settings.StageRunId ?? string.Empty) : lastStage.StageRunId;
+                    writer.WriteLine(string.Join(",", new[]
+                    {
+                        optRunId,
+                        stgRunId,
+                        "1.0",
+                        timeFormatted,
+                        lastStage.StageIndex.ToString(),
+                        lastStage.MaxPositions.ToString(),
+                        lastStage.RelocationWeight.ToString("F4", Invariant),
+                        lastStage.BestCoverageRatio.ToString("F6", Invariant),
+                        lastStage.BestCoveragePercent.ToString("F4", Invariant),
+                        lastStage.BestLiftedCount.ToString(),
+                        lastStage.BestFitnessScore.ToString("F4", Invariant),
+                        lastStage.RawPositionCount.ToString(),
+                        lastStage.FinalPositionCount.ToString(),
+                        Escape(lastStage.UsedZoneIds),
+                        lastStage.RuntimeMs.ToString("F2", Invariant),
+                        lastStage.Escalated.ToString().ToLower(),
+                        Escape(lastStage.TerminationReason),
+                        Escape(input.Settings.UseHungarianAssignment ? "Hungarian" : "Greedy"),
+                        input.Settings.MultiStageCoverageTarget.ToString("F4", Invariant),
+                        input.Settings.PopulationSize.ToString(),
+                        input.Settings.MaxGenerations.ToString(),
+                        input.Settings.EarlyStoppingGenerations.ToString(),
+                        "N/A",
+                        "N/A"
+                    }));
+                }
+            }
+
+            // 4. ga_generation_summary.csv
+            string genSummaryPath = Path.Combine(reportsDir, "ga_generation_summary.csv");
+            bool genSummaryExists = File.Exists(genSummaryPath);
+            using (var writer = new StreamWriter(genSummaryPath, true, new UTF8Encoding(true)))
+            {
+                if (!genSummaryExists)
+                {
+                    writer.WriteLine("OptimizationRunId,StageRunId,DiagnosticsSchemaVersion,Timestamp,StageIndex,GenerationIndex,BestFitness,AverageFitness,BestCoverageRatio,AverageCoverageRatio,BestPositionCount,Count1Position,Count2Positions,Count3Positions,MutationSuccessRate,InvalidMutationCount,StagnationCounter,Placeholder1,Placeholder2,Placeholder3,Placeholder4");
+                }
+
+                int currentStageIndex = input.Settings.EnableMultiStageDiscovery ? input.Settings.MaxCranePositions : 1;
+                var currentStageGens = GAProfiler.GenerationLogs.Where(g => g.StageIndex == currentStageIndex);
+
+                foreach (var g in currentStageGens)
+                {
+                    string optRunId = string.IsNullOrWhiteSpace(g.OptimizationRunId) ? (input.Settings.OptimizationRunId ?? string.Empty) : g.OptimizationRunId;
+                    string stgRunId = string.IsNullOrWhiteSpace(g.StageRunId) ? (input.Settings.StageRunId ?? string.Empty) : g.StageRunId;
+                    writer.WriteLine(string.Join(",", new[]
+                    {
+                        optRunId,
+                        stgRunId,
+                        "1.0",
+                        timeFormatted,
+                        g.StageIndex.ToString(),
+                        g.GenerationIndex.ToString(),
+                        g.BestFitness.ToString("F4", Invariant),
+                        g.AverageFitness.ToString("F4", Invariant),
+                        g.BestCoverageRatio.ToString("F6", Invariant),
+                        g.AverageCoverageRatio.ToString("F6", Invariant),
+                        g.BestPositionCount.ToString(),
+                        g.Count1Position.ToString(),
+                        g.Count2Positions.ToString(),
+                        g.Count3Positions.ToString(),
+                        g.MutationSuccessRate.ToString("F4", Invariant),
+                        g.InvalidMutationCount.ToString(),
+                        g.StagnationCounter.ToString(),
+                        "N/A",
+                        "N/A",
+                        "N/A",
+                        "N/A"
+                    }));
+                }
+            }
+
+            // 5. ga_reachability_hotspots.csv
+            var hotSpotsList = new List<ScoredCoordinate>();
+            if (_reachabilityMapService != null)
+            {
+                int topN = Math.Max(100, (int)((input.Settings.PopulationSize) * (input.Settings.MaxCranePositions) * 1.5));
+                var hotSpots = _reachabilityMapService.ComputeHotSpots(
+                    input.Elements ?? new List<PrecastElement>(),
+                    input.Zones ?? new List<GreenAreaZone>(),
+                    input.ForbiddenZones ?? new List<GreenAreaZone>(),
+                    input.CraneSpec,
+                    input.Settings,
+                    topN);
+                if (hotSpots != null)
+                {
+                    hotSpotsList.AddRange(hotSpots);
+                }
+            }
+
+            string hotspotsPath = Path.Combine(reportsDir, "ga_reachability_hotspots.csv");
+            bool hotspotsExists = File.Exists(hotspotsPath);
+            using (var writer = new StreamWriter(hotspotsPath, true, new UTF8Encoding(true)))
+            {
+                if (!hotspotsExists)
+                {
+                    writer.WriteLine("OptimizationRunId,StageRunId,DiagnosticsSchemaVersion,Timestamp,ZoneId,X,Y,ReachableCount,RankWithinZone,GlobalRank,SelectedAsSeed,Z,HotSpotSeedingRatio,EnableReachabilitySeeding,Placeholder1,Placeholder2,Placeholder3");
+                }
+
+                if (hotSpotsList.Count > 0)
+                {
+                    var zoneGroups = hotSpotsList
+                        .GroupBy(h => h.ZoneId)
+                        .ToDictionary(
+                            g => g.Key,
+                            g => g.OrderByDescending(h => h.ReachableCount).ToList()
+                        );
+
+                    for (int i = 0; i < hotSpotsList.Count; i++)
+                    {
+                        var h = hotSpotsList[i];
+                        int globalRank = i + 1;
+                        int rankWithinZone = zoneGroups.TryGetValue(h.ZoneId, out var list) ? list.IndexOf(h) + 1 : 1;
+                        
+                        bool selectedAsSeed = finalResult.Positions.Any(pos => {
+                            double dist = Math.Sqrt(Math.Pow(pos.X - h.X, 2) + Math.Pow(pos.Y - h.Y, 2));
+                            return dist < 1.0; // 1 meter tolerance
+                        });
+
+                        writer.WriteLine(string.Join(",", new[]
+                        {
+                            input.Settings.OptimizationRunId ?? string.Empty,
+                            input.Settings.StageRunId ?? string.Empty,
+                            "1.0",
+                            timeFormatted,
+                            h.ZoneId.ToString(),
+                            h.X.ToString("F4", Invariant),
+                            h.Y.ToString("F4", Invariant),
+                            h.ReachableCount.ToString(),
+                            rankWithinZone.ToString(),
+                            globalRank.ToString(),
+                            selectedAsSeed.ToString().ToLower(),
+                            "0.0",
+                            input.Settings.HotSpotSeedingRatio.ToString("F4", Invariant),
+                            input.Settings.EnableReachabilitySeeding.ToString().ToLower(),
+                            "N/A",
+                            "N/A",
+                            "N/A"
+                        }));
+                    }
+                }
+            }
+
+            // 6. ga_positions.csv
+            string positionsPath = Path.Combine(reportsDir, "ga_positions.csv");
+            bool positionsExists = File.Exists(positionsPath);
+            using (var writer = new StreamWriter(positionsPath, true, new UTF8Encoding(true)))
+            {
+                if (!positionsExists)
+                {
+                    writer.WriteLine("OptimizationRunId,StageRunId,DiagnosticsSchemaVersion,Timestamp,PositionIndex,X,Y,Z,ZoneId,LiftedCount,UniqueLiftedCount,AssignmentEngineUsed,CoverageContributionRatio,Placeholder1");
+                }
+
+                for (int i = 0; i < finalResult.Positions.Count; i++)
+                {
+                    var pos = finalResult.Positions[i];
+                    var containingZone = input.Zones?.FirstOrDefault(z => SpatialMath.PointInPolygon(new DomainPoint3D(pos.X, pos.Y, 0), z.Vertices));
+                    Guid zoneId = containingZone?.ZoneId ?? Guid.Empty;
+
+                    int liftedCount = pos.LiftableCount;
+                    int uniqueLiftedCount = pos.ElementResults.Count(r => r.IsFinalAssignedToPoint && r.Status == LiftStatus.Liftable);
+
+                    writer.WriteLine(string.Join(",", new[]
+                    {
+                        input.Settings.OptimizationRunId ?? string.Empty,
+                        input.Settings.StageRunId ?? string.Empty,
+                        "1.0",
+                        timeFormatted,
+                        (i + 1).ToString(),
+                        pos.X.ToString("F4", Invariant),
+                        pos.Y.ToString("F4", Invariant),
+                        pos.Z.ToString("F4", Invariant),
+                        zoneId.ToString(),
+                        liftedCount.ToString(),
+                        uniqueLiftedCount.ToString(),
+                        Escape(input.Settings.UseHungarianAssignment ? "Hungarian" : "Greedy"),
+                        (allElements.Count > 0 ? ((double)uniqueLiftedCount / allElements.Count) : 0.0).ToString("F6", Invariant),
+                        "N/A"
+                    }));
+                }
+            }
+
+            // 7. ga_element_assignments.csv
+            string assignmentsPath = Path.Combine(reportsDir, "ga_element_assignments.csv");
+            bool assignmentsExists = File.Exists(assignmentsPath);
+            using (var writer = new StreamWriter(assignmentsPath, true, new UTF8Encoding(true)))
+            {
+                if (!assignmentsExists)
+                {
+                    writer.WriteLine("OptimizationRunId,StageRunId,DiagnosticsSchemaVersion,Timestamp,ElementId,ElementType,AssignedPositionIndex,AssignedZoneId,LiftStatus,Radius,RequiredBoomLength,RequiredWeight,ChartCapacity,AvailableCapacity,FailureReason,IsFinalLifted,DeratingRatio,SafetyFactor,AdditionalWt,WireLength,Placeholder1,Placeholder2");
+                }
+
+                foreach (var element in allElements)
+                {
+                    if (string.IsNullOrWhiteSpace(element.ElementID)) continue;
+
+                    // Find if there is a final assigned position
+                    int assignedPosIndex = -1;
+                    Guid assignedZoneId = Guid.Empty;
+                    ElementLiftResult? bestRes = null;
+
+                    for (int i = 0; i < finalResult.Positions.Count; i++)
+                    {
+                        var pos = finalResult.Positions[i];
+                        var er = pos.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, element.ElementID, StringComparison.OrdinalIgnoreCase));
+                        if (er != null && er.IsFinalAssignedToPoint)
+                        {
+                            assignedPosIndex = i + 1;
+                            var containingZone = input.Zones?.FirstOrDefault(z => SpatialMath.PointInPolygon(new DomainPoint3D(pos.X, pos.Y, 0), z.Vertices));
+                            assignedZoneId = containingZone?.ZoneId ?? Guid.Empty;
+                            bestRes = er;
+                            break;
+                        }
+                    }
+
+                    if (bestRes == null)
+                    {
+                        // Element not lifted, find best failed evaluation
+                        var candidates = new List<ElementLiftResult>();
+                        for (int i = 0; i < finalResult.Positions.Count; i++)
+                        {
+                            var pos = finalResult.Positions[i];
+                            var er = pos.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, element.ElementID, StringComparison.OrdinalIgnoreCase));
+                            if (er != null) candidates.Add(er);
+                        }
+
+                        if (candidates.Count > 0)
+                        {
+                            // Order candidates to find best failure
+                            bestRes = candidates.FirstOrDefault(c => string.Equals(c.CandidatePointId, c.BestFailedPointId, StringComparison.OrdinalIgnoreCase))
+                                         ?? candidates.OrderByDescending(c => c.AssignmentScore).First();
+                        }
+                    }
+
+                    if (bestRes != null)
+                    {
+                        string failReason = "Liftable";
+                        if (bestRes.Status != LiftStatus.Liftable)
+                        {
+                            var classification = LiftClassificationPolicy.Classify(
+                                bestRes.Status,
+                                bestRes.ChartStatus,
+                                element.ElementWT,
+                                bestRes.BoomLength,
+                                input.CraneSpec?.MaxBoomLength ?? 0.0,
+                                finalResult.Positions.Count > 0);
+                            failReason = classification.FailureReason;
+                        }
+
+                        double combinedFactors = input.Settings.DeratingRatio * input.Settings.SafetyFactor;
+                        double chartCapacity = combinedFactors > 0 ? (bestRes.AvailableCapacity / combinedFactors) : bestRes.AvailableCapacity;
+                        bool isFinalLifted = assignedPosIndex >= 0 && bestRes.Status == LiftStatus.Liftable;
+
+                        writer.WriteLine(string.Join(",", new[]
+                        {
+                            input.Settings.OptimizationRunId ?? string.Empty,
+                            input.Settings.StageRunId ?? string.Empty,
+                            "1.0",
+                            timeFormatted,
+                            Escape(element.ElementID),
+                            Escape(element.ElementType ?? "N/A"),
+                            assignedPosIndex.ToString(),
+                            assignedZoneId.ToString(),
+                            bestRes.Status.ToString(),
+                            bestRes.Radius.ToString("F4", Invariant),
+                            bestRes.BoomLength.ToString("F4", Invariant),
+                            (element.ElementWT ?? 0.0).ToString("F4", Invariant),
+                            chartCapacity.ToString("F4", Invariant),
+                            bestRes.AvailableCapacity.ToString("F4", Invariant),
+                            Escape(failReason),
+                            isFinalLifted ? "true" : "false",
+                            input.Settings.DeratingRatio.ToString("F4", Invariant),
+                            input.Settings.SafetyFactor.ToString("F4", Invariant),
+                            input.Settings.AdditionalWt.ToString("F4", Invariant),
+                            input.Settings.WireLength.ToString("F4", Invariant),
+                            "N/A",
+                            "N/A"
+                        }));
+                    }
+                }
             }
 
             return detailedPath;

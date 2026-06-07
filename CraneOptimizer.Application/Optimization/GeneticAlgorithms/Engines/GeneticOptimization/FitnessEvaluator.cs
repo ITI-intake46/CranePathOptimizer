@@ -252,7 +252,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 // 6. FINAL FITNESS
                 // ══════════════════════════════════════════════════════
                 double fitness =
-                      settings.CoverageWeight * coverageRatio
+                      settings.CoverageWeight * settings.CoverageDominanceMultiplier * coverageRatio
                     - relocationPenaltyVal
                     - settings.RadiusPenaltyWeight * normOutOfRadius
                     - settings.OverweightPenaltyWeight * normOverweight

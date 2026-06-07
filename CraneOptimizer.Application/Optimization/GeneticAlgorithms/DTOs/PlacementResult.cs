@@ -22,6 +22,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
 
         public LiftStatistics Statistics { get; set; } = new();
         public string? DiagnosticsReportPath { get; set; }
+        public ReachabilityDiagnostics? ReachabilityDiagnostics { get; set; }
     }
 
     /// <summary>

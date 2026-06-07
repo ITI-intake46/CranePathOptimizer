@@ -32,7 +32,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 CranePlacement.SelectedPosition = dialog.AppliedPosition;
                 ReRenderElements();
 
-                _status.Set("Optimization Applied", $"Best Fitness: {dialog.LatestResult.FitnessScore:F2}");
+                _status.Set("Optimization Applied", $"Coverage: {dialog.LatestResult.CoverageRatio:P2} | GA Score: {dialog.LatestResult.FitnessScore:F2}");
             }
         }
 

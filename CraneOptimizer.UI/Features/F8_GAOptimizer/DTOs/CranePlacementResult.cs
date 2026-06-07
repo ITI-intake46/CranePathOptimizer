@@ -47,6 +47,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         /// Non-fatal error captured if writing the diagnostic report fails.
         /// </summary>
         public string? DebugReportError { get; set; }
+
+        /// <summary>
+        /// Reachability diagnostics computed before running GA.
+        /// </summary>
+        public ReachabilityDiagnostics? ReachabilityDiagnostics { get; set; }
     }
 
     /// <summary>

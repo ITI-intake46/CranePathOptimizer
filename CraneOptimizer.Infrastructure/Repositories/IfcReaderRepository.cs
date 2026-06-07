@@ -379,6 +379,11 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     result.Add(ToPrecastElement(snapshot));
                 }
 
+                // Apply the same post-processing used by ExtractNormalized.
+                // This protects any legacy caller still using Extract().
+                PropagateConcreteMaterials(result);
+                RepairWeightsAndGaAfterMaterialPropagation(result);
+
                 progress?.Report(100d);
 
                 return result;
@@ -421,25 +426,30 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     GetPropertyDouble(product, "height")) ?? bboxHeight;
 
                 var volume = ConvertVolume(
-                    GetQuantity(product, "netvolume") ??
-                    GetQuantity(product, "volume") ??
-                    GetPropertyDouble(product, "netvolume") ??
-                    GetPropertyDouble(product, "volume"));
-                var material = GetMaterial(product);
-                var weight = GetWeight(product);
-                
-                // Fallback: If Weight is 0 or missing, use direct volume and the project concrete density.
-                if ((weight ?? 0) <= 0 && volume.HasValue && volume.Value > 0)
+    GetQuantityVolume(product, "netvolume", "grossvolume", "volume") ??
+    GetPropertyDouble(product, "netvolume") ??
+    GetPropertyDouble(product, "grossvolume") ??
+    GetPropertyDouble(product, "volume"));
+                if (!(volume is > 0) && geometry?.MeshVolumeM3 is > 0)
                 {
-                    weight = (volume.Value * _concreteDensityKgPerCubicMeter) / UnitSystem.KilogramsPerTon;
+                    volume = geometry.MeshVolumeM3;
                 }
 
+                var material = NormalizeMaterial(GetMaterial(product));
+                var weight = GetWeight(product);
+
+                // Fallback: If Weight is 0 or missing, use direct volume and the project concrete density.
                 var revitId = GetRevitId(product);
                 var rawName = GetMark(product) ?? product.Name?.ToString();
                 var cleanedName = CleanElementName(rawName ?? string.Empty);
 
-                if (!weight.HasValue && volume.HasValue)
+                if ((weight ?? 0) <= 0
+                    && volume.HasValue
+                    && volume.Value > 0
+                    && IsValidMaterialName(material))
+                {
                     weight = EstimateWeightFromMaterial(material, volume.Value);
+                }
 
                 return new SourceElementSnapshot(
                     product.EntityLabel,
@@ -570,14 +580,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
 
             private static string? ResolveAggregateMaterial(
-                SourceElementSnapshot parentSnapshot,
-                IReadOnlyList<IEngineeringSnapshot> childSnapshots)
+     SourceElementSnapshot parentSnapshot,
+     IReadOnlyList<IEngineeringSnapshot> childSnapshots)
             {
-                return !string.IsNullOrWhiteSpace(parentSnapshot.Material)
+                return IsValidMaterialName(parentSnapshot.Material)
                     ? parentSnapshot.Material
                     : JoinDistinctMaterials(childSnapshots.Select(c => c.Material));
             }
-
             private List<IIfcProduct> GetAssemblyChildren(IIfcElementAssembly assembly)
             {
                 return assembly.IsDecomposedBy?
@@ -642,6 +651,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         ConvertLength((minY + maxY) / 2d),
                         ConvertLength((minZ + maxZ) / 2d));
 
+                var meshVolumeM3 = totalMeshVolume > 0
+    ? totalMeshVolume * _volumeToCubicMetersFactor
+    : (double?)null;
+
                 return new GeometrySnapshot(
                     ConvertLength(minX),
                     ConvertLength(minY),
@@ -649,7 +662,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     ConvertLength(maxX),
                     ConvertLength(maxY),
                     ConvertLength(maxZ),
-                    center);
+                    center,
+                    meshVolumeM3);
             }
 
             private static void UpdateBounds(
@@ -879,6 +893,25 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return null;
             }
 
+            private double? GetQuantityVolume(IIfcProduct product, params string[] keywords)
+            {
+                var quantitySets = product.IsDefinedBy
+                    .Where(r => r.RelatingPropertyDefinition is IIfcElementQuantity)
+                    .Select(r => (IIfcElementQuantity)r.RelatingPropertyDefinition);
+
+                foreach (var quantitySet in quantitySets)
+                {
+                    foreach (var quantity in quantitySet.Quantities.OfType<IIfcQuantityVolume>())
+                    {
+                        if (!ContainsAny(quantity.Name.ToString(), keywords))
+                            continue;
+
+                        return quantity.VolumeValue;
+                    }
+                }
+
+                return null;
+            }
             private double? GetQuantityWeightTons(IIfcProduct product, params string[] keywords)
             {
                 var quantitySets = product.IsDefinedBy
@@ -989,28 +1022,14 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     ? UnitSystem.ToTons(value, MassUnit.Kilogram)
                     : value;
             }
-
+            //GetMaterial
             private string? GetMaterial(IIfcProduct product)
             {
                 try
                 {
-                    var relation = product.HasAssociations
-                        ?.OfType<IIfcRelAssociatesMaterial>()
-                        .FirstOrDefault();
-
-                    if (relation == null)
-                        return null;
-
-                    return relation.RelatingMaterial switch
-                    {
-                        IIfcMaterial singleMaterial => singleMaterial.Name.ToString(),
-                        IIfcMaterialLayer layer => layer.Material?.Name.ToString(),
-                        IIfcMaterialLayerSet layerSet => JoinDistinctMaterials(
-                            layerSet.MaterialLayers.Select(l => l.Material?.Name.ToString())),
-                        IIfcMaterialList materialList => JoinDistinctMaterials(
-                            materialList.Materials.Select(m => m.Name.ToString())),
-                        _ => null
-                    };
+                    return NormalizeMaterial(GetMaterialFromAssociations(product.HasAssociations))
+                        ?? NormalizeMaterial(GetMaterialFromTypeAssociations(product))
+                        ?? NormalizeMaterial(GetMaterialFromPropertySets(product));
                 }
                 catch (Exception ex)
                 {
@@ -1019,18 +1038,128 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }
             }
 
-            private double? EstimateWeightFromMaterial(string? material, double volumeInCubicMeters)
+            private static string? GetMaterialFromAssociations(IEnumerable<IIfcRelAssociates>? associations)
+            {
+                var relation = associations?
+                    .OfType<IIfcRelAssociatesMaterial>()
+                    .FirstOrDefault();
+
+                if (relation == null)
+                    return null;
+
+                return ResolveMaterialName(relation.RelatingMaterial);
+            }
+
+            private static string? ResolveMaterialName(object? materialObject)
+            {
+                return materialObject switch
+                {
+                    IIfcMaterial singleMaterial =>
+                        singleMaterial.Name.ToString(),
+
+                    IIfcMaterialLayer layer =>
+                        layer.Material?.Name.ToString(),
+
+                    IIfcMaterialLayerSet layerSet =>
+                        JoinDistinctMaterials(layerSet.MaterialLayers.Select(l => l.Material?.Name.ToString())),
+
+                    IIfcMaterialLayerSetUsage layerSetUsage =>
+                        JoinDistinctMaterials(layerSetUsage.ForLayerSet.MaterialLayers.Select(l => l.Material?.Name.ToString())),
+
+                    IIfcMaterialList materialList =>
+                        JoinDistinctMaterials(materialList.Materials.Select(m => m.Name.ToString())),
+
+                    _ => null
+                };
+            }
+
+            private string? GetMaterialFromTypeAssociations(IIfcProduct product)
+            {
+                foreach (var rel in product.IsDefinedBy.OfType<IIfcRelDefinesByType>())
+                {
+                    var typeObject = rel.RelatingType;
+
+                    var material = GetMaterialFromAssociations(typeObject.HasAssociations);
+                    if (IsValidMaterialName(material))
+                        return material;
+
+                    foreach (var pset in typeObject.HasPropertySets.OfType<IIfcPropertySet>())
+                    {
+                        var fromTypePset = GetMaterialFromPropertySet(pset);
+                        if (IsValidMaterialName(fromTypePset))
+                            return fromTypePset;
+                    }
+                }
+
+                return null;
+            }
+
+            private static string? GetMaterialFromPropertySets(IIfcProduct product)
+            {
+                var propertySets = product.IsDefinedBy
+                    .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
+                    .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition);
+
+                foreach (var pset in propertySets)
+                {
+                    var material = GetMaterialFromPropertySet(pset);
+                    if (IsValidMaterialName(material))
+                        return material;
+                }
+
+                return null;
+            }
+
+            private static string? GetMaterialFromPropertySet(IIfcPropertySet pset)
+            {
+                foreach (var prop in pset.HasProperties.OfType<IIfcPropertySingleValue>())
+                {
+                    var propName = prop.Name.ToString();
+
+                    if (!propName.Contains("material", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var value = prop.NominalValue?.ToString()?.Trim();
+
+                    if (IsValidMaterialName(value))
+                        return value;
+                }
+
+                return null;
+            }
+
+            private double ResolveDensityKgPerCubicMeter(string? material)
             {
                 var name = string.IsNullOrWhiteSpace(material) ? string.Empty : material.ToUpperInvariant();
 
-                double densityKgPerCubicMeter =
+                return
                     name.ContainsAny("STEEL", "REBAR", "METAL") ? SteelDensityKgPerCubicMeter :
                     name.ContainsAny("ALUMIN") ? AluminumDensityKgPerCubicMeter :
                     name.ContainsAny("GLASS") ? GlassDensityKgPerCubicMeter :
                     name.ContainsAny("TIMBER", "WOOD") ? TimberDensityKgPerCubicMeter :
                     _concreteDensityKgPerCubicMeter;
+            }
+
+            private double? EstimateWeightFromMaterial(string? material, double volumeInCubicMeters)
+            {
+                if (volumeInCubicMeters <= 0)
+                    return null;
+
+                var densityKgPerCubicMeter = ResolveDensityKgPerCubicMeter(material);
 
                 return (volumeInCubicMeters * densityKgPerCubicMeter) / UnitSystem.KilogramsPerTon;
+            }
+            private double? EstimateVolumeFromWeightAndMaterial(double? weightTons, string? material)
+            {
+                if (!(weightTons is > 0))
+                    return null;
+
+                var densityKgPerCubicMeter = ResolveDensityKgPerCubicMeter(material);
+
+                if (densityKgPerCubicMeter <= 0)
+                    return null;
+
+                return (weightTons.Value * UnitSystem.KilogramsPerTon) / densityKgPerCubicMeter;
             }
 
             // -------------------------------------------------------------------------
@@ -1073,7 +1202,28 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }
                 return false;
             }
+            private static bool IsValidMaterialName(string? material)
+            {
+                if (string.IsNullOrWhiteSpace(material))
+                    return false;
 
+                var m = material.Trim();
+
+                return !m.Equals("<Unnamed>", StringComparison.OrdinalIgnoreCase)
+                    && !m.Equals("Unnamed", StringComparison.OrdinalIgnoreCase)
+                    && !m.Equals("N/A", StringComparison.OrdinalIgnoreCase)
+                    && !m.Equals("NA", StringComparison.OrdinalIgnoreCase)
+                    && !m.Equals("Unspecified", StringComparison.OrdinalIgnoreCase)
+                    && !m.Equals("Unknown", StringComparison.OrdinalIgnoreCase)
+                    && !m.Equals("Default", StringComparison.OrdinalIgnoreCase)
+                    && !m.Equals("<By Category>", StringComparison.OrdinalIgnoreCase)
+                    && !m.Equals("By Category", StringComparison.OrdinalIgnoreCase);
+            }
+
+            private static string? NormalizeMaterial(string? material)
+            {
+                return IsValidMaterialName(material) ? material!.Trim() : null;
+            }
             private static double? SumOrNull(IEnumerable<double?> values)
             {
                 double total = 0d;
@@ -1094,7 +1244,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
             private static string? JoinDistinctMaterials(IEnumerable<string?> materials)
             {
                 var distinct = materials
-                    .Where(m => !string.IsNullOrWhiteSpace(m))
+                    .Select(NormalizeMaterial)
+                    .Where(IsValidMaterialName)
                     .Select(m => m!.Trim())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
@@ -1121,9 +1272,14 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 // Create a fast lookup by GlobalId for IIfcProduct
                 var productByGlobalId = physicalProducts
-                    .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
-                    .ToLookup(p => (string)p.GlobalId)
-                    .ToDictionary(g => g.Key, g => g.First());
+    .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
+    .GroupBy(p => (string)p.GlobalId, StringComparer.OrdinalIgnoreCase)
+    .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+                var previewByGlobalId = previewSummary.Elements
+    .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
+    .GroupBy(p => p.GlobalId, StringComparer.OrdinalIgnoreCase)
+    .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
                 var result = new List<PrecastElement>();
 
@@ -1133,11 +1289,37 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     cancellationToken.ThrowIfCancellationRequested();
 
                     // Try to retrieve cached SourceElementSnapshot
+                    IIfcProduct? product = null;
                     SourceElementSnapshot? sourceSnapshot = null;
-                    if (productByGlobalId.TryGetValue(preview.GlobalId, out var product))
+
+                    if (productByGlobalId.TryGetValue(preview.GlobalId, out product))
                     {
                         _sourceCache.TryGetValue(product.EntityLabel, out sourceSnapshot);
                     }
+
+                    IIfcProduct? parentProduct = null;
+                    SourceElementSnapshot? parentSnapshot = null;
+                    IfcNormalizedElementPreview? parentPreview = null;
+
+                    if (!string.IsNullOrWhiteSpace(preview.ParentGlobalId))
+                    {
+                        previewByGlobalId.TryGetValue(preview.ParentGlobalId, out parentPreview);
+
+                        if (productByGlobalId.TryGetValue(preview.ParentGlobalId, out parentProduct))
+                        {
+                            _sourceCache.TryGetValue(parentProduct.EntityLabel, out parentSnapshot);
+                        }
+                    }
+
+                    var isRevitAssemblyChild =
+    parentPreview != null
+    && parentPreview.RawIfcType.Equals("IfcElementAssembly", StringComparison.OrdinalIgnoreCase)
+    && parentPreview.Role == IfcElementRole.GroupingOnly;
+                    //var isRevitAssemblyChild =
+                    //    previewSummary.DetectedProfile == IfcExporterProfile.Revit
+                    //    && parentPreview != null
+                    //    && parentPreview.RawIfcType.Equals("IfcElementAssembly", StringComparison.OrdinalIgnoreCase)
+                    //    && parentPreview.Role == IfcElementRole.GroupingOnly;
 
                     // Map all values to a new PrecastElement
                     var pe = new PrecastElement();
@@ -1171,14 +1353,22 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     pe.NormalizationDecisionReason = preview.DecisionReason;
                     pe.ExtractionWarnings = new List<string>(preview.Warnings);
 
-                    // Material
-                    if (sourceSnapshot != null)
+                    // Material, with Revit parent assembly inheritance
+                    var ownMaterial = NormalizeMaterial(
+                        sourceSnapshot?.Material ??
+                        (product != null ? GetMaterial(product) : null));
+
+                    var parentMaterial = NormalizeMaterial(parentSnapshot?.Material);
+
+                    if (IsValidMaterialName(ownMaterial))
                     {
-                        pe.ElementMaterial = sourceSnapshot.Material ?? string.Empty;
+                        pe.ElementMaterial = ownMaterial!;
                     }
-                    else if (product != null)
+                    else if (isRevitAssemblyChild && IsValidMaterialName(parentMaterial))
                     {
-                        pe.ElementMaterial = GetMaterial(product) ?? string.Empty;
+                        pe.ElementMaterial = parentMaterial!;
+                        pe.ExtractionWarnings.Add(
+                            $"Material inherited from Revit parent assembly '{parentProduct?.Name}'. ParentGlobalId={preview.ParentGlobalId}");
                     }
                     else
                     {
@@ -1252,19 +1442,215 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             pe.COG_M = sourceSnapshot.CenterOfGravity;
                         }
                     }
+                    // Last-resort geometry volume fallback from bounding box.
+                    // This is approximate, but better than zero for GA pre-screening.
+                    if (!(pe.VolumeM3 is > 0)
+                        && sourceSnapshot?.Geometry != null
+                        && sourceSnapshot.Geometry.Length > 0
+                        && sourceSnapshot.Geometry.Width > 0
+                        && sourceSnapshot.Geometry.Height > 0)
+                    {
+                        var bboxVolume = sourceSnapshot.Geometry.Length
+                            * sourceSnapshot.Geometry.Width
+                            * sourceSnapshot.Geometry.Height;
 
+                        if (bboxVolume > 0)
+                        {
+                            pe.VolumeM3 = bboxVolume;
+                            pe.ElementVolume = bboxVolume;
+
+                            pe.ExtractionWarnings.Add(
+                                $"Volume estimated from bounding box because IFC/mesh volume was missing. BBoxVolumeM3={bboxVolume:F3}");
+                        }
+                    }
+                    
+                    // Visible geometry owner fallback.
+                    // Some normalized Revit/Proxy elements have the logical preview.GlobalId,
+                    // but their actual geometry/volume lives on VisibleGeometryOwnerGlobalIds.
+                    if (preview.VisibleGeometryOwnerGlobalIds != null && preview.VisibleGeometryOwnerGlobalIds.Count > 0)
+                    {
+                        var ownerSnapshots = new List<SourceElementSnapshot>();
+
+                        foreach (var ownerId in preview.VisibleGeometryOwnerGlobalIds)
+                        {
+                            if (string.IsNullOrWhiteSpace(ownerId))
+                                continue;
+
+                            if (!productByGlobalId.TryGetValue(ownerId, out var ownerProduct))
+                                continue;
+
+                            if (_sourceCache.TryGetValue(ownerProduct.EntityLabel, out var ownerSnapshot))
+                                ownerSnapshots.Add(ownerSnapshot);
+                        }
+
+                        if (ownerSnapshots.Count > 0)
+                        {
+                            if (!(pe.VolumeM3 is > 0))
+                            {
+                                var volumeFromOwners = SumOrNull(ownerSnapshots.Select(s => s.Volume));
+
+                                if (volumeFromOwners is > 0)
+                                {
+                                    pe.VolumeM3 = volumeFromOwners;
+                                    pe.ElementVolume = volumeFromOwners;
+
+                                    pe.ExtractionWarnings.Add(
+                                        $"Volume recovered from visible geometry owners. OwnerCount={ownerSnapshots.Count}, VolumeM3={volumeFromOwners:F3}");
+                                }
+                            }
+
+                            if (!(pe.VolumeM3 is > 0))
+                            {
+                                var bboxVolumeFromOwners = ownerSnapshots
+                                    .Where(s => s.Geometry != null
+                                                && s.Geometry.Length > 0
+                                                && s.Geometry.Width > 0
+                                                && s.Geometry.Height > 0)
+                                    .Sum(s => s.Geometry!.Length * s.Geometry.Width * s.Geometry.Height);
+
+                                if (bboxVolumeFromOwners > 0)
+                                {
+                                    pe.VolumeM3 = bboxVolumeFromOwners;
+                                    pe.ElementVolume = bboxVolumeFromOwners;
+
+                                    pe.ExtractionWarnings.Add(
+                                        $"Volume estimated from visible geometry owner bounding boxes. OwnerCount={ownerSnapshots.Count}, BBoxVolumeM3={bboxVolumeFromOwners:F3}");
+                                }
+                            }
+
+                            if (!IsValidMaterialName(pe.ElementMaterial))
+                            {
+                                var ownerMaterial = JoinDistinctMaterials(ownerSnapshots.Select(s => s.Material));
+
+                                if (IsValidMaterialName(ownerMaterial))
+                                {
+                                    pe.ElementMaterial = ownerMaterial!;
+                                    pe.ExtractionWarnings.Add(
+                                        $"Material recovered from visible geometry owners. Material='{pe.ElementMaterial}'");
+                                }
+                            }
+
+                            if (pe.ElementCOG == null || (pe.ElementCOG.X == 0 && pe.ElementCOG.Y == 0 && pe.ElementCOG.Z == 0))
+                            {
+                                var firstGeometry = ownerSnapshots.Select(s => s.Geometry).FirstOrDefault(g => g?.HasBounds == true);
+
+                                if (firstGeometry != null)
+                                {
+                                    pe.ElementCOG = firstGeometry.Center;
+                                    pe.COG_M = firstGeometry.Center;
+                                }
+                            }
+
+                            if ((pe.BBoxLength ?? 0) <= 0 || (pe.BBoxWidth ?? 0) <= 0 || (pe.BBoxHeight ?? 0) <= 0)
+                            {
+                                var ownerGeometries = ownerSnapshots
+                                    .Select(s => s.Geometry)
+                                    .Where(g => g?.HasBounds == true)
+                                    .Cast<GeometrySnapshot>()
+                                    .ToList();
+
+                                var union = GeometrySnapshot.Union(
+                                    ownerGeometries,
+                                    null,
+                                    ownerSnapshots.Select(s => s.CenterOfGravity).ToList(),
+                                    ownerSnapshots.Select(s => s.Weight).ToList());
+
+                                if (union != null)
+                                {
+                                    pe.BBoxLength = union.Length;
+                                    pe.BBoxWidth = union.Width;
+                                    pe.BBoxHeight = union.Height;
+                                    pe.BoundingBox_M = new DomainPoint3D
+                                    {
+                                        X = union.Length,
+                                        Y = union.Width,
+                                        Z = union.Height
+                                    };
+                                }
+                            }
+                        }
+                    }
+                    // Revit single-child assembly volume inheritance
+                    if (!(pe.VolumeM3 is > 0)
+                        && isRevitAssemblyChild
+                        && (parentPreview?.ChildGlobalIds?.Count ?? 0) == 1
+                        && parentSnapshot?.Volume is > 0)
+                    {
+                        pe.VolumeM3 = parentSnapshot.Volume;
+                        pe.ElementVolume = parentSnapshot.Volume;
+
+                        pe.ExtractionWarnings.Add(
+                            $"Volume inherited from Revit single-child parent assembly. ParentGlobalId={preview.ParentGlobalId}, VolumeM3={pe.VolumeM3:F3}");
+                    }
+                    // Trusted density fallback after material/volume inheritance
+                    if (!(pe.WeightTons is > 0)
+                        && !(pe.ElementWT is > 0)
+                        && pe.VolumeM3 is > 0
+                        && IsValidMaterialName(pe.ElementMaterial))
+                    {
+                        var estimatedWeightTons = EstimateWeightFromMaterial(pe.ElementMaterial, pe.VolumeM3.Value);
+
+                        if (estimatedWeightTons is > 0)
+                        {
+                            pe.WeightTons = estimatedWeightTons;
+                            pe.ElementWT = estimatedWeightTons;
+                            pe.WeightSource = isRevitAssemblyChild
+                                ? "InheritedParentMaterialDensityFallback"
+                                : "MaterialDensityFallback";
+
+                            pe.WeightTrustLevel = IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA;
+
+                            pe.ExtractionWarnings.Add(
+                                $"Weight estimated from volume × material density. Material='{pe.ElementMaterial}', VolumeM3={pe.VolumeM3:F3}, WeightTons={estimatedWeightTons:F3}");
+                        }
+                    }
+                    // Re-enable valid Revit liftable children after inheritance/fallback repair
+                    if (pe.Role == IfcElementRole.LiftableElement
+    && pe.WeightTons is > 0
+    && pe.ElementWT is > 0
+    && pe.VolumeM3 is > 0
+    && IsValidMaterialName(pe.ElementMaterial))
+                    {
+                        pe.IncludeInGa = true;
+
+                        pe.NormalizationDecisionReason +=
+                            " | Re-enabled after material/volume/weight repair.";
+                    }
                     // Make sure standardized units are enforced (everything scaled to meters, tons, m3)
                     // If a NeedsReview parent/child exists, block it from GA
                     if (preview.Role == IfcElementRole.NeedsReview)
                     {
                         pe.IncludeInGa = false;
                     }
-
+                    if (pe.ElementMark?.Contains("Hollow", StringComparison.OrdinalIgnoreCase) == true
+    || pe.ElementType?.Contains("Slab", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        Debug.WriteLine(
+                            $"[IFC_REPAIR] Id={pe.ElementID}, Role={pe.Role}, Parent={pe.ParentGlobalId}, " +
+                            $"IsAssemblyChild={isRevitAssemblyChild}, Material='{pe.ElementMaterial}', " +
+                            $"VolumeM3={pe.VolumeM3}, WeightTons={pe.WeightTons}, ElementWT={pe.ElementWT}, " +
+                            $"IncludeInGa={pe.IncludeInGa}, Source='{pe.WeightSource}', Reason='{pe.NormalizationDecisionReason}'");
+                    }
                     result.Add(pe);
                 }
 
                 // Propagate materials for concrete elements of the same family/type
                 PropagateConcreteMaterials(result);
+                // Recompute weight and GA eligibility after material propagation.
+                // This is important because material may be filled AFTER the first weight fallback.
+                RepairWeightsAndGaAfterMaterialPropagation(result);
+                foreach (var pe in result.Where(e =>
+             e.ElementMark?.Contains("Hollow", StringComparison.OrdinalIgnoreCase) == true
+          || e.ElementType?.Contains("Slab", StringComparison.OrdinalIgnoreCase) == true
+          || e.ElementType?.Contains("Proxy", StringComparison.OrdinalIgnoreCase) == true))
+                {
+                    Debug.WriteLine(
+                        $"[IFC_REPAIR_FINAL] Id={pe.ElementID}, Mark='{pe.ElementMark}', Type='{pe.ElementType}', Role={pe.Role}, " +
+                        $"Material='{pe.ElementMaterial}', VolumeM3={pe.VolumeM3}, ElementVolume={pe.ElementVolume}, " +
+                        $"BBox=({pe.BBoxLength} x {pe.BBoxWidth} x {pe.BBoxHeight}), " +
+                        $"WeightTons={pe.WeightTons}, ElementWT={pe.ElementWT}, IncludeInGa={pe.IncludeInGa}, " +
+                        $"Source='{pe.WeightSource}', Trust={pe.WeightTrustLevel}");
+                }
 
                 // Log a comprehensive diagnostic summary via Debug.WriteLine
                 Debug.WriteLine("=== Phase 2A Normalization Element Extraction Diagnostics ===");
@@ -1293,12 +1679,26 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     ElementWidth = snapshot.ElementWidth,
                     ElementHeight = snapshot.ElementHeight,
                     ElementMaterial = snapshot.Material ?? string.Empty,
+
                     ElementWT = snapshot.Weight,
+                    WeightTons = snapshot.Weight,
+
                     ElementVolume = snapshot.Volume,
+                    VolumeM3 = snapshot.Volume,
+
                     ElementCOG = snapshot.CenterOfGravity,
+                    COG_M = snapshot.CenterOfGravity,
+
                     BBoxLength = snapshot.Geometry?.Length,
                     BBoxWidth = snapshot.Geometry?.Width,
-                    BBoxHeight = snapshot.Geometry?.Height
+                    BBoxHeight = snapshot.Geometry?.Height,
+
+                    BoundingBox_M = new DomainPoint3D
+                    {
+                        X = snapshot.Geometry?.Length ?? 0,
+                        Y = snapshot.Geometry?.Width ?? 0,
+                        Z = snapshot.Geometry?.Height ?? 0
+                    }
                 };
             }
 
@@ -1310,7 +1710,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 {
                     var representativeMaterial = group
                         .Select(e => e.ElementMaterial)
-                        .Where(m => !string.IsNullOrWhiteSpace(m))
+                        .Where(IsValidMaterialName)
                         .GroupBy(m => m, StringComparer.OrdinalIgnoreCase)
                         .OrderByDescending(g => g.Count())
                         .Select(g => g.Key)
@@ -1321,14 +1721,144 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                     foreach (var e in group)
                     {
-                        if (string.IsNullOrWhiteSpace(e.ElementMaterial) && IsConcreteElement(e))
+                        if (!IsValidMaterialName(e.ElementMaterial) && IsConcreteElement(e))
                         {
                             e.ElementMaterial = representativeMaterial;
                         }
                     }
                 }
             }
+            private void RepairWeightsAndGaAfterMaterialPropagation(List<PrecastElement> elements)
+            {
+                foreach (var pe in elements)
+                {
+                    // 1) Synchronize existing weight fields first.
+                    if (!(pe.WeightTons is > 0) && pe.ElementWT is > 0)
+                        pe.WeightTons = pe.ElementWT;
 
+                    if (!(pe.ElementWT is > 0) && pe.WeightTons is > 0)
+                        pe.ElementWT = pe.WeightTons;
+
+                    // 2) Synchronize existing volume fields.
+                    if (!(pe.VolumeM3 is > 0) && pe.ElementVolume is > 0)
+                        pe.VolumeM3 = pe.ElementVolume;
+
+                    if (!(pe.ElementVolume is > 0) && pe.VolumeM3 is > 0)
+                        pe.ElementVolume = pe.VolumeM3;
+
+                    // 3) Safe concrete material fallback for common precast/concrete names.
+                    if (!IsValidMaterialName(pe.ElementMaterial) && IsConcreteElement(pe))
+                    {
+                        var nameSource =
+                            $"{pe.ElementMark} {pe.ElementType} {pe.ResolvedCategory} {pe.RawIfcType}"
+                                .ToUpperInvariant();
+
+                        if (nameSource.Contains("HOLLOW")
+                            || nameSource.Contains("PRECAST")
+                            || nameSource.Contains("CONCRETE")
+                            || nameSource.Contains("SLAB")
+                            || nameSource.Contains("WALL")
+                            || nameSource.Contains("COLUMN")
+                            || nameSource.Contains("BEAM"))
+                        {
+                            pe.ElementMaterial = "Precast Concrete";
+
+                            pe.ExtractionWarnings.Add(
+                                "Material defaulted to Precast Concrete from concrete-like element naming/category.");
+                        }
+                    }
+
+                    // 4) Preferred repair for Tekla IFC2x3:
+                    // if weight exists but volume is missing, derive volume from weight / density.
+                    if (!(pe.VolumeM3 is > 0)
+                        && pe.WeightTons is > 0
+                        && IsValidMaterialName(pe.ElementMaterial))
+                    {
+                        var estimatedVolume = EstimateVolumeFromWeightAndMaterial(
+                            pe.WeightTons,
+                            pe.ElementMaterial);
+
+                        if (estimatedVolume is > 0)
+                        {
+                            pe.VolumeM3 = estimatedVolume;
+                            pe.ElementVolume = estimatedVolume;
+
+                            pe.ExtractionWarnings.Add(
+                                $"Volume estimated from weight ÷ material density. " +
+                                $"Material='{pe.ElementMaterial}', WeightTons={pe.WeightTons:F3}, VolumeM3={estimatedVolume:F3}");
+                        }
+                    }
+
+                    // 5) Last-resort fallback:
+                    // if no weight-derived volume exists, estimate from bounding box.
+                    if (!(pe.VolumeM3 is > 0)
+                        && pe.BBoxLength is > 0
+                        && pe.BBoxWidth is > 0
+                        && pe.BBoxHeight is > 0)
+                    {
+                        var bboxVolume =
+                            pe.BBoxLength.Value *
+                            pe.BBoxWidth.Value *
+                            pe.BBoxHeight.Value;
+
+                        if (bboxVolume > 0)
+                        {
+                            pe.VolumeM3 = bboxVolume;
+                            pe.ElementVolume = bboxVolume;
+
+                            pe.ExtractionWarnings.Add(
+                                $"Volume repaired from PrecastElement bounding box. BBoxVolumeM3={bboxVolume:F3}");
+                        }
+                    }
+
+                    // 6) If volume exists but weight is missing, derive weight from volume × density.
+                    if (!(pe.WeightTons is > 0)
+                        && pe.VolumeM3 is > 0
+                        && IsValidMaterialName(pe.ElementMaterial))
+                    {
+                        var estimatedWeightTons =
+                            EstimateWeightFromMaterial(pe.ElementMaterial, pe.VolumeM3.Value);
+
+                        if (estimatedWeightTons is > 0)
+                        {
+                            pe.WeightTons = estimatedWeightTons;
+                            pe.ElementWT = estimatedWeightTons;
+                            pe.WeightSource = "PostPropagationMaterialDensityFallback";
+                            pe.WeightTrustLevel = IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA;
+
+                            pe.ExtractionWarnings.Add(
+                                $"Weight repaired after material/volume repair. " +
+                                $"Material='{pe.ElementMaterial}', VolumeM3={pe.VolumeM3:F3}, WeightTons={estimatedWeightTons:F3}");
+                        }
+                    }
+
+                    // 7) Final field sync for UI + GA.
+                    if (pe.WeightTons is > 0)
+                        pe.ElementWT = pe.WeightTons;
+
+                    if (pe.VolumeM3 is > 0)
+                        pe.ElementVolume = pe.VolumeM3;
+
+                    // 8) Final GA enablement only if real usable data exists.
+                    if (pe.Role == IfcElementRole.LiftableElement
+                        && pe.WeightTons is > 0
+                        && pe.ElementWT is > 0
+                        && pe.VolumeM3 is > 0
+                        && IsValidMaterialName(pe.ElementMaterial))
+                    {
+                        pe.IncludeInGa = true;
+
+                        if (!pe.NormalizationDecisionReason.Contains("Final repaired", StringComparison.OrdinalIgnoreCase))
+                        {
+                            pe.NormalizationDecisionReason +=
+                                " | Final repaired: material, volume, and weight are valid.";
+                        }
+                    }
+
+                    if (pe.Role == IfcElementRole.NeedsReview)
+                        pe.IncludeInGa = false;
+                }
+            }
             private static string GetFamilyTypeName(PrecastElement e)
             {
                 var mark = e.ElementMark ?? string.Empty;
@@ -1437,9 +1967,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
         }
 
         private sealed record GeometrySnapshot(
-            double MinX, double MinY, double MinZ,
-            double MaxX, double MaxY, double MaxZ,
-            DomainPoint3D Center)
+    double MinX, double MinY, double MinZ,
+    double MaxX, double MaxY, double MaxZ,
+    DomainPoint3D Center,
+    double? MeshVolumeM3)
         {
             public double Length => MaxX - MinX;
             public double Width => MaxY - MinY;
@@ -1466,7 +1997,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 double maxZ = geometries.Max(g => g.MaxZ);
 
                 var center = ComputeCenter(minX, minY, minZ, maxX, maxY, maxZ, totalWeight, centers, weights);
-                return new GeometrySnapshot(minX, minY, minZ, maxX, maxY, maxZ, center);
+                return new GeometrySnapshot(minX, minY, minZ, maxX, maxY, maxZ, center, null);
             }
 
             public static GeometrySnapshot? FromCenterPoints(
@@ -1484,9 +2015,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         centers.Average(c => c.Z));
 
                 return new GeometrySnapshot(
-                    center.X, center.Y, center.Z,
-                    center.X, center.Y, center.Z,
-                    center);
+     center.X, center.Y, center.Z,
+     center.X, center.Y, center.Z,
+     center,
+     null);
             }
 
             private static DomainPoint3D ComputeCenter(
