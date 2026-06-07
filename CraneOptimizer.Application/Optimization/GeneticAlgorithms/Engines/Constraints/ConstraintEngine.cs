@@ -41,7 +41,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
                     else
                     {
                         System.Diagnostics.Debug.WriteLine($"[GA Warning] Allowed zone '{zone.Name}' is invalid: {warning}");
-                        Console.WriteLine($"[GA Warning] Allowed zone '{zone.Name}' is invalid: {warning}");
                     }
                 }
 
@@ -64,7 +63,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
                     else
                     {
                         System.Diagnostics.Debug.WriteLine($"[GA Warning] Forbidden zone '{zone.Name}' is invalid: {warning}");
-                        Console.WriteLine($"[GA Warning] Forbidden zone '{zone.Name}' is invalid: {warning}");
                     }
                 }
 
