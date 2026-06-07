@@ -56,6 +56,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     stageSettings.MaxCranePositions = posCount;
                     stageSettings.OptimizationRunId = optimizationRunId;
                     stageSettings.StageRunId = Guid.NewGuid().ToString();
+                    stageSettings.StageIndex = stagesExecuted;
 
                     if (posCount == 1)
                     {
@@ -156,8 +157,16 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 CraneSpec = source.CraneSpec,
                 Settings = settings,
                 ProjectName = source.ProjectName,
+                ProjectId = source.ProjectId,
                 ProjectFolderPath = source.ProjectFolderPath,
                 IfcFileName = source.IfcFileName,
+                ScenarioId = null,
+                ProjectFeatureSnapshotId = source.ProjectFeatureSnapshotId,
+                ScopeDefinitionHash = source.ScopeDefinitionHash,
+                RawElementCount = source.RawElementCount,
+                OptimizationScopeElementCount = source.OptimizationScopeElementCount,
+                RequestedMaxCranePositions = source.RequestedMaxCranePositions,
+                FeatureScopeElements = source.FeatureScopeElements,
                 TotalElementsCount = source.TotalElementsCount,
                 DiagnosticsReportsDirectory = source.DiagnosticsReportsDirectory
             };

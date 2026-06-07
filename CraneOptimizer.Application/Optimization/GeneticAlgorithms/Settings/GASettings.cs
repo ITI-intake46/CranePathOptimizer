@@ -308,6 +308,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public string StageRunId { get; set; } = string.Empty;
 
         /// <summary>
+        /// One-based stage ordinal for the current optimization execution.
+        /// The current multi-stage orchestrator maps stages 1/2/3 to maximum
+        /// position counts 1/2/3, while single-stage runs use 1.
+        /// </summary>
+        public int StageIndex { get; set; } = 1;
+
+        /// <summary>
         /// A unique identifier for the optimization run (maps to StageRunId for backward compatibility).
         /// </summary>
         [Obsolete("Use StageRunId instead.")]

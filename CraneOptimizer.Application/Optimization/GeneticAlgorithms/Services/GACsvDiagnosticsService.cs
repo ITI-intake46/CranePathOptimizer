@@ -700,6 +700,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             // ══════════════════════════════════════════════════════
             // 7 NEW CSV DIAGNOSTIC FILES WRITING (Task 4)
             // ══════════════════════════════════════════════════════
+#if LEGACY_BENCHMARK_DIAGNOSTICS
 
             // 1. ga_run_summary.csv
             string runSummaryPath = Path.Combine(reportsDir, "ga_run_summary.csv");
@@ -1111,6 +1112,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     }
                 }
             }
+#endif
+
+            var benchmarkV2Writer = new BenchmarkV2CsvWriter(_reachabilityMapService);
+            benchmarkV2Writer.Write(reportsDir, timeFormatted, input, finalResult);
 
             return detailedPath;
         }

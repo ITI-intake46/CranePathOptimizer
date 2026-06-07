@@ -238,8 +238,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             var input = _inputBuilder.Build(settings, crane, elements, zones);
 
             // Populate benchmark metadata (Phase 7C)
-            input.ProjectName = _workspaceService?.CurrentSession?.ProjectName;
-            input.ProjectFolderPath = _workspaceService?.CurrentSession?.ProjectFolderPath;
+            var currentSession = _workspaceService?.CurrentSession;
+            input.ProjectName = currentSession?.ProjectName;
+            input.ProjectId = !string.IsNullOrWhiteSpace(currentSession?.ProjectGuid)
+                ? currentSession.ProjectGuid
+                : currentSession?.ProjectId.ToString("N");
+            input.ProjectFolderPath = currentSession?.ProjectFolderPath;
+            input.RawElementCount = sceneElements?.Count ?? 0;
+            input.OptimizationScopeElementCount = filteredElements.Count;
+            input.FeatureScopeElements = filteredElements;
             input.TotalElementsCount = sceneElements?.Count ?? 0;
             input.DiagnosticsReportsDirectory = reportsDir;
 

@@ -348,7 +348,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                             RunId = input.Settings.RunId ?? string.Empty,
                             OptimizationRunId = input.Settings.OptimizationRunId ?? string.Empty,
                             StageRunId = input.Settings.StageRunId ?? string.Empty,
-                            StageIndex = input.Settings.EnableMultiStageDiscovery ? input.Settings.MaxCranePositions : 1,
+                            StageIndex = input.Settings.StageIndex,
                             MaxPositions = input.Settings.MaxCranePositions,
                             RelocationWeight = input.Settings.RelocationWeight,
                             BestCoverageRatio = finalResult.CoverageRatio,

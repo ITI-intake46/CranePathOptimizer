@@ -133,7 +133,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
 
                         if (GAProfiler.Enabled)
                         {
-                            int stageIdx = input.Settings.EnableMultiStageDiscovery ? input.Settings.MaxCranePositions : 1;
+                            int stageIdx = input.Settings.StageIndex;
                             var logEntry = new GAProfiler.GenerationLogEntry
                             {
                                 RunId = input.Settings.RunId ?? string.Empty,

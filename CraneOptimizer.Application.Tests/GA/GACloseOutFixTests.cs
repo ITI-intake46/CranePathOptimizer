@@ -393,7 +393,7 @@ namespace CraneOptimizer.Application.Tests.GA
                         if (hasSchemaVersion)
                         {
                             int schemaIndex = Array.IndexOf(headers, "DiagnosticsSchemaVersion");
-                            Assert.Equal("1.0", columns[schemaIndex]);
+                            Assert.Contains(columns[schemaIndex], new[] { "1.0", "2.0" });
                         }
                     }
                 }
