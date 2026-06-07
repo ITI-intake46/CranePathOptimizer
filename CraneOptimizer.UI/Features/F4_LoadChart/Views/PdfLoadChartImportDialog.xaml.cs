@@ -1,19 +1,32 @@
-﻿using CraneOptimizer.UI.Features.F4_LoadChart.Services;
+using CraneOptimizer.UI.Features.F4_LoadChart.Services;
+using PDFtoImage;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using UglyToad.PdfPig;
 namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 {
     public partial class PdfLoadChartImportDialog : Window
     {
+        private const int SourcePreviewRenderWidth = 1600;
+        private const double SourcePreviewMinimumZoom = 0.20;
+        private const double SourcePreviewMaximumZoom = 4.00;
+
         private readonly PdfLoadChartScanResult _scanResult;
         private readonly List<PdfPageCandidateDto> _orderedPages;
+        private PdfTableCandidateDto? _currentSourcePreviewTable;
+        private double _sourcePreviewZoom = 1.0;
+        private double _sourcePreviewPageWidth;
+        private double _sourcePreviewPageHeight;
+        private double _sourcePreviewImagePixelWidth;
+        private double _sourcePreviewImagePixelHeight;
 
         internal LoadChartImportResult? ImportResult { get; private set; }
 
@@ -32,6 +45,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 $"{_scanResult.PageCount} page(s) scanned - {_scanResult.AllTables.Count} table candidate(s) detected";
 
             BtnImportSelected.IsEnabled = false;
+            ClearSourcePdfPreview("Select a detected table to render the original PDF page.");
             Loaded += PdfLoadChartImportDialog_Loaded;
         }
 
@@ -61,6 +75,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             {
                 TablesList.ItemsSource = null;
                 ClearPreviewGrid();
+                ClearSourcePdfPreview("Select a page and detected table to render the original PDF page.");
                 TxtPageDetails.Text = string.Empty;
                 TxtTableDetails.Text = string.Empty;
                 TxtSelectionSummary.Text = "Select a page and table candidate.";
@@ -80,6 +95,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             else
             {
                 ClearPreviewGrid();
+                ClearSourcePdfPreview("No table candidate is available to highlight on this page.");
                 TxtTableDetails.Text = "No table candidates detected on this page.";
                 TxtSelectionSummary.Text = $"Page {page.PageNumber} - no importable table detected";
                 TxtWarnings.Text = string.IsNullOrWhiteSpace(page.TextPreview)
@@ -111,6 +127,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             if (TablesList.SelectedItem is not PdfTableCandidateDto table)
             {
                 ClearPreviewGrid();
+                ClearSourcePdfPreview("Select a detected table to render the original PDF page.");
                 TxtTableDetails.Text = string.Empty;
                 TxtSelectionSummary.Text = "Select a page and table candidate.";
                 TxtWarnings.Text = string.Empty;
@@ -123,6 +140,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 $"Page {table.PageNumber} - Table {table.TableIndex} - {table.BoomColumnCount} boom columns - {table.RadiusRowCount} radius rows - {table.NonEmptyCapacityCellCount} cells - {table.ConfidenceLabel}";
 
             ShowParsedImportPreview(table);
+            ShowSourcePdfPreview(table);
         }
 
         private void ShowParsedImportPreview(PdfTableCandidateDto table)
@@ -284,6 +302,213 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
             BtnImportSelected.IsEnabled = true;
         }
+        private void ShowSourcePdfPreview(PdfTableCandidateDto table)
+        {
+            _currentSourcePreviewTable = table;
+            _sourcePreviewZoom = 1.0;
+            TxtSourcePreviewStatus.Text = $"Rendering page {table.PageNumber}, table {table.TableIndex}...";
+
+            string? temporaryPngPath = null;
+
+            try
+            {
+                (_sourcePreviewPageWidth, _sourcePreviewPageHeight) = GetPdfPageSize(table.PageNumber);
+
+                temporaryPngPath = Path.Combine(
+                    Path.GetTempPath(),
+                    $"CraneOptimizer_SourcePdfPreview_{Guid.NewGuid():N}.png");
+
+                RenderPdfPageToPng(table.PageNumber, temporaryPngPath);
+
+                BitmapImage bitmap = LoadBitmapFromFile(temporaryPngPath);
+                _sourcePreviewImagePixelWidth = bitmap.PixelWidth;
+                _sourcePreviewImagePixelHeight = bitmap.PixelHeight;
+
+                SourcePdfImage.Source = bitmap;
+                ApplySourcePreviewZoom(scrollToTable: true);
+
+                TxtSourcePreviewStatus.Text =
+                    $"Original PDF page {table.PageNumber}; highlighted table bounds are from the selected detected candidate.";
+            }
+            catch (Exception ex)
+            {
+                ClearSourcePdfPreview("Could not render the source PDF page: " + ex.Message);
+            }
+            finally
+            {
+                if (!string.IsNullOrWhiteSpace(temporaryPngPath))
+                {
+                    try
+                    {
+                        if (File.Exists(temporaryPngPath))
+                            File.Delete(temporaryPngPath);
+                    }
+                    catch
+                    {
+                        // Non-critical: the image has already been loaded into memory.
+                    }
+                }
+            }
+        }
+
+        private (double Width, double Height) GetPdfPageSize(int pageNumber)
+        {
+            using var document = PdfDocument.Open(_scanResult.PdfPath);
+            var page = document.GetPage(pageNumber);
+            return (page.Width, page.Height);
+        }
+
+        private void RenderPdfPageToPng(int pageNumber, string outputPath)
+        {
+            using var pdfStream = File.OpenRead(_scanResult.PdfPath);
+            int zeroBasedPageNumber = Math.Max(0, pageNumber - 1);
+
+            Conversion.SavePng(
+                outputPath,
+                pdfStream,
+                zeroBasedPageNumber,
+                options: new RenderOptions(Width: SourcePreviewRenderWidth));
+        }
+
+        private static BitmapImage LoadBitmapFromFile(string imagePath)
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
+        }
+
+        private void ClearSourcePdfPreview(string message)
+        {
+            _currentSourcePreviewTable = null;
+            _sourcePreviewPageWidth = 0;
+            _sourcePreviewPageHeight = 0;
+            _sourcePreviewImagePixelWidth = 0;
+            _sourcePreviewImagePixelHeight = 0;
+            _sourcePreviewZoom = 1.0;
+
+            if (SourcePdfImage != null)
+            {
+                SourcePdfImage.Source = null;
+                SourcePdfImage.Width = 0;
+                SourcePdfImage.Height = 0;
+            }
+
+            if (SourcePdfCanvas != null)
+            {
+                SourcePdfCanvas.Width = 1;
+                SourcePdfCanvas.Height = 1;
+            }
+
+            if (SourcePdfTableHighlight != null)
+                SourcePdfTableHighlight.Visibility = Visibility.Collapsed;
+
+            if (TxtSourcePreviewStatus != null)
+                TxtSourcePreviewStatus.Text = message;
+        }
+
+        private void ApplySourcePreviewZoom(bool scrollToTable)
+        {
+            if (SourcePdfImage.Source == null || _sourcePreviewImagePixelWidth <= 0 || _sourcePreviewImagePixelHeight <= 0)
+                return;
+
+            _sourcePreviewZoom = Math.Max(SourcePreviewMinimumZoom, Math.Min(SourcePreviewMaximumZoom, _sourcePreviewZoom));
+
+            double displayWidth = _sourcePreviewImagePixelWidth * _sourcePreviewZoom;
+            double displayHeight = _sourcePreviewImagePixelHeight * _sourcePreviewZoom;
+
+            SourcePdfImage.Width = displayWidth;
+            SourcePdfImage.Height = displayHeight;
+            SourcePdfCanvas.Width = displayWidth;
+            SourcePdfCanvas.Height = displayHeight;
+
+            UpdateSourceTableHighlight();
+
+            if (scrollToTable)
+            {
+                SourcePdfScrollViewer.Dispatcher.BeginInvoke(
+                    new Action(ScrollSourcePreviewToTable),
+                    DispatcherPriority.Background);
+            }
+        }
+
+        private void UpdateSourceTableHighlight()
+        {
+            if (_currentSourcePreviewTable == null
+                || SourcePdfImage.Source == null
+                || _sourcePreviewPageWidth <= 0
+                || _sourcePreviewPageHeight <= 0
+                || SourcePdfImage.Width <= 0
+                || SourcePdfImage.Height <= 0)
+            {
+                SourcePdfTableHighlight.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            var table = _currentSourcePreviewTable;
+            double scaleX = SourcePdfImage.Width / _sourcePreviewPageWidth;
+            double scaleY = SourcePdfImage.Height / _sourcePreviewPageHeight;
+
+            double left = Math.Max(0, table.Left * scaleX);
+            double top = Math.Max(0, (_sourcePreviewPageHeight - table.Top) * scaleY);
+            double width = Math.Max(2, (table.Right - table.Left) * scaleX);
+            double height = Math.Max(2, (table.Top - table.Bottom) * scaleY);
+
+            SourcePdfTableHighlight.Width = width;
+            SourcePdfTableHighlight.Height = height;
+            Canvas.SetLeft(SourcePdfTableHighlight, left);
+            Canvas.SetTop(SourcePdfTableHighlight, top);
+            SourcePdfTableHighlight.Visibility = Visibility.Visible;
+        }
+
+        private void ScrollSourcePreviewToTable()
+        {
+            if (SourcePdfTableHighlight.Visibility != Visibility.Visible)
+                return;
+
+            double left = Canvas.GetLeft(SourcePdfTableHighlight);
+            double top = Canvas.GetTop(SourcePdfTableHighlight);
+
+            SourcePdfScrollViewer.ScrollToHorizontalOffset(Math.Max(0, left - SourcePdfScrollViewer.ViewportWidth * 0.25));
+            SourcePdfScrollViewer.ScrollToVerticalOffset(Math.Max(0, top - SourcePdfScrollViewer.ViewportHeight * 0.25));
+        }
+
+        private void SourcePreviewFitPage_Click(object sender, RoutedEventArgs e)
+        {
+            if (SourcePdfImage.Source == null || _sourcePreviewImagePixelWidth <= 0 || _sourcePreviewImagePixelHeight <= 0)
+                return;
+
+            double viewportWidth = Math.Max(1, SourcePdfScrollViewer.ViewportWidth - 24);
+            double viewportHeight = Math.Max(1, SourcePdfScrollViewer.ViewportHeight - 24);
+            double widthZoom = viewportWidth / _sourcePreviewImagePixelWidth;
+            double heightZoom = viewportHeight / _sourcePreviewImagePixelHeight;
+
+            _sourcePreviewZoom = Math.Min(widthZoom, heightZoom);
+            ApplySourcePreviewZoom(scrollToTable: false);
+            SourcePdfScrollViewer.ScrollToHorizontalOffset(0);
+            SourcePdfScrollViewer.ScrollToVerticalOffset(0);
+        }
+
+        private void SourcePreviewFindTable_Click(object sender, RoutedEventArgs e)
+        {
+            ScrollSourcePreviewToTable();
+        }
+
+        private void SourcePreviewZoomOut_Click(object sender, RoutedEventArgs e)
+        {
+            _sourcePreviewZoom /= 1.20;
+            ApplySourcePreviewZoom(scrollToTable: false);
+        }
+
+        private void SourcePreviewZoomIn_Click(object sender, RoutedEventArgs e)
+        {
+            _sourcePreviewZoom *= 1.20;
+            ApplySourcePreviewZoom(scrollToTable: false);
+        }
+
         private void ImportSelected_Click(object sender, RoutedEventArgs e)
         {
             if (TablesList.SelectedItem is not PdfTableCandidateDto table)
