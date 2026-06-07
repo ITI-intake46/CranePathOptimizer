@@ -370,20 +370,31 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 if (numbers.Count < MinimumBoomColumnCount)
                     continue;
 
-                double increasingRatio = GetIncreasingRatio(numbers.Select(token => token.Value).ToList());
-                double xSpan = numbers.Last().Word.CenterX - numbers.First().Word.CenterX;
-                double spacingRegularity = GetSpacingRegularity(numbers.Select(token => token.Word.CenterX).ToList());
+                foreach (var segment in SplitHeaderNumbersForIndependentTableRegions(numbers))
+                {
+                    if (segment.Count < MinimumBoomColumnCount)
+                        continue;
 
-                if (increasingRatio < 0.50 || xSpan < 60)
-                    continue;
+                    double increasingRatio = GetIncreasingRatio(segment.Select(token => token.Value).ToList());
+                    double xSpan = segment.Last().Word.CenterX - segment.First().Word.CenterX;
+                    double spacingRegularity = GetSpacingRegularity(segment.Select(token => token.Word.CenterX).ToList());
 
-                double score =
-                    numbers.Count * 4 +
-                    increasingRatio * 48 +
-                    Math.Min(xSpan / 20d, 34) +
-                    spacingRegularity * 18;
+                    if (increasingRatio < 0.50 || xSpan < 60)
+                        continue;
 
-                candidates.Add(new HeaderCandidate(rowIndex, rows[rowIndex], numbers, score));
+                    double score =
+                        segment.Count * 4 +
+                        increasingRatio * 48 +
+                        Math.Min(xSpan / 20d, 34) +
+                        spacingRegularity * 18;
+
+                    if (segment.Count < numbers.Count)
+                    {
+                        score += 22;
+                    }
+
+                    candidates.Add(new HeaderCandidate(rowIndex, rows[rowIndex], segment, score));
+                }
             }
 
             return candidates
@@ -392,6 +403,164 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 .ToList();
         }
 
+        private static List<List<NumericToken>> SplitHeaderNumbersForIndependentTableRegions(List<NumericToken> orderedNumbers)
+        {
+            if (orderedNumbers.Count < MinimumBoomColumnCount)
+                return new List<List<NumericToken>> { orderedNumbers };
+
+            double medianGap = GetMedianPositiveGap(orderedNumbers.Select(token => token.Word.CenterX).ToList());
+            if (medianGap <= 0)
+                return new List<List<NumericToken>> { orderedNumbers };
+
+            double largeGapThreshold = Math.Max(medianGap * 2.40, medianGap + 80.0);
+            var splitStarts = new List<int>();
+
+            for (int index = 0; index < orderedNumbers.Count - 1; index++)
+            {
+                int leftCount = index + 1;
+                int rightCount = orderedNumbers.Count - leftCount;
+
+                if (leftCount < MinimumBoomColumnCount || rightCount < 2)
+                    continue;
+
+                double gap = orderedNumbers[index + 1].Word.CenterX - orderedNumbers[index].Word.CenterX;
+                if (gap < largeGapThreshold)
+                    continue;
+
+                bool numericReset = orderedNumbers[index + 1].Value < orderedNumbers[index].Value - 0.001;
+                bool majorPhysicalSeparation = gap >= Math.Max(120.0, medianGap * 3.0);
+
+                if (numericReset || majorPhysicalSeparation)
+                    splitStarts.Add(index + 1);
+            }
+
+            if (splitStarts.Count == 0)
+                return new List<List<NumericToken>> { orderedNumbers };
+
+            var segments = new List<List<NumericToken>>();
+            int start = 0;
+
+            foreach (int splitStart in splitStarts.Distinct().OrderBy(value => value))
+            {
+                if (splitStart > start)
+                    segments.Add(orderedNumbers.Skip(start).Take(splitStart - start).ToList());
+
+                start = splitStart;
+            }
+
+            if (start < orderedNumbers.Count)
+                segments.Add(orderedNumbers.Skip(start).ToList());
+
+            var usableSegments = segments
+                .Where(segment => segment.Count >= MinimumBoomColumnCount)
+                .ToList();
+
+            return usableSegments.Count == 0
+                ? new List<List<NumericToken>> { orderedNumbers }
+                : usableSegments;
+        }
+
+        private static List<List<double>> SplitHeaderValuesForTesting(
+            IReadOnlyList<double> values,
+            IReadOnlyList<double> centerXs)
+        {
+            if (values.Count != centerXs.Count)
+                throw new ArgumentException("Header values and X coordinates must have the same count.");
+
+            var syntheticTokens = new List<NumericToken>();
+
+            for (int index = 0; index < values.Count; index++)
+            {
+                syntheticTokens.Add(new NumericToken(
+                    new PdfWordInfo
+                    {
+                        Text = FormatNumber(values[index]),
+                        Left = centerXs[index] - 1,
+                        Right = centerXs[index] + 1,
+                        Bottom = 0,
+                        Top = 1
+                    },
+                    values[index]));
+            }
+
+            return SplitHeaderNumbersForIndependentTableRegions(syntheticTokens)
+                .Select(segment => segment.Select(token => token.Value).ToList())
+                .ToList();
+        }
+
+        private static double GetOpenEndedBodyRightLimit(double lastHeaderX, double medianHeaderGap)
+        {
+            double safeGap = medianHeaderGap > 0 ? medianHeaderGap : 40.0;
+            return lastHeaderX + Math.Max(18.0, safeGap * 1.35);
+        }
+
+        private static double GetOpenEndedBodyRightLimitForTesting(double lastHeaderX, double medianHeaderGap)
+        {
+            return GetOpenEndedBodyRightLimit(lastHeaderX, medianHeaderGap);
+        }
+        private static int ResolveSequentialOrGeometryColumnForBodyValue(
+            IReadOnlyList<NumericToken> orderedHeaderTokens,
+            int columnCount,
+            int sequentialColumn,
+            double bodyCenterX)
+        {
+            if (orderedHeaderTokens.Count == 0 || columnCount <= 0)
+                return sequentialColumn;
+
+            var headerCenters = orderedHeaderTokens
+                .Take(columnCount)
+                .Select(token => token.Word.CenterX)
+                .ToList();
+
+            return ResolveSequentialOrGeometryColumnForTesting(
+                headerCenters,
+                sequentialColumn,
+                bodyCenterX);
+        }
+
+        private static int ResolveSequentialOrGeometryColumnForTesting(
+            IReadOnlyList<double> headerCenters,
+            int sequentialColumn,
+            double bodyCenterX)
+        {
+            if (headerCenters == null || headerCenters.Count == 0)
+                return sequentialColumn;
+
+            int normalizedSequentialColumn = Math.Max(0, Math.Min(sequentialColumn, headerCenters.Count - 1));
+            int geometryColumn = FindNearestLaneIndex(headerCenters.ToList(), bodyCenterX);
+
+            if (geometryColumn < 0)
+                return normalizedSequentialColumn;
+
+            if (!IsWithinHeaderColumnAssignmentRegion(headerCenters, geometryColumn, bodyCenterX))
+                return normalizedSequentialColumn;
+
+            return geometryColumn;
+        }
+
+        private static bool IsWithinHeaderColumnAssignmentRegion(
+            IReadOnlyList<double> headerCenters,
+            int columnIndex,
+            double bodyCenterX)
+        {
+            if (headerCenters.Count == 0 || columnIndex < 0 || columnIndex >= headerCenters.Count)
+                return false;
+
+            var orderedCenters = headerCenters.OrderBy(value => value).ToList();
+            double medianGap = GetMedianPositiveGap(orderedCenters);
+            double edgeMargin = Math.Max(10.0, medianGap > 0 ? medianGap * 0.75 : 18.0);
+
+            double leftBoundary = columnIndex == 0
+                ? orderedCenters[columnIndex] - edgeMargin
+                : (orderedCenters[columnIndex - 1] + orderedCenters[columnIndex]) / 2.0;
+
+            double rightBoundary = columnIndex == orderedCenters.Count - 1
+                ? orderedCenters[columnIndex] + edgeMargin
+                : (orderedCenters[columnIndex] + orderedCenters[columnIndex + 1]) / 2.0;
+
+            return bodyCenterX >= leftBoundary - 0.001
+                && bodyCenterX <= rightBoundary + 0.001;
+        }
         private static PdfTableCandidateDto? TryBuildRowStreamCandidate(
             List<List<PdfWordInfo>> rows,
             HeaderCandidate header,
@@ -543,11 +712,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
 
                 NumericToken? rightDuplicateRadius = FindRightDuplicateRadius(numbers, radiusToken.Value, lastHeaderX);
 
+                double openEndedBodyRightLimit = GetOpenEndedBodyRightLimit(lastHeaderX, medianHeaderGap);
+
                 var bodyNumbers = numbers
                     .Where(token => !ReferenceEquals(token.Word, radiusToken.Value.Word))
                     .Where(token => rightDuplicateRadius == null || !ReferenceEquals(token.Word, rightDuplicateRadius.Value.Word))
                     .Where(token => token.Word.CenterX > radiusToken.Value.Word.CenterX + 2)
                     .Where(token => rightDuplicateRadius == null || token.Word.CenterX < rightDuplicateRadius.Value.Word.CenterX - 2)
+                    .Where(token => rightDuplicateRadius != null || token.Word.CenterX <= openEndedBodyRightLimit)
                     .OrderBy(token => token.Word.CenterX)
                     .ToList();
 
@@ -639,11 +811,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
 
                 NumericToken? rightDuplicateRadius = FindRightDuplicateRadius(numbers, radiusToken.Value, lastHeaderX);
 
+                double openEndedBodyRightLimit = GetOpenEndedBodyRightLimit(lastHeaderX, medianHeaderGap);
+
                 var bodyNumbers = numbers
                     .Where(token => !ReferenceEquals(token.Word, radiusToken.Value.Word))
                     .Where(token => rightDuplicateRadius == null || !ReferenceEquals(token.Word, rightDuplicateRadius.Value.Word))
                     .Where(token => token.Word.CenterX > radiusToken.Value.Word.CenterX + 2)
                     .Where(token => rightDuplicateRadius == null || token.Word.CenterX < rightDuplicateRadius.Value.Word.CenterX - 2)
+                    .Where(token => rightDuplicateRadius != null || token.Word.CenterX <= openEndedBodyRightLimit)
                     .OrderBy(token => token.Word.CenterX)
                     .ToList();
 
@@ -759,6 +934,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             if (headerValues.Count < MinimumBoomColumnCount)
                 return null;
 
+            var headerTokensForColumnAssignment = header.Numbers
+                .OrderBy(token => token.Word.CenterX)
+                .Take(columnCount)
+                .ToList();
+
             bool usesPhysicalLaneReconstruction = physicalLaneCenters != null
                 && physicalLaneCenters.Count == headerValues.Count;
 
@@ -788,9 +968,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 for (int i = 0; i < streamRow.BodyNumbers.Count; i++)
                 {
                     var bodyNumber = streamRow.BodyNumbers[i];
+                    int sequentialColumn = streamRow.StartColumn + i;
                     int column = usesPhysicalLaneReconstruction && physicalLaneCenters != null
                         ? FindNearestLaneIndex(physicalLaneCenters, bodyNumber.Word.CenterX)
-                        : streamRow.StartColumn + i;
+                        : ResolveSequentialOrGeometryColumnForBodyValue(
+                            headerTokensForColumnAssignment,
+                            columnCount,
+                            sequentialColumn,
+                            bodyNumber.Word.CenterX);
 
                     if (column < 0 || column >= columnCount)
                     {
