@@ -48,6 +48,13 @@ namespace CraneOptimizer.Domain.Schemas
         public double? VolumeM3 { get; set; }
         public DomainPoint3D COG_M { get; set; } = new();
         public DomainPoint3D BoundingBox_M { get; set; } = new();
+        public double? DensityKgPerM3 { get; set; }
+
+        public bool IsFromRevitAssemblyWrapper { get; set; }
+        public bool MaterialInheritedFromParent { get; set; }
+        public bool DensityInheritedFromParent { get; set; }
+
+        public string? ParentAssemblyName { get; set; }
         public List<string> ExtractionWarnings { get; set; } = new();
         public string NormalizationDecisionReason { get; set; } = string.Empty;
     }

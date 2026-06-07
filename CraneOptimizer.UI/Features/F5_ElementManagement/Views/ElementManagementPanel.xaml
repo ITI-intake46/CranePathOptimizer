@@ -57,6 +57,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="190" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -145,6 +146,57 @@
                     Padding="8,6"
                     Background="{DynamicResource SurfaceElevatedBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,1,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock VerticalAlignment="Center"
+                               FontFamily="{StaticResource FontPrimary}"
+                               FontSize="{StaticResource FontSizeXS}"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Text="Concrete Density (kg/m3)" />
+
+                    <TextBox Grid.Column="1"
+                             Height="26"
+                             Margin="10,0,0,0"
+                             Padding="8,2"
+                             VerticalContentAlignment="Center"
+                             FontFamily="{StaticResource FontPrimary}"
+                             FontSize="{StaticResource FontSizeXS}"
+                             Text="{Binding ConcreteDensityKgPerM3, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
+
+                    <Button Grid.Column="2"
+                            Height="26"
+                            Margin="8,0,0,0"
+                            Padding="12,0"
+                            Background="{StaticResource PrimaryBrush}"
+                            Command="{Binding SaveDensityCommand}"
+                            Content="Save Density"
+                            FontFamily="{StaticResource FontPrimary}"
+                            FontSize="{StaticResource FontSizeXS}"
+                            Style="{StaticResource PrimaryButtonStyle}" />
+
+                    <TextBlock Grid.Column="3"
+                               Margin="10,0,0,0"
+                               VerticalAlignment="Center"
+                               FontFamily="{StaticResource FontPrimary}"
+                               FontSize="{StaticResource FontSizeXS}"
+                               Foreground="{DynamicResource ErrorBrush}"
+                               Text="{Binding DensityValidationMessage}"
+                               TextTrimming="CharacterEllipsis" />
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="2"
+                    Padding="8,6"
+                    Background="{DynamicResource SurfaceElevatedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,1,0,1">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -176,7 +228,7 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="2">
+            <Grid Grid.Row="3">
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding ElementProperties}">
                         <ItemsControl.ItemTemplate>

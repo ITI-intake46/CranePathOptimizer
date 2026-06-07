@@ -24,8 +24,11 @@ namespace CraneOptimizer.UI.Features.F17_Selection.ViewModels
         {
             _selection = selection;
             _selection.SelectionChanged += OnSelectionChanged;
+            ElementWeightCalculator.ConcreteDensityChanged += OnConcreteDensityChanged;
             Refresh();
         }
+
+        private void OnConcreteDensityChanged(object? sender, EventArgs e) => Refresh();
 
         public int SelectedCount
         {
@@ -85,6 +88,7 @@ namespace CraneOptimizer.UI.Features.F17_Selection.ViewModels
         public void Dispose()
         {
             _selection.SelectionChanged -= OnSelectionChanged;
+            ElementWeightCalculator.ConcreteDensityChanged -= OnConcreteDensityChanged;
         }
     }
 }

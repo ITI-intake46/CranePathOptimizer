@@ -9,6 +9,7 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
@@ -87,11 +88,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             {
                 var element = filteredElements[i];
 
-                if (!element.IncludeInGa)
-                {
-                    blockedElements.Add((element, $"IncludeInGa flag is false (Role: {element.Role}, Reason: {element.NormalizationDecisionReason})"));
-                    continue;
-                }
+                //if (!element.IncludeInGa)
+                //{
+                //    blockedElements.Add((element, $"IncludeInGa flag is false (Role: {element.Role}, Reason: {element.NormalizationDecisionReason})"));
+                //    continue;
+                //}
 
                 if (element.Role == CraneOptimizer.Domain.Diagnostics.IfcElementRole.NeedsReview)
                 {
@@ -129,13 +130,50 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     continue;
                 }
 
-                if (element.WeightTrustLevel != CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.ExplicitQuantity &&
-                    element.WeightTrustLevel != CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.ExplicitProperty)
+                var hasExplicitTrustedWeight =
+     element.WeightTrustLevel == CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.ExplicitQuantity ||
+     element.WeightTrustLevel == CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.ExplicitProperty;
+
+                var source = element.WeightSource ?? string.Empty;
+
+                var hasTrustedRepairedFallback =
+                    element.WeightTrustLevel == CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA
+                    && element.WeightTons is > 0
+                    && element.ElementWT is > 0
+                    && !string.IsNullOrWhiteSpace(element.ElementMaterial)
+                    && !element.ElementMaterial.Equals("N/A", StringComparison.OrdinalIgnoreCase)
+                    && !element.ElementMaterial.Equals("<Unnamed>", StringComparison.OrdinalIgnoreCase)
+                    && (
+                        source.Contains("MaterialDensityFallback", StringComparison.OrdinalIgnoreCase)
+                        || source.Contains("DensityFallback", StringComparison.OrdinalIgnoreCase)
+                        || source.Contains("PostPropagation", StringComparison.OrdinalIgnoreCase)
+                        || source.Contains("InheritedParent", StringComparison.OrdinalIgnoreCase)
+                    );
+                var isEffectivelyGaIncluded =
+    element.IncludeInGa ||
+    (
+        element.Role == CraneOptimizer.Domain.Diagnostics.IfcElementRole.LiftableElement
+        && hasTrustedRepairedFallback
+    );
+
+                if (!isEffectivelyGaIncluded)
                 {
-                    blockedElements.Add((element, $"Untrusted weight source/trust level (TrustLevel: {element.WeightTrustLevel}, Source: {element.WeightSource})."));
+                    blockedElements.Add((element,
+                        $"IncludeInGa flag is false and element was not repair-approved (Role: {element.Role}, TrustLevel: {element.WeightTrustLevel}, Source: {element.WeightSource}, Reason: {element.NormalizationDecisionReason})"));
                     continue;
                 }
 
+
+                if (!hasExplicitTrustedWeight && !hasTrustedRepairedFallback)
+                {
+                    blockedElements.Add((element,
+                        $"Untrusted weight source/trust level (TrustLevel: {element.WeightTrustLevel}, Source: {element.WeightSource})."));
+                    continue;
+                }
+                System.Diagnostics.Debug.WriteLine(
+    $"[GA_GATE_PASS_CANDIDATE] Id={element.ElementID}, Role={element.Role}, IncludeInGa={element.IncludeInGa}, " +
+    $"Trust={element.WeightTrustLevel}, Source='{element.WeightSource}', WeightTons={element.WeightTons}, " +
+    $"ElementWT={element.ElementWT}, Material='{element.ElementMaterial}', COG=({element.ElementCOG?.X}, {element.ElementCOG?.Y}, {element.ElementCOG?.Z})");
                 if (!_coordinateService.IsValidPoint(element.ElementCOG))
                 {
                     blockedElements.Add((element, "Invalid COG coordinates."));
@@ -156,6 +194,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 System.Diagnostics.Debug.WriteLine($"  - Reason: {blocked.Key} -> Count: {blocked.Count()}");
             }
             System.Diagnostics.Debug.WriteLine("==========================================================");
+
+            if (filteredElements.Count > 0 && elements.Count == 0)
+            {
+                throw new InvalidOperationException(BuildGaEligibilityFailureMessage(
+                    sceneElements.Count,
+                    filteredElements.Count,
+                    blockedElements));
+            }
 
             // Normalize zones to meters
             var zones = new List<GreenAreaZone>(sceneZones.Count);
@@ -443,6 +489,48 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 result.DebugReportPath = null;
                 result.DebugReportError = ex.Message;
             }
+        }
+
+        private static string BuildGaEligibilityFailureMessage(
+            int sceneElementCount,
+            int filteredElementCount,
+            IReadOnlyList<(PrecastElement element, string reason)> blockedElements)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("Elements are visible in the IFC viewer, but none are eligible for optimization.");
+            sb.AppendLine($"Visible scene elements: {sceneElementCount}. Selected/filtered elements checked: {filteredElementCount}. Blocked elements: {blockedElements.Count}.");
+
+            var firstReason = blockedElements.Count > 0 ? blockedElements[0].reason : "Unknown.";
+            sb.AppendLine($"First rule that converted a visible element to non-eligible: {firstReason}");
+            sb.AppendLine("Blocked reasons:");
+
+            foreach (var group in blockedElements.GroupBy(b => b.reason).Take(8))
+            {
+                sb.AppendLine($"- {group.Count()} element(s): {group.Key}");
+            }
+
+            var sampleBlocked = blockedElements
+                .Where(b => b.element != null)
+                .Take(5)
+                .Select(b =>
+                {
+                    var id = string.IsNullOrWhiteSpace(b.element.ElementID) ? "<missing id>" : b.element.ElementID;
+                    var name = string.IsNullOrWhiteSpace(b.element.ElementMark) ? b.element.ElementType : b.element.ElementMark;
+                    return $"{id} ({name})";
+                })
+                .ToList();
+
+            if (sampleBlocked.Count > 0)
+            {
+                sb.AppendLine("Sample blocked elements:");
+                foreach (var sample in sampleBlocked)
+                {
+                    sb.AppendLine($"- {sample}");
+                }
+            }
+
+            sb.Append("Check the IFC normalization report for Role, IncludeInGa, WeightTrustLevel, and DecisionReason.");
+            return sb.ToString();
         }
     }
 }

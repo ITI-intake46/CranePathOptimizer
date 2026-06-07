@@ -263,7 +263,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                 .Where(v => !string.IsNullOrWhiteSpace(v))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var selectedMaterials = selected
-                .Select(e => string.IsNullOrWhiteSpace(e.ElementMaterial) ? "Unspecified" : e.ElementMaterial.Trim())
+                .Select(e => string.IsNullOrWhiteSpace(e.ElementMaterial) ? "N/A" : e.ElementMaterial.Trim())
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var selectedStoreys = selected
                 .Select(e => _visibilityFilter?.GetStorey(e) ?? "Unassigned")
@@ -497,7 +497,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
 
             var mode = (CboHierarchyBy?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Type - Element";
             Func<PrecastElement, string> groupKey = mode.StartsWith("Material", StringComparison.OrdinalIgnoreCase)
-                ? e => string.IsNullOrWhiteSpace(e.ElementMaterial) ? "Unspecified" : e.ElementMaterial.Trim()
+                ? e => string.IsNullOrWhiteSpace(e.ElementMaterial) ? "N/A" : e.ElementMaterial.Trim()
                 : mode.StartsWith("Storey", StringComparison.OrdinalIgnoreCase)
                     ? e => _visibilityFilter?.GetStorey(e) ?? "Unassigned"
                     : e => string.IsNullOrWhiteSpace(e.ElementType) ? "Unknown type" : e.ElementType.Trim();
@@ -636,7 +636,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
         private void LoadMaterialOptions(IEnumerable<PrecastElement> elements)
         {
             _allMaterialOptions = elements
-                .Select(e => string.IsNullOrWhiteSpace(e.ElementMaterial) ? "Unspecified" : e.ElementMaterial.Trim())
+                .Select(e => string.IsNullOrWhiteSpace(e.ElementMaterial) ? "N/A" : e.ElementMaterial.Trim())
                 .GroupBy(material => material, StringComparer.OrdinalIgnoreCase)
                 .OrderBy(g => g.Key)
                 .Select(g => new FilterDialogOption(g.Key, g.Count(), IsMaterialChecked(g.Key)))
@@ -736,7 +736,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             return elements.Where(element =>
             {
                 var type = string.IsNullOrWhiteSpace(element.ElementType) ? "Unknown type" : element.ElementType.Trim();
-                var material = string.IsNullOrWhiteSpace(element.ElementMaterial) ? "Unspecified" : element.ElementMaterial.Trim();
+                var material = string.IsNullOrWhiteSpace(element.ElementMaterial) ? "N/A" : element.ElementMaterial.Trim();
                 var storey = _visibilityFilter?.GetStorey(element) ?? "Unassigned";
                 var weight = ElementWeightCalculator.GetWeightKg(element);
 

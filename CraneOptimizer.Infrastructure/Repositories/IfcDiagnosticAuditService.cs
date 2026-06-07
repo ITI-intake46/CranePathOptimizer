@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Xbim.Common;
@@ -29,6 +30,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private readonly object _auditCacheGate = new();
         private Guid? _lastAuditSessionId;
         private string? _lastAuditFileIdentity;
+        private double _lastAuditConcreteDensityKgPerM3 = ConcreteDensityKgPerCubicMeter;
         private IfcAuditResult? _lastAuditResult;
 
         public IfcDiagnosticAuditService()
@@ -42,7 +44,16 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         public Task<IfcAuditResult> RunAuditAsync(string ifcPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
-            return Task.Run(() => RunAudit(ifcPath, progress, cancellationToken), cancellationToken);
+            return RunAuditAsync(ifcPath, null, progress, cancellationToken);
+        }
+
+        public Task<IfcAuditResult> RunAuditAsync(
+            string ifcPath,
+            IfcReadingOptions? options,
+            IProgress<double>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.Run(() => RunAudit(ifcPath, options, progress, cancellationToken), cancellationToken);
         }
 
         public Task<string> GenerateReportsAsync(IfcAuditResult auditResult, string? projectFolderPath = null, CancellationToken cancellationToken = default)
@@ -50,8 +61,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return Task.Run(() => GenerateReportsCore(auditResult, projectFolderPath, cancellationToken), cancellationToken);
         }
 
-        private IfcAuditResult RunAudit(string ifcPath, IProgress<double>? progress, CancellationToken cancellationToken)
+        private IfcAuditResult RunAudit(
+            string ifcPath,
+            IfcReadingOptions? options,
+            IProgress<double>? progress,
+            CancellationToken cancellationToken)
         {
+            var concreteDensityKgPerM3 = ResolveConcreteDensity(options);
             var session = _sessionService?.GetActiveSession(ifcPath);
             if (session != null)
             {
@@ -59,7 +75,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 {
                     if (_lastAuditResult != null
                         && _lastAuditSessionId == session.SessionId
-                        && string.Equals(_lastAuditFileIdentity, session.FileIdentity, StringComparison.Ordinal))
+                        && string.Equals(_lastAuditFileIdentity, session.FileIdentity, StringComparison.Ordinal)
+                        && Math.Abs(_lastAuditConcreteDensityKgPerM3 - concreteDensityKgPerM3) < 0.000001)
                     {
                         Debug.WriteLine($"[IfcDiagnosticAudit] Reusing cached audit for session {session.SessionId}.");
                         progress?.Report(100.0);
@@ -68,13 +85,14 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }
 
                 var sessionAuditTimer = Stopwatch.StartNew();
-                var result = RunAuditCore(session, progress, cancellationToken);
+                var result = RunAuditCore(session, concreteDensityKgPerM3, progress, cancellationToken);
                 sessionAuditTimer.Stop();
 
                 lock (_auditCacheGate)
                 {
                     _lastAuditSessionId = session.SessionId;
                     _lastAuditFileIdentity = session.FileIdentity;
+                    _lastAuditConcreteDensityKgPerM3 = concreteDensityKgPerM3;
                     _lastAuditResult = result;
                 }
 
@@ -85,17 +103,21 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return result;
             }
 
-            return RunAuditCore(ifcPath, progress, cancellationToken);
+            return RunAuditCore(ifcPath, concreteDensityKgPerM3, progress, cancellationToken);
         }
 
-        private IfcAuditResult RunAuditCore(IIfcModelSession session, IProgress<double>? progress, CancellationToken cancellationToken)
+        private IfcAuditResult RunAuditCore(
+            IIfcModelSession session,
+            double concreteDensityKgPerM3,
+            IProgress<double>? progress,
+            CancellationToken cancellationToken)
         {
             var result = new IfcAuditResult();
 
             try
             {
                 progress?.Report(15.0);
-                PopulateAuditResult(result, session.Model, session.GeometryContext, session.IfcPath, progress, cancellationToken);
+                PopulateAuditResult(result, session.Model, session.GeometryContext, session.IfcPath, concreteDensityKgPerM3, progress, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -107,7 +129,11 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return result;
         }
 
-        private IfcAuditResult RunAuditCore(string ifcPath, IProgress<double>? progress, CancellationToken cancellationToken)
+        private IfcAuditResult RunAuditCore(
+            string ifcPath,
+            double concreteDensityKgPerM3,
+            IProgress<double>? progress,
+            CancellationToken cancellationToken)
         {
             var result = new IfcAuditResult();
             IfcStore? model = null;
@@ -137,7 +163,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 contextTimer.Stop();
                 cancellationToken.ThrowIfCancellationRequested();
 
-                PopulateAuditResult(result, model, geometryContext, ifcPath, progress, cancellationToken);
+                PopulateAuditResult(result, model, geometryContext, ifcPath, concreteDensityKgPerM3, progress, cancellationToken);
 
                 Debug.WriteLine(
                     $"[IfcDiagnosticAudit] Standalone audit completed. Open={openTimer.ElapsedMilliseconds} ms, " +
@@ -171,6 +197,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             IfcStore model,
             Xbim3DModelContext geometryContext,
             string ifcPath,
+            double concreteDensityKgPerM3,
             IProgress<double>? progress,
             CancellationToken cancellationToken)
         {
@@ -192,7 +219,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             cancellationToken.ThrowIfCancellationRequested();
 
             progress?.Report(80.0);
-            ProcessPhysicalElements(allPhysicalProducts, geometryContext, result, result.Metadata.LengthConversionFactor, result.Metadata.VolumeConversionFactor);
+            ProcessPhysicalElements(allPhysicalProducts, geometryContext, result, result.Metadata.LengthConversionFactor, result.Metadata.VolumeConversionFactor, concreteDensityKgPerM3);
             cancellationToken.ThrowIfCancellationRequested();
 
             progress?.Report(100.0);
@@ -586,7 +613,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
             Xbim3DModelContext geometryContext,
             IfcAuditResult auditResult,
             double lengthFactor,
-            double volumeFactor)
+            double volumeFactor,
+            double concreteDensityKgPerM3)
         {
             var swallowedGlobalIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -622,7 +650,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 auditResult.Classifications.Add(classification);
 
                 // 2. Weight Audit
-                var weightDetail = AuditWeight(product, resolvedCategory, swallowedGlobalIds.Contains(globalId));
+                var weightDetail = AuditWeight(product, resolvedCategory, swallowedGlobalIds.Contains(globalId), concreteDensityKgPerM3);
                 auditResult.Weights.Add(weightDetail);
 
                 // 3. Volume and Material Audit
@@ -683,7 +711,11 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return string.Empty;
         }
 
-        private static ElementWeightAuditDetail AuditWeight(IIfcProduct product, string resolvedType, bool isSwallowed)
+        private static ElementWeightAuditDetail AuditWeight(
+            IIfcProduct product,
+            string resolvedType,
+            bool isSwallowed,
+            double concreteDensityKgPerM3)
         {
             var detail = new ElementWeightAuditDetail
             {
@@ -715,7 +747,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 if (detail.WeightRawValue.HasValue) break;
             }
 
-            // Search Properties if not found in quantities
+            // Search Properties if not found in quantities.
+            // Revit often exports explicit user/shared parameters with names that do not
+            // include the simple "weight" token. Keep this lookup explicit-only: volume
+            // or density-derived values are still handled later as non-GA fallback.
             if (!detail.WeightRawValue.HasValue)
             {
                 var propertySets = product.IsDefinedBy
@@ -727,15 +762,16 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     foreach (var prop in pSet.HasProperties.OfType<IIfcPropertySingleValue>())
                     {
                         var name = prop.Name.ToString();
-                        if (name.ContainsAny("weight", "mass"))
+                        if (IsExplicitWeightPropertyName(name, pSet.Name.ToString()))
                         {
-                            var valStr = prop.NominalValue?.ToString();
-                            if (double.TryParse(valStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedVal))
+                            if (TryReadNumericPropertyValue(prop, out var parsedVal))
                             {
                                 detail.WeightRawValue = parsedVal;
                                 detail.WeightPropertyName = name;
                                 detail.QuantitySetNameOrPropertySetName = pSet.Name.ToString();
-                                detail.WeightSource = "PropertySet.Instance";
+                                detail.WeightSource = IsLikelyRevitWeightProperty(name, pSet.Name.ToString())
+                                    ? "RevitPropertySet.Instance"
+                                    : "PropertySet.Instance";
                                 detail.WeightUnitDetected = prop.Unit?.ToString() ?? "Unspecified";
 
                                 // Convert to Standard Value (Tons) based on heuristics
@@ -758,7 +794,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                     detail.WeightStandardValueTons = parsedVal > 100.0 ? parsedVal / 1000.0 : parsedVal;
                                     if (parsedVal > 100.0)
                                     {
-                                        detail.WeightSource = "PropertySet.Instance (Heuristically Scaled)";
+                                        detail.WeightSource = $"{detail.WeightSource} (Heuristically Scaled)";
                                         detail.Warning = "Weight property value exceeded 100. Assumed kilograms and converted to metric tons.";
                                     }
                                 }
@@ -777,8 +813,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 double? volume = GetDirectVolume(product);
                 if (volume.HasValue && volume.Value > 0)
                 {
-                    detail.WeightRawValue = volume.Value * ConcreteDensityKgPerCubicMeter;
-                    detail.WeightStandardValueTons = (volume.Value * ConcreteDensityKgPerCubicMeter) / 1000.0;
+                    detail.WeightRawValue = volume.Value * concreteDensityKgPerM3;
+                    detail.WeightStandardValueTons = (volume.Value * concreteDensityKgPerM3) / 1000.0;
                     detail.WeightSource = "ExistingDensityFallback";
                     detail.WeightStatus = "EstimatedByFallback";
                     detail.Warning = "Current pipeline estimated weight using density fallback. Verify with user because this is an engineering assumption.";
@@ -813,6 +849,115 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
 
             return detail;
+        }
+
+        private static bool TryReadNumericPropertyValue(IIfcPropertySingleValue property, out double value)
+        {
+            value = 0;
+
+            var nominal = property.NominalValue;
+            if (nominal == null)
+                return false;
+
+            object? rawValue = nominal;
+            var valueProperty = nominal.GetType().GetProperty("Value");
+            if (valueProperty != null)
+            {
+                rawValue = valueProperty.GetValue(nominal);
+            }
+
+            if (rawValue is double doubleValue)
+            {
+                value = doubleValue;
+                return true;
+            }
+
+            if (rawValue is float floatValue)
+            {
+                value = floatValue;
+                return true;
+            }
+
+            if (rawValue is decimal decimalValue)
+            {
+                value = (double)decimalValue;
+                return true;
+            }
+
+            if (rawValue is int intValue)
+            {
+                value = intValue;
+                return true;
+            }
+
+            if (rawValue is long longValue)
+            {
+                value = longValue;
+                return true;
+            }
+
+            var valueText = Convert.ToString(rawValue, CultureInfo.InvariantCulture);
+            if (double.TryParse(valueText, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
+                return true;
+
+            valueText = Convert.ToString(nominal, CultureInfo.InvariantCulture);
+            if (double.TryParse(valueText, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
+                return true;
+
+            var numericMatch = Regex.Match(valueText ?? string.Empty, @"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?");
+            return numericMatch.Success &&
+                   double.TryParse(numericMatch.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out value);
+        }
+
+        private static bool IsExplicitWeightPropertyName(string propertyName, string propertySetName)
+        {
+            if (string.IsNullOrWhiteSpace(propertyName))
+                return false;
+
+            var combined = $"{propertySetName} {propertyName}";
+            return combined.ContainsAny(
+                "weight",
+                "mass",
+                "netweight",
+                "grossweight",
+                "net weight",
+                "gross weight",
+                "self weight",
+                "selfweight",
+                "dead load",
+                "deadload",
+                "shipping weight",
+                "shippingweight",
+                "lifting weight",
+                "liftingweight",
+                "assembly weight",
+                "assemblyweight",
+                "precast weight",
+                "precastweight",
+                "revit weight",
+                "revit mass");
+        }
+
+        private static bool IsLikelyRevitWeightProperty(string propertyName, string propertySetName)
+        {
+            var combined = $"{propertySetName} {propertyName}";
+            return combined.ContainsAny(
+                "revit",
+                "identity data",
+                "dimensions",
+                "structural",
+                "netweight",
+                "grossweight",
+                "assembly weight",
+                "precast weight");
+        }
+
+        private static double ResolveConcreteDensity(IfcReadingOptions? options)
+        {
+            var density = options?.ConcreteDensityKgPerM3;
+            return density.HasValue && density.Value > 0
+                ? density.Value
+                : ConcreteDensityKgPerCubicMeter;
         }
 
         private static double? GetDirectVolume(IIfcProduct product)

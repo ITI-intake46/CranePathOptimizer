@@ -19,6 +19,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
     {
         private const string IfcFolder = "Models/IFC";
         private const string DxfFolder = "Models/DXF";
+        private const string IfcNormalizationCacheVersionKey = "ifcNormalizationCacheVersion";
+        private const string IfcNormalizationCacheVersion = "revit-explicit-weight-v2";
         private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
         private readonly IProjectCoordinateTransformService _transformService;
@@ -200,6 +202,12 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 return false;
             }
 
+            if (!HasCurrentIfcNormalizationCacheVersion(entity.MetadataJson))
+            {
+                validationReason = "IFC normalization cache version is missing or outdated; elements must be rebuilt with current Revit weight/assembly rules.";
+                return false;
+            }
+
             var absolutePath = ToAbsolutePath(projectFolderPath, entity.RelativePath);
             if (!File.Exists(absolutePath))
             {
@@ -292,7 +300,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             if (existingFile != null
                 && string.Equals(existingFile.RelativePath, asset.RelativePath, StringComparison.OrdinalIgnoreCase)
                 && existingFile.FileSizeBytes == metadata.SizeBytes
-                && existingFile.IsCacheValid)
+                && existingFile.IsCacheValid
+                && HasCurrentIfcNormalizationCacheVersion(existingFile.MetadataJson))
             {
                 if (existingFile.LastWriteUtc.HasValue && metadata.LastWriteUtc.HasValue)
                 {
@@ -320,7 +329,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             if (canReuseCache && existingFile != null)
             {
                 existingFile.TransformJson = JsonSerializer.Serialize(transform, JsonOptions);
-                existingFile.MetadataJson = ifc.MetadataJson;
+                existingFile.MetadataJson = StampIfcNormalizationCacheVersion(ifc.MetadataJson);
                 context.IfcFiles.Update(existingFile);
                 Debug.WriteLine("[SaveProject] Fast Save: Reused existing IFC element cache. Only updated transform.");
                 return;
@@ -349,7 +358,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 FileSizeBytes = metadata.SizeBytes,
                 LastWriteUtc = metadata.LastWriteUtc,
                 TransformJson = JsonSerializer.Serialize(transform, JsonOptions),
-                MetadataJson = ifc.MetadataJson,
+                MetadataJson = StampIfcNormalizationCacheVersion(ifc.MetadataJson),
                 IsActive = true,
                 IsCacheValid = true,
                 ImportedAtUtc = DateTime.UtcNow,
@@ -531,6 +540,53 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 Scale = transform.Scale <= 0 ? 1d : transform.Scale,
                 MetadataJson = entity.MetadataJson
             };
+        }
+
+        private static bool HasCurrentIfcNormalizationCacheVersion(string? metadataJson)
+        {
+            if (string.IsNullOrWhiteSpace(metadataJson))
+                return false;
+
+            try
+            {
+                using var document = JsonDocument.Parse(metadataJson);
+                if (document.RootElement.ValueKind != JsonValueKind.Object)
+                    return false;
+
+                return document.RootElement.TryGetProperty(IfcNormalizationCacheVersionKey, out var version)
+                    && string.Equals(version.GetString(), IfcNormalizationCacheVersion, StringComparison.Ordinal);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string StampIfcNormalizationCacheVersion(string? metadataJson)
+        {
+            var metadata = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+            if (!string.IsNullOrWhiteSpace(metadataJson))
+            {
+                try
+                {
+                    var existing = JsonSerializer.Deserialize<Dictionary<string, object?>>(metadataJson, JsonOptions);
+                    if (existing != null)
+                    {
+                        foreach (var pair in existing)
+                        {
+                            metadata[pair.Key] = pair.Value;
+                        }
+                    }
+                }
+                catch
+                {
+                    metadata["rawMetadata"] = metadataJson;
+                }
+            }
+
+            metadata[IfcNormalizationCacheVersionKey] = IfcNormalizationCacheVersion;
+            return JsonSerializer.Serialize(metadata, JsonOptions);
         }
 
         private static ProjectModelFileState? ToModelFileState(string projectFolderPath, ProjectModelFileEntity? entity)
