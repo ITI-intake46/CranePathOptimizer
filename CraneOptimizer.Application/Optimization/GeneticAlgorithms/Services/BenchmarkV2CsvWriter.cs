@@ -1,4 +1,4 @@
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.Utilities;
@@ -133,7 +133,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 "DuplicatePositionDistance", "MaxRadiusForNormalisation", "SlewOffsetX", "SlewOffsetY",
                 "SlewOffsetZ", "BoomHingeOffsetX", "BoomHingeOffsetY", "BoomHingeOffsetZ",
                 "EnableProfiling", "ProfilingLogDirectory", "ProjectFolderPath",
-                "DiagnosticsReportsDirectory"
+                "DiagnosticsReportsDirectory", "DiagnosticsLevel"
             };
 
             string[] row =
@@ -213,7 +213,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 FormatBool(input.Settings.EnableProfiling),
                 input.Settings.ProfilingLogDirectory ?? "N/A",
                 input.ProjectFolderPath ?? "N/A",
-                input.DiagnosticsReportsDirectory ?? "N/A"
+                input.DiagnosticsReportsDirectory ?? "N/A",
+                input.Settings.DiagnosticsLevel.ToString()
             };
 
             Append(Path.Combine(directory, "ga_settings_snapshot.csv"), header, row);
@@ -301,6 +302,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             };
 
             string path = Path.Combine(directory, "ga_generation_summary.csv");
+            EnsureHeader(path, header);
             IEnumerable<GAProfiler.GenerationLogEntry> generations = GAProfiler.GenerationLogs
                 .Where(generation => generation.StageRunId == input.Settings.StageRunId);
 
@@ -499,7 +501,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 "CraneId", "CraneName", "CraneSpecificationId", "ElementId", "ElementType",
                 "AssignedPositionIndex", "AssignedZoneId", "LiftStatus", "Radius",
                 "RequiredBoomLength", "ElementWeight", "AdditionalWt", "RequiredCapacity",
-                "ChartCapacity", "AvailableCapacity", "CapacityUtilization", "CapacityMarginTons",
+                "ChartCapacity", "SelectedVisualColumnIndex", "SelectedVisualColumnHeader",
+                "SelectedNumberOfLines", "SelectedOperatingConditionLabel",
+                "IsConservativeDuplicateFallback", "DuplicateAlternativeCount",
+                "DuplicateAlternativeSummary", "AvailableCapacity", "CapacityUtilization", "CapacityMarginTons",
                 "RadiusUtilization", "BoomUtilization", "CraneMaxRadius", "CraneMaxBoomLength",
                 "DeratingRatio", "SafetyFactor", "CombinedCapacityFactor", "FailureReason",
                 "IsFinalLifted"
@@ -533,6 +538,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     Format4(input.Settings.AdditionalWt),
                     Format4(assignment.RequiredCapacity),
                     FormatOptional(assignment.ChartCapacity),
+                    assignment.SelectedVisualColumnIndex?.ToString(Invariant) ?? string.Empty,
+                    assignment.SelectedVisualColumnHeader,
+                    assignment.SelectedNumberOfLines?.ToString(Invariant) ?? string.Empty,
+                    assignment.SelectedOperatingConditionLabel,
+                    FormatBool(assignment.IsConservativeDuplicateFallback),
+                    assignment.DuplicateAlternativeCount.ToString(Invariant),
+                    assignment.DuplicateAlternativeSummary,
                     FormatOptional(assignment.AvailableCapacity),
                     FormatOptional(assignment.CapacityUtilization),
                     FormatOptional(assignment.CapacityMarginTons),
@@ -919,6 +931,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     ChartCapacity = combinedFactor > 0
                         ? evaluation.AvailableCapacity / combinedFactor
                         : null,
+                    SelectedVisualColumnIndex = evaluation.SelectedVisualColumnIndex,
+                    SelectedVisualColumnHeader = evaluation.SelectedVisualColumnHeader,
+                    SelectedNumberOfLines = evaluation.SelectedNumberOfLines,
+                    SelectedOperatingConditionLabel = evaluation.SelectedOperatingConditionLabel,
+                    IsConservativeDuplicateFallback = evaluation.IsConservativeDuplicateFallback,
+                    DuplicateAlternativeCount = evaluation.DuplicateAlternativeCount,
+                    DuplicateAlternativeSummary = evaluation.DuplicateAlternativeSummary,
                     AvailableCapacity = evaluation.AvailableCapacity,
                     CapacityUtilization = evaluation.AvailableCapacity > 0
                         ? requiredCapacity / evaluation.AvailableCapacity
@@ -1430,6 +1449,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             public double ElementWeight { get; init; }
             public double RequiredCapacity { get; init; }
             public double? ChartCapacity { get; init; }
+            public int? SelectedVisualColumnIndex { get; init; }
+            public string SelectedVisualColumnHeader { get; init; } = string.Empty;
+            public int? SelectedNumberOfLines { get; init; }
+            public string SelectedOperatingConditionLabel { get; init; } = string.Empty;
+            public bool IsConservativeDuplicateFallback { get; init; }
+            public int DuplicateAlternativeCount { get; init; }
+            public string DuplicateAlternativeSummary { get; init; } = string.Empty;
             public double? AvailableCapacity { get; init; }
             public double? CapacityUtilization { get; init; }
             public double? CapacityMarginTons { get; init; }

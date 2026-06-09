@@ -271,7 +271,8 @@ namespace CraneOptimizer.Application.Tests.GA
                 SafetyFactor = 0.9,
                 UseHungarianAssignment = true,
                 EnableReachabilitySeeding = true,
-                EnableMultiStageDiscovery = true
+                EnableMultiStageDiscovery = true,
+                DiagnosticsLevel = CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings.DiagnosticsLevel.Research
             };
 
             var input = new PlacementInput

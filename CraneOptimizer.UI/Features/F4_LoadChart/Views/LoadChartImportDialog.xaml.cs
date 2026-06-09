@@ -199,6 +199,22 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 rawGrid.Add(row);
             }
 
+            var numberOfLinesRow = new List<string> { "Number of lines" };
+            bool hasNumberOfLines = false;
+            foreach (var column in orderedColumns)
+            {
+                int? numberOfLines = crane.Points
+                    .Where(point => point.VisualColumnIndex == column.Index)
+                    .Select(point => point.NumberOfLines)
+                    .FirstOrDefault(value => value.HasValue);
+
+                numberOfLinesRow.Add(numberOfLines?.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
+                hasNumberOfLines |= numberOfLines.HasValue;
+            }
+
+            if (hasNumberOfLines)
+                rawGrid.Add(numberOfLinesRow);
+
             return rawGrid;
         }
 
@@ -795,7 +811,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                         BoomLength = point.BoomLength,
                         Capacity = point.Capacity,
                         VisualColumnIndex = point.VisualColumnIndex,
-                        VisualColumnHeader = point.VisualColumnHeader
+                        VisualColumnHeader = point.VisualColumnHeader,
+                        NumberOfLines = point.NumberOfLines,
+                        OperatingConditionLabel = point.OperatingConditionLabel
                     })
                     .ToList(),
                 MinRadius = source.MinRadius,

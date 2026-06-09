@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.CreatedProject.CraneFiles;
+using CraneOptimizer.Domain.CreatedProject.CraneFiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -23,6 +23,11 @@ namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject.CreatedProjectCo
 
             entity.Property(x => x.VisualColumnHeader)
                 .HasMaxLength(120);
+
+            entity.Property(x => x.NumberOfLines);
+
+            entity.Property(x => x.OperatingConditionLabel)
+                .HasMaxLength(240);
 
             entity.Property(x => x.Notes)
                 .HasMaxLength(500);

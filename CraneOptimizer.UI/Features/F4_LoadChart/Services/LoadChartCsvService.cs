@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Entities;
+using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Units;
 using System.Data;
 using System.Globalization;
@@ -155,6 +155,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             }
 
             var points = new List<TargetPoint>();
+            var numberOfLinesByColumn = ExtractNumberOfLinesByColumn(table, boomLengths.Count);
             double? minRadius = null;
             double? maxRadius = null;
             double? minBoom = null;
@@ -166,6 +167,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
 
             foreach (DataRow row in table.Rows)
             {
+                if (IsNumberOfLinesRow(row))
+                    continue;
+
                 string radiusText = NormalizeGridNumber(row[0]?.ToString());
                 if (string.IsNullOrWhiteSpace(radiusText))
                     continue;
@@ -198,13 +202,20 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                     minBoom = !minBoom.HasValue || boomLength < minBoom.Value ? boomLength : minBoom;
                     maxBoom = !maxBoom.HasValue || boomLength > maxBoom.Value ? boomLength : maxBoom;
 
+                    int? numberOfLines = numberOfLinesByColumn.TryGetValue(i, out int parsedNumberOfLines)
+                        ? parsedNumberOfLines
+                        : null;
+                    string? visualColumnHeader = allowDuplicateBoomLengths ? boomHeaderLabels[i] : null;
+
                     points.Add(new TargetPoint
                     {
                         Radius = radius,
                         BoomLength = boomLength,
                         Capacity = capacity,
                         VisualColumnIndex = allowDuplicateBoomLengths ? i + 1 : null,
-                        VisualColumnHeader = allowDuplicateBoomLengths ? boomHeaderLabels[i] : null
+                        VisualColumnHeader = visualColumnHeader,
+                        NumberOfLines = numberOfLines,
+                        OperatingConditionLabel = BuildOperatingConditionLabel(visualColumnHeader, numberOfLines)
                     });
                 }
             }
@@ -742,7 +753,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             if (compact.Length == 0)
                 return false;
 
-            if (compact.All(character => character == '/' || character == '-' || character == '–' || character == '—'))
+            if (compact.All(character => character == '/' || character == '-' || character == '\u2013' || character == '\u2014'))
                 return false;
 
             return compact.Any(character => !char.IsWhiteSpace(character));
@@ -797,6 +808,137 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             return clean.Trim();
         }
 
+        private static Dictionary<int, int> ExtractNumberOfLinesByColumn(DataTable table, int boomColumnCount)
+        {
+            var result = new Dictionary<int, int>();
+
+            foreach (DataRow row in table.Rows)
+            {
+                if (!IsNumberOfLinesRow(row))
+                    continue;
+
+                for (int columnIndex = 1; columnIndex < table.Columns.Count && columnIndex <= boomColumnCount; columnIndex++)
+                {
+                    if (TryParseNumberOfLines(row[columnIndex]?.ToString(), out int numberOfLines))
+                        result[columnIndex - 1] = numberOfLines;
+                }
+            }
+
+            return result;
+        }
+
+        private static bool IsNumberOfLinesRow(DataRow row)
+        {
+            if (row == null)
+                return false;
+
+            for (int columnIndex = 0; columnIndex < row.Table.Columns.Count; columnIndex++)
+            {
+                if (IsNumberOfLinesLabel(row[columnIndex]?.ToString()))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsNumberOfLinesLabel(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            string compact = Regex.Replace(value.ToLowerInvariant(), @"[^a-z0-9]+", string.Empty);
+            if (compact.Length == 0)
+                return false;
+
+            return compact.Contains("numberoflines")
+                || compact.Contains("nooflines")
+                || compact.Contains("numberofline")
+                || compact.Contains("noofline")
+                || compact.Contains("numberofparts")
+                || compact.Contains("partsofline")
+                || compact.Contains("partsoflines")
+                || compact.Contains("partsofrope")
+                || compact.Contains("reeving")
+                || compact.Contains("lineparts")
+                || compact.Contains("linecount");
+        }
+
+        private static bool TryParseNumberOfLines(string? value, out int numberOfLines)
+        {
+            numberOfLines = 0;
+
+            string normalized = NormalizeGridNumber(value);
+            if (string.IsNullOrWhiteSpace(normalized))
+                return false;
+
+            if (!TryParseFlexibleNumber(normalized, out double parsed))
+                return false;
+
+            double rounded = Math.Round(parsed);
+            if (Math.Abs(parsed - rounded) > 0.001)
+                return false;
+
+            int candidate = (int)rounded;
+            if (candidate < 1 || candidate > 40)
+                return false;
+
+            numberOfLines = candidate;
+            return true;
+        }
+
+        private static string? BuildOperatingConditionLabel(string? visualColumnHeader, int? numberOfLines)
+        {
+            string header = NormalizeEngineeringOperatingConditionHeader(visualColumnHeader);
+
+            if (string.IsNullOrWhiteSpace(header) && !numberOfLines.HasValue)
+                return null;
+
+            if (!string.IsNullOrWhiteSpace(header))
+            {
+                if (numberOfLines.HasValue && !ContainsLineCountMetadata(header))
+                    return $"{header} / {numberOfLines.Value} lines";
+
+                return header;
+            }
+
+            return $"{numberOfLines!.Value} lines";
+        }
+
+        private static string NormalizeEngineeringOperatingConditionHeader(string? visualColumnHeader)
+        {
+            if (string.IsNullOrWhiteSpace(visualColumnHeader))
+                return string.Empty;
+
+            string clean = visualColumnHeader.Trim();
+            clean = clean.Replace('\u00A0', ' ');
+            clean = Regex.Replace(clean, @"\s+", " ").Trim();
+            clean = RemoveGeneratedVisualDuplicateDiscriminator(clean);
+            return Regex.Replace(clean, @"\s+", " ").Trim();
+        }
+
+        private static string RemoveGeneratedVisualDuplicateDiscriminator(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            string clean = value.Trim();
+            clean = Regex.Replace(clean, @"\s*\(([2-9]|[1-9][0-9])\)\s*$", string.Empty);
+            clean = Regex.Replace(clean, @"_([2-9]|[1-9][0-9])$", string.Empty);
+            return clean.Trim();
+        }
+
+        private static bool ContainsLineCountMetadata(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            string compact = Regex.Replace(value.ToLowerInvariant(), @"[^a-z0-9]+", string.Empty);
+            return compact.Contains("line")
+                || compact.Contains("part")
+                || compact.Contains("fall")
+                || compact.Contains("reev");
+        }
+
         public static string GetCapacityUnitSummary(ParsedLoadChart chart)
         {
             if (chart == null)
@@ -820,6 +962,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
 
             foreach (DataRow row in table.Rows)
             {
+                if (IsNumberOfLinesRow(row))
+                    continue;
+
                 for (int columnIndex = 1; columnIndex < table.Columns.Count; columnIndex++)
                 {
                     string rawCapacityText = row[columnIndex]?.ToString() ?? string.Empty;

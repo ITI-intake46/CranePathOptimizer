@@ -1,4 +1,4 @@
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.CraneConfiguration;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.LiftingCalculation;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
@@ -11,6 +11,7 @@ using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Schemas.Enums;
 using Xunit;
+using System.Text;
 
 namespace CraneOptimizer.Application.Tests.GA
 {
@@ -110,6 +111,44 @@ namespace CraneOptimizer.Application.Tests.GA
                     string[] matches = Directory.GetFiles(dir, searchPattern);
                     Assert.Empty(matches);
                 }
+            }
+            finally
+            {
+                GAProfiler.Reset();
+                DeleteTempDirectory(tempDirectory);
+            }
+        }
+
+        [Fact]
+        public void DiagnosticsLevel_Summary_ElementAssignmentsExposeSelectedLoadChartMetadata()
+        {
+            string tempDirectory = CreateTempDirectory();
+            try
+            {
+                GAProfiler.Reset();
+                var fixture = CreateFixture(tempDirectory, DiagnosticsLevel.Summary);
+                fixture.Service.GenerateDiagnostics(fixture.Input, fixture.Result);
+
+                List<Dictionary<string, string>> assignments = ReadRows(
+                    Path.Combine(tempDirectory, "ga_element_assignments.csv"));
+                Dictionary<string, string> row = assignments.Single(item => item["ElementId"] == "E1");
+
+                Assert.Equal("3", row["SelectedVisualColumnIndex"]);
+                Assert.Equal("39.1 rear", row["SelectedVisualColumnHeader"]);
+                Assert.Equal("8", row["SelectedNumberOfLines"]);
+                Assert.Equal("39.1 rear / 8 lines", row["SelectedOperatingConditionLabel"]);
+                Assert.Equal("true", row["IsConservativeDuplicateFallback"]);
+                Assert.Equal("2", row["DuplicateAlternativeCount"]);
+                Assert.Equal("col 2 lines 8 capacity 31.5; col 3 lines 6 capacity 30.0", row["DuplicateAlternativeSummary"]);
+
+                Dictionary<string, string> settings = ReadRows(
+                    Path.Combine(tempDirectory, "ga_settings_snapshot.csv")).Single();
+                Assert.Equal("Summary", settings["DiagnosticsLevel"]);
+
+                Dictionary<string, string> history = ReadRows(
+                    Path.Combine(tempDirectory, "ga_run_history.csv")).Single();
+                Assert.Equal("N/A", history["DetailedDiagnosticsCsvPath"]);
+                Assert.Empty(Directory.GetFiles(tempDirectory, "ga_diagnostics_*.csv"));
             }
             finally
             {
@@ -331,6 +370,13 @@ namespace CraneOptimizer.Application.Tests.GA
                 RequiredRadius = 5,
                 SelectedChartRadius = 5,
                 SelectedChartBoomLength = 10,
+                SelectedVisualColumnIndex = 3,
+                SelectedVisualColumnHeader = "39.1 rear",
+                SelectedNumberOfLines = 8,
+                SelectedOperatingConditionLabel = "39.1 rear / 8 lines",
+                IsConservativeDuplicateFallback = true,
+                DuplicateAlternativeCount = 2,
+                DuplicateAlternativeSummary = "col 2 lines 8 capacity 31.5; col 3 lines 6 capacity 30.0",
                 CraneBaseX = 0,
                 CraneBaseY = 0,
                 CraneBaseZ = 0,
@@ -428,6 +474,67 @@ namespace CraneOptimizer.Application.Tests.GA
             };
 
             return (service, input, result);
+        }
+
+        private static List<Dictionary<string, string>> ReadRows(string path)
+        {
+            string[] lines = File.ReadAllLines(path);
+            Assert.True(lines.Length >= 2, $"Expected at least one data row in {path}.");
+
+            string[] header = ParseCsvLine(lines[0]);
+            var rows = new List<Dictionary<string, string>>();
+
+            foreach (string line in lines.Skip(1).Where(value => !string.IsNullOrWhiteSpace(value)))
+            {
+                string[] values = ParseCsvLine(line);
+                Assert.Equal(header.Length, values.Length);
+
+                var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                for (int index = 0; index < header.Length; index++)
+                {
+                    row[header[index]] = values[index];
+                }
+
+                rows.Add(row);
+            }
+
+            return rows;
+        }
+
+        private static string[] ParseCsvLine(string line)
+        {
+            var values = new List<string>();
+            var current = new StringBuilder();
+            bool quoted = false;
+
+            for (int index = 0; index < line.Length; index++)
+            {
+                char character = line[index];
+                if (character == '"')
+                {
+                    if (quoted && index + 1 < line.Length && line[index + 1] == '"')
+                    {
+                        current.Append('"');
+                        index++;
+                    }
+                    else
+                    {
+                        quoted = !quoted;
+                    }
+                }
+                else if (character == ',' && !quoted)
+                {
+                    values.Add(current.ToString());
+                    current.Clear();
+                }
+                else
+                {
+                    current.Append(character);
+                }
+            }
+
+            values.Add(current.ToString());
+            return values.ToArray();
         }
 
         private static string CreateTempDirectory()

@@ -39,5 +39,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.DTOs
         double BoomLength,
         double Capacity,
         int? VisualColumnIndex = null,
-        string VisualColumnHeader = "");
+        string VisualColumnHeader = "",
+        int? NumberOfLines = null,
+        string OperatingConditionLabel = "");
 }
