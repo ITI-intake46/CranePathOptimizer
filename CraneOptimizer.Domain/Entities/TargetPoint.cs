@@ -1,4 +1,4 @@
-﻿namespace CraneOptimizer.Domain.Entities
+namespace CraneOptimizer.Domain.Entities
 {
     public class TargetPoint : BaseEntity
     {
@@ -20,6 +20,21 @@
         /// Example: 39.1 (2). This is presentation/audit metadata and is not used as a numeric boom length.
         /// </summary>
         public string? VisualColumnHeader { get; set; }
+
+        /// <summary>
+        /// Optional hoist reeving metadata imported from manufacturer load charts.
+        /// This is the per-visual-column "Number of lines" / parts-of-line value.
+        /// It is preserved for audit and setup review; capacity lookup still uses the rated chart values.
+        /// </summary>
+        public int? NumberOfLines { get; set; }
+
+        /// <summary>
+        /// Optional human-facing operating condition label imported from the selected
+        /// load-chart column or table context. This preserves provenance such as
+        /// "42.7 m / 4 lines", "4 falls", or "main boom - 4 parts" without
+        /// changing the numeric capacity value.
+        /// </summary>
+        public string? OperatingConditionLabel { get; set; }
 
         public int CraneSpecificationId { get; set; }
         public CraneSpecification CraneSpecification { get; set; } = null!;

@@ -1,4 +1,4 @@
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
@@ -73,6 +73,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         public string GenerateDiagnostics(PlacementInput input, PlacementResult finalResult)
         {
             var diagLevel = input.Settings?.DiagnosticsLevel ?? DiagnosticsLevel.Summary;
+            if (diagLevel == DiagnosticsLevel.Off)
+                return string.Empty;
 
             // 1. Resolve output folder
             string? reportsDir = input.DiagnosticsReportsDirectory;
@@ -206,6 +208,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         RequiredRadius = bestResult.RequiredRadius,
                         SelectedChartRadius = bestResult.SelectedChartRadius,
                         SelectedChartBoomLength = bestResult.SelectedChartBoomLength,
+                        SelectedVisualColumnIndex = bestResult.SelectedVisualColumnIndex,
+                        SelectedVisualColumnHeader = bestResult.SelectedVisualColumnHeader,
+                        SelectedNumberOfLines = bestResult.SelectedNumberOfLines,
+                        SelectedOperatingConditionLabel = bestResult.SelectedOperatingConditionLabel,
+                        IsConservativeDuplicateFallback = bestResult.IsConservativeDuplicateFallback,
+                        DuplicateAlternativeCount = bestResult.DuplicateAlternativeCount,
+                        DuplicateAlternativeSummary = bestResult.DuplicateAlternativeSummary,
                         CraneBaseX = bestResult.CraneBaseX,
                         CraneBaseY = bestResult.CraneBaseY,
                         CraneBaseZ = bestResult.CraneBaseZ,
@@ -263,6 +272,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         "AvailableCapacity", "LiftStatus", "IsLifted", "FailureReason", "FailureCategory", "SuggestedAction",
                         "ReachStatus", "ChartStatus", "IsExactMatch", "IsSteppedRadius", "IsBlankCell", "IsZeroCell", "SafetyMargin",
                         "LookupMode", "RequiredRadius", "SelectedChartRadius", "SelectedChartBoomLength",
+                        "SelectedVisualColumnIndex", "SelectedVisualColumnHeader", "SelectedNumberOfLines", "SelectedOperatingConditionLabel", "IsConservativeDuplicateFallback", "DuplicateAlternativeCount", "DuplicateAlternativeSummary",
                         "CraneBasePoint_Local", "CraneBasePoint_Survey", "SlewCenterPoint_Local", "SlewCenterPoint_Survey",
                         "BoomHingePoint_Local", "BoomHingePoint_Survey", "LoadPoint_Local", "LoadPoint_Survey",
                         "RadiusOriginType", "BoomOriginType",
@@ -357,6 +367,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                             row.RequiredRadius.ToString("0.###", Invariant),
                             row.SelectedChartRadius.ToString("0.###", Invariant),
                             row.SelectedChartBoomLength.ToString("0.###", Invariant),
+                            row.SelectedVisualColumnIndex?.ToString(Invariant) ?? string.Empty,
+                            Escape(row.SelectedVisualColumnHeader),
+                            row.SelectedNumberOfLines?.ToString(Invariant) ?? string.Empty,
+                            Escape(row.SelectedOperatingConditionLabel),
+                            row.IsConservativeDuplicateFallback ? "true" : "false",
+                            row.DuplicateAlternativeCount.ToString(Invariant),
+                            Escape(row.DuplicateAlternativeSummary),
                             Escape($"({row.CraneBaseX.ToString("0.###", Invariant)}; {row.CraneBaseY.ToString("0.###", Invariant)}; {row.CraneBaseZ.ToString("0.###", Invariant)})"),
                             Escape(FormatSurveyIfEnabled(row.CraneBaseX, row.CraneBaseY, row.CraneBaseZ)),
                             Escape($"({row.SlewCenterX.ToString("0.###", Invariant)}; {row.SlewCenterY.ToString("0.###", Invariant)}; {row.SlewCenterZ.ToString("0.###", Invariant)})"),
@@ -464,7 +481,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         "OptimizationRunId", "StageRunId", "DiagnosticsSchemaVersion",
                         "Timestamp", "ProjectName", "IfcFileName", "ElementGlobalId", "CandidatePointId", "CandidatePointIndex",
                         "CraneBasePoint", "SlewCenterPoint", "BoomHingePoint", "LoadPoint", "RequiredRadius", "RequiredBoomLength",
-                        "SelectedChartRadius", "SelectedChartBoomLength", "AvailableCapacity", "ReachStatus", "ChartStatus",
+                        "SelectedChartRadius", "SelectedChartBoomLength", "SelectedVisualColumnIndex", "SelectedVisualColumnHeader", "SelectedNumberOfLines",
+                        "SelectedOperatingConditionLabel", "IsConservativeDuplicateFallback", "DuplicateAlternativeCount", "DuplicateAlternativeSummary", "AvailableCapacity", "ReachStatus", "ChartStatus",
                         "LiftStatus", "FailureReason", "SafetyMargin", "CandidateBoomsChecked", "RejectedCandidates", "AssignmentScore"
                     }));
 
@@ -505,6 +523,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                                 er.BoomLength.ToString("0.###", Invariant),
                                 er.SelectedChartRadius.ToString("0.###", Invariant),
                                 er.SelectedChartBoomLength.ToString("0.###", Invariant),
+                                er.SelectedVisualColumnIndex?.ToString(Invariant) ?? string.Empty,
+                                Escape(er.SelectedVisualColumnHeader),
+                                er.SelectedNumberOfLines?.ToString(Invariant) ?? string.Empty,
+                                Escape(er.SelectedOperatingConditionLabel),
+                                er.IsConservativeDuplicateFallback ? "true" : "false",
+                                er.DuplicateAlternativeCount.ToString(Invariant),
+                                Escape(er.DuplicateAlternativeSummary),
                                 er.AvailableCapacity.ToString("0.###", Invariant),
                                 er.ReachStatus.ToString(),
                                 er.ChartStatus.ToString(),
@@ -712,7 +737,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     gc1,
                     gc2,
                     Escape(logPath),
-                    Escape(detailedPath),
+                    Escape(diagLevel >= DiagnosticsLevel.Research && File.Exists(detailedPath) ? detailedPath : "N/A"),
                     Escape(breakdownPath),
                     (_transformService?.IsEnabled ?? false).ToString(),
                     Escape(_transformService?.CurrentReference?.CoordinateSystemName ?? "N/A"),
@@ -1148,7 +1173,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             bool isResearch = diagLevel >= DiagnosticsLevel.Research;
             benchmarkV2Writer.Write(reportsDir, timeFormatted, input, finalResult, isResearch);
 
-            return diagLevel >= DiagnosticsLevel.Summary ? detailedPath : string.Empty;
+            return diagLevel >= DiagnosticsLevel.Research && File.Exists(detailedPath)
+                ? detailedPath
+                : string.Empty;
         }
 
         private static bool IsBetterThan(ElementEvaluationResult candidate, ElementEvaluationResult best)
@@ -1239,6 +1266,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             public double RequiredRadius { get; set; }
             public double SelectedChartRadius { get; set; }
             public double SelectedChartBoomLength { get; set; }
+            public int? SelectedVisualColumnIndex { get; set; }
+            public string SelectedVisualColumnHeader { get; set; } = "";
+            public int? SelectedNumberOfLines { get; set; }
+            public string SelectedOperatingConditionLabel { get; set; } = "";
+            public bool IsConservativeDuplicateFallback { get; set; }
+            public int DuplicateAlternativeCount { get; set; }
+            public string DuplicateAlternativeSummary { get; set; } = "";
             public double CraneBaseX { get; set; }
             public double CraneBaseY { get; set; }
             public double CraneBaseZ { get; set; }

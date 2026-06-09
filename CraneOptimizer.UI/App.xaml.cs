@@ -286,8 +286,11 @@ namespace CraneOptimizer.UI
                 await using var scope = ServiceProvider.CreateAsyncScope();
                 var context = scope.ServiceProvider.GetRequiredService<CraneDbContext>();
 
+                await SqliteMigrationCompatibilityGuard.EnsureCatalogOperatingConditionSchemaAsync(context);
+
                 await context.Database.MigrateAsync();
 
+                await SqliteMigrationCompatibilityGuard.EnsureCatalogOperatingConditionSchemaAsync(context);
                 var seeder = scope.ServiceProvider.GetRequiredService<CraneSeedService>();
                 await seeder.SeedAsync();
             }

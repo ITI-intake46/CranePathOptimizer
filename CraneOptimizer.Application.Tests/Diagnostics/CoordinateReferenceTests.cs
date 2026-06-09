@@ -416,7 +416,10 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
                 ProjectName = "ReportTest",
                 IfcFileName = "Model.ifc",
                 ProjectFolderPath = Path.GetTempPath(),
-                Settings = new CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings.GASettings(),
+                Settings = new CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings.GASettings
+                {
+                    DiagnosticsLevel = CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings.DiagnosticsLevel.Research
+                },
                 Elements = new List<PrecastElement>
                 {
                     new PrecastElement { ElementID = "E_001", ElementMark = "E1", ElementCOG = new DomainPoint3D(10, 20, 5), ElementWT = 5.0 }
@@ -901,7 +904,10 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
                 ProjectName = "DiagnosticsTest",
                 IfcFileName = "Model.ifc",
                 ProjectFolderPath = Path.GetTempPath(),
-                Settings = new CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings.GASettings(),
+                Settings = new CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings.GASettings
+                {
+                    DiagnosticsLevel = CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings.DiagnosticsLevel.Research
+                },
                 Elements = new List<PrecastElement>
                 {
                     new PrecastElement { ElementID = "E_001", ElementMark = "E1", ElementCOG = new DomainPoint3D(10, 20, 5), ElementWT = 5.0 }

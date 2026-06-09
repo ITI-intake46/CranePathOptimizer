@@ -124,6 +124,12 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             if (chart.Points.Count == 0 || chart.MaxCapacity <= 0)
                 throw new FormatException("The selected PDF table did not produce a valid crane load chart.");
 
+            int numberOfLinesColumns = chart.Points
+                .Where(point => point.NumberOfLines.HasValue)
+                .Select(point => point.VisualColumnIndex ?? -1)
+                .Distinct()
+                .Count(index => index > 0);
+
             var warnings = new List<string>
             {
                 $"PDF import used page {selectedTable.PageNumber}, table {selectedTable.TableIndex}."
@@ -142,6 +148,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             }
 
             warnings.Add(LoadChartCsvService.GetCapacityUnitSummary(chart));
+
+            if (numberOfLinesColumns > 0)
+            {
+                warnings.Add($"Detected and preserved Number of lines / parts-of-line metadata for {numberOfLinesColumns} visual boom column(s). This row is not treated as capacity data.");
+            }
 
             warnings.AddRange(hasSeparateImportGrid
                 ? NormalizeExactVisualImportWarnings(selectedTable.Warnings)
@@ -162,7 +173,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                     ? "Exact PDF Visual Load Chart"
                     : string.Empty,
                 ExactVisualPreviewDescription = hasSeparateImportGrid
-                    ? $"Full PDF visual table: {selectedTable.BoomColumnCount} visual boom column(s) x {selectedTable.RadiusRowCount} radius row(s). Save Crane now saves this exact visual chart. Duplicate numeric boom columns are preserved with visual column metadata; optimization uses the conservative minimum capacity across duplicates."
+                    ? $"Full PDF visual table: {selectedTable.BoomColumnCount} visual boom column(s) x {selectedTable.RadiusRowCount} radius row(s). Save Crane now saves this exact visual chart. Duplicate numeric boom columns are preserved with visual column metadata; optimization uses the conservative minimum capacity across duplicates." +
+                      (numberOfLinesColumns > 0 ? $" Number of lines metadata is preserved for {numberOfLinesColumns} visual boom column(s)." : string.Empty)
                     : string.Empty
             };
         }
@@ -290,7 +302,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             };
         }
 
-        private static List<PdfTableCandidateDto> ExtractTableCandidates(
+                private static List<PdfTableCandidateDto> ExtractTableCandidates(
             List<List<PdfWordInfo>> rows,
             int pageNumber,
             List<PdfWordInfo> allWords)
@@ -321,6 +333,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                     if (IsLikelyMetadataCandidate(candidate))
                         continue;
 
+                    if (IsLikelyBodyFragmentCandidate(candidate))
+                        continue;
+
                     if (IsDuplicateCandidate(candidates, candidate))
                         continue;
 
@@ -333,6 +348,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 foreach (var fallbackCandidate in BuildUniversalGeometryFallbackCandidates(rows, pageNumber, allWords, candidates.Count + 1))
                 {
                     if (IsLikelyMetadataCandidate(fallbackCandidate))
+                        continue;
+
+                    if (IsLikelyBodyFragmentCandidate(fallbackCandidate))
                         continue;
 
                     if (IsDuplicateCandidate(candidates, fallbackCandidate))
@@ -585,8 +603,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 return null;
 
             bool usesPhysicalLaneReconstruction = HasDuplicateNumericValues(candidateGrid.HeaderValues);
+            var columnCenters = ResolveCandidateColumnCenters(header, candidateGrid, usesPhysicalLaneReconstruction);
+            var rawGridWithNumberOfLines = AppendNumberOfLinesRowIfPresent(candidateGrid.RawGrid, rows, header, columnCenters);
+            int numberOfLinesMetadataColumns = CountNumberOfLinesMetadataCells(rawGridWithNumberOfLines);
             var importGrid = usesPhysicalLaneReconstruction
-                ? BuildConservativeImportGrid(candidateGrid.RawGrid)
+                ? BuildConservativeImportGrid(rawGridWithNumberOfLines)
                 : new List<List<string>>();
 
             var boundsWords = includeHeaderInBounds
@@ -630,6 +651,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             if (candidateGrid.ColumnCount < 4)
                 warnings.Add("This candidate has very few boom columns and may not be a normal load chart.");
 
+            if (numberOfLinesMetadataColumns > 0)
+                warnings.Add($"Detected Number of lines / parts-of-line metadata for {numberOfLinesMetadataColumns} visual boom column(s); this metadata row is preserved but excluded from capacity parsing.");
+
             if (!HasLoadChartKeywords(allWords))
                 warnings.Add("Nearby load-chart keywords were not detected. This can be normal in multilingual manufacturer PDFs; verify the parsed grid before saving.");
 
@@ -652,7 +676,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 Score = candidateGrid.Score,
                 ConfidenceLabel = GetConfidenceLabel(candidateGrid.Score),
                 Summary = summary,
-                RawGrid = candidateGrid.RawGrid,
+                RawGrid = rawGridWithNumberOfLines,
                 ImportGrid = importGrid,
                 Warnings = warnings.Distinct().ToList()
             };
@@ -1219,20 +1243,36 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             return laneCenters.Count - 1;
         }
 
-        private static int GetConditionMarkerPriority(string marker)
+                private static int GetConditionMarkerPriority(string marker)
         {
-            return marker switch
-            {
-                "*" => 100,
-                "â€ " => 95,
-                "#" => 90,
-                "360Â°" => 80,
-                "rear" => 70,
-                "front" => 70,
-                "side" => 70,
-                "over" => 60,
-                _ => 10
-            };
+            if (string.IsNullOrWhiteSpace(marker))
+                return 0;
+
+            if (marker.Equals("*", StringComparison.Ordinal))
+                return 100;
+
+            if (marker.Equals("\u2020", StringComparison.Ordinal))
+                return 95;
+
+            if (marker.Equals("#", StringComparison.Ordinal))
+                return 90;
+
+            if (marker.Contains("360", StringComparison.OrdinalIgnoreCase))
+                return 80;
+
+            if (marker.Contains("rear", StringComparison.OrdinalIgnoreCase))
+                return 70;
+
+            if (marker.Contains("front", StringComparison.OrdinalIgnoreCase))
+                return 70;
+
+            if (marker.Contains("side", StringComparison.OrdinalIgnoreCase))
+                return 70;
+
+            if (marker.Contains("over", StringComparison.OrdinalIgnoreCase))
+                return 60;
+
+            return 10;
         }
 
         private static bool TryInferLocalHeaderLabelBand(
@@ -1352,10 +1392,10 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             return value > 0 && value <= 1000;
         }
 
-        private static bool IsConditionSymbolMarkerWord(PdfWordInfo word)
+                private static bool IsConditionSymbolMarkerWord(PdfWordInfo word)
         {
             string marker = NormalizeConditionMarker(word.Text);
-            return marker is "*" or "â€ " or "#";
+            return marker is "*" or "\u2020" or "#";
         }
 
         private sealed record ConditionMarkerCandidate(
@@ -1406,26 +1446,28 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             return !string.IsNullOrWhiteSpace(NormalizeConditionMarker(word.Text));
         }
 
-        private static string NormalizeConditionMarker(string? text)
+                private static string NormalizeConditionMarker(string? text)
         {
             if (string.IsNullOrWhiteSpace(text))
                 return string.Empty;
 
-            string normalized = text
-                .Trim()
-                .Replace("â”¬â–‘", "Â°", StringComparison.Ordinal)
-                .Replace("Âº", "Â°", StringComparison.Ordinal)
-                .Replace("Ëš", "Â°", StringComparison.Ordinal);
+            string normalized = text.Trim();
+            string compact = Regex.Replace(normalized, @"\s+", string.Empty);
 
-            if (normalized.Equals("*", StringComparison.Ordinal)
-                || normalized.Equals("â€ ", StringComparison.Ordinal)
-                || normalized.Equals("#", StringComparison.Ordinal))
+            if (compact.Equals("*", StringComparison.Ordinal))
+                return "*";
+
+            if (compact.Equals("#", StringComparison.Ordinal))
+                return "#";
+
+            // PDF text extraction can emit degree symbols through several encoding paths.
+            // Keep the legacy internal marker representation expected by the existing
+            // regression tests, while detecting the marker semantically by the 360 token.
+            if (normalized.Contains("360", StringComparison.OrdinalIgnoreCase)
+                || compact.Contains("360", StringComparison.OrdinalIgnoreCase))
             {
-                return normalized;
+                return "360\u00C2\u00B0";
             }
-
-            if (normalized.Contains("360", StringComparison.OrdinalIgnoreCase))
-                return "360Â°";
 
             if (normalized.Contains("rear", StringComparison.OrdinalIgnoreCase))
                 return "rear";
@@ -1439,7 +1481,21 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             if (normalized.Contains("over", StringComparison.OrdinalIgnoreCase))
                 return "over";
 
+            if (LooksLikeStandaloneConditionSymbol(compact))
+                return "\u2020";
+
             return string.Empty;
+        }
+
+        private static bool LooksLikeStandaloneConditionSymbol(string compact)
+        {
+            if (string.IsNullOrWhiteSpace(compact))
+                return false;
+
+            if (compact.Length > 12)
+                return false;
+
+            return compact.Any(character => !char.IsLetterOrDigit(character));
         }
 private static List<double> InferPhysicalCapacityLaneCenters(
             List<RowStreamData> streamRows,
@@ -1753,11 +1809,92 @@ private static List<double> InferPhysicalCapacityLaneCenters(
             return Math.Max(0, nearest);
         }
 
-        private static bool IsStrongTableCandidate(PdfTableCandidateDto candidate)
+                private static bool IsStrongTableCandidate(PdfTableCandidateDto candidate)
         {
-            return candidate.BoomColumnCount >= 3
+            return !IsLikelyBodyFragmentCandidate(candidate)
+                && candidate.BoomColumnCount >= 3
                 && candidate.RadiusRowCount >= 6
                 && candidate.NonEmptyCapacityCellCount >= Math.Max(18, candidate.BoomColumnCount * 2);
+        }
+
+        private static bool IsLikelyBodyFragmentCandidate(PdfTableCandidateDto candidate)
+        {
+            if (candidate == null || candidate.RawGrid.Count < 3)
+                return false;
+
+            var headerValues = GetCandidateHeaderValues(candidate)
+                .Where(value => value > 0 && value < 500)
+                .ToList();
+
+            if (headerValues.Count < 3)
+                return false;
+
+            var radiusValues = GetCandidateRadiusValues(candidate)
+                .Where(value => value > 0 && value < 500)
+                .ToList();
+
+            if (radiusValues.Count < MinimumRadiusRowCount)
+                return false;
+
+            double medianHeader = GetMedianCandidateValue(headerValues);
+            double medianRadius = GetMedianCandidateValue(radiusValues);
+            double minRadius = radiusValues.Min();
+            double trimmedHeaderMax = GetUpperCandidateQuantileValue(headerValues, 0.75);
+            double smallHeaderRatio = headerValues.Count(value => value <= 8.0) / (double)headerValues.Count;
+
+            bool capacityValuesUsedAsHeaders =
+                smallHeaderRatio >= 0.60
+                && medianHeader <= 8.0
+                && minRadius >= 20.0;
+
+            bool radiusScaleFarExceedsHeaderScale =
+                medianHeader <= 12.0
+                && medianRadius >= 24.0
+                && medianRadius > Math.Max(1.0, medianHeader) * 3.0;
+
+            bool lowerTailWithSingleRadiusOutlierHeader =
+                smallHeaderRatio >= 0.55
+                && trimmedHeaderMax <= 10.0
+                && minRadius >= 30.0;
+
+            return capacityValuesUsedAsHeaders
+                || radiusScaleFarExceedsHeaderScale
+                || lowerTailWithSingleRadiusOutlierHeader;
+        }
+
+        private static List<double> GetCandidateRadiusValues(PdfTableCandidateDto candidate)
+        {
+            return candidate.RawGrid
+                .Skip(1)
+                .Where(row => row.Count > 0 && !IsNumberOfLinesLabel(row[0]))
+                .Select(row => TryExtractNumber(row[0], out double value) ? (double?)value : null)
+                .Where(value => value.HasValue)
+                .Select(value => value!.Value)
+                .ToList();
+        }
+
+        private static double GetMedianCandidateValue(IReadOnlyList<double> values)
+        {
+            if (values.Count == 0)
+                return 0;
+
+            var ordered = values.OrderBy(value => value).ToList();
+            int middle = ordered.Count / 2;
+
+            return ordered.Count % 2 == 1
+                ? ordered[middle]
+                : (ordered[middle - 1] + ordered[middle]) / 2.0;
+        }
+
+        private static double GetUpperCandidateQuantileValue(IReadOnlyList<double> values, double quantile)
+        {
+            if (values.Count == 0)
+                return 0;
+
+            var ordered = values.OrderBy(value => value).ToList();
+            double clamped = Math.Max(0.0, Math.Min(1.0, quantile));
+            int index = (int)Math.Round((ordered.Count - 1) * clamped);
+            return ordered[Math.Max(0, Math.Min(index, ordered.Count - 1))];
         }
 
         private static List<PdfTableCandidateDto> BuildUniversalGeometryFallbackCandidates(
@@ -2095,9 +2232,15 @@ private static List<double> InferPhysicalCapacityLaneCenters(
                 boundsWords = usedRows.SelectMany(row => row).ToList();
 
             bool consolidatedDuplicateHeaders = region.HeaderRuns.Any(run => run.Tokens.Count > 1);
+            var rawGridWithNumberOfLines = AppendNumberOfLinesRowIfPresent(
+                rawGrid,
+                rows,
+                header,
+                region.HeaderRuns.Select(run => (run.Left + run.Right) / 2.0).ToList());
             var exactVisualGrid = consolidatedDuplicateHeaders
                 ? BuildExactVisualGrid(rows, header, region)
-                : rawGrid;
+                : rawGridWithNumberOfLines;
+            int numberOfLinesMetadataColumns = CountNumberOfLinesMetadataCells(exactVisualGrid);
             int visualColumnCount = Math.Max(
                 region.HeaderRuns.Sum(run => run.Tokens.Count),
                 Math.Max(columnCount, (exactVisualGrid.FirstOrDefault()?.Count ?? 1) - 1));
@@ -2142,6 +2285,9 @@ private static List<double> InferPhysicalCapacityLaneCenters(
             if (density < 0.25)
                 warnings.Add("This extracted region has sparse cells. Verify that the selected table is the intended load chart.");
 
+            if (numberOfLinesMetadataColumns > 0)
+                warnings.Add($"Detected Number of lines / parts-of-line metadata for {numberOfLinesMetadataColumns} visual boom column(s); this metadata row is preserved but excluded from capacity parsing.");
+
             return new PdfTableCandidateDto
             {
                 PageNumber = pageNumber,
@@ -2151,15 +2297,15 @@ private static List<double> InferPhysicalCapacityLaneCenters(
                 Top = boundsWords.Count == 0 ? 0 : boundsWords.Max(word => word.Top),
                 Bottom = boundsWords.Count == 0 ? 0 : boundsWords.Min(word => word.Bottom),
                 BoomColumnCount = consolidatedDuplicateHeaders ? visualColumnCount : columnCount,
-                RadiusRowCount = consolidatedDuplicateHeaders ? Math.Max(radiusRows, exactVisualGrid.Count - 1) : radiusRows,
+                RadiusRowCount = consolidatedDuplicateHeaders ? Math.Max(radiusRows, CountCapacityRows(exactVisualGrid)) : radiusRows,
                 NonEmptyCapacityCellCount = consolidatedDuplicateHeaders ? Math.Max(nonEmptyCells, exactVisualCellCount) : nonEmptyCells,
                 Score = score,
                 ConfidenceLabel = consolidatedDuplicateHeaders ? "Envelope review" : GetConfidenceLabel(score),
                 Summary = consolidatedDuplicateHeaders
-                    ? $"{visualColumnCount} exact visual boom columns ({uniqueBoomLengthCount} unique boom lengths), {Math.Max(radiusRows, exactVisualGrid.Count - 1)} radius rows. Import uses envelope fallback density {density:P0}."
+                    ? $"{visualColumnCount} exact visual boom columns ({uniqueBoomLengthCount} unique boom lengths), {Math.Max(radiusRows, CountCapacityRows(exactVisualGrid))} radius rows. Import uses envelope fallback density {density:P0}."
                     : $"{columnCount} boom columns, {radiusRows} radius rows, geometry fallback density {density:P0}.",
-                RawGrid = consolidatedDuplicateHeaders ? exactVisualGrid : rawGrid,
-                ImportGrid = consolidatedDuplicateHeaders ? rawGrid : new List<List<string>>(),
+                RawGrid = consolidatedDuplicateHeaders ? exactVisualGrid : rawGridWithNumberOfLines,
+                ImportGrid = consolidatedDuplicateHeaders ? rawGridWithNumberOfLines : new List<List<string>>(),
                 Warnings = warnings.Distinct().ToList()
             };
         }
@@ -2264,7 +2410,161 @@ private static List<double> InferPhysicalCapacityLaneCenters(
                 skippedRowsAfterStart = 0;
             }
 
-            return exactGrid;
+            return AppendNumberOfLinesRowIfPresent(
+                exactGrid,
+                rows,
+                header,
+                visualColumns.Select(column => column.CenterX).ToList());
+        }
+
+        private static List<double> ResolveCandidateColumnCenters(
+            HeaderCandidate header,
+            CandidateGrid candidateGrid,
+            bool usesPhysicalLaneReconstruction)
+        {
+            var orderedHeaderTokens = header.Numbers
+                .OrderBy(token => token.Word.CenterX)
+                .ToList();
+
+            if (usesPhysicalLaneReconstruction)
+            {
+                var inferredCenters = InferPhysicalCapacityLaneCenters(candidateGrid.UsedRows, orderedHeaderTokens);
+                if (inferredCenters.Count == candidateGrid.ColumnCount)
+                    return inferredCenters;
+            }
+
+            return orderedHeaderTokens
+                .Take(candidateGrid.ColumnCount)
+                .Select(token => token.Word.CenterX)
+                .ToList();
+        }
+
+        private static List<List<string>> AppendNumberOfLinesRowIfPresent(
+            IReadOnlyList<List<string>> rawGrid,
+            List<List<PdfWordInfo>> rows,
+            HeaderCandidate header,
+            IReadOnlyList<double> columnCenters)
+        {
+            var result = rawGrid.Select(row => row.ToList()).ToList();
+
+            if (result.Count == 0 || columnCenters.Count == 0 || HasNumberOfLinesRow(result))
+                return result;
+
+            var candidates = rows
+                .Skip(header.RowIndex + 1)
+                .Where(IsNumberOfLinesPdfRow)
+                .Select(row => TryBuildNumberOfLinesGridRow(row, columnCenters))
+                .Where(row => row != null)
+                .Select(row => row!)
+                .OrderByDescending(row => CountNumberOfLinesMetadataCells(new[] { row }))
+                .ToList();
+
+            var selected = candidates.FirstOrDefault();
+            if (selected == null)
+                return result;
+
+            result.Add(selected);
+            return result;
+        }
+
+        private static bool HasNumberOfLinesRow(IReadOnlyList<List<string>> rawGrid)
+        {
+            return rawGrid.Any(row => row.Count > 0 && IsNumberOfLinesLabel(row[0]));
+        }
+
+        private static List<string>? TryBuildNumberOfLinesGridRow(
+            List<PdfWordInfo> row,
+            IReadOnlyList<double> columnCenters)
+        {
+            if (columnCenters.Count == 0)
+                return null;
+
+            var output = Enumerable.Repeat(string.Empty, columnCenters.Count + 1).ToList();
+            output[0] = "Number of lines";
+
+            var numericTokens = GetNumericTokens(row)
+                .Where(token => TryConvertToLineCount(token.Value, out _))
+                .OrderBy(token => token.Word.CenterX)
+                .ToList();
+
+            foreach (var token in numericTokens)
+            {
+                if (!TryConvertToLineCount(token.Value, out int lineCount))
+                    continue;
+
+                int columnIndex = GetExclusiveLaneIndex(token.Word.CenterX, columnCenters);
+                if (columnIndex < 0 || columnIndex >= columnCenters.Count)
+                    continue;
+
+                if (!IsWithinHeaderColumnAssignmentRegion(columnCenters, columnIndex, token.Word.CenterX))
+                    continue;
+
+                output[columnIndex + 1] = lineCount.ToString(CultureInfo.InvariantCulture);
+            }
+
+            int assignedCount = CountNumberOfLinesMetadataCells(new[] { output });
+            int minimumAssigned = Math.Max(2, Math.Min(4, columnCenters.Count / 4));
+            return assignedCount >= minimumAssigned ? output : null;
+        }
+
+        private static bool IsNumberOfLinesPdfRow(List<PdfWordInfo> row)
+        {
+            string text = string.Join(" ", row.Select(word => word.Text));
+            return IsNumberOfLinesLabel(text);
+        }
+
+        private static bool IsNumberOfLinesLabel(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            string compact = Regex.Replace(value.ToLowerInvariant(), @"[^a-z0-9]+", string.Empty);
+            if (compact.Length == 0)
+                return false;
+
+            return compact.Contains("numberoflines")
+                || compact.Contains("numberofline")
+                || compact.Contains("nooflines")
+                || compact.Contains("noofline")
+                || compact.Contains("numberofparts")
+                || compact.Contains("partsofline")
+                || compact.Contains("partsoflines")
+                || compact.Contains("partsofrope")
+                || compact.Contains("reeving")
+                || compact.Contains("lineparts")
+                || compact.Contains("linecount");
+        }
+
+        private static bool TryConvertToLineCount(double value, out int lineCount)
+        {
+            lineCount = 0;
+            double rounded = Math.Round(value);
+            if (Math.Abs(value - rounded) > 0.001)
+                return false;
+
+            int candidate = (int)rounded;
+            if (candidate < 1 || candidate > 40)
+                return false;
+
+            lineCount = candidate;
+            return true;
+        }
+
+        private static int CountNumberOfLinesMetadataCells(IEnumerable<List<string>> rows)
+        {
+            return rows
+                .Where(row => row.Count > 0 && IsNumberOfLinesLabel(row[0]))
+                .Sum(row => row.Skip(1).Count(cell => TryExtractNumber(cell, out double value) && TryConvertToLineCount(value, out _)));
+        }
+
+        private static int CountCapacityRows(IReadOnlyList<List<string>> rawGrid)
+        {
+            if (rawGrid.Count <= 1)
+                return 0;
+
+            return rawGrid
+                .Skip(1)
+                .Count(row => row.Count > 0 && !IsNumberOfLinesLabel(row[0]));
         }
 
         private static int CountNonEmptyCapacityCells(IReadOnlyList<List<string>> rawGrid)
@@ -2274,6 +2574,7 @@ private static List<double> InferPhysicalCapacityLaneCenters(
 
             return rawGrid
                 .Skip(1)
+                .Where(row => row.Count > 0 && !IsNumberOfLinesLabel(row[0]))
                 .Sum(row => row.Skip(1).Count(cell => !string.IsNullOrWhiteSpace(cell)));
         }
         private static NumericToken? FindUniversalGeometryRadiusToken(

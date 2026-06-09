@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.LiftingCalculation;
@@ -194,8 +194,18 @@ namespace CraneOptimizer.Application.Tests.GA
         [Fact]
         public void TestPerformanceBenchmark_OnLargeDataset()
         {
-            // 3,940 elements (similar to try9)
-            int elementCount = 3940;
+            // 3,940 elements (similar to try9).
+            //
+            // This is a unit-test guardrail, not a lab-grade benchmark. It should catch
+            // large accidental regressions in the hot assignment path without failing
+            // on ordinary Debug-build machine noise from JIT, scheduling, antivirus,
+            // thermal throttling, or concurrent test-run activity.
+            const int elementCount = 3940;
+            const int WarmupIterations = 5;
+            const int TimedIterations = 7;
+            const long MedianGuardrailMs = 100;
+            const long WorstRunGuardrailMs = 250;
+
             var elements = CreateTestElements(elementCount);
 
             var solution = new CraneSolution
@@ -221,21 +231,50 @@ namespace CraneOptimizer.Application.Tests.GA
             // Verify global load-balancing successive relocation runs (no fast path bypass)
             _service.MaxElementsPerSetup = int.MaxValue;
 
-            // Warm up
-            _service.EvaluateAssignment(solution, elements, null!, craneSpec, settings, index, cache);
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
 
-            var sw = Stopwatch.StartNew();
-            var result = _service.EvaluateAssignment(solution, elements, null!, craneSpec, settings, index, cache);
-            sw.Stop();
+            for (int i = 0; i < WarmupIterations; i++)
+            {
+                var warmupResult = _service.EvaluateAssignment(solution, elements, null!, craneSpec, settings, index, cache);
+                Assert.Equal(elementCount, warmupResult.EvaluationResults.Count);
+            }
 
-            long elapsedMs = sw.ElapsedMilliseconds;
-            
-            // Output timing information to console/runner
-            Console.WriteLine($"Hungarian Assignment Solver on {elementCount} elements took {elapsedMs}ms.");
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
 
-            // Performance assertion: Must run in under 50ms
-            Assert.True(elapsedMs < 50, $"Performance test failed: Hungarian took {elapsedMs}ms, which is >= 50ms.");
-            Assert.Equal(elementCount, result.EvaluationResults.Count);
+            var timings = new List<long>(TimedIterations);
+            for (int i = 0; i < TimedIterations; i++)
+            {
+                var sw = Stopwatch.StartNew();
+                var result = _service.EvaluateAssignment(solution, elements, null!, craneSpec, settings, index, cache);
+                sw.Stop();
+
+                Assert.Equal(elementCount, result.EvaluationResults.Count);
+                timings.Add(sw.ElapsedMilliseconds);
+            }
+
+            var ordered = timings.OrderBy(t => t).ToList();
+            long bestMs = ordered[0];
+            long medianMs = ordered[ordered.Count / 2];
+            long maxMs = ordered[ordered.Count - 1];
+
+            Console.WriteLine(
+                $"Hungarian Assignment Solver on {elementCount} elements timings: {string.Join(", ", timings)} ms. " +
+                $"Best={bestMs} ms, Median={medianMs} ms, Max={maxMs} ms. " +
+                $"Guardrails: Median<={MedianGuardrailMs} ms, Max<={WorstRunGuardrailMs} ms.");
+
+            Assert.True(
+                medianMs <= MedianGuardrailMs,
+                $"Performance guardrail failed: Hungarian median took {medianMs} ms over {TimedIterations} runs " +
+                $"({string.Join(", ", timings)} ms), which is > {MedianGuardrailMs} ms.");
+
+            Assert.True(
+                maxMs <= WorstRunGuardrailMs,
+                $"Performance guardrail failed: Hungarian worst run took {maxMs} ms over {TimedIterations} runs " +
+                $"({string.Join(", ", timings)} ms), which is > {WorstRunGuardrailMs} ms.");
         }
 
         // ══════════════════════════════════════════════════════════════

@@ -601,6 +601,7 @@ namespace CraneOptimizer.Application.Tests
                         ElementWT = 1.0 // extremely light
                     });
                 }
+                settings.DiagnosticsLevel = CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings.DiagnosticsLevel.Research;
                 var inputHigh = CreateInput("High Coverage Project", lightElements, allowedZone, forbiddenZone, craneSpec, settings);
                 inputHigh.ProjectFolderPath = tempProjectFolder;
                 inputHigh.DiagnosticsReportsDirectory = System.IO.Path.Combine(tempProjectFolder, "Reports", "GA");

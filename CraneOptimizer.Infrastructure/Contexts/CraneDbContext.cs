@@ -45,6 +45,11 @@ namespace CraneOptimizer.Infrastructure.Contexts
             {
                 entity.Property(t => t.VisualColumnHeader)
                     .HasMaxLength(120);
+
+                entity.Property(t => t.NumberOfLines);
+
+                entity.Property(t => t.OperatingConditionLabel)
+                    .HasMaxLength(240);
             });
 
             modelBuilder.Entity<Project>(entity =>

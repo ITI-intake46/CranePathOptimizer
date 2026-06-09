@@ -36,6 +36,13 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("NumberOfLines")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OperatingConditionLabel")
+                        .HasMaxLength(240)
+                        .HasColumnType("TEXT");
+
                     b.Property<double>("RadiusM")
                         .HasColumnType("REAL");
 

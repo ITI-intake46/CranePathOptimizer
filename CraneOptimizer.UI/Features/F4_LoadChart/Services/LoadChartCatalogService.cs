@@ -96,7 +96,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                         BoomLength = point.BoomLength,
                         Capacity = point.Capacity,
                         VisualColumnIndex = point.VisualColumnIndex,
-                        VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader
+                        VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader,
+                        NumberOfLines = point.NumberOfLines,
+                        OperatingConditionLabel = string.IsNullOrWhiteSpace(point.OperatingConditionLabel) ? null : point.OperatingConditionLabel
                     });
                 }
             }
@@ -151,7 +153,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                         point.BoomLength,
                         point.Capacity,
                         point.VisualColumnIndex,
-                        point.VisualColumnHeader ?? string.Empty))
+                        point.VisualColumnHeader ?? string.Empty,
+                        point.NumberOfLines,
+                        point.OperatingConditionLabel ?? string.Empty))
                     .ToList(),
                 parsedChart.LoadChartStorageMode,
                 parsedChart.LoadChartCapacityPolicy,
@@ -181,7 +185,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                         BoomLength = point.BoomLength,
                         Capacity = point.Capacity,
                         VisualColumnIndex = point.VisualColumnIndex,
-                        VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader
+                        VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader,
+                        NumberOfLines = point.NumberOfLines,
+                        OperatingConditionLabel = string.IsNullOrWhiteSpace(point.OperatingConditionLabel) ? null : point.OperatingConditionLabel
                     })
                     .ToList()
             };

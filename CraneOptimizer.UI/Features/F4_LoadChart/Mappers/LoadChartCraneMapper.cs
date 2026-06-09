@@ -21,7 +21,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Mappers
                     point.BoomLength,
                     point.Capacity,
                     point.VisualColumnIndex,
-                    point.VisualColumnHeader ?? string.Empty))
+                    point.VisualColumnHeader ?? string.Empty,
+                    point.NumberOfLines,
+                    point.OperatingConditionLabel ?? string.Empty))
                 .ToList()
                 ?? new List<LoadChartPointDto>();
 
@@ -87,7 +89,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Mappers
                                 BoomLength = point.BoomLength,
                                 Capacity = point.Capacity,
                                 VisualColumnIndex = point.VisualColumnIndex,
-                                VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader
+                                VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader,
+                                NumberOfLines = point.NumberOfLines,
+                                OperatingConditionLabel = string.IsNullOrWhiteSpace(point.OperatingConditionLabel) ? null : point.OperatingConditionLabel
                             })
                             .ToList()
                     }

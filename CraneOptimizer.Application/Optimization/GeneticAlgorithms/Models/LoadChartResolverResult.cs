@@ -6,6 +6,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
         public double RequiredBoomLength { get; set; }
         public double SelectedChartRadius { get; set; }
         public double SelectedChartBoomLength { get; set; }
+        public int? SelectedVisualColumnIndex { get; set; }
+        public string SelectedVisualColumnHeader { get; set; } = string.Empty;
+        public int? SelectedNumberOfLines { get; set; }
+        public string SelectedOperatingConditionLabel { get; set; } = string.Empty;
+        public bool IsConservativeDuplicateFallback { get; set; }
+        public int DuplicateAlternativeCount { get; set; }
+        public string DuplicateAlternativeSummary { get; set; } = string.Empty;
         public double ElementWeight { get; set; }
         public double AvailableCapacity { get; set; }
         public ReachStatus ReachStatus { get; set; }

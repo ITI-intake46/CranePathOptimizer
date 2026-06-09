@@ -242,6 +242,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public DiagnosticsLevel DiagnosticsLevel { get; set; } = DiagnosticsLevel.Summary;
 
         /// <summary>
+        /// Optional load-chart condition constraint supplied by the user/run context.
+        /// Null means the resolver keeps the existing conservative duplicate-column policy.
+        /// When set, only load-chart entries whose imported NumberOfLines metadata matches
+        /// this value are eligible for capacity selection.
+        /// </summary>
+        public int? LoadChartNumberOfLinesConstraint { get; set; }
+
+        /// <summary>
+        /// Optional load-chart operating-condition constraint supplied by the user/run context.
+        /// The resolver matches this against imported per-entry OperatingConditionLabel and
+        /// VisualColumnHeader text. Null/empty means no label constraint.
+        /// </summary>
+        public string? LoadChartOperatingConditionConstraint { get; set; }
+
+        /// <summary>
         /// Slew center horizontal offset X relative to crane base.
         /// </summary>
         public double SlewOffsetX { get; set; } = 0.0;

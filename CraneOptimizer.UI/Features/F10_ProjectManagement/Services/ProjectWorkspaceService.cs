@@ -53,8 +53,9 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             CreateProjectFolders(projectFolderPath);
 
             await using var projectContext = CreatedProjectDbContextFactory.Create(projectFolderPath);
+            await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectOperatingConditionSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
             await projectContext.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
-
+            await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectOperatingConditionSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
             var projectInfo = new ProjectInfoEntity
             {
                 ProjectGuid = projectId.ToString("N"),
@@ -112,8 +113,9 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             var now = DateTime.UtcNow;
 
             await using var projectContext = CreatedProjectDbContextFactory.Create(project.ProjectFolderPath);
+            await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectOperatingConditionSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
             await projectContext.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
-
+            await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectOperatingConditionSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
             var projectInfo = await projectContext.ProjectInfo
                 .OrderBy(x => x.Id)
                 .FirstOrDefaultAsync(cancellationToken)
@@ -151,8 +153,9 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             var now = DateTime.UtcNow;
 
             await using var projectContext = CreatedProjectDbContextFactory.Create(normalizedProjectFolderPath);
+            await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectOperatingConditionSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
             await projectContext.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
-
+            await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectOperatingConditionSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
             var projectInfo = await projectContext.ProjectInfo
                 .OrderBy(x => x.Id)
                 .FirstOrDefaultAsync(cancellationToken)
