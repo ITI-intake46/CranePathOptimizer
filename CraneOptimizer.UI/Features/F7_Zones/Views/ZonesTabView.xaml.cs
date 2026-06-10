@@ -65,12 +65,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Views
                     e.Handled = true;
                     return;
                 }
-                else if (vm.IsMeasuring)
-                {
-                    vm.ResetMeasurement();
-                    e.Handled = true;
-                    return;
-                }
             }
 
             // Left click logic (keep original if needed)
@@ -191,12 +185,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Views
                     e.Handled = true;
                     return;
                 }
-                else if (vm.IsMeasuring)
-                {
-                    vm.ResetMeasurement();
-                    e.Handled = true;
-                    return;
-                }
                 else
                 {
                     // Right click outside drawing mode (optional: can be used for other things later)
@@ -207,6 +195,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Views
             // LEFT CLICK
             if (e.ChangedButton == MouseButton.Left && e.ClickCount == 1)
             {
+                if (!vm.IsDrawing) return;
+
                 bool shiftDown = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
                 var screen = e.GetPosition(viewport);
                 var world = GetWorldPoint(viewport, screen);
@@ -224,8 +214,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Views
             if (sender is not HelixViewport3D viewport) return;
             if (DataContext is not DrawingViewModel vm) return;
 
-            // Nothing to do if neither mode is active
-            if (!vm.IsDrawing && !vm.IsMeasuring) return;
+            if (!vm.IsDrawing) return;
 
             bool shiftDown = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
 
@@ -235,9 +224,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Views
 
             if (vm.IsDrawing)
                 vm.SetHoverPoint(pt, shiftDown);
-
-            if (vm.IsMeasuring)
-                vm.SetMeasureHoverPoint(pt, shiftDown);
         }
 
         // ════════════════════════════════════════════════════════════════════

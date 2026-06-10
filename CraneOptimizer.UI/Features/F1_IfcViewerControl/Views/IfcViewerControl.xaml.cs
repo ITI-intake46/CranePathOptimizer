@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using System.Windows.Threading;
 using HelixToolkit.Wpf;
@@ -17,6 +18,7 @@ using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Views;
 using CraneOptimizer.UI.Features.F7_Zones;
+using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Shell.Interaction;
 using CraneOptimizer.UI.Shell.ViewModels;
 
@@ -38,6 +40,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private readonly IUnitSettingsService _unitSettingsService = null!;
         private readonly IViewportSelectionService _viewportSelectionService = null!;
         private readonly SelectionHandler _selectionHandler = null!;
+        private readonly DrawingViewModel _drawingViewModel = null!;
         private Window? _ownerWindow;
         private MainViewModel? _osnapDxfSource;
 
@@ -51,6 +54,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private bool _isUpdatingCameraMode;
 
         private OsnapIndicator? _osnapIndicator;
+        private readonly List<(MeasurementVisualData Data, Border Label)> _measurementLabels = new();
 
         public IfcViewerControl()
         {
@@ -71,6 +75,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _unitSettingsService = App.ServiceProvider.GetRequiredService<IUnitSettingsService>();
             _viewportSelectionService = App.ServiceProvider.GetRequiredService<IViewportSelectionService>();
             _selectionHandler = App.ServiceProvider.GetRequiredService<SelectionHandler>();
+            _drawingViewModel = App.ServiceProvider.GetRequiredService<DrawingViewModel>();
 
             OsnapPanel.DataContext = _osnapVm;
             _osnapIndicator = new OsnapIndicator(OsnapOverlayCanvas);
@@ -103,6 +108,9 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _sceneService.ZonesCleared += OnZonesCleared;
             _unitSettingsService.SettingsChanged += OnUnitSettingsChanged;
             IfcViewer.CameraChanged += IfcViewer_CameraChanged;
+            IfcViewer.SizeChanged += IfcViewer_SizeChanged;
+            _drawingViewModel.MeasurementLabelsChanged += DrawingViewModel_MeasurementLabelsChanged;
+            RebuildMeasurementLabels();
 
             if (DataContext is MainViewModel vm)
             {
@@ -137,6 +145,10 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _sceneService.ZonesCleared -= OnZonesCleared;
             _unitSettingsService.SettingsChanged -= OnUnitSettingsChanged;
             IfcViewer.CameraChanged -= IfcViewer_CameraChanged;
+            IfcViewer.SizeChanged -= IfcViewer_SizeChanged;
+            _drawingViewModel.MeasurementLabelsChanged -= DrawingViewModel_MeasurementLabelsChanged;
+            MeasurementOverlayCanvas.Children.Clear();
+            _measurementLabels.Clear();
             DetachDxfSnapBridge();
         }
 
@@ -358,8 +370,98 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _cameraService.ZoomToTopView(elements, animate: true);
         }
 
+        private void DrawingViewModel_MeasurementLabelsChanged(object? sender, EventArgs e)
+            => RebuildMeasurementLabels();
+
+        private void IfcViewer_SizeChanged(object sender, SizeChangedEventArgs e)
+            => UpdateMeasurementLabelPositions();
+
+        private void RebuildMeasurementLabels()
+        {
+            MeasurementOverlayCanvas.Children.Clear();
+            _measurementLabels.Clear();
+
+            foreach (MeasurementVisualData measurement in _drawingViewModel.MeasurementSegments)
+            {
+                var text = new TextBlock
+                {
+                    Text = measurement.LabelText,
+                    FontFamily = new FontFamily("Segoe UI"),
+                    FontSize = 14,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = Brushes.WhiteSmoke
+                };
+                var label = new Border
+                {
+                    Child = text,
+                    Padding = new Thickness(5, 2.5, 5, 2.5),
+                    Background = new SolidColorBrush(Color.FromArgb(205, 28, 30, 33)),
+                    BorderBrush = new SolidColorBrush(Color.FromArgb(140, 145, 155, 163)),
+                    BorderThickness = new Thickness(0.6),
+                    CornerRadius = new CornerRadius(2),
+                    IsHitTestVisible = false,
+                    SnapsToDevicePixels = true,
+                    Visibility = Visibility.Collapsed
+                };
+
+                MeasurementOverlayCanvas.Children.Add(label);
+                _measurementLabels.Add((measurement, label));
+            }
+
+            UpdateMeasurementLabelPositions();
+        }
+
+        private void UpdateMeasurementLabelPositions()
+        {
+            double viewportWidth = IfcViewer.ActualWidth;
+            double viewportHeight = IfcViewer.ActualHeight;
+            if (viewportWidth <= 0 || viewportHeight <= 0)
+            {
+                foreach ((_, Border label) in _measurementLabels)
+                    label.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            foreach ((MeasurementVisualData data, Border label) in _measurementLabels)
+            {
+                var anchor = new Point3D(
+                    (data.Start.X + data.End.X) / 2.0,
+                    (data.Start.Y + data.End.Y) / 2.0,
+                    (data.Start.Z + data.End.Z) / 2.0);
+
+                if (!OsnapProjection.TryGetCameraDepth(IfcViewer, anchor, out double depth) ||
+                    depth <= 0 ||
+                    !OsnapProjection.TryProject(IfcViewer, anchor, out Point screen) ||
+                    screen.X < 0 ||
+                    screen.Y < 0 ||
+                    screen.X > viewportWidth ||
+                    screen.Y > viewportHeight)
+                {
+                    label.Visibility = Visibility.Collapsed;
+                    continue;
+                }
+
+                label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                Size labelSize = label.DesiredSize;
+                double left = Math.Clamp(
+                    screen.X - labelSize.Width / 2.0,
+                    0,
+                    Math.Max(0, viewportWidth - labelSize.Width));
+                double top = Math.Clamp(
+                    screen.Y - labelSize.Height - 10,
+                    0,
+                    Math.Max(0, viewportHeight - labelSize.Height));
+
+                Canvas.SetLeft(label, left);
+                Canvas.SetTop(label, top);
+                label.Visibility = Visibility.Visible;
+            }
+        }
+
         private void IfcViewer_CameraChanged(object sender, RoutedEventArgs e)
         {
+            UpdateMeasurementLabelPositions();
+
             if (_isUpdatingCameraMode)
                 return;
 
