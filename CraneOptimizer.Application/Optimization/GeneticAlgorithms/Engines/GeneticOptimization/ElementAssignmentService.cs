@@ -73,7 +73,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 Dictionary<string, int>? assignmentLookup = null;
                 if (assignment != null && assignment.Count > 0)
                 {
-                    assignmentLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    assignmentLookup = new Dictionary<string, int>(StringComparer.Ordinal);
                     foreach (var entry in assignment)
                     {
                         if (entry.Value != null)
@@ -152,7 +152,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 Dictionary<string, int>? assignmentLookup = null;
                 if (assignment != null && assignment.Count > 0)
                 {
-                    assignmentLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    assignmentLookup = new Dictionary<string, int>(StringComparer.Ordinal);
                     foreach (var entry in assignment)
                     {
                         if (entry.Value != null)

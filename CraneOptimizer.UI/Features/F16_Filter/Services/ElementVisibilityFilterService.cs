@@ -14,9 +14,9 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         private readonly HashSet<string> _enabledTypes = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _enabledMaterials = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _enabledStoreys = new(StringComparer.OrdinalIgnoreCase);
-        private readonly HashSet<string> _hiddenElementIds = new(StringComparer.OrdinalIgnoreCase);
-        private readonly HashSet<string> _isolatedElementIds = new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, string> _storeyByElementId = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _hiddenElementIds = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _isolatedElementIds = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _storeyByElementId = new(StringComparer.Ordinal);
         private readonly IIfcReaderRepository _ifcReader;
         private HashSet<string>? _includedElementIds;
 
@@ -91,7 +91,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
                 ? null
                 : elementIds
                     .Where(id => !string.IsNullOrWhiteSpace(id))
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    .ToHashSet(StringComparer.Ordinal);
 
             Recalculate();
         }
@@ -284,8 +284,8 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             var model = repository.CurrentModel;
             var idAliasesByProduct = _allElements
                 .SelectMany(element => BuildElementAliases(element).Select(alias => new { Alias = alias, Element = element }))
-                .GroupBy(x => x.Alias, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.First().Element, StringComparer.OrdinalIgnoreCase);
+                .GroupBy(x => x.Alias, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First().Element, StringComparer.Ordinal);
 
             var assigned = 0;
 

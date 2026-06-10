@@ -12,7 +12,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     public class ElementStaticCache
     {
         /// <summary>
-        /// Per-element cached data, keyed by ElementID (case-insensitive).
+        /// Per-element cached data, keyed by the case-sensitive IFC ElementID.
         /// </summary>
         public Dictionary<string, CachedElementData> ByElementId { get; }
 
@@ -22,7 +22,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         public ElementStaticCache(List<PrecastElement> elements, GASettings settings)
         {
             ByElementId = new Dictionary<string, CachedElementData>(
-                elements.Count, System.StringComparer.OrdinalIgnoreCase);
+                elements.Count, System.StringComparer.Ordinal);
 
             foreach (var element in elements)
             {

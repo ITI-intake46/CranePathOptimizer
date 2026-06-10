@@ -1273,13 +1273,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 // Create a fast lookup by GlobalId for IIfcProduct
                 var productByGlobalId = physicalProducts
     .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
-    .GroupBy(p => (string)p.GlobalId, StringComparer.OrdinalIgnoreCase)
-    .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+    .GroupBy(p => (string)p.GlobalId, StringComparer.Ordinal)
+    .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
                 var previewByGlobalId = previewSummary.Elements
     .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
-    .GroupBy(p => p.GlobalId, StringComparer.OrdinalIgnoreCase)
-    .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+    .GroupBy(p => p.GlobalId, StringComparer.Ordinal)
+    .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
                 var result = new List<PrecastElement>();
 

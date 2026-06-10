@@ -53,7 +53,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 _ => new GenericIfcExporterProfile()
             };
 
-            var previews = new Dictionary<string, IfcNormalizedElementPreview>(StringComparer.OrdinalIgnoreCase);
+            var previews = new Dictionary<string, IfcNormalizedElementPreview>(StringComparer.Ordinal);
 
             // First pass: Initialize previews for all elements
             foreach (var elem in auditResult.Classifications)
@@ -463,7 +463,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     return false;
 
                 var childDetail = assemblyDetail.ChildDetails.FirstOrDefault(c =>
-                    string.Equals(c.ChildGlobalId, childId, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(c.ChildGlobalId, childId, StringComparison.Ordinal));
                 if (childDetail != null && !childDetail.HasGeometry)
                     return false;
             }

@@ -26,7 +26,7 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 
         private List<Point3D> _ifcVertices = new();
         private List<(Point3D A, Point3D B)> _ifcSegments = new();
-        private Dictionary<string, IfcSnapGeometry> _ifcGeometryByElementId = new(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, IfcSnapGeometry> _ifcGeometryByElementId = new(StringComparer.Ordinal);
         private IfcSnapScreenIndex? _ifcScreenIndex;
         private int _ifcGeometryVersion;
         private int _snapCallCount;
@@ -119,8 +119,8 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 
             var items = geometry?.Where(g => !string.IsNullOrWhiteSpace(g.ElementId)).ToList() ?? new();
             _ifcGeometryByElementId = items
-                .GroupBy(g => g.ElementId, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.Last(), StringComparer.OrdinalIgnoreCase);
+                .GroupBy(g => g.ElementId, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
 
             _ifcVertices = items.SelectMany(g => g.Vertices).Where(IsFinite).ToList();
             _ifcSegments = items.SelectMany(g => g.Segments).Where(s => IsFinite(s.A) && IsFinite(s.B)).ToList();

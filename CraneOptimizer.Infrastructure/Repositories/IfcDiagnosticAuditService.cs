@@ -616,7 +616,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             double volumeFactor,
             double concreteDensityKgPerM3)
         {
-            var swallowedGlobalIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var swallowedGlobalIds = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (var assemblyDetail in auditResult.Assemblies.Details)
             {

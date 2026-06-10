@@ -82,9 +82,27 @@ namespace CraneOptimizer.UI.Shell.Interaction
         private bool HandleSelection(HelixViewport3D viewport, MouseButtonEventArgs e)
         {
             var hitObj = _hitTest.GetHitObject(viewport, e.GetPosition(viewport));
-            
+
+            // SelectionHandler owns IFC element click, Ctrl-click, Tab cycle, and box select.
+            if (hitObj is PrecastElement)
+                return false;
+
             bool isCtrlHeld = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+
+            if (hitObj == null)
+            {
+                if (!isCtrlHeld)
+                    _viewportSelection.Select(null, isCtrlHeld);
+
+                _vm.Scene.SetSelectedZone(null);
+                _vm.Scene.SetSelectedCrane(null);
+                return false;
+            }
+
             _viewportSelection.Select(hitObj, isCtrlHeld);
+
+            if (hitObj is GreenAreaZone or SceneCrane)
+                return true;
 
             return true;
         }

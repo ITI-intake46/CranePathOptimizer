@@ -18,7 +18,8 @@ namespace CraneOptimizer.UI.Core.Services
 
             try
             {
-                bool ok = Viewport3DHelper.Point2DtoPoint3D(viewport.Viewport, screenPt, out Point3D near, out Point3D far);
+                var innerPt = ToInnerViewportPoint(viewport, screenPt);
+                bool ok = Viewport3DHelper.Point2DtoPoint3D(viewport.Viewport, innerPt, out Point3D near, out Point3D far);
                 if (!ok) return false;
 
                 var dir = far - near;
@@ -36,7 +37,7 @@ namespace CraneOptimizer.UI.Core.Services
 
             try
             {
-                var hit = viewport.FindNearestPoint(screenPt);
+                var hit = viewport.FindNearestPoint(ToInnerViewportPoint(viewport, screenPt));
                 if (hit.HasValue)
                 {
                     worldPoint = hit.Value;
@@ -259,10 +260,23 @@ namespace CraneOptimizer.UI.Core.Services
             return score;
         }
 
+        private static Point ToInnerViewportPoint(HelixViewport3D viewport, Point helixPoint)
+        {
+            try
+            {
+                return viewport.TranslatePoint(helixPoint, viewport.Viewport);
+            }
+            catch
+            {
+                return helixPoint;
+            }
+        }
+
         public object? GetHitObject(HelixViewport3D viewport, Point screenPt)
         {
             ResetDiagnostics();
             HitTestRegistryCount = ElementVisualBuilder.SpatialHitTestElementCount;
+            var innerPt = ToInnerViewportPoint(viewport, screenPt);
 
             if (ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes)
             {
@@ -271,7 +285,7 @@ namespace CraneOptimizer.UI.Core.Services
                 var broadSw = System.Diagnostics.Stopwatch.StartNew();
                 try
                 {
-                    bool ok = Viewport3DHelper.Point2DtoPoint3D(viewport.Viewport, screenPt, out Point3D near, out Point3D far);
+                    bool ok = Viewport3DHelper.Point2DtoPoint3D(viewport.Viewport, innerPt, out Point3D near, out Point3D far);
                     if (ok)
                     {
                         var dir = far - near;
@@ -445,11 +459,11 @@ namespace CraneOptimizer.UI.Core.Services
                 SpatialHitTestDurationMs = sw.Elapsed.TotalMilliseconds;
             }
 
-            // Fallback to legacy native hit-testing
+            // Fallback to legacy native hit-testing (same coordinate space as SelectionHandler.FindHits)
             FellBackToNativeHitTesting = true;
             try
             {
-                var hits = viewport.Viewport.FindHits(screenPt);
+                var hits = viewport.Viewport.FindHits(innerPt);
                 if (hits != null && hits.Count > 0)
                 {
                     foreach (var hit in hits)
