@@ -14,8 +14,22 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Interaction
 {
     public class DrawingInteractionMode : IInteractionMode
     {
-        private const double VertexSnapRadiusPixels = 19.0;
-        private const double EdgeSnapRadiusPixels = 12.0;
+        private const double MeasurementHitProbeRadiusPixels = 6.0;
+        private const double VertexSnapRadiusPixels = 24.0;
+        private const double EdgeSnapRadiusPixels = 16.0;
+
+        private static readonly Vector[] MeasurementHitProbeOffsets =
+        {
+            new(0, 0),
+            new(MeasurementHitProbeRadiusPixels, 0),
+            new(-MeasurementHitProbeRadiusPixels, 0),
+            new(0, MeasurementHitProbeRadiusPixels),
+            new(0, -MeasurementHitProbeRadiusPixels),
+            new(4, 4),
+            new(-4, 4),
+            new(4, -4),
+            new(-4, -4)
+        };
 
         private static readonly HashSet<string> IgnoredMeasurementLayers =
             new(StringComparer.OrdinalIgnoreCase)
@@ -114,41 +128,15 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Interaction
 
             try
             {
-                IList<PointHitResult> hits = viewport.Viewport.FindHits(screen);
-                foreach (PointHitResult hit in hits)
+                foreach (Vector offset in MeasurementHitProbeOffsets)
                 {
-                    if (hit.Visual == null || IsIgnoredMeasurementVisual(hit.Visual))
-                        continue;
-
-                    GreenAreaZone? zone = FindZone(hit.Visual);
-                    if (zone != null && IsFinite(hit.Position))
-                    {
-                        world = ResolveZonePoint(viewport, screen, zone, hit.Position);
-                        return true;
-                    }
-
-                    if (IsNonTargetHelperVisual(hit.Visual) ||
-                        hit.Mesh == null ||
-                        hit.RayHit is not RayMeshGeometry3DHitTestResult meshHit)
-                    {
-                        continue;
-                    }
-
-                    if (TryGetNearbyTriangleVertex(
+                    Point probe = screen + offset;
+                    if (TryResolveMeasurementPointAtProbe(
                             viewport,
                             screen,
-                            hit.Visual,
-                            hit.Mesh,
-                            meshHit,
-                            out Point3D vertex))
+                            probe,
+                            out world))
                     {
-                        world = vertex;
-                        return true;
-                    }
-
-                    if (IsFinite(hit.Position))
-                    {
-                        world = hit.Position;
                         return true;
                     }
                 }
@@ -157,6 +145,55 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Interaction
             {
                 System.Diagnostics.Debug.WriteLine(
                     $"[Measurement] Point resolving failed: {ex.Message}");
+            }
+
+            return false;
+        }
+
+        private static bool TryResolveMeasurementPointAtProbe(
+            HelixViewport3D viewport,
+            Point cursor,
+            Point probe,
+            out Point3D world)
+        {
+            world = default;
+            IList<PointHitResult> hits = viewport.Viewport.FindHits(probe);
+            foreach (PointHitResult hit in hits)
+            {
+                if (hit.Visual == null || IsIgnoredMeasurementVisual(hit.Visual))
+                    continue;
+
+                GreenAreaZone? zone = FindZone(hit.Visual);
+                if (zone != null && IsFinite(hit.Position))
+                {
+                    world = ResolveZonePoint(viewport, cursor, zone, hit.Position);
+                    return true;
+                }
+
+                if (IsNonTargetHelperVisual(hit.Visual) ||
+                    hit.Mesh == null ||
+                    hit.RayHit is not RayMeshGeometry3DHitTestResult meshHit)
+                {
+                    continue;
+                }
+
+                if (TryGetNearbyTriangleVertex(
+                        viewport,
+                        cursor,
+                        hit.Visual,
+                        hit.Mesh,
+                        meshHit,
+                        out Point3D vertex))
+                {
+                    world = vertex;
+                    return true;
+                }
+
+                if (IsFinite(hit.Position))
+                {
+                    world = hit.Position;
+                    return true;
+                }
             }
 
             return false;
