@@ -110,7 +110,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 int liftableCount = 0;
 
                 // Use localized HashSet for unique liftable element count
-                var uniqueLiftableIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var uniqueLiftableIds = new HashSet<string>(StringComparer.Ordinal);
 
                 foreach (var r in results)
                 {

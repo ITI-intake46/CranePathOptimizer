@@ -431,7 +431,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 int totalElementCount = input.Elements?.Count ?? 0;
                 List<ElementLiftResult> lifted = position.ElementResults
                     .Where(item => item.IsFinalAssignedToPoint && item.Status == LiftStatus.Liftable)
-                    .GroupBy(item => item.ElementId, StringComparer.OrdinalIgnoreCase)
+                    .GroupBy(item => item.ElementId, StringComparer.Ordinal)
                     .Select(group => group.First())
                     .ToList();
                 List<double> utilization = lifted
@@ -967,7 +967,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             {
                 CranePositionResult position = result.Positions[index];
                 ElementLiftResult? evaluation = position.ElementResults.FirstOrDefault(item =>
-                    string.Equals(item.ElementId, elementId, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(item.ElementId, elementId, StringComparison.Ordinal));
                 if (evaluation != null)
                 {
                     candidates.Add((evaluation, index + 1, position));

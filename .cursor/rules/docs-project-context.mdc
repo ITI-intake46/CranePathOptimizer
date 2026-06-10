@@ -1,0 +1,53 @@
+---
+description: CranePathOptimizer project docs — mandatory context for all tasks
+alwaysApply: true
+---
+
+# CranePathOptimizer — Documentation Rules
+
+The `docs/` folder is the project knowledge base. **Always consult it before coding.** Source code is truth; docs mirror implementation. Never treat planned features as implemented unless marked `[Planned Feature]`.
+
+## Startup (every task)
+
+1. Read `docs/agent/start-here.md` for routing.
+2. **Mandatory:** `docs/agent/agent-context.md`, `docs/project/limitations.md`, `docs/ga/ga-settings-guide.md`.
+3. Read task-specific docs from Section 3 of `start-here.md` (GA, IFC, DB, UI, architecture, refactoring).
+4. **Verify in C#** — inspect implementing classes; do not assume docs are current without checking code.
+5. Follow `docs/agent/definition-of-done.md` before considering work complete.
+
+## Architecture (non-negotiable)
+
+- **Clean Architecture:** Domain has zero outer dependencies. Application does not reference Infrastructure.
+- **MVVM:** No business logic in `.xaml.cs`. ViewModels never reference WPF controls. Use `ViewModelBase`, `RelayCommand`, `AsyncRelayCommand`.
+- **DI:** Register services in `App.xaml.cs`. Use repositories (`ICraneRepository`, `IProjectRepository`), not raw EF in Application/ViewModels.
+- **DTO boundaries:** See `docs/coding-standards/dto-rules.md`.
+
+## Never do (`docs/agent/do-not-do.md`)
+
+- Block UI thread (`.Result`, `.Wait()`, `.GetAwaiter().GetResult()`).
+- Run GA/IFC parsing on UI thread — use `Task.Run` / async.
+- Reference outer layers from Domain; reference Views from ViewModels.
+- Hardcode colors/fonts in XAML — use `Colors.xaml`, `Brushes.xaml`, `Typography.xaml` (Exo 2, terracotta `#D68A56`).
+- Commit `.db` / `.sqlite` files.
+- Instantiate `DbContext` in ViewModels.
+
+## Task → doc index
+
+| Area | Key docs |
+|------|----------|
+| GA | `docs/ga/ga-engine-design.md`, `fitness-weights.md`, `docs/architecture/fitness-function.md`, `ga-design-decisions.md` |
+| IFC | `docs/domain/ifc.md`, `units.md` |
+| DB | `docs/architecture/database.md`, `database-migrations.md` |
+| UI | `docs/ui/design-system.md`, `colors.md`, `docs/coding-standards/mvvm.md` |
+| Architecture | `docs/architecture/system-overview.md`, `engines.md`, `optimization-engine.md`, `assignment-engine.md` |
+| Workflows | `docs/workflows/feature-development.md`, `bug-fixing.md`, `code-review.md` |
+| ADRs | `docs/decisions/ADR-*.md` |
+
+## Engineering constraints (summary)
+
+- 2D operating radius; ConservativeStep load-chart lookup (no interpolation).
+- Single crane specification per GA run; setup points must pass `ConstraintEngine`.
+- Background work uses `IDbContextFactory<CraneDbContext>` for thread-safe DB access.
+- GA target: ~2–5s for pop 100 / 500 generations; UI at 60 FPS.
+
+When docs and code disagree, **code wins** — then update docs if the user requests it.

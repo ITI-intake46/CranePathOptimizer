@@ -159,7 +159,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             if (selectedElements != null && selectedElements.Any())
             {
                 var el = selectedElements.First();
-                var match = SelectedPoint.Underlying.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, el.ElementID, StringComparison.OrdinalIgnoreCase));
+                var match = SelectedPoint.Underlying.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, el.ElementID, StringComparison.Ordinal));
                 if (match != null) return match;
             }
             return SelectedPoint.Underlying.ElementResults.FirstOrDefault();

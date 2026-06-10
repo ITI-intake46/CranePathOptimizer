@@ -19,7 +19,7 @@ namespace CraneOptimizer.UI.Core.Services
         private readonly IElementVisibilityFilterService _filterService;
         private readonly IRenderDiagnosticsStore _diagnosticsStore;
         private readonly List<PrecastElement> _sceneElements = new();
-        private Dictionary<string, List<System.Windows.Media.Media3D.GeometryModel3D>> _renderedElementModels = new(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, List<System.Windows.Media.Media3D.GeometryModel3D>> _renderedElementModels = new(StringComparer.Ordinal);
         // Persistent builder so per-crane MobileCraneVisual3D and the
         // INotifyPropertyChanged -> Rebuild plumbing survive across renders.
         private readonly CraneVisualBuilder _craneBuilder;
@@ -109,7 +109,7 @@ namespace CraneOptimizer.UI.Core.Services
 
             var statusMap = liftResults
                 ?.Where(result => !string.IsNullOrWhiteSpace(result.ElementId))
-                .GroupBy(result => result.ElementId, StringComparer.OrdinalIgnoreCase)
+                .GroupBy(result => result.ElementId, StringComparer.Ordinal)
                 .ToDictionary(
                     group => group.Key,
                     group =>
@@ -147,9 +147,9 @@ namespace CraneOptimizer.UI.Core.Services
                             return (LiftStatus?)item.Status;
                         }
                     },
-                    StringComparer.OrdinalIgnoreCase);
+                    StringComparer.Ordinal);
 
-            var selectedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var selectedIds = new HashSet<string>(StringComparer.Ordinal);
             if (_context.GetSelectedElementIds != null)
             {
                 var ids = _context.GetSelectedElementIds();
@@ -260,7 +260,7 @@ namespace CraneOptimizer.UI.Core.Services
 
             var statusMap = liftResults
                 ?.Where(result => !string.IsNullOrWhiteSpace(result.ElementId))
-                .GroupBy(result => result.ElementId, StringComparer.OrdinalIgnoreCase)
+                .GroupBy(result => result.ElementId, StringComparer.Ordinal)
                 .ToDictionary(
                     group => group.Key,
                     group =>
@@ -298,9 +298,9 @@ namespace CraneOptimizer.UI.Core.Services
                             return (LiftStatus?)item.Status;
                         }
                     },
-                    StringComparer.OrdinalIgnoreCase);
+                    StringComparer.Ordinal);
 
-            var selectedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var selectedIds = new HashSet<string>(StringComparer.Ordinal);
             if (_context.GetSelectedElementIds != null)
             {
                 var ids = _context.GetSelectedElementIds();

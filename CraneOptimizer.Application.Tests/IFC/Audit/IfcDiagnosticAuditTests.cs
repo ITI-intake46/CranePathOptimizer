@@ -19,6 +19,50 @@ namespace CraneOptimizer.Application.Tests
         {
             _output = output;
         }
+
+        [Fact]
+        public async Task Normalization_PreservesGlobalIdsThatDifferOnlyByCase()
+        {
+            var audit = new IfcAuditResult
+            {
+                Metadata = new IfcAuditMetadata
+                {
+                    FileName = "CaseSensitiveIds.ifc",
+                    SchemaVersion = "IFC2X3",
+                    ExporterApplication = "Autodesk Revit"
+                },
+                Classifications =
+                [
+                    new ElementClassificationAuditDetail
+                    {
+                        GlobalId = "07f79pn7zARQaMd2_kWdAh",
+                        RawIfcType = "IfcColumn",
+                        CandidateResolvedCategory = "Column",
+                        Name = "Column"
+                    },
+                    new ElementClassificationAuditDetail
+                    {
+                        GlobalId = "07f79pn7zARQaMd2_kWdaH",
+                        RawIfcType = "IfcBeam",
+                        CandidateResolvedCategory = "Beam",
+                        Name = "Beam"
+                    }
+                ]
+            };
+
+            var normalizer = new IfcNormalizationDecisionService(new IfcExporterProfileResolver());
+
+            var result = await normalizer.GenerateNormalizationPreviewAsync(audit);
+
+            Assert.Equal(2, result.Elements.Count);
+            Assert.Equal(
+                "Column",
+                result.Elements.Single(element => element.GlobalId == "07f79pn7zARQaMd2_kWdAh").CandidateCategory);
+            Assert.Equal(
+                "Beam",
+                result.Elements.Single(element => element.GlobalId == "07f79pn7zARQaMd2_kWdaH").CandidateCategory);
+        }
+
         [Fact]
         public void TestIfcAuditResultDtoInitialization()
         {

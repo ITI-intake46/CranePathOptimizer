@@ -98,7 +98,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
 
                 var allElements = input.Elements;
                 var remainingElements = new List<PrecastElement>(allElements);
-                var coveredElements = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var coveredElements = new HashSet<string>(StringComparer.Ordinal);
                 var finalResult = new PlacementResult();
                 LiftStatistics? concurrentStats = null;
 
@@ -243,7 +243,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 AssignmentPolicy.ResolveFinalAssignments(finalResult.Positions, allElements, input.CraneSpec!, input.Settings);
 
                 // Validation: no ElementGlobalId has more than one final AssignedPointId
-                var assignedTracker = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var assignedTracker = new Dictionary<string, string>(StringComparer.Ordinal);
                 foreach (var pos in finalResult.Positions)
                 {
                     foreach (var er in pos.ElementResults)
@@ -401,8 +401,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
 
             var elementLookup = elements
                 .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
-                .GroupBy(element => element.ElementID, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+                .GroupBy(element => element.ElementID, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
             for (int i = 0; i < solution.Chromosome.CranePositions.Count; i++)
             {
@@ -629,7 +629,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
 
         private static void LegacyRecalculateCoverage(PlacementResult result, int totalElementCount)
         {
-            var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var covered = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (var position in result.Positions)
             {

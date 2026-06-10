@@ -391,8 +391,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             var elementLookup = allElements
                 .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
-                .GroupBy(element => element.ElementID, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+                .GroupBy(element => element.ElementID, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
             foreach (var appPos in appResult.Positions)
             {

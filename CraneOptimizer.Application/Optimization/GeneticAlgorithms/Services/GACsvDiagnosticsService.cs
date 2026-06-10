@@ -118,7 +118,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     for (int i = 0; i < finalResult.Positions.Count; i++)
                     {
                         var pos = finalResult.Positions[i];
-                        var elemResult = pos.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, element.ElementID, StringComparison.OrdinalIgnoreCase));
+                    var elemResult = pos.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, element.ElementID, StringComparison.Ordinal));
                         if (elemResult != null)
                         {
                             candidates.Add((i, elemResult));
@@ -493,7 +493,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         for (int i = 0; i < finalResult.Positions.Count; i++)
                         {
                             var pos = finalResult.Positions[i];
-                            var er = pos.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, element.ElementID, StringComparison.OrdinalIgnoreCase));
+                            var er = pos.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, element.ElementID, StringComparison.Ordinal));
                             if (er == null) continue;
 
                             string failReason = "Liftable";
@@ -1090,7 +1090,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     for (int i = 0; i < finalResult.Positions.Count; i++)
                     {
                         var pos = finalResult.Positions[i];
-                        var er = pos.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, element.ElementID, StringComparison.OrdinalIgnoreCase));
+                        var er = pos.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, element.ElementID, StringComparison.Ordinal));
                         if (er != null && er.IsFinalAssignedToPoint)
                         {
                             assignedPosIndex = i + 1;
@@ -1108,7 +1108,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         for (int i = 0; i < finalResult.Positions.Count; i++)
                         {
                             var pos = finalResult.Positions[i];
-                            var er = pos.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, element.ElementID, StringComparison.OrdinalIgnoreCase));
+                            var er = pos.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, element.ElementID, StringComparison.Ordinal));
                             if (er != null) candidates.Add(er);
                         }
 

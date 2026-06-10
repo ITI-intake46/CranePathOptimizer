@@ -266,7 +266,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             _selectedStoreys = criteria.SelectedStoreys ?? new List<string>();
             _includedElementIds = criteria.IncludedElementIds == null
                 ? null
-                : new HashSet<string>(criteria.IncludedElementIds.Where(id => !string.IsNullOrWhiteSpace(id)), StringComparer.OrdinalIgnoreCase);
+                : new HashSet<string>(criteria.IncludedElementIds.Where(id => !string.IsNullOrWhiteSpace(id)), StringComparer.Ordinal);
             _sortBy = string.IsNullOrWhiteSpace(criteria.SortBy) ? "Name" : criteria.SortBy;
             _sortDescending = criteria.SortDescending;
             MinWeight = criteria.MinWeight;

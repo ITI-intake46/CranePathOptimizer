@@ -248,7 +248,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                     .SelectMany(root => root.Children)
                     .Where(node => node.IsChecked && node.Element != null)
                     .Select(node => node.Element!.ElementID)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    .ToHashSet(StringComparer.Ordinal);
 
                 if (checkedIds.Count == 0)
                     return;
@@ -275,7 +275,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             var selectedIds = selected
                 .Select(e => e.ElementID)
                 .Where(id => !string.IsNullOrWhiteSpace(id))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                .ToHashSet(StringComparer.Ordinal);
             BuildHierarchy();
             SetHierarchyElementPredicate(element => !string.IsNullOrWhiteSpace(element.ElementID) && selectedIds.Contains(element.ElementID));
             NonWeightFilterChanged();
@@ -731,7 +731,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             var minWeight = ParseDouble(TxtWeightMin?.Text ?? string.Empty, 0);
             var maxWeight = ParseDouble(TxtWeightMax?.Text ?? string.Empty, double.MaxValue);
             var search = TxtSearch?.Text ?? string.Empty;
-            var includedIds = GetIncludedElementIds().ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var includedIds = GetIncludedElementIds().ToHashSet(StringComparer.Ordinal);
 
             return elements.Where(element =>
             {
