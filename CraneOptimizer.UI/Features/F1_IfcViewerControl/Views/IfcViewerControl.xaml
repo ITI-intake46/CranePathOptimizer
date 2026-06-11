@@ -224,6 +224,11 @@
                       Transparent Canvas floats above the 3D viewport.
                       IsHitTestVisible=False means ALL mouse events still
                       reach the HelixViewport3D below it.                   -->
+                <Canvas x:Name="MeasurementOverlayCanvas"
+                        IsHitTestVisible="False"
+                        Background="Transparent"
+                        ClipToBounds="True"/>
+
                 <Canvas x:Name="OsnapOverlayCanvas"
                         IsHitTestVisible="False"
                         Background="Transparent"
