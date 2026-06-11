@@ -35,8 +35,18 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Services
             EnsureCache(zones);
 
             var center = crane.Position;
-            var halfL = crane.CraneDefinition.VehicleLength / 2.0;
-            var halfW = crane.CraneDefinition.VehicleWidth / 2.0;
+            bool isOnRubber = string.Equals(
+                crane.ActiveSpecification?.OutriggerConfig?.Trim(),
+                "On Rubber",
+                StringComparison.OrdinalIgnoreCase);
+            double footprintLength = !isOnRubber && crane.CraneDefinition.OutriggerLength is > 0d
+                ? crane.CraneDefinition.OutriggerLength.Value
+                : crane.CraneDefinition.VehicleLength;
+            double footprintWidth = !isOnRubber && crane.CraneDefinition.OutriggerWidth is > 0d
+                ? crane.CraneDefinition.OutriggerWidth.Value
+                : crane.CraneDefinition.VehicleWidth;
+            var halfL = footprintLength / 2.0;
+            var halfW = footprintWidth / 2.0;
 
             var footprint = new[]
             {

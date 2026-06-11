@@ -65,6 +65,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             _vehicleWidthMeters = crane.VehicleWidthMeters;
             _outriggerWidthMeters = crane.OutriggerWidthMeters;
             _outriggerLengthMeters = crane.OutriggerLengthMeters;
+            ClearOutriggerDimensionsWhenOnRubber();
             RefreshDimensionsSummary();
 
             var rawGrid = BuildRawGridFromDto(crane);
@@ -325,7 +326,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 _vehicleHeightMeters,
                 _vehicleWidthMeters,
                 _outriggerWidthMeters,
-                _outriggerLengthMeters)
+                _outriggerLengthMeters,
+                IsOnRubberSelected())
             {
                 Owner = this
             };
@@ -348,7 +350,22 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             {
                 if (string.IsNullOrWhiteSpace(TxtModel.Text))
                 {
-                    TxtStatus.Text = "Model name is required.";
+                    ShowRequiredFieldError("Model name is required.", TxtModel);
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(TxtMfg.Text))
+                {
+                    ShowRequiredFieldError("Manufacturer is required.", TxtMfg);
+                    return;
+                }
+
+                if (!TryParseRequiredCounterweight(out double counterweightTons))
+                    return;
+
+                if (!HasRequiredDimensions(out string dimensionError))
+                {
+                    ShowRequiredFieldError(dimensionError, BtnToggleDimensions);
                     return;
                 }
 
@@ -390,12 +407,12 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                     TxtModel.Text.Trim(),
                     TxtMfg.Text.Trim(),
                     GetSelectedOutriggerConfig(),
-                    UnitSystem.ToTons(ParseNumberOrZero(TxtCounterweight.Text, "Counterweight"), _unitSettings.DisplayMassUnit),
+                    counterweightTons,
                     _vehicleLengthMeters,
                     _vehicleHeightMeters,
                     _vehicleWidthMeters,
-                    _outriggerWidthMeters,
-                    _outriggerLengthMeters,
+                    IsOnRubberSelected() ? null : _outriggerWidthMeters,
+                    IsOnRubberSelected() ? null : _outriggerLengthMeters,
                     chartForSave,
                     _existingCrane?.Id ?? 0);
 
@@ -507,6 +524,78 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 : "100%";
         }
 
+        private void CboOutriggerConfig_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsInitialized)
+                return;
+
+            ClearOutriggerDimensionsWhenOnRubber();
+            RefreshDimensionsSummary();
+        }
+
+        private bool IsOnRubberSelected()
+        {
+            return LoadChartCraneValidator.IsOnRubber(GetSelectedOutriggerConfig());
+        }
+
+        private void ClearOutriggerDimensionsWhenOnRubber()
+        {
+            if (!IsOnRubberSelected())
+                return;
+
+            _outriggerWidthMeters = null;
+            _outriggerLengthMeters = null;
+        }
+
+        private bool TryParseRequiredCounterweight(out double counterweightTons)
+        {
+            counterweightTons = 0d;
+
+            if (string.IsNullOrWhiteSpace(TxtCounterweight.Text))
+            {
+                ShowRequiredFieldError("Counterweight is required.", TxtCounterweight);
+                return false;
+            }
+
+            if (!LoadChartCsvService.TryParseUserEnteredNumber(TxtCounterweight.Text, out double displayValue)
+                || !double.IsFinite(displayValue)
+                || displayValue < 0d)
+            {
+                ShowRequiredFieldError("Counterweight must be a valid non-negative value.", TxtCounterweight);
+                return false;
+            }
+
+            counterweightTons = UnitSystem.ToTons(displayValue, _unitSettings.DisplayMassUnit);
+            return true;
+        }
+
+        private bool HasRequiredDimensions(out string error)
+        {
+            if (_vehicleLengthMeters <= 0d || _vehicleWidthMeters <= 0d || _vehicleHeightMeters <= 0d)
+            {
+                error = "Total length, travel width, and transport height are required.";
+                return false;
+            }
+
+            if (!IsOnRubberSelected()
+                && (!_outriggerWidthMeters.HasValue || _outriggerWidthMeters.Value <= 0d
+                    || !_outriggerLengthMeters.HasValue || _outriggerLengthMeters.Value <= 0d))
+            {
+                error = "Both outrigger dimensions are required unless the crane operates On Rubber.";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+
+        private void ShowRequiredFieldError(string message, Control control)
+        {
+            TxtStatus.Text = message;
+            control.Focus();
+            MessageBox.Show(this, message, "Required Crane Information", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
         private void SelectOutriggerConfig(string? value)
         {
             string normalized = string.IsNullOrWhiteSpace(value)
@@ -547,7 +636,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                     $"Transport L {FormatLength(_vehicleLengthMeters)}  W {FormatLength(_vehicleWidthMeters)}  H {FormatLength(_vehicleHeightMeters)}");
             }
 
-            if (_outriggerWidthMeters.HasValue || _outriggerLengthMeters.HasValue)
+            if (IsOnRubberSelected())
+            {
+                parts.Add("Operating configuration: On Rubber (no outriggers)");
+            }
+            else if (_outriggerWidthMeters.HasValue || _outriggerLengthMeters.HasValue)
             {
                 parts.Add(
                     $"Outriggers W {FormatLength(_outriggerWidthMeters)}  B {FormatLength(_outriggerLengthMeters)}");
@@ -555,11 +648,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
             TxtDimensionsSummary.Text = parts.Count > 0
                 ? string.Join(Environment.NewLine, parts)
-                : "No crane dimensions entered yet.";
+                : "Required crane dimensions have not been entered.";
 
-            BtnToggleDimensions.Content = parts.Count > 0
+            BtnToggleDimensions.Content = _vehicleLengthMeters > 0d && _vehicleWidthMeters > 0d && _vehicleHeightMeters > 0d
                 ? "Edit Crane Dimensions"
-                : "Enter Crane Dimensions";
+                : "Enter Required Crane Dimensions";
         }
 
         private void SetNominalChart(ParsedLoadChart nominalChart)
@@ -833,7 +926,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
         private void ApplyUnitLabels()
         {
-            LblCounterweight.Text = $"Counterweight ({UnitSystem.MassSymbol(_unitSettings.DisplayMassUnit)})";
+            LblCounterweight.Text = $"Counterweight * ({UnitSystem.MassSymbol(_unitSettings.DisplayMassUnit)})";
             LblMaxCapacity.Text = $"Max Capacity ({UnitSystem.MassSymbol(_unitSettings.DisplayMassUnit)})";
             LblMaxRadius.Text = $"Max Radius ({UnitSystem.LengthSymbol(_unitSettings.DisplayLengthUnit)})";
         }
@@ -887,7 +980,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 return false;
             }
 
-            if (LoadChartCsvService.TryParseFlexibleNumber(text, out value))
+            if (LoadChartCsvService.TryParseUserEnteredNumber(text, out value))
                 return true;
 
             throw new FormatException($"{fieldName} value '{text}' is invalid.");

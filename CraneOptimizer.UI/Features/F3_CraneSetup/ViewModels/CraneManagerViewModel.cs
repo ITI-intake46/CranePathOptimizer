@@ -3,6 +3,7 @@ using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F3_CraneSetup.DTOs;
 using CraneOptimizer.UI.Features.F3_CraneSetup.Mappers;
 using CraneOptimizer.UI.Features.F3_CraneSetup.Parameters;
@@ -118,7 +119,20 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
                 AvailableCranes.Add(crane.ToCranePickerDto());
             }
 
+            RefreshPlacedCranes();
             SyncSelectedDatabaseCrane();
+        }
+
+        private void RefreshPlacedCranes()
+        {
+            foreach (SceneCrane placedCrane in _scene.GetCranes())
+            {
+                if (!_availableCraneLookup.TryGetValue(placedCrane.CraneDefinition.Id, out Crane? refreshedCrane))
+                    continue;
+
+                ApplyCraneDefinition(placedCrane, refreshedCrane);
+                _scene.UpdateCrane(placedCrane);
+            }
         }
 
         private void SyncSelectedDatabaseCrane()
@@ -142,23 +156,35 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
             if (selected == null)
                 return;
 
-            selected.CraneDefinition = craneEntity;
-            selected.ActiveSpecification = ChooseActiveSpecification(craneEntity);
-            selected.PivotOffset = new Domain.Common.DomainPoint3D(
-                0,
-                0,
-                Math.Max(1.2, ToMeters(craneEntity.VehicleHeight, 1.5)));
-
-            if (selected.ActiveSpecification != null)
-            {
-                var spec = selected.ActiveSpecification;
-                selected.BoomLength = Math.Clamp(
-                    selected.BoomLength > 0 ? selected.BoomLength : spec.MaxBoomLength * 0.6,
-                    spec.MinBoomLength,
-                    spec.MaxBoomLength);
-            }
-
+            ApplyCraneDefinition(selected, craneEntity);
             _scene.UpdateCrane(selected);
+        }
+
+        internal static void ApplyCraneDefinition(SceneCrane sceneCrane, Crane crane)
+        {
+            int? activeSpecificationId = sceneCrane.ActiveSpecification?.Id;
+
+            sceneCrane.CraneDefinition = crane;
+            sceneCrane.ActiveSpecification = activeSpecificationId.HasValue
+                ? crane.Specifications?.FirstOrDefault(specification => specification.Id == activeSpecificationId.Value)
+                    ?? ChooseActiveSpecification(crane)
+                : ChooseActiveSpecification(crane);
+            sceneCrane.PivotOffset = new Domain.Common.DomainPoint3D(
+                0,
+                0,
+                Math.Max(0.2, ToMeters(crane.VehicleHeight, 1.5) * 0.8));
+
+            CraneSpecification? specification = sceneCrane.ActiveSpecification;
+            if (specification == null)
+                return;
+
+            double minBoomLength = Math.Max(0d, specification.MinBoomLength);
+            double maxBoomLength = Math.Max(minBoomLength, specification.MaxBoomLength);
+            double requestedBoomLength = sceneCrane.BoomLength > 0d
+                ? sceneCrane.BoomLength
+                : maxBoomLength * 0.6d;
+
+            sceneCrane.BoomLength = Math.Clamp(requestedBoomLength, minBoomLength, maxBoomLength);
         }
 
         private static CraneSpecification? ChooseActiveSpecification(Crane crane)

@@ -2,6 +2,7 @@ using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Features.F4_LoadChart.Services;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 {
@@ -13,18 +14,21 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         public double? OutriggerWidthMeters { get; private set; }
         public double? OutriggerLengthMeters { get; private set; }
         private readonly UnitSettings _unitSettings;
+        private readonly bool _isOnRubber;
 
         public CraneDimensionsDialog(
             double vehicleLengthMeters,
             double vehicleHeightMeters,
             double vehicleWidthMeters,
             double? outriggerWidthMeters,
-            double? outriggerLengthMeters)
+            double? outriggerLengthMeters,
+            bool isOnRubber)
         {
             InitializeComponent();
             _unitSettings = App.ServiceProvider.GetService(typeof(IUnitSettingsService)) is IUnitSettingsService unitSettingsService
                 ? unitSettingsService.Current
                 : UnitSettings.Default;
+            _isOnRubber = isOnRubber;
 
             VehicleLengthMeters = vehicleLengthMeters;
             VehicleHeightMeters = vehicleHeightMeters;
@@ -38,17 +42,29 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             TxtVehicleWidth.Text = FormatLengthInput(vehicleWidthMeters);
             TxtOutriggerWidth.Text = FormatLengthInput(outriggerWidthMeters);
             TxtOutriggerLength.Text = FormatLengthInput(outriggerLengthMeters);
+
+            OutriggerFieldsPanel.Visibility = _isOnRubber ? Visibility.Collapsed : Visibility.Visible;
+            OnRubberNotice.Visibility = _isOnRubber ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void BtnApply_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                VehicleLengthMeters = ParseLengthOrZero(TxtVehicleLength.Text, "Total Length");
-                VehicleHeightMeters = ParseLengthOrZero(TxtVehicleHeight.Text, "Transport Height");
-                VehicleWidthMeters = ParseLengthOrZero(TxtVehicleWidth.Text, "Travel Width");
-                OutriggerWidthMeters = TryParseOptionalLength(TxtOutriggerWidth.Text, "Outrigger Span", out double width) ? width : null;
-                OutriggerLengthMeters = TryParseOptionalLength(TxtOutriggerLength.Text, "Span to Span", out double length) ? length : null;
+                VehicleLengthMeters = ParseRequiredLength(TxtVehicleLength, "Total Length");
+                VehicleHeightMeters = ParseRequiredLength(TxtVehicleHeight, "Transport Height");
+                VehicleWidthMeters = ParseRequiredLength(TxtVehicleWidth, "Travel Width");
+
+                if (_isOnRubber)
+                {
+                    OutriggerWidthMeters = null;
+                    OutriggerLengthMeters = null;
+                }
+                else
+                {
+                    OutriggerWidthMeters = ParseRequiredLength(TxtOutriggerWidth, "Outrigger Span");
+                    OutriggerLengthMeters = ParseRequiredLength(TxtOutriggerLength, "Span to Span");
+                }
 
                 DialogResult = true;
                 Close();
@@ -69,39 +85,31 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         private void ApplyUnitLabels()
         {
             var symbol = UnitSystem.LengthSymbol(_unitSettings.DisplayLengthUnit);
-            LblVehicleLength.Text = $"Total Length ({symbol})";
-            LblVehicleHeight.Text = $"Transport Height ({symbol})";
-            LblVehicleWidth.Text = $"Travel Width ({symbol})";
-            LblOutriggerWidth.Text = $"Outrigger Span (pad to pad) ({symbol})";
-            LblOutriggerLength.Text = $"Span to Span (front to rear) ({symbol})";
+            LblVehicleLength.Text = $"Total Length * ({symbol})";
+            LblVehicleHeight.Text = $"Transport Height * ({symbol})";
+            LblVehicleWidth.Text = $"Travel Width * ({symbol})";
+            LblOutriggerWidth.Text = $"Outrigger Span (pad to pad) * ({symbol})";
+            LblOutriggerLength.Text = $"Span to Span (front to rear) * ({symbol})";
         }
 
-        private double ParseLengthOrZero(string text, string fieldName)
+        private double ParseRequiredLength(TextBox textBox, string fieldName)
         {
-            if (string.IsNullOrWhiteSpace(text))
-                return 0d;
-
-            if (LoadChartCsvService.TryParseFlexibleNumber(text, out double value))
-                return UnitSystem.ToMeters(value, _unitSettings.DisplayLengthUnit);
-
-            throw new FormatException($"{fieldName} value '{text}' is invalid.");
-        }
-
-        private bool TryParseOptionalLength(string text, string fieldName, out double value)
-        {
+            string text = textBox.Text;
             if (string.IsNullOrWhiteSpace(text))
             {
-                value = 0d;
-                return false;
+                textBox.Focus();
+                throw new FormatException($"{fieldName} is required.");
             }
 
-            if (LoadChartCsvService.TryParseFlexibleNumber(text, out value))
+            if (LoadChartCsvService.TryParseUserEnteredNumber(text, out double value))
             {
-                value = UnitSystem.ToMeters(value, _unitSettings.DisplayLengthUnit);
-                return true;
+                double meters = UnitSystem.ToMeters(value, _unitSettings.DisplayLengthUnit);
+                if (double.IsFinite(meters) && meters > 0d)
+                    return meters;
             }
 
-            throw new FormatException($"{fieldName} value '{text}' is invalid.");
+            textBox.Focus();
+            throw new FormatException($"{fieldName} must be a valid value greater than zero.");
         }
 
         private string FormatLengthInput(double? value)

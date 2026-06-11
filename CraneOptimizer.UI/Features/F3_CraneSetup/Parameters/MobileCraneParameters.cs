@@ -18,16 +18,20 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
         private int _boomSections = 4;
         private double _boomBaseWidth = 0.8;
         private double _workingRadius = 14.14;
+        private bool _isOnRubber;
+        private bool _showDimensionGuide;
 
         public override UiCraneType Type => UiCraneType.MobileCrane;
 
-        public double CarrierLength { get => _carrierLength; set => SetField(ref _carrierLength, Math.Clamp(value, 6.0, 30.0)); }
-        public double CarrierWidth { get => _carrierWidth; set => SetField(ref _carrierWidth, Math.Clamp(value, 2.0, 6.0)); }
-        public double CarrierHeight { get => _carrierHeight; set => SetField(ref _carrierHeight, Math.Clamp(value, 0.8, 2.0)); }
-        public double OutriggerSpanM { get => _outtriggerSpanM; set => SetField(ref _outtriggerSpanM, Math.Clamp(value, 2.0, 20.0)); }
-        public double SpanToSpanM { get => _spanToSpanM; set => SetField(ref _spanToSpanM, Math.Clamp(value, 2.0, 20.0)); }
+        public double CarrierLength { get => _carrierLength; set => SetField(ref _carrierLength, Math.Max(0.1, value)); }
+        public double CarrierWidth { get => _carrierWidth; set => SetField(ref _carrierWidth, Math.Max(0.1, value)); }
+        public double CarrierHeight { get => _carrierHeight; set => SetField(ref _carrierHeight, Math.Max(0.1, value)); }
+        public double OutriggerSpanM { get => _outtriggerSpanM; set => SetField(ref _outtriggerSpanM, Math.Max(0.1, value)); }
+        public double SpanToSpanM { get => _spanToSpanM; set => SetField(ref _spanToSpanM, Math.Max(0.1, value)); }
         public double OutriggerPadSize { get => _outtriggerPadSize; set => SetField(ref _outtriggerPadSize, Math.Clamp(value, 1.0, 4.0)); }
         public bool ShowOutriggerPads { get => _showOutriggerPads; set => SetField(ref _showOutriggerPads, value); }
+        public bool IsOnRubber { get => _isOnRubber; set => SetField(ref _isOnRubber, value); }
+        public bool ShowDimensionGuide { get => _showDimensionGuide; set => SetField(ref _showDimensionGuide, value); }
         public double BoomLength
         {
             get => _boomLength;
@@ -48,7 +52,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
                     RecalcWorkingRadius();
             }
         }
-        public double TravelWidthM { get => _travelWidthM; set => SetField(ref _travelWidthM, Math.Clamp(value, 0.0, 10.0)); }
+        public double TravelWidthM { get => _travelWidthM; set => SetField(ref _travelWidthM, Math.Max(0.1, value)); }
         public double BodyAngle
         {
             get => _bodyAngle;
@@ -70,12 +74,12 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
 
         public double BoomBaseWidth { get => _boomBaseWidth; set => SetField(ref _boomBaseWidth, value); }
         public double HookRadius => BoomLength * Math.Cos(BoomAngle * Math.PI / 180.0);
+        public double BoomPivotHeight => Math.Max(0.2, CarrierHeight * 0.8);
         public double HookHeight
         {
             get
             {
-                var turntableHeight = CarrierHeight + 1.5;
-                var boomTipHeight = turntableHeight + BoomLength * Math.Sin(BoomAngle * Math.PI / 180.0);
+                var boomTipHeight = BoomPivotHeight + BoomLength * Math.Sin(BoomAngle * Math.PI / 180.0);
                 return Math.Max(0, boomTipHeight - CableLength);
             }
         }

@@ -34,6 +34,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
 
         public async Task CreateAsync(LoadChartCraneDto crane)
         {
+            LoadChartCraneValidator.ValidateForSave(crane);
+
             await using var context = await _contextFactory.CreateDbContextAsync();
             await context.Cranes.AddAsync(crane.ToCraneEntity());
             await context.SaveChangesAsync();
@@ -41,6 +43,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
 
         public async Task UpdateAsync(LoadChartCraneDto updatedCrane)
         {
+            LoadChartCraneValidator.ValidateForSave(updatedCrane);
+
             await using var context = await _contextFactory.CreateDbContextAsync();
             var existingCrane = await context.Cranes
                 .Include(crane => crane.Specifications)
