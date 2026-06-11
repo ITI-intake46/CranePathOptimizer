@@ -72,18 +72,28 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 warning.Contains("maximum-capacity envelope", StringComparison.OrdinalIgnoreCase) ||
                 warning.Contains("consolidated into unique boom columns", StringComparison.OrdinalIgnoreCase));
 
+        public bool IsCombinedContinuationCandidate =>
+            Warnings.Any(warning =>
+                warning.Contains("COMBINED_CONTINUATION_TABLE", StringComparison.OrdinalIgnoreCase));
+
         public string CandidateKindLabel =>
-            IsEnvelopeCandidate ? "Envelope review required" : ConfidenceLabel;
+            IsCombinedContinuationCandidate
+                ? "Combined continuation"
+                : IsEnvelopeCandidate ? "Envelope review required" : ConfidenceLabel;
 
         public string DisplayTitle =>
-            IsEnvelopeCandidate
-                ? $"Table {TableIndex} - Envelope review - {BoomColumnCount} x {RadiusRowCount}"
-                : $"Table {TableIndex} - {ConfidenceLabel} - {BoomColumnCount} x {RadiusRowCount}";
+            IsCombinedContinuationCandidate
+                ? $"Table {TableIndex} - Combined continuation - {BoomColumnCount} x {RadiusRowCount}"
+                : IsEnvelopeCandidate
+                    ? $"Table {TableIndex} - Envelope review - {BoomColumnCount} x {RadiusRowCount}"
+                    : $"Table {TableIndex} - {ConfidenceLabel} - {BoomColumnCount} x {RadiusRowCount}";
 
         public string DisplayDetails =>
-            IsEnvelopeCandidate
-                ? $"{Summary} | ENVELOPE candidate: duplicate visual columns were consolidated. Cells: {NonEmptyCapacityCellCount}, Score: {Score:0.0}"
-                : $"{Summary} | Cells: {NonEmptyCapacityCellCount}, Score: {Score:0.0}";
+            IsCombinedContinuationCandidate
+                ? $"{Summary} | COMBINED continuation candidate. Cells: {NonEmptyCapacityCellCount}, Score: {Score:0.0}"
+                : IsEnvelopeCandidate
+                    ? $"{Summary} | ENVELOPE candidate: duplicate visual columns were consolidated. Cells: {NonEmptyCapacityCellCount}, Score: {Score:0.0}"
+                    : $"{Summary} | Cells: {NonEmptyCapacityCellCount}, Score: {Score:0.0}";
     }
 
     internal static class LoadChartPdfService
@@ -296,9 +306,6 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 Summary = summary,
                 TextPreview = textPreview,
                 Tables = tableCandidates
-                    .OrderByDescending(table => table.Score)
-                    .ThenBy(table => table.TableIndex)
-                    .ToList()
             };
         }
 
@@ -360,17 +367,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 }
             }
 
-            candidates = candidates
-                .OrderByDescending(candidate => candidate.Score)
-                .ThenByDescending(candidate => candidate.Top)
-                .ToList();
-
-            for (int index = 0; index < candidates.Count; index++)
-            {
-                candidates[index] = ReindexCandidate(candidates[index], index + 1);
-            }
-
-            return candidates;
+            var orderedCandidates = ReindexCandidatesInReadingOrder(candidates);
+            return AppendVerifiedContinuationCandidates(orderedCandidates);
         }
         private static List<HeaderCandidate> FindHeaderCandidates(List<List<PdfWordInfo>> rows)
         {
@@ -2752,6 +2750,468 @@ private static List<double> InferPhysicalCapacityLaneCenters(
                 .Select(cell => TryExtractNumber(cell, out double value) ? value : double.NaN)
                 .Where(value => !double.IsNaN(value))
                 .ToList();
+        }
+        private static List<PdfTableCandidateDto> AppendVerifiedContinuationCandidates(IReadOnlyList<PdfTableCandidateDto> orderedCandidates)
+        {
+            if (orderedCandidates == null || orderedCandidates.Count < 2)
+                return orderedCandidates?.ToList() ?? new List<PdfTableCandidateDto>();
+
+            var result = orderedCandidates.ToList();
+            int nextTableIndex = result.Max(candidate => candidate.TableIndex) + 1;
+            var baseCandidates = result
+                .Where(candidate => !IsCombinedContinuationCandidate(candidate))
+                .OrderBy(candidate => candidate.TableIndex)
+                .ToList();
+
+            for (int index = 0; index < baseCandidates.Count - 1; index++)
+            {
+                var left = baseCandidates[index];
+                var right = baseCandidates[index + 1];
+
+                if (TryCreateVerifiedContinuationCandidate(left, right, nextTableIndex, out var combined))
+                {
+                    if (!IsDuplicateCandidate(result, combined))
+                    {
+                        result.Add(combined);
+                        nextTableIndex++;
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        private static bool TryCreateVerifiedContinuationCandidate(
+            PdfTableCandidateDto left,
+            PdfTableCandidateDto right,
+            int tableIndex,
+            out PdfTableCandidateDto combined)
+        {
+            combined = null!;
+
+            if (!IsVerifiedContinuationPair(left, right))
+                return false;
+
+            var rawGrid = BuildCombinedContinuationRawGrid(left, right);
+            int boomColumnCount = rawGrid.Count == 0 ? 0 : rawGrid[0].Count - 1;
+            int radiusRowCount = CountNumericRadiusRows(rawGrid);
+            int nonEmptyCapacityCellCount = CountPositiveCapacityCells(rawGrid);
+
+            if (boomColumnCount < left.BoomColumnCount + right.BoomColumnCount - 1
+                || radiusRowCount < MinimumRadiusRowCount
+                || nonEmptyCapacityCellCount < Math.Max(18, boomColumnCount * 2))
+            {
+                return false;
+            }
+
+            var importGrid = BuildConservativeImportGrid(rawGrid);
+            if (importGrid.Count < 2)
+                return false;
+
+            double score = Math.Max(0, Math.Max(left.Score, right.Score) - 0.01);
+            var warnings = new List<string>
+            {
+                $"COMBINED_CONTINUATION_TABLE: This candidate combines table {left.TableIndex} and table {right.TableIndex} because their boom headers form a verified left-to-right continuation on the same PDF page.",
+                "CONTINUATION_VERIFIED: Same visual row, compatible radius axes, compatible table kinds, non-decreasing combined boom headers, and no broad conflicting boom-header overlap were detected.",
+                "Review the combined preview before importing. Individual source tables remain available separately."
+            };
+
+            warnings.AddRange(left.Warnings);
+            warnings.AddRange(right.Warnings);
+
+            combined = new PdfTableCandidateDto
+            {
+                PageNumber = left.PageNumber,
+                TableIndex = tableIndex,
+                Left = Math.Min(left.Left, right.Left),
+                Right = Math.Max(left.Right, right.Right),
+                Top = Math.Max(GetCandidateUpperY(left), GetCandidateUpperY(right)),
+                Bottom = Math.Min(GetCandidateLowerY(left), GetCandidateLowerY(right)),
+                BoomColumnCount = boomColumnCount,
+                RadiusRowCount = radiusRowCount,
+                NonEmptyCapacityCellCount = nonEmptyCapacityCellCount,
+                Score = score,
+                ConfidenceLabel = GetConfidenceLabel(score),
+                Summary = $"Verified continuation candidate combining table {left.TableIndex} ({left.BoomColumnCount} visual boom columns) and table {right.TableIndex} ({right.BoomColumnCount} visual boom columns).",
+                RawGrid = rawGrid,
+                ImportGrid = importGrid,
+                Warnings = warnings.Distinct().ToList()
+            };
+
+            return true;
+        }
+
+        private static bool IsVerifiedContinuationPair(PdfTableCandidateDto left, PdfTableCandidateDto right)
+        {
+            if (left == null || right == null)
+                return false;
+
+            if (IsCombinedContinuationCandidate(left) || IsCombinedContinuationCandidate(right))
+                return false;
+
+            if (left.PageNumber != right.PageNumber)
+                return false;
+
+            if (!AreSideBySideContinuationCandidates(left, right))
+                return false;
+
+            if (!HaveCompatibleContinuationHeaders(left, right))
+                return false;
+
+            if (!HaveCompatibleContinuationRadiusAxis(left, right))
+                return false;
+
+            if (left.IsEnvelopeCandidate != right.IsEnvelopeCandidate)
+                return false;
+
+            return true;
+        }
+
+        private static bool AreSideBySideContinuationCandidates(PdfTableCandidateDto left, PdfTableCandidateDto right)
+        {
+            if (right.Left <= left.Left)
+                return false;
+
+            double leftWidth = Math.Max(1.0, left.Right - left.Left);
+            double rightWidth = Math.Max(1.0, right.Right - right.Left);
+            double horizontalOverlap = Math.Min(left.Right, right.Right) - Math.Max(left.Left, right.Left);
+
+            if (horizontalOverlap > Math.Min(leftWidth, rightWidth) * 0.10)
+                return false;
+
+            double horizontalGap = right.Left - left.Right;
+            double medianWidth = (leftWidth + rightWidth) / 2.0;
+            if (horizontalGap > Math.Max(260.0, medianWidth * 0.70))
+                return false;
+
+            double rowTolerance = Math.Max(8.0, Math.Min(GetCandidateHeight(left), GetCandidateHeight(right)) * 0.20);
+            return IsSameVisualReadingRow(right, new List<PdfTableCandidateDto> { left }, rowTolerance);
+        }
+
+        private static bool HaveCompatibleContinuationHeaders(PdfTableCandidateDto left, PdfTableCandidateDto right)
+        {
+            var leftHeaders = GetCandidateHeaderValues(left);
+            var rightHeaders = GetCandidateHeaderValues(right);
+
+            if (leftHeaders.Count < MinimumBoomColumnCount || rightHeaders.Count < MinimumBoomColumnCount)
+                return false;
+
+            if (GetNonDecreasingRatio(leftHeaders) < 0.95 || GetNonDecreasingRatio(rightHeaders) < 0.95)
+                return false;
+
+            double leftMax = leftHeaders.Max();
+            double rightMin = rightHeaders.Min();
+            double rightMax = rightHeaders.Max();
+
+            if (rightMax <= leftMax + 0.001)
+                return false;
+
+            var overlapValues = leftHeaders
+                .Distinct(new DoubleToleranceComparer(0.05))
+                .Where(leftValue => rightHeaders.Any(rightValue => AreHeaderValuesClose(leftValue, rightValue)))
+                .ToList();
+
+            bool sharedBoundary = AreHeaderValuesClose(leftMax, rightMin);
+            if (!sharedBoundary)
+                return false;
+
+            int nonBoundaryOverlapCount = overlapValues
+                .Count(value => !AreHeaderValuesClose(value, leftMax) || !AreHeaderValuesClose(value, rightMin));
+
+            if (nonBoundaryOverlapCount > 0)
+                return false;
+
+            var combinedHeaders = leftHeaders.Concat(rightHeaders).ToList();
+            return GetNonDecreasingRatio(combinedHeaders) >= 0.98;
+        }
+
+        private static bool HaveCompatibleContinuationRadiusAxis(PdfTableCandidateDto left, PdfTableCandidateDto right)
+        {
+            var leftRadii = GetCandidateRadiusValues(left)
+                .Where(value => value > 0)
+                .Distinct(new DoubleToleranceComparer(0.05))
+                .ToList();
+            var rightRadii = GetCandidateRadiusValues(right)
+                .Where(value => value > 0)
+                .Distinct(new DoubleToleranceComparer(0.05))
+                .ToList();
+
+            if (leftRadii.Count < MinimumRadiusRowCount || rightRadii.Count < MinimumRadiusRowCount)
+                return false;
+
+            int overlapCount = leftRadii.Count(leftRadius => rightRadii.Any(rightRadius => AreRadiusValuesClose(leftRadius, rightRadius)));
+            double overlapRatio = (double)overlapCount / Math.Max(1, Math.Min(leftRadii.Count, rightRadii.Count));
+
+            return overlapRatio >= 0.55;
+        }
+
+        private static List<List<string>> BuildCombinedContinuationRawGrid(PdfTableCandidateDto left, PdfTableCandidateDto right)
+        {
+            int leftColumnCount = Math.Max(0, left.RawGrid.FirstOrDefault()?.Count - 1 ?? 0);
+            int rightColumnCount = Math.Max(0, right.RawGrid.FirstOrDefault()?.Count - 1 ?? 0);
+            int totalColumnCount = leftColumnCount + rightColumnCount;
+
+            if (leftColumnCount == 0 || rightColumnCount == 0)
+                return new List<List<string>>();
+
+            var headerRow = new List<string> { "Radius (m)" };
+            headerRow.AddRange(left.RawGrid[0].Skip(1));
+            headerRow.AddRange(right.RawGrid[0].Skip(1));
+
+            var numericRows = new Dictionary<string, (double Radius, List<string> Row)>(StringComparer.OrdinalIgnoreCase);
+            var metadataRows = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+            CopyContinuationRows(left.RawGrid, 1, leftColumnCount, totalColumnCount, numericRows, metadataRows);
+            CopyContinuationRows(right.RawGrid, 1 + leftColumnCount, rightColumnCount, totalColumnCount, numericRows, metadataRows);
+
+            var combined = new List<List<string>> { headerRow };
+            combined.AddRange(numericRows.Values
+                .OrderBy(item => item.Radius)
+                .Select(item => item.Row));
+            combined.AddRange(metadataRows.Values);
+
+            return combined;
+        }
+
+        private static void CopyContinuationRows(
+            IReadOnlyList<List<string>> sourceGrid,
+            int firstTargetColumn,
+            int sourceColumnCount,
+            int totalColumnCount,
+            Dictionary<string, (double Radius, List<string> Row)> numericRows,
+            Dictionary<string, List<string>> metadataRows)
+        {
+            foreach (var sourceRow in sourceGrid.Skip(1))
+            {
+                if (sourceRow.Count == 0)
+                    continue;
+
+                if (TryExtractNumber(sourceRow[0], out double radius) && radius > 0)
+                {
+                    string key = FormatNumber(radius);
+                    if (!numericRows.TryGetValue(key, out var existing))
+                    {
+                        existing = (radius, CreateEmptyContinuationRow(key, totalColumnCount));
+                        numericRows[key] = existing;
+                    }
+
+                    CopyContinuationCells(sourceRow, existing.Row, firstTargetColumn, sourceColumnCount);
+                    continue;
+                }
+
+                string label = sourceRow[0].Trim();
+                if (string.IsNullOrWhiteSpace(label))
+                    continue;
+
+                string metadataKey = Regex.Replace(label, @"\s+", " ").Trim().ToUpperInvariant();
+                if (!metadataRows.TryGetValue(metadataKey, out var metadataRow))
+                {
+                    metadataRow = CreateEmptyContinuationRow(label, totalColumnCount);
+                    metadataRows[metadataKey] = metadataRow;
+                }
+
+                CopyContinuationCells(sourceRow, metadataRow, firstTargetColumn, sourceColumnCount);
+            }
+        }
+
+        private static List<string> CreateEmptyContinuationRow(string label, int totalColumnCount)
+        {
+            var row = Enumerable.Repeat(string.Empty, totalColumnCount + 1).ToList();
+            row[0] = label;
+            return row;
+        }
+
+        private static void CopyContinuationCells(
+            IReadOnlyList<string> sourceRow,
+            List<string> targetRow,
+            int firstTargetColumn,
+            int sourceColumnCount)
+        {
+            for (int sourceColumn = 1; sourceColumn <= sourceColumnCount && sourceColumn < sourceRow.Count; sourceColumn++)
+            {
+                string value = sourceRow[sourceColumn];
+                if (string.IsNullOrWhiteSpace(value))
+                    continue;
+
+                int targetColumn = firstTargetColumn + sourceColumn - 1;
+                if (targetColumn <= 0 || targetColumn >= targetRow.Count)
+                    continue;
+
+                if (string.IsNullOrWhiteSpace(targetRow[targetColumn]))
+                {
+                    targetRow[targetColumn] = value;
+                }
+            }
+        }
+
+        private static int CountNumericRadiusRows(IReadOnlyList<List<string>> grid)
+        {
+            return grid
+                .Skip(1)
+                .Count(row => row.Count > 0 && TryExtractNumber(row[0], out double radius) && radius > 0);
+        }
+
+        private static int CountPositiveCapacityCells(IReadOnlyList<List<string>> grid)
+        {
+            return grid
+                .Skip(1)
+                .Where(row => row.Count > 0 && TryExtractNumber(row[0], out double radius) && radius > 0)
+                .Sum(row => row.Skip(1).Count(cell => TryExtractNumber(cell, out double value) && value > 0));
+        }
+
+        private static bool IsCombinedContinuationCandidate(PdfTableCandidateDto candidate)
+        {
+            return candidate.Warnings.Any(warning =>
+                warning.Contains("COMBINED_CONTINUATION_TABLE", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool AreHeaderValuesClose(double left, double right)
+        {
+            return Math.Abs(left - right) <= 0.05;
+        }
+
+        private static bool AreRadiusValuesClose(double left, double right)
+        {
+            return Math.Abs(left - right) <= 0.05;
+        }
+
+        private static List<PdfTableCandidateDto> AppendVerifiedContinuationCandidatesForTesting(IReadOnlyList<PdfTableCandidateDto> orderedCandidates)
+        {
+            return AppendVerifiedContinuationCandidates(orderedCandidates);
+        }
+
+        private sealed class DoubleToleranceComparer : IEqualityComparer<double>
+        {
+            private readonly double _tolerance;
+
+            public DoubleToleranceComparer(double tolerance)
+            {
+                _tolerance = Math.Max(0.000001, tolerance);
+            }
+
+            public bool Equals(double x, double y)
+            {
+                return Math.Abs(x - y) <= _tolerance;
+            }
+
+            public int GetHashCode(double obj)
+            {
+                return Math.Round(obj / _tolerance).GetHashCode();
+            }
+        }
+        private static List<PdfTableCandidateDto> ReindexCandidatesInReadingOrder(IReadOnlyList<PdfTableCandidateDto> candidates)
+        {
+            if (candidates == null || candidates.Count == 0)
+                return new List<PdfTableCandidateDto>();
+
+            var visualRows = new List<List<PdfTableCandidateDto>>();
+            var heights = candidates
+                .Select(GetCandidateHeight)
+                .Where(height => height > 0)
+                .ToList();
+
+            double medianHeight = GetMedianCandidateValue(heights);
+            double baseCenterTolerance = Math.Max(8.0, medianHeight * 0.20);
+
+            foreach (var candidate in candidates
+                         .OrderByDescending(GetCandidateCenterY)
+                         .ThenBy(candidate => candidate.Left)
+                         .ThenByDescending(candidate => candidate.Score)
+                         .ThenBy(candidate => candidate.TableIndex))
+            {
+                var row = visualRows.FirstOrDefault(existingRow => IsSameVisualReadingRow(candidate, existingRow, baseCenterTolerance));
+                if (row == null)
+                {
+                    visualRows.Add(new List<PdfTableCandidateDto> { candidate });
+                    continue;
+                }
+
+                row.Add(candidate);
+            }
+
+            var ordered = visualRows
+                .OrderByDescending(GetRowUpperY)
+                .ThenBy(GetRowLeftX)
+                .SelectMany(row => row
+                    .OrderBy(candidate => candidate.Left)
+                    .ThenByDescending(candidate => candidate.Score)
+                    .ThenBy(candidate => candidate.TableIndex))
+                .ToList();
+
+            var reindexed = new List<PdfTableCandidateDto>(ordered.Count);
+            for (int index = 0; index < ordered.Count; index++)
+            {
+                reindexed.Add(ReindexCandidate(ordered[index], index + 1));
+            }
+
+            return reindexed;
+        }
+
+        private static bool IsSameVisualReadingRow(
+            PdfTableCandidateDto candidate,
+            IReadOnlyList<PdfTableCandidateDto> row,
+            double baseCenterTolerance)
+        {
+            if (row.Count == 0)
+                return false;
+
+            double candidateCenter = GetCandidateCenterY(candidate);
+            double rowCenter = row.Average(GetCandidateCenterY);
+            double candidateHeight = GetCandidateHeight(candidate);
+            double rowHeight = row.Select(GetCandidateHeight).DefaultIfEmpty(0).Average();
+            double dynamicCenterTolerance = Math.Max(baseCenterTolerance, Math.Min(candidateHeight, rowHeight) * 0.20);
+
+            if (Math.Abs(candidateCenter - rowCenter) <= dynamicCenterTolerance)
+                return true;
+
+            double candidateUpper = GetCandidateUpperY(candidate);
+            double candidateLower = GetCandidateLowerY(candidate);
+            double rowUpper = GetRowUpperY(row);
+            double rowLower = GetRowLowerY(row);
+            double overlap = Math.Min(candidateUpper, rowUpper) - Math.Max(candidateLower, rowLower);
+            double comparableHeight = Math.Min(candidateHeight, Math.Max(0, rowUpper - rowLower));
+
+            return comparableHeight > 0 && overlap / comparableHeight >= 0.35;
+        }
+
+        private static double GetCandidateCenterY(PdfTableCandidateDto candidate)
+        {
+            return (GetCandidateUpperY(candidate) + GetCandidateLowerY(candidate)) / 2.0;
+        }
+
+        private static double GetCandidateHeight(PdfTableCandidateDto candidate)
+        {
+            return Math.Abs(candidate.Top - candidate.Bottom);
+        }
+
+        private static double GetCandidateUpperY(PdfTableCandidateDto candidate)
+        {
+            return Math.Max(candidate.Top, candidate.Bottom);
+        }
+
+        private static double GetCandidateLowerY(PdfTableCandidateDto candidate)
+        {
+            return Math.Min(candidate.Top, candidate.Bottom);
+        }
+
+        private static double GetRowUpperY(IReadOnlyList<PdfTableCandidateDto> row)
+        {
+            return row.Count == 0 ? 0 : row.Max(GetCandidateUpperY);
+        }
+
+        private static double GetRowLowerY(IReadOnlyList<PdfTableCandidateDto> row)
+        {
+            return row.Count == 0 ? 0 : row.Min(GetCandidateLowerY);
+        }
+
+        private static double GetRowLeftX(IReadOnlyList<PdfTableCandidateDto> row)
+        {
+            return row.Count == 0 ? 0 : row.Min(candidate => candidate.Left);
+        }
+
+        private static List<PdfTableCandidateDto> OrderCandidatesInReadingOrderForTesting(IReadOnlyList<PdfTableCandidateDto> candidates)
+        {
+            return ReindexCandidatesInReadingOrder(candidates);
         }
         private static PdfTableCandidateDto ReindexCandidate(PdfTableCandidateDto candidate, int newIndex)
         {
