@@ -284,6 +284,18 @@ Below is the trace for every property defined in [GASettings.cs](file:///f:/06-I
 *   **Behavioral Impact:** Toggles concurrent GA mode vs greedy set-cover iterations. Affects **solution quality** (concurrency yields better globally coordinated layouts) and **performance** (iterative is simpler).
 *   **Recommendation:** Keep. Move to Advanced Settings.
 
+### 45. `LoadChartNumberOfLinesConstraint`
+*   **Classification:** Actively Used (Defaults to null)
+*   **Where Read:** [LoadChartCapacityResolver.cs:L510](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/LoadChartCapacityResolver.cs#L510)
+*   **Behavioral Impact:** Restricts crane load-chart search to columns matching the specified number of hoist lines (reeving), preventing optimistic capacity resolution in duplicate columns.
+*   **Recommendation:** Keep. Exposed programmatically for advanced filtering.
+
+### 46. `LoadChartOperatingConditionConstraint`
+*   **Classification:** Actively Used (Defaults to null)
+*   **Where Read:** [LoadChartCapacityResolver.cs:L528](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/LoadChartCapacityResolver.cs#L528)
+*   **Behavioral Impact:** Restricts crane load-chart search to columns matching the specified operating condition label (e.g. "360 degrees", "over rear", "outriggers 50%").
+*   **Recommendation:** Keep. Exposed programmatically for advanced filtering.
+
 ---
 
 ## 2. Categorization & Functional Grouping
@@ -304,6 +316,8 @@ These are mandatory core inputs that influence candidate evolution and mechanica
 *   `MinimumRelocationDistance`
 *   `PositionSamplingAttempts`
 *   `RandomSeed`
+*   `LoadChartNumberOfLinesConstraint` (Optional Filter)
+*   `LoadChartOperatingConditionConstraint` (Optional Filter)
 
 ### Settings Affecting Only Diagnostics / Debugging
 *   `ProfilingLogDirectory`

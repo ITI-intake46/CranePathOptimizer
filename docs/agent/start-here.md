@@ -24,7 +24,7 @@ Before performing **any** task, reading the following core documents is mandator
 
 1.  **System and Context Safeguards:** Read [agent-context.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/agent/agent-context.md) to understand critical naming invariants, engineering limits, and coordinate safeguards.
 2.  **Limitations & Assumptions:** Read [limitations.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/project/limitations.md) to understand reach calculations, rigging, and coordinate limitations.
-3.  **GA & Optimization Reference:** Read [ga-reference.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/ga/ga-settings-guide.md) for a complete analysis of GASettings and hardcoded constants.
+3.  **GA & Optimization Reference:** Read [ga-settings-guide.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/ga/ga-settings-guide.md) for a complete analysis of GASettings and hardcoded constants.
 
 ---
 
@@ -70,7 +70,7 @@ Use this index to route your research based on the specific subsystem or domain 
 ### If Working On Refactoring & Technical Debt Cleanup
 *   For the priority index of identified architectural flaws and rendering bottlenecks, read [refactoring-opportunities.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/project/refactoring-opportunities.md).
 *   For current tasks and build/test status, inspect the current source tree, `git status`, and available audit reports; `docs/project/current-state.md` is not present in the current repository.
-*   Always read the relevant domain documentation ([ga-engine.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/ga/ga-engine-design.md), [ifc.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/ifc.md), etc.) to understand standard mathematical logic before refactoring.
+*   Always read the relevant domain documentation ([ga-engine-design.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/ga/ga-engine-design.md), [ifc.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/ifc.md), etc.) to understand standard mathematical logic before refactoring.
 
 ---
 

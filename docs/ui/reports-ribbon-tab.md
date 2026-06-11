@@ -1,5 +1,8 @@
 # Reports Ribbon Tab — Documentation
 
+> [!WARNING]
+> **Implementation Status:** The report generation buttons (Elements List, Lifting Summary, All Cranes, Compare, Project Overview, Site Zones) in the Reports tab are currently **TODO placeholders/stubs** in the codebase (see [ReportsTabView.xaml.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F12_Reports/Views/ReportsTabView.xaml.cs)). While the UI buttons are laid out, clicking them will not produce reports until the respective handlers are implemented. Only the shared **GA Diagnostics** and **View Results** buttons (which hook into the shared `CranePlacementViewModel` commands) are active.
+
 ---
 
 ## 1. How the Ribbon System Works
