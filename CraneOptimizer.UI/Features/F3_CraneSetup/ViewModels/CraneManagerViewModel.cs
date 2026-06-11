@@ -147,7 +147,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels
             selected.PivotOffset = new Domain.Common.DomainPoint3D(
                 0,
                 0,
-                Math.Max(1.2, ToMeters(craneEntity.VehicleHeight, 1.5)));
+                Math.Max(0.2, ToMeters(craneEntity.VehicleHeight, 1.5) * 0.8));
 
             if (selected.ActiveSpecification != null)
             {

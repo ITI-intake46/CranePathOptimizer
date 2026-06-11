@@ -128,6 +128,16 @@
                         </TextBlock>
                         <TextBlock FontSize="{StaticResource FontSizeXS}"
                                    Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsOnRubber}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
                             <Run Text="Outrigger "/>
                             <Run Text="{Binding OutriggerSpanM, Converter={StaticResource LengthDisplayConverter}}"/>
                             <Run Text=" x "/>
@@ -303,12 +313,23 @@
                             <Run Text="{Binding MaxBoomLength, Converter={StaticResource LengthDisplayConverter}, Mode=OneWay}"/>
                         </TextBlock>
                         <!-- Outrigger -->
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Outrigger"
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Operating"
                                    FontSize="{StaticResource FontSizeXS}"
                                    Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,1"/>
-                        <TextBlock Grid.Row="3" Grid.Column="1" Text="Full"
+                        <TextBlock Grid.Row="3" Grid.Column="1"
                                    FontSize="{StaticResource FontSizeXS}"
-                                   Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" Margin="0,1"/>
+                                   Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" Margin="0,1">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="Outriggers"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsOnRubber}" Value="True">
+                                            <Setter Property="Text" Value="On Rubber"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                         <!-- Derating -->
                         <TextBlock Grid.Row="4" Grid.Column="0" Text="Derating"
                                    FontSize="{StaticResource FontSizeXS}"
@@ -323,6 +344,16 @@
                 <Border Background="{DynamicResource BackgroundBrush}"
                         CornerRadius="4" Padding="8,6" Margin="0,4,0,16"
                         Cursor="Hand" HorizontalAlignment="Left">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsOnRubber}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <TextBlock Text="Swap Outrigger W / L"
                                FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
                                Foreground="{DynamicResource TextPrimaryBrush}"/>
@@ -397,26 +428,38 @@
                 </Grid>
 
                 <!-- ── OUTRIGGER SPAN ──────────────────────────────── -->
-                <TextBlock Text="OUTRIGGER SPAN"
-                           FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
-                           Margin="0,0,0,6"/>
-                <Grid Margin="0,0,0,16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <Slider Grid.Column="0"
-                            Minimum="3" Maximum="15"
-                            Value="{Binding OutriggerSpanM, Mode=TwoWay}"
-                            VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="1"
-                               Text="{Binding OutriggerSpanM, Converter={StaticResource LengthDisplayConverter}}"
-                               FontSize="{StaticResource FontSizeSM}"
-                               Foreground="{StaticResource PrimaryBrush}"
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center" Margin="10,0,0,0"/>
-                </Grid>
+                <StackPanel Margin="0,0,0,16">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsOnRubber}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <TextBlock Text="OUTRIGGER SPAN"
+                               FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="0,0,0,6"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Slider Grid.Column="0"
+                                Minimum="3" Maximum="20"
+                                Value="{Binding OutriggerSpanM, Mode=TwoWay}"
+                                VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding OutriggerSpanM, Converter={StaticResource LengthDisplayConverter}}"
+                                   FontSize="{StaticResource FontSizeSM}"
+                                   Foreground="{StaticResource PrimaryBrush}"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center" Margin="10,0,0,0"/>
+                    </Grid>
+                </StackPanel>
 
                 <!-- ── DISPLAY TOGGLES ─────────────────────────────── -->
                 <TextBlock Text="DISPLAY"
@@ -433,6 +476,26 @@
                               VerticalAlignment="Center"/>
                 </Grid>
                 <Grid Margin="0,0,0,6">
+                    <TextBlock Text="Dimension Guide"
+                               FontSize="{StaticResource FontSizeXS}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               VerticalAlignment="Center"/>
+                    <CheckBox HorizontalAlignment="Right"
+                              IsChecked="{Binding ShowDimensionGuide, Mode=TwoWay}"
+                              ToolTip="Show transport dimensions and operating footprint"
+                              VerticalAlignment="Center"/>
+                </Grid>
+                <Grid Margin="0,0,0,6">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsOnRubber}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
                     <TextBlock Text="Outrigger Pads"
                                FontSize="{StaticResource FontSizeXS}"
                                Foreground="{DynamicResource TextSecondaryBrush}"
