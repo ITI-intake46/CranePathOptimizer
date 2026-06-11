@@ -557,7 +557,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 return false;
             }
 
-            if (!LoadChartCsvService.TryParseFlexibleNumber(TxtCounterweight.Text, out double displayValue)
+            if (!LoadChartCsvService.TryParseUserEnteredNumber(TxtCounterweight.Text, out double displayValue)
                 || !double.IsFinite(displayValue)
                 || displayValue < 0d)
             {
@@ -980,7 +980,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 return false;
             }
 
-            if (LoadChartCsvService.TryParseFlexibleNumber(text, out value))
+            if (LoadChartCsvService.TryParseUserEnteredNumber(text, out value))
                 return true;
 
             throw new FormatException($"{fieldName} value '{text}' is invalid.");

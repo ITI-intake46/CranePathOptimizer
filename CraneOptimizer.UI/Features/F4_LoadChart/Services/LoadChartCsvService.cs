@@ -262,6 +262,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 && double.TryParse(normalized, NumberStyles.Any, CultureInfo.InvariantCulture, out value);
         }
 
+        internal static bool TryParseUserEnteredNumber(string? input, out double value)
+        {
+            value = 0d;
+            string normalized = NormalizeUserEnteredNumber(input);
+            return !string.IsNullOrWhiteSpace(normalized)
+                && double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+        }
+
         private static DataTable CreatePreviewTable(IReadOnlyList<List<string>> rawGrid, out List<string> previewHeaders)
         {
             var table = new DataTable();
@@ -803,6 +811,50 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 {
                     clean = clean.Replace(",", string.Empty);
                 }
+            }
+
+            return clean.Trim();
+        }
+
+        private static string NormalizeUserEnteredNumber(string? input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return string.Empty;
+
+            string clean = input.Trim().Trim('"').Trim();
+            clean = clean.Replace('\u00A0', ' ');
+            clean = Regex.Replace(clean, @"(?i)\s*(mm|cm|kg|tonnes?|tons?|ton|t|m|%)\s*$", string.Empty);
+            clean = clean.Replace(" ", string.Empty);
+
+            if (clean.Contains(',') && clean.Contains('.'))
+            {
+                int lastComma = clean.LastIndexOf(',');
+                int lastDot = clean.LastIndexOf('.');
+
+                if (lastComma > lastDot)
+                {
+                    clean = clean.Replace(".", string.Empty);
+                    clean = ReplaceLast(clean, ',', '.');
+                    clean = clean.Replace(",", string.Empty);
+                }
+                else
+                {
+                    clean = clean.Replace(",", string.Empty);
+                }
+            }
+            else if (clean.Count(character => character == ',') == 1)
+            {
+                clean = clean.Replace(',', '.');
+            }
+            else if (clean.Count(character => character == ',') > 1)
+            {
+                clean = clean.Replace(",", string.Empty);
+            }
+            else if (clean.Count(character => character == '.') > 1)
+            {
+                string[] parts = clean.Split('.');
+                if (parts.Skip(1).All(part => part.Length == 3))
+                    clean = clean.Replace(".", string.Empty);
             }
 
             return clean.Trim();

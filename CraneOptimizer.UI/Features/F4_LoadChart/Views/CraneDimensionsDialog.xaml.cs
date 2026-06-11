@@ -101,7 +101,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 throw new FormatException($"{fieldName} is required.");
             }
 
-            if (LoadChartCsvService.TryParseFlexibleNumber(text, out double value))
+            if (LoadChartCsvService.TryParseUserEnteredNumber(text, out double value))
             {
                 double meters = UnitSystem.ToMeters(value, _unitSettings.DisplayLengthUnit);
                 if (double.IsFinite(meters) && meters > 0d)

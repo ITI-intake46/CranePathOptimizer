@@ -39,7 +39,9 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Views
 
         private async void CraneCatalog_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new CraneCatalogBrowserDialog(isReadOnlyView: false)
+            var dialog = new CraneCatalogBrowserDialog(
+                isReadOnlyView: false,
+                onCraneUpdated: _ => RefreshCranesAsync())
             {
                 Owner = Window.GetWindow(this)
             };
