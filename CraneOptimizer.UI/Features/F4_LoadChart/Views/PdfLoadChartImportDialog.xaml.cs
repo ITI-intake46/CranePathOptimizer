@@ -22,11 +22,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         private readonly PdfLoadChartScanResult _scanResult;
         private readonly List<PdfPageCandidateDto> _orderedPages;
         private PdfTableCandidateDto? _currentSourcePreviewTable;
+        private PdfTableCandidateDto? _renderedSourcePreviewTable;
         private double _sourcePreviewZoom = 1.0;
         private double _sourcePreviewPageWidth;
         private double _sourcePreviewPageHeight;
         private double _sourcePreviewImagePixelWidth;
         private double _sourcePreviewImagePixelHeight;
+        private bool _isSourcePreviewVisible = true;
+        private GridLength _sourcePreviewColumnWidth = new GridLength(1, GridUnitType.Star);
 
         internal LoadChartImportResult? ImportResult { get; private set; }
 
@@ -45,6 +48,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 $"{_scanResult.PageCount} page(s) scanned - {_scanResult.AllTables.Count} table candidate(s) detected";
 
             BtnImportSelected.IsEnabled = false;
+            InitializeSourcePreviewToggleState();
             ClearSourcePdfPreview("Select a detected table to render the original PDF page.");
             Loaded += PdfLoadChartImportDialog_Loaded;
         }
@@ -302,9 +306,109 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
             BtnImportSelected.IsEnabled = true;
         }
+        private void InitializeSourcePreviewToggleState()
+        {
+            _isSourcePreviewVisible = true;
+            _sourcePreviewColumnWidth = SourcePreviewColumn.Width.Value > 0
+                ? SourcePreviewColumn.Width
+                : new GridLength(1, GridUnitType.Star);
+
+            SourcePdfPreviewPane.Visibility = Visibility.Visible;
+            SourcePreviewSplitter.Visibility = Visibility.Visible;
+            SourcePreviewSplitterColumn.Width = new GridLength(8);
+            SourcePreviewColumn.MinWidth = 360;
+            UpdateSourcePreviewToggleButton();
+        }
+
+        private void SourcePreviewVisibilityToggle_Click(object sender, RoutedEventArgs e)
+        {
+            SetSourcePreviewVisibility(BtnToggleSourcePreview.IsChecked == true, renderIfNeeded: true);
+        }
+
+        private void SetSourcePreviewVisibility(bool isVisible, bool renderIfNeeded)
+        {
+            if (_isSourcePreviewVisible == isVisible)
+            {
+                UpdateSourcePreviewToggleButton();
+                return;
+            }
+
+            _isSourcePreviewVisible = isVisible;
+
+            if (!isVisible)
+            {
+                if (SourcePreviewColumn.Width.Value > 0)
+                    _sourcePreviewColumnWidth = SourcePreviewColumn.Width;
+
+                SourcePdfPreviewPane.Visibility = Visibility.Collapsed;
+                SourcePreviewSplitter.Visibility = Visibility.Collapsed;
+                SourcePreviewSplitterColumn.Width = new GridLength(0);
+                SourcePreviewColumn.MinWidth = 0;
+                SourcePreviewColumn.Width = new GridLength(0);
+
+                if (TxtSourcePreviewStatus != null && _currentSourcePreviewTable != null)
+                {
+                    TxtSourcePreviewStatus.Text =
+                        $"Source PDF preview hidden for page {_currentSourcePreviewTable.PageNumber}, table {_currentSourcePreviewTable.TableIndex}.";
+                }
+            }
+            else
+            {
+                SourcePdfPreviewPane.Visibility = Visibility.Visible;
+                SourcePreviewSplitter.Visibility = Visibility.Visible;
+                SourcePreviewSplitterColumn.Width = new GridLength(8);
+                SourcePreviewColumn.MinWidth = 360;
+                SourcePreviewColumn.Width = _sourcePreviewColumnWidth.Value > 0
+                    ? _sourcePreviewColumnWidth
+                    : new GridLength(1, GridUnitType.Star);
+
+                if (renderIfNeeded && TablesList.SelectedItem is PdfTableCandidateDto table)
+                {
+                    if (!IsCurrentSourcePreviewRenderedFor(table))
+                    {
+                        ShowSourcePdfPreview(table);
+                    }
+                    else
+                    {
+                        ApplySourcePreviewZoom(scrollToTable: true);
+                    }
+                }
+            }
+
+            UpdateSourcePreviewToggleButton();
+        }
+
+        private bool IsCurrentSourcePreviewRenderedFor(PdfTableCandidateDto table)
+        {
+            return SourcePdfImage.Source != null
+                && ReferenceEquals(_renderedSourcePreviewTable, table)
+                && _sourcePreviewImagePixelWidth > 0
+                && _sourcePreviewImagePixelHeight > 0;
+        }
+
+        private void UpdateSourcePreviewToggleButton()
+        {
+            if (BtnToggleSourcePreview == null)
+                return;
+
+            BtnToggleSourcePreview.IsChecked = _isSourcePreviewVisible;
+            BtnToggleSourcePreview.Content = _isSourcePreviewVisible
+                ? "Hide PDF Preview"
+                : "Show PDF Preview";
+            BtnToggleSourcePreview.ToolTip = _isSourcePreviewVisible
+                ? "Hide the original PDF preview pane and expand the parsed grid."
+                : "Show the original PDF preview pane beside the parsed grid.";
+        }
         private void ShowSourcePdfPreview(PdfTableCandidateDto table)
         {
             _currentSourcePreviewTable = table;
+
+            if (!_isSourcePreviewVisible)
+            {
+                TxtSourcePreviewStatus.Text = $"Source PDF preview hidden for page {table.PageNumber}, table {table.TableIndex}.";
+                return;
+            }
+
             _sourcePreviewZoom = 1.0;
             TxtSourcePreviewStatus.Text = $"Rendering page {table.PageNumber}, table {table.TableIndex}...";
 
@@ -325,6 +429,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 _sourcePreviewImagePixelHeight = bitmap.PixelHeight;
 
                 SourcePdfImage.Source = bitmap;
+                _renderedSourcePreviewTable = table;
                 ApplySourcePreviewZoom(scrollToTable: true);
 
                 TxtSourcePreviewStatus.Text =
@@ -384,6 +489,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         private void ClearSourcePdfPreview(string message)
         {
             _currentSourcePreviewTable = null;
+            _renderedSourcePreviewTable = null;
             _sourcePreviewPageWidth = 0;
             _sourcePreviewPageHeight = 0;
             _sourcePreviewImagePixelWidth = 0;
@@ -478,6 +584,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
         private void SourcePreviewFitPage_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isSourcePreviewVisible)
+                return;
+
             if (SourcePdfImage.Source == null || _sourcePreviewImagePixelWidth <= 0 || _sourcePreviewImagePixelHeight <= 0)
                 return;
 
@@ -494,17 +603,26 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
         private void SourcePreviewFindTable_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isSourcePreviewVisible)
+                return;
+
             ScrollSourcePreviewToTable();
         }
 
         private void SourcePreviewZoomOut_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isSourcePreviewVisible)
+                return;
+
             _sourcePreviewZoom /= 1.20;
             ApplySourcePreviewZoom(scrollToTable: false);
         }
 
         private void SourcePreviewZoomIn_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isSourcePreviewVisible)
+                return;
+
             _sourcePreviewZoom *= 1.20;
             ApplySourcePreviewZoom(scrollToTable: false);
         }
