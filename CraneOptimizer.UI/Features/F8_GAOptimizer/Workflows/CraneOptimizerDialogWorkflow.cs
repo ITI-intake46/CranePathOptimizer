@@ -113,7 +113,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 EnableMultiStageDiscovery = ParseBool(options.EnableMultiStageDiscoveryText, true),
                 MultiStageCoverageTarget = ParseDouble(options.MultiStageCoverageTargetText, 0.95),
                 AdaptiveRelocationScaleFactor = ParseDouble(options.AdaptiveRelocationScaleFactorText, 0.40),
-                UseHungarianAssignment = ParseBool(options.UseHungarianAssignmentText, false)
+                UseHungarianAssignment = ParseBool(options.UseHungarianAssignmentText, false),
+                LoadChartNumberOfLinesConstraint = options.LoadChartNumberOfLinesConstraint,
+                LoadChartOperatingConditionConstraint = NullIfWhiteSpace(options.LoadChartOperatingConditionConstraint)
             };
         }
 
@@ -152,6 +154,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 return null;
 
             return int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
+        }
+
+        private static string? NullIfWhiteSpace(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value)
+                ? null
+                : value.Trim();
         }
     }
 
@@ -203,7 +212,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         string? EnableMultiStageDiscoveryText,
         string? MultiStageCoverageTargetText,
         string? AdaptiveRelocationScaleFactorText,
-        string? UseHungarianAssignmentText);
+        string? UseHungarianAssignmentText,
+        int? LoadChartNumberOfLinesConstraint,
+        string? LoadChartOperatingConditionConstraint);
 
     public sealed class CraneOptimizerPointListItem
     {

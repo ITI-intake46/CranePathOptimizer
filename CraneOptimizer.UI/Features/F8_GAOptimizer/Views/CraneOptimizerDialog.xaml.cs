@@ -78,6 +78,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         {
             var cranes = await _workflow.LoadCranesAsync();
             CboCrane.ItemsSource = cranes;
+            RefreshLoadChartOperatingSetupOptions(CboCrane.SelectedItem as Crane);
         }
 
         private async void BtnRun_Click(object sender, RoutedEventArgs e)
@@ -376,7 +377,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 vm.EnableMultiStageDiscovery ? "true" : "false",
                 vm.MultiStageCoverageTarget.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 vm.AdaptiveRelocationScaleFactor.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                vm.UseHungarianAssignment ? "true" : "false");
+                vm.UseHungarianAssignment ? "true" : "false",
+                vm.SelectedLoadChartOperatingSetupOption.NumberOfLinesConstraint,
+                vm.SelectedLoadChartOperatingSetupOption.OperatingConditionConstraint);
         }
 
         private void RefreshSceneCache()
@@ -485,7 +488,17 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private double CalculateMarkerRadius() => 0.2;
         private double CalculateMarkerZ(double r) => 0.5;
 
-        private void CboCrane_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
+        private void CboCrane_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            RefreshLoadChartOperatingSetupOptions(CboCrane.SelectedItem as Crane);
+        }
+
+        private void RefreshLoadChartOperatingSetupOptions(Crane? crane)
+        {
+            if (DataContext is CraneOptimizerDialogViewModel vm)
+                vm.RefreshLoadChartOperatingSetupOptions(crane);
+        }
+
         private void RbExclusion_Checked(object sender, RoutedEventArgs e) { }
 
         private void BtnApply_Click(object sender, RoutedEventArgs e)
