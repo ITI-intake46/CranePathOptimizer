@@ -1,4 +1,4 @@
-﻿# PDF Load Chart Import
+# PDF Load Chart Import
 
 This document describes the PDF load-chart import workflow and the current extraction rules used by
 `CraneOptimizer.UI/Features/F4_LoadChart/Services/LoadChartPdfService.cs`.
@@ -17,6 +17,20 @@ The importer must preserve the project layering rules:
 - Domain, GA, database, and persistence behavior must not be changed for PDF-layout cleanup work.
 - Saved exact-visual charts still flow through the existing DTO/import services and capacity lookup
   behavior.
+
+## Downstream GA operating setup selection
+
+The PDF importer preserves imported load-chart operating metadata, including `NumberOfLines`,
+`OperatingConditionLabel`, `VisualColumnIndex`, and `VisualColumnHeader`, but it must not decide the
+crane reeving or operating setup for the optimizer.
+
+The user-facing runtime choice belongs in the F8 **Crane Position Optimizer** dialog under
+**Load Chart Operating Setup**. The default **Any available line count / condition** option keeps the
+previous optimizer behavior by leaving `GASettings.LoadChartNumberOfLinesConstraint` and
+`GASettings.LoadChartOperatingConditionConstraint` unset. When the user chooses a specific line count
+or operating condition, the dialog forwards that choice through `CraneOptimizerDialogWorkflow` into
+`GASettings`, and the existing `LoadChartCapacityResolver` applies the constraint during capacity
+lookup.
 
 ## Table detection overview
 
