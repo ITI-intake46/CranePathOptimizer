@@ -1,4 +1,5 @@
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.CreatedProject;
 using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
@@ -32,15 +33,26 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private readonly IIfcDiagnosticAuditService _auditService;
         private readonly IIfcNormalizationDecisionService _normalizationService;
         private readonly IIfcModelSessionService _sessionService;
+        private readonly IIfcGeoreferencingExtractor _georeferencingExtractor;
 
         public IfcReaderRepository(
             IIfcDiagnosticAuditService auditService,
             IIfcNormalizationDecisionService normalizationService,
             IIfcModelSessionService sessionService)
+            : this(auditService, normalizationService, sessionService, new IfcGeoreferencingExtractor())
+        {
+        }
+
+        public IfcReaderRepository(
+            IIfcDiagnosticAuditService auditService,
+            IIfcNormalizationDecisionService normalizationService,
+            IIfcModelSessionService sessionService,
+            IIfcGeoreferencingExtractor georeferencingExtractor)
         {
             _auditService = auditService;
             _normalizationService = normalizationService;
             _sessionService = sessionService;
+            _georeferencingExtractor = georeferencingExtractor;
         }
 
         public IfcStore? CurrentModel => _sessionService.Current?.Model;
@@ -49,6 +61,16 @@ namespace CraneOptimizer.Infrastructure.Repositories
         public string? CurrentFileIdentity => _sessionService.Current?.FileIdentity;
         public double ModelLengthFactor => _sessionService.Current?.ModelLengthFactor ?? 1.0;
         public double? ModelGroundElevation => _sessionService.Current?.ModelGroundElevation;
+
+        public IfcGeoreferencingResult? GetGeoreferencingData()
+        {
+            if (CurrentModel == null)
+            {
+                return null;
+            }
+
+            return _georeferencingExtractor.Extract(CurrentModel);
+        }
 
 
         public void ClearData()

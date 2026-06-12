@@ -710,6 +710,8 @@ namespace CraneOptimizer.Application.Tests
             public double ModelLengthFactor => 1.0;
             public double? ModelGroundElevation => 0.0;
 
+            public IfcGeoreferencingResult? GetGeoreferencingData() => null;
+
             public void ClearData() { }
             public void Dispose() { }
         }

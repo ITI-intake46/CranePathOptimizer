@@ -719,6 +719,9 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 dbRef.RotationToNorthDegrees = refData.RotationToNorthDegrees;
                 dbRef.Scale = refData.Scale;
                 dbRef.Source = refData.Source ?? "ManualSinglePoint";
+                dbRef.Latitude = refData.Latitude;
+                dbRef.Longitude = refData.Longitude;
+                dbRef.Description = refData.Description;
                 dbRef.UpdatedAtUtc = DateTime.UtcNow;
 
                 context.CoordinateReferences.Update(dbRef);
@@ -765,6 +768,9 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                     RotationToNorthDegrees = dbRef.RotationToNorthDegrees,
                     Scale = dbRef.Scale,
                     Source = dbRef.Source,
+                    Latitude = dbRef.Latitude,
+                    Longitude = dbRef.Longitude,
+                    Description = dbRef.Description,
                     CreatedAt = dbRef.CreatedAtUtc,
                     UpdatedAt = dbRef.UpdatedAtUtc
                 };

@@ -26,6 +26,11 @@ namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject.CreatedProjectCo
                 .IsRequired()
                 .HasMaxLength(50);
 
+            entity.Property(x => x.Latitude);
+            entity.Property(x => x.Longitude);
+            entity.Property(x => x.Description)
+                .HasMaxLength(1000);
+
             entity.HasIndex(x => x.ProjectInfoId);
 
             entity.HasOne(x => x.ProjectInfo)

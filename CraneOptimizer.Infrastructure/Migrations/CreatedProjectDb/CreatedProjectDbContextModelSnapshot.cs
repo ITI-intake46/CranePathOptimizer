@@ -479,12 +479,19 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("EPSGCode")
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("INTEGER");
+
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("REAL");
 
                     b.Property<double>("LocalReferenceX")
                         .HasColumnType("REAL");
@@ -493,6 +500,9 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                         .HasColumnType("REAL");
 
                     b.Property<double>("LocalReferenceZ")
+                        .HasColumnType("REAL");
+
+                    b.Property<double?>("Longitude")
                         .HasColumnType("REAL");
 
                     b.Property<string>("Name")

@@ -30,6 +30,9 @@ namespace CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels
         private double _appliedSurveyElevation;
         private double _rotationToNorthDegrees;
         private double _scale = 1.0;
+        private double? _latitude;
+        private double? _longitude;
+        private string? _description;
 
         private double _previewLocalX = 10.0;
         private double _previewLocalY = 10.0;
@@ -146,7 +149,25 @@ namespace CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels
         public double Scale
         {
             get => _scale;
-            set { _scale = value; OnPropertyChanged(); UpdatePreviews(); }
+            set { _scale = value; OnPropertyChanged(); }
+        }
+
+        public double? Latitude
+        {
+            get => _latitude;
+            set { _latitude = value; OnPropertyChanged(); }
+        }
+
+        public double? Longitude
+        {
+            get => _longitude;
+            set { _longitude = value; OnPropertyChanged(); }
+        }
+
+        public string? Description
+        {
+            get => _description;
+            set { _description = value; OnPropertyChanged(); }
         }
 
         public double PreviewLocalX
@@ -232,6 +253,13 @@ namespace CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels
             _appliedSurveyElevation = r.SurveyElevation;
             _rotationToNorthDegrees = r.RotationToNorthDegrees;
             _scale = r.Scale;
+            _latitude = r.Latitude;
+            _longitude = r.Longitude;
+            _description = r.Description;
+
+            OnPropertyChanged(nameof(Latitude));
+            OnPropertyChanged(nameof(Longitude));
+            OnPropertyChanged(nameof(Description));
 
             OnPropertyChanged(nameof(IsEnabled));
             OnPropertyChanged(nameof(Name));
@@ -269,6 +297,9 @@ namespace CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels
                 SurveyElevation = SurveyElevation,
                 RotationToNorthDegrees = RotationToNorthDegrees,
                 Scale = Scale,
+                Latitude = Latitude,
+                Longitude = Longitude,
+                Description = Description,
                 UpdatedAt = DateTime.UtcNow
             };
 

@@ -5,9 +5,9 @@
 An architectural and technical investigation was conducted across the entire **Mobile Crane Path Optimizer** codebase to assess the integration of GIS coordinates, Survey Points, Project Base Points, and Coordinate Reference Systems (CRS). The objective was to determine whether survey coordinates are fully integrated and whether they correctly influence the final crane path optimization results.
 
 ### Core Finding
-The project's coordinate reference system is **Partially Integrated** (Status B). Specifically:
-* **Presentation Layer:** The system successfully formats and displays coordinates in the survey coordinate space (Easting, Northing, Elevation) for user interface readouts (status bar cursor tracking, element properties, and GA results window labels) and outputs them in `Research`-level diagnostics CSV files.
-* **Core Logic Layer (The Gap):** The core optimization database, Genetic Algorithm (GA) solver, constraint engines (e.g., forbidden/allowed zone overlaps), and 3D Helix viewport rendering pipeline operate entirely in the **local coordinate system of the IFC file (in meters)**. 
+The project's coordinate reference system is **Substantially Integrated (Status B, Phases 1 & 2 Completed)**. Specifically:
+* **Presentation & Persistence Layers:** The system successfully persists the coordinate reference settings in the per-project `.craneopt` SQLite database and automatically extracts GIS/survey georeferencing metadata directly from imported IFC files (IFC4 and IFC2x3). It formats and displays coordinates in the survey coordinate space (Easting, Northing, Elevation) for UI readouts (status bar, element properties, results labels) and logs.
+* **Core Logic Layer (The Safety Boundary):** The core optimization database, Genetic Algorithm (GA) solver, constraint engines (e.g., forbidden/allowed zone overlaps), and 3D Helix viewport rendering pipeline operate entirely in the **local coordinate system of the IFC file (in meters)**.
 * **Zero Optimization Impact:** Changing the Survey Point coordinates or Rotation to North in the UI has **absolutely no effect** on the GA candidate point selection, crane radius checks, lift height calculations, load chart capacity checks, or the final GA-generated crane positions. The GA is completely decoupled from and unaware of the survey coordinate transformations.
 
 ---
@@ -44,7 +44,7 @@ The coordinate system architecture is split into two independent domains: the **
    * **`LocalToSurvey`:** Translates local $(x, y, z)$ to survey $(E, N, H)$.
    * **`SurveyToLocal`:** Translates survey $(E, N, H)$ to local $(x, y, z)$.
 3. **`ProjectStateService` ([ProjectStateService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F10_ProjectManagement/Services/ProjectStateService.cs)):**
-   Saves and loads the active coordinate reference parameters to/from a standalone `coordinate_reference.json` file in the project folder, completely bypassing the SQLite database.
+   Saves and loads the active coordinate reference parameters directly inside the per-project `.craneopt` SQLite database (`ProjectCoordinateReferenceEntity`) as the primary persistence source, keeping `coordinate_reference.json` only as a backward-compatible fallback.
 
 ---
 
@@ -77,10 +77,10 @@ xBIM’s `Xbim3DModelContext` geometry engine automatically resolves the local p
 
 **Findings:**
 1. **What coordinates are extracted?** Element bounding boxes and Center of Gravity (COG) centroids are extracted in meters relative to the IFC model's origin.
-2. **Are Survey / Shared / Project Base Point Coordinates extracted?** **No**. The system does not query georeferencing entities like `IfcMapConversion`, `IfcProjectedCRS`, or `IfcCoordinateReferenceSystem`.
-3. **Are coordinates transformed during import?** No. They are read raw and normalized to meters using `GetLengthToMetersFactor` (supporting Millimeters, Centimeters, Decimeters, or Meters).
-4. **Are coordinates stored in the database?** Yes, in the `IfcElements` table.
-5. **Are coordinates exposed to ViewModels/Reports?** Yes. `ElementManagementViewModel` and `GAResultsWindowViewModel` use the `IProjectCoordinateTransformService` to format coordinates into survey readouts for presentation, but they are not used for structural data.
+2. **Are Survey / Shared / Project Base Point Coordinates extracted?** **Yes (implemented in Phase 2)**. The system queries georeferencing entities like `IfcMapConversion` and `IfcProjectedCRS` (in IFC4/IFC4x3) to extract Easting, Northing, Orthogonal Height, Scale, and Axis rotations, and queries `IfcSite` RefLatitude / RefLongitude / RefElevation (converted from DMS to decimal degrees) as informational metadata fallback in IFC2x3.
+3. **Are coordinates transformed during import?** No. Elements are still read raw and normalized to local meters relative to the model origin (preserving local geometry representation). However, `ProjectCoordinateReference` is auto-populated from extracted georeferencing data (if empty or disabled) to establish the survey mapping.
+4. **Are coordinates stored in the database?** Yes. Element local COGs and bounds are stored in the `IfcElements` table, while the survey reference parameters themselves are stored in the `ProjectCoordinateReference` table.
+5. **Are coordinates exposed to ViewModels/Reports?** Yes. `ElementManagementViewModel` and `GAResultsWindowViewModel` use the `IProjectCoordinateTransformService` to format local coordinates into survey readouts for presentation and diagnostics.
 
 ---
 
@@ -172,9 +172,9 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 ```
 
 **Findings:**
-1. **Are Survey Coordinates stored?** **No**. `ProjectCoordinateReferenceEntity` is explicitly ignored by EF Core and commented out of configurations. It is stored instead in `coordinate_reference.json`.
-2. **Are CRS definitions stored?** No. 
-3. **Are coordinate transforms stored?** IFC and DXF local adjustment matrices are stored in `IfcFiles` and `ModelFiles` tables under `TransformJson`.
+1. **Are Survey Coordinates stored?** **Yes (implemented in Phase 1)**. `ProjectCoordinateReferenceEntity` is mapped in EF Core (`CreatedProjectDbContext`) and stored inside the per-project `.craneopt` database. `coordinate_reference.json` remains only as a backward-compatible fallback.
+2. **Are CRS definitions stored?** Yes (as of Phase 2 metadata extraction). CRS Name, Description, and EPSG code are stored in the database entity when extracted from `IfcProjectedCRS`.
+3. **Are coordinate transforms stored?** IFC and DXF local adjustment matrices are stored in `IfcFiles` and `ModelFiles` tables under `TransformJson`, and the active project coordinate reference is stored in the `ProjectCoordinateReference` table.
 4. **Persisted GIS Columns:** None. 
 
 **SQLite Table & Columns containing Coordinates:**
@@ -203,15 +203,18 @@ graph TD
     IFC[IFC Model File] -->|xBIM context.ShapeInstancesOf| Extractor[IfcEngineeringExtractor]
     DXF[DXF Site File] -->|netDxf entity parsing| DxfService[DxfZoneImportService]
     UserCRS[User Inputs CRS Settings] -->|CoordinateReferenceView| StateService[ProjectStateService]
+    IFC -->|Extracts Georeferencing| Extractor
 
     %% Storage
-    StateService -->|Serializes to JSON| JsonFile[coordinate_reference.json]
+    StateService -->|Persists in DB| DB_CoordRef[(SQLite Table: ProjectCoordinateReference)]
+    StateService -.->|Fallback read/write| JsonFile[coordinate_reference.json]
     Extractor -->|Extracts Local Meters COG| DB_Elements[(SQLite Table: IfcElements)]
+    Extractor -->|Auto-Populates Reference| DB_CoordRef
     DxfService -->|Applies Manual Scale/Rotate/Offset| DB_Zones[(SQLite Table: SiteZones)]
 
     %% Presentation / UI
     DB_Elements -->|Loaded into VM| ElementVM[ElementManagementViewModel]
-    JsonFile -->|Loaded into Transform Service| TransformService[ProjectCoordinateTransformService]
+    DB_CoordRef -->|Loaded into Transform Service| TransformService[ProjectCoordinateTransformService]
     TransformService -.->|LocalToSurvey| ElementVM
     ElementVM -->|Displays Converted Easting/Northing| PropertyGrid[UI Element Properties Grid]
 
@@ -236,7 +239,8 @@ graph TD
     TransformService -.->|LocalToSurvey| Diagnostics
     Diagnostics -->|Writes Survey Coordinates| DiagnosticsCSV[Research diagnostics logs CSV]
 
-    style JsonFile fill:#d4efdf,stroke:#27ae60,stroke-width:2px
+    style DB_CoordRef fill:#d4efdf,stroke:#27ae60,stroke-width:2px
+    style JsonFile fill:#f9ebd2,stroke:#f39c12,stroke-width:1px
     style TransformService fill:#d4efdf,stroke:#27ae60,stroke-width:2px
     style GAEngine fill:#fadbd8,stroke:#e74c3c,stroke-width:2px
     style Viewport3D fill:#fadbd8,stroke:#e74c3c,stroke-width:2px
@@ -250,9 +254,9 @@ The matrix below shows the status of GIS/Survey Point coordinate integration acr
 
 | Component | Coordinate Space Used | Is Survey Point Integrated? | Impact of Changing Survey Point Settings |
 | :--- | :--- | :--- | :--- |
-| **IFC Import** | Local Model Origin | **No** (Ignores georeferencing) | None |
+| **IFC Import** | Local Model Origin | **Yes (implemented in Phase 2)** (Extracts `IfcMapConversion`/`IfcProjectedCRS` if present) | Auto-populates `ProjectCoordinateReference` if current reference is disabled or empty |
 | **DXF Import** | DXF local aligned to IFC | **No** (Uses manual alignment matrix) | None |
-| **Database (SQLite)** | Local meters $(x,y,z)$ | **No** (Ignored in EF Core model mapping) | None |
+| **Database (SQLite)** | Local meters $(x,y,z)$ | **Yes (implemented in Phase 1)** (Mapped in `CreatedProjectDbContext`) | Stores the single-record `ProjectCoordinateReferenceEntity` parameters |
 | **Visualizer (Helix 3D)** | Local meters $(x,y,z)$ | **No** (Renders local meshes directly) | None |
 | **GA Optimizer (F8)** | Local meters $(x,y,z)$ | **No** (Calculates constraints in local space) | None |
 | **UI Status Bar** | Converted survey $(E,N,H)$ | **Yes** (Updates coordinates on cursor move) | Readout coordinates change |
@@ -301,9 +305,9 @@ The core solver, physics calculator, and databases are strictly decoupled from t
 
 | Area | Current Status | Evidence | Missing Pieces | Risk |
 | :--- | :--- | :--- | :--- | :--- |
-| **IFC Import** | Partially Integrated | `IfcModelSession.cs` reads storey elevation. `IfcReaderRepository.cs` extracts local COG. | Parsing of `IfcMapConversion` and `IfcProjectedCRS` coordinates to automatically populate project coordinate references. | **Medium.** User must manually copy georeferencing coordinate values, increasing manual error rates. |
+| **IFC Import** | Implemented (Phase 2) | Extracts `IfcMapConversion` and `IfcProjectedCRS` or fallback `IfcSite` DMS lat/lon during import. | Revit/Tekla exporter settings validation is required. | **Low.** Exporter settings validation is required. |
 | **DXF Import** | Partially Integrated | `DxfZoneImportService.cs` applies manual transform matrix. | Automated DXF overlay onto the IFC using shared/survey coordinates. | **Medium.** Incorrect overlays and visual shifts due to manual point-matching mistakes. |
-| **Database** | Not Implemented | `CreatedProjectDbContext.cs` ignores `ProjectCoordinateReferenceEntity`. | Database table to persist coordinate references instead of a separate JSON file. | **Low.** Loss or corruption of the separate `coordinate_reference.json` file breaks alignment. |
+| **Database** | Implemented (Phase 1) | `CreatedProjectDbContext.cs` maps `ProjectCoordinateReferenceEntity` table. | None (stored directly in SQLite). | **None.** Secured persistence inside project file. |
 | **F5 Visualization** | Not Implemented | `SceneRenderingManager.cs` renders meshes at local coordinates. | Option to render grid lines or coordinates in the survey space. | **Low.** Viewport coordinate visualization mismatch compared to the physical site grid. |
 | **F8 Optimization** | Not Implemented | `ConstraintEngine.cs` and `LiftingCalculationEngine.cs` perform local space math. | Ability for the GA to process inputs directly in survey/GIS coordinates if desired (though local metric math is theoretically correct). | **Low.** GA outputs local coordinates which must be manually mapped or translated by users. |
 | **Reports** | Not Implemented | `ReportsTabView.xaml.cs` contains only `// TODO` placeholders. | Complete implementation of report pages using survey coordinates. | **High.** Cannot export official site planning documents displaying actual survey coordinate details. |
@@ -324,8 +328,8 @@ The GIS/Survey Point coordinates are successfully implemented as a **readout-onl
 
 To fully integrate survey coordinates into the project and ensure they correctly influence and report crane path optimizations, the following actions are recommended:
 
-1. **Auto-Populate from IFC:** Modify the IFC importer in [IfcReaderRepository.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcReaderRepository.cs) to extract georeferencing information from `IfcMapConversion` and `IfcProjectedCRS` if present in the IFC model, automatically setting up the project's coordinate reference.
-2. **Database Integration:** Uncomment `ProjectCoordinateReferenceEntity` in [CreatedProjectDbContext.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Contexts/CreatedProject/CreatedProjectDbContext.cs) and run a migration to store coordinate reference parameters inside the SQLite database, removing the external JSON file dependency.
-3. **Fix UI Origin Constraint:** Update [CoordinateReferenceViewModel.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F18_CoordinateReference/ViewModels/CoordinateReferenceViewModel.cs) to stop hardcoding `LocalReferenceX/Y/Z = 0` when applying settings, allowing users to define a custom local reference point mapping.
+1. **Auto-Populate from IFC:** **[COMPLETED in Phase 2]** Extracts georeferencing data from `IfcMapConversion` and `IfcProjectedCRS` (and fallback `IfcSite` DMS coordinates in IFC2x3) to auto-populate the project coordinate reference.
+2. **Database Integration:** **[COMPLETED in Phase 1]** Mapped `ProjectCoordinateReferenceEntity` and added SQLite database migration.
+3. **Fix UI Origin Constraint:** **[COMPLETED in Phase 1]** Removed hardcoded zero offsets in `CoordinateReferenceViewModel.cs` to allow custom local reference offsets. Custom local reference selection is planned for Phase 3.
 4. **Standardize CSV Exports:** Update the standard debug report writer in [GADebugReportWriter.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Services/GADebugReportWriter.cs) to write survey coordinates alongside local coordinates in standard exports.
 5. **Implement Report Views:** Complete the implementation of the reports tab in [ReportsTabView.xaml.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F12_Reports/Views/ReportsTabView.xaml.cs) to present all crane positions, lift points, and elements in the resolved survey coordinates.

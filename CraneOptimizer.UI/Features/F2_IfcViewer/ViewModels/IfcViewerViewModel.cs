@@ -1,5 +1,6 @@
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Diagnostics;
+using CraneOptimizer.Domain.CreatedProject;
 using Microsoft.Extensions.DependencyInjection;
 using CraneOptimizer.Application.Services;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
@@ -32,6 +33,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly IProjectWorkspaceService? _workspaceService;
         private readonly IIfcNormalizationDecisionService _normalizationService;
         private readonly IProjectMaterialSettingsService? _materialSettingsService;
+        private readonly IProjectCoordinateTransformService? _transformService;
         private List<PrecastElement>? _pendingIfcElements;
         private IfcLoadOptionsDto? _pendingFilterOptions;
         private bool _isMovingExistingIfc;
@@ -106,6 +108,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IIfcDiagnosticAuditService auditService,
             IProjectWorkspaceService? workspaceService,
             IIfcNormalizationDecisionService normalizationService,
+            IProjectCoordinateTransformService? transformService = null,
             IProjectMaterialSettingsService? materialSettingsService = null)
         {
             _ifcReader = ifcReader;
@@ -119,6 +122,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _auditService = auditService;
             _workspaceService = workspaceService;
             _normalizationService = normalizationService;
+            _transformService = transformService ?? App.ServiceProvider?.GetService<IProjectCoordinateTransformService>();
             _materialSettingsService = materialSettingsService;
 
             LoadIfcCommand = new RelayCommand(async () => await LoadIfcAsync(), () => !IsLoading && !IsPlacementMode);
@@ -169,6 +173,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 _pendingIfcElements = all;
                 _pendingFilterOptions = filter;
                 LoadedIfcFilePath = path;
+                TryApplyIfcGeoreferencing();
 
                 // Safe non-destructive background diagnostic audit trigger
                 var auditPath = path;
@@ -293,6 +298,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                             
                             System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
                             {
+                                TryApplyIfcGeoreferencing();
                                 IfcModelChanged?.Invoke();
                             });
                         }
@@ -344,6 +350,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                             }
                         });
                     }
+                    TryApplyIfcGeoreferencing();
                 }
 
                 if (elements == null || elements.Count == 0)
@@ -648,7 +655,95 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
             return minX == double.MaxValue
                 ? (0d, 0d, 0d, 0d, 0d, 0d)
-                : (minX, minY, minZ, maxX, maxY, maxZ);
+                 : (minX, minY, minZ, maxX, maxY, maxZ);
+        }
+
+        private void TryApplyIfcGeoreferencing()
+        {
+            if (_transformService == null)
+            {
+                return;
+            }
+
+            var currentRef = _transformService.CurrentReference;
+            if (currentRef != null && currentRef.IsEnabled)
+            {
+                if (currentRef.Source != "IfcMapConversion" && currentRef.Source != "IfcSiteLatLon")
+                {
+                    Debug.WriteLine("[IfcGeoreferencing] Manual reference detected. Overwrite protected.");
+                    return;
+                }
+            }
+
+            var result = _ifcReader.GetGeoreferencingData();
+            if (result == null)
+            {
+                Debug.WriteLine("[IfcGeoreferencing] No georeferencing data found in IFC.");
+                return;
+            }
+
+            ProjectCoordinateReference reference;
+            if (result.HasMapConversion)
+            {
+                double rotationToNorthDegrees = 0.0;
+                if (result.XAxisAbscissa.HasValue && result.XAxisOrdinate.HasValue)
+                {
+                    double abscissa = result.XAxisAbscissa.Value;
+                    double ordinate = result.XAxisOrdinate.Value;
+                    if (abscissa != 0.0 || ordinate != 0.0)
+                    {
+                        double angleRad = Math.Atan2(ordinate, abscissa);
+                        rotationToNorthDegrees = angleRad * 180.0 / Math.PI;
+                    }
+                }
+
+                reference = new ProjectCoordinateReference
+                {
+                    IsEnabled = true,
+                    Name = string.IsNullOrWhiteSpace(result.CrsName) ? "IFC Georeferenced" : result.CrsName,
+                    CoordinateSystemName = string.IsNullOrWhiteSpace(result.CrsName) ? "Projected CRS" : result.CrsName,
+                    EPSGCode = result.EpsgCode,
+                    LocalReferenceX = 0.0,
+                    LocalReferenceY = 0.0,
+                    LocalReferenceZ = 0.0,
+                    SurveyEasting = result.Eastings,
+                    SurveyNorthing = result.Northings,
+                    SurveyElevation = result.OrthogonalHeight,
+                    RotationToNorthDegrees = rotationToNorthDegrees,
+                    Scale = result.Scale ?? 1.0,
+                    Source = "IfcMapConversion",
+                    Latitude = result.SiteLatitude,
+                    Longitude = result.SiteLongitude,
+                    Description = string.IsNullOrWhiteSpace(result.CrsDescription) ? null : result.CrsDescription
+                };
+
+                Debug.WriteLine($"[IfcGeoreferencing] Auto-applied IfcMapConversion: E={reference.SurveyEasting}, N={reference.SurveyNorthing}, Rotation={reference.RotationToNorthDegrees}°");
+            }
+            else if (result.HasSiteLatLon)
+            {
+                reference = new ProjectCoordinateReference
+                {
+                    IsEnabled = false,
+                    Name = "IFC Site Location",
+                    CoordinateSystemName = "WGS84",
+                    LocalReferenceX = 0.0,
+                    LocalReferenceY = 0.0,
+                    LocalReferenceZ = 0.0,
+                    SurveyElevation = result.SiteElevation ?? 0.0,
+                    Source = "IfcSiteLatLon",
+                    Latitude = result.SiteLatitude,
+                    Longitude = result.SiteLongitude,
+                    Description = $"WGS84 Latitude={result.SiteLatitude:F6}°, Longitude={result.SiteLongitude:F6}°"
+                };
+
+                Debug.WriteLine($"[IfcGeoreferencing] Site location detected (informational only): Lat={reference.Latitude}, Lon={reference.Longitude}");
+            }
+            else
+            {
+                return;
+            }
+
+            _transformService.ApplyReference(reference, out _);
         }
     }
 }
