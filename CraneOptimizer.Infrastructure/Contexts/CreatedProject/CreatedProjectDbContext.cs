@@ -24,7 +24,7 @@ namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject
         public DbSet<ProjectCraneSnapshotEntity> CraneSnapshots => Set<ProjectCraneSnapshotEntity>();
         public DbSet<ProjectCraneLoadChartSnapshotEntity> CraneLoadChartSnapshots => Set<ProjectCraneLoadChartSnapshotEntity>();
         public DbSet<ProjectOptimizationRunEntity> OptimizationRuns => Set<ProjectOptimizationRunEntity>();
-        // public DbSet<ProjectCoordinateReferenceEntity> CoordinateReferences => Set<ProjectCoordinateReferenceEntity>();
+        public DbSet<ProjectCoordinateReferenceEntity> CoordinateReferences => Set<ProjectCoordinateReferenceEntity>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -32,7 +32,7 @@ namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject
             modelBuilder.Ignore<ProjectSettingEntity>();
             modelBuilder.Ignore<ProjectGeometryCacheEntity>();
             modelBuilder.Ignore<ProjectOptimizationElementResultEntity>();
-            modelBuilder.Ignore<ProjectCoordinateReferenceEntity>();
+            // ProjectCoordinateReferenceEntity is now mapped
 
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(CreatedProjectDbContext).Assembly);
         }

@@ -218,12 +218,12 @@ namespace CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels
         {
             var r = _transformService.CurrentReference;
             _isEnabled = r.IsEnabled;
-            _name = "Coordinate Reference";
-            _coordinateSystemName = null;
-            _epsgCode = null;
-            _localReferenceX = 0;
-            _localReferenceY = 0;
-            _localReferenceZ = 0;
+            _name = r.Name ?? "Coordinate Reference";
+            _coordinateSystemName = r.CoordinateSystemName;
+            _epsgCode = r.EPSGCode;
+            _localReferenceX = r.LocalReferenceX;
+            _localReferenceY = r.LocalReferenceY;
+            _localReferenceZ = r.LocalReferenceZ;
             _surveyEasting = r.SurveyEasting;
             _surveyNorthing = r.SurveyNorthing;
             _surveyElevation = r.SurveyElevation;
@@ -258,12 +258,12 @@ namespace CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels
             var reference = new ProjectCoordinateReference
             {
                 IsEnabled = IsEnabled,
-                Name = "Coordinate Reference",
-                CoordinateSystemName = null,
-                EPSGCode = null,
-                LocalReferenceX = 0,
-                LocalReferenceY = 0,
-                LocalReferenceZ = 0,
+                Name = Name ?? "Coordinate Reference",
+                CoordinateSystemName = CoordinateSystemName,
+                EPSGCode = EPSGCode,
+                LocalReferenceX = LocalReferenceX,
+                LocalReferenceY = LocalReferenceY,
+                LocalReferenceZ = LocalReferenceZ,
                 SurveyEasting = SurveyEasting,
                 SurveyNorthing = SurveyNorthing,
                 SurveyElevation = SurveyElevation,

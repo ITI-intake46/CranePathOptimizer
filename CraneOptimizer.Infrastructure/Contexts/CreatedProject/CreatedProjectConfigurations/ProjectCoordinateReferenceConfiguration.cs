@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject.CreatedProjectConfigurations
 {
-    public sealed class ProjectCoordinateReferenceConfiguration // : IEntityTypeConfiguration<ProjectCoordinateReferenceEntity>
+    public sealed class ProjectCoordinateReferenceConfiguration : IEntityTypeConfiguration<ProjectCoordinateReferenceEntity>
     {
         public void Configure(EntityTypeBuilder<ProjectCoordinateReferenceEntity> entity)
         {

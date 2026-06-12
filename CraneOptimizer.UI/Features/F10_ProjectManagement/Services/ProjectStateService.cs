@@ -44,7 +44,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             if (state == null)
                 throw new ArgumentNullException(nameof(state));
 
-            // Save coordinate reference to JSON
+            // Save coordinate reference to JSON (as fallback)
             var refFilePath = Path.Combine(session.ProjectFolderPath, "coordinate_reference.json");
             try
             {
@@ -54,7 +54,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Failed to save coordinate reference: {ex}");
+                Debug.WriteLine($"Failed to save coordinate reference to JSON fallback: {ex}");
             }
 
             await using var context = CreatedProjectDbContextFactory.Create(session.ProjectFolderPath);
@@ -71,6 +71,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 .ConfigureAwait(false);
             await SaveViewportAsync(context, projectInfo.Id, state.Viewport, cancellationToken)
                 .ConfigureAwait(false);
+            await SaveCoordinateReferenceAsync(context, projectInfo.Id, cancellationToken)
+                .ConfigureAwait(false);
 
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -82,32 +84,11 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             if (session == null)
                 throw new ArgumentNullException(nameof(session));
 
-            // Load coordinate reference from JSON
-            var refFilePath = Path.Combine(session.ProjectFolderPath, "coordinate_reference.json");
-            if (File.Exists(refFilePath))
-            {
-                try
-                {
-                    var json = await File.ReadAllTextAsync(refFilePath, cancellationToken).ConfigureAwait(false);
-                    var refData = JsonSerializer.Deserialize<ProjectCoordinateReference>(json, JsonOptions);
-                    if (refData != null)
-                    {
-                        _transformService.ApplyReference(refData, out _);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Failed to load coordinate reference: {ex}");
-                    _transformService.ResetReference();
-                }
-            }
-            else
-            {
-                _transformService.ResetReference();
-            }
-
             await using var context = CreatedProjectDbContextFactory.Create(session.ProjectFolderPath);
             var projectInfo = await GetProjectInfoAsync(context, session.ProjectInfoId, cancellationToken)
+                .ConfigureAwait(false);
+
+            await LoadCoordinateReferenceAsync(context, session.ProjectFolderPath, projectInfo.Id, cancellationToken)
                 .ConfigureAwait(false);
 
             var ifc = await context.IfcFiles
@@ -700,6 +681,125 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 Path.GetRelativePath(normalizedProjectFolder, destinationPath).Replace(Path.DirectorySeparatorChar, '/'),
                 destinationPath,
                 fileName);
+        }
+
+        private async Task SaveCoordinateReferenceAsync(
+            CreatedProjectDbContext context,
+            int projectInfoId,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                var refData = _transformService.CurrentReference;
+
+                var dbRef = await context.CoordinateReferences
+                    .FirstOrDefaultAsync(x => x.ProjectInfoId == projectInfoId, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (dbRef == null)
+                {
+                    dbRef = new ProjectCoordinateReferenceEntity
+                    {
+                        ProjectInfoId = projectInfoId,
+                        CreatedAtUtc = DateTime.UtcNow
+                    };
+                    await context.CoordinateReferences.AddAsync(dbRef, cancellationToken).ConfigureAwait(false);
+                }
+
+                dbRef.IsEnabled = refData.IsEnabled;
+                dbRef.Name = refData.Name ?? "Coordinate Reference";
+                dbRef.CoordinateSystemName = refData.CoordinateSystemName;
+                dbRef.EPSGCode = refData.EPSGCode;
+                dbRef.LocalReferenceX = refData.LocalReferenceX;
+                dbRef.LocalReferenceY = refData.LocalReferenceY;
+                dbRef.LocalReferenceZ = refData.LocalReferenceZ;
+                dbRef.SurveyEasting = refData.SurveyEasting;
+                dbRef.SurveyNorthing = refData.SurveyNorthing;
+                dbRef.SurveyElevation = refData.SurveyElevation;
+                dbRef.RotationToNorthDegrees = refData.RotationToNorthDegrees;
+                dbRef.Scale = refData.Scale;
+                dbRef.Source = refData.Source ?? "ManualSinglePoint";
+                dbRef.UpdatedAtUtc = DateTime.UtcNow;
+
+                context.CoordinateReferences.Update(dbRef);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to save coordinate reference to DB: {ex}");
+            }
+        }
+
+        private async Task LoadCoordinateReferenceAsync(
+            CreatedProjectDbContext context,
+            string projectFolderPath,
+            int projectInfoId,
+            CancellationToken cancellationToken)
+        {
+            ProjectCoordinateReferenceEntity? dbRef = null;
+            try
+            {
+                dbRef = await context.CoordinateReferences
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.ProjectInfoId == projectInfoId, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to load coordinate reference from DB: {ex}");
+            }
+
+            if (dbRef != null)
+            {
+                var refData = new ProjectCoordinateReference
+                {
+                    IsEnabled = dbRef.IsEnabled,
+                    Name = dbRef.Name,
+                    CoordinateSystemName = dbRef.CoordinateSystemName,
+                    EPSGCode = dbRef.EPSGCode,
+                    LocalReferenceX = dbRef.LocalReferenceX,
+                    LocalReferenceY = dbRef.LocalReferenceY,
+                    LocalReferenceZ = dbRef.LocalReferenceZ,
+                    SurveyEasting = dbRef.SurveyEasting,
+                    SurveyNorthing = dbRef.SurveyNorthing,
+                    SurveyElevation = dbRef.SurveyElevation,
+                    RotationToNorthDegrees = dbRef.RotationToNorthDegrees,
+                    Scale = dbRef.Scale,
+                    Source = dbRef.Source,
+                    CreatedAt = dbRef.CreatedAtUtc,
+                    UpdatedAt = dbRef.UpdatedAtUtc
+                };
+                _transformService.ApplyReference(refData, out _);
+            }
+            else
+            {
+                // Fallback to JSON
+                var refFilePath = Path.Combine(projectFolderPath, "coordinate_reference.json");
+                if (File.Exists(refFilePath))
+                {
+                    try
+                    {
+                        var json = await File.ReadAllTextAsync(refFilePath, cancellationToken).ConfigureAwait(false);
+                        var refData = JsonSerializer.Deserialize<ProjectCoordinateReference>(json, JsonOptions);
+                        if (refData != null)
+                        {
+                            _transformService.ApplyReference(refData, out _);
+                        }
+                        else
+                        {
+                            _transformService.ResetReference();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Failed to load coordinate reference from JSON fallback: {ex}");
+                        _transformService.ResetReference();
+                    }
+                }
+                else
+                {
+                    _transformService.ResetReference();
+                }
+            }
         }
 
         private static string ToAbsolutePath(string projectFolderPath, string relativePath)

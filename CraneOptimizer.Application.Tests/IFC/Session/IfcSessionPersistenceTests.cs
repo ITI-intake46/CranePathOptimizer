@@ -21,6 +21,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Media3D;
+using System.Text.Json;
+using CraneOptimizer.Application.Services;
 
 namespace CraneOptimizer.Application.Tests
 {
@@ -410,6 +412,254 @@ namespace CraneOptimizer.Application.Tests
 
                 var elementResultEntity = model.FindEntityType("CraneOptimizer.Domain.CreatedProject.OptimizationFiles.ProjectOptimizationElementResultEntity");
                 Assert.Null(elementResultEntity);
+            }
+        }
+
+        [Fact]
+        public async Task TestSaveAndLoadCoordinateReference_SQLite()
+        {
+            // Arrange
+            var dbPath = _tempFolder;
+            await using (var context = CreatedProjectDbContextFactory.Create(dbPath))
+            {
+                await context.Database.MigrateAsync();
+                var projectInfo = new ProjectInfoEntity { Name = "Test Project" };
+                await context.ProjectInfo.AddAsync(projectInfo);
+                await context.SaveChangesAsync();
+            }
+
+            var session = new ProjectSession
+            {
+                ProjectId = Guid.NewGuid(),
+                ProjectName = "Test Project",
+                ProjectFolderPath = _tempFolder,
+                ProjectInfoId = 1
+            };
+
+            var transformService = new ProjectCoordinateTransformService();
+            var expectedRef = new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                Name = "Site CRS",
+                CoordinateSystemName = "UTM-32N",
+                EPSGCode = "32632",
+                LocalReferenceX = 12.0,
+                LocalReferenceY = 34.0,
+                LocalReferenceZ = 5.0,
+                SurveyEasting = 500000.0,
+                SurveyNorthing = 6000000.0,
+                SurveyElevation = 100.0,
+                RotationToNorthDegrees = 45.0,
+                Scale = 1.05,
+                Source = "Manual"
+            };
+
+            transformService.ApplyReference(expectedRef, out _);
+
+            var service = new ProjectStateService(transformService);
+            var state = new ProjectStateSnapshot();
+
+            // Act: Save
+            await service.SaveProjectStateAsync(session, state);
+
+            // Assert: verify written in database
+            await using (var context = CreatedProjectDbContextFactory.Create(_tempFolder))
+            {
+                var dbRef = await context.CoordinateReferences.FirstOrDefaultAsync();
+                Assert.NotNull(dbRef);
+                Assert.Equal(expectedRef.IsEnabled, dbRef.IsEnabled);
+                Assert.Equal(expectedRef.Name, dbRef.Name);
+                Assert.Equal(expectedRef.CoordinateSystemName, dbRef.CoordinateSystemName);
+                Assert.Equal(expectedRef.EPSGCode, dbRef.EPSGCode);
+                Assert.Equal(expectedRef.LocalReferenceX, dbRef.LocalReferenceX);
+                Assert.Equal(expectedRef.LocalReferenceY, dbRef.LocalReferenceY);
+                Assert.Equal(expectedRef.LocalReferenceZ, dbRef.LocalReferenceZ);
+                Assert.Equal(expectedRef.SurveyEasting, dbRef.SurveyEasting);
+                Assert.Equal(expectedRef.SurveyNorthing, dbRef.SurveyNorthing);
+                Assert.Equal(expectedRef.SurveyElevation, dbRef.SurveyElevation);
+                Assert.Equal(expectedRef.RotationToNorthDegrees, dbRef.RotationToNorthDegrees);
+                Assert.Equal(expectedRef.Scale, dbRef.Scale);
+                Assert.Equal(expectedRef.Source, dbRef.Source);
+            }
+
+            // Reset service reference
+            transformService.ResetReference();
+            Assert.False(transformService.IsEnabled);
+
+            // Act: Load
+            await service.LoadProjectStateAsync(session);
+
+            // Assert: verify applied to service
+            var actualRef = transformService.CurrentReference;
+            Assert.True(transformService.IsEnabled);
+            Assert.Equal(expectedRef.Name, actualRef.Name);
+            Assert.Equal(expectedRef.CoordinateSystemName, actualRef.CoordinateSystemName);
+            Assert.Equal(expectedRef.EPSGCode, actualRef.EPSGCode);
+            Assert.Equal(expectedRef.LocalReferenceX, actualRef.LocalReferenceX);
+            Assert.Equal(expectedRef.LocalReferenceY, actualRef.LocalReferenceY);
+            Assert.Equal(expectedRef.LocalReferenceZ, actualRef.LocalReferenceZ);
+            Assert.Equal(expectedRef.SurveyEasting, actualRef.SurveyEasting);
+            Assert.Equal(expectedRef.SurveyNorthing, actualRef.SurveyNorthing);
+            Assert.Equal(expectedRef.SurveyElevation, actualRef.SurveyElevation);
+            Assert.Equal(expectedRef.RotationToNorthDegrees, actualRef.RotationToNorthDegrees);
+            Assert.Equal(expectedRef.Scale, actualRef.Scale);
+            Assert.Equal(expectedRef.Source, actualRef.Source);
+        }
+
+        [Fact]
+        public async Task TestLoadCoordinateReference_FallbackToJson()
+        {
+            // Arrange
+            var dbPath = _tempFolder;
+            await using (var context = CreatedProjectDbContextFactory.Create(dbPath))
+            {
+                await context.Database.MigrateAsync();
+                var projectInfo = new ProjectInfoEntity { Name = "Test Project" };
+                await context.ProjectInfo.AddAsync(projectInfo);
+                await context.SaveChangesAsync();
+            }
+
+            var session = new ProjectSession
+            {
+                ProjectId = Guid.NewGuid(),
+                ProjectName = "Test Project",
+                ProjectFolderPath = _tempFolder,
+                ProjectInfoId = 1
+            };
+
+            // Create JSON file manually
+            var expectedRef = new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                Name = "JSON CRS",
+                LocalReferenceX = 5.0,
+                SurveyEasting = 2000.0,
+                SurveyNorthing = 3000.0,
+                Scale = 1.0
+            };
+            var refFilePath = Path.Combine(_tempFolder, "coordinate_reference.json");
+            var json = JsonSerializer.Serialize(expectedRef);
+            await File.WriteAllTextAsync(refFilePath, json);
+
+            var transformService = new ProjectCoordinateTransformService();
+            var service = new ProjectStateService(transformService);
+
+            // Act: Load
+            await service.LoadProjectStateAsync(session);
+
+            // Assert: verify applied from JSON
+            var actualRef = transformService.CurrentReference;
+            Assert.True(transformService.IsEnabled);
+            Assert.Equal(expectedRef.Name, actualRef.Name);
+            Assert.Equal(expectedRef.LocalReferenceX, actualRef.LocalReferenceX);
+            Assert.Equal(expectedRef.SurveyEasting, actualRef.SurveyEasting);
+            Assert.Equal(expectedRef.SurveyNorthing, actualRef.SurveyNorthing);
+        }
+
+        [Fact]
+        public async Task TestLoadCoordinateReference_EmptyProjectNoFailure()
+        {
+            // Arrange
+            var dbPath = _tempFolder;
+            await using (var context = CreatedProjectDbContextFactory.Create(dbPath))
+            {
+                await context.Database.MigrateAsync();
+                var projectInfo = new ProjectInfoEntity { Name = "Test Project" };
+                await context.ProjectInfo.AddAsync(projectInfo);
+                await context.SaveChangesAsync();
+            }
+
+            var session = new ProjectSession
+            {
+                ProjectId = Guid.NewGuid(),
+                ProjectName = "Test Project",
+                ProjectFolderPath = _tempFolder,
+                ProjectInfoId = 1
+            };
+
+            var transformService = new ProjectCoordinateTransformService();
+            var service = new ProjectStateService(transformService);
+
+            // Act: Load
+            await service.LoadProjectStateAsync(session);
+
+            // Assert: Should not fail and should remain disabled
+            Assert.False(transformService.IsEnabled);
+        }
+
+        [Fact]
+        public async Task TestSaveAndLoad_DoesNotModifyElementCoordinates()
+        {
+            // Arrange
+            var dbPath = _tempFolder;
+            await using (var context = CreatedProjectDbContextFactory.Create(dbPath))
+            {
+                await context.Database.MigrateAsync();
+                var projectInfo = new ProjectInfoEntity { Name = "Test Project" };
+                await context.ProjectInfo.AddAsync(projectInfo);
+                await context.SaveChangesAsync();
+            }
+
+            // Create a fake IFC file on disk to simulate copying
+            var modelFolder = Path.Combine(_tempFolder, "Models", "IFC");
+            Directory.CreateDirectory(modelFolder);
+            var fakeIfcPath = Path.Combine(_tempFolder, "source.ifc");
+            await File.WriteAllTextAsync(fakeIfcPath, "FAKE IFC FILE CONTENT");
+
+            var session = new ProjectSession
+            {
+                ProjectId = Guid.NewGuid(),
+                ProjectName = "Test Project",
+                ProjectFolderPath = _tempFolder,
+                ProjectInfoId = 1
+            };
+
+            var originalElements = new List<PrecastElement>
+            {
+                new PrecastElement
+                {
+                    ElementID = "EL_TEST",
+                    COG_M = new DomainPoint3D(10.0, 20.0, 30.0),
+                    ElementCOG = new DomainPoint3D(10.0, 20.0, 30.0)
+                }
+            };
+
+            // Set up a transformed coordinate system with active offsets
+            var transformService = new ProjectCoordinateTransformService();
+            transformService.ApplyReference(new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                LocalReferenceX = 0,
+                SurveyEasting = 1000.0,
+                SurveyNorthing = 2000.0
+            }, out _);
+
+            var service = new ProjectStateService(transformService);
+            var state = new ProjectStateSnapshot
+            {
+                IfcFile = new ProjectIfcFileState
+                {
+                    AbsolutePath = fakeIfcPath,
+                    FileName = "source.ifc",
+                    Role = "Primary",
+                    InsertionOffset = new DomainPoint3D(0, 0, 0),
+                    RotationDegrees = 0,
+                    Scale = 1
+                },
+                IfcElements = originalElements
+            };
+
+            // Act: Save
+            await service.SaveProjectStateAsync(session, state);
+
+            // Assert: verify coordinates in SQLite remain 10.0, 20.0, 30.0
+            await using (var context = CreatedProjectDbContextFactory.Create(_tempFolder))
+            {
+                var el = await context.IfcElements.FirstOrDefaultAsync();
+                Assert.NotNull(el);
+                Assert.Equal(10.0, el.COG_X);
+                Assert.Equal(20.0, el.COG_Y);
+                Assert.Equal(30.0, el.COG_Z);
             }
         }
 
