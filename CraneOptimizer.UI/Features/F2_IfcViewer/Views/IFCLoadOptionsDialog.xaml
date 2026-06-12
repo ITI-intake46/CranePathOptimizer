@@ -90,7 +90,7 @@
                                                FontSize="{StaticResource FontSizeBase}"
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Use IFC IfcMapConversion if available. Local (0,0,0) maps to IFC Survey Easting / Northing / Elevation."
+                                    <TextBlock Text="Use IFC origin mapping. The model stays in local coordinates. Local (0,0,0) maps to the IFC Survey Easting/Northing/Elevation."
                                                FontSize="{StaticResource FontSizeXS}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                TextWrapping="Wrap"/>

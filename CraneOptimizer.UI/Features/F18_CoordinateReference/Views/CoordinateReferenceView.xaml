@@ -27,17 +27,13 @@
                             <TextBlock Text="Reference Mode:" FontSize="9.5" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
                             <ComboBox SelectedValue="{Binding SelectedMode}"
                                       SelectedValuePath="Value"
+                                      DisplayMemberPath="DisplayName"
                                       ItemsSource="{Binding AvailableModes}"
                                       Height="22" Width="180"
                                       Margin="0,0,0,4"
                                       VerticalAlignment="Center"
-                                      Visibility="{Binding IsComboBoxVisible, Converter={StaticResource BoolToVisConverter}}">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding DisplayName}"/>
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
+                                      Visibility="{Binding IsComboBoxVisible, Converter={StaticResource BoolToVisConverter}}"
+                                      ToolTip="Local Only: Use model local coordinates only.&#x0a;IFC Origin Mapping: Use IFC origin mapping. The model stays in local coordinates. Local (0,0,0) maps to the IFC Survey Easting/Northing/Elevation."/>
                             <TextBlock Text="Manual Mapping (Preserved)" 
                                        Foreground="White" 
                                        FontSize="11" FontWeight="SemiBold"

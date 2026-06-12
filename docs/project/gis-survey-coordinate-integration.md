@@ -146,7 +146,11 @@ A total of **49 coordinate-related unit tests** have been successfully executed 
 
 Phase 3 implements user-controlled coordinate reference modes in the user interface. The UI exposes only two selectable modes:
 1. **Local Only** (`IsEnabled = false`): The application uses raw local coordinates only. Local coordinates default to local values and are isolated.
-2. **IFC Origin Mapping** (`IsEnabled = true`, `Source = "IfcMapConversion"`): Local coordinates $(0,0,0)$ map directly to the `IfcMapConversion`-extracted survey Easting, Northing, and Elevation. `LocalReferenceX/Y/Z` are fixed at `0.0`.
+2. **IFC Origin Mapping** (`IsEnabled = true`, `Source = "IfcMapConversion"`):
+   * **Behavior**: Uses the IFC local origin directly. It does **NOT** require the user to pick a point in the viewport or perform manual calibration.
+   * **Mesh Isolation**: The model stays exactly in local coordinates. It is loaded where it is drawn relative to its own local origin (e.g. if drawn 10m from local X and 15m from local Y in Revit/Tekla, it appears at (10, 15, 0) locally). The model meshes are not moved, rotated, scaled, or transformed.
+   * **Origin Mapping**: Local (0,0,0) maps directly to the `IfcMapConversion`-extracted survey Easting, Northing, and Elevation. `LocalReferenceX/Y/Z` are fixed at `0.0`.
+   * **Readout translation**: Only the coordinate readouts in the UI are converted from local coordinates to survey coordinates (Easting, Northing, Elevation) dynamically using rotation and scale parameters.
 
 ### Mode Availability and Rules
 * **IFC Origin Mapping Availability**: This mode is selectable if active IFC georeferencing is loaded in the current import session, or if a saved project already contains an IFC-derived `ProjectCoordinateReference` in the SQLite database. If neither is available, "IFC Origin Mapping" is disabled, and an informational warning message is shown.

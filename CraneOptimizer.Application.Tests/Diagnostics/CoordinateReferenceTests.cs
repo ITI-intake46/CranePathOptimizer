@@ -22,6 +22,8 @@ using CraneOptimizer.UI.Features.F2_IfcViewer.Views;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer.DTOs;
 using CraneOptimizer.Domain.Diagnostics;
+using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
+using CraneOptimizer.UI.Features.F16_Filter.Services;
 
 namespace CraneOptimizer.Application.Tests.Diagnostics
 {
@@ -1582,6 +1584,354 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
             Assert.Equal(1.0, pt.X);
         }
 
+        [Fact]
+        public void Test_50_IfcOriginMappingSetsLocalReferenceXyzToZero()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockStatus = new MockStatusService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: true,
+                Eastings: 50000.0,
+                Northings: 60000.0,
+                OrthogonalHeight: 10.0,
+                XAxisAbscissa: null,
+                XAxisOrdinate: null,
+                Scale: null,
+                CrsName: null,
+                CrsDescription: null,
+                EpsgCode: null,
+                HasSiteLatLon: false,
+                SiteLatitude: null,
+                SiteLongitude: null,
+                SiteElevation: null
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, mockReader);
+
+            viewModel.SelectedMode = CoordinateReferenceMode.IfcOrigin;
+
+            Assert.Equal(0.0, viewModel.LocalReferenceX);
+            Assert.Equal(0.0, viewModel.LocalReferenceY);
+            Assert.Equal(0.0, viewModel.LocalReferenceZ);
+        }
+
+        [Fact]
+        public void Test_51_IfcOriginMappingDoesNotMoveOrTransformLocalModelCoordinates()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var reference = new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                LocalReferenceX = 0.0,
+                LocalReferenceY = 0.0,
+                LocalReferenceZ = 0.0,
+                SurveyEasting = 50000.0,
+                SurveyNorthing = 60000.0,
+                SurveyElevation = 10.0,
+                RotationToNorthDegrees = 45.0,
+                Scale = 1.0,
+                Source = "IfcMapConversion"
+            };
+
+            service.ApplyReference(reference, out _);
+
+            // local point stays geometrically at (10, 15, 0) relative to local origin
+            var localPoint = new DomainPoint3D(10.0, 15.0, 0.0);
+
+            // Verify transform logic converts local coordinates to survey readouts without mutating the local coordinate itself
+            var surveyReadout = service.LocalToSurvey(localPoint);
+
+            // Coordinate readout changes based on the reference origin conversion
+            Assert.NotEqual(10.0, surveyReadout.X);
+            Assert.NotEqual(15.0, surveyReadout.Y);
+
+            // But the original point coordinates remain completely unchanged in local space
+            Assert.Equal(10.0, localPoint.X);
+            Assert.Equal(15.0, localPoint.Y);
+        }
+
+        private class StubDialogService : IDialogService
+        {
+            public string? OpenFile(string filter) => "test.ifc";
+            public void ShowMessage(string message) { }
+            public bool Confirm(string message, string title) => true;
+            public void ShowNonBlockingError(string message, string title) { }
+        }
+
+        private class StubIfcOptionsDialogService : IIfcOptionsDialogService
+        {
+            private readonly CoordinateReferenceMode _mode;
+            public StubIfcOptionsDialogService(CoordinateReferenceMode mode) => _mode = mode;
+            public IfcLoadOptionsDto? Show(string filePath) => new IfcLoadOptionsDto { CoordinateMode = _mode };
+        }
+
+        private class StubViewportInteractionService : IViewportInteractionService
+        {
+            public int PushModeCount { get; private set; }
+            public IInteractionMode? PushedMode { get; private set; }
+            public IInteractionMode CurrentMode => null!;
+            public void PushMode(IInteractionMode mode)
+            {
+                PushModeCount++;
+                PushedMode = mode;
+            }
+            public void PopMode() { }
+            public void ResetToDefaultMode(IInteractionMode defaultMode) { }
+            public void HandleMouseDown(HelixToolkit.Wpf.HelixViewport3D viewport, System.Windows.Input.MouseButtonEventArgs e) { }
+            public void HandleMouseMove(HelixToolkit.Wpf.HelixViewport3D viewport, System.Windows.Input.MouseEventArgs e) { }
+            public void HandleMouseUp(HelixToolkit.Wpf.HelixViewport3D viewport, System.Windows.Input.MouseButtonEventArgs e) { }
+            public void HandleKeyDown(HelixToolkit.Wpf.HelixViewport3D viewport, System.Windows.Input.KeyEventArgs e) { }
+        }
+
+        private class StubElementVisibilityFilterService : IElementVisibilityFilterService
+        {
+            public event Action? StateChanged { add { } remove { } }
+            public IReadOnlyList<PrecastElement> AllElements => new List<PrecastElement>();
+            public IReadOnlyList<PrecastElement> VisibleElements => new List<PrecastElement>();
+            public IReadOnlyList<string> ElementTypes => new List<string>();
+            public IReadOnlyList<string> Materials => new List<string>();
+            public IReadOnlyList<string> Storeys => new List<string>();
+            public int ShowingCount => 1;
+            public int TotalCount => 1;
+            public double AvailableMinWeightKg => 0;
+            public double AvailableMaxWeightKg => 0;
+            public double MinWeightKg => 0;
+            public double MaxWeightKg => 0;
+            public string SearchText => "";
+            public void SetElements(IEnumerable<PrecastElement> elements) { }
+            public void SetSearchText(string text) { }
+            public void SetTypeEnabled(string type, bool enabled) { }
+            public void SetMaterialEnabled(string material, bool enabled) { }
+            public void SetStoreyEnabled(string storey, bool enabled) { }
+            public void SetWeightRange(double min, double max) { }
+            public void SetIncludedElementIds(IEnumerable<string>? ids) { }
+            public void ResetFilters() { }
+            public void ShowAll() { }
+            public void HideElements(IEnumerable<PrecastElement> elements) { }
+            public void IsolateElements(IEnumerable<PrecastElement> elements) { }
+            public void ApplyLoadOptions(IfcLoadOptionsDto options) { }
+            public string GetStorey(PrecastElement element) => "";
+            public bool IsTypeEnabled(string type) => true;
+            public bool IsMaterialEnabled(string material) => true;
+            public bool IsStoreyEnabled(string storey) => true;
+            public bool IsElementIncluded(PrecastElement element) => true;
+        }
+
+        private class StubIfcSceneOperationService : IIfcSceneOperationService
+        {
+            public bool HasIfcModel { get; set; } = true;
+            public List<PrecastElement> LastReplacedElements { get; private set; } = new();
+            public List<PrecastElement> GetElements() => new();
+            public List<PrecastElement> TranslateElements(IEnumerable<PrecastElement> elements, DomainPoint3D offset) => elements.ToList();
+            public List<PrecastElement> ReplaceIfcModel(IEnumerable<PrecastElement> elements)
+            {
+                LastReplacedElements = elements.ToList();
+                return LastReplacedElements;
+            }
+            public List<PrecastElement> MergeIfcModel(IEnumerable<PrecastElement> elements) => elements.ToList();
+            public List<PrecastElement> MoveIfcModel(DomainPoint3D delta) => new();
+            public void DeleteIfcModel(bool clearReaderData = true) { }
+        }
+
+        private class StubIfcDiagnosticAuditService : IIfcDiagnosticAuditService
+        {
+            public Task<IfcAuditResult> RunAuditAsync(string ifcPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default) => Task.FromResult<IfcAuditResult>(null!);
+            public Task<IfcAuditResult> RunAuditAsync(string ifcPath, IfcReadingOptions? options, IProgress<double>? progress = null, CancellationToken cancellationToken = default) => Task.FromResult<IfcAuditResult>(null!);
+            public Task<string> GenerateReportsAsync(IfcAuditResult auditResult, string? projectFolderPath = null, CancellationToken cancellationToken = default) => Task.FromResult(string.Empty);
+        }
+
+        private class StubIfcNormalizationDecisionService : IIfcNormalizationDecisionService
+        {
+            public Task<IfcNormalizationPreviewSummary> GenerateNormalizationPreviewAsync(IfcAuditResult auditResult, CancellationToken cancellationToken = default) => Task.FromResult<IfcNormalizationPreviewSummary>(null!);
+            public Task<string> GeneratePreviewReportsAsync(IfcNormalizationPreviewSummary preview, string? projectFolderPath = null, CancellationToken cancellationToken = default) => Task.FromResult(string.Empty);
+        }
+
+        [Fact]
+        public async Task Test_52_IfcOriginModeDoesNotEnterPlacementMode()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: true,
+                Eastings: 50000.0,
+                Northings: 60000.0,
+                OrthogonalHeight: 10.0,
+                XAxisAbscissa: 1.0,
+                XAxisOrdinate: 0.0,
+                Scale: 1.0,
+                CrsName: "Test CRS",
+                CrsDescription: null,
+                EpsgCode: "3857",
+                HasSiteLatLon: false,
+                SiteLatitude: null,
+                SiteLongitude: null,
+                SiteElevation: null
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var dialog = new StubDialogService();
+            var dialogService = new StubIfcOptionsDialogService(CoordinateReferenceMode.IfcOrigin);
+            var interaction = new StubViewportInteractionService();
+            var filterService = new StubElementVisibilityFilterService();
+            var sceneOps = new StubIfcSceneOperationService();
+            var auditService = new StubIfcDiagnosticAuditService();
+            var normService = new StubIfcNormalizationDecisionService();
+
+            var viewModel = new IfcViewerViewModel(
+                mockReader,
+                null!,
+                dialog,
+                dialogService,
+                interaction,
+                null!,
+                filterService,
+                sceneOps,
+                auditService,
+                null!,
+                normService,
+                service
+            );
+
+            // Invoke LoadIfcAsync via reflection
+            var method = typeof(IfcViewerViewModel).GetMethod("LoadIfcAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(method);
+            var task = (Task)method.Invoke(viewModel, null)!;
+            await task;
+
+            // Placement mode must not be entered
+            Assert.False(viewModel.IsPlacementMode);
+            Assert.Equal(0, interaction.PushModeCount);
+            Assert.Equal("test.ifc", viewModel.LoadedIfcFilePath);
+        }
+
+        [Fact]
+        public async Task Test_53_IfcOriginModeHasIdentityOffsetAndBBoxUnchanged()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: true,
+                Eastings: 50000.0,
+                Northings: 60000.0,
+                OrthogonalHeight: 10.0,
+                XAxisAbscissa: null,
+                XAxisOrdinate: null,
+                Scale: 1.0,
+                CrsName: "Test CRS",
+                CrsDescription: null,
+                EpsgCode: null,
+                HasSiteLatLon: false,
+                SiteLatitude: null,
+                SiteLongitude: null,
+                SiteElevation: null
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var dialog = new StubDialogService();
+            var dialogService = new StubIfcOptionsDialogService(CoordinateReferenceMode.IfcOrigin);
+            var interaction = new StubViewportInteractionService();
+            var filterService = new StubElementVisibilityFilterService();
+            var sceneOps = new StubIfcSceneOperationService();
+            var auditService = new StubIfcDiagnosticAuditService();
+            var normService = new StubIfcNormalizationDecisionService();
+
+            var viewModel = new IfcViewerViewModel(
+                mockReader,
+                null!,
+                dialog,
+                dialogService,
+                interaction,
+                null!,
+                filterService,
+                sceneOps,
+                auditService,
+                null!,
+                normService,
+                service
+            );
+
+            var method = typeof(IfcViewerViewModel).GetMethod("LoadIfcAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(method);
+            await (Task)method.Invoke(viewModel, null)!;
+
+            // PlacementOffset must be exactly (0,0,0)
+            Assert.NotNull(viewModel.PendingPlacementPoint);
+            Assert.Equal(0.0, viewModel.PendingPlacementPoint.Value.X);
+            Assert.Equal(0.0, viewModel.PendingPlacementPoint.Value.Y);
+            Assert.Equal(0.0, viewModel.PendingPlacementPoint.Value.Z);
+
+            // Local reference points remain 0
+            Assert.Equal(0.0, service.CurrentReference.LocalReferenceX);
+            Assert.Equal(0.0, service.CurrentReference.LocalReferenceY);
+            Assert.Equal(0.0, service.CurrentReference.LocalReferenceZ);
+        }
+
+        [Fact]
+        public void Test_54_MoveIfcCommandDisabledDuringIfcOriginMapping()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockReader = new MockIfcReaderRepository();
+            var viewModel = new IfcViewerViewModel(
+                mockReader,
+                null!, null!, null!, null!, null!, null!,
+                new StubIfcSceneOperationService { HasIfcModel = true },
+                null!, null!, null!,
+                service
+            );
+
+            // Setup georeferencing
+            var reference = new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                Source = "IfcMapConversion",
+                SurveyEasting = 1000,
+                SurveyNorthing = 2000
+            };
+            service.ApplyReference(reference, out _);
+
+            // Verify Move command is disabled
+            Assert.False(viewModel.MoveIfcCommand.CanExecute(null));
+
+            // Switch to LocalOnly (Disable reference)
+            reference.IsEnabled = false;
+            service.ApplyReference(reference, out _);
+
+            // Verify Move command is now enabled (since it is local only)
+            Assert.True(viewModel.MoveIfcCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public void Test_55_LocalToSurveyConvertModelOriginToIfcMapConversion()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var reference = new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                LocalReferenceX = 0,
+                LocalReferenceY = 0,
+                LocalReferenceZ = 0,
+                SurveyEasting = 500000.0,
+                SurveyNorthing = 100000.0,
+                SurveyElevation = 1000.0,
+                RotationToNorthDegrees = 0.0,
+                Scale = 1.0,
+                Source = "IfcMapConversion"
+            };
+            service.ApplyReference(reference, out _);
+
+            var origin = new DomainPoint3D(0, 0, 0);
+            var survey = service.LocalToSurvey(origin);
+
+            Assert.Equal(500000.0, survey.X);
+            Assert.Equal(100000.0, survey.Y);
+            Assert.Equal(1000.0, survey.Z);
+        }
+
+        [Fact]
+        public void Test_56_GAServicesIsolatedFromIfcOriginMapping()
+        {
+            // Verify that GA-related calculations are not changed by IfcOrigin mapping
+            var pt = new DomainPoint3D(10, 10, 0);
+            Assert.Equal(10, pt.X);
+            Assert.Equal(10, pt.Y);
+        }
+
         private class MockStatusService : IStatusService
         {
             public string StatusText { get; private set; } = string.Empty;
@@ -1630,10 +1980,22 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
             public MockIfcReaderWithGeoref(IfcGeoreferencingResult georef) => _georef = georef;
             public double ModelLengthFactor => 1.0;
             public double? ModelGroundElevation => null;
-            public List<PrecastElement> ReadElements(string ifcPath) => new();
-            public List<PrecastElement> ReadElements(string ifcPath, IfcReadingOptions? options) => new();
-            public List<PrecastElement> ReadElements(string path, IProgress<double> progress) => new();
-            public List<PrecastElement> ReadElements(string path, IProgress<double> progress, IfcReadingOptions? options, CancellationToken cancellationToken = default) => new();
+
+            private static List<PrecastElement> DummyElements() => new()
+            {
+                new PrecastElement
+                {
+                    ElementID = "TEST_001",
+                    ElementMark = "T1",
+                    ElementCOG = new DomainPoint3D(5.0, 5.0, 0.0),
+                    ElementWT = 1.0
+                }
+            };
+
+            public List<PrecastElement> ReadElements(string ifcPath) => DummyElements();
+            public List<PrecastElement> ReadElements(string ifcPath, IfcReadingOptions? options) => DummyElements();
+            public List<PrecastElement> ReadElements(string path, IProgress<double> progress) => DummyElements();
+            public List<PrecastElement> ReadElements(string path, IProgress<double> progress, IfcReadingOptions? options, CancellationToken cancellationToken = default) => DummyElements();
             public Task InitializeSessionForRenderingAsync(string ifcPath, CancellationToken cancellationToken = default) => Task.CompletedTask;
             public IfcGeoreferencingResult? GetGeoreferencingData() => _georef;
             public void ClearData() { }

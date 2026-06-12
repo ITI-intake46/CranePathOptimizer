@@ -128,7 +128,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             LoadIfcCommand = new RelayCommand(async () => await LoadIfcAsync(), () => !IsLoading && !IsPlacementMode);
             MergeIfcCommand = new RelayCommand(ShowMergeIfcPlaceholder, () => !IsLoading && !IsPlacementMode);
             CancelPlacementCommand = new RelayCommand(CancelPlacement, () => IsPlacementMode);
-            MoveIfcCommand = new RelayCommand(StartMoveIfc, CanEditPlacedIfc);
+            MoveIfcCommand = new RelayCommand(StartMoveIfc, CanMoveIfc);
             DeleteIfcCommand = new RelayCommand(DeleteIfc, CanEditPlacedIfc);
             if (_scene != null)
             {
@@ -200,18 +200,39 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                         Debug.WriteLine($"[IfcViewerViewModel] Background diagnostic audit or normalization failed: {ex.Message}");
                     }
                 });
-                _isMovingExistingIfc = false;
-                PendingPlacementPoint = null;
-                IsPlacementMode = true;
-                OnPropertyChanged(nameof(PlacementPrompt));
+                if (filter.CoordinateMode == CoordinateReferenceMode.IfcOrigin)
+                {
+                    // For IFC Origin Mapping, we do not translate or offset the elements at all.
+                    // The model is placed exactly at its native local coordinates (offset = 0,0,0).
+                    var placedElements = all;
+                    PendingPlacementPoint = new Point3D(0, 0, 0);
+                    _ifcSceneOperations.ReplaceIfcModel(placedElements);
+                    if (_pendingFilterOptions != null)
+                        _filterService.ApplyLoadOptions(_pendingFilterOptions);
 
-                _interaction.PushMode(new Interaction.IfcPlacementMode(
-                    this,
-                    _hitTest,
-                    _interaction));
+                    _pendingIfcElements = null;
+                    _pendingFilterOptions = null;
+                    _isMovingExistingIfc = false;
+                    IsPlacementMode = false;
+                    OnPropertyChanged(nameof(PlacementPrompt));
+                    Status = $"Placed {_filterService.ShowingCount} of {placedElements.Count} elements using IFC Origin Mapping.";
+                    IfcModelChanged?.Invoke();
+                }
+                else
+                {
+                    _isMovingExistingIfc = false;
+                    PendingPlacementPoint = null;
+                    IsPlacementMode = true;
+                    OnPropertyChanged(nameof(PlacementPrompt));
 
-                Progress = 100;
-                Status = $"Loaded {all.Count} elements. Click to place IFC origin.";
+                    _interaction.PushMode(new Interaction.IfcPlacementMode(
+                        this,
+                        _hitTest,
+                        _interaction));
+
+                    Progress = 100;
+                    Status = $"Loaded {all.Count} elements. Click to place IFC origin.";
+                }
             }
             catch (Exception ex)
             {
@@ -580,6 +601,19 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         }
 
         private bool CanEditPlacedIfc() => !IsLoading && !IsPlacementMode && _ifcSceneOperations.HasIfcModel;
+
+        private bool CanMoveIfc()
+        {
+            if (!CanEditPlacedIfc())
+                return false;
+
+            if (_transformService != null && _transformService.IsEnabled && _transformService.CurrentReference?.Source == "IfcMapConversion")
+            {
+                return false;
+            }
+
+            return true;
+        }
 
         private void OnSceneElementsChanged(List<PrecastElement> elements)
         {

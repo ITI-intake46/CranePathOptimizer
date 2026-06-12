@@ -132,7 +132,7 @@ namespace CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels
                 }
                 if (Source == "IfcMapConversion")
                 {
-                    return "IfcMapConversion";
+                    return "IFC Origin Mapping";
                 }
                 if (Source == "IfcSiteLatLon")
                 {
