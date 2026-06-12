@@ -130,7 +130,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             CancelPlacementCommand = new RelayCommand(CancelPlacement, () => IsPlacementMode);
             MoveIfcCommand = new RelayCommand(StartMoveIfc, CanEditPlacedIfc);
             DeleteIfcCommand = new RelayCommand(DeleteIfc, CanEditPlacedIfc);
-            _scene.ElementsChanged += OnSceneElementsChanged;
+            if (_scene != null)
+            {
+                _scene.ElementsChanged += OnSceneElementsChanged;
+            }
         }
 
         private async Task LoadIfcAsync()
@@ -682,6 +685,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 return;
             }
 
+            var chosenMode = _pendingFilterOptions?.CoordinateMode ?? 
+                             ((currentRef != null && currentRef.IsEnabled) ? CoordinateReferenceMode.IfcOrigin : CoordinateReferenceMode.LocalOnly);
+
             ProjectCoordinateReference reference;
             if (result.HasMapConversion)
             {
@@ -697,9 +703,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     }
                 }
 
+                bool isEnabled = chosenMode == CoordinateReferenceMode.IfcOrigin;
+
                 reference = new ProjectCoordinateReference
                 {
-                    IsEnabled = true,
+                    IsEnabled = isEnabled,
                     Name = string.IsNullOrWhiteSpace(result.CrsName) ? "IFC Georeferenced" : result.CrsName,
                     CoordinateSystemName = string.IsNullOrWhiteSpace(result.CrsName) ? "Projected CRS" : result.CrsName,
                     EPSGCode = result.EpsgCode,
@@ -717,7 +725,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     Description = string.IsNullOrWhiteSpace(result.CrsDescription) ? null : result.CrsDescription
                 };
 
-                Debug.WriteLine($"[IfcGeoreferencing] Auto-applied IfcMapConversion: E={reference.SurveyEasting}, N={reference.SurveyNorthing}, Rotation={reference.RotationToNorthDegrees}°");
+                Debug.WriteLine($"[IfcGeoreferencing] Applied IfcMapConversion: Enabled={isEnabled}, E={reference.SurveyEasting}, N={reference.SurveyNorthing}, Rotation={reference.RotationToNorthDegrees}°");
             }
             else if (result.HasSiteLatLon)
             {

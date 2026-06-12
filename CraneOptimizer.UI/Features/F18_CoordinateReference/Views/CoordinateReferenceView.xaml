@@ -7,6 +7,10 @@
              d:DesignHeight="120" d:DesignWidth="1200"
              Background="{DynamicResource SurfaceBrush}">
 
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisConverter" />
+    </UserControl.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -16,70 +20,39 @@
             <StackPanel Margin="6,0" Orientation="Horizontal" VerticalAlignment="Center" Height="110">
 
                 <!-- 1. SYSTEM -->
-                <Border Padding="8,6,8,0" Width="180">
+                <Border Padding="8,6,8,0" Width="200">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource GroupLabel}" Text="SYSTEM" />
                         <StackPanel VerticalAlignment="Center" Margin="0,2,0,0">
-                            <CheckBox IsChecked="{Binding IsEnabled}" Content="Enable Site Reference" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                            <Border CornerRadius="4" Padding="6,3" VerticalAlignment="Center" Height="22">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
-                                                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-                                                <Setter Property="BorderThickness" Value="1"/>
-                                            </DataTrigger>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding IsEnabled}" Value="True"/>
-                                                    <Condition Binding="{Binding IsSuccess}" Value="True"/>
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="Background" Value="#152C1F"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}"/>
-                                                <Setter Property="BorderThickness" Value="1"/>
-                                            </MultiDataTrigger>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding IsEnabled}" Value="True"/>
-                                                    <Condition Binding="{Binding IsSuccess}" Value="False"/>
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="Background" Value="#3D181A"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}"/>
-                                                <Setter Property="BorderThickness" Value="1"/>
-                                            </MultiDataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <TextBlock FontWeight="SemiBold" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                    <Setter Property="Text" Value="Disabled / Local Only"/>
-                                                    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-                                                </DataTrigger>
-                                                <MultiDataTrigger>
-                                                    <MultiDataTrigger.Conditions>
-                                                        <Condition Binding="{Binding IsEnabled}" Value="True"/>
-                                                        <Condition Binding="{Binding IsSuccess}" Value="True"/>
-                                                    </MultiDataTrigger.Conditions>
-                                                    <Setter Property="Text" Value="Applied Successfully"/>
-                                                    <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
-                                                </MultiDataTrigger>
-                                                <MultiDataTrigger>
-                                                    <MultiDataTrigger.Conditions>
-                                                        <Condition Binding="{Binding IsEnabled}" Value="True"/>
-                                                        <Condition Binding="{Binding IsSuccess}" Value="False"/>
-                                                    </MultiDataTrigger.Conditions>
-                                                    <Setter Property="Text" Value="Invalid Input Parameters"/>
-                                                    <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
-                                                </MultiDataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </Border>
+                            <TextBlock Text="Reference Mode:" FontSize="9.5" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                            <ComboBox SelectedValue="{Binding SelectedMode}"
+                                      SelectedValuePath="Value"
+                                      ItemsSource="{Binding AvailableModes}"
+                                      Height="22" Width="180"
+                                      Margin="0,0,0,4"
+                                      VerticalAlignment="Center"
+                                      Visibility="{Binding IsComboBoxVisible, Converter={StaticResource BoolToVisConverter}}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayName}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Text="Manual Mapping (Preserved)" 
+                                       Foreground="White" 
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Visibility="{Binding IsManualMode, Converter={StaticResource BoolToVisConverter}}"
+                                       HorizontalAlignment="Center" Margin="0,0,0,4" Height="22" Padding="0,2,0,0"/>
+                            <TextBlock Text="No usable IFC origin georeferencing was found." 
+                                       Foreground="{StaticResource ErrorBrush}" 
+                                       FontSize="8.5" FontWeight="SemiBold"
+                                       Visibility="{Binding IfcGeoreferencingNotFoundMessageVisibility}"
+                                       HorizontalAlignment="Center" Margin="0,2,0,0" TextWrapping="Wrap" TextAlignment="Center" Width="180"/>
+                            <TextBlock Text="IFC Georeferencing exists but is inactive (Local Only)." 
+                                       Foreground="{StaticResource WarningBrush}" 
+                                       FontSize="8.5" FontWeight="SemiBold"
+                                       Visibility="{Binding IfcGeoreferencingInactiveMessageVisibility, Converter={StaticResource BoolToVisConverter}}"
+                                       HorizontalAlignment="Center" Margin="0,2,0,0" TextWrapping="Wrap" TextAlignment="Center" Width="180"/>
                         </StackPanel>
                     </DockPanel>
                 </Border>
@@ -106,15 +79,15 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Text="Easting (m)" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2"/>
-                                    <TextBox Text="{Binding SurveyEasting, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="2" Height="22" Background="#1E1E1E" Foreground="White" BorderBrush="{DynamicResource BorderBrush}"/>
+                                    <TextBox Text="{Binding SurveyEasting, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsManualMode}" FontSize="11" Padding="2" Height="22" Background="#1E1E1E" Foreground="White" BorderBrush="{DynamicResource BorderBrush}"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Text="Northing (m)" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2"/>
-                                    <TextBox Text="{Binding SurveyNorthing, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="2" Height="22" Background="#1E1E1E" Foreground="White" BorderBrush="{DynamicResource BorderBrush}"/>
+                                    <TextBox Text="{Binding SurveyNorthing, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsManualMode}" FontSize="11" Padding="2" Height="22" Background="#1E1E1E" Foreground="White" BorderBrush="{DynamicResource BorderBrush}"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="4">
                                     <TextBlock Text="Elevation (m)" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2"/>
-                                    <TextBox Text="{Binding SurveyElevation, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="2" Height="22" Background="#1E1E1E" Foreground="White" BorderBrush="{DynamicResource BorderBrush}"/>
+                                    <TextBox Text="{Binding SurveyElevation, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsManualMode}" FontSize="11" Padding="2" Height="22" Background="#1E1E1E" Foreground="White" BorderBrush="{DynamicResource BorderBrush}"/>
                                 </StackPanel>
                             </Grid>
                             <TextBlock Grid.Row="1" Text="Survey coordinates of model origin" FontSize="8.5" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
@@ -140,7 +113,7 @@
                             </Grid.RowDefinitions>
                             <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,0,3">
                                 <TextBlock Text="Rotation to North (°)" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2"/>
-                                <TextBox Text="{Binding RotationToNorthDegrees, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="2" Height="22" Background="#1E1E1E" Foreground="White" BorderBrush="{DynamicResource BorderBrush}"
+                                <TextBox Text="{Binding RotationToNorthDegrees, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsManualMode}" FontSize="11" Padding="2" Height="22" Background="#1E1E1E" Foreground="White" BorderBrush="{DynamicResource BorderBrush}"
                                          ToolTip="Angle in degrees from local Y to site North."/>
                             </StackPanel>
                             <TextBlock Grid.Column="0" Grid.Row="1" Text="Use 0° if axes match site grid" FontSize="8.5" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Left" TextAlignment="Left" TextWrapping="Wrap" Width="135"/>
@@ -166,6 +139,37 @@
                                         <Polygon Points="10,26 0,13 10,10" Fill="#BDC3C7"/>
                                     </Grid>
                                 </Grid>
+                            </StackPanel>
+                        </Grid>
+                    </DockPanel>
+                </Border>
+
+                <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+
+                <!-- METADATA -->
+                <Border Padding="8,6,8,0" Width="220">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource GroupLabel}" Text="METADATA" />
+                        <Grid VerticalAlignment="Center">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,3">
+                                <TextBlock Text="System: " FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="{Binding CoordinateSystemName}" FontSize="9.5" FontWeight="SemiBold" Foreground="White" Margin="4,0,0,0" Width="160" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,3">
+                                <TextBlock Text="EPSG: " FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="{Binding EPSGCode}" FontSize="9.5" FontWeight="SemiBold" Foreground="White" Margin="4,0,0,0" Width="160" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            
+                            <StackPanel Grid.Row="2" Orientation="Horizontal">
+                                <TextBlock Text="Source: " FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="{Binding SourceDescription}" FontSize="9.5" FontWeight="SemiBold" Foreground="White" Margin="4,0,0,0" Width="160" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                         </Grid>
                     </DockPanel>

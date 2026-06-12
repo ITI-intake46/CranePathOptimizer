@@ -142,11 +142,53 @@ A total of **49 coordinate-related unit tests** have been successfully executed 
 
 ---
 
-## F. Next Phase
+## F. Phase 3: Coordinate Reference Modes UI
 
-### Phase 3 — Coordinate Reference UI: Origin Mapping vs Picked Local Reference Point
-The next development phase will focus on user-controlled reference point mappings, allowing users to choose between two alignment methods in the UI:
-1. **Local Origin Mapping**: Local coordinates $(0,0,0)$ map directly to the survey Easting/Northing/Elevation.
-2. **Picked Local Reference Point**: A user-specified local position $(x_p, y_p, z_p)$ maps to the survey coordinates.
+Phase 3 implements user-controlled coordinate reference modes in the user interface. The UI exposes only two selectable modes:
+1. **Local Only** (`IsEnabled = false`): The application uses raw local coordinates only. Local coordinates default to local values and are isolated.
+2. **IFC Origin Mapping** (`IsEnabled = true`, `Source = "IfcMapConversion"`): Local coordinates $(0,0,0)$ map directly to the `IfcMapConversion`-extracted survey Easting, Northing, and Elevation. `LocalReferenceX/Y/Z` are fixed at `0.0`.
 
-*Note: Phase 3 is not implemented in this documentation-only update.*
+### Mode Availability and Rules
+* **IFC Origin Mapping Availability**: This mode is selectable if active IFC georeferencing is loaded in the current import session, or if a saved project already contains an IFC-derived `ProjectCoordinateReference` in the SQLite database. If neither is available, "IFC Origin Mapping" is disabled, and an informational warning message is shown.
+* **IFC2x3 Restriction**: IFC Origin Mapping only activates from valid, projected `IfcMapConversion` data (Easting/Northing/Elevation). IFC2x3 `IfcSite` latitude/longitude coordinates are strictly informational and do not enable active E/N mapping.
+* **Manual Mode Protection**: A third mode, **Manual Mapping (Preserved)**, is not selectable in the mode ComboBox in Phase 3, but is recognized and preserved if loaded from legacy databases or future extensions. If the project contains a manual reference (`Source = "Manual"` or `"ManualSinglePoint"`), the UI displays it as active, protecting existing manual configurations from silent overwrite.
+
+### Safety & Engine Insulation
+* **Engine Isolation**: The Genetic Algorithm (GA) solver, viewport rendering, 3D mesh geometry, collision/constraint detection, crane radius checks, load chart checks, and precast element local coordinates remain strictly local and unchanged. All calculations, bounds, and radius checks remain local and unchanged.
+* **No Database Migrations**: Active coordinate mode is inferred safely at run-time from `IsEnabled` and `Source` properties, avoiding database schema changes.
+
+---
+
+## G. Future / Pending Phases
+
+### Picked Local Reference Point (Future Mode 3)
+* **Description**: A manual alignment method where a user selects or inputs a local coordinate point $(x_p, y_p, z_p)$ to map to a specific survey reference point $(E_s, N_s, H_s)$, with optional rotation/scale.
+* **Status**: **Pending/Future**. Viewport hit-testing, pick-point UI, two-point calibration, and manual local anchor selection are NOT implemented in Phase 3.
+
+---
+
+## H. Phase 3.1: Move Coordinate Reference Mode Choice into IFC Load Options
+
+Phase 3.1 optimizes the user experience by moving the choice of coordinate reference mode directly into the **IFC Load Options** dialog before importing.
+
+### 1. IFC Load Options Dialog Integration
+* **Asynchronous Pre-scan**: When a user selects an IFC file for import, the application initiates a lightweight background pre-scan using `IIfcGeoreferencingExtractor.ExtractFromFile(filePath)`. This pre-scan opens the IFC model without building full 3D geometry contexts, taking a fraction of a second.
+* **Non-Blocking UI**: The pre-scan task runs on a background thread. While scanning, the dialog displays a progress message `"Scanning georeferencing..."` and keeps the UI responsive. Once the task finishes, the UI dispatcher updates the dialog state:
+  * If a valid `IfcMapConversion` is found, the `"IFC Origin Mapping"` option is enabled and a success status is shown.
+  * If no georeference metadata is found, or if only informational IFC2x3 latitude/longitude is found, the `"IFC Origin Mapping"` option is disabled, defaulting the choice to `"Local Only"`, and an appropriate warning message is displayed.
+* **Selection Result**: The selected `CoordinateReferenceMode` is stored in the `IfcLoadOptionsDto` and passed into the import pipeline.
+
+### 2. Import Pipeline & Metadata Review Flow
+* **Apply Selected Mode**: During model placement, `IfcViewerViewModel` applies the georeferencing metadata:
+  * If the user selected `"IFC Origin Mapping"`, the reference is saved with `IsEnabled = true` and `Source = "IfcMapConversion"`.
+  * If the user selected `"Local Only"`, but the IFC contained valid georeferencing, the metadata is still extracted and applied to `ProjectCoordinateReference` but with `IsEnabled = false`.
+* **Inactive Review Status**: If `"Local Only"` was selected for a georeferenced file, the Coordinate Reference tab remains inactive (`IsEnabled = false`) and displays `"IFC Georeferencing exists but is inactive (Local Only)."`, allowing the user to review the survey metadata without activating it. The metadata source displays `"Local Only (IFC Georeferencing Inactive)"`.
+
+### 3. Coordinate Reference Tab UI Adjustments
+* **Primary Review/Status Focus**: The Coordinate Reference tab is now primarily for review and status display.
+* **ComboBox Label Cleanup**: The ComboBox displays clean user-friendly labels:
+  * `"Local Only"`
+  * `"IFC Origin Mapping"`
+  No raw enum, object, or type names appear in the UI.
+* **Legacy Mode Preservation**: If a legacy manual coordinate mapping is active in the database, the dropdown ComboBox is hidden, and a read-only label `"Manual Mapping (Preserved)"` is shown to prevent accidental overwrite.
+

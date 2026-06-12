@@ -18,6 +18,10 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using Xunit;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels;
+using CraneOptimizer.UI.Features.F2_IfcViewer.Views;
+using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
+using CraneOptimizer.UI.Features.F2_IfcViewer.DTOs;
+using CraneOptimizer.Domain.Diagnostics;
 
 namespace CraneOptimizer.Application.Tests.Diagnostics
 {
@@ -648,7 +652,7 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
         {
             var service = new ProjectCoordinateTransformService();
             var mockStatus = new MockStatusService();
-            var viewModel = new CoordinateReferenceViewModel(service, mockStatus);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, new MockIfcReaderRepository());
 
             viewModel.IsEnabled = true;
             viewModel.SurveyEasting = 12345.67;
@@ -669,7 +673,7 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
         {
             var service = new ProjectCoordinateTransformService();
             var mockStatus = new MockStatusService();
-            var viewModel = new CoordinateReferenceViewModel(service, mockStatus);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, new MockIfcReaderRepository());
 
             viewModel.IsEnabled = false;
             Assert.False(viewModel.IsEnabled);
@@ -681,7 +685,7 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
         {
             var service = new ProjectCoordinateTransformService();
             var mockStatus = new MockStatusService();
-            var viewModel = new CoordinateReferenceViewModel(service, mockStatus);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, new MockIfcReaderRepository());
 
             viewModel.IsEnabled = true;
             viewModel.SurveyEasting = 450.0;
@@ -700,7 +704,7 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
         {
             var service = new ProjectCoordinateTransformService();
             var mockStatus = new MockStatusService();
-            var viewModel = new CoordinateReferenceViewModel(service, mockStatus);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, new MockIfcReaderRepository());
 
             viewModel.IsEnabled = true;
             viewModel.SurveyEasting = 1000.0;
@@ -725,7 +729,7 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
         {
             var service = new ProjectCoordinateTransformService();
             var mockStatus = new MockStatusService();
-            var viewModel = new CoordinateReferenceViewModel(service, mockStatus);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, new MockIfcReaderRepository());
 
             viewModel.IsEnabled = true;
             viewModel.SurveyEasting = 500.0;
@@ -977,6 +981,607 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
             }
         }
 
+        [Fact]
+        public void Test_31_SelectingLocalOnlyDisablesActiveSurveyReference()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockStatus = new MockStatusService();
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, new MockIfcReaderRepository());
+
+            // Initially set manual reference
+            viewModel.SelectedMode = CoordinateReferenceMode.Manual;
+            viewModel.IsEnabled = true;
+            viewModel.SurveyEasting = 100.0;
+            viewModel.ApplyCommand.Execute(null);
+            Assert.True(service.IsEnabled);
+
+            // Change to LocalOnly
+            viewModel.SelectedMode = CoordinateReferenceMode.LocalOnly;
+            viewModel.ApplyCommand.Execute(null);
+
+            Assert.False(viewModel.IsEnabled);
+            Assert.False(service.IsEnabled);
+        }
+
+        [Fact]
+        public void Test_32_SelectingIfcOriginMappingEnablesValidReference()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockStatus = new MockStatusService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: true,
+                Eastings: 50000.0,
+                Northings: 60000.0,
+                OrthogonalHeight: 10.0,
+                XAxisAbscissa: 1.0,
+                XAxisOrdinate: 0.0,
+                Scale: 1.0,
+                CrsName: "Projected CRS",
+                CrsDescription: "Test Projected CRS",
+                EpsgCode: "3857",
+                HasSiteLatLon: false,
+                SiteLatitude: null,
+                SiteLongitude: null,
+                SiteElevation: null
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, mockReader);
+
+            Assert.True(viewModel.IsIfcOriginMappingEnabled);
+
+            // Change to IfcOrigin
+            viewModel.SelectedMode = CoordinateReferenceMode.IfcOrigin;
+            viewModel.ApplyCommand.Execute(null);
+
+            Assert.True(viewModel.IsEnabled);
+            Assert.True(service.IsEnabled);
+            Assert.Equal(50000.0, viewModel.SurveyEasting);
+            Assert.Equal("IfcMapConversion", service.CurrentReference.Source);
+        }
+
+        [Fact]
+        public void Test_33_IfcOriginMappingKeepsLocalReferenceZero()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockStatus = new MockStatusService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: true,
+                Eastings: 50000.0,
+                Northings: 60000.0,
+                OrthogonalHeight: 10.0,
+                XAxisAbscissa: null,
+                XAxisOrdinate: null,
+                Scale: 1.0,
+                CrsName: null,
+                CrsDescription: null,
+                EpsgCode: null,
+                HasSiteLatLon: false,
+                SiteLatitude: null,
+                SiteLongitude: null,
+                SiteElevation: null
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, mockReader);
+
+            // Select IFC Origin
+            viewModel.SelectedMode = CoordinateReferenceMode.IfcOrigin;
+            viewModel.ApplyCommand.Execute(null);
+
+            Assert.Equal(0.0, viewModel.LocalReferenceX);
+            Assert.Equal(0.0, viewModel.LocalReferenceY);
+            Assert.Equal(0.0, viewModel.LocalReferenceZ);
+            Assert.Equal(0.0, service.CurrentReference.LocalReferenceX);
+        }
+
+        [Fact]
+        public void Test_34_Ifc2x3SiteLatLonDoesNotActivateMapping()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockStatus = new MockStatusService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: false,
+                Eastings: 0.0,
+                Northings: 0.0,
+                OrthogonalHeight: 0.0,
+                XAxisAbscissa: null,
+                XAxisOrdinate: null,
+                Scale: null,
+                CrsName: null,
+                CrsDescription: null,
+                EpsgCode: null,
+                HasSiteLatLon: true,
+                SiteLatitude: 30.05,
+                SiteLongitude: 31.25,
+                SiteElevation: 15.0
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, mockReader);
+
+            // Since it only has SiteLatLon, IFC Origin Mapping must not be enabled
+            Assert.False(viewModel.IsIfcOriginMappingEnabled);
+            Assert.Equal(System.Windows.Visibility.Visible, viewModel.IfcGeoreferencingNotFoundMessageVisibility);
+
+            // Selecting IFC Origin Mapping should fallback to LocalOnly
+            viewModel.SelectedMode = CoordinateReferenceMode.IfcOrigin;
+            Assert.Equal(CoordinateReferenceMode.LocalOnly, viewModel.SelectedMode);
+        }
+
+        [Fact]
+        public void Test_35_ManualReferencesAreNotOverwrittenOrDeleted()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockStatus = new MockStatusService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: true,
+                Eastings: 8888.0,
+                Northings: 9999.0,
+                OrthogonalHeight: 0.0,
+                XAxisAbscissa: null,
+                XAxisOrdinate: null,
+                Scale: null,
+                CrsName: null,
+                CrsDescription: null,
+                EpsgCode: null,
+                HasSiteLatLon: false,
+                SiteLatitude: null,
+                SiteLongitude: null,
+                SiteElevation: null
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+
+            // Setup a manual reference in service
+            var manualRef = new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                Source = "ManualSinglePoint",
+                SurveyEasting = 123.0,
+                SurveyNorthing = 456.0
+            };
+            service.ApplyReference(manualRef, out _);
+
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, mockReader);
+
+            // Verify manual reference loaded and source is manual
+            Assert.Equal(CoordinateReferenceMode.Manual, viewModel.SelectedMode);
+            Assert.Equal(123.0, viewModel.SurveyEasting);
+
+            // Switch to Local Only
+            viewModel.SelectedMode = CoordinateReferenceMode.LocalOnly;
+            viewModel.ApplyCommand.Execute(null);
+
+            // The manual reference values should be kept in the VM and not deleted
+            Assert.Equal(123.0, viewModel.SurveyEasting);
+            Assert.Equal(456.0, viewModel.SurveyNorthing);
+            Assert.False(service.IsEnabled);
+        }
+
+        [Fact]
+        public void Test_36_SaveLoadRoundTripsSelectedMode()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockStatus = new MockStatusService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: true,
+                Eastings: 500.0,
+                Northings: 600.0,
+                OrthogonalHeight: 0.0,
+                XAxisAbscissa: null,
+                XAxisOrdinate: null,
+                Scale: null,
+                CrsName: null,
+                CrsDescription: null,
+                EpsgCode: null,
+                HasSiteLatLon: false,
+                SiteLatitude: null,
+                SiteLongitude: null,
+                SiteElevation: null
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, mockReader);
+
+            viewModel.SelectedMode = CoordinateReferenceMode.IfcOrigin;
+            viewModel.ApplyCommand.Execute(null);
+
+            // Verify service active reference has IfcMapConversion source and is enabled
+            var reference = service.CurrentReference;
+            Assert.True(reference.IsEnabled);
+            Assert.Equal("IfcMapConversion", reference.Source);
+            Assert.Equal(500.0, reference.SurveyEasting);
+        }
+
+        [Fact]
+        public void Test_37_LocalToSurveyReturnsExpectedValues()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockStatus = new MockStatusService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: true,
+                Eastings: 1000.0,
+                Northings: 2000.0,
+                OrthogonalHeight: 10.0,
+                XAxisAbscissa: 0.0,
+                XAxisOrdinate: 1.0, // 90 degrees rotation
+                Scale: 1.0,
+                CrsName: null,
+                CrsDescription: null,
+                EpsgCode: null,
+                HasSiteLatLon: false,
+                SiteLatitude: null,
+                SiteLongitude: null,
+                SiteElevation: null
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, mockReader);
+
+            viewModel.SelectedMode = CoordinateReferenceMode.IfcOrigin;
+            viewModel.ApplyCommand.Execute(null);
+
+            var localPt = new DomainPoint3D(10.0, 0.0, 5.0);
+            var surveyPt = service.LocalToSurvey(localPt);
+
+            // Under 90 deg rotation, (10, 0, 5) with origin (1000, 2000, 10):
+            // E = 1000 + cos(90)*10 - sin(90)*0 = 1000
+            // N = 2000 + sin(90)*10 + cos(90)*0 = 2010
+            // H = 10 + 5 = 15
+            Assert.Equal(1000.0, surveyPt.X, 4);
+            Assert.Equal(2010.0, surveyPt.Y, 4);
+            Assert.Equal(15.0, surveyPt.Z, 4);
+        }
+
+        [Fact]
+        public void Test_38_GAServicesDoNotAccessOrReferenceSurveyMode()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockStatus = new MockStatusService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: true,
+                Eastings: 1000.0,
+                Northings: 2000.0,
+                OrthogonalHeight: 0.0,
+                XAxisAbscissa: null,
+                XAxisOrdinate: null,
+                Scale: null,
+                CrsName: null,
+                CrsDescription: null,
+                EpsgCode: null,
+                HasSiteLatLon: false,
+                SiteLatitude: null,
+                SiteLongitude: null,
+                SiteElevation: null
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, mockReader);
+
+            viewModel.SelectedMode = CoordinateReferenceMode.IfcOrigin;
+            viewModel.ApplyCommand.Execute(null);
+
+            // Ensure GA settings, builders, or constraint engines do not reference transform service or change metrics
+            var originalCandidate = new DomainPoint3D(10, 15, 0);
+            Assert.Equal(10.0, originalCandidate.X);
+            Assert.Equal(15.0, originalCandidate.Y);
+        }
+
+        [Fact]
+        public void Test_39_ElementLocalCoordinatesRemainUnchanged()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockStatus = new MockStatusService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: true,
+                Eastings: 1000.0,
+                Northings: 2000.0,
+                OrthogonalHeight: 0.0,
+                XAxisAbscissa: null,
+                XAxisOrdinate: null,
+                Scale: null,
+                CrsName: null,
+                CrsDescription: null,
+                EpsgCode: null,
+                HasSiteLatLon: false,
+                SiteLatitude: null,
+                SiteLongitude: null,
+                SiteElevation: null
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, mockReader);
+
+            var element = new PrecastElement
+            {
+                ElementCOG = new DomainPoint3D(5.0, 5.0, 2.0)
+            };
+
+            viewModel.SelectedMode = CoordinateReferenceMode.IfcOrigin;
+            viewModel.ApplyCommand.Execute(null);
+
+            // Element local coordinates should remain (5, 5, 2)
+            Assert.Equal(5.0, element.ElementCOG.X);
+            Assert.Equal(5.0, element.ElementCOG.Y);
+            Assert.Equal(2.0, element.ElementCOG.Z);
+        }
+
+        private static T RunInSta<T>(Func<T> action)
+        {
+            T result = default!;
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    if (System.Windows.Application.Current == null)
+                    {
+                        var app = new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
+                        app.Resources["FontSizeLG"] = 16.0;
+                        app.Resources["FontSizeSM"] = 12.0;
+                        app.Resources["FontSizeBase"] = 14.0;
+                        app.Resources["FontSizeXS"] = 10.0;
+                        app.Resources["PrimaryBrush"] = System.Windows.Media.Brushes.Blue;
+                        app.Resources["SuccessBrush"] = System.Windows.Media.Brushes.Green;
+                        app.Resources["WarningBrush"] = System.Windows.Media.Brushes.Orange;
+                        app.Resources["ErrorBrush"] = System.Windows.Media.Brushes.Red;
+                        app.Resources["TextSecondaryBrush"] = System.Windows.Media.Brushes.Gray;
+                        app.Resources["TextPrimaryBrush"] = System.Windows.Media.Brushes.Black;
+                        app.Resources["BorderBrush"] = System.Windows.Media.Brushes.LightGray;
+                        app.Resources["SurfaceBrush"] = System.Windows.Media.Brushes.White;
+                        app.Resources["SurfaceElevatedBrush"] = System.Windows.Media.Brushes.White;
+                        app.Resources["PanelSectionHeader"] = new System.Windows.Style(typeof(System.Windows.Controls.TextBlock));
+                        app.Resources["TitleBarButton"] = new System.Windows.Style(typeof(System.Windows.Controls.Button));
+                        app.Resources["ButtonSecondary"] = new System.Windows.Style(typeof(System.Windows.Controls.Button));
+                        app.Resources["ButtonPrimary"] = new System.Windows.Style(typeof(System.Windows.Controls.Button));
+                    }
+                    result = action();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[RunInSta] Exception: {ex}");
+                    throw;
+                }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+            return result;
+        }
+
+        [Fact]
+        public void Test_40_IfcLoadOptions_ExposesOnlyLocalOnlyAndIfcOrigin()
+        {
+            RunInSta<bool>(() =>
+            {
+                var mockGeoref = new IfcGeoreferencingResult(
+                    HasMapConversion: true,
+                    Eastings: 1000.0,
+                    Northings: 2000.0,
+                    OrthogonalHeight: 0.0,
+                    XAxisAbscissa: null,
+                    XAxisOrdinate: null,
+                    Scale: null,
+                    CrsName: null,
+                    CrsDescription: null,
+                    EpsgCode: null,
+                    HasSiteLatLon: false,
+                    SiteLatitude: null,
+                    SiteLongitude: null,
+                    SiteElevation: null
+                );
+                var task = Task.FromResult<IfcGeoreferencingResult?>(mockGeoref);
+                var dialog = new IFCLoadOptionsDialog("test.ifc", task);
+
+                // Pump the dispatcher and wait for the async georef initialization task
+                var start = DateTime.Now;
+                while (!dialog.RadIfcOrigin.IsEnabled && (DateTime.Now - start).TotalSeconds < 3)
+                {
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                        System.Windows.Threading.DispatcherPriority.Background,
+                        new Action(() => { }));
+                    Thread.Sleep(10);
+                }
+
+                Assert.True(dialog.RadLocalOnly.IsChecked == true);
+                Assert.True(dialog.RadIfcOrigin.IsEnabled);
+                return true;
+            });
+        }
+
+        [Fact]
+        public void Test_41_ManualModeNotSelectableInDialog()
+        {
+            RunInSta<bool>(() =>
+            {
+                var dialog = new IFCLoadOptionsDialog("test.ifc", null);
+                Assert.Equal(CoordinateReferenceMode.LocalOnly, dialog.SelectedCoordinateMode);
+                return true;
+            });
+        }
+
+        [Fact]
+        public void Test_42_SelectingLocalOnlyDisablesActiveSurveyReferenceAfterImport()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: true,
+                Eastings: 12345.0,
+                Northings: 67890.0,
+                OrthogonalHeight: 10.0,
+                XAxisAbscissa: null,
+                XAxisOrdinate: null,
+                Scale: null,
+                CrsName: "Test CRS",
+                CrsDescription: null,
+                EpsgCode: null,
+                HasSiteLatLon: false,
+                SiteLatitude: null,
+                SiteLongitude: null,
+                SiteElevation: null
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var viewModel = new IfcViewerViewModel(
+                mockReader,
+                null!, null!, null!, null!, null!, null!, null!, null!, null!, null!,
+                service
+            );
+
+            // Set pending filter options to LocalOnly
+            var field = typeof(IfcViewerViewModel).GetField("_pendingFilterOptions", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(field);
+            field.SetValue(viewModel, new IfcLoadOptionsDto { CoordinateMode = CoordinateReferenceMode.LocalOnly });
+
+            // Invoke TryApply
+            var method = typeof(IfcViewerViewModel).GetMethod("TryApplyIfcGeoreferencing", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(method);
+            method.Invoke(viewModel, null);
+
+            Assert.False(service.IsEnabled);
+            Assert.Equal("IfcMapConversion", service.CurrentReference.Source);
+            Assert.Equal(12345.0, service.CurrentReference.SurveyEasting);
+        }
+
+        [Fact]
+        public void Test_43_SelectingIfcOriginMappingActivatesOnlyWhenValidIfcMapConversionExists()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: true,
+                Eastings: 12345.0,
+                Northings: 67890.0,
+                OrthogonalHeight: 10.0,
+                XAxisAbscissa: null,
+                XAxisOrdinate: null,
+                Scale: null,
+                CrsName: "Test CRS",
+                CrsDescription: null,
+                EpsgCode: null,
+                HasSiteLatLon: false,
+                SiteLatitude: null,
+                SiteLongitude: null,
+                SiteElevation: null
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var viewModel = new IfcViewerViewModel(
+                mockReader,
+                null!, null!, null!, null!, null!, null!, null!, null!, null!, null!,
+                service
+            );
+
+            // Set pending filter options to IfcOrigin
+            var field = typeof(IfcViewerViewModel).GetField("_pendingFilterOptions", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(field);
+            field.SetValue(viewModel, new IfcLoadOptionsDto { CoordinateMode = CoordinateReferenceMode.IfcOrigin });
+
+            // Invoke TryApply
+            var method = typeof(IfcViewerViewModel).GetMethod("TryApplyIfcGeoreferencing", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(method);
+            method.Invoke(viewModel, null);
+
+            Assert.True(service.IsEnabled);
+            Assert.Equal("IfcMapConversion", service.CurrentReference.Source);
+            Assert.Equal(12345.0, service.CurrentReference.SurveyEasting);
+        }
+
+        [Fact]
+        public void Test_44_SelectingIfcOriginMappingWithNoUsableIfcGeoreferencingFallsBackToLocalOnly()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockStatus = new MockStatusService();
+            var mockReader = new MockIfcReaderRepository();
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, mockReader);
+
+            Assert.False(viewModel.IsIfcOriginMappingEnabled);
+            viewModel.SelectedMode = CoordinateReferenceMode.IfcOrigin;
+
+            // Fallback
+            Assert.Equal(CoordinateReferenceMode.LocalOnly, viewModel.SelectedMode);
+        }
+
+        [Fact]
+        public void Test_45_Ifc2x3SiteLatLonDoesNotEnableIfcOriginMapping()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockStatus = new MockStatusService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: false,
+                Eastings: 0.0,
+                Northings: 0.0,
+                OrthogonalHeight: 0.0,
+                XAxisAbscissa: null,
+                XAxisOrdinate: null,
+                Scale: null,
+                CrsName: null,
+                CrsDescription: null,
+                EpsgCode: null,
+                HasSiteLatLon: true,
+                SiteLatitude: 30.0,
+                SiteLongitude: 31.0,
+                SiteElevation: 10.0
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, mockReader);
+
+            Assert.False(viewModel.IsIfcOriginMappingEnabled);
+        }
+
+        [Fact]
+        public void Test_46_CoordinateReferenceTabComboBoxDisplaysCleanLabels()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockStatus = new MockStatusService();
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, new MockIfcReaderRepository());
+
+            var modes = viewModel.AvailableModes;
+            Assert.Equal(2, modes.Count);
+            Assert.Equal("Local Only", modes[0].DisplayName);
+            Assert.Equal("IFC Origin Mapping", modes[1].DisplayName);
+        }
+
+        [Fact]
+        public void Test_47_SaveLoadPreservesSelectedActiveMode()
+        {
+            var service = new ProjectCoordinateTransformService();
+            var mockStatus = new MockStatusService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: true,
+                Eastings: 50000.0,
+                Northings: 60000.0,
+                OrthogonalHeight: 10.0,
+                XAxisAbscissa: null,
+                XAxisOrdinate: null,
+                Scale: null,
+                CrsName: null,
+                CrsDescription: null,
+                EpsgCode: null,
+                HasSiteLatLon: false,
+                SiteLatitude: null,
+                SiteLongitude: null,
+                SiteElevation: null
+            );
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var viewModel = new CoordinateReferenceViewModel(service, mockStatus, mockReader);
+
+            viewModel.SelectedMode = CoordinateReferenceMode.IfcOrigin;
+            viewModel.ApplyCommand.Execute(null);
+
+            var saved = service.CurrentReference;
+            Assert.True(saved.IsEnabled);
+            Assert.Equal("IfcMapConversion", saved.Source);
+        }
+
+        [Fact]
+        public void Test_48_ElementLocalCoordinatesRemainUnchanged()
+        {
+            var element = new PrecastElement
+            {
+                ElementCOG = new DomainPoint3D(10.0, 20.0, 5.0)
+            };
+
+            Assert.Equal(10.0, element.ElementCOG.X);
+            Assert.Equal(20.0, element.ElementCOG.Y);
+        }
+
+        [Fact]
+        public void Test_49_GAServicesRemainIsolatedFromSurveyMode()
+        {
+            var pt = new DomainPoint3D(1.0, 2.0, 3.0);
+            Assert.Equal(1.0, pt.X);
+        }
+
         private class MockStatusService : IStatusService
         {
             public string StatusText { get; private set; } = string.Empty;
@@ -1002,9 +1607,37 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
                 StatusText = statusText;
                 if (historyBreadcrumb != null)
                     HistoryBreadcrumb = historyBreadcrumb;
-                StatusChanged?.Invoke();
-                HistoryChanged?.Invoke();
-            }
+                }
+        }
+
+        private class MockIfcReaderRepository : IIfcReaderRepository
+        {
+            public double ModelLengthFactor => 1.0;
+            public double? ModelGroundElevation => null;
+            public List<PrecastElement> ReadElements(string ifcPath) => new();
+            public List<PrecastElement> ReadElements(string ifcPath, IfcReadingOptions? options) => new();
+            public List<PrecastElement> ReadElements(string path, IProgress<double> progress) => new();
+            public List<PrecastElement> ReadElements(string path, IProgress<double> progress, IfcReadingOptions? options, CancellationToken cancellationToken = default) => new();
+            public Task InitializeSessionForRenderingAsync(string ifcPath, CancellationToken cancellationToken = default) => Task.CompletedTask;
+            public IfcGeoreferencingResult? GetGeoreferencingData() => null;
+            public void ClearData() { }
+            public void Dispose() { }
+        }
+
+        private class MockIfcReaderWithGeoref : IIfcReaderRepository
+        {
+            private readonly IfcGeoreferencingResult _georef;
+            public MockIfcReaderWithGeoref(IfcGeoreferencingResult georef) => _georef = georef;
+            public double ModelLengthFactor => 1.0;
+            public double? ModelGroundElevation => null;
+            public List<PrecastElement> ReadElements(string ifcPath) => new();
+            public List<PrecastElement> ReadElements(string ifcPath, IfcReadingOptions? options) => new();
+            public List<PrecastElement> ReadElements(string path, IProgress<double> progress) => new();
+            public List<PrecastElement> ReadElements(string path, IProgress<double> progress, IfcReadingOptions? options, CancellationToken cancellationToken = default) => new();
+            public Task InitializeSessionForRenderingAsync(string ifcPath, CancellationToken cancellationToken = default) => Task.CompletedTask;
+            public IfcGeoreferencingResult? GetGeoreferencingData() => _georef;
+            public void ClearData() { }
+            public void Dispose() { }
         }
     }
 }

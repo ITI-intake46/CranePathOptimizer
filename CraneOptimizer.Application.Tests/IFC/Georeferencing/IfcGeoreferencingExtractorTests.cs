@@ -16,6 +16,7 @@ using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Infrastructure.Ifc;
 using CraneOptimizer.Application.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
+using CraneOptimizer.UI.Features.F2_IfcViewer.DTOs;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Common;
@@ -309,6 +310,10 @@ namespace CraneOptimizer.Application.Tests.IFC.Georeferencing
 
             var method = typeof(IfcViewerViewModel).GetMethod("TryApplyIfcGeoreferencing", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             Assert.NotNull(method);
+
+            var field = typeof(IfcViewerViewModel).GetField("_pendingFilterOptions", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(field);
+            field.SetValue(viewModel, new IfcLoadOptionsDto { CoordinateMode = CoordinateReferenceMode.IfcOrigin });
 
             method.Invoke(viewModel, null);
 

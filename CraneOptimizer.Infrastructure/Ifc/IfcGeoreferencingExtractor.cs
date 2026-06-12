@@ -6,11 +6,32 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using Xbim.Common;
 using Xbim.Ifc4.Interfaces;
+using Xbim.Ifc;
 
 namespace CraneOptimizer.Infrastructure.Ifc
 {
     public sealed class IfcGeoreferencingExtractor : IIfcGeoreferencingExtractor
     {
+        public IfcGeoreferencingResult? ExtractFromFile(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath) || !System.IO.File.Exists(filePath))
+            {
+                return null;
+            }
+            try
+            {
+                using (var model = IfcStore.Open(filePath))
+                {
+                    return Extract(model);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[IfcGeoreferencing] Exception during ExtractFromFile for '{filePath}': {ex}");
+                return null;
+            }
+        }
+
         public IfcGeoreferencingResult? Extract(object model)
         {
             if (model == null)
