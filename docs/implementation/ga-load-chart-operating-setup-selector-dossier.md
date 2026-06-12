@@ -1,4 +1,4 @@
-# CranePathOptimizer Branch Implementation Dossier
+﻿# CranePathOptimizer Branch Implementation Dossier
 
 ## `temp/div-implementation` — GA Load-Chart Operating Setup Selector, Engineering-Intuition UI, Validation Hardening, and Documentation Completion
 
@@ -111,8 +111,6 @@ This dossier incorporates evidence from both the **previous uploaded chat** and 
 
 | Evidence artifact | Purpose |
 |---|---|
-| `ChatGPT (2026-06-12).md` | Prior-chat transcript containing branch creation, initial GA selector design, patch attempts, UX iterations, slider/tooltip work, collapsible panel work, validation summaries, and the cut-off state. |
-| `ChatGPT (2026-06-12).html` | HTML version of the prior-chat transcript. |
 | `CranePathOptimizer_FullChangeReviewPackage_SAFE_20260612_201910.txt` | Prior review package showing the state after the collapsible selector implementation and validation. |
 | `CranePathOptimizer_COMPLETE_ForensicPackage_V5_20260612_203811.txt` | Complete source/forensic package used in the current chat before cleanup/hardening. |
 | `CranePathOptimizer_CODE_CHANGES_REVIEW_20260612_205001.txt` | Code-changes review package used for critical review of all current diff changes before the final cleanup patch. |
