@@ -61,3 +61,10 @@ CraneOptimizer.GAExperiment/smoke/
 Analytics/datasets/
 Analytics/charts/
 Analytics/scripts/__pycache__/
+
+# Local test result artifacts
+**/TestResults/
+*.trx
+
+# Local uploaded review bundles
+docs.zip
