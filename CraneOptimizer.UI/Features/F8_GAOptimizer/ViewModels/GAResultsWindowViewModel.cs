@@ -34,14 +34,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         {
             get
             {
-                var localStr = $"X: {X:F2}, Y: {Y:F2}";
+                var localStr = $"Local X: {X:F2}, Local Y: {Y:F2}";
                 if (_transformService == null || !_transformService.IsEnabled)
                 {
                     return localStr;
                 }
 
                 var sitePt = _transformService.LocalToSurvey(new DomainPoint3D(X, Y, Z));
-                var siteStr = $"E: {sitePt.X:F2}, N: {sitePt.Y:F2}";
+                var siteStr = $"Easting: {sitePt.X:F2}, Northing: {sitePt.Y:F2}";
                 return $"{localStr} | {siteStr}";
             }
         }

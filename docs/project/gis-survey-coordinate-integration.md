@@ -196,3 +196,31 @@ Phase 3.1 optimizes the user experience by moving the choice of coordinate refer
   No raw enum, object, or type names appear in the UI.
 * **Legacy Mode Preservation**: If a legacy manual coordinate mapping is active in the database, the dropdown ComboBox is hidden, and a read-only label `"Manual Mapping (Preserved)"` is shown to prevent accidental overwrite.
 
+---
+
+## I. Phase 3.2: Clean Dropdown Mode Labels
+* **UI ComboBox Clean Labels**: Updated the Reference Mode ComboBox display style and converters to guarantee that only user-friendly labels appear in the dropdown (specifically `"Local Only"` and `"IFC Origin Mapping"`).
+* **Prevention of Raw Type Names**: Removed any instances of raw class or enum names (`CraneOptimizer.UI.Feature...`) from appearing in the user interface.
+
+---
+
+## J. Phase 3.3: Automatic IFC Origin Placement and Manual Move Prevention
+* **No Placement Pick-point Prompts**: Selecting `"IFC Origin Mapping"` during IFC import completely bypasses placement mode. It does not prompt the user to choose a model landing or insertion point in the viewport, nor does it register a click listener on the interaction service.
+* **Identity Placement Offset**: Uses a zero-offset identity transformation $(0, 0, 0)$ for placement coordinates. The model is positioned exactly where it was drawn in its source BIM authoring tool (e.g. Autodesk Revit, Tekla Structures).
+* **Disabled Move IFC command**: While an active IFC Origin Mapping reference is loaded in the project (`IsEnabled = true` and `Source = "IfcMapConversion"`), the manual "Move IFC" operation is disabled in the UI to prevent model drift and coordinate misalignment.
+
+---
+
+## K. Phase 4: UI Readouts Review, Quality Improvement, and Consistency Audit
+* **Standardized Coordinate Terminology**: Applied standard, uniform terminology throughout the application interface to distinguish local coordinate spaces from real-world survey coordinates:
+  * Local coordinate labels: `Local X`, `Local Y`, `Local Z` (meters, formatted as `{value:F3} m` or similar).
+  * Survey coordinate labels: `Easting`, `Northing`, `Elevation` (meters, formatted as `{value:F3} m`).
+* **Active/Inactive State Consistency**:
+  * If coordinate mapping is active (`IsEnabled = true`), the readouts display the calculated `Easting`, `Northing`, and `Elevation`.
+  * If mapping is inactive/Local Only (`IsEnabled = false`), local properties continue to display local point values normally, while the survey readout clearly shows: `"Survey: Not active / Local Only"`.
+* **WPF Interface Updates**:
+  * **Coordinate Reference Tab**: Replaced "REFERENCE CHECK" preview labels and tooltips with the standard terms. Added read-only fields for informational `Latitude` / `Longitude` metadata fields and increased the metadata layout widths to prevent clipping.
+  * **Status Bar / Cursor Readouts**: Updated the live cursor coordinate readout to display `Local X`, `Local Y`, and `[Default Local Z: 0.00m]`. When active, it displays the mapped `Easting` and `Northing`. Z coordinate is explicitly labeled as default/approximate to avoid misrepresenting cursor 2D position as accurate 3D snapped elevation.
+  * **Precast Element Property Grid**: Formatted both local coordinates and active survey coordinates. Displays `"Survey: Not active / Local Only"` when survey mapping is inactive.
+  * **GA Optimizer Results Panel**: Standardized the coordinate details grid and optimal base position display cards to clearly show both local and converted survey coordinate readouts without altering the optimization solver logic.
+

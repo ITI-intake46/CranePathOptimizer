@@ -79,6 +79,7 @@ namespace CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels
                     OnPropertyChanged(nameof(AvailableModes));
                     OnPropertyChanged(nameof(IsComboBoxVisible));
                     OnPropertyChanged(nameof(IsManualMode));
+                    UpdatePreviews();
                 }
             }
         }
@@ -296,6 +297,7 @@ namespace CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels
                 UpdateStatus(); 
                 OnPropertyChanged(nameof(IfcGeoreferencingInactiveMessageVisibility));
                 OnPropertyChanged(nameof(SourceDescription));
+                UpdatePreviews();
             }
         }
 
@@ -386,13 +388,25 @@ namespace CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels
         public double? Latitude
         {
             get => _latitude;
-            set { _latitude = value; OnPropertyChanged(); }
+            set 
+            { 
+                _latitude = value; 
+                OnPropertyChanged(); 
+                OnPropertyChanged(nameof(LatLonText));
+                OnPropertyChanged(nameof(LatLonVisibility));
+            }
         }
 
         public double? Longitude
         {
             get => _longitude;
-            set { _longitude = value; OnPropertyChanged(); }
+            set 
+            { 
+                _longitude = value; 
+                OnPropertyChanged(); 
+                OnPropertyChanged(nameof(LatLonText));
+                OnPropertyChanged(nameof(LatLonVisibility));
+            }
         }
 
         public string? Description
@@ -400,6 +414,21 @@ namespace CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels
             get => _description;
             set { _description = value; OnPropertyChanged(); }
         }
+
+        public string LatLonText
+        {
+            get
+            {
+                if (Latitude.HasValue && Longitude.HasValue)
+                {
+                    return $"{Latitude.Value:F6}°, {Longitude.Value:F6}°";
+                }
+                return string.Empty;
+            }
+        }
+
+        public System.Windows.Visibility LatLonVisibility =>
+            (Latitude.HasValue && Longitude.HasValue) ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
 
         public double PreviewLocalX
         {
@@ -505,6 +534,8 @@ namespace CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels
             OnPropertyChanged(nameof(Latitude));
             OnPropertyChanged(nameof(Longitude));
             OnPropertyChanged(nameof(Description));
+            OnPropertyChanged(nameof(LatLonText));
+            OnPropertyChanged(nameof(LatLonVisibility));
 
             OnPropertyChanged(nameof(IsEnabled));
             OnPropertyChanged(nameof(Name));
@@ -637,12 +668,19 @@ namespace CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels
             var tempService = new ProjectCoordinateTransformService();
             tempService.ApplyReference(tempRef, out _);
 
-            var surveyResult = tempService.LocalToSurvey(localPt);
-            PreviewSurveyResult = $"E: {surveyResult.X:F3}, N: {surveyResult.Y:F3}, H: {surveyResult.Z:F3}";
+            if (SelectedMode == CoordinateReferenceMode.LocalOnly || !IsEnabled)
+            {
+                PreviewSurveyResult = "Survey: Not active / Local Only";
+            }
+            else
+            {
+                var surveyResult = tempService.LocalToSurvey(localPt);
+                PreviewSurveyResult = $"Easting: {surveyResult.X:F3} m, Northing: {surveyResult.Y:F3} m, Elevation: {surveyResult.Z:F3} m";
+            }
 
             var surveyPt = new DomainPoint3D(PreviewSurveyEasting, PreviewSurveyNorthing, PreviewSurveyElevation);
             var localResult = tempService.SurveyToLocal(surveyPt);
-            PreviewLocalResult = $"X: {localResult.X:F3}, Y: {localResult.Y:F3}, Z: {localResult.Z:F3}";
+            PreviewLocalResult = $"Local X: {localResult.X:F3} m, Local Y: {localResult.Y:F3} m, Local Z: {localResult.Z:F3} m";
         }
 
         public void Dispose()

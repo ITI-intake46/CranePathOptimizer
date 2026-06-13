@@ -21,6 +21,7 @@ using CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Views;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer.DTOs;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
@@ -721,9 +722,9 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
             viewModel.PreviewLocalY = 0.0;
             viewModel.PreviewLocalZ = 0.0;
 
-            Assert.Contains("E: 1000.000", viewModel.PreviewSurveyResult);
-            Assert.Contains("N: 2010.000", viewModel.PreviewSurveyResult);
-            Assert.Contains("H: 10.000", viewModel.PreviewSurveyResult);
+            Assert.Contains("Easting: 1000.000 m", viewModel.PreviewSurveyResult);
+            Assert.Contains("Northing: 2010.000 m", viewModel.PreviewSurveyResult);
+            Assert.Contains("Elevation: 10.000 m", viewModel.PreviewSurveyResult);
         }
 
         [Fact]
@@ -1930,6 +1931,203 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
             var pt = new DomainPoint3D(10, 10, 0);
             Assert.Equal(10, pt.X);
             Assert.Equal(10, pt.Y);
+        }
+
+        [Fact]
+        public void Test_57_LocalOnlyShowsSurveyInactiveInPreview()
+        {
+            var transformService = new ProjectCoordinateTransformService();
+            var statusService = new MockStatusService();
+            var ifcReader = new MockIfcReaderRepository();
+            var vm = new CoordinateReferenceViewModel(transformService, statusService, ifcReader);
+
+            vm.SelectedMode = CoordinateReferenceMode.LocalOnly;
+            vm.IsEnabled = false;
+
+            // Trigger preview update
+            vm.PreviewLocalX = 15.0;
+            vm.PreviewSurveyEasting = 15.0;
+
+            Assert.Equal("Survey: Not active / Local Only", vm.PreviewSurveyResult);
+            Assert.Contains("Local X: 15.000 m", vm.PreviewLocalResult);
+        }
+
+        [Fact]
+        public void Test_58_IfcOriginShowsConvertedSurveyCoordinatesInPreview()
+        {
+            var transformService = new ProjectCoordinateTransformService();
+            var statusService = new MockStatusService();
+            var georef = new IfcGeoreferencingResult(
+                true,
+                500000.0,
+                100000.0,
+                10.0,
+                1.0,
+                0.0,
+                1.0,
+                "Projected CRS",
+                "CRS Desc",
+                "EPSG:31256",
+                false,
+                null,
+                null,
+                null
+            );
+            var ifcReader = new MockIfcReaderWithGeoref(georef);
+            var vm = new CoordinateReferenceViewModel(transformService, statusService, ifcReader);
+
+            vm.SelectedMode = CoordinateReferenceMode.IfcOrigin;
+            vm.IsEnabled = true;
+
+            // Set test preview points
+            vm.PreviewLocalX = 10.0;
+            vm.PreviewLocalY = 20.0;
+            vm.PreviewLocalZ = 5.0;
+
+            Assert.Contains("Easting: 500010.000 m", vm.PreviewSurveyResult);
+            Assert.Contains("Northing: 100020.000 m", vm.PreviewSurveyResult);
+            Assert.Contains("Elevation: 15.000 m", vm.PreviewSurveyResult);
+        }
+
+        [Fact]
+        public void Test_59_LocalElementCOGUnchangedAfterSurveyCalculation()
+        {
+            var transformService = new ProjectCoordinateTransformService();
+            var reference = new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                SurveyEasting = 500000.0,
+                SurveyNorthing = 100000.0,
+                SurveyElevation = 10.0
+            };
+            transformService.ApplyReference(reference, out _);
+
+            var element = new PrecastElement
+            {
+                ElementCOG = new DomainPoint3D(10.0, 20.0, 30.0)
+            };
+
+            var surveyPt = transformService.LocalToSurvey(element.ElementCOG);
+
+            // Verify converted values are correct
+            Assert.Equal(500010.0, surveyPt.X);
+            // Verify original COG is unmodified
+            Assert.Equal(10.0, element.ElementCOG.X);
+            Assert.Equal(20.0, element.ElementCOG.Y);
+            Assert.Equal(30.0, element.ElementCOG.Z);
+        }
+
+        [Fact]
+        public void Test_60_SurveyCoordinateDisplayUpdatesWhenModeChanges()
+        {
+            var transformService = new ProjectCoordinateTransformService();
+            var statusService = new MockStatusService();
+            var georef = new IfcGeoreferencingResult(
+                true,
+                500000.0,
+                100000.0,
+                10.0,
+                1.0,
+                0.0,
+                1.0,
+                "Projected CRS",
+                "CRS Desc",
+                "EPSG:31256",
+                false,
+                null,
+                null,
+                null
+            );
+            var ifcReader = new MockIfcReaderWithGeoref(georef);
+            var vm = new CoordinateReferenceViewModel(transformService, statusService, ifcReader);
+
+            vm.SelectedMode = CoordinateReferenceMode.LocalOnly;
+            Assert.Equal("Survey: Not active / Local Only", vm.PreviewSurveyResult);
+
+            vm.SelectedMode = CoordinateReferenceMode.IfcOrigin;
+            vm.IsEnabled = true;
+            Assert.Contains("Easting:", vm.PreviewSurveyResult);
+
+            vm.SelectedMode = CoordinateReferenceMode.LocalOnly;
+            Assert.Equal("Survey: Not active / Local Only", vm.PreviewSurveyResult);
+        }
+
+        [Fact]
+        public void Test_61_DropdownLabelsRemainCleanAndManualNotSelectable()
+        {
+            var transformService = new ProjectCoordinateTransformService();
+            var statusService = new MockStatusService();
+            var ifcReader = new MockIfcReaderRepository();
+            var vm = new CoordinateReferenceViewModel(transformService, statusService, ifcReader);
+
+            var modes = vm.AvailableModes;
+            Assert.Equal(2, modes.Count);
+            Assert.Contains(modes, m => m.Value == CoordinateReferenceMode.LocalOnly && m.DisplayName == "Local Only");
+            Assert.Contains(modes, m => m.Value == CoordinateReferenceMode.IfcOrigin && m.DisplayName == "IFC Origin Mapping");
+            Assert.DoesNotContain(modes, m => m.Value == CoordinateReferenceMode.Manual);
+        }
+
+        [Fact]
+        public void Test_62_GAResultPresentationDtoShowsSurveyWhenActive()
+        {
+            var transformService = new ProjectCoordinateTransformService();
+            var reference = new ProjectCoordinateReference
+            {
+                IsEnabled = true,
+                SurveyEasting = 500000.0,
+                SurveyNorthing = 100000.0,
+                SurveyElevation = 10.0,
+                RotationToNorthDegrees = 0.0,
+                Scale = 1.0
+            };
+            transformService.ApplyReference(reference, out _);
+
+            var underlying = new CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs.CranePositionResult
+            {
+                X = 10.0,
+                Y = 20.0,
+                Z = 0.0
+            };
+            var dto = new CranePositionPresentationDto(underlying, transformService);
+
+            string displayText = dto.PositionDisplayText;
+            Assert.Contains("Local X: 10.00", displayText);
+            Assert.Contains("Local Y: 20.00", displayText);
+            Assert.Contains("Easting: 500010.00", displayText);
+            Assert.Contains("Northing: 100020.00", displayText);
+        }
+
+        [Fact]
+        public void Test_63_GAResultPresentationDtoShowsLocalOnlyWhenInactive()
+        {
+            var transformService = new ProjectCoordinateTransformService();
+            transformService.ResetReference(); // IsEnabled = false
+
+            var underlying = new CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs.CranePositionResult
+            {
+                X = 10.0,
+                Y = 20.0,
+                Z = 0.0
+            };
+            var dto = new CranePositionPresentationDto(underlying, transformService);
+
+            string displayText = dto.PositionDisplayText;
+            Assert.Contains("Local X: 10.00", displayText);
+            Assert.Contains("Local Y: 20.00", displayText);
+            Assert.DoesNotContain("Easting", displayText);
+        }
+
+        [Fact]
+        public void Test_64_NullMissingCoordinateReferenceDoesNotBreakPreviews()
+        {
+            var transformService = new ProjectCoordinateTransformService();
+            var statusService = new MockStatusService();
+            var ifcReader = new MockIfcReaderRepository();
+            
+            // Should load without exceptions even if transformService has default/null reference
+            var vm = new CoordinateReferenceViewModel(transformService, statusService, ifcReader);
+            Assert.NotNull(vm.PreviewSurveyResult);
+            Assert.NotNull(vm.PreviewLocalResult);
         }
 
         private class MockStatusService : IStatusService
