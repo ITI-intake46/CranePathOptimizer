@@ -272,18 +272,17 @@ Bounding-box estimation is never used during the normalized import workflow.
 
 ### Placement Offset
 
-The user-selected placement offset is applied when model coordinates are saved or restored.
+The coordinate placement offset depends on the selected import mode:
 
-The offset affects:
+1. **Local Only Mode**:
+   * The user is prompted to choose a model insertion / landing / placement point in the 3D viewport.
+   * This offset is applied to all imported elements when saved or restored.
+   * It affects mesh centroids, bounding boxes, and placement coordinates after transformation through `XbimShapeInstance.Transformation` to match local project space.
 
-* Mesh centroids
-* Bounding boxes
-* Placement coordinates
+2. **IFC Origin Mapping Mode**:
+   * Bypasses the placement prompt entirely.
+   * Uses a zero-offset identity placement: offset = `(0, 0, 0)`.
+   * The model loads exactly where it is drawn relative to its local origin in its source BIM authoring tool.
+   * LocalReferenceX/Y/Z are set to `0.0`.
+   * The manual "Move IFC" command is disabled in the UI to prevent coordinate misalignment.
 
-after transformation through:
-
-```text
-XbimShapeInstance.Transformation
-```
-
-This ensures consistent positioning between IFC coordinates and optimizer project coordinates.

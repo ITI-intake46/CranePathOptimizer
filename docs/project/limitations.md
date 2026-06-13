@@ -57,3 +57,30 @@ This document lists the assumptions, simplifications, and architectural limitati
 *   **Limitation:** Forbidden zones and site obstacles are treated as 2D polygonal footprints on the ground.
 *   **Code Reference:** Implemented in `ConstraintEngine.IsValidSetupPoint` using `SpatialMath.PointInPolygon`.
 *   **Assumption:** Obstacles are assumed to project infinitely upwards. Overhead clearance constraints (such as slewing over a low-rise building or under power lines) are not supported.
+
+---
+
+## 5. GIS / Survey Coordinate Integration Limitations
+
+### H. Readout-Only Presentation Mapping
+*   **Limitation:** Survey and GIS coordinates are purely presentation-layer metadata and outputs. 
+*   **Code Reference:** Mapped via `IProjectCoordinateTransformService.LocalToSurvey` only in the UI and logging layers.
+*   **Assumption:** Stored geometry (precast elements, COGs, bounding boxes, crane setups, DXF zones) remains unchanged in local meters relative to the IFC model's local origin $(0, 0, 0)$. Adjusting georeferencing settings does not shift, scale, or transform physical meshes, nor does it affect genetic algorithm optimization, radius capacity lookups, boom vertical heights, or constraint containment calculations.
+
+### I. Identity Placement and Skipped Viewport Interaction for IFC Origin Mapping
+*   **Limitation:** Selecting `"IFC Origin Mapping"` uses a zero-offset identity transform $(0,0,0)$ and skips viewport interaction.
+*   **Code Reference:** Implemented in `IfcViewerViewModel.LoadIfcAsync` and `CanMoveIfc`.
+*   **Assumption:** The IFC model is placed exactly where it is drawn relative to its local origin in its source BIM authoring tool. The user is not prompted to select a placement/insertion point, nor can they manually move the model while this mapping is active. Local $(0,0,0)$ maps directly to the `IfcMapConversion` Easting, Northing, and Elevation coordinates.
+
+### J. Informational-Only Geographic Coordinates (IFC2x3)
+*   **Limitation:** Geographic curve coordinates (Latitude / Longitude decimal degrees) extracted from IFC2x3 `IfcSite` are informational only.
+*   **Code Reference:** Extracted by `IfcGeoreferencingExtractor` but excluded from active Easting/Northing origin mappings.
+*   **Assumption:** The application does not perform projection reprojections or CRS conversion (e.g. from GPS decimal degrees to planar projection Easting/Northing).plan coordinate grids are assumed to be grid-based projected coordinates.
+
+### K. Excluded Manual Picked Reference Points
+*   **Limitation:** Custom local anchor mapping (viewport vertex click mapping to a specific survey coordinate) is not supported.
+*   **Assumption:** Manual picked coordinate reference mode is not implemented. Reference Mode ComboBox exposes only "Local Only" and "IFC Origin Mapping".
+
+### L. Excluded Export Reports
+*   **Limitation:** PDF, Excel, and standard UI reports do not output survey coordinates.
+*   **Assumption:** Export integration remains out of scope for the current GIS epic phases.
