@@ -24,54 +24,6 @@
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1">
                 <DockPanel LastChildFill="False">
-                    <StackPanel
-                        VerticalAlignment="Center"
-                        DockPanel.Dock="Left"
-                        Orientation="Horizontal">
-                        <TextBlock
-                            Margin="0,0,22,0"
-                            Style="{StaticResource PanelSectionHeader}"
-                            Text="3D MODEL VIEWER" />
-                        <Ellipse
-                            Width="8"
-                            Height="8"
-                            VerticalAlignment="Center"
-                            Fill="{StaticResource DestructiveBrush}" />
-                        <TextBlock
-                            Margin="3,0,14,0"
-                            VerticalAlignment="Center"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeSM}"
-                            FontWeight="SemiBold"
-                            Foreground="{StaticResource DestructiveBrush}"
-                            Text=" &gt; 5000 kg" />
-                        <Ellipse
-                            Width="8"
-                            Height="8"
-                            VerticalAlignment="Center"
-                            Fill="{StaticResource WarningBrush}" />
-                        <TextBlock
-                            Margin="3,0,14,0"
-                            VerticalAlignment="Center"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeSM}"
-                            FontWeight="SemiBold"
-                            Foreground="{StaticResource WarningBrush}"
-                            Text=" &gt; 3000 kg" />
-                        <Ellipse
-                            Width="8"
-                            Height="8"
-                            VerticalAlignment="Center"
-                            Fill="{DynamicResource TextSecondaryBrush}" />
-                        <TextBlock
-                            Margin="3,0,0,0"
-                            VerticalAlignment="Center"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeSM}"
-                            FontWeight="SemiBold"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text=" Normal" />
-                    </StackPanel>
                     <Button
                         Padding="8,4"
                         VerticalAlignment="Center"
@@ -235,7 +187,9 @@
                         ClipToBounds="True"/>
 
                 <!--  🔥 IFC LOADING OVERLAY  -->
-                <Border Background="{DynamicResource SurfaceOverlayBrush}" Visibility="{Binding IfcViewer.IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Border Background="{DynamicResource SurfaceOverlayBrush}" 
+                        Visibility="{Binding IfcViewer.IsLoading, 
+                    Converter={StaticResource BoolToVisibilityConverter}}">
 
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
 
@@ -266,7 +220,8 @@
                     BorderBrush="{StaticResource PrimaryBrush}"
                     BorderThickness="1"
                     CornerRadius="{StaticResource CardCornerRadius}"
-                    Visibility="{Binding IfcViewer.IsPlacementMode, Converter={StaticResource BoolToVisibilityConverter}}">
+                    Visibility="{Binding IfcViewer.IsPlacementMode, 
+                    Converter={StaticResource BoolToVisibilityConverter}}">
                     <TextBlock
                         FontFamily="{StaticResource FontPrimary}"
                         FontSize="{StaticResource FontSizeSM}"
