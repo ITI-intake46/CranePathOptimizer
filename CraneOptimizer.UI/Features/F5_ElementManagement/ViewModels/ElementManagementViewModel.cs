@@ -543,18 +543,22 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             // Location (Expanded)
             var locationItems = new List<PropertyItem>
             {
-                CreateDisplayProperty("Model X", FormatLength(panel.CenterX)),
-                CreateDisplayProperty("Model Y", FormatLength(panel.CenterY)),
-                CreateDisplayProperty("Model Z", FormatLength(panel.CenterZ))
+                CreateDisplayProperty("Local X", FormatLength(panel.CenterX)),
+                CreateDisplayProperty("Local Y", FormatLength(panel.CenterY)),
+                CreateDisplayProperty("Local Z", FormatLength(panel.CenterZ))
             };
 
             if (_transformService != null && _transformService.IsEnabled)
             {
                 var cogPt = new DomainPoint3D(panel.CenterX, panel.CenterY, panel.CenterZ);
                 var sitePt = _transformService.LocalToSurvey(cogPt);
-                locationItems.Add(CreateDisplayProperty("Survey Easting", FormatLength(sitePt.X)));
-                locationItems.Add(CreateDisplayProperty("Survey Northing", FormatLength(sitePt.Y)));
-                locationItems.Add(CreateDisplayProperty("Survey Elevation", FormatLength(sitePt.Z)));
+                locationItems.Add(CreateDisplayProperty("Easting", FormatSurveyCoordinate(sitePt.X)));
+                locationItems.Add(CreateDisplayProperty("Northing", FormatSurveyCoordinate(sitePt.Y)));
+                locationItems.Add(CreateDisplayProperty("Elevation", FormatSurveyCoordinate(sitePt.Z)));
+            }
+            else
+            {
+                locationItems.Add(CreateDisplayProperty("Survey", "Not active / Local Only"));
             }
 
             properties.Add(CreateGroup("Location", true, locationItems.ToArray()));
@@ -725,6 +729,11 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         private static string GetElementDisplayName(PrecastElement element)
         {
             return ElementDisplayNameConverter.GetDisplayName(element);
+        }
+
+        private string FormatSurveyCoordinate(double value)
+        {
+            return $"{value.ToString("F3", CultureInfo.CurrentCulture)} m";
         }
 
         private string FormatLength(double? value)

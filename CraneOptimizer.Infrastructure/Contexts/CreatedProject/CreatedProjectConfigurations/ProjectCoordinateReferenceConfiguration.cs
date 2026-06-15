@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject.CreatedProjectConfigurations
 {
-    public sealed class ProjectCoordinateReferenceConfiguration // : IEntityTypeConfiguration<ProjectCoordinateReferenceEntity>
+    public sealed class ProjectCoordinateReferenceConfiguration : IEntityTypeConfiguration<ProjectCoordinateReferenceEntity>
     {
         public void Configure(EntityTypeBuilder<ProjectCoordinateReferenceEntity> entity)
         {
@@ -25,6 +25,11 @@ namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject.CreatedProjectCo
             entity.Property(x => x.Source)
                 .IsRequired()
                 .HasMaxLength(50);
+
+            entity.Property(x => x.Latitude);
+            entity.Property(x => x.Longitude);
+            entity.Property(x => x.Description)
+                .HasMaxLength(1000);
 
             entity.HasIndex(x => x.ProjectInfoId);
 

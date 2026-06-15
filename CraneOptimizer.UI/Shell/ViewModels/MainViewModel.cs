@@ -511,18 +511,18 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _hasCoordinate = true;
 
             var settings = _unitSettings.Current;
-            var zVal = 0.0; // ground/plane Z clearly shown as 0.0 as requested
+            var zVal = 0.0; // default ground Z
             if (_transformService != null && _transformService.IsEnabled)
             {
                 var localPt = new DomainPoint3D(x, y, zVal);
                 var surveyPt = _transformService.LocalToSurvey(localPt);
-                CoordX = $"{UnitSystem.FormatLength(x, settings)} (E: {surveyPt.X:F3}m)";
-                CoordY = $"{UnitSystem.FormatLength(y, settings)} (N: {surveyPt.Y:F3}m) [Z: {UnitSystem.FormatLength(zVal, settings)} / H: {surveyPt.Z:F3}m Ground]";
+                CoordX = $"{UnitSystem.FormatLength(x, settings)} (Easting: {surveyPt.X:F3} m)";
+                CoordY = $"{UnitSystem.FormatLength(y, settings)} (Northing: {surveyPt.Y:F3} m) [Default Local Z: {UnitSystem.FormatLength(zVal, settings)} | Elevation: {surveyPt.Z:F3} m (Ground)]";
             }
             else
             {
                 CoordX = UnitSystem.FormatLength(x, settings);
-                CoordY = $"{UnitSystem.FormatLength(y, settings)} [Z: {UnitSystem.FormatLength(zVal, settings)} Ground]";
+                CoordY = $"{UnitSystem.FormatLength(y, settings)} [Default Local Z: {UnitSystem.FormatLength(zVal, settings)}] (Survey: Not active)";
             }
         }
 

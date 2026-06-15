@@ -1,5 +1,6 @@
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Diagnostics;
+using CraneOptimizer.Domain.CreatedProject;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,6 +17,8 @@ namespace CraneOptimizer.Domain.Interfaces
         
         double ModelLengthFactor { get; }
         double? ModelGroundElevation { get; }
+        
+        IfcGeoreferencingResult? GetGeoreferencingData();
         
         void ClearData();
     }

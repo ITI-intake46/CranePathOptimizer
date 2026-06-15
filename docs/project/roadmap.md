@@ -34,9 +34,65 @@ This document outlines the implementation phases of the Mobile Crane Path Optimi
     - Created [HungarianAssignmentService.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/HungarianAssignmentService.cs) implementing [IElementAssignmentService.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Interfaces/IElementAssignmentService.cs).
     - Solves bipartite assignment globally under capacity limits and load balancing in $O(N \cdot M^2)$ time ($M \le 3$), executing in **38ms** (well under the 50ms budget) on 3,940 elements (try9).
     - Registered dynamically in DI in [App.xaml.cs](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/App.xaml.cs) switchable based on the `UseHungarianAssignment` flag in `GASettings`.
-    - Fully validated with **312 tests passing** successfully under branch `phase16-17_HungarianAlgorithms`.
+*   - Fully validated with **312 tests passing** successfully under branch `phase16-17_HungarianAlgorithms`.
 
 ---
+
+### GIS / Survey Coordinate Integration Epic
+
+#### Phase 1 - SQLite Database Persistence
+*   **Status:** ✅ Complete
+*   **Description:** Migrate coordinate reference persistence from a standalone `coordinate_reference.json` file to the per-project `.craneopt` SQLite database.
+*   **Implementation Notes:**
+    - Mapped `ProjectCoordinateReferenceEntity` in EF Core and added SQLite database schema migration `AddProjectCoordinateReferenceTable`.
+    - Integrated persistence into the project save/load lifecycle inside `ProjectStateService` using a single-row update/insert pattern.
+    - Updated `CoordinateReferenceViewModel` to read and write coordinates directly from/to the database-backed domain model instead of hardcoding local reference values.
+
+#### Phase 2 - IFC Georeferencing Extraction
+*   **Status:** ✅ Complete
+*   **Description:** Automate the extraction of georeferencing coordinates and coordinate reference system (CRS) metadata from imported IFC files.
+*   **Implementation Notes:**
+    - Built `IfcGeoreferencingExtractor` using xBIM to parse Projected CRS (`IfcProjectedCRS`) and map conversion parameters (`IfcMapConversion`) for IFC4 files.
+    - Implemented a fallback extractor for IFC2x3 reading `IfcSite` DMS latitude/longitude coordinates and converting them to decimal degrees (treated as informational only).
+    - Integrated extraction into the IFC import pipeline in `IfcViewerViewModel` and protected manual user mappings from silent overwrites.
+
+#### Phase 3 - Coordinate Reference Modes UI
+*   **Status:** ✅ Complete
+*   **Description:** Expose user-selectable coordinate reference modes in the UI and safeguard engine calculations.
+*   **Implementation Notes:**
+    - Defined `CoordinateReferenceMode` enum representing `LocalOnly`, `IfcOrigin` and `Manual` (preserved) modes.
+    - Updated `CoordinateReferenceViewModel` and `CoordinateReferenceView` to provide mode selections and toggle coordinate editability based on the selected mode.
+    - Isolated GA, rendering, collision, and physics engines to operate strictly in local coordinate space, keeping survey coordinates as dynamic presentation-only readouts.
+
+#### Phase 3.1 - Move Mode Choice to IFC Load Options
+*   **Status:** ✅ Complete
+*   **Description:** Allow the user to select the coordinate reference mode during the IFC import dialog.
+*   **Implementation Notes:**
+    - Integrated background pre-scan using `IIfcGeoreferencingExtractor.ExtractFromFile` in `IFCLoadOptionsDialog` to dynamically enable/disable the "IFC Origin Mapping" option based on the file content without blocking the UI.
+    - Configured the import flow to keep extracted metadata available for review (disabled) even if "Local Only" is selected.
+
+#### Phase 3.2 - Clean Display Labels
+*   **Status:** ✅ Complete
+*   **Description:** Clean up UI labels to prevent raw enums/object names from appearing in dropdowns.
+*   **Implementation Notes:**
+    - Used clean user-friendly labels (`Local Only`, `IFC Origin Mapping`) and resolved type name clipping.
+
+#### Phase 3.3 - Bypass Placement Point for IFC Origin Mapping
+*   **Status:** ✅ Complete
+*   **Description:** Ensure that selecting "IFC Origin Mapping" loads the model at its native origin without prompting the user for a placement point or allowing manual model movement.
+*   **Implementation Notes:**
+    - Modified `IfcViewerViewModel.LoadIfcAsync` to bypass placement mode, skip viewport pick-point prompts, set the placement offset to a zero-offset identity $(0,0,0)$, and disable manual "Move IFC" actions.
+
+#### Phase 4 - UI Readouts Review and Consistency Audit
+*   **Status:** ✅ Complete
+*   **Description:** Audit and align all UI coordinate readouts to use consistent, standardized terminology.
+*   **Implementation Notes:**
+    - Standardized terminology: local coordinates are labeled `Local X`, `Local Y`, `Local Z` (meters), and survey coordinates are `Easting`, `Northing`, `Elevation` (meters).
+    - Updated cursor status bar, element properties grid, Coordinate Reference tab previews, and GA optimizer results panels to present these readouts uniformly.
+    - Added unit tests checking inactive display formatting and coordinate transformation previews.
+
+---
+
 
 ## Historical Performance Assessments & Research
 

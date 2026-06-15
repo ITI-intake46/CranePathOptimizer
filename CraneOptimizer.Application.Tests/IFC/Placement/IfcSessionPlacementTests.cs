@@ -3,6 +3,7 @@ using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Schemas.Enums;
+using CraneOptimizer.Domain.CreatedProject;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
@@ -805,6 +806,8 @@ namespace CraneOptimizer.Application.Tests
 
             public double ModelLengthFactor => 1.0;
             public double? ModelGroundElevation => 0.0;
+
+            public IfcGeoreferencingResult? GetGeoreferencingData() => null;
 
             public void ClearData() { }
             public void Dispose() { }

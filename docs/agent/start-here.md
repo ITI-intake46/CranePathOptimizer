@@ -46,6 +46,7 @@ Use this index to route your research based on the specific subsystem or domain 
 *   For parsing normalization pipelines, categories, and role classifications, read [ifc.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/ifc.md).
 *   For length scaling, mass extraction, fallback density estimations, and display unit preferences, read [units.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/units.md).
 *   For EF Core entity mapping and DB schema layouts, read [database.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/architecture/database.md).
+*   For GIS & survey coordinate integrations (persistence and IFC georeferencing extraction), read [gis-survey-coordinate-integration.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/project/gis-survey-coordinate-integration.md).
 
 ### If Working On Database & Persistence Features
 *   For context configurations (`CraneDbContext` & `CreatedProjectDbContext`), read [database.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/architecture/database.md).
