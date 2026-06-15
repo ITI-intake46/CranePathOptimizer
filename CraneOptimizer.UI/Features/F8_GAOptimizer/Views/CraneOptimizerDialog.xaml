@@ -491,7 +491,7 @@
 
                 <Border
                     x:Name="PanelResults"
-                    Grid.Row="6"
+                    Grid.Row="8"
                     Padding="{StaticResource Space3}"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
