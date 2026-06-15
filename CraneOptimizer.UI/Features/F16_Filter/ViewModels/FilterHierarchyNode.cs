@@ -17,6 +17,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.ViewModels
         public double? WeightValue { get; private init; }
         public string MaterialLabel { get; private init; } = string.Empty;
         public string WeightLabel { get; private init; } = string.Empty;
+        public bool IsHidden { get; private init; }
         public PrecastElement? Element { get; private init; }
         public FilterHierarchyNode? Parent { get; private init; }
         public ObservableCollection<FilterHierarchyNode> Children { get; } = new();
@@ -27,6 +28,9 @@ namespace CraneOptimizer.UI.Features.F16_Filter.ViewModels
         public Visibility MaterialVisibility => Element != null && !string.IsNullOrWhiteSpace(MaterialLabel) ? Visibility.Visible : Visibility.Collapsed;
         public Visibility WeightLabelVisibility => Element != null && !string.IsNullOrWhiteSpace(WeightLabel) ? Visibility.Visible : Visibility.Collapsed;
         public Visibility SubtitleRowVisibility => MaterialVisibility == Visibility.Visible || WeightLabelVisibility == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility VisibilityStatusVisibility => IsHidden ? Visibility.Visible : Visibility.Collapsed;
+        public string VisibilityStatus => IsHidden ? "Hidden" : string.Empty;
+        public double DisplayOpacity => IsHidden ? 0.45d : 1d;
         public FontWeight FontWeight => Children.Count > 0 ? FontWeights.Bold : FontWeights.SemiBold;
         public Brush Foreground => Children.Count > 0 ? Brushes.DarkOrange : Brushes.LightSteelBlue;
 
@@ -66,6 +70,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.ViewModels
             double weightValue,
             string material,
             bool isChecked,
+            bool isHidden,
             FilterHierarchyNode parent) =>
             new()
             {
@@ -76,6 +81,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.ViewModels
                 MaterialLabel = string.IsNullOrWhiteSpace(material) ? "N/A" : material.Trim(),
                 WeightLabel = weight,
                 IsChecked = isChecked,
+                IsHidden = isHidden,
                 Parent = parent
             };
 
