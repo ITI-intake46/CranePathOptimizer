@@ -1,7 +1,6 @@
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Converters;
 using CraneOptimizer.UI.Core.Interfaces;
-using CraneOptimizer.UI.Features.F16_Filter.DTOs;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
 using CraneOptimizer.UI.Features.F16_Filter.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
@@ -19,77 +18,303 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
 {
     public partial class ElementFilterDialog : Window
     {
-        private readonly ElementManagementViewModel? _viewModel;
         private readonly IElementVisibilityFilterService? _visibilityFilter;
         private readonly ISceneService? _scene;
+        private readonly IViewportSelectionService? _selectionService;
         private bool _isSyncingControls;
         private List<FilterDialogOption> _allTypeOptions = new();
         private List<FilterDialogOption> _allMaterialOptions = new();
         private List<FilterDialogOption> _allStoreyOptions = new();
+        private List<PrecastElement> _allSceneElements = new();
+        private List<PrecastElement> _selectedScopeElements = new();
         private List<PrecastElement> _allElements = new();
+        private readonly HashSet<string> _checkedElementIds = new(StringComparer.Ordinal);
         private ObservableCollection<FilterHierarchyNode> _hierarchyRoots = new();
         private bool _isSyncingHierarchy;
+        private FilterScope _filterScope;
+        private bool _isInitializing = true;
+        private bool _isIsolated;
         private static readonly string[] StructuralTypeKeywords =
         [
             "IfcColumn", "IfcBeam", "IfcSlab", "IfcWall", "IfcStair",
             "IfcRoof", "IfcMember", "IfcPlate", "IfcFooting", "IfcPile", "IfcRamp"
         ];
 
+        private enum FilterScope
+        {
+            All,
+            Structural,
+            Selected
+        }
+
         public ElementFilterDialog()
         {
             InitializeComponent();
             _visibilityFilter = App.ServiceProvider.GetService<IElementVisibilityFilterService>();
             _scene = App.ServiceProvider.GetService<ISceneService>();
-            TxtSubtitle.Text = "Choose IFC types, materials, levels, and weight range to hide or show elements in the 3D view.";
-            _allElements = (_visibilityFilter?.AllElements ?? Array.Empty<PrecastElement>()).ToList();
-            LoadTypeOptions(_allElements);
-            LoadMaterialOptions(_allElements);
-            LoadStoreyOptions(_allElements);
-            BuildHierarchy();
-            InitializeWeightControls();
-            UpdateRangeChips();
-            FilterChanged();
+            _selectionService = App.ServiceProvider.GetService<IViewportSelectionService>();
+            Owner = System.Windows.Application.Current.MainWindow;
+            HookSelectionEvents();
+            InitializeDialogElements(_visibilityFilter?.AllElements ?? Array.Empty<PrecastElement>());
         }
 
         public ElementFilterDialog(ElementManagementViewModel viewModel)
         {
             InitializeComponent();
-            _viewModel = viewModel;
             _visibilityFilter = App.ServiceProvider.GetService<IElementVisibilityFilterService>();
             _scene = App.ServiceProvider.GetService<ISceneService>();
+            _selectionService = App.ServiceProvider.GetService<IViewportSelectionService>();
+            Owner = System.Windows.Application.Current.MainWindow;
+            HookSelectionEvents();
             DataContext = viewModel;
 
-            TxtSubtitle.Text = "Choose IFC types, materials, levels, and weight range to hide or show elements in the 3D view.";
-            TxtSearch.Text = viewModel.SearchText;
-            _allElements = viewModel.Elements.ToList();
-
-            LoadTypeOptions(viewModel.Elements);
-            LoadMaterialOptions(viewModel.Elements);
-            LoadStoreyOptions(viewModel.Elements);
-            BuildHierarchy();
-            InitializeWeightControls();
-            UpdateRangeChips();
-            FilterChanged();
+            InitializeDialogElements(viewModel.Elements, searchText: viewModel.SearchText);
         }
 
-        private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e) => NonWeightFilterChanged();
-        private void FilterOption_Changed(object sender, RoutedEventArgs e) => NonWeightFilterChanged();
+        public ElementFilterDialog(IReadOnlyCollection<PrecastElement> selectedElements)
+        {
+            InitializeComponent();
+            _visibilityFilter = App.ServiceProvider.GetService<IElementVisibilityFilterService>();
+            _scene = App.ServiceProvider.GetService<ISceneService>();
+            _selectionService = App.ServiceProvider.GetService<IViewportSelectionService>();
+            Owner = System.Windows.Application.Current.MainWindow;
+            HookSelectionEvents();
+            InitializeDialogElements(
+                _visibilityFilter?.AllElements ?? Array.Empty<PrecastElement>(),
+                selectedElements);
+        }
+
+        private void HookSelectionEvents()
+        {
+            if (_selectionService != null)
+                _selectionService.SelectionChanged += OnSelectionChanged;
+
+            Closed += ElementFilterDialog_Closed;
+        }
+
+        private void ElementFilterDialog_Closed(object? sender, EventArgs e)
+        {
+            if (_selectionService != null)
+                _selectionService.SelectionChanged -= OnSelectionChanged;
+
+            Closed -= ElementFilterDialog_Closed;
+        }
+
+        private void InitializeDialogElements(
+            IEnumerable<PrecastElement> elements,
+            IEnumerable<PrecastElement>? selectedElements = null,
+            string? searchText = null)
+        {
+            _isInitializing = true;
+            try
+            {
+                _allSceneElements = elements.ToList();
+                _selectedScopeElements = ResolveSelectedScopeElements(
+                    selectedElements ?? GetLiveSelectedElements());
+                _filterScope = _selectedScopeElements.Count > 0
+                    ? FilterScope.Selected
+                    : FilterScope.All;
+                InitializeCheckedElementIds();
+
+                if (searchText != null)
+                    TxtSearch.Text = searchText;
+
+                RebuildScopeFilter();
+            }
+            finally
+            {
+                _isInitializing = false;
+            }
+
+            UpdatePreviewCount();
+            UpdateVisibilityActionButtons();
+        }
+
+        private List<PrecastElement> ResolveSelectedScopeElements(IEnumerable<PrecastElement> selectedElements)
+        {
+            var selected = selectedElements.ToList();
+            var selectedIds = selected
+                .Select(element => element.ElementID)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .ToHashSet(StringComparer.Ordinal);
+
+            if (selectedIds.Count == 0)
+                return selected;
+
+            var resolved = _allSceneElements
+                .Where(element =>
+                    !string.IsNullOrWhiteSpace(element.ElementID)
+                    && selectedIds.Contains(element.ElementID))
+                .ToList();
+
+            return resolved.Count > 0 ? resolved : selected;
+        }
+
+        private void InitializeCheckedElementIds()
+        {
+            _checkedElementIds.Clear();
+            var initialTargets = _selectedScopeElements.Count > 0
+                ? _selectedScopeElements
+                : _allSceneElements;
+
+            foreach (var element in initialTargets)
+            {
+                if (!string.IsNullOrWhiteSpace(element.ElementID))
+                    _checkedElementIds.Add(element.ElementID);
+            }
+        }
+
+        private IEnumerable<PrecastElement> GetLiveSelectedElements() =>
+            _scene?.GetSelectedElements() ?? Enumerable.Empty<PrecastElement>();
+
+        private void OnSelectionChanged(IReadOnlyList<Core.Models.SelectionTarget> _)
+        {
+            var wasSelectedScope = _filterScope == FilterScope.Selected;
+            var liveSelection = ResolveSelectedScopeElements(GetLiveSelectedElements());
+            _selectedScopeElements = liveSelection;
+
+            if (wasSelectedScope && _selectedScopeElements.Count == 0)
+                _filterScope = FilterScope.All;
+
+            if (wasSelectedScope)
+                RebuildScopeFilter();
+            else
+                UpdateScopeButtons();
+        }
+
+        private void BtnScopeAll_Click(object sender, RoutedEventArgs e) =>
+            SwitchElementScope(FilterScope.All);
+
+        private void BtnScopeStructural_Click(object sender, RoutedEventArgs e) =>
+            SwitchElementScope(FilterScope.Structural);
+
+        private void BtnScopeSelected_Click(object sender, RoutedEventArgs e) =>
+            SwitchElementScope(FilterScope.Selected);
+
+        private void SwitchElementScope(FilterScope scope)
+        {
+            if (scope == FilterScope.Selected && _selectedScopeElements.Count == 0)
+                return;
+
+            if (_filterScope == scope)
+                return;
+
+            _filterScope = scope;
+            RebuildScopeFilter();
+        }
+
+        private void RebuildScopeFilter()
+        {
+            _allElements = _filterScope switch
+            {
+                FilterScope.Selected => _selectedScopeElements.ToList(),
+                FilterScope.Structural => _allSceneElements.Where(IsStructuralElement).ToList(),
+                _ => _allSceneElements.ToList()
+            };
+            LoadTypeOptions(_allElements);
+            LoadMaterialOptions(_allElements);
+            LoadStoreyOptions(_allElements);
+            UpdateWeightControlsForCurrentScope();
+            ApplyHierarchyFilters();
+            UpdateRangeChips();
+            UpdateScopeButtons();
+        }
+
+        private static bool IsStructuralElement(PrecastElement element)
+        {
+            // RawIfcType holds the original IFC type name e.g. "IfcColumn"
+            var rawType = element.RawIfcType ?? string.Empty;
+            // ElementType holds the resolved display category e.g. "Column"
+            var displayType = element.ElementType ?? string.Empty;
+
+            return StructuralTypeKeywords.Any(keyword =>
+                // Match raw IFC type directly (e.g. "IfcColumn" == "IfcColumn")
+                rawType.Contains(keyword, StringComparison.OrdinalIgnoreCase)
+                // Match display type with full keyword (in case ElementType still has "Ifc" prefix)
+                || displayType.Contains(keyword, StringComparison.OrdinalIgnoreCase)
+                // Match display type after stripping "Ifc" prefix: "IfcColumn" → "Column" == "Column"
+                || (keyword.Length > 3
+                    && keyword.StartsWith("Ifc", StringComparison.OrdinalIgnoreCase)
+                    && displayType.Contains(keyword[3..], StringComparison.OrdinalIgnoreCase)));
+        }
+
+        private void UpdateScopeButtons()
+        {
+            if (BtnScopeAll == null || BtnScopeStructural == null || BtnScopeSelected == null)
+                return;
+
+            var primaryStyle = TryFindResource("ButtonPrimary") as Style;
+            var secondaryStyle = TryFindResource("ButtonSecondary") as Style;
+
+            BtnScopeAll.Style = _filterScope == FilterScope.All ? primaryStyle : secondaryStyle;
+            BtnScopeStructural.Style = _filterScope == FilterScope.Structural ? primaryStyle : secondaryStyle;
+            BtnScopeSelected.Style = _filterScope == FilterScope.Selected ? primaryStyle : secondaryStyle;
+            BtnScopeSelected.IsEnabled = _selectedScopeElements.Count > 0;
+            BtnScopeSelected.Content = _selectedScopeElements.Count > 0
+                ? $"Selected ({_selectedScopeElements.Count:N0})"
+                : "Selected";
+
+            TxtSubtitle.Text = _filterScope switch
+            {
+                FilterScope.Selected =>
+                    $"Filtering only the {_selectedScopeElements.Count:N0} selected element{(_selectedScopeElements.Count == 1 ? string.Empty : "s")}.",
+                FilterScope.Structural => "Filtering structural IFC elements.",
+                _ => "Choose IFC types, materials, levels, and weight range to hide or show elements in the 3D view."
+            };
+        }
+
+        private void UpdateVisibilityActionButtons()
+        {
+            var checkedElements = GetCheckedElements();
+            var hasCheckedElements = checkedElements.Count > 0;
+
+            // Hide / Show Checked toggle
+            // Rule: all checked hidden → "Show Checked" (active/terracotta); otherwise → "Hide Checked" (secondary)
+            var allCheckedHidden = hasCheckedElements
+                && checkedElements.All(e => _visibilityFilter?.IsElementHidden(e) == true);
+
+            if (BtnHideChecked != null)
+            {
+                BtnHideChecked.IsEnabled = hasCheckedElements;
+                BtnHideChecked.Tag     = allCheckedHidden ? "True" : "False";  // drives terracotta via ActionToggleButtonStyle
+                BtnHideChecked.Content = allCheckedHidden ? "Show Checked" : "Hide Checked";
+                BtnHideChecked.ToolTip = allCheckedHidden
+                    ? "All checked elements are hidden. Click to show them."
+                    : "Hide all checked elements, including those outside the current hierarchy filter.";
+            }
+
+            // Isolate / End Isolation toggle
+            if (BtnIsolateChecked != null)
+            {
+                BtnIsolateChecked.IsEnabled = hasCheckedElements || _isIsolated;
+                BtnIsolateChecked.Tag     = _isIsolated ? "True" : "False";  // drives terracotta
+                BtnIsolateChecked.Content = _isIsolated ? "End Isolation" : "Isolate Checked";
+                BtnIsolateChecked.ToolTip = _isIsolated
+                    ? "Click to exit isolation and restore all element visibility."
+                    : "Show only the checked elements in the 3D view.";
+            }
+
+            if (TxtCheckedCount != null)
+                TxtCheckedCount.Text = $"{_checkedElementIds.Count:N0} checked";
+        }
+
+        private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e) => ApplyHierarchyFilters();
+        private void FilterOption_Changed(object sender, RoutedEventArgs e) => ApplyHierarchyFilters();
         private void HierarchyOption_Changed(object sender, RoutedEventArgs e) => OnHierarchyOptionChanged(sender);
-        private void AnyFilter_Changed(object sender, RoutedEventArgs e) => FilterChanged();
         private void OptionSearch_Changed(object sender, TextChangedEventArgs e) => RefreshOptionViews();
-        private void HierarchyMode_Changed(object sender, SelectionChangedEventArgs e) => BuildHierarchy();
-        private void Sort_Changed(object sender, RoutedEventArgs e) => BuildHierarchy();
-        private void Sort_Changed(object sender, SelectionChangedEventArgs e) => BuildHierarchy();
+        private void HierarchyMode_Changed(object sender, SelectionChangedEventArgs e) => ApplyHierarchyFilters();
+        private void Sort_Changed(object sender, RoutedEventArgs e) => ApplyHierarchyFilters();
+        private void Sort_Changed(object sender, SelectionChangedEventArgs e) => ApplyHierarchyFilters();
         private void BtnExpandHierarchy_Click(object sender, RoutedEventArgs e) => SetHierarchyExpanded(true);
         private void BtnCollapseHierarchy_Click(object sender, RoutedEventArgs e) => SetHierarchyExpanded(false);
 
-        private void BtnSelectAllTypes_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allTypeOptions, true); FilterChanged(); }
-        private void BtnClearAllTypes_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allTypeOptions, false); FilterChanged(); }
-        private void BtnSelectAllMaterials_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allMaterialOptions, true); FilterChanged(); }
-        private void BtnClearAllMaterials_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allMaterialOptions, false); FilterChanged(); }
-        private void BtnSelectAllStoreys_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allStoreyOptions, true); FilterChanged(); }
-        private void BtnClearAllStoreys_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allStoreyOptions, false); FilterChanged(); }
-        private void BtnInvertTypes_Click(object sender, RoutedEventArgs e) { InvertChecked(_allTypeOptions); FilterChanged(); }
+        private void BtnSelectAllTypes_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allTypeOptions, true); ApplyHierarchyFilters(); }
+        private void BtnClearAllTypes_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allTypeOptions, false); ApplyHierarchyFilters(); }
+        private void BtnSelectAllMaterials_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allMaterialOptions, true); ApplyHierarchyFilters(); }
+        private void BtnClearAllMaterials_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allMaterialOptions, false); ApplyHierarchyFilters(); }
+        private void BtnSelectAllStoreys_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allStoreyOptions, true); ApplyHierarchyFilters(); }
+        private void BtnClearAllStoreys_Click(object sender, RoutedEventArgs e) { SetAllChecked(_allStoreyOptions, false); ApplyHierarchyFilters(); }
+        private void BtnInvertTypes_Click(object sender, RoutedEventArgs e) { InvertChecked(_allTypeOptions); ApplyHierarchyFilters(); }
 
         private void WeightRange_Changed(object sender, TextChangedEventArgs e)
         {
@@ -106,7 +331,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             SliderWeightMax.Value = Clamp(max, SliderWeightMax.Minimum, SliderWeightMax.Maximum);
             _isSyncingControls = false;
             UpdateRangeChips();
-            FilterChanged();
+            ApplyHierarchyFilters();
         }
 
         private void SliderWeightMin_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -122,7 +347,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             _isSyncingControls = false;
             UpdateRangeChips();
             UpdateWeightRangeSliderVisual();
-            FilterChanged();
+            ApplyHierarchyFilters();
         }
 
         private void SliderWeightMax_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -138,7 +363,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             _isSyncingControls = false;
             UpdateRangeChips();
             UpdateWeightRangeSliderVisual();
-            FilterChanged();
+            ApplyHierarchyFilters();
         }
 
         private void WeightRangeSlider_SizeChanged(object sender, SizeChangedEventArgs e) =>
@@ -167,20 +392,57 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
 
         private void BtnReset_Click(object sender, RoutedEventArgs e)
         {
-            TxtSearch.Text = string.Empty;
-            SetAllChecked(_allTypeOptions, true);
-            SetAllChecked(_allMaterialOptions, true);
-            SetAllChecked(_allStoreyOptions, true);
-            SetHierarchyChecked(true);
-            InitializeWeightControls();
+            _filterScope = FilterScope.All;
+
+            _checkedElementIds.Clear();
+            foreach (var element in _allSceneElements)
+            {
+                if (!string.IsNullOrWhiteSpace(element.ElementID))
+                    _checkedElementIds.Add(element.ElementID);
+            }
+
+            if (TxtSearch != null)
+                TxtSearch.Text = string.Empty;
+
+            // Rebuilds _allElements, type/material/storey option lists, and weight slider bounds
+            // for the All scope. Does NOT touch 3D visibility.
+            RebuildScopeFilter();
+
+            // Snap weight controls back to full available bounds AFTER the scope rebuild
+            // has refreshed the slider Min/Max values for the new element set.
+            ResetWeightRangeToAvailableBounds();
+
+            ApplyHierarchyFilters();
+            UpdateVisibilityActionButtons();
+        }
+
+        /// <summary>
+        /// Resets the weight range slider and text boxes to the full available min/max
+        /// without triggering redundant hierarchy refreshes.
+        /// Does NOT touch 3D visibility.
+        /// </summary>
+        private void ResetWeightRangeToAvailableBounds()
+        {
+            if (SliderWeightMin == null || SliderWeightMax == null ||
+                TxtWeightMin == null   || TxtWeightMax == null)
+                return;
+
+            _isSyncingControls = true;
+
+            SliderWeightMin.Value = SliderWeightMin.Minimum;
+            SliderWeightMax.Value = SliderWeightMax.Maximum;
+
+            TxtWeightMin.Text = SliderWeightMin.Minimum.ToString("0", CultureInfo.CurrentCulture);
+            TxtWeightMax.Text = SliderWeightMax.Maximum.ToString("0", CultureInfo.CurrentCulture);
+
+            _isSyncingControls = false;
+
             UpdateRangeChips();
-            FilterChanged();
+            UpdateWeightRangeSliderVisual();
         }
 
         private void BtnApply_Click(object sender, RoutedEventArgs e)
         {
-            ApplyToElementList();
-            ApplyToViewer();
             DialogResult = true;
             Close();
         }
@@ -191,159 +453,72 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             Close();
         }
 
-        private void BtnIsolateSelected_Click(object sender, RoutedEventArgs e)
+        // BtnShowChecked has been removed from XAML (merged into BtnHideChecked toggle).
+        // This handler is kept only so existing callers do not cause a compile error.
+        private void BtnShowChecked_Click(object sender, RoutedEventArgs e) { }
+
+        private void BtnHideChecked_Click(object sender, RoutedEventArgs e)
         {
-            _visibilityFilter?.IsolateElements(_scene?.GetSelectedElements() ?? new List<PrecastElement>());
-            UpdatePreviewCount();
+            var elements = GetCheckedElements();
+            if (elements.Count == 0)
+                return;
+
+            // Exit isolation cleanly before applying hide/show
+            if (_isIsolated)
+            {
+                _isIsolated = false;
+                _visibilityFilter?.ShowAll();
+            }
+
+            // Toggle: all checked already hidden → show them; otherwise → hide them
+            var allCheckedHidden = elements.All(e => _visibilityFilter?.IsElementHidden(e) == true);
+            if (allCheckedHidden)
+                _visibilityFilter?.ShowElements(elements);
+            else
+                _visibilityFilter?.HideElements(elements);
+
+            ApplyHierarchyFilters();
+            UpdateVisibilityActionButtons();
         }
 
-        private void BtnHideSelected_Click(object sender, RoutedEventArgs e)
+        private void BtnIsolateChecked_Click(object sender, RoutedEventArgs e)
         {
-            _visibilityFilter?.HideElements(_scene?.GetSelectedElements() ?? new List<PrecastElement>());
-            UpdatePreviewCount();
+            var elements = GetCheckedElements();
+
+            if (_isIsolated)
+            {
+                // End Isolation — restore all visibility
+                _isIsolated = false;
+                _visibilityFilter?.ShowAll();
+            }
+            else
+            {
+                if (elements.Count == 0)
+                    return;
+
+                _isIsolated = true;
+                _visibilityFilter?.IsolateElements(elements);
+            }
+
+            ApplyHierarchyFilters();
+            UpdateVisibilityActionButtons();
         }
 
         private void BtnShowAll_Click(object sender, RoutedEventArgs e)
         {
+            _isIsolated = false;
             _visibilityFilter?.ShowAll();
-            BtnReset_Click(sender, e);
+            ApplyHierarchyFilters();
+            UpdateVisibilityActionButtons();
         }
 
-        private void BtnPresetStructural_Click(object sender, RoutedEventArgs e)
+        private List<PrecastElement> GetCheckedElements()
         {
-            foreach (var option in _allTypeOptions)
-                option.IsChecked = StructuralTypeKeywords.Any(keyword => option.DisplayName.Contains(keyword, StringComparison.OrdinalIgnoreCase));
-
-            SetAllChecked(_allMaterialOptions, true);
-            SetAllChecked(_allStoreyOptions, true);
-            InitializeWeightControls();
-            BuildHierarchy();
-            SetHierarchyElementPredicate(element =>
-                StructuralTypeKeywords.Any(keyword => (element.ElementType ?? string.Empty).Contains(keyword, StringComparison.OrdinalIgnoreCase)));
-            NonWeightFilterChanged();
-        }
-
-        private void BtnPresetHeavy_Click(object sender, RoutedEventArgs e)
-        {
-            SetAllChecked(_allTypeOptions, true);
-            SetAllChecked(_allMaterialOptions, true);
-            SetAllChecked(_allStoreyOptions, true);
-
-            var availableMax = _visibilityFilter?.AvailableMaxWeightKg ?? 0d;
-            var heavyThreshold = Math.Max(1000d, availableMax * 0.25d);
-            TxtWeightMin.Text = heavyThreshold.ToString("0", CultureInfo.CurrentCulture);
-            TxtWeightMax.Text = availableMax.ToString("0", CultureInfo.CurrentCulture);
-            SetHierarchyChecked(true);
-            FilterChanged();
-        }
-
-        private void BtnPresetCurrentSelection_Click(object sender, RoutedEventArgs e)
-        {
-            var selected = _scene?.GetSelectedElements() ?? new List<PrecastElement>();
-
-            // If nothing selected in 3D, fall back to currently checked hierarchy items
-            if (selected.Count == 0)
-            {
-                var checkedIds = _hierarchyRoots
-                    .SelectMany(root => root.Children)
-                    .Where(node => node.IsChecked && node.Element != null)
-                    .Select(node => node.Element!.ElementID)
-                    .ToHashSet(StringComparer.Ordinal);
-
-                if (checkedIds.Count == 0)
-                    return;
-
-                selected = _allElements
-                    .Where(el => !string.IsNullOrWhiteSpace(el.ElementID) && checkedIds.Contains(el.ElementID))
-                    .ToList();
-            }
-
-            var selectedTypes = selected
-                .Select(e => e.ElementType)
-                .Where(v => !string.IsNullOrWhiteSpace(v))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var selectedMaterials = selected
-                .Select(e => string.IsNullOrWhiteSpace(e.ElementMaterial) ? "N/A" : e.ElementMaterial.Trim())
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var selectedStoreys = selected
-                .Select(e => _visibilityFilter?.GetStorey(e) ?? "Unassigned")
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var option in _allTypeOptions) option.IsChecked = selectedTypes.Contains(option.DisplayName);
-            foreach (var option in _allMaterialOptions) option.IsChecked = selectedMaterials.Contains(option.DisplayName);
-            foreach (var option in _allStoreyOptions) option.IsChecked = selectedStoreys.Contains(option.DisplayName);
-            var selectedIds = selected
-                .Select(e => e.ElementID)
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .ToHashSet(StringComparer.Ordinal);
-            BuildHierarchy();
-            SetHierarchyElementPredicate(element => !string.IsNullOrWhiteSpace(element.ElementID) && selectedIds.Contains(element.ElementID));
-            NonWeightFilterChanged();
-        }
-
-        private void ApplyToElementList()
-        {
-            if (_viewModel == null)
-                return;
-
-            _viewModel.SearchText = TxtSearch.Text;
-            _viewModel.ApplyFilterCriteria(new FilterCriteriaDto
-            {
-                MinWeight = ParseDouble(TxtWeightMin.Text, 0),
-                MaxWeight = ParseDouble(TxtWeightMax.Text, double.MaxValue),
-                SelectedTypes = GetSelectedTypes(),
-                SelectedMaterials = GetSelectedMaterials(),
-                SelectedStoreys = GetSelectedStoreys(),
-                IncludedElementIds = GetIncludedElementIds().ToList(),
-                SortBy = GetSortBy(),
-                SortDescending = RbSortDescending?.IsChecked == true
-            });
-        }
-
-        private void ApplyToViewer()
-        {
-            if (_visibilityFilter == null)
-                return;
-
-            _visibilityFilter.ResetFilters();
-            _visibilityFilter.SetSearchText(TxtSearch.Text);
-            _visibilityFilter.SetWeightRange(
-                ParseDouble(TxtWeightMin.Text, _visibilityFilter.AvailableMinWeightKg),
-                ParseDouble(TxtWeightMax.Text, _visibilityFilter.AvailableMaxWeightKg));
-
-            var selectedTypes = new HashSet<string>(GetSelectedTypes(), StringComparer.OrdinalIgnoreCase);
-            var selectedMaterials = new HashSet<string>(GetSelectedMaterials(), StringComparer.OrdinalIgnoreCase);
-            var selectedStoreys = new HashSet<string>(GetSelectedStoreys(), StringComparer.OrdinalIgnoreCase);
-
-            foreach (var type in _visibilityFilter.ElementTypes)
-                _visibilityFilter.SetTypeEnabled(type, selectedTypes.Contains(type));
-
-            foreach (var material in _visibilityFilter.Materials)
-                _visibilityFilter.SetMaterialEnabled(material, selectedMaterials.Contains(material));
-
-            foreach (var storey in _visibilityFilter.Storeys)
-                _visibilityFilter.SetStoreyEnabled(storey, selectedStoreys.Contains(storey));
-
-            _visibilityFilter.SetIncludedElementIds(GetIncludedElementIds());
-        }
-
-        private void InitializeWeightControls()
-        {
-            var (min, max) = CalculateAvailableWeightBoundsForCurrentFilter();
-            if (max < min)
-                max = min;
-
-            _isSyncingControls = true;
-            SliderWeightMin.Minimum = min;
-            SliderWeightMin.Maximum = max;
-            SliderWeightMax.Minimum = min;
-            SliderWeightMax.Maximum = max;
-            SliderWeightMin.Value = Clamp(_visibilityFilter?.MinWeightKg ?? min, min, max);
-            SliderWeightMax.Value = Clamp(_visibilityFilter?.MaxWeightKg ?? max, min, max);
-            TxtWeightMin.Text = SliderWeightMin.Value.ToString("0", CultureInfo.CurrentCulture);
-            TxtWeightMax.Text = SliderWeightMax.Value.ToString("0", CultureInfo.CurrentCulture);
-            _isSyncingControls = false;
-            UpdateWeightRangeSliderVisual();
+            return _allSceneElements
+                .Where(element =>
+                    !string.IsNullOrWhiteSpace(element.ElementID)
+                    && _checkedElementIds.Contains(element.ElementID))
+                .ToList();
         }
 
         private void UpdateRangeChips()
@@ -369,24 +544,18 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             TxtHeightChip.Text = $"Height: {min:0.##} - {max:0.##} m";
         }
 
-        private void FilterChanged()
+        private void ApplyHierarchyFilters()
         {
+            if (HierarchyTree == null)
+                return;
+
+            BuildHierarchy(GetElementsMatchingCurrentFilters(includeWeightRange: true));
             UpdatePreviewCount();
-
-            if (ChkLiveApply?.IsChecked == true)
-            {
-                ApplyToElementList();
-                ApplyToViewer();
-            }
+            UpdateVisibilityActionButtons();
+            UpdateScopeButtons();
         }
 
-        private void NonWeightFilterChanged()
-        {
-            UpdateWeightControlsForCurrentFilter();
-            FilterChanged();
-        }
-
-        private void UpdateWeightControlsForCurrentFilter()
+        private void UpdateWeightControlsForCurrentScope()
         {
             var minSlider = SliderWeightMin;
             var maxSlider = SliderWeightMax;
@@ -404,7 +573,9 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             var oldMax = maxSlider.Maximum;
             var currentMin = ParseDouble(minTextBox.Text, oldMin);
             var currentMax = ParseDouble(maxTextBox.Text, oldMax);
-            var (newMin, newMax) = CalculateAvailableWeightBoundsForCurrentFilter();
+            var weights = _allElements.Select(ElementWeightCalculator.GetWeightKg).ToList();
+            var newMin = weights.Count == 0 ? 0d : Math.Floor(weights.Min());
+            var newMax = weights.Count == 0 ? 0d : Math.Ceiling(weights.Max());
 
             if (newMax < newMin)
                 newMax = newMin;
@@ -490,11 +661,12 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             Canvas.SetLeft(ThumbWeightMax, maxX - (thumbWidth / 2d));
         }
 
-        private void BuildHierarchy()
+        private void BuildHierarchy(IEnumerable<PrecastElement>? elements = null)
         {
             if (HierarchyTree == null)
                 return;
 
+            var hierarchyElements = elements?.ToList() ?? _allElements;
             var mode = (CboHierarchyBy?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Type - Element";
             Func<PrecastElement, string> groupKey = mode.StartsWith("Material", StringComparison.OrdinalIgnoreCase)
                 ? e => string.IsNullOrWhiteSpace(e.ElementMaterial) ? "N/A" : e.ElementMaterial.Trim()
@@ -506,7 +678,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
 
             _isSyncingHierarchy = true;
             _hierarchyRoots = new ObservableCollection<FilterHierarchyNode>(
-                _allElements
+                hierarchyElements
                     .GroupBy(groupKey, StringComparer.OrdinalIgnoreCase)
                     .OrderBy(group => group.Key)
                     .Select(group =>
@@ -526,7 +698,9 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                                 ElementWeightCalculator.FormatWeight(weightTons, ElementWeightCalculator.IsEstimated(element)),
                                 weightKg,
                                 element.ElementMaterial,
-                                _visibilityFilter?.IsElementIncluded(element) ?? true,
+                                !string.IsNullOrWhiteSpace(element.ElementID)
+                                    && _checkedElementIds.Contains(element.ElementID),
+                                _visibilityFilter?.IsElementHidden(element) ?? false,
                                 parent));
                         }
 
@@ -548,50 +722,36 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
 
             _isSyncingHierarchy = true;
             if (node.Children.Count > 0)
+            {
                 node.SetChildrenChecked(node.IsChecked);
+                foreach (var child in node.Children)
+                    UpdateCheckedElementId(child.Element, child.IsChecked);
+            }
+            else
+            {
+                UpdateCheckedElementId(node.Element, node.IsChecked);
+            }
+
             node.Parent?.RefreshFromChildren();
             _isSyncingHierarchy = false;
-            NonWeightFilterChanged();
+            UpdateVisibilityActionButtons();
         }
 
-        private void SetHierarchyElementPredicate(Func<PrecastElement, bool> predicate)
+        private void UpdateCheckedElementId(PrecastElement? element, bool isChecked)
         {
-            _isSyncingHierarchy = true;
-            foreach (var root in _hierarchyRoots)
-            {
-                foreach (var child in root.Children)
-                    child.IsChecked = child.Element != null && predicate(child.Element);
-                root.RefreshFromChildren();
-            }
-            _isSyncingHierarchy = false;
+            if (element == null || string.IsNullOrWhiteSpace(element.ElementID))
+                return;
+
+            if (isChecked)
+                _checkedElementIds.Add(element.ElementID);
+            else
+                _checkedElementIds.Remove(element.ElementID);
         }
 
         private void SetHierarchyExpanded(bool isExpanded)
         {
             foreach (var node in _hierarchyRoots)
                 node.SetExpandedRecursive(isExpanded);
-        }
-
-        private void SetHierarchyChecked(bool isChecked)
-        {
-            _isSyncingHierarchy = true;
-            foreach (var node in _hierarchyRoots)
-            {
-                node.IsChecked = isChecked;
-                node.SetChildrenChecked(isChecked);
-            }
-            _isSyncingHierarchy = false;
-        }
-
-        private IEnumerable<string> GetIncludedElementIds()
-        {
-            if (_hierarchyRoots.Count == 0)
-                return _allElements.Select(e => e.ElementID).Where(id => !string.IsNullOrWhiteSpace(id));
-
-            return _hierarchyRoots
-                .SelectMany(root => root.Children)
-                .Where(node => node.IsChecked && node.Element != null && !string.IsNullOrWhiteSpace(node.Element.ElementID))
-                .Select(node => node.Element!.ElementID);
         }
 
         private string GetSortBy() =>
@@ -696,25 +856,14 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
         private static double Clamp(double value, double min, double max) =>
             Math.Max(min, Math.Min(max, value));
 
-        private (double Min, double Max) CalculateAvailableWeightBoundsForCurrentFilter()
-        {
-            var weights = GetElementsMatchingCurrentFilters(includeWeightRange: false)
-                .Select(ElementWeightCalculator.GetWeightKg)
-                .ToList();
-
-            if (weights.Count == 0)
-                return (0d, 0d);
-
-            return (Math.Floor(weights.Min()), Math.Ceiling(weights.Max()));
-        }
-
         private void UpdatePreviewCount()
         {
             if (TxtPreviewCount == null)
                 return;
 
-            var total = _viewModel?.Elements.Count ?? _visibilityFilter?.TotalCount ?? 0;
-            TxtPreviewCount.Text = $"Showing {CalculatePreviewCount()} of {total} elements";
+            var total = _allElements.Count;
+            var label = _filterScope == FilterScope.Selected ? "selected" : "elements";
+            TxtPreviewCount.Text = $"Showing {CalculatePreviewCount()} of {total} {label}";
         }
 
         private int CalculatePreviewCount()
@@ -722,30 +871,58 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             return GetElementsMatchingCurrentFilters(includeWeightRange: true).Count();
         }
 
+        // ── Filter category helpers ──────────────────────────────────────────────
+        // OrdinalIgnoreCase is intentional here: these match human-readable display
+        // labels (type names, material names, storey names), not IFC GlobalIds.
+
+        private HashSet<string> GetCheckedTypeNames() =>
+            _allTypeOptions
+                .Where(o => o.IsChecked)
+                .Select(o => o.DisplayName)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        private HashSet<string> GetCheckedMaterialNames() =>
+            _allMaterialOptions
+                .Where(o => o.IsChecked)
+                .Select(o => o.DisplayName)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        private HashSet<string> GetCheckedStoreyNames() =>
+            _allStoreyOptions
+                .Where(o => o.IsChecked)
+                .Select(o => o.DisplayName)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         private List<PrecastElement> GetElementsMatchingCurrentFilters(bool includeWeightRange)
         {
-            var elements = _viewModel?.Elements.AsEnumerable() ?? _visibilityFilter?.AllElements ?? Enumerable.Empty<PrecastElement>();
-            var selectedTypes = new HashSet<string>(GetSelectedTypes(), StringComparer.OrdinalIgnoreCase);
-            var selectedMaterials = new HashSet<string>(GetSelectedMaterials(), StringComparer.OrdinalIgnoreCase);
-            var selectedStoreys = new HashSet<string>(GetSelectedStoreys(), StringComparer.OrdinalIgnoreCase);
             var minWeight = ParseDouble(TxtWeightMin?.Text ?? string.Empty, 0);
             var maxWeight = ParseDouble(TxtWeightMax?.Text ?? string.Empty, double.MaxValue);
-            var search = TxtSearch?.Text ?? string.Empty;
-            var includedIds = GetIncludedElementIds().ToHashSet(StringComparer.Ordinal);
+            var search = TxtSearch?.Text?.Trim() ?? string.Empty;
 
-            return elements.Where(element =>
+            // Build filter sets once — avoids re-evaluating LINQ inside Where predicate
+            var checkedTypes     = GetCheckedTypeNames();
+            var checkedMaterials = GetCheckedMaterialNames();
+            var checkedStoreys   = GetCheckedStoreyNames();
+
+            return _allElements.Where(element =>
             {
-                var type = string.IsNullOrWhiteSpace(element.ElementType) ? "Unknown type" : element.ElementType.Trim();
-                var material = string.IsNullOrWhiteSpace(element.ElementMaterial) ? "N/A" : element.ElementMaterial.Trim();
-                var storey = _visibilityFilter?.GetStorey(element) ?? "Unassigned";
                 var weight = ElementWeightCalculator.GetWeightKg(element);
 
-                return selectedTypes.Contains(type)
-                    && selectedMaterials.Contains(material)
-                    && selectedStoreys.Contains(storey)
-                    && (!includeWeightRange || (weight >= minWeight && weight <= maxWeight))
-                    && !string.IsNullOrWhiteSpace(element.ElementID)
-                    && includedIds.Contains(element.ElementID)
+                // Normalise to the same labels used when building the option lists
+                var type = string.IsNullOrWhiteSpace(element.ElementType)
+                    ? "Unknown type"
+                    : element.ElementType.Trim();
+
+                var material = string.IsNullOrWhiteSpace(element.ElementMaterial)
+                    ? "N/A"
+                    : element.ElementMaterial.Trim();
+
+                var storey = _visibilityFilter?.GetStorey(element) ?? "Unassigned";
+
+                return (!includeWeightRange || (weight >= minWeight && weight <= maxWeight))
+                    && (checkedTypes.Count == 0     || checkedTypes.Contains(type))
+                    && (checkedMaterials.Count == 0 || checkedMaterials.Contains(material))
+                    && (checkedStoreys.Count == 0   || checkedStoreys.Contains(storey))
                     && MatchesSearch(element, search);
             }).ToList();
         }

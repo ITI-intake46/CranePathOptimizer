@@ -951,8 +951,10 @@ namespace CraneOptimizer.Application.Tests
             public void SetStoreyEnabled(string storey, bool enabled) { }
             public void SetWeightRange(double minWeightKg, double maxWeightKg) { }
             public void SetIncludedElementIds(IEnumerable<string>? elementIds) { }
+            public void SetExcludedElementIds(IEnumerable<string>? elementIds) { }
             public void ResetFilters() { }
             public void ShowAll() { }
+            public void ShowElements(IEnumerable<PrecastElement> elements) { }
             public void HideElements(IEnumerable<PrecastElement> elements) { }
             public void IsolateElements(IEnumerable<PrecastElement> elements) { }
             public void ApplyLoadOptions(IfcLoadOptionsDto options) { }
@@ -961,6 +963,7 @@ namespace CraneOptimizer.Application.Tests
             public bool IsMaterialEnabled(string material) => true;
             public bool IsStoreyEnabled(string storey) => true;
             public bool IsElementIncluded(PrecastElement element) => true;
+            public bool IsElementHidden(PrecastElement element) => false;
         }
     }
 }
