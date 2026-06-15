@@ -32,6 +32,46 @@ or operating condition, the dialog forwards that choice through `CraneOptimizerD
 `GASettings`, and the existing `LoadChartCapacityResolver` applies the constraint during capacity
 lookup.
 
+### Exact-PDF visual provenance versus runtime setup choices
+
+Exact PDF imports may create `OperatingConditionLabel` values such as `39.1 / 4 lines` when a
+manufacturer chart repeats the same numeric boom header across multiple visual columns. Those labels
+are audit/provenance metadata: they identify the visual PDF column that produced a capacity cell.
+They are not standalone crane operating-condition choices.
+
+The F8 **Load Chart Operating Setup** selector therefore exposes imported `NumberOfLines` values as
+line-count setup constraints, but suppresses operating-condition choices that consist only of a
+numeric visual boom header plus a line-count suffix. Real semantic operating-condition labels remain
+available, including labels that contain numbers, such as `On outriggers 360 degrees` or
+`7.6m x 7.6m outriggers`.
+
+### Maximum line-count eligibility semantics
+
+The F8 **Load Chart Operating Setup** line-count selector is interpreted as a maximum available
+reeving/setup constraint. Selecting `4 lines` does not mean "use only cells labelled exactly
+4 lines"; it means "the optimizer may use imported chart cells requiring up to 4 lines." Therefore
+a `4 lines` selection keeps `2`, `3`, and `4` line chart cells eligible, while excluding cells that
+require more than 4 lines.
+
+This keeps the GA search space from being unnecessarily starved while still preserving the safety
+model: the resolver never calculates or inflates capacity from line count. It only chooses among
+manufacturer/imported load-chart cells whose original capacities remain unchanged.
+
+### Usable capacity coverage counts and scrollable details
+
+The F8 **Load Chart Operating Setup** coverage text reports usable positive imported capacity
+values, not every preserved exact-PDF grid cell. Exact visual imports intentionally preserve blank
+or zero-capacity grid positions for audit/provenance, but those preserved cells are not counted as
+usable capacity values in the selector description.
+
+The automatic `Any` option reports the total usable imported capacity values and usable visual
+columns for the selected crane. Constrained line-count options report the usable subset requiring up
+to the selected line count. These display counts are diagnostic only. They do not recalculate,
+inflate, or certify crane capacity; the resolver still performs final liftability checks against the
+imported manufacturer chart values and the selected setup eligibility constraint.
+
+The expanded operating-setup details are scrollable so explanatory text, intuition cards, and safety
+notes remain reachable without pushing the Run/Cancel/Apply controls out of view.
 ## Table detection overview
 
 The importer reads positioned PDF words and reconstructs candidate load-chart tables from geometry.

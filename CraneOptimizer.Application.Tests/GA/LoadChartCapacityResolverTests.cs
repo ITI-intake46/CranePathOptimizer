@@ -531,7 +531,7 @@ namespace CraneOptimizer.Application.Tests
         }
 
         [Fact]
-        public void TestNumberOfLinesConstraintSelectsMatchingVisualColumnMetadata()
+        public void TestMaximumNumberOfLinesConstraintIncludesLowerLineVisualColumnMetadata()
         {
             var settings = new GASettings
             {
@@ -558,14 +558,14 @@ namespace CraneOptimizer.Application.Tests
             var indexedResult = _resolver.Resolve(craneSpec, 10, 39.1, 30.0, settings, index: new LoadChartIndex(craneSpec));
 
             Assert.Equal(LiftStatus.Liftable, legacyResult.LiftStatus);
-            Assert.Equal(35.1, legacyResult.AvailableCapacity, 3);
-            Assert.Equal(2, legacyResult.SelectedVisualColumnIndex);
-            Assert.Equal("39.1 rear", legacyResult.SelectedVisualColumnHeader);
-            Assert.Equal(8, legacyResult.SelectedNumberOfLines);
-            Assert.Equal("39.1 rear / 8 lines", legacyResult.SelectedOperatingConditionLabel);
-            Assert.False(legacyResult.IsConservativeDuplicateFallback);
+            Assert.Equal(31.5, legacyResult.AvailableCapacity, 3);
+            Assert.Equal(3, legacyResult.SelectedVisualColumnIndex);
+            Assert.Equal("39.1 side", legacyResult.SelectedVisualColumnHeader);
+            Assert.Equal(6, legacyResult.SelectedNumberOfLines);
+            Assert.Equal("39.1 side / 6 lines", legacyResult.SelectedOperatingConditionLabel);
+            Assert.True(legacyResult.IsConservativeDuplicateFallback);
             Assert.Equal(3, legacyResult.DuplicateAlternativeCount);
-            Assert.Contains("39.1 rear", legacyResult.DuplicateAlternativeSummary);
+            Assert.Contains("39.1 side", legacyResult.DuplicateAlternativeSummary);
 
             Assert.Equal(legacyResult.AvailableCapacity, indexedResult.AvailableCapacity, 3);
             Assert.Equal(legacyResult.SelectedVisualColumnIndex, indexedResult.SelectedVisualColumnIndex);
@@ -574,13 +574,13 @@ namespace CraneOptimizer.Application.Tests
         }
 
         [Fact]
-        public void TestNumberOfLinesConstraintMismatchFailsWithoutInventingSelectedMetadata()
+        public void TestMaximumNumberOfLinesConstraintBelowAvailableLineCountsFailsWithoutInventingSelectedMetadata()
         {
             var settings = new GASettings
             {
                 DeratingRatio = 1.0,
                 SafetyFactor = 1.0,
-                LoadChartNumberOfLinesConstraint = 12
+                LoadChartNumberOfLinesConstraint = 5
             };
 
             var craneSpec = new CraneSpecification
@@ -607,5 +607,36 @@ namespace CraneOptimizer.Application.Tests
             Assert.Contains("ConditionMismatch", result.RejectedCandidates);
         }
 
+        [Fact]
+        public void TestMaximumNumberOfLinesConstraintExcludesHigherLineCountEvenWhenHigherLineEntryIsMoreConservative()
+        {
+            var settings = new GASettings
+            {
+                DeratingRatio = 1.0,
+                SafetyFactor = 1.0,
+                LoadChartNumberOfLinesConstraint = 8
+            };
+
+            var craneSpec = new CraneSpecification
+            {
+                MaxRadius = 40,
+                MaxBoomLength = 70,
+                LoadChartStorageMode = "ExactPdfVisual",
+                LoadChartCapacityPolicy = "ConservativeMinimumAcrossDuplicateVisualColumns",
+                LoadChart = new List<TargetPoint>
+                {
+                    new TargetPoint { Radius = 10, BoomLength = 39.1, Capacity = 20.0, VisualColumnIndex = 1, VisualColumnHeader = "39.1 360", NumberOfLines = 10, OperatingConditionLabel = "39.1 360 / 10 lines" },
+                    new TargetPoint { Radius = 10, BoomLength = 39.1, Capacity = 31.5, VisualColumnIndex = 2, VisualColumnHeader = "39.1 side", NumberOfLines = 6, OperatingConditionLabel = "39.1 side / 6 lines" }
+                }
+            };
+
+            var result = _resolver.Resolve(craneSpec, 10, 39.1, 30.0, settings);
+
+            Assert.Equal(LiftStatus.Liftable, result.LiftStatus);
+            Assert.Equal(31.5, result.AvailableCapacity, 3);
+            Assert.Equal(2, result.SelectedVisualColumnIndex);
+            Assert.Equal(6, result.SelectedNumberOfLines);
+            Assert.Equal("39.1 side / 6 lines", result.SelectedOperatingConditionLabel);
+        }
     }
 }

@@ -1,1402 +1,1376 @@
-﻿# CranePathOptimizer Branch Implementation Dossier
+# CranePathOptimizer Branch Implementation Dossier
 
-## `temp/div-implementation` — GA Load-Chart Operating Setup Selector, Engineering-Intuition UI, Validation Hardening, and Documentation Completion
+## `temp/div-implementation` — F8 Load Chart Operating Setup, Inclusive Line-Count Eligibility, Usable-Capacity Coverage, and UI Robustness
 
 **Repository:** `ITI-intake46/CranePathOptimizer`  
 **Working branch:** `temp/div-implementation`  
-**Base observed in review evidence:** `origin/div` at `04e9d37`  
-**Document type:** Engineering-grade branch implementation dossier / technical change report / architecture-impact record / validation and reproducibility record  
-**Document generated:** 2026-06-12  
+**Recommended repository path:** `docs/implementation/ga-load-chart-operating-setup-selector-dossier.md`  
+**Document status:** Branch dossier / implementation report / architecture-impact record / reproducibility record  
+**Generated:** 2026-06-15  
 **Primary subsystem:** `CraneOptimizer.UI/Features/F8_GAOptimizer`  
-**Related upstream subsystems:** PDF load-chart import, load-chart provenance preservation, GA capacity resolution, GA diagnostics  
-**Recommended repository placement:** `docs/implementation/ga-load-chart-operating-setup-selector-dossier.md`  
-**Recommended commit pairing:** Commit alongside the branch changes that introduce the F8 Load Chart Operating Setup selector and its cleanup/hardening work.
+**Primary upstream subsystem:** load-chart import and provenance metadata  
+**Primary downstream subsystem:** genetic algorithm load-chart capacity resolution  
+**Validation status represented:** `dotnet restore`, `dotnet build`, and `dotnet test` succeeded after final UI-polish patch  
+**Final automated validation observed:** `407` tests total, `406` succeeded, `1` skipped, `0` failed  
+**Commit status:** not committed at the time this document was prepared; stage only the intended tracked files and exclude local backup artifacts.
 
 ---
 
-## Documentation Strategy Decision
+## Documentation strategy decision
 
-Create this as a **new branch dossier**, not as an in-place replacement of the older related Markdown documents.
-
-Two related historical implementation dossiers were provided as context:
-
-| Related dossier | Scope | Relationship to this branch |
-|---|---|---|
-| `load-chart-provenance-diagnostics.md` | Preserves imported load-chart provenance through GA diagnostics. | Upstream and adjacent. It explains how metadata such as line count and operating condition became meaningful through optimizer diagnostics. |
-| `pdf-load-chart-import-robustness-dossier.md` | Hardens the PDF load-chart import review workflow, table continuation handling, reading-order reconstruction, and source preview behavior. | Upstream and adjacent. It explains how load-chart metadata is imported and reviewed before being saved into crane data. |
-
-This branch is a **distinct downstream runtime-selection feature** in the F8 Crane Position Optimizer. It consumes imported/preserved metadata and exposes it as a user-facing operating-setup constraint during GA execution:
+This document is intended to **replace and supersede the older draft of**:
 
 ```text
-PDF load-chart import / provenance capture
-        ↓
-Persisted crane load-chart metadata
-        ↓
-F8 Crane Position Optimizer dialog
-        ↓
-Load Chart Operating Setup selector
-        ↓
-CraneOptimizerDialogOptions
-        ↓
-CraneOptimizerDialogWorkflow.BuildSettings(...)
-        ↓
-GASettings.LoadChartNumberOfLinesConstraint
-GASettings.LoadChartOperatingConditionConstraint
-        ↓
-Existing LoadChartCapacityResolver filtering
-        ↓
-GA fitness, liftability, diagnostics, and final optimizer results
+docs/implementation/ga-load-chart-operating-setup-selector-dossier.md
 ```
 
-Keeping this document separate preserves auditability:
+The two other uploaded documents should remain as historical and upstream subsystem context, not be overwritten:
 
-- older dossiers remain historically accurate for their original branches;
-- this branch receives its own complete decision record;
-- future maintainers can distinguish upstream import/provenance work from downstream F8 runtime selection;
-- reviewers can evaluate this branch without needing private chat context or patch-script history.
+```text
+docs/implementation/load-chart-provenance-diagnostics.md
+docs/implementation/pdf-load-chart-import-robustness-dossier.md
+```
 
----
-
-## Table of Contents
-
-1. [Document Control and Evidence Basis](#1-document-control-and-evidence-basis)
-2. [Professional Documentation Methodology](#2-professional-documentation-methodology)
-3. [Executive Summary](#3-executive-summary)
-4. [Problem Statement and Engineering Motivation](#4-problem-statement-and-engineering-motivation)
-5. [Scope, Non-Scope, and Branch Boundaries](#5-scope-non-scope-and-branch-boundaries)
-6. [Prior-Chat and Current-Chat Implementation Continuity](#6-prior-chat-and-current-chat-implementation-continuity)
-7. [Architecture Context and Project Rules](#7-architecture-context-and-project-rules)
-8. [Architecture Before and After This Branch](#8-architecture-before-and-after-this-branch)
-9. [End-to-End Runtime Flow](#9-end-to-end-runtime-flow)
-10. [Feature-Level Implementation Details](#10-feature-level-implementation-details)
-11. [File-by-File Implementation Ledger](#11-file-by-file-implementation-ledger)
-12. [Subsystem-Level Impact Assessment](#12-subsystem-level-impact-assessment)
-13. [Genetic Algorithm and Capacity Resolution Impact](#13-genetic-algorithm-and-capacity-resolution-impact)
-14. [PDF Load-Chart Import and Provenance Interaction](#14-pdf-load-chart-import-and-provenance-interaction)
-15. [UI, MVVM, Workflow, and Layering Review](#15-ui-mvvm-workflow-and-layering-review)
-16. [Diagnostics, Outputs, Reproducibility, and Artifact Hygiene](#16-diagnostics-outputs-reproducibility-and-artifact-hygiene)
-17. [Validation and Reproducibility Record](#17-validation-and-reproducibility-record)
-18. [Regression-Prevention Strategy](#18-regression-prevention-strategy)
-19. [Technical Tradeoffs and Design Decisions](#19-technical-tradeoffs-and-design-decisions)
-20. [Known Limitations and Future Work](#20-known-limitations-and-future-work)
-21. [Risk Assessment](#21-risk-assessment)
-22. [Maintainer Review Checklist](#22-maintainer-review-checklist)
-23. [Appendix A — Changed File Summary](#appendix-a--changed-file-summary)
-24. [Appendix B — Implementation Mapping](#appendix-b--implementation-mapping)
-25. [Appendix C — Validation Commands](#appendix-c--validation-commands)
-26. [Appendix D — Evidence Artifacts](#appendix-d--evidence-artifacts)
-27. [Appendix E — Documentation References and Related Dossiers](#appendix-e--documentation-references-and-related-dossiers)
-28. [Appendix F — Manual Smoke-Test Protocol](#appendix-f--manual-smoke-test-protocol)
+The reason for this recommendation is consistency. The older operating-setup dossier describes an earlier implementation phase and does not fully capture the final branch behavior: inclusive line-count eligibility, dynamic `Any` coverage, usable positive capacity counts, synthetic-label suppression, scrollable details, and final UI polish. Keeping two active operating-setup dossiers would create contradictory maintenance signals. Replacing the operating-setup dossier with this file provides one authoritative source for the current branch while preserving the PDF-import and provenance dossiers as upstream historical design records.
 
 ---
 
-## 1. Document Control and Evidence Basis
+## Table of contents
 
-### 1.1 Purpose of This Document
+1. [Purpose and audience](#1-purpose-and-audience)
+2. [Evidence basis](#2-evidence-basis)
+3. [Documentation methodology](#3-documentation-methodology)
+4. [Executive summary](#4-executive-summary)
+5. [Problem statement](#5-problem-statement)
+6. [Scope, non-scope, and branch boundaries](#6-scope-non-scope-and-branch-boundaries)
+7. [Architecture context](#7-architecture-context)
+8. [Before-and-after behavior](#8-before-and-after-behavior)
+9. [End-to-end runtime flow](#9-end-to-end-runtime-flow)
+10. [Core engineering semantics](#10-core-engineering-semantics)
+11. [Feature implementation details](#11-feature-implementation-details)
+12. [File-by-file implementation ledger](#12-file-by-file-implementation-ledger)
+13. [Subsystem impact assessment](#13-subsystem-impact-assessment)
+14. [Genetic algorithm and resolver impact](#14-genetic-algorithm-and-resolver-impact)
+15. [PDF import and provenance interaction](#15-pdf-import-and-provenance-interaction)
+16. [Diagnostics, outputs, and reproducibility](#16-diagnostics-outputs-and-reproducibility)
+17. [Validation record](#17-validation-record)
+18. [Backward compatibility and migration behavior](#18-backward-compatibility-and-migration-behavior)
+19. [Regression-prevention strategy](#19-regression-prevention-strategy)
+20. [Technical decisions and tradeoffs](#20-technical-decisions-and-tradeoffs)
+21. [Risks, limitations, and future work](#21-risks-limitations-and-future-work)
+22. [Maintainer and reviewer checklist](#22-maintainer-and-reviewer-checklist)
+23. [Commit and staging guidance](#23-commit-and-staging-guidance)
+24. [Appendices](#24-appendices)
 
-This document records the technical intent, implementation details, architecture impact, validation evidence, reproducibility considerations, and maintenance consequences of the `temp/div-implementation` branch work that introduced a **GA Load-Chart Operating Setup selector**.
+---
 
-This is not a lightweight changelog. It is intended as a long-lived engineering artifact for:
+## 1. Purpose and audience
 
-- senior maintainers reviewing architectural fit;
-- developers extending the GA optimizer dialog;
-- contributors working on PDF load-chart import or provenance metadata;
-- QA engineers reproducing validation results;
-- researchers interpreting GA outputs that depend on load-chart operating setup constraints;
-- future maintainers diagnosing how a selected line count or operating condition reaches GA capacity lookup.
+This document is a branch-level engineering dossier for the implementation work performed on `temp/div-implementation` around the **F8 Crane Position Optimizer** and its **Load Chart Operating Setup** selector.
 
-### 1.2 Evidence Sources
+It is written for:
 
-This dossier incorporates evidence from both the **previous uploaded chat** and the **current chat**. It was prepared from:
+- maintainers reviewing or merging the branch;
+- future contributors who need to understand why line-count selection behaves as a maximum eligibility constraint;
+- UI engineers modifying the F8 optimizer dialog;
+- GA engineers maintaining load-chart capacity resolution;
+- researchers using GA diagnostics or load-chart outputs for audit or validation;
+- project maintainers reconciling PDF import, load-chart provenance, and runtime optimizer behavior.
 
-| Evidence artifact | Purpose |
+This document is intentionally more detailed than release notes. It records design rationale, boundaries, implementation effects, validation evidence, and future maintenance guidance.
+
+---
+
+## 2. Evidence basis
+
+### 2.1 Supplied project evidence
+
+This document is based on the following project-specific evidence:
+
+| Evidence source | Role in this document |
 |---|---|
-| `CranePathOptimizer_FullChangeReviewPackage_SAFE_20260612_201910.txt` | Prior review package showing the state after the collapsible selector implementation and validation. |
-| `CranePathOptimizer_COMPLETE_ForensicPackage_V5_20260612_203811.txt` | Complete source/forensic package used in the current chat before cleanup/hardening. |
-| `CranePathOptimizer_CODE_CHANGES_REVIEW_20260612_205001.txt` | Code-changes review package used for critical review of all current diff changes before the final cleanup patch. |
-| `CraneOptimizer_GA_LineSelector_CleanupValidationV4_20260612_210334.txt` | Full validation log after cleanup/hardening with focused and full tests. |
-| `CranePathOptimizer_FINAL_PostPatchReview_20260612_211134.txt` | Final post-patch review package showing final diff, current file contents, build output, focused test output, diagnostic inventory, and final status. |
-| `docs.zip` | Project documentation set containing agent, architecture, coding-standard, domain, workflow, and project documentation. |
-| `load-chart-provenance-diagnostics.md` | Related upstream implementation dossier for provenance preservation. |
-| `pdf-load-chart-import-robustness-dossier.md` | Related upstream implementation dossier for PDF import robustness. |
+| Current branch state and patch outputs | Establishes the final validated implementation state. |
+| Final PowerShell output from `Apply-OperatingSetupUiPolishV2Patch-v4.ps1` | Confirms successful XAML patch, docs patch, restore, build, and test. |
+| Uploaded older `ga-load-chart-operating-setup-selector-dossier.md` | Historical operating-setup implementation plan and earlier dossier. |
+| Uploaded `load-chart-provenance-diagnostics.md` | Historical provenance pipeline context. |
+| Uploaded `pdf-load-chart-import-robustness-dossier.md` | Historical PDF import robustness context. |
+| UI screenshots after patching | Confirms final user-facing behavior and layout. |
+| Prior forensic/source-review evidence from this branch | Establishes touched files and architecture boundaries. |
 
-### 1.3 Repository State Represented
+### 2.2 Validation evidence
 
-The final reviewed branch state was:
-
-```text
-Branch: temp/div-implementation
-Base observed: origin/div at 04e9d37
-Tracked changed files: 7
-Untracked source artifacts in final status: none
-Staged changes: none
-Commit/push performed by scripts: no
-```
-
-Final `git status --short --branch` reported:
+The final validation evidence showed the following successful sequence:
 
 ```text
-## temp/div-implementation
- M .gitignore
- M CraneOptimizer.Application.Tests/GA/CraneOptimizerDialogViewModelTests.cs
- M CraneOptimizer.UI/Features/F8_GAOptimizer/ViewModels/CraneOptimizerDialogViewModel.cs
- M CraneOptimizer.UI/Features/F8_GAOptimizer/Views/CraneOptimizerDialog.xaml
- M CraneOptimizer.UI/Features/F8_GAOptimizer/Views/CraneOptimizerDialog.xaml.cs
- M CraneOptimizer.UI/Features/F8_GAOptimizer/Workflows/CraneOptimizerDialogWorkflow.cs
- M docs/domain/pdf-load-chart-import.md
+Apply-OperatingSetupUiPolishV2Patch-v4.ps1
+Repository located
+Current branch: temp/div-implementation
+XAML baseline XML-well-formed
+Backups written
+XAML patched
+Documentation patched
+dotnet restore succeeded
+dotnet build succeeded
+dotnet test succeeded
+Test summary: total: 407, failed: 0, succeeded: 406, skipped: 1
 ```
 
-### 1.4 Validation Summary
+### 2.3 Evidence confidence
 
-Final validation evidence includes:
+The implementation is considered validated because:
 
-| Validation pass | Result |
+1. the final XAML was XML-well-formed before and after patching;
+2. the WPF UI project compiled successfully;
+3. the application test suite executed successfully with `0` failed tests;
+4. manual screenshots show the intended F8 UI behavior;
+5. no schema migration, package change, installer change, or persistence change was introduced by this branch work.
+
+---
+
+## 3. Documentation methodology
+
+This dossier follows a hybrid documentation method:
+
+- **Architecture decision record discipline:** major choices are documented with context, decision, alternatives, and consequences.
+- **Change-log discipline:** changes are curated by meaning and impact rather than being a raw Git diff.
+- **Technical reference discipline:** affected files, functions, properties, workflows, and subsystem boundaries are enumerated explicitly.
+- **Reproducibility discipline:** validation commands, observed outcomes, warnings, and manual smoke-test procedures are included.
+- **Explanation discipline:** domain semantics are explained so future contributors understand not only what changed, but why it is correct.
+
+This structure intentionally separates:
+
+| Documentation need | Covered by |
 |---|---|
-| `git diff --check` | No whitespace errors; LF/CRLF warnings only for two text files. |
-| `dotnet restore CraneOptimizer.sln` | Passed; existing `NU1701` warnings related to Xbim packages. |
-| `dotnet build CraneOptimizer.sln --configuration Debug --no-restore` | Passed; `0` errors. |
-| Focused `CraneOptimizerDialogViewModelTests` | Passed; `13` passed, `0` failed, `0` skipped. |
-| Full solution test run from cleanup validation | Passed; `396` passed, `0` failed, `1` skipped, `397` total. |
+| “What changed?” | Executive summary, feature details, file ledger |
+| “Why was it changed?” | Problem statement, technical decisions, rationale |
+| “How does it work?” | Runtime flow, core semantics, implementation details |
+| “How do I verify it?” | Validation record, smoke-test protocol |
+| “What might break?” | Impact assessment, risks, regression prevention |
+| “What should I not touch?” | Non-scope, boundaries, staging guidance |
+
+External documentation practices used as inspiration include Diátaxis for separating explanation/reference/procedure user needs, ADR practice for recording decisions and consequences, Google developer documentation guidance for clear technical style, and Keep a Changelog’s emphasis on curated notable changes instead of raw logs.
 
 ---
 
-## 2. Professional Documentation Methodology
+## 4. Executive summary
 
-### 2.1 Documentation Model Used
+### 4.1 Branch outcome
 
-This dossier follows a combined pattern inspired by:
+This branch completes and hardens the F8 **Load Chart Operating Setup** workflow. It allows the optimizer user to select a load-chart operating setup constraint derived from imported load-chart metadata while preserving the previous automatic/default behavior.
 
-- design-document structure: context, problem, alternatives, implementation, validation, and impact;
-- architecture decision records: decision, context, consequences, and future implications;
-- engineering change reports: file-level ledger, subsystem impact, validation evidence, and rollback/readiness notes;
-- reproducible-computing practice: explicit commands, environment notes, validation outputs, and artifact inventory.
+The final implementation provides:
 
-### 2.2 Why This Level of Detail Is Needed
+- dynamic `Any` option coverage;
+- inclusive line-count eligibility;
+- usable-capacity coverage summaries;
+- suppression of synthetic PDF provenance labels as operating-condition choices;
+- engineering-intuition text for the selected setup;
+- scrollable and compact expanded UI details;
+- documentation updates and validation coverage.
 
-This branch touches the boundary between **user interaction**, **engineering semantics**, and **algorithmic capacity lookup**. Small wording or mapping mistakes could create false confidence in lifting behavior. Therefore, the documentation records:
+### 4.2 Primary behavior implemented
 
-- what the UI lets the user choose;
-- what the setting does and does not mean;
-- how the choice reaches `GASettings`;
-- why capacity remains governed by imported manufacturer load-chart data;
-- how tests prevent regressions in default behavior and mixed metadata handling;
-- which adjacent subsystems were intentionally not changed.
+When a crane is selected in the F8 optimizer dialog, the ViewModel scans the crane’s imported load-chart entries and constructs a set of operating-setup options.
 
-### 2.3 Documentation Integrity Principles
+The options are:
 
-This dossier intentionally avoids overstating the branch. It distinguishes:
-
-| Category | Documentation treatment |
+| Option type | Meaning |
 |---|---|
-| Direct code changes | Fully documented file-by-file. |
-| Indirect runtime effects | Documented through flow and subsystem impact. |
-| Unchanged adjacent systems | Explicitly marked as not modified. |
-| Validation evidence | Reported with exact commands and observed results. |
-| Known limitations | Listed as future maintenance concerns. |
-| Patch-script failures | Treated as process history, not source behavior, unless they influenced final code state. |
+| `Any` | No line-count or operating-condition constraint. The GA may use every eligible imported capacity value. |
+| `Up to N lines` | The GA may use imported capacity values whose load-chart entry requires `N` or fewer parts of line. |
+| True operating condition | The GA may constrain lookup to a real operating-condition label when such a label is present and actionable. |
 
----
+The selector intentionally does **not** expose labels such as `39.1 / 4 lines` as operating conditions. Those labels are useful provenance text, not true user-facing operating-condition choices.
 
-## 3. Executive Summary
+### 4.3 Primary engineering correction
 
-### 3.1 What This Branch Adds
-
-This branch adds a user-facing **Load Chart Operating Setup** selector to the F8 **Crane Position Optimizer** dialog.
-
-The selector allows the user to keep the existing default behavior or constrain GA capacity lookup by imported load-chart metadata:
-
-- **Any available line count / condition** — default, preserves previous behavior;
-- a specific imported **number of lines** option, such as `2 lines`, `4 lines`, or `8 lines`;
-- a specific imported **operating condition** option, such as `Condition: On outriggers 360 degrees`.
-
-The selector is presented as a collapsible UI panel with:
-
-- an automatic/constrained badge;
-- a collapsed summary and subtext;
-- a details toggle;
-- a discrete slider over dynamic imported setup stops;
-- scale labels;
-- selected setup summary;
-- line-support and hook-speed intuition cards;
-- explicit safety wording stating that certified capacity still comes from imported manufacturer load charts.
-
-### 3.2 What Problem It Solves
-
-Prior upstream work preserved load-chart provenance such as line count and operating condition, and the GA capacity resolver already supported constraints through `GASettings`. However, the F8 optimizer dialog did not expose a clear user-facing runtime control for choosing those constraints.
-
-The missing UI bridge meant users could import charts with meaningful operating metadata but could not intentionally constrain the optimizer to a specific operating setup from the main GA dialog.
-
-This branch closes that gap.
-
-### 3.3 What It Does Not Change
-
-This branch does **not**:
-
-- change the PDF load-chart extraction algorithm;
-- change database schema;
-- change crane catalog persistence schema;
-- change GA chromosome design;
-- change GA search operators;
-- change capacity equations;
-- change manufacturer capacity values;
-- change Streamlit UI;
-- change installers;
-- change external dependencies;
-- change diagnostics schema;
-- stage, commit, push, or rename branches.
-
-### 3.4 Final Implementation Assessment
-
-The branch is functionally valid and architecture-aligned:
-
-- default `Any` behavior leaves constraints unset;
-- specific setup selections are passed through existing dialog options and workflow mapping;
-- `GASettings` receives constraints through established application workflow code;
-- existing `LoadChartCapacityResolver` remains responsible for capacity filtering;
-- ViewModel owns UI state and presentation text;
-- WPF code-behind performs only dialog orchestration;
-- tests cover default behavior, constrained behavior, mixed metadata, collapse/expand behavior, and workflow mapping.
-
----
-
-## 4. Problem Statement and Engineering Motivation
-
-### 4.1 Domain Context
-
-Crane load charts encode manufacturer-rated capacities under specific operating setups. These setup dimensions may include:
-
-- number of hoist lines / parts of line;
-- operating condition labels;
-- visual column identity;
-- boom length and radius;
-- chart section/header context.
-
-Prior project work made these metadata fields available in the domain model and diagnostics. The optimizer can already apply constraints through `GASettings` and `LoadChartCapacityResolver`.
-
-### 4.2 User Workflow Gap
-
-The F8 Crane Position Optimizer is where users run GA optimization. Before this branch, the runtime UI did not provide a clear, safe, discoverable control for choosing an imported load-chart operating setup.
-
-This created several usability and engineering problems:
-
-1. Users could import load-chart metadata but not intentionally use it in the optimizer dialog.
-2. The GA could support constraints internally, but users lacked a runtime selection mechanism.
-3. The default behavior was implicit rather than explicitly communicated.
-4. Future diagnostics involving operating setup would be harder to explain without an upstream UI choice.
-5. Users could not easily understand the tradeoff between more supporting lines and slower hook travel.
-
-### 4.3 Safety Motivation
-
-The UI must not imply that line count alone computes certified capacity. Certified lifting capacity must remain derived from imported manufacturer load-chart data. The branch therefore separates:
-
-| Concept | Meaning in this branch |
-|---|---|
-| Line count | A setup constraint used to select eligible chart entries. |
-| Operating condition | A setup label constraint used to select eligible chart entries. |
-| Engineering intuition | Non-certifying explanatory UI text about expected support/speed tradeoffs. |
-| Certified capacity | Still comes from imported manufacturer chart data via existing resolver logic. |
-
----
-
-## 5. Scope, Non-Scope, and Branch Boundaries
-
-### 5.1 In Scope
-
-The branch includes:
-
-- F8 dialog ViewModel state for operating-setup options;
-- dynamic extraction of selector options from the selected crane's saved load chart metadata;
-- default `Any` option preserving previous behavior;
-- number-of-lines setup options;
-- operating-condition setup options;
-- mixed metadata handling when a chart point has both `NumberOfLines` and `OperatingConditionLabel`;
-- collapsed/expanded UI panel state;
-- discrete slider selection over dynamic setup stops;
-- engineering-intuition text and percentages;
-- safety note wording;
-- code-behind refresh when selected crane changes;
-- workflow mapping into `GASettings`;
-- tests covering ViewModel and workflow behavior;
-- `.gitignore` artifact hygiene;
-- domain documentation update for downstream GA operating setup selection.
-
-### 5.2 Out of Scope
-
-The branch intentionally excludes:
-
-- rewriting PDF import services;
-- rewriting load-chart DTOs;
-- adding new database migrations;
-- changing `TargetPoint` schema;
-- changing `GASettings` schema beyond using existing fields;
-- changing `LoadChartCapacityResolver` filtering semantics;
-- changing GA evolution algorithms;
-- changing output file formats;
-- changing Streamlit dashboards;
-- changing installer or packaging behavior.
-
-### 5.3 Boundary Rationale
-
-The branch focuses on a missing UI/workflow bridge. The core resolver and metadata model already existed. Changing those layers would increase risk and violate feature isolation.
-
----
-
-## 6. Prior-Chat and Current-Chat Implementation Continuity
-
-This document deliberately covers **both** the previous uploaded chat and the current chat.
-
-### 6.1 Previous Chat Work Captured
-
-The previous chat established and iteratively implemented the main feature:
-
-1. Created/used branch `temp/div-implementation` from `origin/div`.
-2. Generated and ran patch scripts from the Downloads folder.
-3. Implemented the first GA line-count / operating-condition selector plumbing.
-4. Verified the initial selector markers:
-   - `LoadChartOperatingSetupOption`;
-   - `RefreshLoadChartOperatingSetupOptions(Crane? crane)`;
-   - `LoadChartOperatingSetupOptions`;
-   - `SelectedLoadChartOperatingSetupOption`;
-   - code-behind capture;
-   - workflow mapping into `GASettings`.
-5. Iterated on UI design from a simple selector toward a richer UX panel.
-6. Added engineering-intuition UI for line support and hook speed.
-7. Replaced/augmented dropdown-style selection with a discrete slider over imported setup stops.
-8. Removed misleading or noisy slider tooltip/index behavior.
-9. Added collapsed/expanded panel behavior with clearer default-state communication.
-10. Fixed a WPF binding issue involving read-only properties and hook-speed tendency binding.
-11. Validated intermediate states with restore, build, `git diff --check`, and focused tests.
-12. Stopped at the point where a full read-only review package was needed.
-
-### 6.2 Current Chat Work Captured
-
-The current chat continued from that cut-off state and completed the final engineering hardening:
-
-1. Reconstructed the previous chat context from uploaded transcript/package evidence.
-2. Generated review/forensic packages to inspect the final source state.
-3. Verified project documentation from `docs.zip` and related dossiers.
-4. Critically reviewed the implementation for correctness, cleanliness, robustness, and architecture fit.
-5. Identified remaining cleanup items:
-   - untracked `docs.zip` and `TestResults` artifacts;
-   - XAML formatting roughness;
-   - `Assert.Single(...Where(...))` analyzer issue;
-   - condition grouping not exposing labels when line metadata was also present;
-   - need for mixed metadata regression coverage.
-6. Applied cleanup/hardening patch after several safe script revisions.
-7. Hardened condition grouping to include all non-empty `OperatingConditionLabel` values, regardless of whether `NumberOfLines` is also present.
-8. Added mixed metadata regression test.
-9. Added `.gitignore` rules for local artifacts.
-10. Moved untracked local artifacts out of final status.
-11. Ran final validation with focused and full tests.
-12. Generated final post-patch review package.
-13. Created this complete branch dossier.
-
-### 6.3 Why Patch-Script Attempts Are Mentioned but Not Treated as Product Behavior
-
-Several PowerShell scripts were generated during development and review. Some failed due to pathspec, block-matching, or PowerShell string-interpolation issues. Those failures did not commit, push, stage, switch branches, or alter final source behavior beyond safe partial edits later validated by final runs.
-
-For product documentation, the meaningful source state is the final branch diff and validation result. The process history is recorded here only to make the audit trail complete.
-
----
-
-## 7. Architecture Context and Project Rules
-
-### 7.1 Layered Architecture
-
-The project is a layered C#/.NET WPF application. The branch adheres to the documented separation between:
-
-| Layer | Responsibility | Branch behavior |
-|---|---|---|
-| Presentation/UI | WPF views, binding, user interaction, visual layout | Adds F8 dialog panel and binding only. |
-| UI ViewModel | UI state, presentation-friendly option construction, collapse/slider state | Adds operating setup ViewModel state and text. |
-| Application/workflow | Converts UI options into application settings | Maps selected constraints into `GASettings`. |
-| Domain | Entities and core data model | No domain entity changes. Uses existing `Crane`, `CraneSpecification`, `TargetPoint`. |
-| Infrastructure/data access | Persistence, repositories, external services | No infrastructure changes. |
-| Resolver/engine | Capacity lookup and GA behavior | No resolver implementation changes; existing constraints are exercised. |
-
-### 7.2 Project Documentation Consulted
-
-The following documentation categories from `docs.zip` were treated as project rules:
-
-- agent guidance: `docs/agent/start-here.md`, `agent-context.md`, `definition-of-done.md`, `do-not-do.md`;
-- architecture: `docs/architecture/system-overview.md`, `folder-structure.md`, `engines.md`, `database.md`;
-- coding standards: `clean-code.md`, `dependency-injection.md`, `dto-rules.md`, `mvvm.md`, `naming-conventions.md`;
-- domain documents: `crane-engine.md`, `lifting-engine.md`, `ga-engine.md`, `ifc.md`, `path-engine.md` where present;
-- workflows: `feature-development.md`, `bug-fixing.md`, `code-review.md`;
-- project documents: `scope.md`, `vision.md`, `refactoring-opportunities.md`, documentation audit and coverage reports;
-- load-chart import documentation: `docs/domain/pdf-load-chart-import.md`.
-
-### 7.3 Architecture Rules Applied
-
-The branch observes the following constraints:
-
-- no business logic placed in WPF views;
-- no bypass of workflow/settings plumbing;
-- no direct mutation of GA internals from XAML/code-behind;
-- no changes to unrelated features;
-- no new dependency injection registrations needed;
-- no DTO or mapper bypass added;
-- no database or persistence changes introduced;
-- no engine-layer logic duplicated in UI.
-
----
-
-## 8. Architecture Before and After This Branch
-
-### 8.1 Before
-
-Before this branch:
-
-- load-chart metadata could be imported and persisted;
-- `TargetPoint` entries could contain line-count / operating-condition metadata;
-- `GASettings` already contained capacity lookup constraint fields;
-- `LoadChartCapacityResolver` already understood those constraints;
-- the F8 optimizer dialog did not expose a professional runtime control for choosing those constraints.
-
-Conceptual pre-branch flow:
+The central modeling correction is that selecting a line count is not an exact-column-only filter. Instead, it is a **maximum setup eligibility constraint**:
 
 ```text
-Crane selection
-    ↓
-GA settings built from existing dialog fields
-    ↓
-Capacity resolver uses unconstrained or preconfigured settings
-    ↓
-GA optimization
+Selected setup: up to N lines
+Eligible entries: all load-chart entries requiring <= N lines
 ```
 
-### 8.2 After
+This better reflects the operational meaning of choosing an available line-support setup. If a setup supports up to `5` lines, entries requiring `2`, `3`, `4`, or `5` lines remain eligible; entries requiring more than `5` lines do not.
 
-After this branch:
+### 4.4 Primary UI correction
+
+The UI now shows useful coverage even for the default `Any` state:
 
 ```text
-Crane selection
-    ↓
-ViewModel scans selected crane load-chart metadata
-    ↓
-Operating setup options generated dynamically
-    ↓
-User keeps Any or chooses line count / condition
-    ↓
-Dialog captures selected option
-    ↓
-Workflow maps option into GASettings
-    ↓
-Existing resolver filters eligible chart entries
-    ↓
-GA optimization uses selected setup constraint
+Uses 271 usable imported capacity values across 14 visual columns.
+No line-count or operating-condition constraint is applied.
 ```
 
-### 8.3 Architectural Importance
-
-The branch does not move capacity logic into UI. The UI only selects a constraint. The existing resolver remains the authority for capacity lookup. This preserves the project layering and avoids duplicating engineering rules in WPF.
-
----
-
-## 9. End-to-End Runtime Flow
-
-### 9.1 Crane Selection
-
-When the dialog loads cranes, and when the selected crane changes, code-behind asks the ViewModel to refresh operating setup options based on the selected crane:
-
-```csharp
-RefreshLoadChartOperatingSetupOptions(CboCrane.SelectedItem as Crane);
-```
-
-This is UI orchestration, not business logic.
-
-### 9.2 Metadata Enumeration
-
-The ViewModel reads load-chart entries from:
+For constrained states, it shows the usable subset, for example:
 
 ```text
-Crane
-  → Specifications
-    → LoadChart
-      → TargetPoint
+Allows capacity lookup to use 104 usable imported capacity values requiring up to 2 lines across 5 visual columns.
 ```
 
-It extracts:
+The displayed coverage count means **usable positive imported capacity values**, not every preserved exact-PDF grid cell.
 
-- `NumberOfLines` for line-count options;
-- `OperatingConditionLabel` for condition options;
-- `VisualColumnIndex` / `VisualColumnHeader` / `BoomLength` to describe chart coverage.
+### 4.5 Validation summary
 
-### 9.3 Option Construction
-
-The ViewModel always creates an `Any` default option first. It then appends imported line-count and operating-condition options.
-
-Important final hardening: operating-condition options are generated from all non-empty labels, not only from points with no line-count metadata. This is necessary because real chart entries can carry both pieces of metadata.
-
-### 9.4 User Selection
-
-The UI presents the options through a collapsible panel and discrete slider. The slider value is an index into the current option list, but the UI labels expose user-meaningful setup names rather than internal indices.
-
-### 9.5 Dialog Option Capture
-
-When the optimizer is run, the code-behind includes these values in `CraneOptimizerDialogOptions`:
-
-```csharp
-vm.SelectedLoadChartOperatingSetupOption.NumberOfLinesConstraint,
-vm.SelectedLoadChartOperatingSetupOption.OperatingConditionConstraint
-```
-
-### 9.6 Workflow Mapping
-
-The workflow maps the values into `GASettings`:
-
-```csharp
-LoadChartNumberOfLinesConstraint = options.LoadChartNumberOfLinesConstraint,
-LoadChartOperatingConditionConstraint = NullIfWhiteSpace(options.LoadChartOperatingConditionConstraint)
-```
-
-### 9.7 Capacity Lookup
-
-The branch relies on existing resolver behavior. If both constraints are null, previous behavior is preserved. If a constraint is present, the resolver filters eligible load-chart points according to the selected setting.
-
----
-
-## 10. Feature-Level Implementation Details
-
-### 10.1 Default `Any` Behavior
-
-The default option is:
+The final branch state passed automated validation:
 
 ```text
-Display: Any available line count / condition
-NumberOfLinesConstraint: null
-OperatingConditionConstraint: null
-IsDefault: true
-```
-
-This preserves previous behavior because unset constraints allow every eligible imported chart entry to remain available to the resolver.
-
-### 10.2 Line-Count Options
-
-For each distinct positive `NumberOfLines` value, the ViewModel creates an option such as:
-
-```text
-2 lines
-4 lines
-8 lines
-```
-
-The option description includes imported chart cell count and visual column coverage.
-
-### 10.3 Operating-Condition Options
-
-For each distinct non-empty `OperatingConditionLabel`, the ViewModel creates an option such as:
-
-```text
-Condition: On outriggers 360 degrees
-```
-
-Final hardening ensures condition options are generated even when the same chart entries also contain `NumberOfLines`.
-
-### 10.4 Slider Semantics
-
-The slider is a discrete selector over generated options:
-
-```text
-Slider index 0 → Any
-Slider index 1 → first imported setup option
-Slider index 2 → second imported setup option
-...
-```
-
-The implementation avoids exposing internal index values as user-facing tooltips. User-facing labels are derived from option display values.
-
-### 10.5 Collapsible Panel Semantics
-
-The panel is collapsed by default to preserve a compact optimizer dialog. The collapsed summary still communicates whether the optimizer is in automatic or constrained mode.
-
-Key states:
-
-| State | User-visible behavior |
-|---|---|
-| Default collapsed | Badge: `Automatic`; summary says any eligible chart entry is used. |
-| Expanded | Slider, scale labels, coverage summary, intuition cards, safety note are visible. |
-| Constrained then collapsed | Badge changes to `Constrained`; collapsed summary shows chosen setup. |
-
-### 10.6 Engineering-Intuition UI
-
-The branch adds explanatory UI for selected line counts:
-
-- line-support index: relative support intuition from selected parts of line;
-- hook-speed intuition: approximate inverse-speed intuition;
-- selected tone: lighter/faster, balanced, heavier/slower;
-- safety note: capacity still comes from imported manufacturer load charts.
-
-This is intentionally explanatory, not a new capacity algorithm.
-
-### 10.7 Safety Wording
-
-The safety note is central:
-
-```text
-Engineering intuition only. The optimizer still uses imported manufacturer load-chart capacities; line count is a setup constraint, not a standalone certified capacity calculation.
-```
-
-This prevents users and future maintainers from interpreting the UI as a certified capacity calculation.
-
----
-
-## 11. File-by-File Implementation Ledger
-
-### 11.1 `.gitignore`
-
-**What changed**
-
-Added ignore rules for local test results and uploaded review bundles:
-
-```gitignore
-# Local test result artifacts
-**/TestResults/
-*.trx
-
-# Local uploaded review bundles
-docs.zip
-```
-
-**Why**
-
-During review and validation, generated `.trx` files and uploaded `docs.zip` appeared as untracked artifacts. These should not be committed with source changes.
-
-**Impact**
-
-- Prevents accidental commits of local validation outputs.
-- Keeps future Git status cleaner after tests.
-- Does not affect runtime behavior.
-
-### 11.2 `CraneOptimizer.Application.Tests/GA/CraneOptimizerDialogViewModelTests.cs`
-
-**What changed**
-
-The test file was expanded from basic ViewModel filtering/default tests to comprehensive coverage for the operating setup selector.
-
-New coverage includes:
-
-- engineering-intuition tradeoff behavior;
-- discrete slider stop selection;
-- default collapsed disclosure behavior;
-- preservation of selected constraint when collapsed;
-- imported number-of-lines choices;
-- workflow mapping for selected line constraints;
-- condition-only metadata exposure;
-- trimming of operating-condition constraints;
-- null constraints for `Any`;
-- mixed metadata exposure when points have both `NumberOfLines` and `OperatingConditionLabel`.
-
-**Why**
-
-The selector is a safety-sensitive UI-to-GA bridge. Tests must prove:
-
-- default behavior remains unchanged;
-- constraints are correctly represented;
-- workflow mapping is accurate;
-- mixed metadata is not lost;
-- UI state transitions do not reset selected constraints.
-
-**How**
-
-Tests construct in-memory `Crane`, `CraneSpecification`, and `TargetPoint` objects with representative load-chart metadata, refresh the ViewModel, and assert generated options and workflow settings.
-
-**Downstream impact**
-
-- Prevents regressions where `Any` stops mapping to null constraints.
-- Prevents regressions where mixed line/condition metadata loses the condition option.
-- Prevents accidental workflow mapping breakage.
-
-### 11.3 `CraneOptimizer.UI/Features/F8_GAOptimizer/ViewModels/CraneOptimizerDialogViewModel.cs`
-
-**What changed**
-
-Added:
-
-- `LoadChartOperatingSetupOption` model;
-- `LoadChartOperatingSetupOptions` collection;
-- `SelectedLoadChartOperatingSetupOption`;
-- `LoadChartOperatingSetupStatus`;
-- `IsLoadChartOperatingSetupExpanded`;
-- visibility/disclosure text/glyph properties;
-- collapsed summary/subtext;
-- slider value and slider maximum;
-- scale label generation;
-- selected setup title/tone;
-- line-support and hook-speed intuition properties;
-- `RefreshLoadChartOperatingSetupOptions(Crane? crane)`;
-- helper methods for visual column identity, line formatting, status text, clamping, and slider sync.
-
-**Why**
-
-The ViewModel is the correct WPF/MVVM location for UI state, bindable options, and presentation-friendly summaries. It keeps the XAML declarative and avoids placing logic in WPF views.
-
-**How**
-
-The refresh method enumerates selected crane load-chart points and builds an ordered option list:
-
-```csharp
-var options = new List<LoadChartOperatingSetupOption>
-{
-    LoadChartOperatingSetupOption.Any
-};
-```
-
-Line-count groups are generated from positive `NumberOfLines`. Condition groups are generated from all non-empty `OperatingConditionLabel` values.
-
-**Key final hardening**
-
-The initial implementation exposed condition options only for points without line-count metadata. The final implementation removed that exclusion so mixed metadata is represented correctly.
-
-**Downstream impact**
-
-- A selected crane with imported line metadata now provides setup choices.
-- A selected crane without metadata safely reports fallback behavior.
-- A selected crane with mixed metadata provides both line-count and condition choices.
-- GA settings remain untouched until the user runs the optimizer.
-
-### 11.4 `CraneOptimizer.UI/Features/F8_GAOptimizer/Views/CraneOptimizerDialog.xaml`
-
-**What changed**
-
-Added a new `LOAD CHART OPERATING SETUP` panel between crane selection and results.
-
-The panel includes:
-
-- header and explanatory text;
-- automatic/constrained badge;
-- toggle button for details;
-- collapsed summary and subtext;
-- slider and scale labels;
-- coverage summary;
-- selected setup intuition card;
-- line-support and hook-speed cards;
-- safety note.
-
-**Why**
-
-The selector must be discoverable but not overwhelming. A collapsed default preserves UI compactness while still making the current operating mode visible.
-
-**How**
-
-The XAML binds to ViewModel properties. It does not compute option lists or capacity behavior.
-
-**Downstream impact**
-
-- F8 users can explicitly choose operating setup constraints.
-- Default users see no required extra configuration.
-- Future maintainers can update text/layout without changing resolver code.
-
-### 11.5 `CraneOptimizer.UI/Features/F8_GAOptimizer/Views/CraneOptimizerDialog.xaml.cs`
-
-**What changed**
-
-Added:
-
-- a refresh call after loading cranes;
-- a `CboCrane_SelectionChanged` handler that refreshes ViewModel options;
-- `RefreshLoadChartOperatingSetupOptions(Crane? crane)` helper;
-- selected setup constraints in `CaptureOptions()`.
-
-**Why**
-
-Code-behind already owns dialog control orchestration and option capture. This change keeps WPF event handling local while delegating option construction to the ViewModel.
-
-**How**
-
-The code-behind passes only the selected `Crane` into the ViewModel and later reads selected constraint values from the ViewModel when creating `CraneOptimizerDialogOptions`.
-
-**Downstream impact**
-
-- The selector updates when the user changes crane.
-- The optimizer receives the selected setup only when the run options are captured.
-
-### 11.6 `CraneOptimizer.UI/Features/F8_GAOptimizer/Workflows/CraneOptimizerDialogWorkflow.cs`
-
-**What changed**
-
-`CraneOptimizerDialogOptions` gained:
-
-```csharp
-int? LoadChartNumberOfLinesConstraint,
-string? LoadChartOperatingConditionConstraint
-```
-
-`BuildSettings(...)` now maps them into `GASettings`:
-
-```csharp
-LoadChartNumberOfLinesConstraint = options.LoadChartNumberOfLinesConstraint,
-LoadChartOperatingConditionConstraint = NullIfWhiteSpace(options.LoadChartOperatingConditionConstraint)
-```
-
-Added helper:
-
-```csharp
-private static string? NullIfWhiteSpace(string? value)
-```
-
-**Why**
-
-The workflow is the appropriate bridge between dialog input and application settings. It preserves layering by avoiding direct UI-to-engine calls.
-
-**Downstream impact**
-
-- The existing capacity resolver receives line/condition constraints through `GASettings`.
-- Whitespace-only condition values become `null`.
-- Default `Any` behavior remains unchanged.
-
-### 11.7 `docs/domain/pdf-load-chart-import.md`
-
-**What changed**
-
-Added a section documenting downstream GA operating setup selection.
-
-**Why**
-
-The PDF importer preserves metadata, but it must not decide crane reeving or operating setup for optimization. The runtime choice belongs in F8.
-
-**Downstream impact**
-
-- Clarifies separation of responsibility between PDF import and GA runtime selection.
-- Documents how metadata flows into `GASettings` and the resolver.
-
----
-
-## 12. Subsystem-Level Impact Assessment
-
-### 12.1 F8 Crane Position Optimizer UI
-
-**Impact:** Direct.
-
-The UI gains a new operating setup panel and dynamic selector behavior. This is the primary modified subsystem.
-
-### 12.2 F8 ViewModel / MVVM State
-
-**Impact:** Direct.
-
-The ViewModel now owns selector state, option generation, slider synchronization, collapsed/expanded state, and presentation text.
-
-### 12.3 Dialog Workflow / Application Settings
-
-**Impact:** Direct.
-
-The workflow maps selected constraints into `GASettings`.
-
-### 12.4 Genetic Algorithm Engine
-
-**Impact:** Indirect.
-
-No GA algorithm code was changed. However, GA capacity lookup can now be constrained from the UI using existing settings. This may change optimization results when the user selects a specific setup.
-
-### 12.5 `LoadChartCapacityResolver`
-
-**Impact:** Indirect, no code changes.
-
-The resolver already applies `LoadChartNumberOfLinesConstraint` and `LoadChartOperatingConditionConstraint`. This branch increases the likelihood those settings are intentionally populated by users.
-
-### 12.6 PDF Load-Chart Import Engine
-
-**Impact:** Documentation only.
-
-No importer code changed. The importer remains responsible for preserving metadata, not choosing runtime setup.
-
-### 12.7 Streamlit UI
-
-**Impact:** None.
-
-No Streamlit code, dashboards, or notebooks were modified. If Streamlit consumes optimizer outputs, it may indirectly observe different results when users choose constraints, but no Streamlit implementation changed.
-
-### 12.8 Diagnostics
-
-**Impact:** Indirect.
-
-No diagnostics schema was changed. However, constrained GA runs can influence diagnostics because selected setup constraints affect capacity resolution and liftability outcomes.
-
-### 12.9 Verification Logic
-
-**Impact:** Direct.
-
-Focused test coverage was significantly expanded. Full solution tests were also run after cleanup/hardening.
-
-### 12.10 Installers and Packaging
-
-**Impact:** None.
-
-No installer scripts, package manifests, deployment scripts, or release pipelines were modified.
-
-### 12.11 Outputs Pipeline
-
-**Impact:** Indirect.
-
-No output format changed. Results may differ when users intentionally constrain capacity lookup. This is expected runtime behavior, not an output pipeline schema change.
-
-### 12.12 Runtime Configuration
-
-**Impact:** Direct through `GASettings` values only.
-
-No config files changed. Runtime behavior changes only when dialog options produce non-null constraints.
-
-### 12.13 Database and Persistence
-
-**Impact:** None.
-
-No schema changes, migrations, repositories, or persistence DTOs were modified.
-
-### 12.14 Dependency Management
-
-**Impact:** None.
-
-No NuGet packages or external libraries were added or changed.
-
----
-
-## 13. Genetic Algorithm and Capacity Resolution Impact
-
-### 13.1 What Changes in GA Behavior
-
-The GA search algorithm remains the same. The branch changes the settings used during capacity lookup when the user selects a constraint.
-
-Potential runtime effect:
-
-| User selection | Capacity lookup behavior |
-|---|---|
-| `Any` | Existing behavior; all eligible chart entries remain available. |
-| `4 lines` | Resolver may filter to chart entries with `NumberOfLines == 4`. |
-| `Condition: On outriggers 360 degrees` | Resolver may filter to entries matching the condition label. |
-
-### 13.2 What Does Not Change
-
-The branch does not change:
-
-- population generation;
-- mutation;
-- crossover;
-- scoring weights;
-- crane geometry;
-- radius calculations;
-- load extraction;
-- resolver fallback semantics;
-- manufacturer capacity values.
-
-### 13.3 Why This Is Correct
-
-The UI choice belongs upstream of `GASettings`, not inside the resolver. The resolver should remain a deterministic capacity lookup component based on settings and chart entries.
-
----
-
-## 14. PDF Load-Chart Import and Provenance Interaction
-
-### 14.1 Relationship to PDF Import Robustness Work
-
-The PDF importer and review workflow make load-chart data available. This branch consumes that data but does not modify extraction.
-
-### 14.2 Relationship to Provenance Diagnostics Work
-
-Prior provenance work preserved and surfaced metadata such as:
-
-- number of lines;
-- operating condition;
-- visual column identity;
-- source/load-chart context.
-
-This branch converts that preserved metadata into a runtime user decision in the F8 optimizer dialog.
-
-### 14.3 Responsibility Boundary
-
-The PDF importer must not decide which operating setup the optimizer should use. This branch explicitly documents and implements that the user-facing runtime choice belongs in F8.
-
----
-
-## 15. UI, MVVM, Workflow, and Layering Review
-
-### 15.1 UI Layer
-
-The XAML is declarative and binds to ViewModel properties. It does not scan crane data, build options, or compute constraints.
-
-### 15.2 ViewModel Layer
-
-The ViewModel owns UI state and presentation semantics. It does contain a significant amount of UI text and option generation logic. This is acceptable for the current branch because the logic is presentation-oriented and does not duplicate resolver capacity algorithms.
-
-### 15.3 Code-Behind Layer
-
-The code-behind performs orchestration:
-
-- refresh ViewModel when selected crane changes;
-- capture selected option into dialog options.
-
-It does not implement capacity lookup or GA business logic.
-
-### 15.4 Workflow Layer
-
-The workflow maps string/nullable dialog inputs into typed `GASettings` values. This preserves established settings construction boundaries.
-
-### 15.5 Domain and Infrastructure Layers
-
-No changes.
-
----
-
-## 16. Diagnostics, Outputs, Reproducibility, and Artifact Hygiene
-
-### 16.1 Diagnostics
-
-No diagnostics schema changed. However, selected setup constraints affect capacity resolution and therefore can indirectly affect diagnostics results.
-
-### 16.2 Outputs
-
-No output pipeline format changed. Optimizer results can differ when constrained settings are selected.
-
-### 16.3 Reproducibility
-
-The branch improves reproducibility by making operating setup explicit in runtime configuration rather than implicit or unavailable.
-
-Reproducibility implications:
-
-- users can intentionally rerun with the same crane and selected setup;
-- tests verify default and constrained settings mapping;
-- final documentation records validation commands;
-- `.gitignore` prevents local test artifacts from polluting source diffs.
-
-### 16.4 Artifact Hygiene
-
-The final branch ignores:
-
-- `**/TestResults/`;
-- `*.trx`;
-- `docs.zip`.
-
-This prevents generated validation artifacts from being accidentally committed.
-
----
-
-## 17. Validation and Reproducibility Record
-
-### 17.1 Final Focused Validation
-
-Command class:
-
-```powershell
-dotnet test CraneOptimizer.Application.Tests/CraneOptimizer.Application.Tests.csproj `
-  --no-build `
-  --configuration Debug `
-  --filter "FullyQualifiedName~CraneOptimizerDialogViewModelTests"
+dotnet restore
+dotnet build CraneOptimizer.sln -c Debug --no-restore --no-incremental
+dotnet test CraneOptimizer.sln -c Debug --no-build
 ```
 
 Observed result:
 
 ```text
-Passed! - Failed: 0, Passed: 13, Skipped: 0, Total: 13
+Test summary: total: 407, failed: 0, succeeded: 406, skipped: 1
+Build succeeded
 ```
 
-### 17.2 Full Solution Validation
+---
 
-Command class:
+## 5. Problem statement
+
+### 5.1 Original workflow gap
+
+The PDF load-chart import pipeline preserved rich metadata from manufacturer charts, including:
+
+- visual column index;
+- visual column header;
+- number of lines;
+- operating-condition label.
+
+However, the F8 GA optimizer initially had no robust, user-facing mechanism for selecting the intended load-chart operating setup at runtime.
+
+Without this selector, the optimizer either used default load-chart behavior or relied on implicit metadata. This was insufficient for a workflow where imported manufacturer charts include different line-count columns and where the user needs to choose a setup constraint before running the optimizer.
+
+### 5.2 Original UI ambiguity
+
+The previous implementation path risked conflating two different concepts:
+
+| Concept | Example | Correct role |
+|---|---|---|
+| Provenance / diagnostics label | `39.1 / 4 lines` | Explain which imported visual chart column produced a selected capacity. |
+| User-facing operating setup | `Up to 4 lines` | Constrain runtime capacity lookup. |
+
+Exposing every synthetic provenance label as a selectable operating setup created clutter and could mislead users into thinking boom-length labels were real operating-condition controls.
+
+### 5.3 Original count ambiguity
+
+The UI originally described the selected option in terms of “imported chart cells.” That wording was too broad because exact PDF import intentionally preserves blank and zero-capacity grid positions for audit/provenance. The selector needs to tell the user how many **usable positive capacity values** can participate in capacity lookup.
+
+### 5.4 Original line-count semantics ambiguity
+
+A strict equality model, such as “selected `4 lines` means exactly columns marked `4` lines,” would be too restrictive. The adopted model is inclusive:
+
+```text
+Selected up to 4 lines => entries requiring 2, 3, or 4 lines are eligible.
+```
+
+### 5.5 Original expanded UI density
+
+The expanded **Load Chart Operating Setup** panel became visually large, repeated the same coverage text, and risked clipping or crowding detail text. The final implementation makes the details scrollable, removes duplicated coverage text, and keeps the Run / Cancel / Apply controls visible.
+
+---
+
+## 6. Scope, non-scope, and branch boundaries
+
+### 6.1 In scope
+
+This branch includes:
+
+- F8 operating setup selector behavior;
+- dynamic option generation from selected crane load-chart metadata;
+- inclusive line-count eligibility;
+- usable positive capacity-value coverage counts;
+- default `Any` coverage summary;
+- suppression of synthetic PDF provenance labels as operating-condition choices;
+- ViewModel text and UI state behavior;
+- XAML layout, scrollability, and compactness improvements;
+- validation tests for ViewModel and resolver behavior;
+- documentation updates.
+
+### 6.2 Out of scope
+
+This branch intentionally does **not** include:
+
+- PDF extraction algorithm changes;
+- PDF page/table-specific assumptions;
+- database schema migrations;
+- installer or packaging changes;
+- dependency upgrades;
+- Streamlit UI changes;
+- GA algorithm redesign;
+- crane physics simulation;
+- certified capacity recalculation;
+- replacement of manufacturer load-chart values.
+
+### 6.3 Boundary rationale
+
+The branch preserves project layering:
+
+```text
+Domain → Application → Infrastructure → UI
+```
+
+The UI constructs user-facing options. The application resolver applies capacity lookup constraints. The importer preserves manufacturer data. The branch does not move business logic into XAML or view code-behind.
+
+---
+
+## 7. Architecture context
+
+### 7.1 Relevant architecture
+
+The relevant system components are:
+
+| Layer | Component | Responsibility |
+|---|---|---|
+| Domain | `TargetPoint` | Stores imported capacity entry metadata. |
+| Application | `GASettings` | Carries runtime optimizer settings. |
+| Application | `LoadChartCapacityResolver` | Resolves capacity under configured constraints. |
+| UI / ViewModel | `CraneOptimizerDialogViewModel` | Builds user-facing setup options and UI text. |
+| UI / XAML | `CraneOptimizerDialog.xaml` | Renders selector, details, and controls. |
+| UI / Workflow | `CraneOptimizerDialogWorkflow` | Maps dialog selection into `GASettings`. |
+| Tests | GA and ViewModel tests | Prevent regression in option construction and resolver semantics. |
+
+### 7.2 Key metadata fields
+
+The imported load-chart entry model includes:
+
+```csharp
+public int? VisualColumnIndex { get; set; }
+public string? VisualColumnHeader { get; set; }
+public int? NumberOfLines { get; set; }
+public string? OperatingConditionLabel { get; set; }
+```
+
+These fields are used differently:
+
+| Field | Runtime role |
+|---|---|
+| `VisualColumnIndex` | Visual provenance and visual-column count reporting. |
+| `VisualColumnHeader` | Provenance; may also assist parsing fallback. |
+| `NumberOfLines` | Primary input for line-count eligibility. |
+| `OperatingConditionLabel` | True condition constraint only when actionable; otherwise provenance. |
+
+### 7.3 Settings fields
+
+The runtime constraint is carried by `GASettings`:
+
+```csharp
+public int? LoadChartNumberOfLinesConstraint { get; set; }
+public string? LoadChartOperatingConditionConstraint { get; set; }
+```
+
+Interpretation:
+
+| Field | `null` | Non-null |
+|---|---|---|
+| `LoadChartNumberOfLinesConstraint` | No line-count constraint | Maximum eligible line count. |
+| `LoadChartOperatingConditionConstraint` | No condition constraint | Restrict lookup to matching condition. |
+
+---
+
+## 8. Before-and-after behavior
+
+### 8.1 Before
+
+Before this branch work:
+
+- the F8 optimizer did not present a polished, robust setup selector;
+- line-count metadata existed but was not consistently exposed as a runtime setup choice;
+- synthetic provenance labels risked being displayed as selectable conditions;
+- counts could imply preserved grid cells rather than usable capacity values;
+- expanded details could become visually dense.
+
+### 8.2 After
+
+After this branch work:
+
+- F8 displays a dedicated **Load Chart Operating Setup** card;
+- `Any` remains the default and reports total usable imported capacity coverage;
+- line-count options are generated dynamically from imported chart metadata;
+- selecting `N` means “up to `N` lines”;
+- coverage text counts only usable positive capacity values;
+- true operating-condition labels remain available when present;
+- synthetic labels derived from boom-header plus line-count metadata are suppressed;
+- the details region is scrollable and compact;
+- tests cover the critical semantics.
+
+### 8.3 Representative final UI behavior
+
+For the STC1300C imported data shown during smoke testing:
+
+| Selection | Coverage shown |
+|---|---|
+| `Any` | `271` usable values across `14` visual columns |
+| `Up to 2 lines` | `104` usable values across `5` visual columns |
+| `Up to 3 lines` | `201` usable values across `10` visual columns |
+| `Up to 4 lines` | `255` usable values across `13` visual columns |
+| `Up to 5 lines` | `271` usable values across `14` visual columns |
+
+These numbers are not hardcoded. They are computed from the selected crane’s imported load-chart entries.
+
+---
+
+## 9. End-to-end runtime flow
+
+```text
+User opens F8 Crane Position Optimizer
+        ↓
+User selects a crane
+        ↓
+ViewModel scans selected crane load-chart entries
+        ↓
+ViewModel builds Load Chart Operating Setup options
+        ↓
+User keeps Any or selects Up to N lines / true operating condition
+        ↓
+Dialog captures selected option
+        ↓
+Workflow maps selection into GASettings
+        ↓
+LoadChartCapacityResolver filters eligible load-chart entries
+        ↓
+GA optimization uses imported manufacturer capacities under selected constraint
+        ↓
+Diagnostics and UI outputs report selected capacity/provenance
+```
+
+### 9.1 Crane selection
+
+The selected crane is the input source for option construction. This branch does not create global options or use static manufacturer assumptions.
+
+### 9.2 Option generation
+
+The ViewModel scans the selected crane’s load chart and generates:
+
+1. default `Any`;
+2. line-count options for positive `NumberOfLines` values;
+3. true operating-condition options from actionable labels.
+
+### 9.3 Option capture
+
+The selected ViewModel option carries:
+
+```text
+NumberOfLinesConstraint
+OperatingConditionConstraint
+IsDefault
+Description
+```
+
+### 9.4 Settings mapping
+
+The workflow maps the selected option into `GASettings`.
+
+### 9.5 Resolver application
+
+The resolver applies the settings when selecting eligible load-chart entries. The resolver remains the authority for final liftability.
+
+---
+
+## 10. Core engineering semantics
+
+### 10.1 `Any` means unconstrained, not unknown
+
+`Any` means no user-imposed line-count or condition constraint. It does not mean the system lacks metadata. The UI now reports the total usable capacity coverage available under the unconstrained state.
+
+### 10.2 Line count is maximum eligibility
+
+The selected line count is a maximum setup eligibility constraint:
+
+```text
+Constraint = 4
+Eligible entries = entries requiring 1, 2, 3, or 4 lines
+Ineligible entries = entries requiring 5+ lines
+```
+
+The UI intentionally labels these options as `Up to N lines`.
+
+### 10.3 Capacity values remain manufacturer values
+
+The implementation does not calculate a new crane capacity from line count. It still uses the imported manufacturer load-chart capacity values.
+
+Line count controls eligibility; it does not certify, scale, or synthesize capacity.
+
+### 10.4 Usable capacity value definition
+
+A usable capacity value is a capacity value that is:
+
+```text
+> 0
+not NaN
+not infinite
+```
+
+Blank, zero, negative, `NaN`, and infinite values are not counted as usable coverage.
+
+### 10.5 Visual column count definition
+
+Visual column coverage is computed from imported visual-column identity. Where possible, visual column identity uses visual provenance fields so repeated boom headers remain distinguishable.
+
+### 10.6 Provenance label vs. operating condition
+
+Synthetic provenance labels remain important for diagnostics and audit, but they are not automatically user-facing operating setup choices.
+
+Example:
+
+```text
+39.1 / 4 lines
+```
+
+This is useful to describe which PDF visual column produced a capacity entry. It is not necessarily a real operating condition.
+
+---
+
+## 11. Feature implementation details
+
+### 11.1 Dynamic `Any` option
+
+The `Any` option is now generated from actual load-chart coverage:
+
+```text
+Uses 271 usable imported capacity values across 14 visual columns.
+No line-count or operating-condition constraint is applied.
+```
+
+The default option remains safe and backward compatible because it leaves both constraints unset.
+
+### 11.2 Inclusive line-count options
+
+Line-count options are generated from the set of positive imported `NumberOfLines` metadata values.
+
+For each option:
+
+```text
+option.NumberOfLinesConstraint = N
+option label = "Up to N lines"
+eligible entries = usable entries with NumberOfLines <= N
+```
+
+### 11.3 True operating-condition options
+
+True operating-condition labels can still be exposed when they represent meaningful setup labels. Synthetic numeric boom-header labels are suppressed.
+
+This prevents crowded or misleading selector choices.
+
+### 11.4 Usable coverage descriptions
+
+Coverage descriptions use precise wording:
+
+```text
+usable imported capacity value(s)
+visual column(s)
+Blank/zero preserved chart cells remain non-liftable.
+```
+
+The implementation includes singular/plural formatting so the UI does not display awkward `(s)` wording.
+
+### 11.5 Engineering-intuition details
+
+The expanded details show intuition about:
+
+- line-support index;
+- hook-speed intuition;
+- selected setup effect;
+- safety note that line count is an eligibility constraint, not a certified capacity calculation.
+
+### 11.6 Scrollable details
+
+The expanded details region is scrollable, and Run / Cancel / Apply remain outside the scrollable content. This prevents explanatory content from pushing primary action controls out of view.
+
+### 11.7 Final UI polish
+
+The final UI polish pass:
+
+- removed duplicate coverage text inside expanded details;
+- kept the compact summary at the top;
+- made the detail scroll region non-focusable;
+- removed or reduced the dotted scroll focus outline;
+- compacted detail rows after removing the duplicate summary;
+- consolidated duplicated documentation sections.
+
+---
+
+## 12. File-by-file implementation ledger
+
+### 12.1 `CraneOptimizer.Application/Optimization/GeneticAlgorithms/Settings/GASettings.cs`
+
+#### What changed
+
+The load-chart setup settings were clarified and/or updated to represent:
+
+```csharp
+public int? LoadChartNumberOfLinesConstraint { get; set; }
+public string? LoadChartOperatingConditionConstraint { get; set; }
+```
+
+#### Why it changed
+
+The optimizer needs a stable settings contract for F8 to pass the selected setup constraint to the application layer.
+
+#### Engineering meaning
+
+`LoadChartNumberOfLinesConstraint` is a maximum setup eligibility constraint, not an exact-line-only selector.
+
+#### Downstream impact
+
+`LoadChartCapacityResolver` reads these values. GA engine behavior changes only when a constraint is selected.
+
+---
+
+### 12.2 `CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/LoadChartCapacityResolver.cs`
+
+#### What changed
+
+The resolver applies the line-count constraint as an inclusive eligibility rule:
+
+```text
+NumberOfLines <= LoadChartNumberOfLinesConstraint
+```
+
+It also preserves default behavior when no constraint is specified.
+
+#### Why it changed
+
+Exact-only line count filtering would incorrectly exclude capacity values requiring fewer parts of line than the selected maximum setup supports.
+
+#### Problem solved
+
+Selecting `Up to 5 lines` now includes usable 2-, 3-, 4-, and 5-line entries rather than only 5-line entries.
+
+#### Downstream impact
+
+The GA has a more realistic feasible set under user-selected line constraints.
+
+#### Side effects
+
+A less restrictive feasible set may change optimizer results compared with exact-only filtering. This is intentional.
+
+---
+
+### 12.3 `CraneOptimizer.UI/Features/F8_GAOptimizer/ViewModels/CraneOptimizerDialogViewModel.cs`
+
+#### What changed
+
+The ViewModel now:
+
+- builds dynamic `Any` coverage from actual usable entries;
+- builds line-count options dynamically;
+- interprets line-count options as `Up to N lines`;
+- counts usable positive capacity values;
+- counts visual columns;
+- suppresses synthetic numeric provenance labels as operating-condition options;
+- exposes compact UI strings and engineering-intuition text;
+- uses selected option descriptions for collapsed summary text;
+- supports singular/plural formatting.
+
+#### Why it changed
+
+The ViewModel is the correct MVVM location for user-facing option construction and display text.
+
+#### Problem solved
+
+The UI now presents meaningful setup choices without exposing internal provenance labels or misleading cell counts.
+
+#### Downstream impact
+
+The user can select a setup constraint confidently. The selected option flows into `GASettings`.
+
+---
+
+### 12.4 `CraneOptimizer.UI/Features/F8_GAOptimizer/Views/CraneOptimizerDialog.xaml`
+
+#### What changed
+
+The XAML now includes a polished **Load Chart Operating Setup** details layout:
+
+- scrollable details area;
+- non-focusable `ScrollViewer`;
+- compacted row definitions;
+- duplicate coverage summary removed;
+- Run / Cancel / Apply kept visible.
+
+Representative final behavior:
+
+```text
+Top compact summary: visible
+Expanded details: scrollable
+Duplicate coverage summary inside details: removed
+Action buttons: fixed and visible
+```
+
+#### Why it changed
+
+The expanded panel had become visually dense and could repeat information. The final layout is more maintainable and clearer.
+
+#### Downstream impact
+
+No application-layer behavior changes. This is UI-only.
+
+---
+
+### 12.5 `CraneOptimizer.Application.Tests/GA/CraneOptimizerDialogViewModelTests.cs`
+
+#### What changed
+
+Tests were added or updated to cover:
+
+- dynamic `Any` option coverage;
+- singular/plural formatting;
+- zero/negative/non-finite capacity exclusion;
+- line-count coverage descriptions;
+- synthetic provenance label suppression;
+- selected-option summaries;
+- ViewModel state transitions.
+
+#### Why it changed
+
+This behavior is subtle and must not regress.
+
+#### Downstream impact
+
+Future UI/ViewModel edits that reintroduce misleading option labels or incorrect counts should fail tests.
+
+---
+
+### 12.6 `CraneOptimizer.Application.Tests/GA/LoadChartCapacityResolverTests.cs`
+
+#### What changed
+
+Resolver tests were added or updated to validate inclusive line-count eligibility.
+
+#### Why it changed
+
+The application layer must enforce the same semantics that the UI communicates.
+
+#### Downstream impact
+
+Prevents a mismatch where the UI says “up to N” but the resolver implements exact-only filtering.
+
+---
+
+### 12.7 `docs/domain/pdf-load-chart-import.md`
+
+#### What changed
+
+The domain documentation now clarifies:
+
+- PDF import preserves exact visual provenance;
+- F8 operating setup is a runtime selector;
+- `Any` reports total usable coverage;
+- constrained options report usable subset coverage;
+- displayed counts are diagnostic and do not certify capacity;
+- expanded details are scrollable.
+
+#### Why it changed
+
+Future contributors need a single source of truth for how import metadata relates to optimizer setup constraints.
+
+---
+
+### 12.8 Local patch scripts and backups
+
+Several local `.ps1` patch scripts and `.chatgpt_patch_backups/` folders were created during implementation.
+
+#### Commit status
+
+These are local tooling artifacts and should not be staged unless intentionally preserved for an internal audit trail.
+
+---
+
+## 13. Subsystem impact assessment
+
+### 13.1 F8 Crane Position Optimizer UI
+
+| Impact type | Assessment |
+|---|---|
+| Direct impact | Yes |
+| Nature | New/polished setup selector behavior |
+| User-visible | Yes |
+| Risk | Low after validation |
+| Notes | The panel now communicates setup choices and coverage. |
+
+### 13.2 F8 ViewModel / MVVM state
+
+| Impact type | Assessment |
+|---|---|
+| Direct impact | Yes |
+| Nature | Option construction and display logic |
+| User-visible | Yes |
+| Risk | Medium due to semantic complexity |
+| Mitigation | ViewModel tests added/updated. |
+
+### 13.3 F8 dialog workflow
+
+| Impact type | Assessment |
+|---|---|
+| Direct impact | Yes |
+| Nature | Selected setup option flows into `GASettings` |
+| User-visible | Indirect |
+| Risk | Low |
+| Mitigation | Workflow mapping preserved and tested. |
+
+### 13.4 Genetic Algorithm engine
+
+| Impact type | Assessment |
+|---|---|
+| Direct algorithm change | No |
+| Indirect behavior change | Yes, through capacity eligibility settings |
+| Runtime effect | GA feasible set can change when user selects a line-count constraint |
+| Risk | Controlled |
+| Mitigation | Resolver tests and default `Any` behavior. |
+
+The GA engine itself is not redesigned. The branch changes the input capacity set available to the GA through documented settings.
+
+### 13.5 Load-chart capacity resolver
+
+| Impact type | Assessment |
+|---|---|
+| Direct impact | Yes |
+| Nature | Inclusive line-count filtering |
+| User-visible | Indirect |
+| Risk | Medium |
+| Mitigation | Unit tests for line-count semantics. |
+
+### 13.6 PDF load-chart import engine
+
+| Impact type | Assessment |
+|---|---|
+| Direct impact | No |
+| Indirect impact | Yes, metadata consumed downstream |
+| Runtime effect | Preserved `NumberOfLines` and provenance metadata become more valuable |
+| Risk | Low |
+| Mitigation | Importer responsibilities remain unchanged. |
+
+### 13.7 Streamlit UI
+
+| Impact type | Assessment |
+|---|---|
+| Direct impact | No |
+| Indirect impact | None known |
+| Required action | None |
+| Notes | This branch is WPF/F8-focused. |
+
+### 13.8 Diagnostics
+
+| Impact type | Assessment |
+|---|---|
+| Direct impact | Minimal |
+| Indirect impact | Selected resolver output remains tied to provenance |
+| Required action | None |
+| Notes | This branch preserves diagnostics semantics; it does not replace provenance reporting. |
+
+### 13.9 Verification logic
+
+| Impact type | Assessment |
+|---|---|
+| Direct impact | Yes |
+| Nature | New tests and updated expectations |
+| Required action | Continue running full application test suite |
+| Notes | Tests are the main regression guard. |
+
+### 13.10 Installers and packaging
+
+| Impact type | Assessment |
+|---|---|
+| Direct impact | No |
+| Required action | None |
+| Notes | No installer, packaging, or deployment scripts changed. |
+
+### 13.11 Outputs pipeline
+
+| Impact type | Assessment |
+|---|---|
+| Direct impact | No |
+| Indirect impact | Optimizer results may differ under selected constraint |
+| Required action | Ensure diagnostics remain consistent with selected setup |
+| Notes | No CSV schema changes are introduced by this branch. |
+
+### 13.12 Runtime configuration
+
+| Impact type | Assessment |
+|---|---|
+| Direct impact | Yes |
+| Nature | `GASettings` carries selected load-chart setup constraint |
+| Persistence | No new persisted configuration introduced |
+| Notes | Runtime options are selected per optimizer dialog run. |
+
+### 13.13 Database and migrations
+
+| Impact type | Assessment |
+|---|---|
+| Direct impact | No |
+| Schema migration | No |
+| Required action | None |
+| Notes | Existing metadata fields are consumed; no schema additions are made. |
+
+### 13.14 Dependency management
+
+| Impact type | Assessment |
+|---|---|
+| Direct impact | No |
+| Package changes | None |
+| Warnings | Existing xBIM `NU1701` warnings remain |
+| Notes | The branch does not upgrade packages. |
+
+---
+
+## 14. Genetic algorithm and resolver impact
+
+### 14.1 What changes in GA behavior
+
+When the user chooses a setup constraint, the GA capacity lookup can now be restricted by line-count eligibility.
+
+Example:
+
+```text
+Selected: Up to 3 lines
+Eligible load-chart entries: entries requiring 1, 2, or 3 lines
+Excluded entries: entries requiring 4 or more lines
+```
+
+### 14.2 What does not change
+
+The branch does not change:
+
+- chromosome representation;
+- selection, crossover, mutation, or fitness algorithm;
+- placement geometry;
+- crane swing radius logic;
+- cost model;
+- output schema;
+- diagnostics file structure;
+- imported manufacturer capacity values.
+
+### 14.3 Why this is the correct modeling level
+
+The selector constrains the **source capacity entries** before or during capacity resolution. It does not attempt to calculate crane mechanics or infer capacity from line count. This keeps the GA tied to imported manufacturer load-chart values.
+
+### 14.4 Default behavior preserved
+
+When `Any` is selected:
+
+```text
+LoadChartNumberOfLinesConstraint = null
+LoadChartOperatingConditionConstraint = null
+```
+
+The optimizer remains unconstrained by setup selection.
+
+---
+
+## 15. PDF import and provenance interaction
+
+### 15.1 Relationship to PDF import robustness work
+
+The PDF import robustness work ensures manufacturer PDF load-chart tables are detected, ordered, merged when appropriate, previewed, and imported accurately. This branch does not alter that behavior.
+
+### 15.2 Relationship to provenance diagnostics work
+
+The provenance diagnostics work preserved metadata through runtime evaluation and diagnostics. This branch consumes that metadata for user-facing setup selection and coverage reporting.
+
+### 15.3 Responsibility boundary
+
+| Responsibility | Owner |
+|---|---|
+| Extract/load chart table values | PDF/CSV import services |
+| Preserve exact visual provenance | Import and domain metadata |
+| Present runtime setup choices | F8 ViewModel/UI |
+| Apply setup constraint | `LoadChartCapacityResolver` |
+| Report selected capacity/provenance | Diagnostics/output pipeline |
+
+### 15.4 Contradiction prevention
+
+Future contributors should not interpret this branch as changing PDF import semantics. Import should continue preserving exact visual chart structure and metadata. F8 should interpret metadata for runtime setup selection without modifying imported values.
+
+---
+
+## 16. Diagnostics, outputs, and reproducibility
+
+### 16.1 Diagnostics
+
+This branch does not redesign diagnostics. It preserves the separation between:
+
+- selected runtime setup constraint;
+- selected capacity value;
+- selected provenance fields;
+- load-chart resolver failure reasons.
+
+### 16.2 Outputs
+
+No intentional output schema changes are introduced. However, optimizer results can differ when a user selects a constraint because the eligible load-chart subset changes.
+
+### 16.3 Reproducibility
+
+A reproducible evaluation requires recording:
+
+- selected crane;
+- imported load-chart data;
+- selected operating setup option;
+- `GASettings` snapshot;
+- random seed / GA run settings;
+- solver version / branch commit.
+
+### 16.4 Artifact hygiene
+
+Do not commit local backup folders unless explicitly desired:
+
+```text
+.chatgpt_patch_backups/
+```
+
+Do not stage uploaded archive artifacts unless intentionally part of the repo:
+
+```text
+docs.rar
+```
+
+---
+
+## 17. Validation record
+
+### 17.1 Final automated validation
+
+Observed final validation:
+
+```text
+dotnet restore CraneOptimizer.sln -v minimal
+dotnet build CraneOptimizer.sln -c Debug --no-restore --no-incremental -v minimal
+dotnet test CraneOptimizer.sln -c Debug --no-build -v normal
+```
+
+Final test result:
+
+```text
+Test summary: total: 407, failed: 0, succeeded: 406, skipped: 1
+```
+
+### 17.2 Validation coverage
+
+| Area | Validation mechanism |
+|---|---|
+| XAML well-formedness | XML parse and WPF build |
+| UI compile-time bindings | `CraneOptimizer.UI` build |
+| ViewModel behavior | ViewModel unit tests |
+| Resolver behavior | Resolver unit tests |
+| Full solution integrity | `dotnet build` |
+| Regression suite | `dotnet test` |
+| Manual UI behavior | Screenshots and smoke testing |
+
+### 17.3 Known warnings
+
+Warnings observed during validation include:
+
+- `NU1701` package compatibility warnings for xBIM packages;
+- nullable reference warnings;
+- unused event warnings in tests;
+- Git LF/CRLF normalization warnings.
+
+These warnings existed outside the central implementation and did not block validation.
+
+---
+
+## 18. Backward compatibility and migration behavior
+
+### 18.1 Existing projects
+
+Existing projects remain loadable because no database migration or schema change is introduced by this branch.
+
+### 18.2 Existing load charts
+
+Existing load charts without `NumberOfLines` metadata still operate under `Any`. If line-count options cannot be generated, the UI falls back to default behavior.
+
+### 18.3 Existing GA behavior
+
+`Any` preserves previous default behavior. Only explicit user selection constrains capacity lookup.
+
+### 18.4 Existing diagnostics
+
+Diagnostics continue to report imported capacity and provenance information. This branch does not remove diagnostic fields.
+
+### 18.5 Existing PDF import
+
+PDF import behavior remains intact. The branch consumes imported metadata but does not alter table detection or parsing.
+
+---
+
+## 19. Regression-prevention strategy
+
+### 19.1 Default behavior regression
+
+Guard: tests verify `Any` remains default and uses no constraints.
+
+### 19.2 Line-count semantics regression
+
+Guard: resolver tests verify `Up to N` behavior.
+
+### 19.3 Coverage count regression
+
+Guard: ViewModel tests verify usable positive capacity values are counted, while zero/negative/non-finite values are excluded.
+
+### 19.4 Synthetic-label regression
+
+Guard: ViewModel tests verify synthetic PDF provenance labels are suppressed from user-facing condition options.
+
+### 19.5 UI layout regression
+
+Guard: WPF build verifies XAML validity. Manual smoke testing verifies layout and scroll behavior.
+
+### 19.6 Documentation regression
+
+Guard: this dossier and `docs/domain/pdf-load-chart-import.md` state the current semantics explicitly.
+
+---
+
+## 20. Technical decisions and tradeoffs
+
+### 20.1 Decision: update the operating-setup dossier rather than creating a separate parallel one
+
+**Context:** Three related dossiers exist, but only the operating-setup dossier directly describes this branch feature.
+
+**Decision:** Replace the older operating-setup dossier with this consolidated current document.
+
+**Consequences:**
+
+- avoids contradictory active docs;
+- preserves upstream PDF/provenance docs as historical context;
+- gives future contributors one authoritative current source.
+
+### 20.2 Decision: line-count selection is inclusive
+
+**Context:** Exact-only filtering is possible but too restrictive.
+
+**Decision:** Model selected line count as maximum eligibility.
+
+**Consequences:**
+
+- user selecting `Up to 5 lines` can still use entries requiring fewer lines;
+- feasible set is more realistic;
+- tests must verify inclusive behavior.
+
+### 20.3 Decision: suppress synthetic provenance labels from setup selector
+
+**Context:** Labels like `39.1 / 4 lines` are derived from chart provenance, not necessarily real setup modes.
+
+**Decision:** Do not expose synthetic numeric provenance labels as condition options.
+
+**Consequences:**
+
+- cleaner UI;
+- reduced risk of misleading users;
+- provenance still preserved for diagnostics.
+
+### 20.4 Decision: count usable capacity values, not grid cells
+
+**Context:** Exact visual imports preserve blank and zero grid cells.
+
+**Decision:** UI coverage counts only positive finite capacity values.
+
+**Consequences:**
+
+- coverage text better reflects optimizer-relevant values;
+- import audit/provenance remains intact;
+- zero/blank cells remain non-liftable.
+
+### 20.5 Decision: keep capacity certification out of UI intuition
+
+**Context:** More lines imply mechanical support intuition, but capacity remains manufacturer-rated.
+
+**Decision:** UI text emphasizes that line count is a setup eligibility constraint, not a standalone capacity calculation.
+
+**Consequences:**
+
+- avoids false engineering certification;
+- keeps liability-sensitive semantics clear;
+- preserves manufacturer chart as authority.
+
+### 20.6 Decision: scrollable details with fixed action buttons
+
+**Context:** Details can be text-heavy.
+
+**Decision:** Details scroll; Run / Cancel / Apply stay fixed.
+
+**Consequences:**
+
+- better usability on smaller windows;
+- actions remain visible;
+- panel remains informative without overwhelming layout.
+
+---
+
+## 21. Risks, limitations, and future work
+
+### 21.1 Remaining UI text density
+
+The panel is much cleaner, but coverage text can still wrap on narrow windows. A future UI polish pass could separate coverage and safety text into structured short lines.
+
+### 21.2 Manual smoke testing remains important
+
+Automated tests validate behavior and build integrity, but manual UI smoke tests remain useful for WPF layout.
+
+### 21.3 True operating-condition classification
+
+Synthetic numeric labels are suppressed, but future cranes may introduce real textual setup conditions. The actionable-label classifier may need future expansion as more manufacturer chart formats are imported.
+
+### 21.4 Documentation drift risk
+
+Future changes to resolver semantics must update this dossier and `docs/domain/pdf-load-chart-import.md`.
+
+### 21.5 Warnings remain
+
+The branch does not resolve pre-existing nullable or xBIM package warnings. That is acceptable but should remain visible to maintainers.
+
+---
+
+## 22. Maintainer and reviewer checklist
+
+### 22.1 Code review checklist
+
+- [ ] Confirm `Any` leaves both load-chart constraints unset.
+- [ ] Confirm line-count selection maps to maximum eligibility.
+- [ ] Confirm resolver implements inclusive filtering.
+- [ ] Confirm `NumberOfLines` metadata is not treated as a capacity multiplier.
+- [ ] Confirm synthetic provenance labels are not exposed as condition options.
+- [ ] Confirm true operating-condition labels remain supported.
+- [ ] Confirm XAML remains MVVM-oriented and does not introduce business logic.
+- [ ] Confirm Run / Cancel / Apply remain outside scrollable details.
+- [ ] Confirm no schema migration was introduced.
+- [ ] Confirm local backup artifacts are not staged.
+
+### 22.2 Manual smoke-test checklist
+
+1. Open the application.
+2. Select the crane that has imported line-count metadata.
+3. Open **F8 Crane Position Optimizer**.
+4. Confirm `Any` is the default.
+5. Confirm `Any` displays total usable imported capacity coverage.
+6. Select `Up to 2 lines`, `Up to 3 lines`, `Up to 4 lines`, and `Up to 5 lines`.
+7. Confirm each option displays the expected usable subset coverage.
+8. Confirm the expanded details do not duplicate the same coverage summary.
+9. Confirm details remain scrollable if content exceeds the region.
+10. Confirm Run / Cancel / Apply remain visible.
+11. Run the optimizer and verify no runtime exception occurs.
+12. Confirm diagnostics remain coherent.
+
+---
+
+## 23. Commit and staging guidance
+
+### 23.1 Intended tracked files
+
+Stage only the intended tracked implementation files:
+
+```bash
+git add CraneOptimizer.UI/Features/F8_GAOptimizer/ViewModels/CraneOptimizerDialogViewModel.cs
+git add CraneOptimizer.UI/Features/F8_GAOptimizer/Views/CraneOptimizerDialog.xaml
+git add CraneOptimizer.Application.Tests/GA/CraneOptimizerDialogViewModelTests.cs
+git add CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/LoadChartCapacityResolver.cs
+git add CraneOptimizer.Application/Optimization/GeneticAlgorithms/Settings/GASettings.cs
+git add CraneOptimizer.Application.Tests/GA/LoadChartCapacityResolverTests.cs
+git add docs/domain/pdf-load-chart-import.md
+git add docs/implementation/ga-load-chart-operating-setup-selector-dossier.md
+```
+
+### 23.2 Files not to stage unless intentional
+
+Do not use `git add .`.
+
+Avoid staging:
+
+```text
+.chatgpt_patch_backups/
+docs.rar
+```
+
+### 23.3 Suggested commit message
+
+```text
+feat(ga): add robust load-chart operating setup selector
+
+- add F8 load-chart operating setup selection with dynamic Any coverage
+- interpret line-count setup as inclusive up-to-N eligibility
+- count usable positive imported capacity values in UI coverage summaries
+- suppress synthetic visual provenance labels from setup condition choices
+- polish expanded setup details with scrollable compact layout
+- update resolver/settings tests and load-chart documentation
+```
+
+---
+
+## 24. Appendices
+
+### Appendix A — Changed file summary
+
+| File | Change category | Purpose |
+|---|---|---|
+| `GASettings.cs` | Settings contract | Carries load-chart setup constraints. |
+| `LoadChartCapacityResolver.cs` | Resolver semantics | Applies inclusive line-count eligibility. |
+| `CraneOptimizerDialogViewModel.cs` | UI logic | Builds options, counts coverage, formats descriptions. |
+| `CraneOptimizerDialog.xaml` | UI layout | Renders compact scrollable operating setup card. |
+| `CraneOptimizerDialogViewModelTests.cs` | Tests | Validates ViewModel behavior. |
+| `LoadChartCapacityResolverTests.cs` | Tests | Validates resolver behavior. |
+| `docs/domain/pdf-load-chart-import.md` | Documentation | Clarifies import/runtime setup boundaries. |
+| `docs/implementation/ga-load-chart-operating-setup-selector-dossier.md` | Documentation | This authoritative branch dossier. |
+
+### Appendix B — Implementation mapping
+
+| Requirement | Implementation location |
+|---|---|
+| Default automatic setup | `LoadChartOperatingSetupOption.Any`, ViewModel refresh logic |
+| Dynamic `Any` coverage | `CreateAnyOperatingSetupOption` and usable coverage helpers |
+| Inclusive line count | `LoadChartCapacityResolver` |
+| UI line-count options | `CraneOptimizerDialogViewModel` |
+| Coverage counts | ViewModel usable-capacity helpers |
+| Visual column counts | ViewModel visual-column identity helper |
+| Scrollable details | `CraneOptimizerDialog.xaml` |
+| Safety wording | ViewModel and XAML bindings |
+| Regression tests | GA test project |
+
+### Appendix C — Reproducibility commands
 
 ```powershell
-dotnet test CraneOptimizer.sln --no-build --configuration Debug
+cd "C:\Users\Bahyg\Source\Repos\CranePathOptimizer"
+dotnet restore CraneOptimizer.sln -v minimal
+dotnet build CraneOptimizer.sln -c Debug --no-restore --no-incremental -v minimal
+dotnet test CraneOptimizer.sln -c Debug --no-build -v normal
+git status --short --branch --untracked-files=all
 ```
 
-Observed result from cleanup validation:
+### Appendix D — Related documentation
 
-```text
-Passed! - Failed: 0, Passed: 396, Skipped: 1, Total: 397
-```
-
-### 17.3 Restore and Build
-
-Observed final build result:
-
-```text
-Build succeeded.
-12 Warning(s)
-0 Error(s)
-```
-
-The earlier full cleanup validation also showed:
-
-```text
-236 Warning(s)
-0 Error(s)
-```
-
-The warning count varies based on command context and projects included, but no errors were observed.
-
-### 17.4 Known Warnings
-
-Two categories of warnings appeared:
-
-1. LF/CRLF Git warnings for text files.
-2. `NU1701` warnings for Xbim packages restored using .NET Framework target assets against `net8.0-windows7.0` projects.
-
-These warnings were pre-existing/environmental and did not represent branch-specific build failures.
-
----
-
-## 18. Regression-Prevention Strategy
-
-### 18.1 Default Behavior Regression
-
-Tests assert that `Any` maps to null constraints. This prevents accidental behavior changes where the optimizer becomes constrained by default.
-
-### 18.2 Workflow Mapping Regression
-
-Tests assert that selected line count and operating condition are correctly mapped into `GASettings`.
-
-### 18.3 Mixed Metadata Regression
-
-Final hardening added coverage for chart points that have both `NumberOfLines` and `OperatingConditionLabel`. This prevents future changes from hiding condition labels when line metadata is present.
-
-### 18.4 UI State Regression
-
-Tests cover collapsed/expanded state and selected constraint preservation when the panel is collapsed.
-
-### 18.5 Encoding/Tooltip Regression
-
-Prior-chat tests checked that scale labels did not contain mojibake-like characters such as `\u00e2` or `\u251c`, protecting against bad encoded dash/box glyphs in slider labels.
-
----
-
-## 19. Technical Tradeoffs and Design Decisions
-
-### 19.1 New Dossier vs. Updating Older Dossier
-
-Decision: create a new dossier.
-
-Rationale:
-
-- older dossiers describe different branches;
-- this branch is downstream runtime selection, not import/provenance infrastructure;
-- a new file avoids corrupting historical documentation;
-- cross-references preserve context.
-
-### 19.2 ViewModel Option Generation
-
-Decision: generate options in the F8 ViewModel.
-
-Rationale:
-
-- option construction is UI-specific;
-- no resolver algorithm duplication is required;
-- code remains close to binding state;
-- no DI/service changes needed.
-
-Tradeoff:
-
-- ViewModel grows larger. If more setup dimensions are added, extraction into a small helper/service may be appropriate.
-
-### 19.3 Slider Rather Than ComboBox
-
-Decision: final UI uses a discrete slider and labels rather than only a plain dropdown.
-
-Rationale:
-
-- line-count choices have an intuitive ordering;
-- the UI can communicate fewer/more lines and hook-speed tradeoffs;
-- selected setup can be summarized visually.
-
-Tradeoff:
-
-- many operating-condition labels may crowd the slider label row.
-
-### 19.4 Collapsed by Default
-
-Decision: panel is collapsed by default.
-
-Rationale:
-
-- default optimizer behavior remains simple;
-- advanced load-chart setup selection does not overwhelm basic users;
-- badge and summary still expose active mode.
-
-### 19.5 Safety Text Included in UI
-
-Decision: include explicit engineering safety note.
-
-Rationale:
-
-- line count should not be mistaken for certified capacity calculation;
-- manufacturer load-chart data remains authoritative;
-- UI must avoid unsafe engineering interpretation.
-
----
-
-## 20. Known Limitations and Future Work
-
-### 20.1 Many Conditions May Crowded Slider Labels
-
-If a crane has many unique operating conditions, the slider label row may become crowded. Future UX options:
-
-- switch to combo/list when option count exceeds threshold;
-- show selected label only and use a dropdown for detailed selection;
-- split line-count and operating-condition constraints into two controls.
-
-### 20.2 Single Constraint Dimension at a Time
-
-The current option model can represent a line-count option or an operating-condition option, but not a combined option requiring both simultaneously from one user selection.
-
-Future enhancement could support compound options:
-
-```text
-4 lines + On outriggers 360 degrees
-```
-
-### 20.3 Manual UI Smoke Test Still Valuable
-
-Automated tests validate ViewModel/workflow behavior. A manual WPF smoke test should still confirm visual layout, toggle behavior, and slider readability with real crane data.
-
-### 20.4 ViewModel Size
-
-The ViewModel is larger after this branch. This is acceptable now but should be revisited if additional setup semantics are added.
-
----
-
-## 21. Risk Assessment
-
-| Risk | Severity | Mitigation |
-|---|---:|---|
-| Default optimizer behavior accidentally changes | High | `Any` maps to null constraints; tests assert this. |
-| UI implies certified capacity calculation | High | Safety note states manufacturer chart capacity remains authoritative. |
-| Operating-condition metadata hidden for mixed metadata points | Medium | Final hardening generates condition options from all labels and adds regression test. |
-| Crowded slider labels with many options | Medium | Documented as future UX improvement. |
-| ViewModel grows too large | Low/Medium | Future extraction recommended if feature expands. |
-| Generated artifacts accidentally committed | Low | `.gitignore` updated and final status cleaned. |
-| Existing Xbim package warnings misunderstood as branch failures | Low | Documented as warnings, not errors. |
-
----
-
-## 22. Maintainer Review Checklist
-
-Before merging or committing, reviewers should confirm:
-
-- [ ] Branch is still based on intended `div` lineage.
-- [ ] Only expected files are modified.
-- [ ] No local review bundles or test artifacts are staged.
-- [ ] `Any` remains the default operating setup.
-- [ ] `Any` maps to null GA constraints.
-- [ ] Line-count selection maps to `LoadChartNumberOfLinesConstraint`.
-- [ ] Condition selection maps to trimmed `LoadChartOperatingConditionConstraint`.
-- [ ] Mixed metadata test exists and passes.
-- [ ] XAML panel is visually acceptable.
-- [ ] Safety wording is retained.
-- [ ] Focused tests pass.
-- [ ] Full solution tests have passed or are intentionally deferred with documented rationale.
-
----
-
-## Appendix A — Changed File Summary
-
-| File | Layer | Change type | Directness |
-|---|---|---|---|
-| `.gitignore` | Repository hygiene | Ignore test artifacts and uploaded docs bundle | Direct |
-| `CraneOptimizerDialogViewModelTests.cs` | Tests | Added selector/workflow/hardening tests | Direct |
-| `CraneOptimizerDialogViewModel.cs` | UI ViewModel | Added operating setup option state, slider state, intuition text, metadata scanning | Direct |
-| `CraneOptimizerDialog.xaml` | WPF UI | Added collapsible selector panel | Direct |
-| `CraneOptimizerDialog.xaml.cs` | UI orchestration | Refresh options and capture selected constraints | Direct |
-| `CraneOptimizerDialogWorkflow.cs` | Application workflow | Map selected constraints into `GASettings` | Direct |
-| `docs/domain/pdf-load-chart-import.md` | Documentation | Document downstream GA setup selection responsibility | Direct |
-
----
-
-## Appendix B — Implementation Mapping
-
-| Requirement | Implemented by |
+| Document | Relationship |
 |---|---|
-| Preserve default behavior | `LoadChartOperatingSetupOption.Any`, workflow null mapping, tests |
-| Dynamic line-count choices | `RefreshLoadChartOperatingSetupOptions(...)` line grouping |
-| Dynamic condition choices | `RefreshLoadChartOperatingSetupOptions(...)` condition grouping |
-| Mixed metadata robustness | Removed `!NumberOfLines.HasValue` exclusion; mixed metadata test |
-| Collapsible UI | XAML panel + `IsLoadChartOperatingSetupExpanded` |
-| Slider selection | `SelectedLoadChartOperatingSetupSliderValue`, `OperatingSetupSliderMaximum`, scale labels |
-| Engineering intuition | ViewModel text/percentage properties + XAML cards |
-| Safe capacity framing | `OperatingSetupSafetyNote` |
-| Workflow mapping | `CraneOptimizerDialogWorkflow.BuildSettings(...)` |
-| Artifact hygiene | `.gitignore` changes |
-| Documentation | `docs/domain/pdf-load-chart-import.md` and this dossier |
+| `docs/implementation/pdf-load-chart-import-robustness-dossier.md` | Upstream PDF import context. |
+| `docs/implementation/load-chart-provenance-diagnostics.md` | Provenance preservation and diagnostics context. |
+| `docs/domain/pdf-load-chart-import.md` | Current domain reference for import/runtime setup boundary. |
+| `docs/implementation/ga-load-chart-operating-setup-selector-dossier.md` | This current branch dossier. |
 
----
+### Appendix E — External documentation references
 
-## Appendix C — Validation Commands
+- Diátaxis documentation framework: https://diataxis.fr/
+- Google Developer Documentation Style Guide: https://developers.google.com/style
+- Architectural Decision Records: https://adr.github.io/
+- Keep a Changelog: https://keepachangelog.com/
 
-Recommended final validation commands:
+### Appendix F — Glossary
 
-```powershell
-cd "$env:USERPROFILE\source\repos\CranePathOptimizer"
-
-git status --short --branch
-git diff --check
-
-dotnet restore .\CraneOptimizer.sln
-dotnet build .\CraneOptimizer.sln --configuration Debug --no-restore
-
-dotnet test .\CraneOptimizer.Application.Tests\CraneOptimizer.Application.Tests.csproj `
-  --configuration Debug `
-  --no-build `
-  --filter "FullyQualifiedName~CraneOptimizerDialogViewModelTests"
-
-# Optional full-suite validation before merge:
-dotnet test .\CraneOptimizer.sln --configuration Debug --no-build
-```
-
----
-
-## Appendix D — Evidence Artifacts
-
-| Artifact | Status |
+| Term | Meaning |
 |---|---|
-| Prior chat transcript | Incorporated |
-| Prior SAFE review package | Incorporated |
-| Current V5 forensic package | Incorporated |
-| Code changes review package | Incorporated |
-| Cleanup V4 validation logs | Incorporated |
-| Final post-patch review package | Incorporated |
-| Older related dossiers | Cross-referenced |
-| Project docs package | Consulted |
+| `Any` | Default setup option with no line-count or condition constraint. |
+| Usable capacity value | Positive finite imported manufacturer capacity value. |
+| Preserved grid cell | Exact visual PDF table cell retained for provenance/audit. |
+| Number of lines | Imported hoist line / parts-of-line metadata. |
+| Up to N lines | Runtime eligibility constraint allowing entries requiring no more than `N` lines. |
+| Operating condition | Real imported condition label, such as a meaningful manufacturer setup condition. |
+| Synthetic provenance label | Generated audit label such as `39.1 / 4 lines`; not a user setup condition. |
+| Visual column | Imported load-chart visual column, distinct even when headers repeat. |
 
 ---
 
-## Appendix E — Documentation References and Related Dossiers
+## Final statement
 
-### E.1 Related Project Dossiers
+This branch establishes a robust, data-driven, and validated F8 Load Chart Operating Setup workflow. It preserves manufacturer load-chart authority, avoids hardcoded PDF/table assumptions, keeps provenance and runtime setup semantics separate, and gives the user a clear way to constrain GA capacity lookup by setup eligibility while preserving default unconstrained behavior.
 
-- `docs/implementation/load-chart-provenance-diagnostics.md`
-- `docs/implementation/pdf-load-chart-import-robustness-dossier.md`
-- `docs/domain/pdf-load-chart-import.md`
-
-### E.2 External Documentation Practice References
-
-This dossier was structured using practices consistent with professional design documents, architecture decision records, and reproducibility-oriented computational engineering reports. The themes applied include:
-
-- design context before implementation details;
-- explicit decision rationale and consequences;
-- file-by-file impact ledgers;
-- validation and reproducibility commands;
-- known limitations and future work;
-- treating documentation as part of the engineering workflow.
-
----
-
-## Appendix F — Manual Smoke-Test Protocol
-
-Recommended WPF smoke test before final merge:
-
-1. Launch the WPF application.
-2. Open the F8 Crane Position Optimizer dialog.
-3. Select a crane with imported load-chart metadata.
-4. Confirm `LOAD CHART OPERATING SETUP` appears collapsed by default.
-5. Confirm badge reads `Automatic` under default state.
-6. Expand details.
-7. Confirm slider shows `Any` and imported setup stops.
-8. Select a line-count stop.
-9. Confirm badge changes to `Constrained`.
-10. Confirm collapsed summary preserves selected constraint when details are hidden.
-11. Run optimizer.
-12. Inspect results/diagnostics to confirm no crash and expected constrained behavior.
-13. Repeat with `Any` to confirm default behavior remains available.
-
----
-
-## Final Statement
-
-This branch completes the missing runtime bridge between imported load-chart operating metadata and GA capacity lookup settings. It does so without modifying PDF extraction, persistence schema, resolver algorithms, GA evolution logic, diagnostics schema, Streamlit UI, installers, or dependencies.
-
-The feature is validated by focused and full test evidence, preserves default behavior, exposes constraints through a professional WPF/MVVM panel, and documents downstream responsibility clearly. Remaining work is limited to optional UI scalability improvements for very large numbers of operating-condition labels and future refactoring if the ViewModel grows further.
+The final implementation is validated by a successful restore/build/test run and should be committed with this dossier as the authoritative implementation record for future maintainers.

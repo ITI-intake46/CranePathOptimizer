@@ -549,13 +549,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
         private static bool MatchesNumberOfLinesConstraint(TargetPoint entry, int requestedNumberOfLines)
         {
-            if (entry.NumberOfLines.HasValue)
-                return entry.NumberOfLines.Value == requestedNumberOfLines;
+            if (requestedNumberOfLines <= 0)
+                return false;
 
-            return TryFindNumberOfLinesInSourceText(entry.OperatingConditionLabel, out int labelLines)
-                    && labelLines == requestedNumberOfLines
-                || TryFindNumberOfLinesInSourceText(entry.VisualColumnHeader, out int headerLines)
-                    && headerLines == requestedNumberOfLines;
+            if (entry.NumberOfLines.HasValue)
+                return entry.NumberOfLines.Value > 0 && entry.NumberOfLines.Value <= requestedNumberOfLines;
+
+            if (TryFindNumberOfLinesInSourceText(entry.OperatingConditionLabel, out int labelLines))
+                return labelLines > 0 && labelLines <= requestedNumberOfLines;
+
+            return TryFindNumberOfLinesInSourceText(entry.VisualColumnHeader, out int headerLines)
+                && headerLines > 0
+                && headerLines <= requestedNumberOfLines;
         }
 
         private static bool TryFindNumberOfLinesInSourceText(string? value, out int numberOfLines)
@@ -595,7 +600,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         {
             var parts = new List<string>();
             if (settings.LoadChartNumberOfLinesConstraint.HasValue)
-                parts.Add($"lines {settings.LoadChartNumberOfLinesConstraint.Value}");
+                parts.Add($"up to {settings.LoadChartNumberOfLinesConstraint.Value} lines");
             if (!string.IsNullOrWhiteSpace(settings.LoadChartOperatingConditionConstraint))
                 parts.Add($"condition '{settings.LoadChartOperatingConditionConstraint}'");
 
