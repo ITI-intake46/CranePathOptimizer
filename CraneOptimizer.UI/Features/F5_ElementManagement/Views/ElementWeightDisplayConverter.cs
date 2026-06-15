@@ -6,7 +6,7 @@ using System;
 using System.Globalization;
 using System.Windows.Data;
 
-namespace CraneOptimizer.UI.Core.Converters
+namespace CraneOptimizer.UI.Features.F5_ElementManagement.Views
 {
     public class ElementWeightDisplayConverter : IValueConverter
     {
