@@ -162,16 +162,39 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         {
             foreach (var element in Elements)
             {
-                if (ElementWeightCalculator.IsEstimated(element))
-                {
-                    var newWeight = ElementWeightCalculator.GetWeightTons(element);
-                    element.ElementWT = newWeight;
-                    element.WeightTons = newWeight;
-                }
+                if (!ElementWeightCalculator.IsEstimated(element))
+                    continue;
+
+                if (!IsConcreteElement(element))
+                    continue;
+
+                var volume = element.VolumeM3 is > 0d
+                    ? element.VolumeM3.Value
+                    : element.ElementVolume is > 0d
+                        ? element.ElementVolume.Value
+                        : 0d;
+
+                if (volume <= 0d)
+                    continue;
+
+                var calculatedWeight = volume * ConcreteDensityKgPerM3 / 1000d;
+                element.ElementWT = calculatedWeight;
+                element.WeightTons = calculatedWeight;
             }
 
             ApplySearchFilter();
             LoadElementProperties();
+        }
+
+        private static bool IsConcreteElement(PrecastElement element)
+        {
+            var source = $"{element.ElementMaterial} {element.ElementType}".ToUpperInvariant();
+            if (source.Contains("STEEL") || source.Contains("REBAR") || source.Contains("REINFORC") ||
+                source.Contains("ALUMIN") || source.Contains("GLASS") || source.Contains("TIMBER") || source.Contains("WOOD"))
+            {
+                return false;
+            }
+            return true;
         }
 
         public string SelectedElementName
@@ -524,14 +547,12 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             {
                 CreateLiftStateGroup(panel.LiftState),
 
-                // Identity (Expanded)
                 CreateGroup("Identity", true,
-                    CreateProperty("ID", panel.Id, ""),
+                    CreateProperty("ID", GetReadableElementId(SelectedElement, panel.Id), ""),
                     CreateProperty("Name", panel.Name, ""),
                     CreateProperty("Type", panel.Type, ""),
                     CreateProperty("Material", panel.Material, "")),
 
-                // Geometry (Expanded)
                 CreateGroup("Geometry", true,
                     CreateDisplayProperty("Length", FormatLength(panel.Length)),
                     CreateDisplayProperty("Width", FormatLength(panel.Width)),
@@ -540,7 +561,6 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                     CreateDisplayProperty("Volume", FormatVolume(panel.Volume)))
             };
 
-            // Location (Expanded)
             var locationItems = new List<PropertyItem>
             {
                 CreateDisplayProperty("Model X", FormatLength(panel.CenterX)),
@@ -560,6 +580,49 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             properties.Add(CreateGroup("Location", true, locationItems.ToArray()));
 
             return properties;
+        }
+
+        private static string GetReadableElementId(PrecastElement? element, string fallback)
+        {
+            if (element == null)
+                return IsGenericOrMaterialId(fallback) ? "Unknown" : (string.IsNullOrWhiteSpace(fallback) ? "Unknown" : fallback);
+
+            if (!string.IsNullOrWhiteSpace(element.ElementRevitId) && !IsGenericOrMaterialId(element.ElementRevitId))
+                return element.ElementRevitId;
+
+            if (!string.IsNullOrWhiteSpace(element.ElementMark) && !IsGenericOrMaterialId(element.ElementMark))
+                return element.ElementMark;
+
+            if (!string.IsNullOrWhiteSpace(element.ElementID) && !IsGenericOrMaterialId(element.ElementID))
+                return element.ElementID;
+
+            if (!string.IsNullOrWhiteSpace(fallback) && !IsGenericOrMaterialId(fallback))
+                return fallback;
+
+            return "Unknown";
+        }
+
+        private static bool IsGenericOrMaterialId(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            var v = value.Trim().ToUpperInvariant();
+
+            return v == "C20"
+                || v == "C25"
+                || v == "C30"
+                || v == "C35"
+                || v == "C40"
+                || v == "WALL"
+                || v == "COLUMN"
+                || v == "BEAM"
+                || v == "SLAB"
+                || v == "ROOF"
+                || v == "UNKNOWN"
+                || v.StartsWith("CONCRETE/")
+                || v.StartsWith("QDC_CONCRETE")
+                || v.Contains("CONCRETE");
         }
 
         private PropertyItem CreateLiftStateGroup(ElementPanelLiftStateDto liftState)
@@ -599,12 +662,15 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             return modelStr;
         }
 
-        // Revit Integer ID
         private static string GetElementID(PrecastElement e)
         {
+            if (!string.IsNullOrWhiteSpace(e.ElementID))
+                return e.ElementID;
+
             if (!string.IsNullOrWhiteSpace(e.ElementRevitId))
                 return e.ElementRevitId;
-            return !string.IsNullOrEmpty(e.ElementID) ? e.ElementID : "-";
+
+            return "Unknown";
         }
 
         private static string GetPrecastDisplayName(PrecastElement e)
@@ -736,13 +802,9 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
         private string FormatVolume(double? value)
         {
-            if (!value.HasValue) return string.Empty;
-            
-            var settings = _unitSettingsService.Current;
-            var vol = UnitSystem.FromMeters(UnitSystem.FromMeters(UnitSystem.FromMeters(value.Value, settings.DisplayLengthUnit), settings.DisplayLengthUnit), settings.DisplayLengthUnit);
-            var symbol = UnitSystem.LengthSymbol(settings.DisplayLengthUnit);
-            
-            return $"{vol.ToString("N" + Math.Clamp(settings.DecimalPlaces, 0, 6), CultureInfo.CurrentCulture)} {symbol}\u00b3";
+            return value.HasValue
+                ? UnitSystem.FormatVolume(value.Value, _unitSettingsService.Current, CultureInfo.CurrentCulture)
+                : string.Empty;
         }
 
         private string FormatMass(double? value)
@@ -756,6 +818,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         {
             LoadElementProperties();
             OnPropertyChanged(nameof(GridSize));
+            CollectionViewSource.GetDefaultView(FilteredElements)?.Refresh();
         }
 
         private static string FormatValue(object? value)

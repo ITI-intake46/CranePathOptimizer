@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace CraneOptimizer.Domain.Units
 {
@@ -114,8 +114,47 @@ namespace CraneOptimizer.Domain.Units
         public static string FormatArea(double squareMeters, UnitSettings settings, CultureInfo? culture = null)
         {
             culture ??= CultureInfo.CurrentCulture;
-            var value = FromSquareMeters(squareMeters, settings.DisplayAreaUnit);
-            return $"{value.ToString(NumberFormat(settings.DecimalPlaces), culture)} {AreaSymbol(settings.DisplayAreaUnit)}";
+            var format = NumberFormat(settings.DecimalPlaces);
+
+            if (settings.DisplayAreaUnit == AreaUnit.SquareFoot)
+            {
+                var value = FromSquareMeters(squareMeters, AreaUnit.SquareFoot);
+                return $"{value.ToString(format, culture)} ft²";
+            }
+
+            if (settings.DisplayLengthUnit == LengthUnit.Millimeter)
+            {
+                var value = squareMeters * 1_000_000d;
+                return $"{value.ToString(format, culture)} mm²";
+            }
+
+            return $"{squareMeters.ToString(format, culture)} m²";
+        }
+
+        public static double FromCubicMeters(double cubicMeters, LengthUnit targetUnit) => targetUnit switch
+        {
+            LengthUnit.Millimeter => cubicMeters * 1_000_000_000d,
+            LengthUnit.Centimeter => cubicMeters * Math.Pow(100d, 3),
+            LengthUnit.Inch => cubicMeters * Math.Pow(InchesPerMeter, 3),
+            LengthUnit.Foot => cubicMeters * Math.Pow(FeetPerMeter, 3),
+            _ => cubicMeters
+        };
+
+        public static string FormatVolume(double cubicMeters, UnitSettings settings, CultureInfo? culture = null)
+        {
+            culture ??= CultureInfo.CurrentCulture;
+            var value = FromCubicMeters(cubicMeters, settings.DisplayLengthUnit);
+            
+            var symbol = settings.DisplayLengthUnit switch
+            {
+                LengthUnit.Millimeter => "mm³",
+                LengthUnit.Centimeter => "cm³",
+                LengthUnit.Inch => "in³",
+                LengthUnit.Foot => "ft³",
+                _ => "m³"
+            };
+
+            return $"{value.ToString(NumberFormat(settings.DecimalPlaces), culture)} {symbol}";
         }
 
         private static string NumberFormat(int decimalPlaces) =>
