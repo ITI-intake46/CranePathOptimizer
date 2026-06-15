@@ -1,6 +1,8 @@
 <Window x:Class="CraneOptimizer.UI.Features.F11_DXF.Views.DxfAlignmentDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:CraneOptimizer.UI.Core.Converters"
+        xmlns:convdx="clr-namespace:CraneOptimizer.UI.Core.Converters.DXF"
         Title="DXF Alignment"
         Width="420" SizeToContent="Height"
         MinWidth="360"
@@ -12,6 +14,8 @@
         Closed="Window_Closed">
 
     <Window.Resources>
+        <conv:BoolToVisibilityConverter  x:Key="BoolToVisibilityConverter"/>
+        <convdx:NullToCollapsedConverter x:Key="NullToCollapsedConverter"/>
         <Style x:Key="DxfDialogGroupBox" TargetType="GroupBox">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
@@ -127,16 +131,14 @@
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        TextTrimming="CharacterEllipsis"
-                                       Visibility="{Binding DxfFileName, 
-                                        Converter={StaticResource NullToCollapsedConverter}}"/>
+                                       Visibility="{Binding DxfFileName, Converter={StaticResource NullToCollapsedConverter}}"/>
                             <TextBlock Text="{Binding DxfInfo}"
                                        FontFamily="{StaticResource FontPrimary}"
                                        FontSize="{StaticResource FontSizeXS}"
                                        Margin="0,3,0,0"
                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"
-                                       Visibility="{Binding DxfInfo,
-                                        Converter={StaticResource NullToCollapsedConverter}}"/>
+                                       Visibility="{Binding DxfInfo, Converter={StaticResource NullToCollapsedConverter}}"/>
 
                             <CheckBox Content="Keep DXF text"
                                       IsChecked="{Binding KeepText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
