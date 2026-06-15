@@ -4,15 +4,28 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-def run(datasets_dir, reports_dir):
+def run(datasets_dir, reports_dir, diagnostics_dir=None):
     print("Building Assignment Datasets...")
     
-    scripts_dir = os.path.dirname(os.path.abspath(__file__))
-    workspace_root = os.path.dirname(os.path.dirname(scripts_dir))
-    diagnostics_dir = os.path.join(workspace_root, "CraneOptimizer.GAExperiment", "bin", "Debug", "net8.0-windows", "Diagnostics")
+    if diagnostics_dir is None:
+        scripts_dir = os.path.dirname(os.path.abspath(__file__))
+        workspace_root = os.path.dirname(os.path.dirname(scripts_dir))
+        diagnostics_dir = os.path.join(workspace_root, "CraneOptimizer.GAExperiment", "bin", "Debug", "net8.0-windows", "Diagnostics")
     
     results_csv = os.path.join(datasets_dir, "ExperimentResults.csv")
-    run_history_csv = os.path.join(diagnostics_dir, "ga_run_history.csv")
+    
+    # Search recursively for the run history file (per-run subdirectory policy)
+    import pathlib
+    diag_root = pathlib.Path(diagnostics_dir)
+    run_history_csv = None
+    for p in diag_root.rglob("ga_audit_run_history.csv"):
+        run_history_csv = str(p)
+        break
+    if run_history_csv is None:
+        # fallback: old name
+        candidate = os.path.join(diagnostics_dir, "ga_run_history.csv")
+        if os.path.exists(candidate):
+            run_history_csv = candidate
     
     if not os.path.exists(results_csv) or not os.path.exists(run_history_csv):
         print("Error: Missing base datasets for matching.")
@@ -58,7 +71,7 @@ def run(datasets_dir, reports_dir):
         best_idx = time_diffs.idxmin()
         best_diff = time_diffs[best_idx]
         
-        if best_diff.total_seconds() > 10:
+        if best_diff.total_seconds() > 60:
             no_matches_count += 1
             continue
             
@@ -70,10 +83,27 @@ def run(datasets_dir, reports_dir):
         dt = datetime.strptime(hist_ts, "%Y-%m-%d %H:%M:%S")
         suffix = dt.strftime("%Y%m%d_%H%M%S")
         
-        # File paths
-        final_assignments_path = os.path.join(diagnostics_dir, f"ga_final_assignments_{suffix}.csv")
-        diagnostics_path = os.path.join(diagnostics_dir, f"ga_diagnostics_{suffix}.csv")
-        matrix_path = os.path.join(diagnostics_dir, f"ga_assignment_matrix_{suffix}.csv")
+        # File paths – resolve relative to the run-specific subdirectory
+        # Try to find the files recursively since they live in per-run folders
+        final_assignments_path = None
+        diagnostics_path = None
+        matrix_path = None
+        for p in diag_root.rglob(f"ga_audit_final_assignments_{suffix}.csv"):
+            final_assignments_path = str(p)
+            break
+        for p in diag_root.rglob(f"ga_audit_diagnostics_{suffix}.csv"):
+            diagnostics_path = str(p)
+            break
+        for p in diag_root.rglob(f"ga_audit_assignment_matrix_{suffix}.csv"):
+            matrix_path = str(p)
+            break
+        # Fallback to direct path if not found
+        if final_assignments_path is None:
+            final_assignments_path = os.path.join(diagnostics_dir, f"ga_audit_final_assignments_{suffix}.csv")
+        if diagnostics_path is None:
+            diagnostics_path = os.path.join(diagnostics_dir, f"ga_audit_diagnostics_{suffix}.csv")
+        if matrix_path is None:
+            matrix_path = os.path.join(diagnostics_dir, f"ga_audit_assignment_matrix_{suffix}.csv")
         
         # Initialize default values
         load_balance_score = 0.0
@@ -319,4 +349,5 @@ if __name__ == "__main__":
     import sys
     datasets_dir = sys.argv[1] if len(sys.argv) > 1 else "."
     reports_dir = sys.argv[2] if len(sys.argv) > 2 else "."
-    run(datasets_dir, reports_dir)
+    diagnostics_dir = sys.argv[3] if len(sys.argv) > 3 else None
+    run(datasets_dir, reports_dir, diagnostics_dir)

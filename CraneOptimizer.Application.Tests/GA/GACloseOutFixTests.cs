@@ -370,9 +370,9 @@ namespace CraneOptimizer.Application.Tests.GA
                     Assert.NotEmpty(headers);
 
                     // Assert schema version and run IDs check where applicable
-                    bool hasOptRunId = headers[0] == "OptimizationRunId";
-                    bool hasStageRunId = headers.Length > 1 && headers[1] == "StageRunId";
-                    bool hasSchemaVersion = headers.Contains("DiagnosticsSchemaVersion");
+                    int optRunIdIndex = Array.IndexOf(headers, "OptimizationRunId");
+                    int stageRunIdIndex = Array.IndexOf(headers, "StageRunId");
+                    int schemaVersionIndex = Array.IndexOf(headers, "DiagnosticsSchemaVersion");
 
                     for (int i = 1; i < lines.Length; i++)
                     {
@@ -382,18 +382,24 @@ namespace CraneOptimizer.Application.Tests.GA
                         Assert.True(headers.Length == columns.Length,
                             $"Column count mismatch in file {Path.GetFileName(csvFile)} at line {i + 1}. Expected: {headers.Length} ({header}), Got: {columns.Length} ({lines[i]})");
 
-                        if (hasOptRunId)
+                        if (optRunIdIndex >= 0)
                         {
-                            Assert.Equal(settings.OptimizationRunId, columns[0]);
+                            Assert.Equal(settings.OptimizationRunId, columns[optRunIdIndex]);
                         }
-                        if (hasStageRunId)
+                        if (stageRunIdIndex >= 0)
                         {
-                            Assert.Equal(settings.StageRunId, columns[1]);
+                            string fileName = Path.GetFileName(csvFile);
+                            bool isStageFile = !fileName.Contains("run_summary") &&
+                                               !fileName.Contains("settings_snapshot") &&
+                                               !fileName.Contains("positions") &&
+                                               !fileName.Contains("element_assignments") &&
+                                               !fileName.Contains("project_features");
+                            string expectedStageRunId = isStageFile ? settings.StageRunId : "N/A";
+                            Assert.Equal(expectedStageRunId, columns[stageRunIdIndex]);
                         }
-                        if (hasSchemaVersion)
+                        if (schemaVersionIndex >= 0)
                         {
-                            int schemaIndex = Array.IndexOf(headers, "DiagnosticsSchemaVersion");
-                            Assert.Contains(columns[schemaIndex], new[] { "1.0", "2.0" });
+                            Assert.Contains(columns[schemaVersionIndex], new[] { "1.0", "2.0" });
                         }
                     }
                 }

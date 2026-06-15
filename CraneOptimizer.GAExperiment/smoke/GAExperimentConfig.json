@@ -1,7 +1,8 @@
 {
+  "BatchCalibrationMode": false,
   "CatalogDatabasePath": "F:\\06-ITI\\00-Project\\Main Project\\CraneOptimizer\\CraneOptimizer.UI\\bin\\Debug\\net8.0-windows\\Data\\crane.db",
   "ProjectFiles": [
-    "F:\\06-ITI\\00-Project\\tryProjects\\try4\\project.craneopt"
+    "F:\\06-ITI\\00-Project\\tryProjects\\auditmodel\\project.db"
   ],
   "Cranes": [
     "STC800"

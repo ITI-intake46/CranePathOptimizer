@@ -2,22 +2,26 @@ import os
 import glob
 import pandas as pd
 
-def run(reports_dir):
+def run(reports_dir, diagnostics_dir=None):
     print("Running Diagnostics Audit...")
     
     # Resolve directories
-    scripts_dir = os.path.dirname(os.path.abspath(__file__))
-    workspace_root = os.path.dirname(os.path.dirname(scripts_dir))
-    diagnostics_dir = os.path.join(workspace_root, "CraneOptimizer.GAExperiment", "bin", "Debug", "net8.0-windows", "Diagnostics")
+    if diagnostics_dir is None:
+        scripts_dir = os.path.dirname(os.path.abspath(__file__))
+        workspace_root = os.path.dirname(os.path.dirname(scripts_dir))
+        diagnostics_dir = os.path.join(workspace_root, "CraneOptimizer.GAExperiment", "bin", "Debug", "net8.0-windows", "Diagnostics")
     
     if not os.path.exists(diagnostics_dir):
         print(f"Warning: Diagnostics directory not found at {diagnostics_dir}")
         return
         
-    final_assignments_files = glob.glob(os.path.join(diagnostics_dir, "ga_final_assignments_*.csv"))
-    assignment_matrix_files = glob.glob(os.path.join(diagnostics_dir, "ga_assignment_matrix_*.csv"))
-    diagnostics_files = glob.glob(os.path.join(diagnostics_dir, "ga_diagnostics_*.csv"))
-    failure_breakdown_files = glob.glob(os.path.join(diagnostics_dir, "ga_failure_breakdown_*.csv"))
+    # Collect all CSVs recursively (per-run subdirectory policy)
+    import pathlib
+    diag_root = pathlib.Path(diagnostics_dir)
+    final_assignments_files = list(diag_root.rglob("ga_audit_final_assignments_*.csv"))
+    assignment_matrix_files = list(diag_root.rglob("ga_audit_assignment_matrix_*.csv"))
+    diagnostics_files = list(diag_root.rglob("ga_audit_diagnostics_*.csv"))
+    failure_breakdown_files = list(diag_root.rglob("ga_audit_failure_breakdown_*.csv"))
     
     # Audit lists
     empty_final = 0
@@ -31,28 +35,36 @@ def run(reports_dir):
     total_fail = len(failure_breakdown_files)
     
     for f in final_assignments_files:
-        if os.path.getsize(f) <= 1000:  # arbitrary threshold for empty header-only files
+        if f.stat().st_size <= 1000:
             empty_final += 1
             
     for f in assignment_matrix_files:
-        if os.path.getsize(f) <= 1000:
+        if f.stat().st_size <= 1000:
             empty_matrix += 1
             
     for f in diagnostics_files:
-        if os.path.getsize(f) <= 1000:
+        if f.stat().st_size <= 1000:
             empty_diag += 1
             
     for f in failure_breakdown_files:
-        if os.path.getsize(f) <= 1000:
+        if f.stat().st_size <= 1000:
             empty_fail += 1
 
-    # Audit the run history file
-    run_history_path = os.path.join(diagnostics_dir, "ga_run_history.csv")
+    # Audit the run history file – search recursively for the new naming convention
+    run_history_path = None
+    for p in diag_root.rglob("ga_audit_run_history.csv"):
+        run_history_path = str(p)
+        break
+    if run_history_path is None:
+        # fallback: old name
+        candidate = os.path.join(diagnostics_dir, "ga_run_history.csv")
+        if os.path.exists(candidate):
+            run_history_path = candidate
     history_loaded = False
     history_rows = 0
     history_columns = []
     
-    if os.path.exists(run_history_path):
+    if run_history_path and os.path.exists(run_history_path):
         try:
             df_hist = pd.read_csv(run_history_path)
             history_rows = len(df_hist)
@@ -89,10 +101,10 @@ This report summarizes the status of GA path optimizer diagnostics files exports
 
 | File Type | Prefix Pattern | Total Count | Empty/Failed Runs (Size < 1KB) | Valid Runs |
 | :--- | :--- | :--- | :--- | :--- |
-| **Final Assignments** | `ga_final_assignments_*.csv` | {total_final} | {empty_final} | {total_final - empty_final} |
-| **Assignment Matrix** | `ga_assignment_matrix_*.csv` | {total_matrix} | {empty_matrix} | {total_matrix - empty_matrix} |
-| **Run Diagnostics** | `ga_diagnostics_*.csv` | {total_diag} | {empty_diag} | {total_diag - empty_diag} |
-| **Failure Breakdown** | `ga_failure_breakdown_*.csv` | {total_fail} | {empty_fail} | {total_fail - empty_fail} |
+| **Final Assignments** | `ga_audit_final_assignments_*.csv` | {total_final} | {empty_final} | {total_final - empty_final} |
+| **Assignment Matrix** | `ga_audit_assignment_matrix_*.csv` | {total_matrix} | {empty_matrix} | {total_matrix - empty_matrix} |
+| **Run Diagnostics** | `ga_audit_diagnostics_*.csv` | {total_diag} | {empty_diag} | {total_diag - empty_diag} |
+| **Failure Breakdown** | `ga_audit_failure_breakdown_*.csv` | {total_fail} | {empty_fail} | {total_fail - empty_fail} |
 
 *Note: Runs with file sizes under 1KB represent GA executions that failed to find any feasible solution or were cancelled.*
 
@@ -126,4 +138,5 @@ This report summarizes the status of GA path optimizer diagnostics files exports
 if __name__ == "__main__":
     import sys
     reports_dir = sys.argv[1] if len(sys.argv) > 1 else "."
-    run(reports_dir)
+    diagnostics_dir = sys.argv[2] if len(sys.argv) > 2 else None
+    run(reports_dir, diagnostics_dir)
