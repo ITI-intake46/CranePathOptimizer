@@ -379,7 +379,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 vm.AdaptiveRelocationScaleFactor.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 vm.UseHungarianAssignment ? "true" : "false",
                 vm.SelectedLoadChartOperatingSetupOption.NumberOfLinesConstraint,
-                vm.SelectedLoadChartOperatingSetupOption.OperatingConditionConstraint);
+                vm.SelectedLoadChartOperatingSetupOption.OperatingConditionConstraint,
+                vm.SelectedGaModePresetOption.Mode);
         }
 
         private void RefreshSceneCache()

@@ -126,6 +126,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
             return value;
         }
 
+
+
         internal static string FormatPointCoordinates(CranePositionResult point)
         {
             return Math.Abs(point.Z) > 0.005
@@ -214,7 +216,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         string? AdaptiveRelocationScaleFactorText,
         string? UseHungarianAssignmentText,
         int? LoadChartNumberOfLinesConstraint,
-        string? LoadChartOperatingConditionConstraint);
+        string? LoadChartOperatingConditionConstraint,
+        /// <summary>
+        /// GA Mode Preset to apply after building settings from UI text boxes.
+        /// When <see cref="GAModePreset.None"/>, no preset is applied.
+        /// </summary>
+        GAModePreset SelectedPreset = GAModePreset.None);
 
     public sealed class CraneOptimizerPointListItem
     {

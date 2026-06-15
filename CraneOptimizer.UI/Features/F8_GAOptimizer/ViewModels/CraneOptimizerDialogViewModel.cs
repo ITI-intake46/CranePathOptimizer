@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.UI.Core.Base;
 
@@ -61,6 +62,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         }
     }
 
+    /// <summary>
+    /// A display wrapper for a <see cref="GAModePreset"/> option shown in the ComboBox.
+    /// </summary>
+    public sealed record GAModePresetOption(
+        GAModePreset Mode,
+        string DisplayName,
+        string Description);
+
     public sealed class LoadChartOperatingSetupOption
     {
         public static LoadChartOperatingSetupOption Any { get; } = new(
@@ -93,7 +102,299 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 
     public class CraneOptimizerDialogViewModel : ViewModelBase
     {
+        // -----------------------------------------------------------------------
+        // GA Mode Preset selector
+        // -----------------------------------------------------------------------
+
+        /// <summary>
+        /// The four available GA Mode presets shown in the ComboBox.
+        /// Candidate V1 — calibrated on auditmodel / STC800 + STC1300C.
+        /// </summary>
+        public static IReadOnlyList<GAModePresetOption> GaModePresetOptions { get; } =
+            new List<GAModePresetOption>
+            {
+                new(GAModePreset.None,
+                    GAModePresetFactory.GetDisplayName(GAModePreset.None),
+                    GAModePresetFactory.GetDescription(GAModePreset.None)),
+                new(GAModePreset.BalancedCoverage,
+                    GAModePresetFactory.GetDisplayName(GAModePreset.BalancedCoverage),
+                    GAModePresetFactory.GetDescription(GAModePreset.BalancedCoverage)),
+                new(GAModePreset.MinimumRelocation,
+                    GAModePresetFactory.GetDisplayName(GAModePreset.MinimumRelocation),
+                    GAModePresetFactory.GetDescription(GAModePreset.MinimumRelocation)),
+                new(GAModePreset.CraneFriendly,
+                    GAModePresetFactory.GetDisplayName(GAModePreset.CraneFriendly),
+                    GAModePresetFactory.GetDescription(GAModePreset.CraneFriendly)),
+            };
+
+        private GAModePresetOption _selectedGaModePresetOption = GaModePresetOptions[0]; // Default: None / Custom
+        /// <summary>
+        /// The currently selected GA Mode preset option.
+        /// Defaults to <see cref="GAModePreset.None"/> (None / Custom).
+        /// </summary>
+        public GAModePresetOption SelectedGaModePresetOption
+        {
+            get => _selectedGaModePresetOption;
+            set
+            {
+                if (!ReferenceEquals(_selectedGaModePresetOption, value))
+                {
+                    _selectedGaModePresetOption = value ?? GaModePresetOptions[0];
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(SelectedGaModePresetDescription));
+                    ApplySelectedPresetToEditableFields(_selectedGaModePresetOption.Mode);
+                }
+            }
+        }
+
+        private bool _isApplyingPreset = false;
+
+        private void OnManualFieldEdit()
+        {
+            if (_isApplyingPreset)
+                return;
+
+            if (SelectedGaModePresetOption != GaModePresetOptions[0])
+            {
+                SelectedGaModePresetOption = GaModePresetOptions[0];
+            }
+        }
+
+        private void ApplySelectedPresetToEditableFields(GAModePreset mode)
+        {
+            if (mode == GAModePreset.None)
+                return;
+
+            _isApplyingPreset = true;
+            try
+            {
+                // Retrieve preset values from GAModePresetFactory by applying to default settings
+                var baseSettings = new GASettings();
+                var presetSettings = GAModePresetFactory.Apply(mode, baseSettings);
+
+                PopulationSize = presetSettings.PopulationSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                MaxGenerations = presetSettings.MaxGenerations.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                MutationRate = presetSettings.MutationRate.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                MutationSigma = presetSettings.MutationSigma.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                CrossoverRate = presetSettings.CrossoverRate.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                MaxCranePositions = presetSettings.MaxCranePositions.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                EarlyStoppingGenerations = presetSettings.EarlyStoppingGenerations.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                ConvergenceThresholdPercent = presetSettings.ConvergenceThresholdPercent.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                CoverageWeight = presetSettings.CoverageWeight.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                RelocationWeight = presetSettings.RelocationWeight.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                RadiusPenaltyWeight = presetSettings.RadiusPenaltyWeight.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                RadiusQualityPenaltyWeight = presetSettings.RadiusQualityPenaltyWeight.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                BalancePenaltyWeight = presetSettings.BalancePenaltyWeight.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                RadiusStdDevPenaltyWeight = presetSettings.RadiusStdDevPenaltyWeight.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                SimilarPositionPenaltyWeight = presetSettings.SimilarPositionPenaltyWeight.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                RelocationDistancePenaltyWeight = presetSettings.RelocationDistancePenaltyWeight.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                OverweightPenaltyWeight = presetSettings.OverweightPenaltyWeight.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                HeightPenaltyWeight = presetSettings.HeightPenaltyWeight.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                MutationExplorationMultiplier = presetSettings.MutationExplorationMultiplier.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                PositionSamplingAttempts = presetSettings.PositionSamplingAttempts.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                EnableAdaptiveSigma = presetSettings.EnableAdaptiveSigma;
+                SigmaCoolingExponent = presetSettings.SigmaCoolingExponent.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                MinimumMutationSigma = presetSettings.MinimumMutationSigma.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                EnableConcurrentOptimization = presetSettings.EnableConcurrentOptimization;
+
+                // Also update the already-bound fields
+                EnableMultiStageDiscovery = presetSettings.EnableMultiStageDiscovery;
+                MultiStageCoverageTarget = presetSettings.MultiStageCoverageTarget;
+                AdaptiveRelocationScaleFactor = presetSettings.AdaptiveRelocationScaleFactor;
+                UseHungarianAssignment = presetSettings.UseHungarianAssignment;
+            }
+            finally
+            {
+                _isApplyingPreset = false;
+            }
+        }
+
+        private string _populationSize = "30";
+        public string PopulationSize
+        {
+            get => _populationSize;
+            set { if (_populationSize != value) { _populationSize = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _maxGenerations = "30";
+        public string MaxGenerations
+        {
+            get => _maxGenerations;
+            set { if (_maxGenerations != value) { _maxGenerations = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _mutationRate = "0.10";
+        public string MutationRate
+        {
+            get => _mutationRate;
+            set { if (_mutationRate != value) { _mutationRate = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _mutationSigma = "0.05";
+        public string MutationSigma
+        {
+            get => _mutationSigma;
+            set { if (_mutationSigma != value) { _mutationSigma = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _crossoverRate = "0.80";
+        public string CrossoverRate
+        {
+            get => _crossoverRate;
+            set { if (_crossoverRate != value) { _crossoverRate = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _maxCranePositions = "3";
+        public string MaxCranePositions
+        {
+            get => _maxCranePositions;
+            set { if (_maxCranePositions != value) { _maxCranePositions = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _earlyStoppingGenerations = "20";
+        public string EarlyStoppingGenerations
+        {
+            get => _earlyStoppingGenerations;
+            set { if (_earlyStoppingGenerations != value) { _earlyStoppingGenerations = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _convergenceThresholdPercent = "0";
+        public string ConvergenceThresholdPercent
+        {
+            get => _convergenceThresholdPercent;
+            set { if (_convergenceThresholdPercent != value) { _convergenceThresholdPercent = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _coverageWeight = "10";
+        public string CoverageWeight
+        {
+            get => _coverageWeight;
+            set { if (_coverageWeight != value) { _coverageWeight = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _relocationWeight = "5";
+        public string RelocationWeight
+        {
+            get => _relocationWeight;
+            set { if (_relocationWeight != value) { _relocationWeight = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _radiusPenaltyWeight = "3";
+        public string RadiusPenaltyWeight
+        {
+            get => _radiusPenaltyWeight;
+            set { if (_radiusPenaltyWeight != value) { _radiusPenaltyWeight = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _radiusQualityPenaltyWeight = "1.0";
+        public string RadiusQualityPenaltyWeight
+        {
+            get => _radiusQualityPenaltyWeight;
+            set { if (_radiusQualityPenaltyWeight != value) { _radiusQualityPenaltyWeight = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _balancePenaltyWeight = "2";
+        public string BalancePenaltyWeight
+        {
+            get => _balancePenaltyWeight;
+            set { if (_balancePenaltyWeight != value) { _balancePenaltyWeight = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _radiusStdDevPenaltyWeight = "2";
+        public string RadiusStdDevPenaltyWeight
+        {
+            get => _radiusStdDevPenaltyWeight;
+            set { if (_radiusStdDevPenaltyWeight != value) { _radiusStdDevPenaltyWeight = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _similarPositionPenaltyWeight = "8";
+        public string SimilarPositionPenaltyWeight
+        {
+            get => _similarPositionPenaltyWeight;
+            set { if (_similarPositionPenaltyWeight != value) { _similarPositionPenaltyWeight = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _relocationDistancePenaltyWeight = "1.5";
+        public string RelocationDistancePenaltyWeight
+        {
+            get => _relocationDistancePenaltyWeight;
+            set { if (_relocationDistancePenaltyWeight != value) { _relocationDistancePenaltyWeight = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _overweightPenaltyWeight = "10";
+        public string OverweightPenaltyWeight
+        {
+            get => _overweightPenaltyWeight;
+            set { if (_overweightPenaltyWeight != value) { _overweightPenaltyWeight = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _heightPenaltyWeight = "5";
+        public string HeightPenaltyWeight
+        {
+            get => _heightPenaltyWeight;
+            set { if (_heightPenaltyWeight != value) { _heightPenaltyWeight = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _randomSeed = "42";
+        public string RandomSeed
+        {
+            get => _randomSeed;
+            set { if (_randomSeed != value) { _randomSeed = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _mutationExplorationMultiplier = "2.0";
+        public string MutationExplorationMultiplier
+        {
+            get => _mutationExplorationMultiplier;
+            set { if (_mutationExplorationMultiplier != value) { _mutationExplorationMultiplier = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _positionSamplingAttempts = "80";
+        public string PositionSamplingAttempts
+        {
+            get => _positionSamplingAttempts;
+            set { if (_positionSamplingAttempts != value) { _positionSamplingAttempts = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private bool _enableAdaptiveSigma = false;
+        public bool EnableAdaptiveSigma
+        {
+            get => _enableAdaptiveSigma;
+            set { if (_enableAdaptiveSigma != value) { _enableAdaptiveSigma = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _sigmaCoolingExponent = "1.5";
+        public string SigmaCoolingExponent
+        {
+            get => _sigmaCoolingExponent;
+            set { if (_sigmaCoolingExponent != value) { _sigmaCoolingExponent = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private string _minimumMutationSigma = "0.5";
+        public string MinimumMutationSigma
+        {
+            get => _minimumMutationSigma;
+            set { if (_minimumMutationSigma != value) { _minimumMutationSigma = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        private bool _enableConcurrentOptimization = true;
+        public bool EnableConcurrentOptimization
+        {
+            get => _enableConcurrentOptimization;
+            set { if (_enableConcurrentOptimization != value) { _enableConcurrentOptimization = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
+        /// <summary>
+        /// Description text for the currently selected preset, shown below the ComboBox.
+        /// </summary>
+        public string SelectedGaModePresetDescription => _selectedGaModePresetOption.Description;
+
+        // -----------------------------------------------------------------------
         // Search text for parameters filtering
+        // -----------------------------------------------------------------------
+
         private string _searchText = string.Empty;
         public string SearchText
         {

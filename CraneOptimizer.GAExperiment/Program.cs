@@ -38,7 +38,7 @@ using CraneOptimizer.Application.Services;
 
 namespace CraneOptimizer.GAExperiment
 {
-    internal class Program
+    public class Program
     {
         private static async Task<int> Main(string[] args)
         {
@@ -882,7 +882,7 @@ namespace CraneOptimizer.GAExperiment
             };
         }
 
-        private static string GenerateRunId(string projectFile, string craneModel, int seed, GASettings settings)
+        public static string GenerateRunId(string projectFile, string craneModel, int seed, GASettings settings)
         {
             string projectDirName = Path.GetFileName(Path.GetDirectoryName(projectFile)) ?? string.Empty;
             string projectPathKey = Path.Combine(projectDirName, Path.GetFileName(projectFile)).Replace('\\', '/');
@@ -890,14 +890,27 @@ namespace CraneOptimizer.GAExperiment
             var key = $"{projectPathKey.ToLowerInvariant()}_" +
                       $"{craneModel.ToLowerInvariant()}_" +
                       $"{seed}_" +
+                      $"{(settings.ParameterSetId ?? "N/A").ToLowerInvariant()}_" +
+                      $"{(settings.ParameterSetName ?? "N/A").ToLowerInvariant()}_" +
                       $"{settings.PopulationSize}_" +
                       $"{settings.MaxGenerations}_" +
                       $"{settings.MutationRate.ToString("F3", CultureInfo.InvariantCulture)}_" +
                       $"{settings.MutationSigma.ToString("F3", CultureInfo.InvariantCulture)}_" +
                       $"{settings.CrossoverRate.ToString("F3", CultureInfo.InvariantCulture)}_" +
                       $"{settings.MaxCranePositions}_" +
+                      $"{settings.CoverageWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.RelocationWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.RadiusPenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.RadiusQualityPenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.OverweightPenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.HeightPenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.RadiusStdDevPenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.BalancePenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.SimilarPositionPenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.RelocationDistancePenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
                       $"{settings.MinimumRelocationDistance.ToString("F1", CultureInfo.InvariantCulture)}_" +
-                      $"{settings.GridStep.ToString("F2", CultureInfo.InvariantCulture)}";
+                      $"{settings.GridStep.ToString("F2", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.UseHungarianAssignment.ToString().ToLowerInvariant()}";
 
             using var sha = System.Security.Cryptography.SHA256.Create();
             var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(key));
