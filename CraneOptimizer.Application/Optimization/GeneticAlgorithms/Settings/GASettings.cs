@@ -242,6 +242,36 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public DiagnosticsLevel DiagnosticsLevel { get; set; } = DiagnosticsLevel.Summary;
 
         /// <summary>
+        /// Whether the GA is running in batch mode. If true, diagnostics CSVs are appended to aggregate files in a single folder.
+        /// </summary>
+        public bool BatchModeEnabled { get; set; } = false;
+
+        /// <summary>
+        /// A unique identifier for the calibration/sweep batch.
+        /// </summary>
+        public string? ExperimentBatchId { get; set; }
+
+        /// <summary>
+        /// Human-readable name of the experiment.
+        /// </summary>
+        public string? ExperimentName { get; set; }
+
+        /// <summary>
+        /// Key identifier for the active candidate parameter set (e.g. B01, R02).
+        /// </summary>
+        public string? ParameterSetId { get; set; }
+
+        /// <summary>
+        /// Descriptive name of the parameter set.
+        /// </summary>
+        public string? ParameterSetName { get; set; }
+
+        /// <summary>
+        /// One-based index of the run within the active sweep batch.
+        /// </summary>
+        public int? RunIndex { get; set; }
+
+        /// <summary>
         /// Optional load-chart condition constraint supplied by the user/run context.
         /// Null means the resolver keeps the existing conservative duplicate-column policy.
         /// When set, load-chart entries whose imported NumberOfLines metadata is less than

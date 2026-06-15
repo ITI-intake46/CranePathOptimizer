@@ -17,6 +17,8 @@ namespace CraneOptimizer.GAExperiment
         public bool ResumeEnabled { get; set; } = true;
         public bool UseHungarianAssignment { get; set; }
         public bool EnableReachabilitySeeding { get; set; }
+        public bool BatchCalibrationMode { get; set; } = false;
+        public string ExperimentName { get; set; } = "auditmodel_STC800_mode_calibration";
         public MatrixSettings Matrix { get; set; } = new();
     }
 

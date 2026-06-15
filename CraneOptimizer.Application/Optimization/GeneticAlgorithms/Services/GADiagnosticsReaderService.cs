@@ -27,9 +27,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 reportsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Reports", "GA");
             }
 
-            string historyPath = Path.Combine(reportsDir, "ga_run_history.csv");
+            // 2. Search for ga_audit_run_history.csv first (new naming convention),
+            //    then fall back to ga_run_history.csv for backward compatibility.
+            //    Both are searched recursively so the per-run subdirectory structure is handled.
+            string historyPath = FindHistoryFile(reportsDir, "ga_audit_run_history.csv")
+                              ?? FindHistoryFile(reportsDir, "ga_run_history.csv")
+                              ?? string.Empty;
 
-            if (!File.Exists(historyPath))
+            if (string.IsNullOrEmpty(historyPath) || !File.Exists(historyPath))
             {
                 return results;
             }
@@ -376,6 +381,31 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         }
 
         #region Helper Primitives
+
+        /// <summary>
+        /// Searches <paramref name="rootDir"/> and all of its subdirectories for a file
+        /// named <paramref name="fileName"/>, returning the path of the first match found,
+        /// or <c>null</c> if no match exists or the directory does not exist.
+        /// </summary>
+        private static string? FindHistoryFile(string rootDir, string fileName)
+        {
+            if (!Directory.Exists(rootDir))
+                return null;
+
+            try
+            {
+                foreach (string found in Directory.EnumerateFiles(rootDir, fileName, SearchOption.AllDirectories))
+                {
+                    return found;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[GADiagnosticsReaderService] FindHistoryFile error: {ex.Message}");
+            }
+
+            return null;
+        }
 
         private static int GetHeaderIndex(List<string> headers, string name)
         {

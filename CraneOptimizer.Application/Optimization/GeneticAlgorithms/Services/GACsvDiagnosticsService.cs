@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
@@ -91,18 +91,31 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 }
             }
 
+            bool batchMode = input.Settings?.BatchModeEnabled ?? false;
+            if (!batchMode)
+            {
+                // Per-run folder policy: <reportsDir>\<ProjectName>\<OptimizationRunId>\
+                // Groups all CSVs from one execution into a dedicated subdirectory.
+                string projectNameSegment = SanitizePathSegment(input.ProjectName);
+                string runIdSegment = SanitizePathSegment(input.Settings?.OptimizationRunId);
+                if (!string.IsNullOrEmpty(projectNameSegment) && !string.IsNullOrEmpty(runIdSegment))
+                {
+                    reportsDir = Path.Combine(reportsDir, projectNameSegment, runIdSegment);
+                }
+            }
+
             Directory.CreateDirectory(reportsDir);
 
             string timestampStr = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             string timeFormatted = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
-            string detailedFileName = $"ga_diagnostics_{timestampStr}.csv";
+            string detailedFileName = batchMode ? "ga_audit_diagnostics.csv" : $"ga_audit_diagnostics_{timestampStr}.csv";
             string detailedPath = Path.Combine(reportsDir, detailedFileName);
 
-            string breakdownFileName = $"ga_failure_breakdown_{timestampStr}.csv";
+            string breakdownFileName = batchMode ? "ga_audit_failure_breakdown.csv" : $"ga_audit_failure_breakdown_{timestampStr}.csv";
             string breakdownPath = Path.Combine(reportsDir, breakdownFileName);
 
-            string historyPath = Path.Combine(reportsDir, "ga_run_history.csv");
+            string historyPath = Path.Combine(reportsDir, "ga_audit_run_history.csv");
 
             var allElements = input.Elements ?? new List<PrecastElement>();
 
@@ -261,9 +274,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             if (diagLevel >= DiagnosticsLevel.Research)
             {
                 // 3. Write detailed diagnostics CSV file (UTF-8, properly escaped)
-                using (var writer = new StreamWriter(detailedPath, false, new UTF8Encoding(true)))
+                bool detailedExists = File.Exists(detailedPath);
+                using (var writer = new StreamWriter(detailedPath, batchMode, new UTF8Encoding(true)))
                 {
-                    writer.WriteLine(string.Join(",", new[]
+                    var originalHeader = new[]
                     {
                         "OptimizationRunId", "StageRunId", "DiagnosticsSchemaVersion",
                         "Timestamp", "ProjectName", "IfcFileName", "CraneNameOrId", "ElementId", "ElementName", "ElementType",
@@ -302,7 +316,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         "BoomHinge_SurveyEasting", "BoomHinge_SurveyNorthing", "BoomHinge_SurveyElevation",
                         "LoadPoint_SurveyEasting", "LoadPoint_SurveyNorthing", "LoadPoint_SurveyElevation",
                         "SiteReferenceEnabled", "SiteOriginEasting", "SiteOriginNorthing", "SiteOriginElevation", "RotationToNorthDegrees"
-                    }));
+                    };
+                    if (!batchMode || !detailedExists)
+                    {
+                        writer.WriteLine(string.Join(",", FormatHeaderWithPrefix(originalHeader)));
+                    }
 
                     foreach (var row in detailedRows)
                     {
@@ -326,7 +344,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         var loadPt = new DomainPoint3D(row.LoadPointX, row.LoadPointY, row.LoadPointZ);
                         var loadSite = isEnabled ? _transformService!.LocalToSurvey(loadPt) : (DomainPoint3D?)null;
 
-                        writer.WriteLine(string.Join(",", new[]
+                        var originalRow = new[]
                         {
                             input.Settings.OptimizationRunId ?? string.Empty,
                             input.Settings.StageRunId ?? string.Empty,
@@ -466,17 +484,19 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                             isEnabled ? _transformService!.CurrentReference.SurveyNorthing.ToString("0.###", Invariant) : "N/A",
                             isEnabled ? _transformService!.CurrentReference.SurveyElevation.ToString("0.###", Invariant) : "N/A",
                             isEnabled ? _transformService!.CurrentReference.RotationToNorthDegrees.ToString("0.###", Invariant) : "N/A"
-                        }));
+                        };
+                        writer.WriteLine(string.Join(",", FormatRowWithPrefix(input, true, originalHeader, originalRow, "1.0")));
                     }
                 }
 
                 // 3A. Write ga_assignment_matrix_*.csv (one row per ElementGlobalId per CandidatePointId)
-                string matrixFileName = $"ga_assignment_matrix_{timestampStr}.csv";
+                string matrixFileName = batchMode ? "ga_audit_assignment_matrix.csv" : $"ga_audit_assignment_matrix_{timestampStr}.csv";
                 string matrixPath = Path.Combine(reportsDir, matrixFileName);
+                bool matrixExists = File.Exists(matrixPath);
 
-                using (var writer = new StreamWriter(matrixPath, false, new UTF8Encoding(true)))
+                using (var writer = new StreamWriter(matrixPath, batchMode, new UTF8Encoding(true)))
                 {
-                    writer.WriteLine(string.Join(",", new[]
+                    var originalHeader = new[]
                     {
                         "OptimizationRunId", "StageRunId", "DiagnosticsSchemaVersion",
                         "Timestamp", "ProjectName", "IfcFileName", "ElementGlobalId", "CandidatePointId", "CandidatePointIndex",
@@ -484,7 +504,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         "SelectedChartRadius", "SelectedChartBoomLength", "SelectedVisualColumnIndex", "SelectedVisualColumnHeader", "SelectedNumberOfLines",
                         "SelectedOperatingConditionLabel", "IsConservativeDuplicateFallback", "DuplicateAlternativeCount", "DuplicateAlternativeSummary", "AvailableCapacity", "ReachStatus", "ChartStatus",
                         "LiftStatus", "FailureReason", "SafetyMargin", "CandidateBoomsChecked", "RejectedCandidates", "AssignmentScore"
-                    }));
+                    };
+                    if (!batchMode || !matrixExists)
+                    {
+                        writer.WriteLine(string.Join(",", FormatHeaderWithPrefix(originalHeader)));
+                    }
 
                     foreach (var element in allElements)
                     {
@@ -504,7 +528,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                                 failReason = classification.FailureReason;
                             }
 
-                            writer.WriteLine(string.Join(",", new[]
+                            var originalRow = new[]
                             {
                                 input.Settings.OptimizationRunId ?? string.Empty,
                                 input.Settings.StageRunId ?? string.Empty,
@@ -539,28 +563,34 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                                 Escape(er.CandidateBoomsChecked),
                                 Escape(er.RejectedCandidates),
                                 er.AssignmentScore.ToString("0.###", Invariant)
-                            }));
+                            };
+                            writer.WriteLine(string.Join(",", FormatRowWithPrefix(input, true, originalHeader, originalRow, "1.0")));
                         }
                     }
                 }
 
                 // 3B. Write ga_final_assignments_*.csv (one row per ElementGlobalId)
-                string finalAssignmentsFileName = $"ga_final_assignments_{timestampStr}.csv";
+                string finalAssignmentsFileName = batchMode ? "ga_audit_final_assignments.csv" : $"ga_audit_final_assignments_{timestampStr}.csv";
                 string finalAssignmentsPath = Path.Combine(reportsDir, finalAssignmentsFileName);
+                bool finalExists = File.Exists(finalAssignmentsPath);
 
-                using (var writer = new StreamWriter(finalAssignmentsPath, false, new UTF8Encoding(true)))
+                using (var writer = new StreamWriter(finalAssignmentsPath, batchMode, new UTF8Encoding(true)))
                 {
-                    writer.WriteLine(string.Join(",", new[]
+                    var originalHeader = new[]
                     {
                         "OptimizationRunId", "StageRunId", "DiagnosticsSchemaVersion",
                         "Timestamp", "ProjectName", "IfcFileName", "ElementGlobalId", "AssignedPointId", "AssignedPointIndex",
                         "AssignedCraneId", "AssignmentStatus", "AssignmentReason", "AssignmentScore", "IsFinalAssigned",
                         "BestFailedPointId", "BestFailureReason"
-                    }));
+                    };
+                    if (!batchMode || !finalExists)
+                    {
+                        writer.WriteLine(string.Join(",", FormatHeaderWithPrefix(originalHeader)));
+                    }
 
                     foreach (var row in detailedRows)
                     {
-                        writer.WriteLine(string.Join(",", new[]
+                        var originalRow = new[]
                         {
                             input.Settings.OptimizationRunId ?? string.Empty,
                             input.Settings.StageRunId ?? string.Empty,
@@ -578,7 +608,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                             row.IsFinalAssigned ? "true" : "false",
                             Escape(row.BestFailedPointId),
                             Escape(row.BestFailureReason)
-                        }));
+                        };
+                        writer.WriteLine(string.Join(",", FormatRowWithPrefix(input, true, originalHeader, originalRow, "1.0")));
                     }
                 }
             }
@@ -589,9 +620,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             int totalSelected = allElements.Count;
 
             // 4 / 5. Write failure breakdown CSV file
-            using (var writer = new StreamWriter(breakdownPath, false, new UTF8Encoding(true)))
+            bool breakdownExists = File.Exists(breakdownPath);
+            using (var writer = new StreamWriter(breakdownPath, batchMode, new UTF8Encoding(true)))
             {
-                writer.WriteLine("OptimizationRunId,StageRunId,Timestamp,FailureCategory,Count,PercentageOfFailedElements,PercentageOfSelectedElements,DiagnosticsSchemaVersion");
+                var originalHeader = new[] { "OptimizationRunId", "StageRunId", "Timestamp", "FailureCategory", "Count", "PercentageOfFailedElements", "PercentageOfSelectedElements", "DiagnosticsSchemaVersion" };
+                if (!batchMode || !breakdownExists)
+                {
+                    writer.WriteLine(string.Join(",", FormatHeaderWithPrefix(originalHeader)));
+                }
 
                 if (diagLevel >= DiagnosticsLevel.Research && detailedRows.Count > 0)
                 {
@@ -617,7 +653,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         int count = failureCounts[cat];
                         double pctFailed = totalFailed > 0 ? (double)count / totalFailed * 100.0 : 0.0;
                         double pctSelected = totalSelected > 0 ? (double)count / totalSelected * 100.0 : 0.0;
-                        writer.WriteLine($"{input.Settings.OptimizationRunId ?? string.Empty},{input.Settings.StageRunId ?? string.Empty},{timeFormatted},{cat},{count},{pctFailed.ToString("F2", Invariant)}%,{pctSelected.ToString("F2", Invariant)}%,1.0");
+                        var originalRow = new[] {
+                            input.Settings.OptimizationRunId ?? string.Empty,
+                            input.Settings.StageRunId ?? string.Empty,
+                            timeFormatted,
+                            cat,
+                            count.ToString(),
+                            pctFailed.ToString("F2", Invariant) + "%",
+                            pctSelected.ToString("F2", Invariant) + "%",
+                            "1.0"
+                        };
+                        writer.WriteLine(string.Join(",", FormatRowWithPrefix(input, true, originalHeader, originalRow, "1.0")));
                     }
                 }
                 else
@@ -629,7 +675,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     {
                         double pctFailed = totalFailed > 0 ? (double)count / totalFailed * 100.0 : 0.0;
                         double pctSelected = totalSelected > 0 ? (double)count / totalSelected * 100.0 : 0.0;
-                        writer.WriteLine($"{input.Settings.OptimizationRunId ?? string.Empty},{input.Settings.StageRunId ?? string.Empty},{timeFormatted},{category},{count},{pctFailed.ToString("F2", Invariant)}%,{pctSelected.ToString("F2", Invariant)}%,1.0");
+                        var originalRow = new[] {
+                            input.Settings.OptimizationRunId ?? string.Empty,
+                            input.Settings.StageRunId ?? string.Empty,
+                            timeFormatted,
+                            category,
+                            count.ToString(),
+                            pctFailed.ToString("F2", Invariant) + "%",
+                            pctSelected.ToString("F2", Invariant) + "%",
+                            "1.0"
+                        };
+                        writer.WriteLine(string.Join(",", FormatRowWithPrefix(input, true, originalHeader, originalRow, "1.0")));
                     }
 
                     WriteStat("Liftable", finalResult.LiftedElementCount);
@@ -648,27 +704,28 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             else if (coverage >= 0.70) healthLabel = "Good";
             else if (coverage >= 0.40) healthLabel = "Warning";
 
-            bool writeHeader = !File.Exists(historyPath);
+            bool historyExists = File.Exists(historyPath);
             int stageIndex = input.Settings.EnableMultiStageDiscovery ? input.Settings.MaxCranePositions : 1;
 
             using (var writer = new StreamWriter(historyPath, true, new UTF8Encoding(true)))
             {
-                if (writeHeader)
+                var originalHeader = new[]
                 {
-                    writer.WriteLine(string.Join(",", new[]
-                    {
-                        "OptimizationRunId", "StageRunId", "StageIndex", "DiagnosticsSchemaVersion",
-                        "Timestamp", "ProjectName", "ProjectFolderPath", "IfcFileName", "CraneNameOrId", "TotalTargetElements",
-                        "SelectedElements", "LiftedElements", "FailedElements", "CoverageRatio", "HealthLabel",
-                        "FinalCraneSetupCount", "GreedyIterations", "PopulationSize", "ConfiguredGenerations",
-                        "ActualGenerationLoopCount", "TotalGATimeMs", "ElementAssignmentTimeMs", "CraneCapacityLookupCount",
-                        "CraneCapacityCacheHits", "CraneCapacityCacheMisses", "CraneCapacityCacheHitRatio",
-                        "MemoryBeforeMB", "MemoryAfterMB", "MemoryDeltaMB", "GCGen0Delta", "GCGen1Delta", "GCGen2Delta",
-                        "ProfilingLogPath", "DetailedDiagnosticsCsvPath", "FailureBreakdownCsvPath",
-                        "CoordinateReferenceEnabled", "CoordinateSystemName", "EPSGCode", "RotationToNorthDegrees",
-                        "LocalReferencePoint", "SurveyReferencePoint",
-                        "EnableMultiStageDiscovery", "MultiStageCoverageTarget", "AdaptiveRelocationScaleFactor", "UseHungarianAssignment"
-                    }));
+                    "OptimizationRunId", "StageRunId", "StageIndex", "DiagnosticsSchemaVersion",
+                    "Timestamp", "ProjectName", "ProjectFolderPath", "IfcFileName", "CraneNameOrId", "TotalTargetElements",
+                    "SelectedElements", "LiftedElements", "FailedElements", "CoverageRatio", "HealthLabel",
+                    "FinalCraneSetupCount", "GreedyIterations", "PopulationSize", "ConfiguredGenerations",
+                    "ActualGenerationLoopCount", "TotalGATimeMs", "ElementAssignmentTimeMs", "CraneCapacityLookupCount",
+                    "CraneCapacityCacheHits", "CraneCapacityCacheMisses", "CraneCapacityCacheHitRatio",
+                    "MemoryBeforeMB", "MemoryAfterMB", "MemoryDeltaMB", "GCGen0Delta", "GCGen1Delta", "GCGen2Delta",
+                    "ProfilingLogPath", "DetailedDiagnosticsCsvPath", "FailureBreakdownCsvPath",
+                    "CoordinateReferenceEnabled", "CoordinateSystemName", "EPSGCode", "RotationToNorthDegrees",
+                    "LocalReferencePoint", "SurveyReferencePoint",
+                    "EnableMultiStageDiscovery", "MultiStageCoverageTarget", "AdaptiveRelocationScaleFactor", "UseHungarianAssignment"
+                };
+                if (!historyExists)
+                {
+                    writer.WriteLine(string.Join(",", FormatHeaderWithPrefix(originalHeader)));
                 }
 
                 string gaTime = GAProfiler.Enabled ? GAProfiler.GetElapsedTimeMs("GAEngine.Run").ToString("F1", Invariant) : "N/A";
@@ -702,7 +759,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 string gc2 = (GAProfiler.GcCount2After - GAProfiler.GcCount2Before).ToString();
 
                 // Let's write the history row
-                writer.WriteLine(string.Join(",", new[]
+                var originalRow = new[]
                 {
                     input.Settings.OptimizationRunId ?? string.Empty,
                     input.Settings.StageRunId ?? string.Empty,
@@ -749,7 +806,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     (input.Settings?.MultiStageCoverageTarget ?? 0.95).ToString("0.###", Invariant),
                     (input.Settings?.AdaptiveRelocationScaleFactor ?? 0.40).ToString("0.###", Invariant),
                     (input.Settings?.UseHungarianAssignment ?? false).ToString().ToLower()
-                }));
+                };
+                writer.WriteLine(string.Join(",", FormatRowWithPrefix(input, true, originalHeader, originalRow, "1.0")));
             }
 
             // ══════════════════════════════════════════════════════
@@ -1216,6 +1274,59 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 return value;
 
             return $"\"{value.Replace("\"", "\"\"")}\"";
+        }
+
+        /// <summary>
+        /// Strips characters that are invalid in filesystem path segments so that
+        /// ProjectName and OptimizationRunId can be safely embedded in directory names.
+        /// Returns an empty string when the input is null or whitespace.
+        /// </summary>
+        private static string SanitizePathSegment(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            char[] invalid = Path.GetInvalidFileNameChars();
+            var sb = new StringBuilder(value.Length);
+            foreach (char c in value)
+            {
+                sb.Append(Array.IndexOf(invalid, c) >= 0 ? '_' : c);
+            }
+            return sb.ToString().Trim();
+        }
+
+        private static string[] FormatHeaderWithPrefix(string[] originalHeader)
+        {
+            var toRemove = new HashSet<string> { "OptimizationRunId", "StageRunId", "StageIndex", "DiagnosticsSchemaVersion", "ProjectName", "CraneName", "RandomSeed" };
+            var headerList = new List<string>();
+            for (int i = 0; i < originalHeader.Length; i++)
+            {
+                if (!toRemove.Contains(originalHeader[i]))
+                {
+                    headerList.Add(originalHeader[i]);
+                }
+            }
+            return GABatchDiagnosticsHelper.HeaderPrefix.Concat(headerList).ToArray();
+        }
+
+        private static string[] FormatRowWithPrefix(
+            PlacementInput input,
+            bool isStageFile,
+            string[] originalHeader,
+            string[] originalRow,
+            string schemaVersion = "1.0")
+        {
+            var toRemove = new HashSet<string> { "OptimizationRunId", "StageRunId", "StageIndex", "DiagnosticsSchemaVersion", "ProjectName", "CraneName", "RandomSeed" };
+            var rowList = new List<string>();
+            for (int i = 0; i < originalHeader.Length; i++)
+            {
+                if (!toRemove.Contains(originalHeader[i]))
+                {
+                    rowList.Add(originalRow[i]);
+                }
+            }
+            var prefixRows = GABatchDiagnosticsHelper.GetRowPrefix(input, isStageFile, schemaVersion).Select(Escape).ToArray();
+            return prefixRows.Concat(rowList).ToArray();
         }
 
         private string FormatSurveyIfEnabled(double x, double y, double z)

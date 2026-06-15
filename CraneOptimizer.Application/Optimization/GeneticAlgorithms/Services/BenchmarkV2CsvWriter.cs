@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.Utilities;
@@ -102,7 +102,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 ResolveTerminationReason(input, stageLog)
             };
 
-            Append(Path.Combine(directory, "ga_run_summary.csv"), header, row);
+            AppendWithPrefix(Path.Combine(directory, "ga_audit_run_summary.csv"), input, false, header, row);
         }
 
         private static void WriteSettingsSnapshot(
@@ -217,7 +217,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 input.Settings.DiagnosticsLevel.ToString()
             };
 
-            Append(Path.Combine(directory, "ga_settings_snapshot.csv"), header, row);
+            AppendWithPrefix(Path.Combine(directory, "ga_audit_settings_snapshot.csv"), input, false, header, row);
         }
 
         private static void WriteStageSummary(
@@ -283,7 +283,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 Format6(gainPerPosition)
             };
 
-            Append(Path.Combine(directory, "ga_stage_summary.csv"), header, row);
+            AppendWithPrefix(Path.Combine(directory, "ga_audit_stage_summary.csv"), input, true, header, row);
         }
 
         private static void WriteGenerationSummary(
@@ -301,8 +301,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 "MutationSuccessRate", "InvalidMutationCount", "StagnationCounter"
             };
 
-            string path = Path.Combine(directory, "ga_generation_summary.csv");
-            EnsureHeader(path, header);
+            string path = Path.Combine(directory, "ga_audit_generation_summary.csv");
+            EnsureHeaderWithPrefix(path, true, header);
             IEnumerable<GAProfiler.GenerationLogEntry> generations = GAProfiler.GenerationLogs
                 .Where(generation => generation.StageRunId == input.Settings.StageRunId);
 
@@ -336,7 +336,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     generation.StagnationCounter.ToString(Invariant)
                 };
 
-                Append(path, header, row);
+                AppendWithPrefix(path, input, true, header, row);
             }
         }
 
@@ -366,7 +366,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         .ThenBy(hotSpot => hotSpot.Y)
                         .ToList());
 
-            string path = Path.Combine(directory, "ga_reachability_hotspots.csv");
+            string path = Path.Combine(directory, "ga_audit_reachability_hotspots.csv");
             for (int index = 0; index < hotSpots.Count; index++)
             {
                 ScoredCoordinate hotSpot = hotSpots[index];
@@ -400,10 +400,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     FormatBool(input.Settings.EnableReachabilitySeeding)
                 };
 
-                Append(path, header, row);
+                AppendWithPrefix(path, input, true, header, row);
             }
 
-            EnsureHeader(path, header);
+            EnsureHeaderWithPrefix(path, true, header);
         }
 
         private static void WritePositions(
@@ -424,7 +424,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 "AverageRequiredBoomLength", "MaxRequiredBoomLength"
             };
 
-            string path = Path.Combine(directory, "ga_positions.csv");
+            string path = Path.Combine(directory, "ga_audit_positions.csv");
             for (int index = 0; index < result.Positions.Count; index++)
             {
                 CranePositionResult position = result.Positions[index];
@@ -482,10 +482,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     FormatOptional(Max(lifted.Select(item => item.BoomLength)))
                 };
 
-                Append(path, header, row);
+                AppendWithPrefix(path, input, false, header, row);
             }
 
-            EnsureHeader(path, header);
+            EnsureHeaderWithPrefix(path, false, header);
         }
 
         private static void WriteElementAssignments(
@@ -510,7 +510,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 "IsFinalLifted"
             };
 
-            string path = Path.Combine(directory, "ga_element_assignments.csv");
+            string path = Path.Combine(directory, "ga_audit_element_assignments.csv");
             foreach (AssignmentMetric assignment in assignments)
             {
                 string[] row =
@@ -559,10 +559,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     FormatBool(assignment.IsFinalLifted)
                 };
 
-                Append(path, header, row);
+                AppendWithPrefix(path, input, false, header, row);
             }
 
-            EnsureHeader(path, header);
+            EnsureHeaderWithPrefix(path, false, header);
         }
 
         private void WriteProjectFeatures(
@@ -696,12 +696,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 zoneSummaries.Count == 0 ? "N/A" : Format6(zoneSkew)
             };
 
-            AppendUnique(
-                Path.Combine(directory, "ga_project_features.csv"),
+            AppendUniqueWithPrefix(
+                Path.Combine(directory, "ga_audit_project_features.csv"),
+                input,
+                false,
                 header,
                 row,
-                0,
-                1);
+                "ProjectFeatureSnapshotId",
+                "OptimizationRunId");
         }
 
         private static void WriteSolutionQualityMetrics(
@@ -811,8 +813,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 result.Statistics.SpecialCase.ToString(Invariant)
             };
 
-            string path = Path.Combine(directory, "ga_solution_quality_metrics.csv");
-            Append(path, header, row);
+            string path = Path.Combine(directory, "ga_audit_solution_quality_metrics.csv");
+            AppendWithPrefix(path, input, true, header, row);
             RewriteBestStageFlags(path, input.Settings.OptimizationRunId);
         }
 
@@ -835,7 +837,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
             IReadOnlyList<ZoneReachabilitySummary> summaries =
                 _reachabilityMapService?.LastZoneSummaries ?? Array.Empty<ZoneReachabilitySummary>();
-            string path = Path.Combine(directory, "ga_zone_reachability_summary.csv");
+            string path = Path.Combine(directory, "ga_audit_zone_reachability_summary.csv");
 
             foreach (ZoneReachabilitySummary summary in summaries)
             {
@@ -871,10 +873,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     summary.RejectedGridPointCount.ToString(Invariant)
                 };
 
-                Append(path, header, row);
+                AppendWithPrefix(path, input, true, header, row);
             }
 
-            EnsureHeader(path, header);
+            EnsureHeaderWithPrefix(path, true, header);
         }
 
         private static List<AssignmentMetric> BuildAssignmentMetrics(
@@ -1435,6 +1437,76 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             }
 
             return $"\"{value.Replace("\"", "\"\"")}\"";
+        }
+
+        private static void AppendWithPrefix(
+            string path,
+            PlacementInput input,
+            bool isStageFile,
+            string[] originalHeader,
+            string[] originalRow)
+        {
+            var toRemove = new HashSet<string> { "OptimizationRunId", "StageRunId", "StageIndex", "DiagnosticsSchemaVersion", "ProjectName", "CraneName", "RandomSeed" };
+            var headerList = new List<string>();
+            var rowList = new List<string>();
+            for (int i = 0; i < originalHeader.Length; i++)
+            {
+                if (!toRemove.Contains(originalHeader[i]))
+                {
+                    headerList.Add(originalHeader[i]);
+                    rowList.Add(originalRow[i]);
+                }
+            }
+            var finalHeader = GABatchDiagnosticsHelper.HeaderPrefix.Concat(headerList).ToArray();
+            var finalRow = GABatchDiagnosticsHelper.GetRowPrefix(input, isStageFile, BenchmarkDiagnosticsIdentity.SchemaVersion).Concat(rowList).ToArray();
+            Append(path, finalHeader, finalRow);
+        }
+
+        private static void AppendUniqueWithPrefix(
+            string path,
+            PlacementInput input,
+            bool isStageFile,
+            string[] originalHeader,
+            string[] originalRow,
+            params string[] keyColumns)
+        {
+            var toRemove = new HashSet<string> { "OptimizationRunId", "StageRunId", "StageIndex", "DiagnosticsSchemaVersion", "ProjectName", "CraneName", "RandomSeed" };
+            var headerList = new List<string>();
+            var rowList = new List<string>();
+            for (int i = 0; i < originalHeader.Length; i++)
+            {
+                if (!toRemove.Contains(originalHeader[i]))
+                {
+                    headerList.Add(originalHeader[i]);
+                    rowList.Add(originalRow[i]);
+                }
+            }
+            var finalHeader = GABatchDiagnosticsHelper.HeaderPrefix.Concat(headerList).ToArray();
+            var finalRow = GABatchDiagnosticsHelper.GetRowPrefix(input, isStageFile, BenchmarkDiagnosticsIdentity.SchemaVersion).Concat(rowList).ToArray();
+            int[] keyIndices = keyColumns.Select(col => Array.IndexOf(finalHeader, col)).ToArray();
+            if (keyIndices.Any(idx => idx < 0))
+            {
+                throw new InvalidOperationException($"Could not find one of the key columns: {string.Join(", ", keyColumns)} in the header.");
+            }
+            AppendUnique(path, finalHeader, finalRow, keyIndices);
+        }
+
+        private static void EnsureHeaderWithPrefix(
+            string path,
+            bool isStageFile,
+            string[] originalHeader)
+        {
+            var toRemove = new HashSet<string> { "OptimizationRunId", "StageRunId", "StageIndex", "DiagnosticsSchemaVersion", "ProjectName", "CraneName", "RandomSeed" };
+            var headerList = new List<string>();
+            for (int i = 0; i < originalHeader.Length; i++)
+            {
+                if (!toRemove.Contains(originalHeader[i]))
+                {
+                    headerList.Add(originalHeader[i]);
+                }
+            }
+            var finalHeader = GABatchDiagnosticsHelper.HeaderPrefix.Concat(headerList).ToArray();
+            EnsureHeader(path, finalHeader);
         }
 
         private sealed class AssignmentMetric

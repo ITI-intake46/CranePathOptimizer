@@ -33,45 +33,48 @@ namespace CraneOptimizer.Application.Tests.GA
 
                 service.GenerateDiagnostics(input, result);
 
+                // Files are written into a per-run subfolder: <tempDir>/<ProjectName>/<OptimizationRunId>
+                string runDir = Path.Combine(tempDirectory, "try4", "optimization-1");
+
                 string[] requiredFiles =
                 {
-                    "ga_run_summary.csv",
-                    "ga_settings_snapshot.csv",
-                    "ga_stage_summary.csv",
-                    "ga_positions.csv",
-                    "ga_element_assignments.csv",
-                    "ga_project_features.csv",
-                    "ga_solution_quality_metrics.csv",
-                    "ga_zone_reachability_summary.csv"
+                    "ga_audit_run_summary.csv",
+                    "ga_audit_settings_snapshot.csv",
+                    "ga_audit_stage_summary.csv",
+                    "ga_audit_positions.csv",
+                    "ga_audit_element_assignments.csv",
+                    "ga_audit_project_features.csv",
+                    "ga_audit_solution_quality_metrics.csv",
+                    "ga_audit_zone_reachability_summary.csv"
                 };
 
                 foreach (string fileName in requiredFiles)
                 {
-                    string path = Path.Combine(tempDirectory, fileName);
+                    string path = Path.Combine(runDir, fileName);
                     Assert.True(File.Exists(path), $"Missing {fileName}");
                     AssertCsvShapeAndUniqueHeaders(path);
                 }
 
-                foreach (string path in Directory.EnumerateFiles(tempDirectory, "*.csv"))
+                foreach (string path in Directory.EnumerateFiles(runDir, "*.csv"))
                 {
                     AssertCsvShapeAndUniqueHeaders(path);
                 }
 
                 Dictionary<string, string> assignment = ReadRows(
-                        Path.Combine(tempDirectory, "ga_element_assignments.csv"))
+                        Path.Combine(runDir, "ga_audit_element_assignments.csv"))
                     .Single(row => row["ElementId"] == "EL-1");
 
                 Assert.Equal("optimization-1", assignment["OptimizationRunId"]);
-                Assert.Equal("stage-1", assignment["StageRunId"]);
-                Assert.Equal("1", assignment["StageIndex"]);
+                Assert.Equal("N/A", assignment["StageRunId"]);
+                Assert.Equal("N/A", assignment["StageIndex"]);
                 Assert.Equal("2.0", assignment["DiagnosticsSchemaVersion"]);
                 Assert.Equal("101", assignment["CraneSpecificationId"]);
                 Assert.Equal("180Tons", assignment["CraneName"]);
                 Assert.Equal("true", assignment["IsFinalLifted"]);
                 Assert.Equal("true", ReadRows(
-                    Path.Combine(tempDirectory, "ga_solution_quality_metrics.csv"))[0]["UseHungarianAssignment"]);
+                    Path.Combine(runDir, "ga_audit_solution_quality_metrics.csv"))[0]["UseHungarianAssignment"]);
                 Assert.Equal("Hungarian", ReadRows(
-                    Path.Combine(tempDirectory, "ga_solution_quality_metrics.csv"))[0]["AssignmentEngineUsed"]);
+                    Path.Combine(runDir, "ga_audit_solution_quality_metrics.csv"))[0]["AssignmentEngineUsed"]);
 
                 double elementWeight = Parse(assignment["ElementWeight"]);
                 double additionalWeight = Parse(assignment["AdditionalWt"]);
@@ -90,7 +93,7 @@ namespace CraneOptimizer.Application.Tests.GA
                 Assert.Contains(".", assignment["CapacityUtilization"]);
 
                 Dictionary<string, string> solution = ReadRows(
-                    Path.Combine(tempDirectory, "ga_solution_quality_metrics.csv")).Single();
+                    Path.Combine(runDir, "ga_audit_solution_quality_metrics.csv")).Single();
                 Assert.InRange(Parse(solution["CoverageRatio"]), 0, 1);
                 Assert.Equal(
                     Parse(solution["CoverageRatio"]) * 100,
@@ -98,7 +101,7 @@ namespace CraneOptimizer.Application.Tests.GA
                     4);
 
                 Dictionary<string, string> features = ReadRows(
-                    Path.Combine(tempDirectory, "ga_project_features.csv")).Single();
+                    Path.Combine(runDir, "ga_audit_project_features.csv")).Single();
                 Assert.Equal("project-guid-1", features["ProjectId"]);
                 Assert.NotEqual("N/A", features["ScenarioId"]);
                 Assert.NotEqual("N/A", features["ProjectFeatureSnapshotId"]);
@@ -137,8 +140,12 @@ namespace CraneOptimizer.Application.Tests.GA
                     CreateFixture(tempDirectory, "stage-2", 2, 1.0, 2);
                 secondService.GenerateDiagnostics(secondInput, secondResult);
 
+                // Per-run folder: stage-1 run and stage-2 run share the same OptimizationRunId
+                // Files accumulate in <tempDir>/try4/optimization-1/ since both stages use the same run id
+                string runDir2 = Path.Combine(tempDirectory, "try4", "optimization-1");
+
                 List<Dictionary<string, string>> rows = ReadRows(
-                    Path.Combine(tempDirectory, "ga_solution_quality_metrics.csv"));
+                    Path.Combine(runDir2, "ga_audit_solution_quality_metrics.csv"));
 
                 Assert.Equal(2, rows.Count);
                 Assert.All(rows, row => Assert.Equal("optimization-1", row["OptimizationRunId"]));
@@ -147,7 +154,7 @@ namespace CraneOptimizer.Application.Tests.GA
                 Assert.Single(rows, row => row["IsBestStage"] == "true");
                 Assert.Equal("stage-2", rows.Single(row => row["IsBestStage"] == "true")["StageRunId"]);
                 Assert.Equal("0.500000", rows.Single(row => row["StageRunId"] == "stage-2")["CoverageGainFromPreviousStage"]);
-                Assert.Single(ReadRows(Path.Combine(tempDirectory, "ga_project_features.csv")));
+                Assert.Single(ReadRows(Path.Combine(runDir2, "ga_audit_project_features.csv")));
             }
             finally
             {

@@ -38,7 +38,7 @@ using CraneOptimizer.Application.Services;
 
 namespace CraneOptimizer.GAExperiment
 {
-    internal class Program
+    public class Program
     {
         private static async Task<int> Main(string[] args)
         {
@@ -195,48 +195,116 @@ namespace CraneOptimizer.GAExperiment
             }
 
             // Generate parameter matrix combinations
-            var settingsCombinations = GenerateMatrixCombinations(
-                config.Matrix,
-                config.UseHungarianAssignment,
-                config.EnableReachabilitySeeding).ToList();
+            List<GASettings> settingsCombinations;
+            List<int> seedsToRun = new List<int>();
+
+            if (config.BatchCalibrationMode)
+            {
+                seedsToRun = new List<int> { 1, 42, 99 };
+                settingsCombinations = new List<GASettings>();
+
+                // Helper to build settings and override defaults
+                GASettings BuildBaseSettings(string setId, string setName, int pop, int gen, double sigma, int maxPositions, double relocWeight)
+                {
+                    return new GASettings
+                    {
+                        BatchModeEnabled = true,
+                        ExperimentName = config.ExperimentName ?? "auditmodel_STC800_mode_calibration",
+                        ParameterSetId = setId,
+                        ParameterSetName = setName,
+                        PopulationSize = pop,
+                        MaxGenerations = gen,
+                        MutationSigma = sigma,
+                        MaxCranePositions = maxPositions,
+                        RelocationWeight = relocWeight,
+                        // Defaults
+                        MutationRate = 0.1,
+                        CrossoverRate = 0.8,
+                        WireLength = 2.0,
+                        AdditionalWt = 0.5,
+                        SafetyFactor = 0.9,
+                        DeratingRatio = 0.9,
+                        EnableProfiling = true,
+                        EnableConcurrentOptimization = true,
+                        UseHungarianAssignment = true,
+                        EnableReachabilitySeeding = true,
+                        DiagnosticsLevel = DiagnosticsLevel.Research
+                    };
+                }
+
+                // Balanced Candidates
+                settingsCombinations.Add(BuildBaseSettings("B01", "Balanced_LowPop", 30, 40, 0.005, 2, 5.0));
+                settingsCombinations.Add(BuildBaseSettings("B02", "Balanced_MedPop", 60, 80, 0.005, 2, 5.0));
+                settingsCombinations.Add(BuildBaseSettings("B03", "Balanced_HighPos", 60, 80, 0.02, 3, 5.0));
+
+                // Minimum Relocation Candidates
+                settingsCombinations.Add(BuildBaseSettings("R01", "MinReloc_SinglePos", 30, 40, 0.005, 1, 25.0));
+                settingsCombinations.Add(BuildBaseSettings("R02", "MinReloc_HighWeight", 60, 80, 0.005, 2, 25.0));
+                settingsCombinations.Add(BuildBaseSettings("R03", "MinReloc_VeryHighWeight", 60, 80, 0.02, 2, 100.0));
+
+                // Crane-Friendly Candidates
+                var c01 = BuildBaseSettings("C01", "Friendly_LowPenalties", 60, 80, 0.005, 2, 5.0);
+                c01.RadiusPenaltyWeight = 1.0;
+                c01.HeightPenaltyWeight = 2.0;
+                c01.OverweightPenaltyWeight = 5.0;
+                settingsCombinations.Add(c01);
+
+                var c02 = BuildBaseSettings("C02", "Friendly_MedPenalties", 60, 80, 0.005, 3, 5.0);
+                c02.RadiusPenaltyWeight = 3.0;
+                c02.HeightPenaltyWeight = 5.0;
+                c02.OverweightPenaltyWeight = 10.0;
+                settingsCombinations.Add(c02);
+
+                var c03 = BuildBaseSettings("C03", "Friendly_HighPenalties", 80, 120, 0.02, 3, 5.0);
+                c03.RadiusPenaltyWeight = 10.0;
+                c03.HeightPenaltyWeight = 15.0;
+                c03.OverweightPenaltyWeight = 30.0;
+                settingsCombinations.Add(c03);
+            }
+            else
+            {
+                settingsCombinations = GenerateMatrixCombinations(
+                    config.Matrix,
+                    config.UseHungarianAssignment,
+                    config.EnableReachabilitySeeding).ToList();
+
+                if (config.SeedMode.Equals("Fixed", StringComparison.OrdinalIgnoreCase))
+                {
+                    seedsToRun.Add(config.Seeds.Count > 0 ? config.Seeds[0] : 42);
+                }
+                else if (config.SeedMode.Equals("Random", StringComparison.OrdinalIgnoreCase))
+                {
+                    int count = config.RandomSeedCount > 0 ? config.RandomSeedCount : 5;
+                    if (config.Seeds.Count > 0)
+                    {
+                        seedsToRun.AddRange(config.Seeds);
+                    }
+                    else
+                    {
+                        var rand = new Random();
+                        for (int i = 0; i < count; i++)
+                        {
+                            seedsToRun.Add(rand.Next(1, 1000000));
+                        }
+                    }
+                }
+                else
+                {
+                    if (config.Seeds.Count > 0)
+                    {
+                        seedsToRun.AddRange(config.Seeds);
+                    }
+                    else
+                    {
+                        seedsToRun.Add(42);
+                    }
+                }
+            }
+
             if (settingsCombinations.Count == 0)
             {
                 Console.WriteLine("No parameter matrix combinations configured. Exiting.");
                 return 0;
-            }
-
-            // Resolve seeds
-            var seedsToRun = new List<int>();
-            if (config.SeedMode.Equals("Fixed", StringComparison.OrdinalIgnoreCase))
-            {
-                seedsToRun.Add(config.Seeds.Count > 0 ? config.Seeds[0] : 42);
-            }
-            else if (config.SeedMode.Equals("Random", StringComparison.OrdinalIgnoreCase))
-            {
-                int count = config.RandomSeedCount > 0 ? config.RandomSeedCount : 5;
-                if (config.Seeds.Count > 0)
-                {
-                    seedsToRun.AddRange(config.Seeds);
-                }
-                else
-                {
-                    var rand = new Random();
-                    for (int i = 0; i < count; i++)
-                    {
-                        seedsToRun.Add(rand.Next(1, 1000000));
-                    }
-                }
-            }
-            else
-            {
-                if (config.Seeds.Count > 0)
-                {
-                    seedsToRun.AddRange(config.Seeds);
-                }
-                else
-                {
-                    seedsToRun.Add(42);
-                }
             }
 
             // Estimations & safety warnings
@@ -300,6 +368,9 @@ namespace CraneOptimizer.GAExperiment
                     : Path.Combine(configDir, config.DiagnosticsDirectoryPath));
             Directory.CreateDirectory(tempDiagnosticsDir);
 
+            string batchId = Guid.NewGuid().ToString();
+            string timestampStr = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+
             foreach (var projFile in resolvedProjectFiles)
             {
                 if (cts.IsCancellationRequested) break;
@@ -326,6 +397,13 @@ namespace CraneOptimizer.GAExperiment
                     continue;
                 }
 
+                string reportsFolder = tempDiagnosticsDir;
+                if (config.BatchCalibrationMode)
+                {
+                    reportsFolder = Path.Combine(tempDiagnosticsDir, projectName, $"mode_calibration_{timestampStr}");
+                    Directory.CreateDirectory(reportsFolder);
+                }
+
                 foreach (var craneName in validCranes)
                 {
                     if (cts.IsCancellationRequested) break;
@@ -347,8 +425,17 @@ namespace CraneOptimizer.GAExperiment
                             settings.RandomSeed = seed;
                             settings.ProfilingLogDirectory = Path.Combine(configDir, "Logs");
 
+                            if (config.BatchCalibrationMode)
+                            {
+                                settings.BatchModeEnabled = true;
+                                settings.ExperimentBatchId = batchId;
+                                settings.ExperimentName = config.ExperimentName ?? "auditmodel_STC800_mode_calibration";
+                            }
+
                             // Calculate deterministic RunId
                             string runId = GenerateRunId(projFile, craneName, seed, settings);
+                            settings.OptimizationRunId = runId;
+                            settings.RunIndex = runIndex;
 
                             if (completedRunIds.Contains(runId))
                             {
@@ -375,7 +462,7 @@ namespace CraneOptimizer.GAExperiment
                                     input.OptimizationScopeElementCount = scopeElements.Count;
                                     input.FeatureScopeElements = scopeElements;
                                     input.TotalElementsCount = rawElementCount;
-                                    input.DiagnosticsReportsDirectory = tempDiagnosticsDir;
+                                    input.DiagnosticsReportsDirectory = reportsFolder;
                                 }
                                 catch (Exception ex)
                                 {
@@ -759,7 +846,8 @@ namespace CraneOptimizer.GAExperiment
                     EnableProfiling = true,
                     EnableConcurrentOptimization = true,
                     UseHungarianAssignment = useHungarianAssignment,
-                    EnableReachabilitySeeding = enableReachabilitySeeding
+                    EnableReachabilitySeeding = enableReachabilitySeeding,
+                    DiagnosticsLevel = DiagnosticsLevel.Research
                 };
             }
         }
@@ -783,11 +871,18 @@ namespace CraneOptimizer.GAExperiment
                 EnableProfiling = src.EnableProfiling,
                 EnableConcurrentOptimization = src.EnableConcurrentOptimization,
                 UseHungarianAssignment = src.UseHungarianAssignment,
-                EnableReachabilitySeeding = src.EnableReachabilitySeeding
+                EnableReachabilitySeeding = src.EnableReachabilitySeeding,
+                DiagnosticsLevel = src.DiagnosticsLevel,
+                BatchModeEnabled = src.BatchModeEnabled,
+                ExperimentBatchId = src.ExperimentBatchId,
+                ExperimentName = src.ExperimentName,
+                ParameterSetId = src.ParameterSetId,
+                ParameterSetName = src.ParameterSetName,
+                RunIndex = src.RunIndex
             };
         }
 
-        private static string GenerateRunId(string projectFile, string craneModel, int seed, GASettings settings)
+        public static string GenerateRunId(string projectFile, string craneModel, int seed, GASettings settings)
         {
             string projectDirName = Path.GetFileName(Path.GetDirectoryName(projectFile)) ?? string.Empty;
             string projectPathKey = Path.Combine(projectDirName, Path.GetFileName(projectFile)).Replace('\\', '/');
@@ -795,14 +890,27 @@ namespace CraneOptimizer.GAExperiment
             var key = $"{projectPathKey.ToLowerInvariant()}_" +
                       $"{craneModel.ToLowerInvariant()}_" +
                       $"{seed}_" +
+                      $"{(settings.ParameterSetId ?? "N/A").ToLowerInvariant()}_" +
+                      $"{(settings.ParameterSetName ?? "N/A").ToLowerInvariant()}_" +
                       $"{settings.PopulationSize}_" +
                       $"{settings.MaxGenerations}_" +
                       $"{settings.MutationRate.ToString("F3", CultureInfo.InvariantCulture)}_" +
                       $"{settings.MutationSigma.ToString("F3", CultureInfo.InvariantCulture)}_" +
                       $"{settings.CrossoverRate.ToString("F3", CultureInfo.InvariantCulture)}_" +
                       $"{settings.MaxCranePositions}_" +
+                      $"{settings.CoverageWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.RelocationWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.RadiusPenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.RadiusQualityPenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.OverweightPenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.HeightPenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.RadiusStdDevPenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.BalancePenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.SimilarPositionPenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.RelocationDistancePenaltyWeight.ToString("F3", CultureInfo.InvariantCulture)}_" +
                       $"{settings.MinimumRelocationDistance.ToString("F1", CultureInfo.InvariantCulture)}_" +
-                      $"{settings.GridStep.ToString("F2", CultureInfo.InvariantCulture)}";
+                      $"{settings.GridStep.ToString("F2", CultureInfo.InvariantCulture)}_" +
+                      $"{settings.UseHungarianAssignment.ToString().ToLowerInvariant()}";
 
             using var sha = System.Security.Cryptography.SHA256.Create();
             var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(key));

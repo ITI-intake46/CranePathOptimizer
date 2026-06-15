@@ -38,11 +38,18 @@ Thumbs.db
 Reports/
 **/Reports/
 
-# GA generated diagnostics CSVs (research/benchmark artifacts)
+# GA generated diagnostics CSVs (old naming - kept for backward compat)
 **/Diagnostics/ga_diagnostics_*.csv
 **/Diagnostics/ga_assignment_matrix_*.csv
 **/Diagnostics/ga_final_assignments_*.csv
 **/Diagnostics/ga_failure_breakdown_*.csv
+
+# GA generated diagnostics CSVs (new ga_audit_ naming, flat and per-run subfolder)
+**/Diagnostics/ga_audit_diagnostics_*.csv
+**/Diagnostics/ga_audit_assignment_matrix_*.csv
+**/Diagnostics/ga_audit_final_assignments_*.csv
+**/Diagnostics/ga_audit_failure_breakdown_*.csv
+**/Diagnostics/**/ga_audit_*.csv
 
 # GA profiler logs
 **/Logs/ga_profile_*.txt

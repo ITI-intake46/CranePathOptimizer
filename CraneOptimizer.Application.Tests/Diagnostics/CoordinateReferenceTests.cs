@@ -458,7 +458,7 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
             Assert.True(File.Exists(detailedCsvPath));
 
             string reportsDir = Path.GetDirectoryName(detailedCsvPath)!;
-            string historyCsvPath = Path.Combine(reportsDir, "ga_run_history.csv");
+            string historyCsvPath = Path.Combine(reportsDir, "ga_audit_run_history.csv");
             Assert.True(File.Exists(historyCsvPath));
 
             string historyContent = File.ReadAllText(historyCsvPath);
@@ -474,9 +474,9 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
             {
                 File.Delete(detailedCsvPath);
                 File.Delete(historyCsvPath);
-                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_diagnostics_", "ga_failure_breakdown_")));
-                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_diagnostics_", "ga_assignment_matrix_")));
-                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_diagnostics_", "ga_final_assignments_")));
+                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_audit_diagnostics_", "ga_audit_failure_breakdown_")));
+                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_audit_diagnostics_", "ga_audit_assignment_matrix_")));
+                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_audit_diagnostics_", "ga_audit_final_assignments_")));
             }
             catch
             {
@@ -973,10 +973,10 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
             {
                 File.Delete(detailedCsvPath);
                 string reportsDir = Path.GetDirectoryName(detailedCsvPath)!;
-                File.Delete(Path.Combine(reportsDir, "ga_run_history.csv"));
-                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_diagnostics_", "ga_failure_breakdown_")));
-                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_diagnostics_", "ga_assignment_matrix_")));
-                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_diagnostics_", "ga_final_assignments_")));
+                File.Delete(Path.Combine(reportsDir, "ga_audit_run_history.csv"));
+                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_audit_diagnostics_", "ga_audit_failure_breakdown_")));
+                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_audit_diagnostics_", "ga_audit_assignment_matrix_")));
+                File.Delete(Path.Combine(reportsDir, Path.GetFileName(detailedCsvPath).Replace("ga_audit_diagnostics_", "ga_audit_final_assignments_")));
             }
             catch
             {
