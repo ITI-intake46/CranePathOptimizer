@@ -65,7 +65,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
     {
         public static LoadChartOperatingSetupOption Any { get; } = new(
             "Any available line count / condition",
-            "Uses every eligible load-chart entry. This preserves the previous optimizer behavior.",
+            "Uses every eligible imported capacity value. This preserves the previous optimizer behavior.",
             null,
             null,
             true);
@@ -251,19 +251,17 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             : "Constrained";
 
         public string OperatingSetupCollapsedSummary => SelectedLoadChartOperatingSetupOption.IsDefault
-            ? "Automatic: any eligible imported load-chart entry."
+            ? "Automatic: any eligible imported capacity value."
             : $"Constrained: {SelectedLoadChartOperatingSetupOption.DisplayText}.";
 
-        public string OperatingSetupCollapsedSubtext => SelectedLoadChartOperatingSetupOption.IsDefault
-            ? "Default behavior is preserved; the GA may use every eligible chart cell."
-            : SelectedLoadChartOperatingSetupOption.Description;
+        public string OperatingSetupCollapsedSubtext => SelectedLoadChartOperatingSetupOption.Description;
         public string SelectedLoadChartOperatingSetupDescription => SelectedLoadChartOperatingSetupOption.Description;
 
         public bool IsLoadChartOperatingSetupSelectorEnabled => LoadChartOperatingSetupOptions.Count > 1;
 
         public double OperatingSetupSliderMaximum => Math.Max(0, LoadChartOperatingSetupOptions.Count - 1);
 
-        public string OperatingSetupScaleStartLabel => "Any setup / fewer lines";
+        public string OperatingSetupScaleStartLabel => "Any setup";
 
         public string OperatingSetupScaleEndLabel => MaximumAvailableNumberOfLines > 0
             ? "More lines / slower hook"
@@ -300,7 +298,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         }
 
         public string OperatingSetupSelectedTitle => SelectedLoadChartOperatingSetupOption.IsDefault
-            ? "Any eligible chart entry"
+            ? "Any eligible capacity value"
             : SelectedLoadChartOperatingSetupOption.DisplayText;
 
         public string OperatingSetupSelectedTone
@@ -309,7 +307,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             {
                 int? lines = SelectedLoadChartOperatingSetupOption.NumberOfLinesConstraint;
                 if (!lines.HasValue)
-                    return "No line-count constraint; the GA may use every eligible imported chart cell.";
+                    return "No line-count constraint; the GA may use every eligible imported capacity value.";
 
                 if (lines.Value <= 2)
                     return "Lighter / faster setup";
@@ -322,7 +320,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         }
 
         public string LineSupportIndexExplanation => HasSelectedLoadChartNumberOfLines
-            ? "Relative support intuition from the selected parts of line. Certified capacity still comes from the imported load chart."
+            ? "Selected maximum available parts of line. Usable imported capacity values requiring fewer or equal lines remain eligible; certified capacity still comes from the imported load chart."
             : "No fixed line count selected; imported chart eligibility remains unconstrained.";
 
         public string HookSpeedIndexExplanation => HasSelectedLoadChartNumberOfLines
@@ -337,7 +335,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             {
                 int? lines = SelectedLoadChartOperatingSetupOption.NumberOfLinesConstraint;
                 if (!lines.HasValue)
-                    return "Any setup selected: no line-count constraint is applied. The optimizer may use any eligible imported load-chart entry.";
+                    return "Any setup selected: no line-count constraint is applied. The optimizer may use any eligible imported capacity value.";
 
                 string physicalFeel = lines.Value <= 2
                     ? "lighter/faster"
@@ -345,11 +343,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
                         ? "balanced"
                         : "heavier/slower";
 
-                return $"{FormatNumberOfLines(lines.Value)} selected: more parts of line generally increase hoist-line mechanical advantage and reduce hook speed. This feels like a {physicalFeel} operating setup.";
+                return $"{FormatNumberOfLines(lines.Value)} available: capacity lookup may use usable imported capacity values requiring up to this line count. More parts of line generally increase hoist-line mechanical advantage and reduce hook speed. This feels like a {physicalFeel} operating setup.";
             }
         }
 
-        public string CapacityTendencyLabel => "Capacity tendency";
+        public string CapacityTendencyLabel => "Line-support index";
 
         public string HookSpeedTendencyLabel => "Hook-speed tendency";
 
@@ -359,7 +357,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             {
                 int? lines = SelectedLoadChartOperatingSetupOption.NumberOfLinesConstraint;
                 return lines.HasValue
-                    ? $"{lines.Value:0}x line-support index"
+                    ? $"up to {lines.Value:0}x line-support index"
                     : "No fixed line count";
             }
         }
@@ -404,7 +402,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public string OperatingSetupChartCoverageSummary => SelectedLoadChartOperatingSetupOption.Description;
 
         public string OperatingSetupSafetyNote =>
-            "Engineering intuition only. The optimizer still uses imported manufacturer load-chart capacities; line count is a setup constraint, not a standalone certified capacity calculation.";
+            "Engineering intuition only. The optimizer still uses imported manufacturer load-chart capacities; line count is a maximum setup eligibility constraint, not a standalone certified capacity calculation.";
 
         private int MaximumAvailableNumberOfLines => Math.Max(
             SelectedLoadChartOperatingSetupOption.NumberOfLinesConstraint ?? 0,
@@ -555,7 +553,19 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
                 .Where(point => point != null)
                 .ToList() ?? new List<TargetPoint>();
 
-            var options = new List<LoadChartOperatingSetupOption> { LoadChartOperatingSetupOption.Any };
+            var usableCapacityValues = entries
+                .Where(IsUsableCapacityValue)
+                .ToList();
+
+            int usableVisualColumnCount = usableCapacityValues
+                .Select(BuildVisualColumnIdentity)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+
+            var options = new List<LoadChartOperatingSetupOption>
+            {
+                CreateAnyOperatingSetupOption(usableCapacityValues.Count, usableVisualColumnCount)
+            };
 
             var lineGroups = entries
                 .Where(point => point.NumberOfLines.HasValue && point.NumberOfLines.Value > 0)
@@ -565,39 +575,200 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 
             foreach (var group in lineGroups)
             {
-                int visualColumnCount = group
+                var eligibleForSelectedLineCount = entries
+                    .Where(point =>
+                        point.NumberOfLines.HasValue &&
+                        point.NumberOfLines.Value > 0 &&
+                        point.NumberOfLines.Value <= group.Key)
+                    .ToList();
+
+                var usableEligibleCapacityValues = eligibleForSelectedLineCount
+                    .Where(IsUsableCapacityValue)
+                    .ToList();
+
+                int usableLineVisualColumnCount = usableEligibleCapacityValues
                     .Select(BuildVisualColumnIdentity)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .Count();
 
+                string lineText = FormatNumberOfLines(group.Key);
+
                 options.Add(new LoadChartOperatingSetupOption(
-                    FormatNumberOfLines(group.Key),
-                    $"Restricts capacity lookup to {group.Count()} imported chart cell(s) across {visualColumnCount} visual column(s).",
+                    $"Up to {lineText}",
+                    $"Allows capacity lookup to use {FormatUsableCapacityValueCount(usableEligibleCapacityValues.Count)} requiring up to {lineText} across {FormatVisualColumnCount(usableLineVisualColumnCount)}. Blank/zero preserved chart cells remain non-liftable.",
                     group.Key,
                     null));
             }
 
             var conditionGroups = entries
-                .Select(point => point.OperatingConditionLabel?.Trim())
-                .Where(label => !string.IsNullOrWhiteSpace(label))
-                .GroupBy(label => label!, StringComparer.OrdinalIgnoreCase)
+                .Select(point => new { Point = point, Label = GetActionableOperatingConditionLabel(point) })
+                .Where(item => !string.IsNullOrWhiteSpace(item.Label))
+                .GroupBy(item => item.Label!, StringComparer.OrdinalIgnoreCase)
                 .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             foreach (var group in conditionGroups)
             {
+                var usableConditionCapacityValues = group
+                    .Select(item => item.Point)
+                    .Where(IsUsableCapacityValue)
+                    .ToList();
+
+                int usableConditionVisualColumnCount = usableConditionCapacityValues
+                    .Select(BuildVisualColumnIdentity)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count();
+
                 options.Add(new LoadChartOperatingSetupOption(
                     $"Condition: {group.Key}",
-                    $"Restricts capacity lookup to {group.Count()} imported chart cell(s) with this operating condition label.",
+                    $"Restricts capacity lookup to {FormatUsableCapacityValueCount(usableConditionCapacityValues.Count)} with this operating condition label across {FormatVisualColumnCount(usableConditionVisualColumnCount)}. Blank/zero preserved chart cells remain non-liftable.",
                     null,
                     group.Key));
             }
 
             LoadChartOperatingSetupOptions = options;
-            SelectedLoadChartOperatingSetupOption = LoadChartOperatingSetupOption.Any;
+            SelectedLoadChartOperatingSetupOption = options[0];
             LoadChartOperatingSetupStatus = BuildLoadChartOperatingSetupStatus(entries.Count, lineGroups.Count, conditionGroups.Count);
         }
 
+        private static LoadChartOperatingSetupOption CreateAnyOperatingSetupOption(
+            int usableCapacityValueCount,
+            int usableVisualColumnCount)
+        {
+            string description = usableCapacityValueCount > 0
+                ? $"Uses {FormatUsableCapacityValueCount(usableCapacityValueCount)} across {FormatVisualColumnCount(usableVisualColumnCount)}. No line-count or operating-condition constraint is applied."
+                : "No usable imported capacity values were found. The optimizer will use its existing fallback behavior.";
+
+            return new LoadChartOperatingSetupOption(
+                "Any available line count / condition",
+                description,
+                null,
+                null,
+                true);
+        }
+        private static string? GetActionableOperatingConditionLabel(TargetPoint point)
+        {
+            string? rawLabel = point.OperatingConditionLabel?.Trim();
+            if (string.IsNullOrWhiteSpace(rawLabel))
+                return null;
+
+            string label = CollapseWhitespace(rawLabel);
+            return IsSyntheticPdfVisualOperatingConditionLabel(point, label)
+                ? null
+                : label;
+        }
+
+        private static bool IsSyntheticPdfVisualOperatingConditionLabel(TargetPoint point, string label)
+        {
+            var segments = System.Text.RegularExpressions.Regex
+                .Split(label, @"\s*/\s*")
+                .Select(CollapseWhitespace)
+                .Where(segment => !string.IsNullOrWhiteSpace(segment))
+                .ToList();
+
+            if (segments.Count == 0)
+                return false;
+
+            if (segments.Count == 1)
+                return IsLineCountOnlyToken(point, segments[0]);
+
+            bool hasLineCountToken = segments.Any(segment => IsLineCountOnlyToken(point, segment));
+            if (!hasLineCountToken)
+                return false;
+
+            return segments.All(segment =>
+                IsLineCountOnlyToken(point, segment) ||
+                IsGeneratedBoomHeaderToken(point, segment));
+        }
+
+        private static bool IsLineCountOnlyToken(TargetPoint point, string token)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(
+                token,
+                @"^(?<count>\d+)\s*(?:line(?:s|\(s\))?|falls?|parts?)(?:\s+of\s+line)?$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+            if (!match.Success)
+                return false;
+
+            if (!int.TryParse(
+                    match.Groups["count"].Value,
+                    System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out int count))
+                return false;
+
+            return !point.NumberOfLines.HasValue || point.NumberOfLines.Value == count;
+        }
+
+        private static bool IsGeneratedBoomHeaderToken(TargetPoint point, string token)
+        {
+            if (!TryParseBoomHeaderToken(token, out double tokenValue))
+                return false;
+
+            string? visualHeader = point.VisualColumnHeader?.Trim();
+            if (!string.IsNullOrWhiteSpace(visualHeader) &&
+                TryParseBoomHeaderToken(visualHeader, out double visualHeaderValue) &&
+                AreApproximatelyEqual(tokenValue, visualHeaderValue))
+            {
+                return true;
+            }
+
+            return point.BoomLength > 0d && AreApproximatelyEqual(tokenValue, point.BoomLength);
+        }
+
+        private static bool TryParseBoomHeaderToken(string token, out double value)
+        {
+            value = 0d;
+
+            string candidate = CollapseWhitespace(token);
+            candidate = System.Text.RegularExpressions.Regex.Replace(candidate, @"\s*\(\d+\)\s*$", string.Empty);
+            candidate = System.Text.RegularExpressions.Regex.Replace(
+                candidate,
+                @"\s*m\s*$",
+                string.Empty,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+            candidate = candidate.Trim().Replace(',', '.');
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(candidate, @"^[+-]?\d+(?:\.\d+)?$"))
+                return false;
+
+            return double.TryParse(
+                candidate,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out value);
+        }
+
+        private static bool AreApproximatelyEqual(double left, double right)
+        {
+            return Math.Abs(left - right) <= 0.0001d;
+        }
+
+        private static string CollapseWhitespace(string value)
+        {
+            return System.Text.RegularExpressions.Regex.Replace(value.Trim(), @"\s+", " ");
+        }
+        private static bool IsUsableCapacityValue(TargetPoint point)
+        {
+            return point.Capacity > 0d
+                && !double.IsNaN(point.Capacity)
+                && !double.IsInfinity(point.Capacity);
+        }
+        private static string FormatUsableCapacityValueCount(int count)
+        {
+            return FormatCount(count, "usable imported capacity value", "usable imported capacity values");
+        }
+
+        private static string FormatVisualColumnCount(int count)
+        {
+            return FormatCount(count, "visual column", "visual columns");
+        }
+
+        private static string FormatCount(int count, string singular, string plural)
+        {
+            return $"{count} {(count == 1 ? singular : plural)}";
+        }
         private static string BuildVisualColumnIdentity(TargetPoint point)
         {
             if (point.VisualColumnIndex.HasValue)

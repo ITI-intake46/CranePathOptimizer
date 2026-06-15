@@ -244,8 +244,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// <summary>
         /// Optional load-chart condition constraint supplied by the user/run context.
         /// Null means the resolver keeps the existing conservative duplicate-column policy.
-        /// When set, only load-chart entries whose imported NumberOfLines metadata matches
-        /// this value are eligible for capacity selection.
+        /// When set, load-chart entries whose imported NumberOfLines metadata is less than
+        /// or equal to this maximum available line count are eligible for capacity selection.
         /// </summary>
         public int? LoadChartNumberOfLinesConstraint { get; set; }
 

@@ -233,14 +233,19 @@
                             Text="{Binding OperatingSetupCollapsedSubtext}"
                             TextWrapping="Wrap" />
 
-                        <Grid
+                        <ScrollViewer
                             Grid.Row="6"
+                            MaxHeight="330"
+                            VerticalScrollBarVisibility="Auto"
+                            HorizontalScrollBarVisibility="Disabled"
+                            CanContentScroll="False"
+                            Focusable="False"
+                            FocusVisualStyle="{x:Null}"
                             Visibility="{Binding LoadChartOperatingSetupDetailsVisibility}">
+                            <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="4" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="8" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="10" />
                                 <RowDefinition Height="Auto" />
@@ -315,15 +320,8 @@
                                 </ItemsControl>
                             </Grid>
 
-                            <TextBlock
+<Border
                                 Grid.Row="4"
-                                FontSize="{StaticResource FontSizeXS}"
-                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                Text="{Binding OperatingSetupChartCoverageSummary}"
-                                TextWrapping="Wrap" />
-
-                            <Border
-                                Grid.Row="6"
                                 Padding="{StaticResource Space2}"
                                 Background="{DynamicResource BackgroundBrush}"
                                 BorderBrush="{DynamicResource BorderBrush}"
@@ -427,12 +425,13 @@
                             </Border>
 
                             <TextBlock
-                                Grid.Row="8"
+                                Grid.Row="6"
                                 FontSize="{StaticResource FontSizeXS}"
                                 Foreground="{DynamicResource TextSecondaryBrush}"
                                 Text="{Binding OperatingSetupSafetyNote}"
                                 TextWrapping="Wrap" />
-                        </Grid>
+                            </Grid>
+                        </ScrollViewer>
                     </Grid>
                 </Border>
 
