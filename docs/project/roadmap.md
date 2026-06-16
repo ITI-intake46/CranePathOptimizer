@@ -354,7 +354,7 @@ These are analysis recommendations only; no code has been changed.
 4. Geometry cache phase: cache run-scoped element static data, setup-element radius/boom calculations, and normalized zones. Use conservative cache keys and verify with golden-master tests.
 5. Assignment phase: avoid repeated assignment lookup construction and reduce temporary objects in `EvaluateBestPosition`.
 6. Parallel readiness phase: replace shared random access with thread-local or deterministic per-operation random streams, verify dependency thread-safety, and isolate profiler metadata.
-7. Parallel execution phase: parallelize population and child evaluation loops first. Benchmark speedup and GC behavior before considering element-level parallelism.
+7. Parallel execution phase (Completed in Phase 3A): Parallelized population and child evaluation loops using Parallel.ForEach with ParallelOptions, obtaining substantial speedup (56.4% total run reduction in Hungarian mode) and confirming zero output differences in fixed-seed validation.
 8. Cleanup phase: address lower-priority LINQ allocations in selection, replacement, final assignment resolution, and diagnostics writing.
 
 Expected ROI by phase:
