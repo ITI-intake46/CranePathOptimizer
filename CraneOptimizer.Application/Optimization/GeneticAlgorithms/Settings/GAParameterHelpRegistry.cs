@@ -67,14 +67,14 @@ public static class GAParameterHelpRegistry
         {
             ParameterKey = "MaxCranePositions",
             DisplayName = "Max Crane Positions",
-            Description = "The maximum number of setups (relocations) allowed for a single crane specification.",
+            Description = "The maximum number of crane setup locations (relocations) the optimizer may use. It is not a required count.",
             IncreaseEffect = "Expands the possible coverage by allowing more setup positions.",
             DecreaseEffect = "Restricts setups, forcing the solver to find a more compact solution.",
             ValidRange = "1 to 10",
             RecommendedRange = "1 – 4",
             PerformanceImpact = "High — directly increases chromosome size and set-cover complexity.",
             QualityImpact = "High — dominant factor in layout feasibility.",
-            SpecialNote = "Increasing this significantly increases the size of the search space."
+            SpecialNote = "Increasing this increases search space. With Multi-Stage Discovery enabled, the optimizer tests stages from 1 up to Max Crane Positions and stops early if target coverage is met."
         });
 
         Add(new ParameterHelpMetadata
