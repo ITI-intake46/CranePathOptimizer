@@ -236,7 +236,8 @@ namespace CraneOptimizer.UI.Core.Services
                 $"Visible={stats.VisibleElements} Skipped={stats.IncludeInRenderSkippedCount} " +
                 $"BatchedGroups={stats.BatchedGroupCount} HitBoxes={stats.HitTestBoxCount} " +
                 $"RenderGeomModels={stats.RenderGeometryModel3DCount} HitTestGeomModels={stats.HitTestGeometryModel3DCount} " +
-                $"HQCacheHits={stats.HighQualityMeshCacheHitCount} HQCacheMisses={stats.HighQualityMeshCacheMissCount} " +
+                $"MeshCacheHits={stats.MeshCacheHitCount} MeshCacheMisses={stats.MeshCacheMissCount} MeshCacheHitRatio={stats.MeshCacheHitRatio:P1} " +
+                $"HQCacheHits={stats.HighQualityMeshCacheHitCount} HQCacheMisses={stats.HighQualityMeshCacheMissCount} HQCacheHitRatio={stats.HighQualityMeshCacheHitRatio:P1} " +
                 $"HQMeshesCreated={stats.HighQualityMeshesCreatedCount} HQCacheSize={stats.HighQualityCacheCount} " +
                 $"DurationMs={stats.RenderDurationMs:F1} MemBefore={memBefore:F1}MB MemAfter={memAfter:F1}MB");
         }

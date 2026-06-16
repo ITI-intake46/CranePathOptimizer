@@ -14,8 +14,10 @@ namespace CraneOptimizer.Domain.Diagnostics
         public int MeshesCreatedCount { get; set; }
         public int MeshCacheHitCount { get; set; }
         public int MeshCacheMissCount { get; set; }
+        public double MeshCacheHitRatio => (MeshCacheHitCount + MeshCacheMissCount) == 0 ? 0.0 : (double)MeshCacheHitCount / (MeshCacheHitCount + MeshCacheMissCount);
         public int HighQualityMeshCacheHitCount { get; set; }
         public int HighQualityMeshCacheMissCount { get; set; }
+        public double HighQualityMeshCacheHitRatio => (HighQualityMeshCacheHitCount + HighQualityMeshCacheMissCount) == 0 ? 0.0 : (double)HighQualityMeshCacheHitCount / (HighQualityMeshCacheHitCount + HighQualityMeshCacheMissCount);
         public int HighQualityMeshesCreatedCount { get; set; }
         public int HighQualityCacheCount { get; set; }
         public int GeometryModel3DCount { get; set; }

@@ -92,7 +92,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
         public static MeshQuality CurrentQuality { get; set; } = MeshQuality.Medium;
         public static bool UseBatchedRealMeshRendering { get; set; } = true;
-        public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } = false;
+        public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } = true;
 
         public sealed class SpatialHitTestElement
         {
@@ -556,6 +556,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             };
 
             mesh.Normals = CalculateIndexedNormals(positions, indices);
+            if (mesh.CanFreeze)
+            {
+                mesh.Freeze();
+            }
             return mesh;
         }
 
@@ -1009,6 +1013,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                     ? new Vector3DCollection()
                     : new Vector3DCollection(helixMesh.Normals.Select(n => new Vector3D(n.X, n.Y, n.Z)))
             };
+            if (meshGeom.CanFreeze)
+            {
+                meshGeom.Freeze();
+            }
 
             var group = new Model3DGroup();
             var geoModel = new GeometryModel3D { Geometry = meshGeom, Material = finalMaterial, BackMaterial = finalMaterial };
