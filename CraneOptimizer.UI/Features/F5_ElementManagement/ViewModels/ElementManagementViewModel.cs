@@ -568,7 +568,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 CreateDisplayProperty("Local Z", FormatLength(panel.CenterZ))
             };
 
-            if (_transformService != null && _transformService.IsEnabled)
+            if (CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowCoordinateReferenceUi && _transformService != null && _transformService.IsEnabled)
             {
                 var cogPt = new DomainPoint3D(panel.CenterX, panel.CenterY, panel.CenterZ);
                 var sitePt = _transformService.LocalToSurvey(cogPt);
@@ -576,10 +576,11 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 locationItems.Add(CreateDisplayProperty("Northing", FormatSurveyCoordinate(sitePt.Y)));
                 locationItems.Add(CreateDisplayProperty("Elevation", FormatSurveyCoordinate(sitePt.Z)));
             }
-            else
-            {
-                locationItems.Add(CreateDisplayProperty("Survey", "Not active / Local Only"));
-            }
+            // Temporarily hidden by product decision. Keep logic intact for future re-enable.
+            // else
+            // {
+            //     locationItems.Add(CreateDisplayProperty("Survey", "Not active / Local Only"));
+            // }
 
             properties.Add(CreateGroup("Location", true, locationItems.ToArray()));
 

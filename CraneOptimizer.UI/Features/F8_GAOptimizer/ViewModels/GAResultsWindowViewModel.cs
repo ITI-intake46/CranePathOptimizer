@@ -35,7 +35,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             get
             {
                 var localStr = $"Local X: {X:F2}, Local Y: {Y:F2}";
-                if (_transformService == null || !_transformService.IsEnabled)
+                if (!CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowCoordinateReferenceUi || _transformService == null || !_transformService.IsEnabled)
                 {
                     return localStr;
                 }
@@ -135,7 +135,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             }
         }
 
-        public bool IsSiteReferenceEnabled => _transformService?.IsEnabled ?? false;
+        // Temporarily hidden by product decision. Keep logic intact for future re-enable.
+        public bool IsSiteReferenceEnabled => CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowCoordinateReferenceUi && (_transformService?.IsEnabled ?? false);
 
         // Candidate Point
         public string CandidateModelX => SelectedPoint != null ? SelectedPoint.X.ToString("F3") : "N/A";

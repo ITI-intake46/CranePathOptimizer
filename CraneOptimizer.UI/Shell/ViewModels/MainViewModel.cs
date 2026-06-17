@@ -512,7 +512,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
             var settings = _unitSettings.Current;
             var zVal = 0.0; // default ground Z
-            if (_transformService != null && _transformService.IsEnabled)
+            if (CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowCoordinateReferenceUi && _transformService != null && _transformService.IsEnabled)
             {
                 var localPt = new DomainPoint3D(x, y, zVal);
                 var surveyPt = _transformService.LocalToSurvey(localPt);
@@ -522,7 +522,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             else
             {
                 CoordX = UnitSystem.FormatLength(x, settings);
-                CoordY = $"{UnitSystem.FormatLength(y, settings)} [Default Local Z: {UnitSystem.FormatLength(zVal, settings)}] (Survey: Not active)";
+                // Temporarily hidden by product decision. Keep logic intact for future re-enable.
+                // CoordY = $"{UnitSystem.FormatLength(y, settings)} [Default Local Z: {UnitSystem.FormatLength(zVal, settings)}] (Survey: Not active)";
+                CoordY = $"{UnitSystem.FormatLength(y, settings)} [Default Local Z: {UnitSystem.FormatLength(zVal, settings)}]";
             }
         }
 

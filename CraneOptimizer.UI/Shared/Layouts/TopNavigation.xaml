@@ -10,7 +10,8 @@
     xmlns:ZonesViews="clr-namespace:CraneOptimizer.UI.Features.F7_Zones.Views"
     xmlns:F18Views="clr-namespace:CraneOptimizer.UI.Features.F18_CoordinateReference.Views"
     xmlns:project="clr-namespace:CraneOptimizer.UI.F10_ProjectManagement.Views"
-    xmlns:ReportViews="clr-namespace:CraneOptimizer.UI.Features.F12_Reports.Views">
+    xmlns:ReportViews="clr-namespace:CraneOptimizer.UI.Features.F12_Reports.Views"
+    xmlns:config="clr-namespace:CraneOptimizer.UI.Core.Configuration">
 
     <Border
         Background="{DynamicResource SurfaceBrush}"
@@ -82,19 +83,23 @@
                         GroupName="RibbonTabs"
                         Style="{StaticResource RibbonTabBtn}" />
 
+                    <!-- Temporarily hidden by product decision. Keep logic intact for future re-enable. -->
                     <RadioButton
                         x:Name="TabSettings"
                         Checked="Tab_Checked"
                         Content="SETTINGS"
                         GroupName="RibbonTabs"
-                        Style="{StaticResource RibbonTabBtn}" />
+                        Style="{StaticResource RibbonTabBtn}"
+                        Visibility="{Binding Source={x:Static config:AppFeatureFlags.ShowSettingsTab}, Converter={StaticResource BoolToVisibilityConverter}}" />
 
+                    <!-- Temporarily hidden by product decision. Keep logic intact for future re-enable. -->
                     <RadioButton
                         x:Name="TabCoordinateReference"
                         Checked="Tab_Checked"
                         Content="COORDINATE REFERENCE"
                         GroupName="RibbonTabs"
-                        Style="{StaticResource RibbonTabBtn}" />
+                        Style="{StaticResource RibbonTabBtn}"
+                        Visibility="{Binding Source={x:Static config:AppFeatureFlags.ShowCoordinateReferenceUi}, Converter={StaticResource BoolToVisibilityConverter}}" />
 
                 </StackPanel>
             </Border>
@@ -129,9 +134,11 @@
                     DataContext="{Binding CranePlacement}"
                     Visibility="Collapsed" />
 
-                <F9Views:UserSettingsView x:Name="PanelSettings" Visibility="Collapsed" />
+                <!-- Temporarily hidden by product decision. Keep logic intact for future re-enable. -->
+                <F9Views:UserSettingsView x:Name="PanelSettings" Visibility="{Binding Source={x:Static config:AppFeatureFlags.ShowSettingsTab}, Converter={StaticResource BoolToVisibilityConverter}}" />
 
-                <F18Views:CoordinateReferenceView x:Name="PanelCoordinateReference" DataContext="{Binding CoordinateReference}" Visibility="Collapsed" />
+                <!-- Temporarily hidden by product decision. Keep logic intact for future re-enable. -->
+                <F18Views:CoordinateReferenceView x:Name="PanelCoordinateReference" DataContext="{Binding CoordinateReference}" Visibility="{Binding Source={x:Static config:AppFeatureFlags.ShowCoordinateReferenceUi}, Converter={StaticResource BoolToVisibilityConverter}}" />
 
             </Grid>
         </Grid>
