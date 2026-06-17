@@ -1165,7 +1165,7 @@
                                                 <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Enable Multi-Stage Discovery" VerticalAlignment="Center" />
                                                 <controls:ParameterHelpIcon ParameterKey="EnableMultiStageDiscovery" Margin="4,0,0,0" VerticalAlignment="Center" />
                                             </StackPanel>
-                                            <CheckBox x:Name="ChkEnableMultiStageDiscovery" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding EnableMultiStageDiscovery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="With Multi-Stage Discovery enabled, the optimizer tests stages from 1 up to Max Crane Positions and stops early if the target coverage is met. It is not a required count." />
+                                            <CheckBox x:Name="ChkEnableMultiStageDiscovery" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding EnableMultiStageDiscovery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="False" ToolTip="With Multi-Stage Discovery enabled, the optimizer tests stages from 1 up to Max Crane Positions and stops early if the target coverage is met. It is not a required count." />
                                         </Grid>
 
                                         <!-- 2. Coverage Target -->

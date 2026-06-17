@@ -110,7 +110,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 CraneFootprintRadius = ParseDouble(options.CraneFootprintRadiusText, 0.0),
                 EnableProfiling = ParseBool(options.EnableProfilingText, true),
                 ProfilingLogDirectory = options.ProfilingLogDirectoryText,
-                EnableMultiStageDiscovery = ParseBool(options.EnableMultiStageDiscoveryText, true),
+                // Phase 7: EnableMultiStageDiscovery is always true for normal UI optimization runs.
+                // Developer/experiment paths can override GASettings directly after construction.
+                EnableMultiStageDiscovery = true,
                 MultiStageCoverageTarget = ParseDouble(options.MultiStageCoverageTargetText, 0.95),
                 AdaptiveRelocationScaleFactor = ParseDouble(options.AdaptiveRelocationScaleFactorText, 0.40),
                 UseHungarianAssignment = ParseBool(options.UseHungarianAssignmentText, false),

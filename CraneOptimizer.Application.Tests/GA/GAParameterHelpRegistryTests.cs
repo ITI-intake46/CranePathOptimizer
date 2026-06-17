@@ -64,7 +64,13 @@ namespace CraneOptimizer.Application.Tests.GA
                 "DuplicatePositionDistance",
                 "CraneFootprintRadius",
                 "EnableProfiling",
-                "ProfilingLogDirectory"
+                "ProfilingLogDirectory",
+
+                // 7. Multi-Stage Discovery Parameters
+                "EnableMultiStageDiscovery",
+                "MultiStageCoverageTarget",
+                "AdaptiveRelocationScaleFactor",
+                "UseHungarianAssignment"
             };
 
             foreach (var key in expectedKeys)
