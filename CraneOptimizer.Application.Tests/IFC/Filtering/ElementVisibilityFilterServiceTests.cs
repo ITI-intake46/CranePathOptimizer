@@ -91,6 +91,8 @@ public sealed class ElementVisibilityFilterServiceTests
         public double ModelLengthFactor => 1d;
         public double? ModelGroundElevation => null;
 
+        public CraneOptimizer.Domain.CreatedProject.IfcGeoreferencingResult? GetGeoreferencingData() => null;
+
         public List<PrecastElement> ReadElements(string ifcPath) => [];
         public List<PrecastElement> ReadElements(string ifcPath, IfcReadingOptions? options) => [];
         public List<PrecastElement> ReadElements(string path, IProgress<double> progress) => [];

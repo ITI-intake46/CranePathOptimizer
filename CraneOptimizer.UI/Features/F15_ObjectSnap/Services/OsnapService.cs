@@ -11,6 +11,22 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 {
     public sealed class OsnapService : IOsnapService
     {
+        public static int SnapRebuildCount { get; private set; }
+        public static double SnapRebuildTotalMs { get; private set; }
+        public static double SnapRebuildMaxMs { get; private set; }
+        public static int LastRebuildVerticesCount { get; private set; }
+        public static int LastRebuildSegmentsCount { get; private set; }
+        public static bool UseLegacyKeyComparison { get; set; } = false;
+
+        public static void ResetSnapDiagnostics()
+        {
+            SnapRebuildCount = 0;
+            SnapRebuildTotalMs = 0;
+            SnapRebuildMaxMs = 0;
+            LastRebuildVerticesCount = 0;
+            LastRebuildSegmentsCount = 0;
+        }
+
         public OsnapSettings Settings { get; }
 
         private List<Point3D> _zoneVertices = new();
@@ -139,6 +155,63 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
                 $"MemoryDelta={SnapMemoryDeltaMB:F2}MB");
         }
 
+        private System.Windows.Threading.DispatcherTimer? _debounceTimer;
+        private HelixViewport3D? _lastViewport;
+
+        private void ResetDebounceTimer(HelixViewport3D viewport)
+        {
+            if (!viewport.Dispatcher.CheckAccess())
+            {
+                viewport.Dispatcher.BeginInvoke(new Action(() => ResetDebounceTimer(viewport)));
+                return;
+            }
+
+            if (_debounceTimer == null)
+            {
+                _debounceTimer = new System.Windows.Threading.DispatcherTimer(
+                    System.Windows.Threading.DispatcherPriority.Background,
+                    viewport.Dispatcher)
+                {
+                    Interval = TimeSpan.FromMilliseconds(100)
+                };
+                _debounceTimer.Tick += (s, e) =>
+                {
+                    _debounceTimer.Stop();
+                    _ifcScreenIndex = null;
+                    _dxfScreenIndex = null;
+                    Debug.WriteLine("[OSnap] Camera settled (debounce). Invalidated snap screen indexes to ensure 100% accuracy.");
+                    try
+                    {
+                        if (_lastViewport != null)
+                        {
+                            _lastViewport.InvalidateVisual();
+                        }
+                    }
+                    catch { }
+                };
+            }
+            else
+            {
+                _debounceTimer.Stop();
+            }
+
+            _lastViewport = viewport;
+            _debounceTimer.Start();
+        }
+
+        private static bool HasCameraMovedAtAll(CameraSnapshot current, CameraSnapshot? cached)
+        {
+            if (cached == null)
+                return true;
+
+            return current.Position != cached.Position ||
+                   current.LookDirection != cached.LookDirection ||
+                   current.UpDirection != cached.UpDirection ||
+                   current.FovOrWidth != cached.FovOrWidth ||
+                   current.ViewportWidth != cached.ViewportWidth ||
+                   current.ViewportHeight != cached.ViewportHeight;
+        }
+
         public OsnapResult? Snap(Point screenCursor, HelixViewport3D viewport)
         {
             if (!Settings.MasterEnabled)
@@ -147,6 +220,27 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             var enabled = Settings.EnabledTypes;
             if (enabled.Count == 0)
                 return null;
+
+            // Debounce check for any camera changes
+            if (!UseLegacyKeyComparison)
+            {
+                var currentSnap = new CameraSnapshot(viewport, Settings.SnapToIfc ? _ifcGeometryVersion : _dxfGeometryVersion);
+                bool cameraMovedSlightly = false;
+                
+                if (Settings.SnapToIfc && _ifcScreenIndex != null && HasCameraMovedAtAll(currentSnap, _ifcScreenIndex.Snapshot))
+                {
+                    cameraMovedSlightly = true;
+                }
+                else if (Settings.SnapToDxf && _dxfScreenIndex != null && HasCameraMovedAtAll(currentSnap, _dxfScreenIndex.Snapshot))
+                {
+                    cameraMovedSlightly = true;
+                }
+
+                if (cameraMovedSlightly)
+                {
+                    ResetDebounceTimer(viewport);
+                }
+            }
 
             var snap = new SnapAccumulator(screenCursor, viewport, Settings.SnapRadiusPx);
             bool logThisFrame = ShouldLogFrame(screenCursor);
@@ -207,10 +301,20 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
                 return null;
             }
 
-            string key = DxfSnapScreenIndex.BuildKey(viewport, _dxfGeometryVersion);
-            if (_dxfScreenIndex != null && string.Equals(_dxfScreenIndex.Key, key, StringComparison.Ordinal))
-                return _dxfScreenIndex;
+            if (UseLegacyKeyComparison)
+            {
+                string key = DxfSnapScreenIndex.BuildKey(viewport, _dxfGeometryVersion);
+                if (_dxfScreenIndex != null && string.Equals(_dxfScreenIndex.Key, key, StringComparison.Ordinal))
+                    return _dxfScreenIndex;
+            }
+            else
+            {
+                var currentSnap = new CameraSnapshot(viewport, _dxfGeometryVersion);
+                if (_dxfScreenIndex != null && !CameraSnapshot.IsThresholdExceeded(currentSnap, _dxfScreenIndex.Snapshot))
+                    return _dxfScreenIndex;
+            }
 
+            var sw = Stopwatch.StartNew();
             _dxfScreenIndex = DxfSnapScreenIndex.Build(
                 viewport,
                 _dxfEndpoints,
@@ -219,6 +323,17 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
                 _dxfCenters,
                 _dxfQuadrants,
                 _dxfGeometryVersion);
+            sw.Stop();
+
+            SnapRebuildCount++;
+            var duration = sw.Elapsed.TotalMilliseconds;
+            SnapRebuildTotalMs += duration;
+            SnapRebuildMaxMs = Math.Max(SnapRebuildMaxMs, duration);
+            LastRebuildVerticesCount = _dxfEndpoints.Count + _dxfCenters.Count + _dxfQuadrants.Count;
+            LastRebuildSegmentsCount = _dxfSegments.Count;
+
+            Debug.WriteLine($"[OSnap] Rebuilt DXF screen index in {duration:F2}ms. Vertices={LastRebuildVerticesCount}, Segments={LastRebuildSegmentsCount}. Rebuild count={SnapRebuildCount}.");
+
             return _dxfScreenIndex;
         }
 
@@ -227,11 +342,32 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             if (_ifcGeometryByElementId.Count == 0)
                 return null;
 
-            string key = IfcSnapScreenIndex.BuildKey(viewport, _ifcGeometryVersion);
-            if (_ifcScreenIndex != null && string.Equals(_ifcScreenIndex.Key, key, StringComparison.Ordinal))
-                return _ifcScreenIndex;
+            if (UseLegacyKeyComparison)
+            {
+                string key = IfcSnapScreenIndex.BuildKey(viewport, _ifcGeometryVersion);
+                if (_ifcScreenIndex != null && string.Equals(_ifcScreenIndex.Key, key, StringComparison.Ordinal))
+                    return _ifcScreenIndex;
+            }
+            else
+            {
+                var currentSnap = new CameraSnapshot(viewport, _ifcGeometryVersion);
+                if (_ifcScreenIndex != null && !CameraSnapshot.IsThresholdExceeded(currentSnap, _ifcScreenIndex.Snapshot))
+                    return _ifcScreenIndex;
+            }
 
+            var sw = Stopwatch.StartNew();
             _ifcScreenIndex = IfcSnapScreenIndex.Build(viewport, _ifcGeometryByElementId, _ifcGeometryVersion);
+            sw.Stop();
+
+            SnapRebuildCount++;
+            var duration = sw.Elapsed.TotalMilliseconds;
+            SnapRebuildTotalMs += duration;
+            SnapRebuildMaxMs = Math.Max(SnapRebuildMaxMs, duration);
+            LastRebuildVerticesCount = _ifcVertices.Count;
+            LastRebuildSegmentsCount = _ifcSegments.Count;
+
+            Debug.WriteLine($"[OSnap] Rebuilt IFC screen index in {duration:F2}ms. Vertices={LastRebuildVerticesCount}, Segments={LastRebuildSegmentsCount}. Rebuild count={SnapRebuildCount}.");
+
             return _ifcScreenIndex;
         }
 

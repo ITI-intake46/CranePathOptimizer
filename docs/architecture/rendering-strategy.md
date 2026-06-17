@@ -32,10 +32,25 @@ Tessellating complex IFC geometries using xBIM is a computationally intensive op
 
 Access to these static dictionaries is synchronized using dedicated lock structures (`MeshCacheGate` and `HighQualityMeshCacheGate`) to ensure thread safety when rendering models concurrently.
 
+> [!NOTE]
+> **Key Rewrite Deferred**: The refactoring of the `HighQualityMeshCacheKey` (to exclude translation offsets and share mesh instances across identical structural elements via instance transforms) is deferred and is not currently implemented.
+
 ### B. WPF Object Freezing
-In WPF, any object inheriting from `Freezable` (such as `MeshGeometry3D`, `SolidColorBrush`, and `MaterialGroup`) incurs thread-affinity overhead. In [ElementVisualBuilder.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F2_IfcViewer/ElementVisualBuilder.cs#L686) and [ElementMaterialProvider.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F2_IfcViewer/ElementMaterialProvider.cs#L108-L120), all meshes, brushes, and materials are explicitly frozen (`Freeze()`) immediately after construction. 
+In WPF, any object inheriting from `Freezable` (such as `MeshGeometry3D`, `SolidColorBrush`, and `MaterialGroup`) incurs thread-affinity overhead. 
+
+*   **Meshes & Materials**: In [ElementVisualBuilder.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F2_IfcViewer/ElementVisualBuilder.cs#L686) and [ElementMaterialProvider.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F2_IfcViewer/ElementMaterialProvider.cs#L108-L120), all meshes, brushes, and materials are explicitly frozen (`Freeze()`) immediately after construction.
+*   **Fallback Box Freezing (Phase 1)**: Bounding-box and fallback/low-quality `MeshGeometry3D` elements built in `ElementVisualBuilder` (e.g. `BuildFallbackBox` and `BuildIndexedBoxMesh`) are frozen after their initial coordinate assignment. This prevents WPF change tracking and thread-affinity overhead on static geometries.
 
 Freezing turns these objects read-only, allowing them to be shared across threads without marshalling, reducing the WPF render thread workload and lowering CPU overhead.
+
+### B2. Render and Cache Diagnostics (Phase 1)
+To verify cache performance, `RenderPerformanceStats` exposes cache hit ratio diagnostics in real-time:
+*   Tracks total render duration, memory consumption delta, model and geometry counts.
+*   **Cache Diagnostics**: Exposes `MeshCache` and `HighQualityMeshCache` hit ratios (total lookups, hits, misses, and hit ratio percentage).
+*   **Logging**: `SceneRenderingManager` diagnostic logging prints these cache stats during execution.
+
+### B3. Visual Tree Structure (Deferred)
+To prevent scene graph bloat, flattening the `ModelVisual3D` hierarchy into merged visual groups is deferred. Each element continues to map to its own visual container node to support per-element material overrides.
 
 ### C. Level of Detail (LOD) Thresholds
 Users can dynamically adjust the visualization fidelity through the UI (combobox bound to `RenderQualityCombo_SelectionChanged` in [IfcViewerControl.xaml.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F1_IfcViewerControl/Views/IfcViewerControl.xaml.cs#L417-L444)). This controls the meshing logic inside the builder:

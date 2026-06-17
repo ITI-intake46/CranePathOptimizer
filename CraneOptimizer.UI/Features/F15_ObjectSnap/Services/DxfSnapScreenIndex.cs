@@ -22,6 +22,7 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             => Key = key;
 
         public string Key { get; }
+        public CameraSnapshot? Snapshot { get; private set; }
 
         public static DxfSnapScreenIndex Build(
             HelixViewport3D viewport,
@@ -33,6 +34,7 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             int geometryVersion)
         {
             var index = new DxfSnapScreenIndex(BuildKey(viewport, geometryVersion));
+            index.Snapshot = new CameraSnapshot(viewport, geometryVersion);
 
             foreach (var endpoint in endpoints)
             {

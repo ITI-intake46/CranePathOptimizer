@@ -38,9 +38,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             string terminationReason = "MaxStagesReached";
             string optimizationRunId = Guid.NewGuid().ToString();
 
-            int targetMaxPositions = Math.Min(3, baseSettings.MaxCranePositions);
-            if (targetMaxPositions < 1)
-                targetMaxPositions = 1;
+            int targetMaxPositions = Math.Clamp(baseSettings.MaxCranePositions, 1, 10);
 
             GAResult? bestResult = null;
 

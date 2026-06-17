@@ -103,7 +103,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 LiftStatistics? concurrentStats = null;
 
                 double previousCoverage = 0;
-                int maxPoints = 4;
+                int maxPoints = Math.Clamp(input.Settings.MaxCranePositions, 1, 10);
                 double targetCoverage = 0.95;
                 double minImprovement = 0.05;
                 int iteration = 0;

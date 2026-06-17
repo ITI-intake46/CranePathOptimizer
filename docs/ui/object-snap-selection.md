@@ -28,6 +28,24 @@ The Object Snap (Osnap) system allows users to snap their mouse pointer to geome
 *   **`OsnapGeometryBridge` ([OsnapGeometryBridge.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F15_ObjectSnap/Services/OsnapGeometryBridge.cs)):** 
     Transforms screen points to 3D world rays and projects snapping candidates back to screen space to find the closest candidate within a pixel tolerance (typically 10-15 pixels).
 
+### Camera Invalidation & Snapping Index Rebuilds (Phase 2B)
+
+To avoid continuous, redundant snap index rebuilding during tiny mouse/camera adjustments, the snap index uses a numeric threshold comparison via `CameraSnapshot.cs`:
+*   **Snapshots**: `IfcSnapScreenIndex` and `DxfSnapScreenIndex` cache the camera's state inside a `CameraSnapshot` helper.
+*   **Immediate Invalidation**:
+    *   `GeometryVersion` changes.
+    *   Camera projection mode changes (e.g. Perspective to Orthographic).
+*   **Tolerance Thresholds**:
+    *   *Camera position movement*: `0.20` model units (computed as Euclidean distance between positions).
+    *   *Look direction angular rotation*: `1.0` degree.
+    *   *Up direction angular rotation*: `1.0` degree.
+    *   *Viewport size change*: `1.0` pixel.
+    *   *Field-Of-View (FOV) or Orthographic width change*: `0.01` units.
+*   **Rebuild Behavior**:
+    *   **Throttling**: If camera movements fall below all of these thresholds, the service skips full index reconstruction and reuses the existing cached snap index.
+    *   **Idle Debounce**: A `100ms` idle/debounce timer is scheduled upon below-threshold movements. Once camera movement completely settles, a deferred rebuild is executed to ensure snapping accuracy is preserved in the tested staging scenarios.
+    *   **Legacy Comparison Fallback**: The boolean flag `OsnapService.UseLegacyKeyComparison` remains available as a diagnostic fallback to restore the old string-based `"F2"` camera-key invalidation.
+
 ### Snapping Execution Flow
 
 1. The user moves the cursor in the 3D viewport.
@@ -73,6 +91,14 @@ Selection handling uses mouse raycasting to pick specific structural elements in
     Subscribes to viewport mouse events. Resolves mouse hovers and clicks to identify target elements.
 *   **`HoverHitCache` ([HoverHitCache.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F17_Selection/Services/HoverHitCache.cs)):** 
     Caches hit tests to avoid re-querying the visual tree on every mouse move, preventing UI lag when hovering over complex models.
+
+### Spatial Hit Testing (Phase 2C)
+
+*   **Default Behavior**: `ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes` now defaults to `true`. Viewport picking is performed via CPU-based raycasting math against element bounding boxes rather than executing native WPF visual tree hit traversals on transparent boundary meshes.
+*   **Legacy Fallback**: The original native WPF `FindHits` and transparent visual hit-box route remains fully active. It can be restored by setting:
+    `ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = false;`
+*   **Preserved Code**: Legacy transparent hit boxes were not deleted and are still dynamically created when the flag is disabled.
+*   **Staging Validation**: This default change was thoroughly validated against selection, hover, measurement, zones, snapping, and GA result coloring in staging scenarios.
 
 ### Selection and Direct Material Coloring
 

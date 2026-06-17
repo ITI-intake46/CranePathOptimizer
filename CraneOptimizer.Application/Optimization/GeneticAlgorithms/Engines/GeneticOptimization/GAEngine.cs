@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 
@@ -71,6 +72,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 var loadChartIndex = new LoadChartIndex(input.CraneSpec);
                 var elementCache = new ElementStaticCache(input.Elements, input.Settings);
 
+                var parallelOptions = new ParallelOptions
+                {
+                    CancellationToken = cancellationToken
+                };
+
                 for (int generation = 0; generation < input.Settings.MaxGenerations; generation++)
                 {
                     using (new GAProfiler.ProfileScope("GAEngine.GenerationLoop"))
@@ -81,27 +87,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                         }
                         cancellationToken.ThrowIfCancellationRequested();
 
-                        foreach (var solution in population.Individuals)
+                        Parallel.ForEach(population.Individuals, parallelOptions, solution =>
                         {
-                            cancellationToken.ThrowIfCancellationRequested();
-
-                            var evaluation = _assignmentService.EvaluateAssignment(
-                                solution,
-                                input.Elements,
-                                input.Assignment,
-                                input.CraneSpec,
-                                input.Settings,
-                                loadChartIndex,
-                                elementCache);
-
-                            var fitness = _fitnessEvaluator.EvaluateFitness(
-                                solution,
-                                evaluation,
-                                input.Settings);
-
-                            solution.Fitness = fitness.FitnessScore;
-                            solution.CoverageRatio = fitness.CoverageRatio;
-                        }
+                            EvaluateSolution(solution, input, loadChartIndex, elementCache);
+                        });
 
                         var currentBest = population.Individuals
                             .OrderByDescending(s => s.Fitness)
@@ -199,27 +188,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                             SanitizeSolution(child, input);
                         }
 
-                        foreach (var child in children)
+                        Parallel.ForEach(children, parallelOptions, child =>
                         {
-                            cancellationToken.ThrowIfCancellationRequested();
-
-                            var evaluation = _assignmentService.EvaluateAssignment(
-                                child,
-                                input.Elements,
-                                input.Assignment,
-                                input.CraneSpec,
-                                input.Settings,
-                                loadChartIndex,
-                                elementCache);
-
-                            var fitness = _fitnessEvaluator.EvaluateFitness(
-                                child,
-                                evaluation,
-                                input.Settings);
-
-                            child.Fitness = fitness.FitnessScore;
-                            child.CoverageRatio = fitness.CoverageRatio;
-                        }
+                            EvaluateSolution(child, input, loadChartIndex, elementCache);
+                        });
 
                         population = _replacement.Replace(population, children);
                     }
@@ -292,6 +264,30 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             }
 
             return null;
+        }
+
+        private void EvaluateSolution(
+            CraneSolution solution,
+            PlacementInput input,
+            LoadChartIndex loadChartIndex,
+            ElementStaticCache elementCache)
+        {
+            var evaluation = _assignmentService.EvaluateAssignment(
+                solution,
+                input.Elements,
+                input.Assignment,
+                input.CraneSpec,
+                input.Settings,
+                loadChartIndex,
+                elementCache);
+
+            var fitness = _fitnessEvaluator.EvaluateFitness(
+                solution,
+                evaluation,
+                input.Settings);
+
+            solution.Fitness = fitness.FitnessScore;
+            solution.CoverageRatio = fitness.CoverageRatio;
         }
     }
 }
