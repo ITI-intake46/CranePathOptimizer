@@ -835,9 +835,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 
             SectionDiagnostics = new SectionViewModel("6. Diagnostics", new List<ParameterViewModel>
             {
-                ParamSlewOffsetX, ParamSlewOffsetY, ParamSlewOffsetZ,
-                ParamBoomHingeOffsetX, ParamBoomHingeOffsetY, ParamBoomHingeOffsetZ,
-                ParamMaxRadiusNorm, ParamDuplicateDist, ParamFootprintRadius, ParamEnableProfiling, ParamProfilingLogDirectory
+                ParamEnableProfiling
             });
 
             Sections = new List<SectionViewModel>
@@ -845,6 +843,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
                 SectionCoreCalibration, SectionFitnessStrategy, SectionLayoutConstraints,
                 SectionEngineeringModel, SectionAdvancedGA, SectionDiagnostics
             };
+
+            FilterParameters();
         }
 
         public void RefreshLoadChartOperatingSetupOptions(Crane? crane)
@@ -1142,13 +1142,34 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             return option.DisplayText;
         }
 
+        private bool IsDeveloperParameter(string label)
+        {
+            return label switch
+            {
+                "Radius Penalty Weight" or "Radius Quality Weight" or "Overweight Weight" or "Height Penalty Weight" or
+                "Balance Penalty Weight" or "Radius StdDev Weight" or "Similar Position Weight" or "Relocation Dist Weight" or
+                "Enable Adaptive Sigma" or "Sigma Cooling Exponent" or "Min Mutation Sigma (m)" or "Mutation Explore Mult" or
+                "Sampling Attempts" or "Concurrent Opt" or "Enable Multi-Stage Discovery" or "Coverage Target" or
+                "Adaptive Relocation Scale" or "Use Hungarian Assignment" or "Random Seed" or "Enable Profiling" => true,
+                _ => false
+            };
+        }
+
         private void FilterParameters()
         {
+            bool showDev = CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowGADeveloperParameters;
+
             foreach (var section in Sections)
             {
                 bool anyVisible = false;
                 foreach (var param in section.Parameters)
                 {
+                    if (IsDeveloperParameter(param.Label) && !showDev)
+                    {
+                        param.Visibility = Visibility.Collapsed;
+                        continue;
+                    }
+
                     if (string.IsNullOrWhiteSpace(SearchText) ||
                         param.Label.Contains(SearchText, StringComparison.OrdinalIgnoreCase))
                     {

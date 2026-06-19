@@ -160,5 +160,78 @@ namespace CraneOptimizer.Application.Tests.GA
             // Assert
             Assert.Equal(6, settings.MaxCranePositions);
         }
+
+        [Fact]
+        public void BuildSettings_RetiredFields_FallBackToDefaults_WhenNullInOptions()
+        {
+            // Arrange
+            var options = new CraneOptimizerDialogOptions(
+                CoverageWeightText: "10.0",
+                RelocationWeightText: "5.0",
+                WireLengthText: "2.0",
+                AdditionalWtText: "0.0",
+                DeratingRatioText: "0.9",
+                SafetyFactorText: "0.95",
+                MaxCranePositionsText: "3",
+                EarlyStoppingGenerationsText: "20",
+                GridStepText: "0.0",
+                RadiusPenaltyWeightText: "3.0",
+                RadiusQualityPenaltyWeightText: "1.0",
+                BalancePenaltyWeightText: "2.0",
+                OverweightPenaltyWeightText: "10.0",
+                HeightPenaltyWeightText: "5.0",
+                RadiusStdDevPenaltyWeightText: "2.0",
+                SimilarPositionPenaltyWeightText: "8.0",
+                RelocationDistancePenaltyWeightText: "1.5",
+                MinimumRelocationDistanceText: "10.0",
+                DuplicatePositionDistanceText: null, // Retired
+                MutationExplorationMultiplierText: "2.0",
+                PositionSamplingAttemptsText: "80",
+                MaxRadiusForNormalisationText: null, // Retired
+                PopulationSizeText: "30",
+                MaxGenerationsText: "30",
+                DevMutationRateText: "0.1",
+                DevMutationSigmaText: "0.05",
+                DevCrossoverRateText: "0.8",
+                DevRandomSeedText: "42",
+                DevConvergenceText: "0.0",
+                TargetElementTypes: new List<string>(),
+                EnableAdaptiveSigmaText: "false",
+                SigmaCoolingExponentText: "1.5",
+                MinimumMutationSigmaText: "0.5",
+                EnableConcurrentOptimizationText: "true",
+                SlewOffsetXText: null, // Retired
+                SlewOffsetYText: null, // Retired
+                SlewOffsetZText: null, // Retired
+                BoomHingeOffsetXText: null, // Retired
+                BoomHingeOffsetYText: null, // Retired
+                BoomHingeOffsetZText: null, // Retired
+                CraneFootprintRadiusText: null, // Retired
+                EnableProfilingText: "true",
+                ProfilingLogDirectoryText: null, // Retired
+                EnableMultiStageDiscoveryText: "true",
+                MultiStageCoverageTargetText: "0.95",
+                AdaptiveRelocationScaleFactorText: "0.40",
+                UseHungarianAssignmentText: "false",
+                LoadChartNumberOfLinesConstraint: null,
+                LoadChartOperatingConditionConstraint: null,
+                SelectedPreset: GAModePreset.None
+            );
+
+            // Act
+            var settings = _workflow.BuildSettings(options);
+
+            // Assert
+            Assert.Equal(0.0, settings.SlewOffsetX);
+            Assert.Equal(0.0, settings.SlewOffsetY);
+            Assert.Equal(0.0, settings.SlewOffsetZ);
+            Assert.Equal(0.0, settings.BoomHingeOffsetX);
+            Assert.Equal(0.0, settings.BoomHingeOffsetY);
+            Assert.Equal(0.0, settings.BoomHingeOffsetZ);
+            Assert.Equal(0.0, settings.CraneFootprintRadius);
+            Assert.Equal(3.0, settings.DuplicatePositionDistance);
+            Assert.Equal(50.0, settings.MaxRadiusForNormalisation);
+            Assert.Null(settings.ProfilingLogDirectory);
+        }
     }
 }

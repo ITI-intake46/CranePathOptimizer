@@ -9,6 +9,10 @@
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent">
+    
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </Window.Resources>
 
     <Border Background="{DynamicResource SurfaceBrush}"
             BorderBrush="{DynamicResource BorderBrush}"
