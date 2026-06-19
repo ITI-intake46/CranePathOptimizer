@@ -1,0 +1,12 @@
+using CraneOptimizer.Application.Reports.Models;
+
+namespace CraneOptimizer.Application.Reports.Interfaces;
+
+public interface IReportExportService
+{
+    Task<ReportExportResult> ExportAsync(
+        ReportDocument document,
+        ReportFormat format,
+        string outputPath,
+        CancellationToken cancellationToken = default);
+}

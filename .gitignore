@@ -37,6 +37,14 @@ Thumbs.db
 # IFC Diagnostic reports
 Reports/
 **/Reports/
+!CraneOptimizer.Application/Reports/
+!CraneOptimizer.Application/Reports/**
+!CraneOptimizer.Infrastructure/Reports/
+!CraneOptimizer.Infrastructure/Reports/**
+!CraneOptimizer.Application.Tests/Reports/
+!CraneOptimizer.Application.Tests/Reports/**
+!docs/reports/
+!docs/reports/**
 
 # GA generated diagnostics CSVs (old naming - kept for backward compat)
 **/Diagnostics/ga_diagnostics_*.csv
