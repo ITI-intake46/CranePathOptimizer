@@ -14,7 +14,7 @@ namespace CraneOptimizer.UI.Features.F12_Reports.Views
         private void AllElementsList_Click(object sender, RoutedEventArgs e)
         {
             // TODO: Full elements table (name, type, material, weight, L×W×H, volume, storey, IsLiftable).
-            // Merged: previously separate "Weights & Dimensions" is now a column subset of this view.
+            // Merged: previously separate "Weights & Dimensions" is now a column subset of this view .
         }
 
         // ── LIFTING ───────────────────────────────────────────────────────────
