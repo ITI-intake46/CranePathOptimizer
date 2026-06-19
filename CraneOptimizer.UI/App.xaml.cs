@@ -3,11 +3,17 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization;
+using CraneOptimizer.Application.Reports.Builders;
+using CraneOptimizer.Application.Reports.Inputs;
+using CraneOptimizer.Application.Reports.Interfaces;
+using CraneOptimizer.Application.Reports.Services;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Application.Services;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.Ifc;
+using CraneOptimizer.Infrastructure.Reports.Csv;
+using CraneOptimizer.Infrastructure.Reports.Pdf;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
@@ -150,6 +156,16 @@ namespace CraneOptimizer.UI
             services.AddSingleton<CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces.IGADiagnosticsReaderService, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GADiagnosticsReaderService>();
             services.AddSingleton<CraneOptimizer.UI.Features.F8_GAOptimizer.Services.IGADiagnosticsWindowService, CraneOptimizer.UI.Features.F8_GAOptimizer.Services.GADiagnosticsWindowService>();
 
+            // =========================
+            // User-facing Reports
+            // =========================
+            services.AddSingleton<IReportValidator, ReportValidator>();
+            services.AddSingleton<IReportValueFormatter, ReportValueFormatter>();
+            services.AddSingleton<IReportDefinitionProvider, ReportDefinitionProvider>();
+            services.AddSingleton<IReportExportService, ReportExportService>();
+            services.AddSingleton<IReportExporter, CsvReportExporter>();
+            services.AddSingleton<IReportExporter, PdfReportExporter>();
+            services.AddSingleton<IReportBuilder<OptimizationReportInput>, OptimizationSummaryReportBuilder>();
 
             // =========================
             // Rendering

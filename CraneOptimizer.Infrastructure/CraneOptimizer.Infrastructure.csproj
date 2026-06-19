@@ -32,6 +32,7 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
+		<PackageReference Include="QuestPDF" Version="2026.6.0" />
 		<PackageReference Include="Xbim.Essentials" Version="6.0.587" />
 		<PackageReference Include="Xbim.Geometry" Version="5.1.820" />
 		<PackageReference Include="Xbim.Geometry.Engine.Interop" Version="5.1.820" />
