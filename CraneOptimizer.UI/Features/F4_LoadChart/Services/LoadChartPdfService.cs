@@ -101,6 +101,251 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
         private const int MinimumBoomColumnCount = 3;
         private const int MinimumRadiusRowCount = 2;
 
+        public static IReadOnlyList<double> CorrectBoomHeaderDroppedDecimalsForTesting(IReadOnlyList<double> rawHeaderValues)
+        {
+            if (rawHeaderValues == null)
+                throw new ArgumentNullException(nameof(rawHeaderValues));
+
+            var rawGrid = new List<List<string>>
+            {
+                rawHeaderValues.Select(FormatNumber).ToList()
+            };
+
+            var correctedGrid = CorrectVisualBoomHeaderGridForDisplay(rawGrid);
+            var correctedHeader = correctedGrid.Count > 0
+                ? correctedGrid[0]
+                : new List<string>();
+
+            var correctedValues = new List<double>(rawHeaderValues.Count);
+            for (int index = 0; index < rawHeaderValues.Count; index++)
+            {
+                if (index < correctedHeader.Count &&
+                    TryReadLeadingBoomHeaderNumber(
+                        correctedHeader[index],
+                        out double value,
+                        out _,
+                        out _,
+                        out _))
+                {
+                    correctedValues.Add(value);
+                }
+                else
+                {
+                    correctedValues.Add(rawHeaderValues[index]);
+                }
+            }
+
+            return correctedValues;
+        }
+
+        public static List<List<string>> CorrectVisualBoomHeaderGridForDisplay(IReadOnlyList<List<string>> rawGrid)
+        {
+            if (rawGrid == null)
+                throw new ArgumentNullException(nameof(rawGrid));
+
+            var correctedGrid = rawGrid
+                .Select(row => row?.ToList() ?? new List<string>())
+                .ToList();
+
+            if (correctedGrid.Count == 0 || correctedGrid[0].Count <= 1)
+                return correctedGrid;
+
+            var headerRow = correctedGrid[0];
+            var headerValues = headerRow
+                .Select(header => TryReadLeadingBoomHeaderNumber(header, out double value, out _, out _, out _)
+                    ? (double?)value
+                    : null)
+                .ToList();
+
+            for (int columnIndex = 1; columnIndex < headerRow.Count; columnIndex++)
+            {
+                if (TryCorrectDroppedDecimalBoomHeader(
+                    headerRow,
+                    headerValues,
+                    columnIndex,
+                    out string correctedHeader,
+                    out double correctedValue))
+                {
+                    headerRow[columnIndex] = correctedHeader;
+                    headerValues[columnIndex] = correctedValue;
+                }
+            }
+
+            return correctedGrid;
+        }
+
+        private static bool TryCorrectDroppedDecimalBoomHeader(
+            IReadOnlyList<string> headerRow,
+            IReadOnlyList<double?> headerValues,
+            int columnIndex,
+            out string correctedHeader,
+            out double correctedValue)
+        {
+            correctedHeader = columnIndex >= 0 && columnIndex < headerRow.Count
+                ? headerRow[columnIndex]
+                : string.Empty;
+            correctedValue = 0d;
+
+            if (columnIndex <= 0 || columnIndex >= headerRow.Count)
+                return false;
+
+            string originalHeader = headerRow[columnIndex] ?? string.Empty;
+            if (!TryReadLeadingBoomHeaderNumber(
+                originalHeader,
+                out double rawValue,
+                out string numberToken,
+                out string prefix,
+                out string suffix))
+            {
+                return false;
+            }
+
+            if (numberToken.Contains('.', StringComparison.Ordinal) || numberToken.Contains(',', StringComparison.Ordinal))
+                return false;
+
+            string digits = Regex.Replace(numberToken, @"\D", string.Empty);
+            if (digits.Length < 3 || digits.Length > 5)
+                return false;
+
+            if (rawValue <= 0d)
+                return false;
+
+            if (HeaderSuffixContainsAmbiguousNumber(suffix))
+                return false;
+
+            double? left = FindNearestBoomHeaderValue(headerValues, columnIndex, -1);
+            double? right = FindNearestBoomHeaderValue(headerValues, columnIndex, 1);
+
+            if (!left.HasValue || !right.HasValue)
+                return false;
+
+            if (left.Value > right.Value + 0.001d)
+                return false;
+
+            if (IsBetweenInclusive(rawValue, left.Value, right.Value))
+                return false;
+
+            var bestCandidate = EnumerateDroppedDecimalBoomHeaderCandidates(digits, rawValue)
+                .Where(candidate => IsBetweenInclusive(candidate.Value, left.Value, right.Value))
+                .OrderBy(candidate => ScoreBoomHeaderLocalFit(candidate.Value, left.Value, right.Value))
+                .ThenBy(candidate => Math.Abs(candidate.Value - ((left.Value + right.Value) / 2d)))
+                .FirstOrDefault();
+
+            if (bestCandidate.Text == null)
+                return false;
+
+            correctedValue = bestCandidate.Value;
+            correctedHeader = prefix + bestCandidate.Text + suffix;
+            return true;
+        }
+
+        private static bool TryReadLeadingBoomHeaderNumber(
+            string? header,
+            out double value,
+            out string numberToken,
+            out string prefix,
+            out string suffix)
+        {
+            value = 0d;
+            numberToken = string.Empty;
+            prefix = string.Empty;
+            suffix = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(header))
+                return false;
+
+            Match match = Regex.Match(
+                header,
+                @"^(?<prefix>\s*)(?<number>[+-]?(?:\d+(?:[\.,]\d+)?|[\.,]\d+))(?<suffix>.*)$",
+                RegexOptions.CultureInvariant);
+
+            if (!match.Success)
+                return false;
+
+            numberToken = match.Groups["number"].Value;
+            prefix = match.Groups["prefix"].Value;
+            suffix = match.Groups["suffix"].Value;
+
+            string normalized = numberToken.Replace(',', '.');
+            return double.TryParse(
+                normalized,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out value);
+        }
+
+        private static bool HeaderSuffixContainsAmbiguousNumber(string suffix)
+        {
+            if (string.IsNullOrWhiteSpace(suffix))
+                return false;
+
+            foreach (Match match in Regex.Matches(suffix, @"[+-]?(?:\d+(?:[\.,]\d+)?|[\.,]\d+)").Cast<Match>())
+            {
+                string normalized = match.Value.Replace(',', '.');
+                if (!double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+                    return true;
+
+                if (Math.Abs(value - 360d) > 0.001d)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static double? FindNearestBoomHeaderValue(IReadOnlyList<double?> headerValues, int columnIndex, int step)
+        {
+            for (int index = columnIndex + step; index > 0 && index < headerValues.Count; index += step)
+            {
+                double? value = headerValues[index];
+                if (value.HasValue && value.Value > 0d && value.Value < 500d)
+                    return value.Value;
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<(double Value, string Text)> EnumerateDroppedDecimalBoomHeaderCandidates(string digits, double rawValue)
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+
+            for (int decimalIndex = 1; decimalIndex < digits.Length; decimalIndex++)
+            {
+                string candidateText = digits.Insert(decimalIndex, ".");
+                if (!double.TryParse(candidateText, NumberStyles.Float, CultureInfo.InvariantCulture, out double candidateValue))
+                    continue;
+
+                if (candidateValue <= 0d || candidateValue >= rawValue || candidateValue > 250d)
+                    continue;
+
+                string displayText = FormatNumber(candidateValue);
+                if (seen.Add(displayText))
+                    yield return (candidateValue, displayText);
+            }
+        }
+
+        private static bool IsBetweenInclusive(double value, double left, double right)
+        {
+            double lower = Math.Min(left, right) - 0.001d;
+            double upper = Math.Max(left, right) + 0.001d;
+            return value >= lower && value <= upper;
+        }
+
+        private static double ScoreBoomHeaderLocalFit(double value, double left, double right)
+        {
+            double lower = Math.Min(left, right);
+            double upper = Math.Max(left, right);
+
+            if (value < lower)
+                return 1000d + ((lower - value) * 20d);
+
+            if (value > upper)
+                return 1000d + ((value - upper) * 20d);
+
+            double span = Math.Max(upper - lower, 0.001d);
+            double midpoint = (left + right) / 2d;
+            return Math.Abs(value - midpoint) / span;
+        }
+
         public static LoadChartImportResult ImportPdf(string pdfFilePath)
         {
             var scanResult = ScanPdf(pdfFilePath);
@@ -121,14 +366,20 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 throw new ArgumentNullException(nameof(selectedTable));
 
             bool hasSeparateImportGrid = selectedTable.ImportGrid.Count > 0;
+            var correctedExactVisualGrid = hasSeparateImportGrid
+                ? CorrectVisualBoomHeaderGridForDisplay(selectedTable.RawGrid)
+                : new List<List<string>>();
+            var correctedImportGrid = hasSeparateImportGrid
+                ? CorrectVisualBoomHeaderGridForDisplay(selectedTable.ImportGrid)
+                : new List<List<string>>();
             string sourceDescription = $"PDF page {selectedTable.PageNumber}, table {selectedTable.TableIndex}";
 
             var envelopeChart = hasSeparateImportGrid
-                ? LoadChartCsvService.ParseRawGrid(selectedTable.ImportGrid)
+                ? LoadChartCsvService.ParseRawGrid(correctedImportGrid)
                 : null;
 
             var chart = hasSeparateImportGrid
-                ? LoadChartCsvService.ParseExactVisualRawGrid(selectedTable.RawGrid, sourceDescription)
+                ? LoadChartCsvService.ParseExactVisualRawGrid(correctedExactVisualGrid, sourceDescription)
                 : LoadChartCsvService.ParseRawGrid(selectedTable.RawGrid);
 
             if (chart.Points.Count == 0 || chart.MaxCapacity <= 0)
@@ -169,15 +420,18 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 : selectedTable.Warnings);
             warnings.AddRange(scanResult.Warnings);
 
+            var detectedMetadata = LoadChartPdfMetadataService.Extract(scanResult.PdfPath, selectedTable);
+
             return new LoadChartImportResult
             {
                 Chart = chart,
                 ImportableEnvelopeChart = envelopeChart,
                 SourceKind = "PDF",
                 SourceDescription = sourceDescription,
+                DetectedMetadata = detectedMetadata,
                 Warnings = warnings.Distinct().ToList(),
                 ExactVisualPreviewGrid = hasSeparateImportGrid
-                    ? selectedTable.RawGrid.Select(row => row.ToList()).ToList()
+                    ? correctedExactVisualGrid.Select(row => row.ToList()).ToList()
                     : new List<List<string>>(),
                 ExactVisualPreviewTitle = hasSeparateImportGrid
                     ? "Exact PDF Visual Load Chart"
