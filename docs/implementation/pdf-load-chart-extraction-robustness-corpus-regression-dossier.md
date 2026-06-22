@@ -1,6 +1,6 @@
 # CranePathOptimizer Branch Implementation Dossier
 
-## `feature/pdf-load-chart-metadata-evidence` â€” PDF Load Chart Extraction Robustness, Exact Visual Semantics, Corpus Regression Gate, and Validation Baseline
+## `feature/pdf-load-chart-metadata-evidence` - PDF Load Chart Extraction Robustness, Exact Visual Semantics, Corpus Regression Gate, and Validation Baseline
 
 **Repository:** `ITI-intake46/CranePathOptimizer`
 **Working branch observed:** `feature/pdf-load-chart-metadata-evidence`
@@ -10,8 +10,9 @@
 **Primary subsystem:** `CraneOptimizer.UI/Features/F4_LoadChart`
 **Primary validation subsystem:** `CraneOptimizer.Application.Tests/LoadChart`
 **Primary implementation theme:** robust, evidence-based PDF crane load-chart extraction with exact visual semantics, line-row preservation, context-aware continuation handling, full-corpus regression validation, and production-readiness reporting.
-**Current validation status represented:** `dotnet build` passes; PDF corpus regression gate passes; full solution test has classified non-PDF CoordinateReference/UI failures; PDF-related failures are zero.
-**Commit status at time of documentation:** working tree modified and uncommitted.
+**Current validation status represented:** `dotnet build` passes; PDF corpus regression gate passes; 9/9 PDFs are found and imported; observed baseline rows equal 9; full solution test has classified non-PDF CoordinateReference/UI failures; PDF-related failures are zero.
+**Baseline/golden-truth scope:** corpus baselines are observed regression baselines. Only `100Tons.pdf` pages 17/18/19 are manually golden-verified in this branch.
+**Commit status at PR-preparation cleanup:** branch changes were committed and pushed before this documentation-only cleanup; verify the current final commit with `git log --oneline -n 3`.
 
 ---
 
@@ -360,7 +361,7 @@ Example preserved pattern:
 26.10, 26.10, 26.10, 26.10, 26.10
 ```
 
-The branch keeps exact visual representation distinct from any conservative envelope/reference form. This matters because optimization may derive conservative lookup behavior, but the import review UI must be able to show the manufacturerâ€™s visual chart faithfully.
+The branch keeps exact visual representation distinct from any conservative envelope/reference form. This matters because optimization may derive conservative lookup behavior, but the import review UI must be able to show the manufacturer's visual chart faithfully.
 
 ### 9.2 Semantic visual row typing
 
@@ -539,9 +540,9 @@ PdfCount: 9
 | PDF | Selected | Cols | Radius rows | Cells | Max | Line vector | Combined | Exact visual | Import |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 100Tons-Liebherr.pdf | P11 / T1 | 18 | 31 | 314 | 100 |  | False | True | True |
-| 100Tons.pdf | P25 / T3 | 30 | 33 | 429 | 90 | 12;11;11;11;11;9;9;9;9;8;8;8;8;8;6;6;6;6;6;5;5;5;5;5;5;â€¦ | True | True | True |
+| 100Tons.pdf | P25 / T3 | 30 | 33 | 429 | 90 | 12;11;11;11;11;9;9;9;9;8;8;8;8;8;6;6;6;6;6;5;5;5;5;5;5;... | True | True | True |
 | 12_Seiter_Prospekt_SRC550C_eng.pdf | P7 / T1 | 7 | 25 | 111 | 55 | 10;10;8;8;4;4;3 | False | False | True |
-| 130Tons.pdf | P15 / T3 | 29 | 33 | 473 | 130 | 12;10;10;10;8;8;8;6;6;6;6;6;6;5;5;5;4;4;4;3;3;3;3;3;3;2â€¦ | True | True | True |
+| 130Tons.pdf | P15 / T3 | 29 | 33 | 473 | 130 | 12;10;10;10;8;8;8;6;6;6;6;6;6;5;5;5;4;4;4;3;3;3;3;3;3;2... | True | True | True |
 | 180Tons.pdf | P12 / T1 | 13 | 38 | 245 | 180 |  | False | True | True |
 | 200 t cap.pdf | P2 / T1 | 15 | 39 | 274 | 200 |  | False | True | True |
 | 200Tons.pdf | P4 / T1 | 17 | 42 | 360 | 200 |  | False | True | True |
@@ -570,12 +571,9 @@ The report intentionally distinguishes PDF readiness from full-repository readin
 | Test / diagnostic | Outcome | Classification | Message summary |
 | --- | --- | --- | --- |
 | CraneOptimizer.Application.Tests.RenderPerformanceBenchmark.ExecuteBenchmarkSuite | NotExecuted | OtherNonPdf | Exempt from standard test runs to prevent heavy local-file benchmarks unless explicitly intended. |
-| CraneOptimizer.Application.Tests.Diagnostics.CoordinateReferenceTests.Test_62_GAResultPresâ€¦ | Failed | KnownUnrelatedCoordinateReference | Assert.Contains() Failure: Sub-string not found
-<br>String:    "Local X: 10.00, Local Y: 20.00"
-<br>Not found: "Easting: 50001â€¦ |
+| CraneOptimizer.Application.Tests.Diagnostics.CoordinateReferenceTests.Test_62_GAResultPresentationDtoShowsSurveyWhenActive | Failed | KnownUnrelatedCoordinateReference | Assert.Contains() failure: expected survey/easting text; actual output remained in `Local X: 10.00, Local Y: 20.00` text. |
 | CraneOptimizer.Application.Tests.RenderPerformanceBenchmark.ExecuteHitTestAndSnapBenchmark | NotExecuted | OtherNonPdf | Exempt from standard test runs to prevent heavy local-file benchmarks unless explicitly intended. |
-| CoordinateReference UI/XAML test-host issue inferred from output | OutputDiagnostic | KnownUnrelatedCoordinateReference | Build started 6/22/2026 6:54:27 PM.
-<br>     1>Project "C:\Users\Bahyg\Source\Repos\CranePathOptimizer\CraneOptimizer.sln" â€¦ |
+| CoordinateReference UI/XAML test-host issue inferred from output | OutputDiagnostic | KnownUnrelatedCoordinateReference | Non-PDF UI/XAML test-host diagnostic involving `BoolToVisibilityConverter` / `XamlParseException` / `IFCLoadOptionsDialog`; intentionally not changed by this PDF-focused branch. |
 
 The full-suite non-PDF failures remain real repository issues. They are not fixed by this branch and should be addressed separately.
 
@@ -1050,11 +1048,11 @@ feat(load-chart): harden PDF extraction and add corpus regression gate
 
 ## 23. Appendices
 
-### Appendix A â€” Corpus baseline details
+### Appendix A - Corpus baseline details
 
 The observed baseline CSV and JSON are generated by the V4 validation report. They should be used to detect future changes in extractor behavior. They should not be treated as manually verified correctness for all PDFs.
 
-### Appendix B â€” Final readiness JSON
+### Appendix B - Final readiness JSON
 
 ```json
 {
@@ -1083,7 +1081,7 @@ The observed baseline CSV and JSON are generated by the V4 validation report. Th
 }
 ```
 
-### Appendix C â€” Golden expectation JSON
+### Appendix C - Golden expectation JSON
 
 ```json
 {
@@ -1212,7 +1210,7 @@ The observed baseline CSV and JSON are generated by the V4 validation report. Th
 }
 ```
 
-### Appendix D â€” External documentation references consulted
+### Appendix D - External documentation references consulted
 
 These references informed the structure and documentation method:
 
@@ -1223,9 +1221,9 @@ These references informed the structure and documentation method:
 | Architecture Decision Records | https://adr.github.io/ | Decision/context/consequence framing. |
 | AWS ADR best practices | https://aws.amazon.com/blogs/architecture/master-architecture-decision-records-adrs-best-practices-for-effective-decision-making/ | Architecture decision communication and collaboration. |
 | Keep a Changelog | https://keepachangelog.com/en/1.1.0/ | Human-readable grouping by meaningful change category. |
-| The Turing Way â€” Reproducible Research | https://book.the-turing-way.org/reproducible-research/reproducible-research/ | Reproducibility, evidence capture, rerunnable workflows. |
+| The Turing Way - Reproducible Research | https://book.the-turing-way.org/reproducible-research/reproducible-research/ | Reproducibility, evidence capture, rerunnable workflows. |
 
-### Appendix E â€” Glossary
+### Appendix E - Glossary
 
 | Term | Meaning |
 |---|---|
