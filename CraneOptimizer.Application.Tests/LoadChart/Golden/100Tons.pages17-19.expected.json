@@ -1,0 +1,32 @@
+﻿{
+  "pdf": "100Tons.pdf",
+  "purpose": "Golden manually verified expectations for the critical pages 17, 18, and 19 load-chart extraction defect.",
+  "page17": {
+    "mustNotCombineLeftRight": true,
+    "left": {
+      "counterweightTons": 16.5,
+      "boomColumns": 14,
+      "numericCapacityCells": 242,
+      "numberOfLines": [3,3,3,3,3,3,3,3,3,3,2,2,2,2]
+    },
+    "right": {
+      "counterweightTons": 23.5,
+      "boomColumns": 15,
+      "numericCapacityCells": 190,
+      "numberOfLines": [12,11,11,11,11,9,9,9,9,8,8,8,8,8,6]
+    }
+  },
+  "page18": {
+    "combinedContinuation": true,
+    "boomColumns": 29,
+    "numericCapacityCells": 493,
+    "firstBoomHeader": 30.50,
+    "numberOfLines": [6,6,6,6,5,5,5,5,5,5,4,4,4,3,3,3,3,3,3,3,3,3,3,3,3,2,2,2,2]
+  },
+  "page19": {
+    "selectedCombinedContinuation": true,
+    "boomColumns": 30,
+    "numericCapacityCells": 430,
+    "numberOfLines": [12,11,11,11,11,9,9,9,9,8,8,8,8,8,6,6,6,6,6,5,5,5,5,5,5,4,4,4,3,3]
+  }
+}
