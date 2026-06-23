@@ -105,7 +105,7 @@
                                         VerticalAlignment="Center"
                                         FontWeight="Bold"
                                         Foreground="{StaticResource PrimaryBrush}"
-                                        Text="{Binding NewLiftableCount, StringFormat={}{0} lifted}" />
+                                        Text="{Binding LiftCountDisplayText, Mode=OneWay}" />
                                 </Grid>
                             </Border>
                         </DataTemplate>
@@ -134,7 +134,7 @@
 
                     <!-- Header -->
                     <TextBlock Grid.Row="0"
-                               Text="ASSIGNED ELEMENTS"
+                               Text="{Binding RightPanelHeader}"
                                FontWeight="Bold"
                                FontSize="14"
                                Foreground="{StaticResource PrimaryBrush}" />

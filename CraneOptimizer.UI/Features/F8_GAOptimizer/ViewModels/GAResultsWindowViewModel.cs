@@ -13,15 +13,20 @@ using System.Linq;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 {
-    public sealed class CranePositionPresentationDto
+    public sealed class CranePositionPresentationDto : ViewModelBase
     {
         private readonly CranePositionResult _underlying;
         private readonly IProjectCoordinateTransformService _transformService;
+        private readonly Func<GAViewMode> _getViewMode;
 
-        public CranePositionPresentationDto(CranePositionResult underlying, IProjectCoordinateTransformService transformService)
+        public CranePositionPresentationDto(
+            CranePositionResult underlying,
+            IProjectCoordinateTransformService transformService,
+            Func<GAViewMode>? getViewMode = null)
         {
             _underlying = underlying ?? throw new ArgumentNullException(nameof(underlying));
             _transformService = transformService ?? throw new ArgumentNullException(nameof(transformService));
+            _getViewMode = getViewMode ?? (() => GAViewMode.FinalAssignment);
         }
 
         public CranePositionResult Underlying => _underlying;
@@ -30,6 +35,29 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public double Y => _underlying.Y;
         public double Z => _underlying.Z;
         public int NewLiftableCount => _underlying.NewLiftableCount;
+
+        public string LiftCountDisplayText
+        {
+            get
+            {
+                var mode = _getViewMode();
+                if (mode == GAViewMode.FinalAssignment)
+                {
+                    int assignedCount = _underlying.ElementResults.Count(r => r.IsFinalAssignedToPoint);
+                    return $"{assignedCount} lifted";
+                }
+                else
+                {
+                    int feasibleCount = _underlying.ElementResults.Count(r => r.Status == LiftStatus.Liftable);
+                    return $"{feasibleCount} feasible";
+                }
+            }
+        }
+
+        public void RaiseLiftCountChanged()
+        {
+            OnPropertyChanged(nameof(LiftCountDisplayText));
+        }
 
         public string PositionDisplayText
         {
@@ -155,7 +183,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             {
                 foreach (var pos in _result.Positions)
                 {
-                    _positions.Add(new CranePositionPresentationDto(pos, _transformService));
+                    _positions.Add(new CranePositionPresentationDto(pos, _transformService, () => CurrentGAViewMode));
                 }
             }
         }
@@ -170,16 +198,26 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 
                 _currentGAViewMode = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(RightPanelHeader));
                 _viewModeChanged?.Invoke(value);
+
+                // Notify all positions to update their count display text
+                foreach (var pos in _positions)
+                {
+                    pos.RaiseLiftCountChanged();
+                }
+
+                RebuildAssignedElements();
             }
         }
 
         public IReadOnlyList<KeyValuePair<GAViewMode, string>> ViewModes { get; } = new List<KeyValuePair<GAViewMode, string>>
         {
             new KeyValuePair<GAViewMode, string>(GAViewMode.FinalAssignment, "Final Assignment"),
-            new KeyValuePair<GAViewMode, string>(GAViewMode.SelectedPointFeasibility, "Selected Point Feasibility"),
-            new KeyValuePair<GAViewMode, string>(GAViewMode.AllFeasibleDebug, "All Feasible Debug")
+            new KeyValuePair<GAViewMode, string>(GAViewMode.SelectedPointFeasibility, "Selected Point Feasibility")
         };
+
+        public string RightPanelHeader => CurrentGAViewMode == GAViewMode.FinalAssignment ? "ASSIGNED ELEMENTS" : "FEASIBLE ELEMENTS";
 
         public IReadOnlyList<CranePositionPresentationDto> Positions => _positions;
         public double FitnessScore => _result.FitnessScore;
@@ -402,7 +440,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             {
                 foreach (var pos in _result.Positions)
                 {
-                    _positions.Add(new CranePositionPresentationDto(pos, _transformService));
+                    _positions.Add(new CranePositionPresentationDto(pos, _transformService, () => CurrentGAViewMode));
                 }
             }
             OnPropertyChanged(nameof(Positions));
@@ -457,7 +495,19 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             if (SelectedPoint == null)
                 return;
 
-            foreach (var er in SelectedPoint.Underlying.ElementResults.OrderBy(e => e.ElementMark))
+            IEnumerable<ElementLiftResult> filtered;
+            if (CurrentGAViewMode == GAViewMode.FinalAssignment)
+            {
+                filtered = SelectedPoint.Underlying.ElementResults
+                    .Where(er => er.IsFinalAssignedToPoint);
+            }
+            else // SelectedPointFeasibility
+            {
+                filtered = SelectedPoint.Underlying.ElementResults
+                    .Where(er => er.Status == LiftStatus.Liftable);
+            }
+
+            foreach (var er in filtered.OrderBy(e => e.ElementMark))
                 AssignedElements.Add(new ElementLiftResultRowDto(er));
         }
 
