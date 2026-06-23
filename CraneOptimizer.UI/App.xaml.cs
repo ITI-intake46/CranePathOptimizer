@@ -14,6 +14,7 @@ using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.Ifc;
 using CraneOptimizer.Infrastructure.Reports.Csv;
 using CraneOptimizer.Infrastructure.Reports.Pdf;
+using CraneOptimizer.Infrastructure.Reports.UserFacing;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
@@ -32,6 +33,8 @@ using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.UI.Features.F12_Reports.Services;
+using CraneOptimizer.UI.Features.F12_Reports.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
 using CraneOptimizer.UI.F10_ProjectManagement.Views;
@@ -166,6 +169,16 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IReportExporter, CsvReportExporter>();
             services.AddSingleton<IReportExporter, PdfReportExporter>();
             services.AddSingleton<IReportBuilder<OptimizationReportInput>, OptimizationSummaryReportBuilder>();
+            services.AddSingleton<CraneOptimizer.Application.Reports.Services.IReportBuilder, UserFacingReportBuilder>();
+            services.AddSingleton<IReportableElementResolver, ReportableElementResolver>();
+            services.AddSingleton<IElementReportDataProvider, ElementReportDataProvider>();
+            services.AddSingleton<ILiftingResultReportDataProvider, LiftingResultReportDataProvider>();
+            services.AddSingleton<IReportPdfExporter, UserFacingReportPdfExporter>();
+            services.AddSingleton<IReportExcelExporter, UserFacingReportExcelExporter>();
+            services.AddSingleton<IReportTemplateStore, JsonReportTemplateStore>();
+            services.AddSingleton<IReportFileDialogService, ReportFileDialogService>();
+            services.AddSingleton<IReportPreviewDialogService, ReportPreviewDialogService>();
+            services.AddSingleton<IReportBuilderDialogService, ReportBuilderDialogService>();
 
             // =========================
             // Rendering
@@ -195,6 +208,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<DxfTabViewModel>();
             services.AddSingleton<CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel>();
             services.AddScoped<ElementManagementViewModel>();
+            services.AddTransient<ReportBuilderViewModel>();
             services.AddSingleton<SelectionHandler>();
             services.AddSingleton<HoverHitCache>();
             services.AddTransient<SelectionViewModel>();

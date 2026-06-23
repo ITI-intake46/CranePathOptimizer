@@ -8,6 +8,9 @@ using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
+using CraneOptimizer.UI.Features.F12_Reports.Services;
+using CraneOptimizer.Application.Reports.Definitions;
+using CraneOptimizer.Application.Reports.Services;
 using System.Windows.Input;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
@@ -18,12 +21,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         private readonly ICraneOptimizerDialogService _optimizerDialogService;
         private readonly IGAResultsWindowService _resultsWindowService;
         private readonly IGADiagnosticsWindowService _diagnosticsWindowService;
+        private readonly IReportBuilderDialogService _reportBuilderDialogService;
         private readonly IViewportInteractionService _interaction;
         private readonly IViewportHitTestService _hitTest;
         private readonly IElementLiftStateService _liftStateService;
         private readonly RelayCommand _optimizeCommand;
         private readonly RelayCommand _showResultsCommand;
         private readonly RelayCommand _showDiagnosticsCommand;
+        private readonly RelayCommand _openAllElementsReportCommand;
+        private readonly RelayCommand _openLiftingSummaryReportCommand;
 
         private bool _isPlacing;
         private DomainPoint3D? _currentPosition;
@@ -35,6 +41,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             ICraneOptimizerDialogService optimizerDialogService,
             IGAResultsWindowService resultsWindowService,
             IGADiagnosticsWindowService diagnosticsWindowService,
+            IReportBuilderDialogService reportBuilderDialogService,
             IViewportInteractionService interaction,
             IViewportHitTestService hitTest,
             IElementLiftStateService liftStateService)
@@ -43,6 +50,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             _optimizerDialogService = optimizerDialogService;
             _resultsWindowService = resultsWindowService;
             _diagnosticsWindowService = diagnosticsWindowService;
+            _reportBuilderDialogService = reportBuilderDialogService;
             _interaction = interaction;
             _hitTest = hitTest;
             _liftStateService = liftStateService;
@@ -50,6 +58,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             _optimizeCommand = new RelayCommand(ExecuteOptimize);
             _showResultsCommand = new RelayCommand(OpenResults, CanShowResults);
             _showDiagnosticsCommand = new RelayCommand(OpenDiagnostics);
+            _openAllElementsReportCommand = new RelayCommand(OpenAllElementsReport);
+            _openLiftingSummaryReportCommand = new RelayCommand(OpenLiftingSummaryReport, CanShowResults);
             StartPlacementCommand = new RelayCommand(StartPlacement);
         }
 
@@ -131,6 +141,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public ICommand OptimizeCommand => _optimizeCommand;
         public ICommand ShowResultsCommand => _showResultsCommand;
         public ICommand ShowDiagnosticsCommand => _showDiagnosticsCommand;
+        public ICommand OpenAllElementsReportCommand => _openAllElementsReportCommand;
+        public ICommand OpenLiftingSummaryReportCommand => _openLiftingSummaryReportCommand;
         public ICommand StartPlacementCommand { get; }
         public Action<DomainPoint3D>? PlaceCraneInScene { get; set; }
         public Action? RenderElementsWithCurrentStatus { get; set; }
@@ -192,6 +204,25 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         private void OpenDiagnostics()
         {
             _diagnosticsWindowService.Show(CurrentGAViewMode);
+        }
+
+        private void OpenAllElementsReport()
+        {
+            _reportBuilderDialogService.ShowReportBuilder(
+                ReportFamily.ElementList,
+                ReportTemplateCatalog.BasicElementList,
+                "All Elements");
+        }
+
+        private void OpenLiftingSummaryReport()
+        {
+            if (!CanShowResults())
+                return;
+
+            _reportBuilderDialogService.ShowReportBuilder(
+                ReportFamily.LiftingResult,
+                ReportTemplateCatalog.BasicLiftingResult,
+                "Optimization Result");
         }
 
         private void PublishLiftStates(CranePositionResult? position)
