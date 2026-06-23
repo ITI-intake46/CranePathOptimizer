@@ -61,9 +61,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var sceneElements = _sceneService.GetElements();
-            if (sceneElements == null || sceneElements.Count == 0)
+            var sceneElementsRaw = _sceneService.GetElements();
+            if (sceneElementsRaw == null || sceneElementsRaw.Count == 0)
                 throw new InvalidOperationException("No elements found in the scene.");
+            List<PrecastElement> sceneElements = sceneElementsRaw!;
 
             var sceneZones = _sceneService.GetZones();
 
@@ -185,7 +186,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             // Write detailed extraction and GA gating diagnostics breakdown summaries to Debug.WriteLine (Phase 2A requirement)
             System.Diagnostics.Debug.WriteLine("=== Phase 2A Genetic Algorithm Input Gating Diagnostics ===");
-            System.Diagnostics.Debug.WriteLine($"Total Scene Elements: {sceneElements?.Count ?? 0}");
+            System.Diagnostics.Debug.WriteLine($"Total Scene Elements: {sceneElements.Count}");
             System.Diagnostics.Debug.WriteLine($"Selected/Filtered Scene Elements: {filteredElements.Count}");
             System.Diagnostics.Debug.WriteLine($"GA-Ready Elements (Normalized & Passed Gating): {elements.Count}");
             System.Diagnostics.Debug.WriteLine($"GA-Blocked Elements: {blockedElements.Count}");
@@ -244,10 +245,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 ? currentSession.ProjectGuid
                 : currentSession?.ProjectId.ToString("N");
             input.ProjectFolderPath = currentSession?.ProjectFolderPath;
-            input.RawElementCount = sceneElements?.Count ?? 0;
+            input.RawElementCount = sceneElements.Count;
             input.OptimizationScopeElementCount = filteredElements.Count;
             input.FeatureScopeElements = filteredElements;
-            input.TotalElementsCount = sceneElements?.Count ?? 0;
+            input.TotalElementsCount = sceneElements.Count;
             input.DiagnosticsReportsDirectory = reportsDir;
 
             string? ifcFileName = null;
@@ -283,7 +284,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             sw.Stop();
 
             // Map results back to UI DTOs
-            var finalResult = MapPlacementResult(appResult, sceneElements, input.CraneSpec, input.Settings);
+            var finalResult = MapPlacementResult(appResult, sceneElements, input.CraneSpec, input.Settings, crane.Name);
 
             // Log optimization run history
             if (!string.IsNullOrWhiteSpace(projectFolder))
@@ -368,7 +369,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             PlacementResult appResult,
             List<PrecastElement> allElements,
             CraneSpecification craneSpec,
-            GASettings settings)
+            GASettings settings,
+            string? craneName = null)
         {
             var result = new CranePlacementResult
             {
@@ -386,7 +388,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     SpecialCase = appResult.Statistics.SpecialCase,
                     NotCharted = appResult.Statistics.NotCharted
                 },
-                Positions = new List<DTOs.CranePositionResult>(appResult.Positions.Count)
+                Positions = new List<DTOs.CranePositionResult>(appResult.Positions.Count),
+                // Crane / run metadata
+                CraneName = craneName ?? craneSpec?.Crane?.Name,
+                WireLength = settings.WireLength,
+                DeratingRatio = settings.DeratingRatio,
+                SafetyFactor = settings.SafetyFactor,
+                CounterWeight = craneSpec?.CounterWeight ?? 0.0
             };
 
             var elementLookup = allElements
@@ -423,6 +431,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                             Radius = appElem.Radius,
                             BoomLength = appElem.BoomLength,
                             AvailableCapacity = appElem.AvailableCapacity,
+                            RawChartCapacity = appElem.RawChartCapacity > 0 ? appElem.RawChartCapacity : (double?)null,
                             RequiredCapacity = appElem.RequiredCapacity,
                             ReachStatus = appElem.ReachStatus,
                             ChartStatus = appElem.ChartStatus,

@@ -414,6 +414,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 result.IsSteppedRadius = finalEntry.Radius > radius;
 
                 double available = finalEntry.Capacity * settings.DeratingRatio * settings.SafetyFactor;
+                result.RawChartCapacity = finalEntry.Capacity;
                 result.AvailableCapacity = available;
                 result.SafetyMargin = available - elementWeight;
                 result.ChartStatus = ChartStatus.ListedCapacityFound;
@@ -429,6 +430,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 result.IsSteppedRadius = finalEntry.Radius > radius;
 
                 double available = finalEntry.Capacity * settings.DeratingRatio * settings.SafetyFactor;
+                result.RawChartCapacity = finalEntry.Capacity;
                 result.AvailableCapacity = available;
                 result.SafetyMargin = available - elementWeight;
                 result.ChartStatus = ChartStatus.ListedCapacityFound;
@@ -442,6 +444,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 result.SelectedChartBoomLength = finalEntry.BoomLength;
                 result.IsExactMatch = Math.Abs(finalEntry.Radius - radius) < 1e-5 && Math.Abs(finalEntry.BoomLength - boomLength) < 1e-5;
                 result.IsSteppedRadius = finalEntry.Radius > radius;
+                result.RawChartCapacity = finalEntry.Capacity;
 
                 if (finalEntry.Capacity <= -1.0)
                 {

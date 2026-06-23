@@ -52,6 +52,26 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         /// Reachability diagnostics computed before running GA.
         /// </summary>
         public ReachabilityDiagnostics? ReachabilityDiagnostics { get; set; }
+
+        // ── Crane / run metadata (populated by CranePlacementService) ─────────
+
+        /// <summary>Display name of the crane used in this optimization run.</summary>
+        public string? CraneName { get; set; }
+
+        /// <summary>Wire length setting (m) used in this optimization run.</summary>
+        public double WireLength { get; set; }
+
+        /// <summary>Derating ratio applied to all load chart capacity values.</summary>
+        public double DeratingRatio { get; set; }
+
+        /// <summary>Safety factor applied after derating.</summary>
+        public double SafetyFactor { get; set; }
+
+        /// <summary>
+        /// Counterweight configured on the crane specification (tonnes).
+        /// Zero if not set.
+        /// </summary>
+        public double CounterWeight { get; set; }
     }
 
     /// <summary>
@@ -101,7 +121,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         /// <summary>
         /// Element unique identifier.
         /// </summary>
-        public string ElementId { get; set; }
+        public string ElementId { get; set; } = string.Empty;
 
         /// <summary>
         /// Element mark/name from the source model when available.
@@ -144,8 +164,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
 
         /// <summary>
         /// Available capacity found in the selected crane load chart.
+        /// This is the raw chart value multiplied by DeratingRatio × SafetyFactor.
         /// </summary>
         public double AvailableCapacity { get; set; }
+
+        /// <summary>
+        /// Raw manufacturer load chart capacity at the selected (radius, boom) cell,
+        /// before derating ratio and safety factor are applied.
+        /// Null when no chart cell was resolved (e.g. OutOfRadius, NotCharted).
+        /// </summary>
+        public double? RawChartCapacity { get; set; }
 
         /// <summary>
         /// Required lifting capacity for the element.
