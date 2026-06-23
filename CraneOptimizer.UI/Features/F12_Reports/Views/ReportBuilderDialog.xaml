@@ -1,0 +1,628 @@
+<Window x:Class="CraneOptimizer.UI.Features.F12_Reports.Views.ReportBuilderDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:dat="clr-namespace:System.Windows.Data;assembly=PresentationFramework"
+        Title="Report Builder"
+        Width="1280"
+        Height="800"
+        MinWidth="1024"
+        MinHeight="680"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        SizeToContent="Manual"
+        Background="{DynamicResource BackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        FontFamily="{StaticResource FontPrimary}">
+
+    <Window.Resources>
+        <CollectionViewSource x:Key="GroupedAvailableColumns" Source="{Binding AvailableColumns}">
+            <CollectionViewSource.GroupDescriptions>
+                <dat:PropertyGroupDescription PropertyName="Category"/>
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
+
+        <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource TextCaption}">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,8,8"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        </Style>
+
+        <Style x:Key="SectionTitle" TargetType="TextBlock" BasedOn="{StaticResource TextTitle}">
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <Style x:Key="DialogPrimaryButton" TargetType="Button" BasedOn="{StaticResource ButtonPrimary}">
+            <Setter Property="MinWidth" Value="104"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Margin" Value="6,0,0,0"/>
+            <Setter Property="Padding" Value="12,4"/>
+        </Style>
+
+        <Style x:Key="DialogSecondaryButton" TargetType="Button" BasedOn="{StaticResource ButtonSecondary}">
+            <Setter Property="MinWidth" Value="104"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Margin" Value="6,0,0,0"/>
+            <Setter Property="Padding" Value="12,4"/>
+        </Style>
+
+        <Style x:Key="InlineButton" TargetType="Button" BasedOn="{StaticResource ButtonSecondary}">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="12,4"/>
+        </Style>
+
+        <Style x:Key="TransferButton" TargetType="Button" BasedOn="{StaticResource ButtonSecondary}">
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+
+        <Style x:Key="ReportComboBox" TargetType="ComboBox" BasedOn="{StaticResource DarkComboBox}">
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource DarkComboBoxItem}"/>
+        </Style>
+
+        <Style x:Key="PanelBorder" TargetType="Border">
+            <Setter Property="Padding" Value="14"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
+        </Style>
+
+        <Style x:Key="ReportScrollBarThumbStyle" TargetType="Thumb">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="{StaticResource SecondaryBrush}"
+                                CornerRadius="4"
+                                Margin="2"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ReportScrollBarStyle" TargetType="ScrollBar">
+            <Setter Property="Width" Value="12"/>
+            <Setter Property="Height" Value="12"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Track x:Name="PART_Track"
+                                   Orientation="{TemplateBinding Orientation}"
+                                   Minimum="{TemplateBinding Minimum}"
+                                   Maximum="{TemplateBinding Maximum}"
+                                   Value="{Binding Value, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                   ViewportSize="{TemplateBinding ViewportSize}">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource ReportScrollBarThumbStyle}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Orientation" Value="Vertical">
+                                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="True"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Width" Value="Auto"/>
+                    <Setter Property="MinHeight" Value="12"/>
+                </Trigger>
+                <Trigger Property="Orientation" Value="Vertical">
+                    <Setter Property="MinWidth" Value="12"/>
+                    <Setter Property="Height" Value="Auto"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ReportScrollViewerStyle" TargetType="ScrollViewer">
+            <Setter Property="CanContentScroll" Value="False"/>
+            <Setter Property="ClipToBounds" Value="True"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid Background="{TemplateBinding Background}"
+                              ClipToBounds="True">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <ScrollContentPresenter x:Name="PART_ScrollContentPresenter"
+                                                    Grid.Row="0"
+                                                    Grid.Column="0"
+                                                    CanContentScroll="{TemplateBinding CanContentScroll}"
+                                                    Content="{TemplateBinding Content}"
+                                                    ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                    Cursor="{TemplateBinding Cursor}"
+                                                    Margin="{TemplateBinding Padding}"
+                                                    SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+
+                            <ScrollBar x:Name="PART_VerticalScrollBar"
+                                       Grid.Row="0"
+                                       Grid.Column="1"
+                                       Orientation="Vertical"
+                                       Style="{StaticResource ReportScrollBarStyle}"
+                                       Maximum="{TemplateBinding ScrollableHeight}"
+                                       ViewportSize="{TemplateBinding ViewportHeight}"
+                                       Value="{Binding VerticalOffset, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+
+                            <ScrollBar x:Name="PART_HorizontalScrollBar"
+                                       Grid.Row="1"
+                                       Grid.Column="0"
+                                       Orientation="Horizontal"
+                                       Style="{StaticResource ReportScrollBarStyle}"
+                                       Maximum="{TemplateBinding ScrollableWidth}"
+                                       ViewportSize="{TemplateBinding ViewportWidth}"
+                                       Value="{Binding HorizontalOffset, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}"
+                                       Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}"/>
+
+                            <Border Grid.Row="1"
+                                    Grid.Column="1"
+                                    Background="{DynamicResource SurfaceBrush}"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ReportListBox" TargetType="ListBox">
+            <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeBase}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="ClipToBounds" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                ClipToBounds="True">
+                            <ScrollViewer Style="{StaticResource ReportScrollViewerStyle}"
+                                          Padding="{TemplateBinding Padding}"
+                                          Focusable="False"
+                                          SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                                <ItemsPresenter/>
+                            </ScrollViewer>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16"
+          Background="{DynamicResource BackgroundBrush}"
+          HorizontalAlignment="Stretch"
+          VerticalAlignment="Stretch"
+          ClipToBounds="True">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Style="{StaticResource PanelBorder}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="24"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="2*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Report Template" Style="{StaticResource FieldLabel}"/>
+                <ComboBox Grid.Row="0" Grid.Column="1"
+                          MinWidth="260"
+                          Margin="0,0,0,8"
+                          Style="{StaticResource ReportComboBox}"
+                          ItemsSource="{Binding ReportNames}"
+                          SelectedItem="{Binding SelectedReportName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Grid.Row="0" Grid.Column="3" Text="Items Included" Style="{StaticResource FieldLabel}"/>
+                <ComboBox Grid.Row="0" Grid.Column="4"
+                          MinWidth="260"
+                          Margin="0,0,0,8"
+                          Style="{StaticResource ReportComboBox}"
+                          ItemsSource="{Binding ItemsIncludedOptions}"
+                          SelectedItem="{Binding ItemsIncluded, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Project" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="1" Grid.Column="1"
+                           Text="{Binding ProjectName}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Margin="0,0,0,2"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="3" Text="Generated On" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="1" Grid.Column="4"
+                           Text="{Binding GeneratedOnText}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Margin="0,0,0,2"/>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2" Style="{StaticResource PanelBorder}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="1.5*"/>
+                    <ColumnDefinition Width="20"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="1.5*"/>
+                    <ColumnDefinition Width="20"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="1*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.ColumnSpan="8" Text="Report Info" Style="{StaticResource SectionTitle}"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Company Name" Style="{StaticResource FieldLabel}"/>
+                <TextBox Grid.Row="1" Grid.Column="1"
+                         Margin="0,0,0,8"
+                         Text="{Binding CompanyName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="3" Text="Created By" Style="{StaticResource FieldLabel}"/>
+                <TextBox Grid.Row="1" Grid.Column="4"
+                         Margin="0,0,0,8"
+                         Text="{Binding CreatedBy, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="6" Text="Revision" Style="{StaticResource FieldLabel}"/>
+                <TextBox Grid.Row="1" Grid.Column="7"
+                         Margin="0,0,0,8"
+                         Text="{Binding Revision, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Company Logo" Style="{StaticResource FieldLabel}"/>
+                <DockPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,2">
+                    <Button DockPanel.Dock="Right"
+                            Content="Browse Logo"
+                            Style="{StaticResource InlineButton}"
+                            MinWidth="104"
+                            Margin="8,0,0,0"
+                            Command="{Binding BrowseLogoCommand}"/>
+                    <TextBox Text="{Binding CompanyLogoPath}" IsReadOnly="True"/>
+                </DockPanel>
+
+                <TextBlock Grid.Row="2" Grid.Column="3" Text="Issued To" Style="{StaticResource FieldLabel}"/>
+                <TextBox Grid.Row="2" Grid.Column="4"
+                         Margin="0,0,0,2"
+                         Text="{Binding IssuedTo, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="6" Text="General Notes" Style="{StaticResource FieldLabel}"/>
+                <TextBox Grid.Row="2" Grid.Column="7"
+                         MinHeight="32"
+                         MaxHeight="74"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         Text="{Binding GeneralNotes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Text Alignment" Style="{StaticResource FieldLabel}"/>
+                <ComboBox Grid.Row="3" Grid.Column="1"
+                          Margin="0,8,0,0"
+                          Style="{StaticResource ReportComboBox}"
+                          ItemsSource="{Binding AlignmentOptions}"
+                          SelectedItem="{Binding TextAlignment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="3" Text="Text Size (pt)" Style="{StaticResource FieldLabel}" Margin="0,8,8,0"/>
+                <Grid Grid.Row="3" Grid.Column="4" Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="92"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <ComboBox Style="{StaticResource ReportComboBox}"
+                              ItemsSource="{Binding TextSizeOptions}"
+                              SelectedItem="{Binding GlobalTextSize, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              IsEditable="False"
+                              MaxDropDownHeight="180"
+                              ScrollViewer.CanContentScroll="False"/>
+                    <TextBlock Grid.Column="1"
+                               Text="pt"
+                               Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource TextCaption}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    <TextBlock Grid.Column="2"
+                               Text="{Binding TextSizeValidationMessage}"
+                               Margin="12,0,0,0"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource TextCaption}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="4" MinHeight="300">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.15*" MinWidth="240"/>
+                <ColumnDefinition Width="56"/>
+                <ColumnDefinition Width="1.65*" MinWidth="340"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="1.1*" MinWidth="260"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource PanelBorder}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Available Columns" Style="{StaticResource SectionTitle}"/>
+                    <TextBox Grid.Row="1"
+                             Margin="0,0,0,10"
+                             Text="{Binding AvailableColumnSearch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <ListBox Grid.Row="2"
+                             Style="{StaticResource ReportListBox}"
+                             ItemsSource="{Binding Source={StaticResource GroupedAvailableColumns}}"
+                             SelectedItem="{Binding SelectedAvailableColumn, Mode=TwoWay}"
+                             MouseDoubleClick="AvailableColumns_DoubleClick"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             ScrollViewer.CanContentScroll="False"
+                             VirtualizingPanel.ScrollUnit="Pixel">
+                        <ListBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}"
+                                                   Style="{StaticResource TextCaption}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   Margin="0,10,0,4"/>
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ListBox.GroupStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Header}" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Category}"
+                                                   Style="{StaticResource TextCaption}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1"
+                                               Text="Selected"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Margin="8,0,0,0"
+                                               VerticalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource TextCaption}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsAlreadySelected}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Column="1"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Center">
+                <Button Content="&gt;" Style="{StaticResource TransferButton}" Command="{Binding AddColumnCommand}"/>
+                <Button Content="&lt;" Style="{StaticResource TransferButton}" Command="{Binding RemoveColumnCommand}"/>
+                <Button Content="&gt;&gt;" Style="{StaticResource TransferButton}" Command="{Binding AddAllColumnsCommand}"/>
+                <Button Content="&lt;&lt;" Style="{StaticResource TransferButton}" Command="{Binding RemoveAllColumnsCommand}"/>
+            </StackPanel>
+
+            <Border Grid.Column="2" Style="{StaticResource PanelBorder}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Selected Columns" Style="{StaticResource SectionTitle}"/>
+                    <ListBox Grid.Row="1"
+                             Style="{StaticResource ReportListBox}"
+                             ItemsSource="{Binding SelectedColumns}"
+                             SelectedItem="{Binding SelectedColumn, Mode=TwoWay}"
+                             MouseDoubleClick="SelectedColumns_DoubleClick"
+                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             ScrollViewer.CanContentScroll="False"
+                             VirtualizingPanel.ScrollUnit="Pixel">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}"
+                                           Margin="0,5"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <WrapPanel Grid.Row="2" Margin="0,10,0,0">
+                        <Button Content="Move Up"
+                                Style="{StaticResource InlineButton}"
+                                MinWidth="86"
+                                Margin="0,0,8,0"
+                                Command="{Binding MoveColumnUpCommand}"/>
+                        <Button Content="Move Down"
+                                Style="{StaticResource InlineButton}"
+                                MinWidth="96"
+                                Margin="0,0,8,0"
+                                Command="{Binding MoveColumnDownCommand}"/>
+                        <Button Content="Reset to Template"
+                                Style="{StaticResource InlineButton}"
+                                MinWidth="124"
+                                Command="{Binding ResetCommand}"/>
+                    </WrapPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="4" Style="{StaticResource PanelBorder}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="Column Settings" Style="{StaticResource SectionTitle}"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Column" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1"
+                               Margin="10,0,0,8"
+                               Text="{Binding SelectedColumn.DisplayHeader}"
+                               TextWrapping="Wrap"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Category" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1"
+                               Margin="10,0,0,8"
+                               Text="{Binding SelectedColumn.Category}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Unit" Style="{StaticResource FieldLabel}"/>
+                    <Grid Grid.Row="3" Grid.Column="1" Margin="10,0,0,8">
+                        <ComboBox ItemsSource="{Binding SelectedColumn.UnitOptions}"
+                                  SelectedItem="{Binding SelectedColumn.Unit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                            <ComboBox.Style>
+                                <Style TargetType="ComboBox" BasedOn="{StaticResource ReportComboBox}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedColumn.HasUnit}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ComboBox.Style>
+                        </ComboBox>
+                        <TextBlock Text="Not applicable"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextSecondaryBrush}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource TextCaption}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedColumn.HasUnit}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+
+                    <TextBlock Grid.Row="4"
+                               Grid.ColumnSpan="2"
+                               Text="Units only affect report display and export values. Engineering data and optimization calculations are not changed."
+                               Style="{StaticResource TextCaption}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="6"
+                Padding="0,10,0,0"
+                BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource BorderBrush}"
+                Background="{DynamicResource BackgroundBrush}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding BuildReadinessMessage}"
+                               Style="{StaticResource TextCaption}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding StatusMessage}"
+                               Style="{StaticResource TextCaption}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding GaWarningText}"
+                               Style="{StaticResource TextCaption}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding LayoutWarningMessage}"
+                               Style="{StaticResource TextCaption}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <WrapPanel Grid.Column="1"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center">
+                    <Button Content="Preview" Style="{StaticResource DialogPrimaryButton}" Command="{Binding PreviewCommand}"/>
+                    <Button Content="Export PDF" Style="{StaticResource DialogSecondaryButton}" Command="{Binding ExportPdfCommand}"/>
+                    <Button Content="Export Excel" Style="{StaticResource DialogSecondaryButton}" Command="{Binding ExportExcelCommand}"/>
+                    <Button Content="Save As Template" Style="{StaticResource DialogSecondaryButton}" Command="{Binding SaveTemplateCommand}"/>
+                    <Button Content="Delete Template" Command="{Binding DeleteTemplateCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource DialogSecondaryButton}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelectedTemplateUserTemplate}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="Reset" Style="{StaticResource DialogSecondaryButton}" Command="{Binding ResetCommand}"/>
+                    <Button Content="Cancel" Style="{StaticResource DialogSecondaryButton}" Command="{Binding CancelCommand}"/>
+                </WrapPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

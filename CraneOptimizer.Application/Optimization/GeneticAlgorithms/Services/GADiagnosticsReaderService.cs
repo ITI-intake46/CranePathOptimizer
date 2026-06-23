@@ -193,10 +193,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     int requiredRadiusIdx = GetHeaderIndex(headers, "RequiredRadius");
                     int selectedChartRadiusIdx = GetHeaderIndex(headers, "SelectedChartRadius");
                     int selectedChartBoomLengthIdx = GetHeaderIndex(headers, "SelectedChartBoomLength");
-                    int craneBasePointIdx = GetHeaderIndex(headers, "CraneBasePoint");
-                    int slewCenterPointIdx = GetHeaderIndex(headers, "SlewCenterPoint");
-                    int boomHingePointIdx = GetHeaderIndex(headers, "BoomHingePoint");
-                    int loadPointIdx = GetHeaderIndex(headers, "LoadPoint");
+                    int selectedVisualColumnIndexIdx = GetHeaderIndex(headers, "SelectedVisualColumnIndex");
+                    int selectedVisualColumnHeaderIdx = GetHeaderIndex(headers, "SelectedVisualColumnHeader");
+                    int selectedNumberOfLinesIdx = GetHeaderIndex(headers, "SelectedNumberOfLines");
+                    int selectedOperatingConditionLabelIdx = GetHeaderIndex(headers, "SelectedOperatingConditionLabel");
+                    int conservativeDuplicateFallbackIdx = GetHeaderIndex(headers, "IsConservativeDuplicateFallback");
+                    int duplicateAlternativeCountIdx = GetHeaderIndex(headers, "DuplicateAlternativeCount");
+                    int duplicateAlternativeSummaryIdx = GetHeaderIndex(headers, "DuplicateAlternativeSummary");
+                    int craneBasePointIdx = GetFirstHeaderIndex(headers, "CraneBasePoint_Local", "CraneBasePoint");
+                    int slewCenterPointIdx = GetFirstHeaderIndex(headers, "SlewCenterPoint_Local", "SlewCenterPoint");
+                    int boomHingePointIdx = GetFirstHeaderIndex(headers, "BoomHingePoint_Local", "BoomHingePoint");
+                    int loadPointIdx = GetFirstHeaderIndex(headers, "LoadPoint_Local", "LoadPoint");
                     int radiusOriginTypeIdx = GetHeaderIndex(headers, "RadiusOriginType");
                     int boomOriginTypeIdx = GetHeaderIndex(headers, "BoomOriginType");
                     int candidateBoomsCheckedIdx = GetHeaderIndex(headers, "CandidateBoomsChecked");
@@ -274,6 +281,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                             RequiredRadius = GetValueDouble(row, requiredRadiusIdx, GetValueDouble(row, bestRadiusIdx)),
                             SelectedChartRadius = GetValueDouble(row, selectedChartRadiusIdx),
                             SelectedChartBoomLength = GetValueDouble(row, selectedChartBoomLengthIdx),
+                            SelectedVisualColumnIndex = GetNullableInt(row, selectedVisualColumnIndexIdx),
+                            SelectedVisualColumnHeader = GetValue(row, selectedVisualColumnHeaderIdx, ""),
+                            SelectedNumberOfLines = GetNullableInt(row, selectedNumberOfLinesIdx),
+                            SelectedOperatingConditionLabel = GetValue(row, selectedOperatingConditionLabelIdx, ""),
+                            IsConservativeDuplicateFallback = GetValueBool(row, conservativeDuplicateFallbackIdx),
+                            DuplicateAlternativeCount = GetValueInt(row, duplicateAlternativeCountIdx),
+                            DuplicateAlternativeSummary = GetValue(row, duplicateAlternativeSummaryIdx, ""),
                             CraneBaseX = basePt.X,
                             CraneBaseY = basePt.Y,
                             CraneBaseZ = basePt.Z,
@@ -412,6 +426,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             return headers.FindIndex(h => string.Equals(h.Trim(), name, StringComparison.OrdinalIgnoreCase));
         }
 
+        private static int GetFirstHeaderIndex(List<string> headers, params string[] names)
+        {
+            foreach (var name in names)
+            {
+                int index = GetHeaderIndex(headers, name);
+                if (index >= 0)
+                    return index;
+            }
+
+            return -1;
+        }
+
         private static string GetValue(List<string> row, int index, string fallback = "")
         {
             if (index >= 0 && index < row.Count)
@@ -429,6 +455,15 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 return res;
             }
             return fallback;
+        }
+
+        private static int? GetNullableInt(List<string> row, int index)
+        {
+            string val = GetValue(row, index);
+            if (int.TryParse(val, NumberStyles.Integer, Invariant, out int res))
+                return res;
+
+            return null;
         }
 
         private static double GetValueDouble(List<string> row, int index, double fallback = 0.0)
