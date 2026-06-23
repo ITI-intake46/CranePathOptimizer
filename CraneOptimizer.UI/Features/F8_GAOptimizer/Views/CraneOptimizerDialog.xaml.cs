@@ -348,10 +348,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtSimilarPositionPenaltyWeight.Text,
                 TxtRelocationDistancePenaltyWeight.Text,
                 TxtMinimumRelocationDistance.Text,
-                TxtDuplicatePositionDistance.Text,
+                null, // Retired DuplicatePositionDistance
                 TxtMutationExplorationMultiplier.Text,
                 TxtPositionSamplingAttempts.Text,
-                TxtMaxRadiusForNormalisation.Text,
+                null, // Retired MaxRadiusForNormalisation
                 TxtPopulationSize.Text,
                 TxtMaxGenerations.Text,
                 TxtDevMutationRate.Text,
@@ -365,15 +365,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtSigmaCoolingExponent.Text,
                 TxtMinimumMutationSigma.Text,
                 ChkEnableConcurrentOptimization.IsChecked == true ? "true" : "false",
-                TxtSlewOffsetX.Text,
-                TxtSlewOffsetY.Text,
-                TxtSlewOffsetZ.Text,
-                TxtBoomHingeOffsetX.Text,
-                TxtBoomHingeOffsetY.Text,
-                TxtBoomHingeOffsetZ.Text,
-                TxtCraneFootprintRadius.Text,
+                null, // Retired SlewOffsetX
+                null, // Retired SlewOffsetY
+                null, // Retired SlewOffsetZ
+                null, // Retired BoomHingeOffsetX
+                null, // Retired BoomHingeOffsetY
+                null, // Retired BoomHingeOffsetZ
+                null, // Retired CraneFootprintRadius
                 ChkEnableProfiling.IsChecked == true ? "true" : "false",
-                TxtProfilingLogDirectory.Text,
+                null, // Retired ProfilingLogDirectory
                 vm.EnableMultiStageDiscovery ? "true" : "false",
                 vm.MultiStageCoverageTarget.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 vm.AdaptiveRelocationScaleFactor.ToString(System.Globalization.CultureInfo.InvariantCulture),

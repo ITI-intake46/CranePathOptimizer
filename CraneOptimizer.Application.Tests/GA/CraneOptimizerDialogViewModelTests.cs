@@ -141,37 +141,103 @@ namespace CraneOptimizer.Application.Tests.GA
         public void SearchTextChange_ShouldCollapseSectionIfNoChildrenMatch()
         {
             // Arrange
-            var vm = new CraneOptimizerDialogViewModel();
+            var originalShowDev = CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowGADeveloperParameters;
+            try
+            {
+                CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowGADeveloperParameters = true;
+                var vm = new CraneOptimizerDialogViewModel();
 
-            // Act - Search for "Hungarian"
-            vm.SearchText = "Hungarian";
+                // Act - Search for "Hungarian"
+                vm.SearchText = "Hungarian";
 
-            // Assert
-            Assert.Equal(Visibility.Visible, vm.ParamUseHungarianAssignment.Visibility);
-            Assert.Equal(Visibility.Visible, vm.SectionAdvancedGA.Visibility); // contains Hungarian
+                // Assert
+                Assert.Equal(Visibility.Visible, vm.ParamUseHungarianAssignment.Visibility);
+                Assert.Equal(Visibility.Visible, vm.SectionAdvancedGA.Visibility); // contains Hungarian
 
-            // Section 1 (Core Calibration) has no "Hungarian" parameters, so it should be collapsed
-            Assert.Equal(Visibility.Collapsed, vm.SectionCoreCalibration.Visibility);
+                // Section 1 (Core Calibration) has no "Hungarian" parameters, so it should be collapsed
+                Assert.Equal(Visibility.Collapsed, vm.SectionCoreCalibration.Visibility);
+            }
+            finally
+            {
+                CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowGADeveloperParameters = originalShowDev;
+            }
         }
 
         [Fact]
         public void ClearSearchText_ShouldRestoreAllVisibilities()
         {
             // Arrange
-            var vm = new CraneOptimizerDialogViewModel();
-            vm.SearchText = "Hungarian"; // Initial filter collapses other sections
-
-            // Act - Clear search
-            vm.SearchText = string.Empty;
-
-            // Assert
-            foreach (var section in vm.Sections)
+            var originalShowDev = CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowGADeveloperParameters;
+            try
             {
-                Assert.Equal(Visibility.Visible, section.Visibility);
-                foreach (var param in section.Parameters)
+                CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowGADeveloperParameters = true;
+                var vm = new CraneOptimizerDialogViewModel();
+                vm.SearchText = "Hungarian"; // Initial filter collapses other sections
+
+                // Act - Clear search
+                vm.SearchText = string.Empty;
+
+                // Assert
+                foreach (var section in vm.Sections)
                 {
-                    Assert.Equal(Visibility.Visible, param.Visibility);
+                    Assert.Equal(Visibility.Visible, section.Visibility);
+                    foreach (var param in section.Parameters)
+                    {
+                        Assert.Equal(Visibility.Visible, param.Visibility);
+                    }
                 }
+            }
+            finally
+            {
+                CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowGADeveloperParameters = originalShowDev;
+            }
+        }
+
+        [Fact]
+        public void DeveloperParameters_ShouldBeCollapsed_WhenShowGADeveloperParametersIsFalse()
+        {
+            // Arrange
+            var originalShowDev = CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowGADeveloperParameters;
+            try
+            {
+                CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowGADeveloperParameters = false;
+                
+                // Act
+                var vm = new CraneOptimizerDialogViewModel();
+
+                // Assert: Developer parameter is collapsed
+                Assert.Equal(Visibility.Collapsed, vm.ParamUseHungarianAssignment.Visibility);
+                
+                // Assert: Advanced parameter is visible
+                Assert.Equal(Visibility.Visible, vm.ParamPopulationSize.Visibility);
+            }
+            finally
+            {
+                CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowGADeveloperParameters = originalShowDev;
+            }
+        }
+
+        [Fact]
+        public void DeveloperParameters_ShouldBeVisible_WhenShowGADeveloperParametersIsTrue()
+        {
+            // Arrange
+            var originalShowDev = CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowGADeveloperParameters;
+            try
+            {
+                CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowGADeveloperParameters = true;
+                
+                // Act
+                var vm = new CraneOptimizerDialogViewModel();
+
+                // Assert: Developer parameter is visible
+                Assert.Equal(Visibility.Visible, vm.ParamUseHungarianAssignment.Visibility);
+                
+                // Assert: Advanced parameter is visible
+                Assert.Equal(Visibility.Visible, vm.ParamPopulationSize.Visibility);
+            }
+            finally
+            {
+                CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowGADeveloperParameters = originalShowDev;
             }
         }
 

@@ -15,6 +15,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
         public string DuplicateAlternativeSummary { get; set; } = string.Empty;
         public double ElementWeight { get; set; }
         public double AvailableCapacity { get; set; }
+
+        /// <summary>
+        /// Raw manufacturer load chart capacity at the selected (radius, boom) cell,
+        /// before derating ratio and safety factor are applied.
+        /// AvailableCapacity = RawChartCapacity * DeratingRatio * SafetyFactor.
+        /// </summary>
+        public double RawChartCapacity { get; set; }
         public ReachStatus ReachStatus { get; set; }
         public ChartStatus ChartStatus { get; set; }
         public LiftStatus LiftStatus { get; set; }

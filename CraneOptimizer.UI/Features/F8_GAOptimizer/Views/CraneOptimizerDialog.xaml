@@ -1165,7 +1165,7 @@
                                                 <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Enable Multi-Stage Discovery" VerticalAlignment="Center" />
                                                 <controls:ParameterHelpIcon ParameterKey="EnableMultiStageDiscovery" Margin="4,0,0,0" VerticalAlignment="Center" />
                                             </StackPanel>
-                                            <CheckBox x:Name="ChkEnableMultiStageDiscovery" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding EnableMultiStageDiscovery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="With Multi-Stage Discovery enabled, the optimizer tests stages from 1 up to Max Crane Positions and stops early if the target coverage is met. It is not a required count." />
+                                            <CheckBox x:Name="ChkEnableMultiStageDiscovery" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding EnableMultiStageDiscovery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="False" ToolTip="With Multi-Stage Discovery enabled, the optimizer tests stages from 1 up to Max Crane Positions and stops early if the target coverage is met. It is not a required count." />
                                         </Grid>
 
                                         <!-- 2. Coverage Target -->
@@ -1212,6 +1212,7 @@
                         </Expander>
 
                         <!-- 6. Diagnostics -->
+                            <!-- 6. Diagnostics -->
                         <Expander
                             Margin="{StaticResource Space1}"
                             BorderBrush="{DynamicResource BorderBrush}"
@@ -1220,112 +1221,6 @@
                             Visibility="{Binding SectionDiagnostics.Visibility}"
                             IsExpanded="False">
                             <StackPanel Margin="{StaticResource Space2}">
-                                <TextBlock FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Text="SLEW CENTER OFFSETS" />
-                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamSlewOffsetX.Visibility}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="120" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Offset X (m)" VerticalAlignment="Center" />
-                                        <controls:ParameterHelpIcon ParameterKey="SlewOffsetX" Margin="4,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <TextBox x:Name="TxtSlewOffsetX" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.0" />
-                                </Grid>
-                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamSlewOffsetY.Visibility}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="120" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Offset Y (m)" VerticalAlignment="Center" />
-                                        <controls:ParameterHelpIcon ParameterKey="SlewOffsetY" Margin="4,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <TextBox x:Name="TxtSlewOffsetY" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.0" />
-                                </Grid>
-                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamSlewOffsetZ.Visibility}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="120" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Offset Z (m)" VerticalAlignment="Center" />
-                                        <controls:ParameterHelpIcon ParameterKey="SlewOffsetZ" Margin="4,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <TextBox x:Name="TxtSlewOffsetZ" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.0" />
-                                </Grid>
-
-                                <TextBlock Margin="0,8,0,0" FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Text="BOOM HINGE OFFSETS" />
-                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamBoomHingeOffsetX.Visibility}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="120" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Offset X (m)" VerticalAlignment="Center" />
-                                        <controls:ParameterHelpIcon ParameterKey="BoomHingeOffsetX" Margin="4,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <TextBox x:Name="TxtBoomHingeOffsetX" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.0" />
-                                </Grid>
-                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamBoomHingeOffsetY.Visibility}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="120" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Offset Y (m)" VerticalAlignment="Center" />
-                                        <controls:ParameterHelpIcon ParameterKey="BoomHingeOffsetY" Margin="4,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <TextBox x:Name="TxtBoomHingeOffsetY" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.0" />
-                                </Grid>
-                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamBoomHingeOffsetZ.Visibility}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="120" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Offset Z (m)" VerticalAlignment="Center" />
-                                        <controls:ParameterHelpIcon ParameterKey="BoomHingeOffsetZ" Margin="4,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <TextBox x:Name="TxtBoomHingeOffsetZ" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.0" />
-                                </Grid>
-
-                                <TextBlock Margin="0,8,0,0" FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Text="NORMALIZATION &amp; SEPARATION" />
-                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamMaxRadiusNorm.Visibility}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="120" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Max Radius Norm (m)" VerticalAlignment="Center" />
-                                        <controls:ParameterHelpIcon ParameterKey="MaxRadiusForNormalisation" Margin="4,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <TextBox x:Name="TxtMaxRadiusForNormalisation" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="50" />
-                                </Grid>
-                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamDuplicateDist.Visibility}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="120" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Duplicate Dist (m)" VerticalAlignment="Center" />
-                                        <controls:ParameterHelpIcon ParameterKey="DuplicatePositionDistance" Margin="4,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <TextBox x:Name="TxtDuplicatePositionDistance" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="3" />
-                                </Grid>
-                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamFootprintRadius.Visibility}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="120" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Footprint Radius (m)" VerticalAlignment="Center" />
-                                        <controls:ParameterHelpIcon ParameterKey="CraneFootprintRadius" Margin="4,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <TextBox x:Name="TxtCraneFootprintRadius" Grid.Column="1" MinHeight="{StaticResource InputHeight}" VerticalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Text="0.0" />
-                                </Grid>
-
-                                <TextBlock Margin="0,8,0,0" FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Text="PROFILING" />
                                 <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamEnableProfiling.Visibility}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -1337,21 +1232,6 @@
                                     </StackPanel>
                                     <CheckBox x:Name="ChkEnableProfiling" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="True" />
                                 </Grid>
-
-                                <StackPanel Visibility="{Binding ParamProfilingLogDirectory.Visibility}">
-                                    <Grid Margin="{StaticResource Space1}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Profiling Log Directory" VerticalAlignment="Center" />
-                                            <controls:ParameterHelpIcon ParameterKey="ProfilingLogDirectory" Margin="4,0,0,0" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </Grid>
-                                    <Grid Margin="{StaticResource Space1}">
-                                        <TextBox x:Name="TxtProfilingLogDirectory" MinHeight="{StaticResource InputHeight}" VerticalContentAlignment="Center" Padding="4" Text="" />
-                                    </Grid>
-                                </StackPanel>
                             </StackPanel>
                         </Expander>
                     </StackPanel>

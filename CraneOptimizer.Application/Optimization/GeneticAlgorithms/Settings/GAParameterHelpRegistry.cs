@@ -67,14 +67,14 @@ public static class GAParameterHelpRegistry
         {
             ParameterKey = "MaxCranePositions",
             DisplayName = "Max Crane Positions",
-            Description = "The maximum number of crane setup locations (relocations) the optimizer may use. It is not a required count.",
-            IncreaseEffect = "Expands the possible coverage by allowing more setup positions.",
-            DecreaseEffect = "Restricts setups, forcing the solver to find a more compact solution.",
+            Description = "Maximum number of crane setup positions allowed. In multi-stage optimization, the solver tests 1 setup, then 2, up to this value, and returns the best valid result. The final result may use fewer positions.",
+            IncreaseEffect = "Allows the optimizer to explore solutions with more crane relocations, potentially increasing coverage.",
+            DecreaseEffect = "Restricts setups, forcing the solver to find a more compact single-location solution.",
             ValidRange = "1 to 10",
             RecommendedRange = "1 – 4",
             PerformanceImpact = "High — directly increases chromosome size and set-cover complexity.",
             QualityImpact = "High — dominant factor in layout feasibility.",
-            SpecialNote = "Increasing this increases search space. With Multi-Stage Discovery enabled, the optimizer tests stages from 1 up to Max Crane Positions and stops early if target coverage is met."
+            SpecialNote = "This is an upper limit, not a required count. The optimizer may return fewer positions if fewer setups achieve the coverage target. Early stopping occurs when the target coverage ratio is met."
         });
 
         Add(new ParameterHelpMetadata
@@ -122,13 +122,14 @@ public static class GAParameterHelpRegistry
         {
             ParameterKey = "RelocationWeight",
             DisplayName = "Relocation Weight",
-            Description = "Deduction penalty applied to solutions that require more crane setups.",
-            IncreaseEffect = "Favors solutions with fewer relocations to minimize setup costs.",
-            DecreaseEffect = "Allows the solver to place more crane setups to cover difficult corners.",
+            Description = "Penalty for extra crane setup positions. In multi-stage optimization, this value is adapted internally per stage: the first stage uses no relocation penalty, and later stages scale the penalty based on previous coverage.",
+            IncreaseEffect = "Favors solutions with fewer relocations to minimize setup mobilization cost.",
+            DecreaseEffect = "Allows the solver to use more crane setups to cover difficult corners.",
             ValidRange = "0.0 or greater",
             RecommendedRange = "2.0 – 10.0",
             PerformanceImpact = "None",
-            QualityImpact = "High — models setup mobilization cost."
+            QualityImpact = "High — models setup mobilization cost.",
+            SpecialNote = "In multi-stage mode, this value is not used directly per stage. Stage 1 always uses 0. Later stages use an adaptive formula based on coverage achieved. This value acts as a scaling base for the adaptive calculation."
         });
 
         Add(new ParameterHelpMetadata
@@ -307,26 +308,26 @@ public static class GAParameterHelpRegistry
         {
             ParameterKey = "DeratingRatio",
             DisplayName = "Derating",
-            Description = "Safety multiplier applied to load charts to model operational conditions. Range: (0, 1].",
+            Description = "Capacity derating multiplier applied to crane load chart values. Values are limited between 0 and 1. Entries outside this range are automatically clamped.",
             IncreaseEffect = "Increases effective capacity toward nominal chart levels.",
-            DecreaseEffect = "Reduces capacity to compensate for wind, dynamic forces, or age.",
-            ValidRange = "0.01 to 1.00",
+            DecreaseEffect = "Reduces capacity to compensate for wind, dynamic forces, or equipment age.",
+            ValidRange = "0.0 to 1.0 (clamped automatically)",
             RecommendedRange = "0.85 – 0.95",
             PerformanceImpact = "None",
-            QualityImpact = "High — scales allowable loads."
+            QualityImpact = "High — scales all allowable load values from the load chart."
         });
 
         Add(new ParameterHelpMetadata
         {
             ParameterKey = "SafetyFactor",
             DisplayName = "Safety Factor",
-            Description = "User-defined capacity safety limit multiplier. Range: (0, 1].",
-            IncreaseEffect = "Allows lifting closer to derated limits.",
-            DecreaseEffect = "Adds safety margin by enforcing stricter capacity limits.",
-            ValidRange = "0.01 to 1.00",
+            Description = "Additional capacity safety multiplier applied after derating. Values are limited between 0 and 1. Entries outside this range are automatically clamped.",
+            IncreaseEffect = "Allows lifting closer to the derated capacity limit.",
+            DecreaseEffect = "Adds an extra safety margin by enforcing a stricter capacity threshold.",
+            ValidRange = "0.0 to 1.0 (clamped automatically)",
             RecommendedRange = "0.90 – 0.95",
             PerformanceImpact = "None",
-            QualityImpact = "High — critical engineering threshold."
+            QualityImpact = "High — critical engineering threshold applied after derating."
         });
 
         // 5. Advanced GA
@@ -578,6 +579,60 @@ public static class GAParameterHelpRegistry
             RecommendedRange = "Blank (autodetected relative to project folder)",
             PerformanceImpact = "Low",
             QualityImpact = "None"
+        });
+
+        // 7. Multi-Stage Discovery Parameters
+        Add(new ParameterHelpMetadata
+        {
+            ParameterKey = "EnableMultiStageDiscovery",
+            DisplayName = "Multi-Stage Discovery",
+            Description = "Always enabled for normal optimization. The optimizer evaluates stages from 1 up to Max Crane Positions, returning the best result. Early stopping occurs when the coverage target is reached.",
+            IncreaseEffect = "N/A — always enabled in the optimizer dialog.",
+            DecreaseEffect = "N/A — always enabled in the optimizer dialog.",
+            ValidRange = "Always True (normal UI runs)",
+            RecommendedRange = "True",
+            PerformanceImpact = "Medium — runs multiple GA stages sequentially.",
+            QualityImpact = "High — finds the optimal number of crane setups rather than a fixed count.",
+            SpecialNote = "This setting is locked to True in the normal UI. Developer and experiment paths can override it directly in GASettings."
+        });
+
+        Add(new ParameterHelpMetadata
+        {
+            ParameterKey = "MultiStageCoverageTarget",
+            DisplayName = "Coverage Target",
+            Description = "Coverage ratio threshold at which multi-stage escalation stops early. When a stage achieves this ratio, no further stages are tested.",
+            IncreaseEffect = "Requires higher coverage before stopping, potentially running more stages.",
+            DecreaseEffect = "Stops escalation earlier, accepting lower coverage with fewer positions.",
+            ValidRange = "0.0 to 1.0",
+            RecommendedRange = "0.90 – 0.98",
+            PerformanceImpact = "Medium — controls number of stages executed.",
+            QualityImpact = "High — determines acceptable solution quality threshold."
+        });
+
+        Add(new ParameterHelpMetadata
+        {
+            ParameterKey = "AdaptiveRelocationScaleFactor",
+            DisplayName = "Adaptive Reloc. Scale",
+            Description = "Scaling factor used in the adaptive relocation weight formula for stages 2 and above. Controls how aggressively the penalty grows as coverage increases.",
+            IncreaseEffect = "Increases the adaptive relocation penalty in later stages.",
+            DecreaseEffect = "Reduces the adaptive relocation penalty, allowing more setups more freely.",
+            ValidRange = "0.0 to 1.0",
+            RecommendedRange = "0.30 – 0.50",
+            PerformanceImpact = "None",
+            QualityImpact = "Medium — affects how aggressively relocation is penalized in multi-stage runs."
+        });
+
+        Add(new ParameterHelpMetadata
+        {
+            ParameterKey = "UseHungarianAssignment",
+            DisplayName = "Hungarian Assignment",
+            Description = "Enables global bipartite matching (Hungarian algorithm) for element-to-crane assignment instead of greedy nearest-crane assignment.",
+            IncreaseEffect = "Produces globally optimal element assignments, potentially improving coverage.",
+            DecreaseEffect = "Uses faster greedy assignment.",
+            ValidRange = "True/False",
+            RecommendedRange = "False",
+            PerformanceImpact = "Medium — Hungarian algorithm is O(n³) but runs once per evaluation.",
+            QualityImpact = "Medium — can improve assignment fairness on complex layouts."
         });
     }
 

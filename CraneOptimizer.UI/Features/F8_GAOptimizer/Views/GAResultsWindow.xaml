@@ -5,8 +5,8 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     Title="Optimization Results"
-    Width="950"
-    Height="600"
+    Width="1100"
+    Height="640"
     Background="{DynamicResource BackgroundBrush}"
     FontFamily="{StaticResource FontPrimary}"
     Foreground="{DynamicResource TextPrimaryBrush}"
@@ -15,6 +15,9 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <SolidColorBrush x:Key="InfoBrush" Color="#38BDF8" />
+        <SolidColorBrush x:Key="LiftableRowBrush"   Color="#1A2E23" /><!-- dark green tint -->
+        <SolidColorBrush x:Key="OverweightRowBrush" Color="#2E2316" /><!-- dark amber tint -->
+        <SolidColorBrush x:Key="FailRowBrush"       Color="#2E1818" /><!-- dark red tint -->
     </Window.Resources>
 
     <Grid Margin="{StaticResource Space4}">
@@ -102,7 +105,7 @@
                                         VerticalAlignment="Center"
                                         FontWeight="Bold"
                                         Foreground="{StaticResource PrimaryBrush}"
-                                        Text="{Binding NewLiftableCount, StringFormat={}{0} lifted}" />
+                                        Text="{Binding LiftCountDisplayText, Mode=OneWay}" />
                                 </Grid>
                             </Border>
                         </DataTemplate>
@@ -113,7 +116,7 @@
             <!-- Column 1: Splitter -->
             <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="{DynamicResource BorderBrush}" />
 
-            <!-- Column 2: Selected Setup Details Panel -->
+            <!-- Column 2: Assigned Elements + Crane Metadata -->
             <Border Grid.Column="2"
                     Padding="{StaticResource Space3}"
                     Background="{DynamicResource SurfaceBrush}"
@@ -122,169 +125,137 @@
                     CornerRadius="{StaticResource CardCornerRadius}">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="4" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="10" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="10" />
-                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" /><!-- section header -->
+                        <RowDefinition Height="6" />
+                        <RowDefinition Height="*" /><!-- DataGrid -->
+                        <RowDefinition Height="8" />
+                        <RowDefinition Height="Auto" /><!-- crane metadata -->
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Text="SELECTED SETUP GEOMETRY DETAILS" FontWeight="Bold" FontSize="14" Foreground="{StaticResource PrimaryBrush}" />
-                    <TextBlock Grid.Row="2" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}">
-                        <Run Text="Active BIM Element: " FontWeight="Bold" />
-                        <Run Text="{Binding ActiveElementName, Mode=OneWay}" Foreground="{StaticResource InfoBrush}" FontWeight="SemiBold" />
-                    </TextBlock>
+                    <!-- Header -->
+                    <TextBlock Grid.Row="0"
+                               Text="{Binding RightPanelHeader}"
+                               FontWeight="Bold"
+                               FontSize="14"
+                               Foreground="{StaticResource PrimaryBrush}" />
 
-                    <ScrollViewer Grid.Row="4" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="0,0,8,0">
-                            <!-- 1. Candidate Point -->
-                            <Border Margin="0,0,0,8" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" FontSize="12" Text="1. Candidate Point (Setup Center)" />
-                                    <TextBlock Grid.Row="1" FontSize="11" Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}">
-                                        <Run Text="Local Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Local X = "/><Run Text="{Binding CandidateModelX, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Local Y = "/><Run Text="{Binding CandidateModelY, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Local Z = "/><Run Text="{Binding CandidateModelZ, Mode=OneWay}"/><Run Text=" m"/>
-                                    </TextBlock>
-                                    <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
-                                        <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Easting = "/><Run Text="{Binding CandidateSiteE, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Northing = "/><Run Text="{Binding CandidateSiteN, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Elevation = "/><Run Text="{Binding CandidateSiteH, Mode=OneWay}"/><Run Text=" m"/>
-                                    </TextBlock>
-                                </Grid>
-                            </Border>
+                    <!-- Assigned Elements DataGrid -->
+                    <DataGrid Grid.Row="2"
+                              x:Name="AssignedElementsGrid"
+                              ItemsSource="{Binding AssignedElements}"
+                              SelectedItem="{Binding SelectedElement, Mode=TwoWay}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserSortColumns="True"
+                              CanUserReorderColumns="False"
+                              GridLinesVisibility="Horizontal"
+                              HeadersVisibility="Column"
+                              SelectionMode="Single"
+                              Background="Transparent"
+                              BorderThickness="1"
+                              BorderBrush="{DynamicResource BorderBrush}"
+                              RowBackground="Transparent"
+                              AlternatingRowBackground="Transparent"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto">
 
-                            <!-- 2. Crane Base Point -->
-                            <Border Margin="0,0,0,8" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" FontSize="12" Text="2. Crane Base Point" />
-                                    <TextBlock Grid.Row="1" FontSize="11" Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}">
-                                        <Run Text="Local Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Local X = "/><Run Text="{Binding CraneBaseModelX, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Local Y = "/><Run Text="{Binding CraneBaseModelY, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Local Z = "/><Run Text="{Binding CraneBaseModelZ, Mode=OneWay}"/><Run Text=" m"/>
-                                    </TextBlock>
-                                    <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
-                                        <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Easting = "/><Run Text="{Binding CraneBaseSiteE, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Northing = "/><Run Text="{Binding CraneBaseSiteN, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Elevation = "/><Run Text="{Binding CraneBaseSiteH, Mode=OneWay}"/><Run Text=" m"/>
-                                    </TextBlock>
-                                </Grid>
-                            </Border>
+                        <DataGrid.Resources>
+                            <!-- Status-coloured row background -->
+                            <Style x:Key="LiftableStyle" TargetType="DataGridRow">
+                                <Setter Property="Background" Value="{StaticResource LiftableRowBrush}" />
+                            </Style>
+                            <Style x:Key="OverweightStyle" TargetType="DataGridRow">
+                                <Setter Property="Background" Value="{StaticResource OverweightRowBrush}" />
+                            </Style>
+                            <Style x:Key="FailStyle" TargetType="DataGridRow">
+                                <Setter Property="Background" Value="{StaticResource FailRowBrush}" />
+                            </Style>
+                        </DataGrid.Resources>
 
-                            <!-- 3. Slew Center Point -->
-                            <Border Margin="0,0,0,8" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" FontSize="12" Text="3. Slew Center Point" />
-                                    <TextBlock Grid.Row="1" FontSize="11" Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}">
-                                        <Run Text="Local Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Local X = "/><Run Text="{Binding SlewCenterModelX, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Local Y = "/><Run Text="{Binding SlewCenterModelY, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Local Z = "/><Run Text="{Binding SlewCenterModelZ, Mode=OneWay}"/><Run Text=" m"/>
-                                    </TextBlock>
-                                    <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
-                                        <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Easting = "/><Run Text="{Binding SlewCenterSiteE, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Northing = "/><Run Text="{Binding SlewCenterSiteN, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Elevation = "/><Run Text="{Binding SlewCenterSiteH, Mode=OneWay}"/><Run Text=" m"/>
-                                    </TextBlock>
-                                </Grid>
-                            </Border>
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Setter Property="Background" Value="{StaticResource FailRowBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Source.Status}" Value="Liftable">
+                                        <Setter Property="Background" Value="{StaticResource LiftableRowBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Source.Status}" Value="Overweight">
+                                        <Setter Property="Background" Value="{StaticResource OverweightRowBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
 
-                            <!-- 4. Boom Hinge Point -->
-                            <Border Margin="0,0,0,8" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" FontSize="12" Text="4. Boom Hinge Point" />
-                                    <TextBlock Grid.Row="1" FontSize="11" Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}">
-                                        <Run Text="Local Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Local X = "/><Run Text="{Binding BoomHingeModelX, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Local Y = "/><Run Text="{Binding BoomHingeModelY, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Local Z = "/><Run Text="{Binding BoomHingeModelZ, Mode=OneWay}"/><Run Text=" m"/>
-                                    </TextBlock>
-                                    <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
-                                        <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Easting = "/><Run Text="{Binding BoomHingeSiteE, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Northing = "/><Run Text="{Binding BoomHingeSiteN, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Elevation = "/><Run Text="{Binding BoomHingeSiteH, Mode=OneWay}"/><Run Text=" m"/>
-                                    </TextBlock>
-                                </Grid>
-                            </Border>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Mark"
+                                               Binding="{Binding Mark}"
+                                               Width="*"
+                                               MinWidth="70" />
+                            <DataGridTextColumn Header="Radius"
+                                               Binding="{Binding RadiusText}"
+                                               Width="75" />
+                            <DataGridTextColumn Header="Boom Length"
+                                               Binding="{Binding BoomLengthText}"
+                                               Width="90" />
+                            <DataGridTextColumn Header="Weight"
+                                               Binding="{Binding WeightText}"
+                                               Width="80" />
+                            <DataGridTextColumn Header="Chart Cap. (Raw)"
+                                               Binding="{Binding RawChartCapacityText}"
+                                               Width="110" />
+                            <DataGridTextColumn Header="Status"
+                                               Binding="{Binding StatusText}"
+                                               Width="90" />
+                        </DataGrid.Columns>
+                    </DataGrid>
 
-                            <!-- 5. Load Point -->
-                            <Border Margin="0" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" FontSize="12" Text="5. Load Point (Element COG)" />
-                                    <TextBlock Grid.Row="1" FontSize="11" Margin="0,4,0,0" Foreground="{DynamicResource TextSecondaryBrush}">
-                                        <Run Text="Local Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Local X = "/><Run Text="{Binding LoadPointModelX, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Local Y = "/><Run Text="{Binding LoadPointModelY, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Local Z = "/><Run Text="{Binding LoadPointModelZ, Mode=OneWay}"/><Run Text=" m"/>
-                                    </TextBlock>
-                                    <TextBlock Grid.Row="2" FontSize="11" Margin="0,2,0,0" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding IsSiteReferenceEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
-                                        <Run Text="Survey Coordinates: " FontWeight="SemiBold"/>
-                                        <Run Text="Easting = "/><Run Text="{Binding LoadPointSiteE, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Northing = "/><Run Text="{Binding LoadPointSiteN, Mode=OneWay}"/><Run Text=" m"/>
-                                        <Run Text=", Elevation = "/><Run Text="{Binding LoadPointSiteH, Mode=OneWay}"/><Run Text=" m"/>
-                                    </TextBlock>
-                                </Grid>
-                            </Border>
-                        </StackPanel>
-                    </ScrollViewer>
+                    <!-- Crane Metadata Panel -->
+                    <Border Grid.Row="4"
+                            Padding="10"
+                            Background="{DynamicResource SurfaceElevatedBrush}"
+                            CornerRadius="6"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource BorderBrush}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
 
-                    <!-- Summary Grid of Scalars (unconverted) -->
-                    <Border Grid.Row="6" Padding="8" Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
-                        <UniformGrid Columns="5">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="RADIUS" HorizontalAlignment="Center" />
-                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding RadiusVal, Mode=OneWay}" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                            <!-- Crane Name -->
+                            <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                                <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="CRANE" HorizontalAlignment="Center" />
+                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
+                                           Text="{Binding CraneNameDisplay, Mode=OneWay}"
+                                           HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="BOOM LENGTH" HorizontalAlignment="Center" />
-                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding BoomLengthVal, Mode=OneWay}" HorizontalAlignment="Center" Margin="0,2,0,0" />
+
+                            <!-- Wire Length -->
+                            <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="WIRE LENGTH" HorizontalAlignment="Center" />
+                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
+                                           Text="{Binding WireLengthDisplay, Mode=OneWay}"
+                                           HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="REQ CAPACITY" HorizontalAlignment="Center" />
-                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding RequiredCapacityVal, Mode=OneWay}" HorizontalAlignment="Center" Margin="0,2,0,0" />
+
+                            <!-- Derating Ratio -->
+                            <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+                                <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="DERATING" HorizontalAlignment="Center" />
+                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
+                                           Text="{Binding DeratingRatioDisplay, Mode=OneWay}"
+                                           HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="AVAIL CAPACITY" HorizontalAlignment="Center" />
-                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding AvailableCapacityVal, Mode=OneWay}" HorizontalAlignment="Center" Margin="0,2,0,0" />
+
+                            <!-- Counterweight -->
+                            <StackPanel Grid.Column="3" HorizontalAlignment="Center">
+                                <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="COUNTERWEIGHT" HorizontalAlignment="Center" />
+                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
+                                           Text="{Binding CounterWeightDisplay, Mode=OneWay}"
+                                           HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="SAFETY MARGIN" HorizontalAlignment="Center" />
-                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding SafetyMarginVal, Mode=OneWay}" HorizontalAlignment="Center" Margin="0,2,0,0" />
-                            </StackPanel>
-                        </UniformGrid>
+                        </Grid>
                     </Border>
                 </Grid>
             </Border>

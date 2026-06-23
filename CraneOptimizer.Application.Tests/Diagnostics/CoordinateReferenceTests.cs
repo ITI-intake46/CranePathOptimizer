@@ -2073,31 +2073,40 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
         [Fact]
         public void Test_62_GAResultPresentationDtoShowsSurveyWhenActive()
         {
-            var transformService = new ProjectCoordinateTransformService();
-            var reference = new ProjectCoordinateReference
+            var originalShowUi = CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowCoordinateReferenceUi;
+            try
             {
-                IsEnabled = true,
-                SurveyEasting = 500000.0,
-                SurveyNorthing = 100000.0,
-                SurveyElevation = 10.0,
-                RotationToNorthDegrees = 0.0,
-                Scale = 1.0
-            };
-            transformService.ApplyReference(reference, out _);
+                CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowCoordinateReferenceUi = true;
+                var transformService = new ProjectCoordinateTransformService();
+                var reference = new ProjectCoordinateReference
+                {
+                    IsEnabled = true,
+                    SurveyEasting = 500000.0,
+                    SurveyNorthing = 100000.0,
+                    SurveyElevation = 10.0,
+                    RotationToNorthDegrees = 0.0,
+                    Scale = 1.0
+                };
+                transformService.ApplyReference(reference, out _);
 
-            var underlying = new CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs.CranePositionResult
+                var underlying = new CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs.CranePositionResult
+                {
+                    X = 10.0,
+                    Y = 20.0,
+                    Z = 0.0
+                };
+                var dto = new CranePositionPresentationDto(underlying, transformService);
+
+                string displayText = dto.PositionDisplayText;
+                Assert.Contains("Local X: 10.00", displayText);
+                Assert.Contains("Local Y: 20.00", displayText);
+                Assert.Contains("Easting: 500010.00", displayText);
+                Assert.Contains("Northing: 100020.00", displayText);
+            }
+            finally
             {
-                X = 10.0,
-                Y = 20.0,
-                Z = 0.0
-            };
-            var dto = new CranePositionPresentationDto(underlying, transformService);
-
-            string displayText = dto.PositionDisplayText;
-            Assert.Contains("Local X: 10.00", displayText);
-            Assert.Contains("Local Y: 20.00", displayText);
-            Assert.Contains("Easting: 500010.00", displayText);
-            Assert.Contains("Northing: 100020.00", displayText);
+                CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowCoordinateReferenceUi = originalShowUi;
+            }
         }
 
         [Fact]

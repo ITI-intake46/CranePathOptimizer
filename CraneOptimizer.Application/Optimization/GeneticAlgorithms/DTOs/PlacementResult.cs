@@ -71,6 +71,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
 
         public double AvailableCapacity { get; set; }
 
+        /// <summary>
+        /// Raw manufacturer load chart capacity at the selected (radius, boom) cell,
+        /// before derating ratio and safety factor are applied.
+        /// </summary>
+        public double RawChartCapacity { get; set; }
+
         public double RequiredCapacity { get; set; }
 
         public ReachStatus ReachStatus { get; set; }
