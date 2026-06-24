@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Windows.Input;
@@ -63,6 +64,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
     private string _layoutWarningMessage = string.Empty;
     private string _gaWarningText = string.Empty;
     private string _textAlignment = "Left";
+    private string _previewRowMode = "All Rows";
     private int _globalTextSize = 10;
     private bool _isBusy;
     private bool _hasPreview;
@@ -126,6 +128,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
     public ObservableCollection<ReportColumnOptionViewModel> AvailableColumns { get; } = new();
     public ObservableCollection<ReportColumnOptionViewModel> SelectedColumns { get; } = new();
     public IReadOnlyList<string> AlignmentOptions { get; } = ["Left", "Center", "Right"];
+    public IReadOnlyList<string> PreviewRowModeOptions { get; } = ["All Rows", "First 100", "First 50"];
     public IReadOnlyList<int> TextSizeOptions { get; } = [6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32];
 
     public string SelectedReportName
@@ -318,6 +321,22 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             _textAlignment = value;
             OnPropertyChanged();
             ClearPreview();
+        }
+    }
+
+    public string PreviewRowMode
+    {
+        get => _previewRowMode;
+        set
+        {
+            var normalized = string.IsNullOrWhiteSpace(value) ? "All Rows" : value;
+            if (_previewRowMode == normalized)
+                return;
+
+            _previewRowMode = normalized;
+            OnPropertyChanged();
+            if (HasPreview && _currentPreview != null)
+                PreviewSummary = BuildPreviewSummary(_currentPreview, ResolvePreviewRowLimit());
         }
     }
 
@@ -625,7 +644,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             var previewGeneratedOn = DateTime.Now;
             _currentPreview = await BuildCurrentReportAsync(previewGeneratedOn, updateGeneratedOnLabel: false, CancellationToken.None);
             previewReport = _currentPreview;
-            PreviewSummary = BuildPreviewSummary(_currentPreview);
+            PreviewSummary = BuildPreviewSummary(_currentPreview, ResolvePreviewRowLimit());
             HasPreview = true;
             var fit = ReportLayoutFitEstimator.EstimateForReport(_currentPreview);
             LayoutWarningMessage = fit.Message;
@@ -635,7 +654,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         if (previewReport != null)
         {
             var fit = ReportLayoutFitEstimator.EstimateForReport(previewReport);
-            _previewDialogs.ShowPreview(previewReport, fit, ExportPdfAsync, ExportExcelAsync);
+            _previewDialogs.ShowPreview(previewReport, fit, ResolvePreviewRowLimit(), ExportPdfAsync, ExportExcelAsync);
         }
     }
 
@@ -765,6 +784,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         var gaContext = usesGaData
             ? ResolveGaReportContext()
             : GaReportContext.NoRun;
+        var liftingRows = BuildLiftingSourceRows(gaContext);
         var selectedColumns = SelectedColumns
             .Select(column =>
             {
@@ -794,9 +814,22 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             SelectedColumns = selectedColumns,
             SourceElements = ResolveSourceElements(),
             SelectedElements = _scene.GetSelectedElements(),
-            LiftingResults = BuildLiftingSourceRows(gaContext),
+            LiftingResults = liftingRows,
             CraneSetups = BuildCraneSetupRows(gaContext)
         };
+
+        var reportBridgeDebugLine = "[ReportBuilder] "
+            + $"SelectedTemplateName={SelectedReportName}; "
+            + $"ReportFamily={_family}; "
+            + $"UsesGaData={usesGaData}; "
+            + $"SelectedColumnKeys={string.Join(",", selectedColumns.Select(column => column.Key))}; "
+            + $"CurrentPlacementResultPresent={_cranePlacement.Result != null}; "
+            + $"CurrentPlacementResultPositionsCount={_cranePlacement.Result?.Positions.Count ?? 0}; "
+            + $"CurrentPlacementResultElementRowsCount={CountCurrentPlacementElementRows()}; "
+            + $"ReportBuildRequestDto.LiftingResultsCount={request.LiftingResults.Count}; "
+            + $"DiagnosticsFallbackRowsCount={gaContext.DiagnosticsFallbackRowsCount}";
+        Debug.WriteLine(reportBridgeDebugLine);
+        Trace.WriteLine(reportBridgeDebugLine);
 
         return _reportBuilder.BuildAsync(request, cancellationToken);
     }
@@ -825,12 +858,14 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             Revision = Revision,
             HasGaRun = hasGaRun,
             GaRunStatusText = usesGaData
-                ? gaContext.Run?.HealthLabel ?? (gaContext.HasGaRun ? "GA run available" : "No GA run")
+                ? CleanText(gaContext.Run?.Timestamp) != Placeholder
+                    ? gaContext.Run!.Timestamp
+                    : gaContext.HasGaRun ? "GA run available" : "No GA run"
                 : null,
             GaWarningText = gaWarning,
             CraneInfo = BuildCraneInfo(gaContext),
-            LiftingAccessories = _family == ReportFamily.LiftingResult && gaContext.HasGaRun
-                ? new LiftingAccessoriesInfoDto { AdditionalWeightTons = _gaSettings.AdditionalWt }
+            LiftingAccessories = _family == ReportFamily.LiftingResult && gaContext.HasGaRun && ResolveGaAdditionalWeight(gaContext) is { } additionalWeight
+                ? new LiftingAccessoriesInfoDto { AdditionalWeightTons = additionalWeight }
                 : null,
             GeneralNotes = GeneralNotes
         };
@@ -966,11 +1001,120 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         if (_family != ReportFamily.LiftingResult)
             return null;
 
+        var result = _cranePlacement.Result;
+        var deratingRatio = ResolveGaDeratingRatio(gaContext);
+        var safetyFactor = ResolveGaSafetyFactor(gaContext);
+        var combinedFactor = deratingRatio.HasValue && safetyFactor.HasValue
+            ? deratingRatio.Value * safetyFactor.Value
+            : (double?)null;
+        var wireLength = ResolveGaWireLength(gaContext);
+
+        var resultCapacityValues = _cranePlacement.Result?.Positions
+            .SelectMany(position => position.ElementResults)
+            .Select(lift => lift.RawChartCapacity ?? lift.AvailableCapacity)
+            .Where(value => value > 0)
+            .ToList() ?? [];
+        var diagnosticCapacityValues = gaContext.Diagnostics
+            .Select(row => row.RawChartCapacity > 0 ? row.RawChartCapacity : row.AvailableCapacity)
+            .Where(value => value > 0)
+            .ToList();
+        var maximumCapacity = result?.MaxCapacity > 0
+            ? result.MaxCapacity
+            : resultCapacityValues.Concat(diagnosticCapacityValues).DefaultIfEmpty().Max();
+        var radiusValues = result is { MinRadius: > 0, MaxRadius: > 0 }
+            ? new[] { result.MinRadius, result.MaxRadius }
+            : gaContext.Diagnostics.Select(row => row.SelectedChartRadius > 0 ? row.SelectedChartRadius : row.RequiredRadius);
+        var boomValues = result is { MinBoomLength: > 0, MaxBoomLength: > 0 }
+            ? new[] { result.MinBoomLength, result.MaxBoomLength }
+            : gaContext.Diagnostics.Select(row => row.SelectedChartBoomLength > 0 ? row.SelectedChartBoomLength : row.RequiredBoomLength);
+
         return new CraneReportInfoDto
         {
-            CraneName = gaContext.HasGaRun ? CleanText(gaContext.CraneNameOrId) : Placeholder,
-            CapacityFactor = 0.90
+            CraneName = gaContext.HasGaRun ? CleanText(result?.CraneName, gaContext.CraneNameOrId) : Placeholder,
+            CraneModelOrSpecification = gaContext.HasGaRun ? CleanText(result?.CraneModelOrSpecification) : Placeholder,
+            Manufacturer = gaContext.HasGaRun ? CleanText(result?.CraneManufacturer) : Placeholder,
+            CraneType = gaContext.HasGaRun ? CleanText(result?.CraneType) : Placeholder,
+            OutriggerConfiguration = gaContext.HasGaRun ? CleanText(result?.OutriggerConfiguration) : Placeholder,
+            VehicleLengthText = result is { VehicleLength: > 0 } ? $"{result.VehicleLength:0.##} m" : null,
+            VehicleWidthText = result is { VehicleWidth: > 0 } ? $"{result.VehicleWidth:0.##} m" : null,
+            VehicleHeightText = result is { VehicleHeight: > 0 } ? $"{result.VehicleHeight:0.##} m" : null,
+            OutriggerLengthText = result?.OutriggerLength is > 0 ? $"{result.OutriggerLength.Value:0.##} m" : null,
+            OutriggerWidthText = result?.OutriggerWidth is > 0 ? $"{result.OutriggerWidth.Value:0.##} m" : null,
+            CounterweightTons = result?.CounterWeight > 0 ? result.CounterWeight : null,
+            WorkingRadiusRangeText = BuildRangeTextFromDiagnostics(radiusValues),
+            BoomLengthRangeText = BuildRangeTextFromDiagnostics(boomValues),
+            MinRadiusText = BuildMinTextFromDiagnostics(radiusValues, "m"),
+            MaxRadiusText = BuildMaxTextFromDiagnostics(radiusValues, "m"),
+            MinBoomLengthText = BuildMinTextFromDiagnostics(boomValues, "m"),
+            MaxBoomLengthText = BuildMaxTextFromDiagnostics(boomValues, "m"),
+            MaximumCapacityTons = maximumCapacity > 0 ? maximumCapacity : null,
+            SafetyFactorText = gaContext.HasGaRun && safetyFactor.HasValue ? safetyFactor.Value.ToString("0.00", CultureInfo.InvariantCulture) : Placeholder,
+            DeratingRatioText = gaContext.HasGaRun && deratingRatio.HasValue ? deratingRatio.Value.ToString("0.00", CultureInfo.InvariantCulture) : Placeholder,
+            CombinedCapacityFactorText = gaContext.HasGaRun && combinedFactor.HasValue ? combinedFactor.Value.ToString("0.000", CultureInfo.InvariantCulture) : Placeholder,
+            WireLengthText = gaContext.HasGaRun && wireLength.HasValue ? $"{wireLength.Value:0.##} m" : Placeholder,
+            CapacityFactor = combinedFactor ?? 0.0
         };
+    }
+
+    private static string? BuildRangeTextFromDiagnostics(IEnumerable<double> values)
+    {
+        var clean = values.Where(value => value > 0).ToList();
+        if (clean.Count == 0)
+            return null;
+
+        return $"{clean.Min():0.##} - {clean.Max():0.##} m";
+    }
+
+    private static string? BuildMinTextFromDiagnostics(IEnumerable<double> values, string unit)
+    {
+        var clean = values.Where(value => value > 0).ToList();
+        return clean.Count == 0 ? null : $"{clean.Min():0.##} {unit}";
+    }
+
+    private static string? BuildMaxTextFromDiagnostics(IEnumerable<double> values, string unit)
+    {
+        var clean = values.Where(value => value > 0).ToList();
+        return clean.Count == 0 ? null : $"{clean.Max():0.##} {unit}";
+    }
+
+    private double? ResolveGaAdditionalWeight(GaReportContext gaContext)
+    {
+        if (_cranePlacement.Result?.AdditionalWeight is > 0)
+            return _cranePlacement.Result.AdditionalWeight;
+
+        return gaContext.Diagnostics.Select(row => row.AdditionalWt).FirstOrDefault(value => value > 0) is > 0 and var value
+            ? value
+            : null;
+    }
+
+    private double? ResolveGaDeratingRatio(GaReportContext gaContext)
+    {
+        if (_cranePlacement.Result?.DeratingRatio is > 0)
+            return _cranePlacement.Result.DeratingRatio;
+
+        return gaContext.Diagnostics.Select(row => row.DeratingRatio).FirstOrDefault(value => value > 0) is > 0 and var value
+            ? value
+            : null;
+    }
+
+    private double? ResolveGaSafetyFactor(GaReportContext gaContext)
+    {
+        if (_cranePlacement.Result?.SafetyFactor is > 0)
+            return _cranePlacement.Result.SafetyFactor;
+
+        return gaContext.Diagnostics.Select(row => row.SafetyFactor).FirstOrDefault(value => value > 0) is > 0 and var value
+            ? value
+            : null;
+    }
+
+    private double? ResolveGaWireLength(GaReportContext gaContext)
+    {
+        if (_cranePlacement.Result?.WireLength is > 0)
+            return _cranePlacement.Result.WireLength;
+
+        return gaContext.Diagnostics.Select(row => row.WireLength).FirstOrDefault(value => value > 0) is > 0 and var value
+            ? value
+            : null;
     }
 
     private IReadOnlyList<PrecastElement> ResolveSourceElements()
@@ -987,7 +1131,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
     private IReadOnlyList<LiftingResultSourceRowDto> BuildLiftingSourceRows(GaReportContext gaContext)
     {
         var result = _cranePlacement.Result;
-        if (result == null)
+        if (result == null || CountElementResults(result) == 0)
             return gaContext.Diagnostics.Select(row => ToLiftingSourceRow(row, gaContext.Run)).ToList();
 
         var rows = new List<LiftingResultSourceRowDto>();
@@ -1010,36 +1154,80 @@ public sealed class ReportBuilderViewModel : ViewModelBase
     private IReadOnlyList<CraneSetupReportRowDto> BuildCraneSetupRows(GaReportContext gaContext)
     {
         var result = _cranePlacement.Result;
-        if (result == null || !gaContext.HasGaRun)
+        if (!gaContext.HasGaRun)
             return Array.Empty<CraneSetupReportRowDto>();
 
-        var total = Math.Max(1, result.TotalElementCount);
-        return result.Positions
-            .Select((position, index) => new CraneSetupReportRowDto
+        if (result != null)
+        {
+            var total = Math.Max(1, result.TotalElementCount);
+            return result.Positions
+                .Select((position, index) => new CraneSetupReportRowDto
+                {
+                    SetupNo = index + 1,
+                    CraneX = position.X,
+                    CraneY = position.Y,
+                    CraneZ = position.Z,
+                    LiftedItemsCount = position.LiftableCount,
+                    LiftedItemsPercentage = position.LiftableCount * 100.0 / total
+                })
+                .ToList();
+        }
+
+        var diagnostics = gaContext.Diagnostics
+            .Where(row => row.AssignedSetupIndex >= 0)
+            .GroupBy(row => row.AssignedSetupIndex)
+            .OrderBy(group => group.Key)
+            .Select(group =>
             {
-                SetupNo = index + 1,
-                CraneX = position.X,
-                CraneY = position.Y,
-                CraneZ = position.Z,
-                LiftedItemsCount = position.LiftableCount,
-                LiftedItemsPercentage = position.LiftableCount * 100.0 / total
+                var first = group.First();
+                if (!TryParseInvariant(first.AssignedCraneX, out var x)
+                    || !TryParseInvariant(first.AssignedCraneY, out var y)
+                    || !TryParseInvariant(first.AssignedCraneZ, out var z))
+                {
+                    return null;
+                }
+
+                return new CraneSetupReportRowDto
+                {
+                    SetupNo = group.Key + 1,
+                    CraneX = x,
+                    CraneY = y,
+                    CraneZ = z,
+                    LiftedItemsCount = group.Count(row => row.IsLifted),
+                    LiftedItemsPercentage = group.Any()
+                        ? group.Count(row => row.IsLifted) * 100.0 / group.Count()
+                        : 0
+                };
             })
+            .Where(row => row != null)
+            .Cast<CraneSetupReportRowDto>()
             .ToList();
+
+        return diagnostics;
     }
 
     private GaReportContext ResolveGaReportContext()
     {
         var history = _gaDiagnosticsReader.ReadRunHistory(_workspace.CurrentSession?.ProjectFolderPath);
         var latestRun = history.LastOrDefault(IsValidRunHistory);
+
+        if (_cranePlacement.Result is { Positions.Count: > 0 } currentResult
+            && CountElementResults(currentResult) > 0)
+        {
+            return new GaReportContext(
+                true,
+                latestRun,
+                Array.Empty<GAElementDiagnosticDto>(),
+                CleanText(currentResult.CraneName, ResolveCraneName(latestRun, Array.Empty<GAElementDiagnosticDto>())),
+                DiagnosticsFallbackRowsCount: 0);
+        }
+
         var diagnostics = latestRun == null
             ? Array.Empty<GAElementDiagnosticDto>()
             : _gaDiagnosticsReader.ReadDetailedDiagnostics(latestRun.DetailedDiagnosticsCsvPath);
 
-        if (_cranePlacement.Result is { Positions.Count: > 0 } currentResult)
-            return new GaReportContext(true, latestRun, diagnostics, ResolveCraneName(latestRun, diagnostics));
-
         if (latestRun != null)
-            return new GaReportContext(true, latestRun, diagnostics, ResolveCraneName(latestRun, diagnostics));
+            return new GaReportContext(true, latestRun, diagnostics, ResolveCraneName(latestRun, diagnostics), diagnostics.Count);
 
         return new GaReportContext(false, null, Array.Empty<GAElementDiagnosticDto>(), Placeholder);
     }
@@ -1070,11 +1258,20 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         var utilization = lift.AvailableCapacity > 0 && lift.RequiredCapacity > 0
             ? lift.RequiredCapacity / lift.AvailableCapacity * 100.0
             : (double?)null;
+        var hookRiggingWeight = result.AdditionalWeight > 0 ? result.AdditionalWeight : (double?)null;
+        var elementWeight = lift.Weight is > 0 ? lift.Weight.Value : (double?)null;
+        var requiredCapacity = lift.RequiredCapacity > 0
+            ? lift.RequiredCapacity
+            : elementWeight.HasValue && hookRiggingWeight.HasValue
+                ? elementWeight.Value + hookRiggingWeight.Value
+                : 0;
 
         values["ElementId"] = CleanText(lift.ElementId);
         values["ElementMark"] = CleanText(lift.ElementMark ?? lift.ElementId);
         values["ElementType"] = CleanText(lift.ElementType);
-        values["Weight"] = lift.Weight is > 0 ? lift.Weight.Value : Placeholder;
+        values["Weight"] = elementWeight ?? (object)Placeholder;
+        values["ElementWeight"] = elementWeight ?? (object)Placeholder;
+        values["HookRiggingWeight"] = hookRiggingWeight ?? (object)Placeholder;
         values["CogX"] = lift.CogX;
         values["CogY"] = lift.CogY;
         values["CogZ"] = lift.CogZ;
@@ -1087,7 +1284,8 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         values["SelectedChartRadius"] = PositiveOrPlaceholder(lift.SelectedChartRadius);
         values["RequiredBoomLength"] = PositiveOrPlaceholder(lift.BoomLength);
         values["SelectedChartBoomLength"] = PositiveOrPlaceholder(lift.SelectedChartBoomLength);
-        values["RequiredCapacity"] = PositiveOrPlaceholder(lift.RequiredCapacity);
+        values["RequiredCapacity"] = PositiveOrPlaceholder(requiredCapacity);
+        values["RawChartCapacity"] = lift.RawChartCapacity is > 0 ? lift.RawChartCapacity.Value : Placeholder;
         values["AvailableCapacity"] = PositiveOrPlaceholder(lift.AvailableCapacity);
         values["CapacityUtilizationPercent"] = utilization ?? (object)Placeholder;
         values["CapacityMargin"] = lift.AvailableCapacity > 0 && lift.RequiredCapacity > 0
@@ -1102,6 +1300,12 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         values["IsBlankCell"] = BoolText(lift.IsBlankCell);
         values["IsZeroCell"] = BoolText(lift.IsZeroCell);
         values["SafetyMargin"] = lift.SafetyMargin;
+        values["DeratingRatio"] = result.DeratingRatio > 0 ? result.DeratingRatio : Placeholder;
+        values["SafetyFactor"] = result.SafetyFactor > 0 ? result.SafetyFactor : Placeholder;
+        values["CombinedCapacityFactor"] = result.DeratingRatio > 0 && result.SafetyFactor > 0
+            ? result.DeratingRatio * result.SafetyFactor
+            : Placeholder;
+        values["WireLength"] = result.WireLength > 0 ? result.WireLength : Placeholder;
         values["LookupMode"] = CleanText(lift.LookupMode);
         values["CraneBaseX"] = lift.CraneBaseX;
         values["CraneBaseY"] = lift.CraneBaseY;
@@ -1125,6 +1329,11 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         values["IsFinalAssignedToPoint"] = BoolText(lift.IsFinalAssignedToPoint);
         values["AssignedPointId"] = CleanText(lift.AssignedPointId);
         values["AssignedPointIndex"] = lift.AssignedPointIndex >= 0 ? lift.AssignedPointIndex : Placeholder;
+        values["AssignedGaPoint"] = ResolveAssignedGaPoint(
+            lift.FinalOwnerPointId,
+            lift.AssignedPointId,
+            lift.AssignedPointIndex,
+            assignedSetup);
         values["AssignmentReason"] = CleanText(lift.AssignmentReason);
         values["AssignmentScore"] = lift.AssignmentScore;
         values["DuplicateAssignmentResolved"] = BoolText(lift.DuplicateAssignmentResolved);
@@ -1144,17 +1353,18 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         return new LiftingResultSourceRowDto
         {
             Values = values,
+            SourceType = "PlacementResult / ElementLiftResult",
             ElementId = lift.ElementId,
             ElementMark = lift.ElementMark,
             ElementType = lift.ElementType,
             Timestamp = run?.Timestamp,
             ProjectName = run?.ProjectName,
             IfcFileName = run?.IfcFileName,
-            CraneNameOrId = ResolveCraneName(run, Array.Empty<GAElementDiagnosticDto>()),
+            CraneNameOrId = CleanText(result.CraneName, ResolveCraneName(run, Array.Empty<GAElementDiagnosticDto>())),
             AssignedSetupNo = assignedSetup,
             Radius = lift.Radius,
             BoomLength = lift.BoomLength,
-            RequiredCapacity = lift.RequiredCapacity,
+            RequiredCapacity = requiredCapacity,
             AvailableCapacity = lift.AvailableCapacity,
             InternalLiftStatus = lift.Status.ToString(),
             IsFinalAssignedToPoint = lift.IsFinalAssignedToPoint,
@@ -1178,6 +1388,8 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         values["ElementType"] = CleanText(row.ElementType);
         values["StoreyOrElevation"] = CleanText(row.StoreyOrElevation);
         values["Weight"] = PositiveOrPlaceholder(row.Weight);
+        values["ElementWeight"] = PositiveOrPlaceholder(row.Weight);
+        values["HookRiggingWeight"] = PositiveOrPlaceholder(row.AdditionalWt);
         values["CogX"] = row.CogX;
         values["CogY"] = row.CogY;
         values["CogZ"] = row.CogZ;
@@ -1191,6 +1403,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         values["RequiredBoomLength"] = PositiveOrPlaceholder(row.RequiredBoomLength);
         values["SelectedChartBoomLength"] = PositiveOrPlaceholder(row.SelectedChartBoomLength);
         values["RequiredCapacity"] = PositiveOrPlaceholder(row.RequiredCapacity);
+        values["RawChartCapacity"] = PositiveOrPlaceholder(row.RawChartCapacity);
         values["AvailableCapacity"] = PositiveOrPlaceholder(row.AvailableCapacity);
         values["CapacityUtilizationPercent"] = utilization ?? (object)Placeholder;
         values["CapacityMargin"] = row.AvailableCapacity > 0 && row.RequiredCapacity > 0
@@ -1208,6 +1421,12 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         values["IsBlankCell"] = BoolText(row.IsBlankCell);
         values["IsZeroCell"] = BoolText(row.IsZeroCell);
         values["SafetyMargin"] = row.SafetyMargin;
+        values["DeratingRatio"] = PositiveOrPlaceholder(row.DeratingRatio);
+        values["SafetyFactor"] = PositiveOrPlaceholder(row.SafetyFactor);
+        values["CombinedCapacityFactor"] = row.DeratingRatio > 0 && row.SafetyFactor > 0
+            ? row.DeratingRatio * row.SafetyFactor
+            : Placeholder;
+        values["WireLength"] = PositiveOrPlaceholder(row.WireLength);
         values["LookupMode"] = CleanText(row.LookupMode);
         values["CraneBaseX"] = row.CraneBaseX;
         values["CraneBaseY"] = row.CraneBaseY;
@@ -1229,6 +1448,11 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         values["IsFinalAssignedToPoint"] = BoolText(row.IsFinalAssignedToPoint);
         values["AssignedPointId"] = CleanText(row.AssignedPointId);
         values["AssignedPointIndex"] = row.AssignedPointIndex >= 0 ? row.AssignedPointIndex : Placeholder;
+        values["AssignedGaPoint"] = ResolveAssignedGaPoint(
+            row.FinalOwnerPointId,
+            row.AssignedPointId,
+            row.AssignedPointIndex,
+            row.AssignedSetupIndex + 1);
         values["AssignmentReason"] = CleanText(row.AssignmentReason);
         values["AssignmentScore"] = row.AssignmentScore;
         values["DuplicateAssignmentResolved"] = BoolText(row.DuplicateAssignmentResolved);
@@ -1257,6 +1481,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         return new LiftingResultSourceRowDto
         {
             Values = values,
+            SourceType = "GADiagnosticsReaderService / GAElementDiagnosticDto",
             ElementId = row.ElementId,
             ElementMark = CleanText(row.ElementName, row.ElementId),
             ElementType = row.ElementType,
@@ -1324,7 +1549,73 @@ public sealed class ReportBuilderViewModel : ViewModelBase
 
     private bool UsesGaData() =>
         _family == ReportFamily.LiftingResult
-        || SelectedReportName.Equals(ReportTemplateCatalog.GaReadiness, StringComparison.OrdinalIgnoreCase);
+        || SelectedReportName.Equals(ReportTemplateCatalog.ReportDataSourceAudit, StringComparison.OrdinalIgnoreCase)
+        || SelectedColumns.Any(column => IsGaReportColumn(column.Key));
+
+    private int CountCurrentPlacementElementRows() =>
+        _cranePlacement.Result == null ? 0 : CountElementResults(_cranePlacement.Result);
+
+    private static int CountElementResults(UiCranePlacementResult result) =>
+        result.Positions.Sum(position => position.ElementResults.Count);
+
+    private static bool IsGaReportColumn(string key) =>
+        key is "LiftStatus"
+            or "IsLifted"
+            or "FailureReason"
+            or "FailureCategory"
+            or "SuggestedAction"
+            or "ReachStatus"
+            or "ChartStatus"
+            or "SafetyMargin"
+            or "LookupMode"
+            or "BestRadius"
+            or "RequiredRadius"
+            or "SelectedChartRadius"
+            or "RequiredBoomLength"
+            or "SelectedChartBoomLength"
+            or "HookRiggingWeight"
+            or "RequiredCapacity"
+            or "RawChartCapacity"
+            or "AvailableCapacity"
+            or "DeratingRatio"
+            or "SafetyFactor"
+            or "CombinedCapacityFactor"
+            or "WireLength"
+            or "CapacityUtilizationPercent"
+            or "CapacityMargin"
+            or "AssignedSetupIndex"
+            or "AssignedGaPoint"
+            or "AssignedPointId"
+            or "FinalOwnerPointId"
+            or "BestFailedPointId"
+            or "BestFailureReason";
+
+    private static string ResolveAssignedGaPoint(
+        string? finalOwnerPointId,
+        string? assignedPointId,
+        int assignedPointIndex,
+        int assignedSetup)
+    {
+        var id = CleanText(finalOwnerPointId, assignedPointId);
+        if (id != Placeholder)
+            return NormalizePointId(id);
+
+        if (assignedPointIndex >= 0)
+            return $"Point_{assignedPointIndex + 1}";
+
+        return assignedSetup > 0 ? $"Point_{assignedSetup}" : Placeholder;
+    }
+
+    private static string NormalizePointId(string id)
+    {
+        var text = id.Trim();
+        if (text.StartsWith("Point", StringComparison.OrdinalIgnoreCase))
+            return text;
+
+        return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? $"Point_{parsed}"
+            : text;
+    }
 
     private static object PositiveOrPlaceholder(double value) => value > 0 ? value : Placeholder;
 
@@ -1335,6 +1626,9 @@ public sealed class ReportBuilderViewModel : ViewModelBase
 
         return Placeholder;
     }
+
+    private static bool TryParseInvariant(string? value, out double parsed) =>
+        double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out parsed);
 
     private static string BoolText(bool value) => value ? "Yes" : "No";
 
@@ -1358,7 +1652,15 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         return Placeholder;
     }
 
-    private static string BuildPreviewSummary(ReportDocumentDto report)
+    private int? ResolvePreviewRowLimit() =>
+        PreviewRowMode switch
+        {
+            "First 100" => 100,
+            "First 50" => 50,
+            _ => null
+        };
+
+    private static string BuildPreviewSummary(ReportDocumentDto report, int? previewRowLimit)
     {
         var warningCount = report.Rows.Count(row =>
             row.Values.TryGetValue("WeightWarning", out var value)
@@ -1366,8 +1668,11 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             && !string.IsNullOrWhiteSpace(warning)
             && warning != "-");
 
-        var previewRows = Math.Min(50, report.Rows.Count);
-        return $"Report Name: {report.Metadata.ReportName} | Items Included: {report.Metadata.ItemsIncluded} | Preview Rows: {previewRows} of {report.Rows.Count} | Warnings: {warningCount}";
+        var previewRowsText = previewRowLimit.HasValue
+            ? $"{Math.Min(previewRowLimit.Value, report.Rows.Count)} of {report.Rows.Count}"
+            : $"All {report.Rows.Count}";
+
+        return $"Report Name: {report.Metadata.ReportName} | Items Included: {report.Metadata.ItemsIncluded} | Preview Rows: {previewRowsText} | Warnings: {warningCount}";
     }
 
     private async Task RunBusyAsync(Func<Task> operation)
@@ -1451,7 +1756,8 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         bool HasGaRun,
         GARunHistoryDto? Run,
         IReadOnlyList<GAElementDiagnosticDto> Diagnostics,
-        string CraneNameOrId)
+        string CraneNameOrId,
+        int DiagnosticsFallbackRowsCount = 0)
     {
         public static GaReportContext NoRun { get; } =
             new(false, null, Array.Empty<GAElementDiagnosticDto>(), Placeholder);

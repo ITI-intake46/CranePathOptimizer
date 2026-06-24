@@ -8,6 +8,7 @@ public static class ReportTemplateCatalog
     public const string WeightReview = "Weight Review";
     public const string MissingEstimatedWeight = "Missing / Estimated Weight";
     public const string GaReadiness = "GA Readiness";
+    public const string ReportDataSourceAudit = "Report Data Source Audit";
     public const string BasicLiftingResult = "Basic Lifting Result";
     public const string CapacityUtilizationReview = "Capacity Utilization Review";
     public const string FailedLiftsOnly = "Failed Lifts Only";
@@ -18,12 +19,7 @@ public static class ReportTemplateCatalog
 
     public static IReadOnlyList<ReportColumnDefinition> GetAvailableColumns(ReportFamily family) =>
         family == ReportFamily.ElementList
-            ? ElementTemplates.SelectMany(template => template.Columns)
-                .GroupBy(column => column.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(group => group.OrderBy(column => column.Order).First())
-                .OrderBy(column => column.Order)
-                .ThenBy(column => column.Header)
-                .ToList()
+            ? ElementAvailableColumns
             : GaAvailableColumns;
 
     public static ReportTemplateDefinition GetBuiltInTemplate(ReportFamily family, string name) =>
@@ -41,17 +37,18 @@ public static class ReportTemplateCatalog
             [
                 Column("No", "No.", ReportColumnValueKind.Number, 0),
                 Column("ElementMark", "Element Mark", ReportColumnValueKind.Text, 1),
-                Column("SourceRevitId", "Element Source ID", ReportColumnValueKind.Text, 2),
-                Column("StoreyLevel", "Storey / Level", ReportColumnValueKind.Text, 3),
+                Column("ElementName", "Element Name", ReportColumnValueKind.Text, 2),
+                Column("ElementType", "Element Type", ReportColumnValueKind.Text, 3),
                 Column("Material", "Material", ReportColumnValueKind.Text, 4),
-                Column("Length", "Length", ReportColumnValueKind.Meters, 5),
-                Column("Width", "Width", ReportColumnValueKind.Meters, 6),
-                Column("Height", "Height", ReportColumnValueKind.Meters, 7),
-                Column("VolumeM3", "Volume (m3)", ReportColumnValueKind.Number, 8),
-                Column("WeightTons", "Weight (tons)", ReportColumnValueKind.Tons, 9),
-                Column("WeightVerified", "Weight Verified", ReportColumnValueKind.YesNo, 10),
-                Column("WeightStatus", "Weight Status", ReportColumnValueKind.Status, 11),
-                Column("IncludedInCraneOptimization", "Included in Crane Optimization", ReportColumnValueKind.YesNo, 12)
+                Column("Length", "Length", ReportColumnValueKind.Meters, 5, "Geometry"),
+                Column("Width", "Width", ReportColumnValueKind.Meters, 6, "Geometry"),
+                Column("Height", "Height", ReportColumnValueKind.Meters, 7, "Geometry"),
+                Column("VolumeM3", "Volume (m3)", ReportColumnValueKind.Number, 8, "Geometry"),
+                Column("TopLevelElevation", "Top Level / Elevation", ReportColumnValueKind.Text, 9, "Location / Elevation"),
+                Column("BottomLevelElevation", "Bottom Level / Elevation", ReportColumnValueKind.Text, 10, "Location / Elevation"),
+                Column("WeightTons", "Weight", ReportColumnValueKind.Tons, 11, "Weight and Capacity"),
+                Column("WeightVerified", "Weight Verified", ReportColumnValueKind.YesNo, 12, "Weight and Capacity"),
+                Column("WeightStatus", "Weight Status", ReportColumnValueKind.Status, 13, "Weight and Capacity")
             ]
         },
         new()
@@ -63,15 +60,12 @@ public static class ReportTemplateCatalog
             [
                 Column("No", "No.", ReportColumnValueKind.Number, 0),
                 Column("ElementMark", "Element Mark", ReportColumnValueKind.Text, 1),
-                Column("SourceRevitId", "Element Source ID", ReportColumnValueKind.Text, 2),
-                Column("StoreyLevel", "Storey / Level", ReportColumnValueKind.Text, 3),
-                Column("Material", "Material", ReportColumnValueKind.Text, 4),
-                Column("VolumeM3", "Volume (m3)", ReportColumnValueKind.Number, 5),
-                Column("WeightTons", "Weight (tons)", ReportColumnValueKind.Tons, 6),
-                Column("WeightSource", "Weight Source", ReportColumnValueKind.Text, 7),
-                Column("WeightVerified", "Weight Verified", ReportColumnValueKind.YesNo, 8),
-                Column("WeightStatus", "Weight Status", ReportColumnValueKind.Status, 9),
-                Column("WeightWarning", "Weight Warning", ReportColumnValueKind.Warning, 10)
+                Column("Material", "Material", ReportColumnValueKind.Text, 2),
+                Column("VolumeM3", "Volume (m3)", ReportColumnValueKind.Number, 3, "Geometry"),
+                Column("WeightTons", "Weight", ReportColumnValueKind.Tons, 4, "Weight and Capacity"),
+                Column("WeightVerified", "Weight Verified", ReportColumnValueKind.YesNo, 5, "Weight and Capacity"),
+                Column("WeightStatus", "Weight Status", ReportColumnValueKind.Status, 6, "Weight and Capacity"),
+                Column("WeightWarning", "Weight Warning", ReportColumnValueKind.Warning, 7, "Review / Lift Status")
             ]
         },
         new()
@@ -83,14 +77,12 @@ public static class ReportTemplateCatalog
             [
                 Column("No", "No.", ReportColumnValueKind.Number, 0),
                 Column("ElementMark", "Element Mark", ReportColumnValueKind.Text, 1),
-                Column("SourceRevitId", "Element Source ID", ReportColumnValueKind.Text, 2),
-                Column("StoreyLevel", "Storey / Level", ReportColumnValueKind.Text, 3),
-                Column("Material", "Material", ReportColumnValueKind.Text, 4),
-                Column("VolumeM3", "Volume (m3)", ReportColumnValueKind.Number, 5),
-                Column("WeightTons", "Weight (tons)", ReportColumnValueKind.Tons, 6),
-                Column("WeightSource", "Weight Source", ReportColumnValueKind.Text, 7),
-                Column("WeightStatus", "Weight Status", ReportColumnValueKind.Status, 8),
-                Column("WeightWarning", "Weight Warning", ReportColumnValueKind.Warning, 9)
+                Column("Material", "Material", ReportColumnValueKind.Text, 2),
+                Column("VolumeM3", "Volume (m3)", ReportColumnValueKind.Number, 3, "Geometry"),
+                Column("WeightTons", "Weight", ReportColumnValueKind.Tons, 4, "Weight and Capacity"),
+                Column("WeightSource", "Weight Source", ReportColumnValueKind.Text, 5, "Weight and Capacity"),
+                Column("WeightStatus", "Weight Status", ReportColumnValueKind.Status, 6, "Weight and Capacity"),
+                Column("WeightWarning", "Weight Warning", ReportColumnValueKind.Warning, 7, "Review / Lift Status")
             ]
         },
         new()
@@ -102,25 +94,73 @@ public static class ReportTemplateCatalog
             [
                 Column("No", "No.", ReportColumnValueKind.Number, 0, "Identity"),
                 Column("ElementMark", "Element Mark", ReportColumnValueKind.Text, 1, "Identity"),
-                Column("SourceRevitId", "Element Source ID", ReportColumnValueKind.Text, 2, "Identity"),
-                Column("StoreyLevel", "Storey / Level", ReportColumnValueKind.Text, 3, "Identity"),
-                Column("WeightTons", "Weight", ReportColumnValueKind.Tons, 4, "Weight and Capacity"),
-                Column("WeightVerified", "Weight Verified", ReportColumnValueKind.YesNo, 5, "Weight and Capacity"),
-                Column("WeightStatus", "Weight Status", ReportColumnValueKind.Status, 6, "Weight and Capacity"),
-                Column("IncludedInCraneOptimization", "Included in Crane Optimization", ReportColumnValueKind.YesNo, 7, "Review / Lift Status"),
-                GaColumn("LiftStatus", "Lift Status", ReportColumnValueKind.Status, "Lift Result", 8),
-                GaColumn("BestRadius", "Radius", ReportColumnValueKind.Meters, "Radius / Boom / Capacity", 9),
-                GaColumn("RequiredBoomLength", "Required Boom Length", ReportColumnValueKind.Meters, "Radius / Boom / Capacity", 10),
-                GaColumn("RequiredCapacity", "Required Capacity", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 11),
-                GaColumn("AvailableCapacity", "Available Capacity", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 12),
-                GaColumn("CapacityUtilizationPercent", "Capacity Utilization %", ReportColumnValueKind.Percentage, "Radius / Boom / Capacity", 13),
-                GaColumn("SafetyMargin", "Safety Margin", ReportColumnValueKind.Tons, "Lift Result", 14),
-                GaColumn("FailureReason", "Failure Reason", ReportColumnValueKind.Warning, "Lift Result", 15),
-                GaColumn("SuggestedAction", "Suggested Action", ReportColumnValueKind.Warning, "Lift Result", 16),
-                GaColumn("ReachStatus", "Reach Status", ReportColumnValueKind.Status, "Lift Result", 17, isSelected: false),
-                GaColumn("ChartStatus", "Chart Status", ReportColumnValueKind.Status, "Lift Result", 18, isSelected: false)
+                Column("WeightTons", "Weight", ReportColumnValueKind.Tons, 2, "Weight and Capacity"),
+                Column("WeightVerified", "Weight Verified", ReportColumnValueKind.YesNo, 3, "Weight and Capacity"),
+                Column("WeightStatus", "Weight Status", ReportColumnValueKind.Status, 4, "Weight and Capacity"),
+                Column("IncludedInCraneOptimization", "Included in GA Input", ReportColumnValueKind.YesNo, 5, "Review / Lift Status"),
+                Column("ReadyForGa", "Ready for GA", ReportColumnValueKind.YesNo, 6, "Review / Lift Status"),
+                Column("MissingReadinessReason", "Missing Readiness Reason", ReportColumnValueKind.Warning, 7, "Review / Lift Status")
+            ]
+        },
+        new()
+        {
+            Name = ReportDataSourceAudit,
+            Family = ReportFamily.ElementList,
+            DefaultItemsIncluded = "All Elements",
+            Columns =
+            [
+                Column("No", "No.", ReportColumnValueKind.Number, 0, "Audit"),
+                Column("Area", "Area", ReportColumnValueKind.Text, 1, "Audit"),
+                Column("ReportColumn", "Report Column", ReportColumnValueKind.Text, 2, "Audit"),
+                Column("DisplayedHeader", "Displayed Header", ReportColumnValueKind.Text, 3, "Audit"),
+                Column("CurrentSource", "Current Source", ReportColumnValueKind.Text, 4, "Audit"),
+                Column("SourceObjectOrFile", "Source Object / File", ReportColumnValueKind.Text, 5, "Audit"),
+                Column("SourceField", "Source Field", ReportColumnValueKind.Text, 6, "Audit"),
+                Column("CurrentAvailability", "Current Availability", ReportColumnValueKind.Text, 7, "Audit"),
+                Column("RowsFound", "Rows Found", ReportColumnValueKind.Number, 8, "Audit"),
+                Column("WhyItMayShowDash", "Why It May Show \u2014", ReportColumnValueKind.Warning, 9, "Audit"),
+                Column("RequiredAction", "Required Action", ReportColumnValueKind.Warning, 10, "Audit")
             ]
         }
+    ];
+
+    private static readonly IReadOnlyList<ReportColumnDefinition> ElementAvailableColumns =
+    [
+        Column("No", "No.", ReportColumnValueKind.Number, 0, "Identity", isSelected: false),
+        Column("ElementMark", "Element Mark", ReportColumnValueKind.Text, 1, "Identity", isSelected: false),
+        Column("ElementName", "Element Name", ReportColumnValueKind.Text, 2, "Identity", isSelected: false),
+        Column("SourceRevitId", "Element Source ID", ReportColumnValueKind.Text, 3, "Identity", isSelected: false),
+        Column("ElementType", "Element Type", ReportColumnValueKind.Text, 4, "Identity", isSelected: false),
+        Column("StoreyLevel", "Storey / Level", ReportColumnValueKind.Text, 5, "Location / Elevation", isSelected: false),
+        Column("Material", "Material", ReportColumnValueKind.Text, 6, "Identity", isSelected: false),
+        Column("Length", "Length", ReportColumnValueKind.Meters, 20, "Geometry", isSelected: false),
+        Column("Width", "Width", ReportColumnValueKind.Meters, 21, "Geometry", isSelected: false),
+        Column("Height", "Height", ReportColumnValueKind.Meters, 22, "Geometry", isSelected: false),
+        Column("VolumeM3", "Volume (m3)", ReportColumnValueKind.Number, 23, "Geometry", isSelected: false),
+        Column("VolumeSource", "Volume Source", ReportColumnValueKind.Text, 24, "Geometry", isSelected: false),
+        Column("TopLevelElevation", "Top Level / Elevation", ReportColumnValueKind.Text, 25, "Location / Elevation", isSelected: false),
+        Column("BottomLevelElevation", "Bottom Level / Elevation", ReportColumnValueKind.Text, 26, "Location / Elevation", isSelected: false),
+        Column("WeightTons", "Weight", ReportColumnValueKind.Tons, 40, "Weight and Capacity", isSelected: false),
+        Column("WeightSource", "Weight Source", ReportColumnValueKind.Text, 41, "Weight and Capacity", isSelected: false),
+        Column("WeightVerified", "Weight Verified", ReportColumnValueKind.YesNo, 42, "Weight and Capacity", isSelected: false),
+        Column("WeightStatus", "Weight Status", ReportColumnValueKind.Status, 43, "Weight and Capacity", isSelected: false),
+        Column("WeightWarning", "Weight Warning", ReportColumnValueKind.Warning, 44, "Weight and Capacity", isSelected: false),
+        Column("IncludedInCraneOptimization", "Included in GA Input", ReportColumnValueKind.YesNo, 60, "Review / Lift Status", isSelected: false),
+        Column("ReadyForGa", "Ready for GA", ReportColumnValueKind.YesNo, 61, "Review / Lift Status", isSelected: false),
+        Column("MissingReadinessReason", "Missing Readiness Reason", ReportColumnValueKind.Warning, 62, "Review / Lift Status", isSelected: false),
+        GaColumn("LiftStatus", "Lift Status", ReportColumnValueKind.Status, "Lift Result", 80, isSelected: false),
+        GaColumn("FailureReason", "Failure Reason", ReportColumnValueKind.Warning, "Lift Result", 81, isSelected: false),
+        GaColumn("SuggestedAction", "Suggested Action", ReportColumnValueKind.Warning, "Lift Result", 82, isSelected: false),
+        GaColumn("ReachStatus", "Reach Status", ReportColumnValueKind.Status, "Lift Result", 83, isSelected: false),
+        GaColumn("ChartStatus", "Chart Status", ReportColumnValueKind.Status, "Lift Result", 84, isSelected: false),
+        GaColumn("BestRadius", "Radius", ReportColumnValueKind.Meters, "Radius / Boom / Capacity", 100, isSelected: false),
+        GaColumn("RequiredBoomLength", "Required Boom Length", ReportColumnValueKind.Meters, "Radius / Boom / Capacity", 101, isSelected: false),
+        GaColumn("HookRiggingWeight", "Hook / Rigging Weight (t)", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 102, isSelected: false),
+        GaColumn("RequiredCapacity", "Required Capacity (t)", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 103, isSelected: false),
+        GaColumn("RawChartCapacity", "Raw Chart Capacity (t)", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 104, isSelected: false),
+        GaColumn("AvailableCapacity", "Available Capacity After Derating/Safety (t)", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 105, isSelected: false),
+        GaColumn("CapacityUtilizationPercent", "Capacity Utilization %", ReportColumnValueKind.Percentage, "Radius / Boom / Capacity", 106, isSelected: false),
+        GaColumn("SafetyMargin", "Safety Margin", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 107, isSelected: false)
     ];
 
     private static readonly IReadOnlyList<ReportTemplateDefinition> LiftingTemplates =
@@ -133,19 +173,20 @@ public static class ReportTemplateCatalog
             Columns =
             [
                 GaColumn("No", "No.", ReportColumnValueKind.Number, "Identity", 0),
-                GaColumn("ElementMark", "Element Mark / Name", ReportColumnValueKind.Text, "Element / Load Point", 1),
-                GaColumn("ElementId", "Element Source ID", ReportColumnValueKind.Text, "Element / Load Point", 2),
-                GaColumn("Weight", "Weight", ReportColumnValueKind.Tons, "Element / Load Point", 3),
-                GaColumn("AssignedSetupIndex", "Assigned Setup Index", ReportColumnValueKind.Number, "Crane Setup / Assignment", 4),
-                GaColumn("BestRadius", "Best Radius", ReportColumnValueKind.Meters, "Radius / Boom / Capacity", 5),
-                GaColumn("RequiredBoomLength", "Required Boom Length", ReportColumnValueKind.Meters, "Radius / Boom / Capacity", 6),
-                GaColumn("RequiredCapacity", "Required Capacity", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 7),
-                GaColumn("AvailableCapacity", "Available Capacity", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 8),
-                GaColumn("CapacityUtilizationPercent", "Capacity Utilization %", ReportColumnValueKind.Percentage, "Radius / Boom / Capacity", 9),
-                GaColumn("SafetyMargin", "Safety Margin", ReportColumnValueKind.Tons, "Lift Result", 10),
-                GaColumn("LiftStatus", "Lift Status", ReportColumnValueKind.Status, "Lift Result", 11),
-                GaColumn("FailureReason", "Failure Reason", ReportColumnValueKind.Warning, "Lift Result", 12),
-                GaColumn("SuggestedAction", "Suggested Action", ReportColumnValueKind.Warning, "Lift Result", 13)
+                GaColumn("ElementMark", "Element Mark", ReportColumnValueKind.Text, "Element / Load Point", 1),
+                GaColumn("Weight", "Element Weight (t)", ReportColumnValueKind.Tons, "Element / Load Point", 2),
+                GaColumn("HookRiggingWeight", "Hook / Rigging Weight (t)", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 3),
+                GaColumn("RequiredCapacity", "Required Capacity (t)", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 4),
+                GaColumn("RawChartCapacity", "Raw Chart Capacity (t)", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 5),
+                GaColumn("AvailableCapacity", "Available Capacity After Derating/Safety (t)", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 6),
+                GaColumn("AssignedGaPoint", "Assigned GA Point", ReportColumnValueKind.Text, "Crane Setup / Assignment", 7),
+                GaColumn("LiftStatus", "Lift Status", ReportColumnValueKind.Status, "Lift Result", 8),
+                GaColumn("BestRadius", "Radius", ReportColumnValueKind.Meters, "Radius / Boom / Capacity", 9),
+                GaColumn("RequiredBoomLength", "Required Boom Length", ReportColumnValueKind.Meters, "Radius / Boom / Capacity", 10),
+                GaColumn("CapacityUtilizationPercent", "Capacity Utilization %", ReportColumnValueKind.Percentage, "Radius / Boom / Capacity", 11),
+                GaColumn("SafetyMargin", "Safety Margin", ReportColumnValueKind.Tons, "Lift Result", 12),
+                GaColumn("FailureReason", "Failure Reason", ReportColumnValueKind.Warning, "Lift Result", 13),
+                GaColumn("SuggestedAction", "Suggested Action", ReportColumnValueKind.Warning, "Lift Result", 14)
             ]
         },
         new()
@@ -156,7 +197,7 @@ public static class ReportTemplateCatalog
             Columns =
             [
                 GaColumn("No", "No.", ReportColumnValueKind.Number, "Identity", 0),
-                GaColumn("ElementMark", "Element Mark / Name", ReportColumnValueKind.Text, "Element / Load Point", 1),
+                GaColumn("ElementMark", "Element Mark", ReportColumnValueKind.Text, "Element / Load Point", 1),
                 GaColumn("Weight", "Weight", ReportColumnValueKind.Tons, "Element / Load Point", 2),
                 GaColumn("RequiredRadius", "Required Radius", ReportColumnValueKind.Meters, "Radius / Boom / Capacity", 3),
                 GaColumn("SelectedChartRadius", "Selected Chart Radius", ReportColumnValueKind.Meters, "Radius / Boom / Capacity", 4),
@@ -178,19 +219,18 @@ public static class ReportTemplateCatalog
             Columns =
             [
                 GaColumn("No", "No.", ReportColumnValueKind.Number, "Identity", 0),
-                GaColumn("ElementMark", "Element Mark / Name", ReportColumnValueKind.Text, "Element / Load Point", 1),
-                GaColumn("ElementType", "Element Type", ReportColumnValueKind.Text, "Element / Load Point", 2),
-                GaColumn("Weight", "Weight", ReportColumnValueKind.Tons, "Element / Load Point", 3),
+                GaColumn("ElementMark", "Element Mark", ReportColumnValueKind.Text, "Element / Load Point", 1),
+                GaColumn("Weight", "Weight", ReportColumnValueKind.Tons, "Element / Load Point", 2),
+                GaColumn("AssignedGaPoint", "Assigned GA Point / Best Failed Point", ReportColumnValueKind.Text, "Crane Setup / Assignment", 3),
                 GaColumn("LiftStatus", "Lift Status", ReportColumnValueKind.Status, "Lift Result", 4),
                 GaColumn("FailureCategory", "Failure Category", ReportColumnValueKind.Status, "Lift Result", 5),
                 GaColumn("FailureReason", "Failure Reason", ReportColumnValueKind.Warning, "Lift Result", 6),
                 GaColumn("ReachStatus", "Reach Status", ReportColumnValueKind.Status, "Lift Result", 7),
                 GaColumn("ChartStatus", "Chart Status", ReportColumnValueKind.Status, "Lift Result", 8),
-                GaColumn("BestFailedPointId", "Best Failed Point ID", ReportColumnValueKind.Text, "GA Assignment Diagnostics", 9),
-                GaColumn("BestFailedRequiredRadius", "Best Failed Required Radius", ReportColumnValueKind.Meters, "Best Failed Candidate", 10),
-                GaColumn("BestFailedRequiredBoomLength", "Best Failed Required Boom Length", ReportColumnValueKind.Meters, "Best Failed Candidate", 11),
-                GaColumn("BestFailedSafetyMargin", "Best Failed Safety Margin", ReportColumnValueKind.Tons, "Best Failed Candidate", 12),
-                GaColumn("SuggestedAction", "Suggested Action", ReportColumnValueKind.Warning, "Lift Result", 13)
+                GaColumn("RequiredRadius", "Required Radius", ReportColumnValueKind.Meters, "Radius / Boom / Capacity", 9),
+                GaColumn("RequiredBoomLength", "Required Boom Length", ReportColumnValueKind.Meters, "Best Failed Candidate", 10),
+                GaColumn("SafetyMargin", "Safety Margin", ReportColumnValueKind.Tons, "Best Failed Candidate", 11),
+                GaColumn("SuggestedAction", "Suggested Action", ReportColumnValueKind.Warning, "Lift Result", 12)
             ]
         },
         new()
@@ -201,7 +241,7 @@ public static class ReportTemplateCatalog
             Columns =
             [
                 GaColumn("No", "No.", ReportColumnValueKind.Number, "Identity", 0),
-                GaColumn("ElementMark", "Element Mark / Name", ReportColumnValueKind.Text, "Element / Load Point", 1),
+                GaColumn("ElementMark", "Element Mark", ReportColumnValueKind.Text, "Element / Load Point", 1),
                 GaColumn("AssignedSetupIndex", "Assigned Setup Index", ReportColumnValueKind.Number, "Crane Setup / Assignment", 2),
                 GaColumn("CandidatePointId", "Candidate Point ID", ReportColumnValueKind.Text, "GA Assignment Diagnostics", 3),
                 GaColumn("IsFeasibleFromPoint", "Is Feasible From Point", ReportColumnValueKind.YesNo, "GA Assignment Diagnostics", 4),
@@ -254,34 +294,37 @@ public static class ReportTemplateCatalog
         GaColumn("SelectedChartRadius", "Selected Chart Radius", ReportColumnValueKind.Meters, "Radius / Boom / Capacity", 52),
         GaColumn("RequiredBoomLength", "Required Boom Length", ReportColumnValueKind.Meters, "Radius / Boom / Capacity", 53),
         GaColumn("SelectedChartBoomLength", "Selected Chart Boom Length", ReportColumnValueKind.Meters, "Radius / Boom / Capacity", 54),
-        GaColumn("RequiredCapacity", "Required Capacity", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 55),
-        GaColumn("AvailableCapacity", "Available Capacity", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 56),
-        GaColumn("CapacityUtilizationPercent", "Capacity Utilization %", ReportColumnValueKind.Percentage, "Radius / Boom / Capacity", 57),
-        GaColumn("CapacityMargin", "Capacity Margin", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 58),
+        GaColumn("HookRiggingWeight", "Hook / Rigging Weight (t)", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 55),
+        GaColumn("RequiredCapacity", "Required Capacity (t)", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 56),
+        GaColumn("RawChartCapacity", "Raw Chart Capacity (t)", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 57),
+        GaColumn("AvailableCapacity", "Available Capacity After Derating/Safety (t)", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 58),
+        GaColumn("CapacityUtilizationPercent", "Capacity Utilization %", ReportColumnValueKind.Percentage, "Radius / Boom / Capacity", 59),
+        GaColumn("CapacityMargin", "Safety Margin (t)", ReportColumnValueKind.Tons, "Radius / Boom / Capacity", 60),
         GaColumn("IsExactMatch", "Is Exact Match", ReportColumnValueKind.YesNo, "Radius / Boom / Capacity", 59),
         GaColumn("IsSteppedRadius", "Is Stepped Radius", ReportColumnValueKind.YesNo, "Radius / Boom / Capacity", 60),
         GaColumn("IsBlankCell", "Is Blank Cell", ReportColumnValueKind.YesNo, "Radius / Boom / Capacity", 61),
         GaColumn("IsZeroCell", "Is Zero Cell", ReportColumnValueKind.YesNo, "Radius / Boom / Capacity", 62),
         GaColumn("AssignedSetupIndex", "Assigned Setup Index", ReportColumnValueKind.Number, "Crane Setup / Assignment", 80),
-        GaColumn("AssignedCraneX", "Assigned Crane X", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 81),
-        GaColumn("AssignedCraneY", "Assigned Crane Y", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 82),
-        GaColumn("AssignedCraneZ", "Assigned Crane Z", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 83),
-        GaColumn("CraneBaseX", "Crane Base X", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 84),
-        GaColumn("CraneBaseY", "Crane Base Y", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 85),
-        GaColumn("CraneBaseZ", "Crane Base Z", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 86),
-        GaColumn("SlewCenterX", "Slew Center X", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 87),
-        GaColumn("SlewCenterY", "Slew Center Y", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 88),
-        GaColumn("SlewCenterZ", "Slew Center Z", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 89),
-        GaColumn("BoomHingeX", "Boom Hinge X", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 90),
-        GaColumn("BoomHingeY", "Boom Hinge Y", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 91),
-        GaColumn("BoomHingeZ", "Boom Hinge Z", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 92),
-        GaColumn("RadiusOriginType", "Radius Origin Type", ReportColumnValueKind.Text, "Crane Setup / Assignment", 93),
-        GaColumn("BoomOriginType", "Boom Origin Type", ReportColumnValueKind.Text, "Crane Setup / Assignment", 94),
+        GaColumn("AssignedGaPoint", "Assigned GA Point", ReportColumnValueKind.Text, "Crane Setup / Assignment", 81),
+        GaColumn("AssignedCraneX", "Assigned Crane X", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 82),
+        GaColumn("AssignedCraneY", "Assigned Crane Y", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 83),
+        GaColumn("AssignedCraneZ", "Assigned Crane Z", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 84),
+        GaColumn("CraneBaseX", "Crane Base X", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 85),
+        GaColumn("CraneBaseY", "Crane Base Y", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 86),
+        GaColumn("CraneBaseZ", "Crane Base Z", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 87),
+        GaColumn("SlewCenterX", "Slew Center X", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 88),
+        GaColumn("SlewCenterY", "Slew Center Y", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 89),
+        GaColumn("SlewCenterZ", "Slew Center Z", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 90),
+        GaColumn("BoomHingeX", "Boom Hinge X", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 91),
+        GaColumn("BoomHingeY", "Boom Hinge Y", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 92),
+        GaColumn("BoomHingeZ", "Boom Hinge Z", ReportColumnValueKind.Meters, "Crane Setup / Assignment", 93),
+        GaColumn("RadiusOriginType", "Radius Origin Type", ReportColumnValueKind.Text, "Crane Setup / Assignment", 94),
+        GaColumn("BoomOriginType", "Boom Origin Type", ReportColumnValueKind.Text, "Crane Setup / Assignment", 95),
         GaColumn("ElementId", "Element ID", ReportColumnValueKind.Text, "Element / Load Point", 110),
         GaColumn("ElementMark", "Element Mark / Name", ReportColumnValueKind.Text, "Element / Load Point", 111),
         GaColumn("ElementType", "Element Type", ReportColumnValueKind.Text, "Element / Load Point", 112),
         GaColumn("StoreyOrElevation", "Storey / Elevation", ReportColumnValueKind.Text, "Element / Load Point", 113),
-        GaColumn("Weight", "Weight", ReportColumnValueKind.Tons, "Element / Load Point", 114),
+        GaColumn("Weight", "Element Weight (t)", ReportColumnValueKind.Tons, "Element / Load Point", 114),
         GaColumn("CogX", "COG X", ReportColumnValueKind.Meters, "Element / Load Point", 115),
         GaColumn("CogY", "COG Y", ReportColumnValueKind.Meters, "Element / Load Point", 116),
         GaColumn("CogZ", "COG Z", ReportColumnValueKind.Meters, "Element / Load Point", 117),
@@ -325,7 +368,8 @@ public static class ReportTemplateCatalog
         string header,
         ReportColumnValueKind kind,
         int order,
-        string? category = null) =>
+        string? category = null,
+        bool isSelected = true) =>
         new()
         {
             Key = key,
@@ -333,7 +377,7 @@ public static class ReportTemplateCatalog
             ValueKind = kind,
             Order = order,
             Category = category,
-            IsSelected = true
+            IsSelected = isSelected
         };
 
     private static ReportColumnDefinition GaColumn(

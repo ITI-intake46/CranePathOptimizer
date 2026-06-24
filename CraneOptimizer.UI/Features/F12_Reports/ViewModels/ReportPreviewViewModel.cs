@@ -18,6 +18,7 @@ public sealed class ReportPreviewViewModel : ViewModelBase
     public ReportPreviewViewModel(
         ReportDocumentDto report,
         ReportLayoutFitResult layoutFit,
+        int? previewRowLimit,
         Func<Task> exportPdfAsync,
         Func<Task> exportExcelAsync)
     {
@@ -27,11 +28,13 @@ public sealed class ReportPreviewViewModel : ViewModelBase
         ReportName = report.Metadata.ReportName;
         ItemsIncluded = report.Metadata.ItemsIncluded;
         PreviewGeneratedOn = report.Metadata.ReportDate.ToString("yyyy-MM-dd HH:mm", CultureInfo.CurrentCulture);
-        PreviewRowsText = $"{Math.Min(50, report.Rows.Count)} of {report.Rows.Count}";
+        PreviewRowsText = previewRowLimit.HasValue
+            ? $"{Math.Min(previewRowLimit.Value, report.Rows.Count)} of {report.Rows.Count}"
+            : $"All {report.Rows.Count}";
         WarningCount = CountWarnings(report);
         PreviewColumns = BuildPreviewColumns(report.Columns);
         PreviewTableWidth = Math.Max(900, PreviewColumns.Sum(column => column.Width) + 24);
-        PreviewRows = BuildPreviewTable(report).DefaultView;
+        PreviewRows = BuildPreviewTable(report, previewRowLimit).DefaultView;
         HasNoRows = report.Rows.Count == 0;
         EmptyStateText = ResolveEmptyStateText(report);
         LayoutWarningText = layoutFit.Message;
@@ -90,14 +93,18 @@ public sealed class ReportPreviewViewModel : ViewModelBase
         return "No rows match the selected report scope.";
     }
 
-    private static DataTable BuildPreviewTable(ReportDocumentDto report)
+    private static DataTable BuildPreviewTable(ReportDocumentDto report, int? previewRowLimit)
     {
         var table = new DataTable();
         foreach (var column in report.Columns)
             table.Columns.Add(column.Key);
 
         var rowNumber = 1;
-        foreach (var row in report.Rows.Take(50))
+        var rows = previewRowLimit.HasValue
+            ? report.Rows.Take(previewRowLimit.Value)
+            : report.Rows;
+
+        foreach (var row in rows)
         {
             var values = report.Columns.Select(column =>
             {

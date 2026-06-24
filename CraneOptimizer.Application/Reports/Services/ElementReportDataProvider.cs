@@ -71,32 +71,110 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
         IReadOnlyDictionary<double, string> levelLabels)
     {
         var mapping = ReportWeightMapper.Map(element);
+        var length = FirstPositive(element.ElementLength, element.BBoxLength);
+        var width = FirstPositive(element.ElementWidth, element.BBoxWidth);
+        var height = FirstPositive(element.ElementHeight, element.BBoxHeight);
+        var (volume, volumeSource) = ResolveReportVolume(element, length, width, height);
+        var (bottomElevation, topElevation) = ResolveElevationRange(element, height);
 
         return new ElementReportRowDto
         {
             No = number,
             ElementId = element.ElementID,
-            ElementMark = FirstNonEmpty(element.ElementMark, element.ParentAssemblyName, element.ElementID, "Unknown"),
-            SourceRevitId = FirstNonEmpty(element.ElementRevitId, element.ElementID, "Unknown"),
+            ElementMark = ResolveElementMark(element),
+            ElementName = ResolveElementName(element),
+            ElementType = FirstNonEmpty(element.ElementType, "\u2014"),
+            SourceRevitId = FirstNonEmpty(element.ElementRevitId, element.ElementID, "\u2014"),
             StoreyLevel = ResolveStoreyLevel(element, levelLabels),
-            Material = string.IsNullOrWhiteSpace(element.ElementMaterial) ? "N/A" : element.ElementMaterial,
-            Length = element.ElementLength ?? element.BBoxLength,
-            Width = element.ElementWidth ?? element.BBoxWidth,
-            Height = element.ElementHeight ?? element.BBoxHeight,
-            VolumeM3 = element.VolumeM3 ?? element.ElementVolume,
+            Material = string.IsNullOrWhiteSpace(element.ElementMaterial) ? "\u2014" : element.ElementMaterial,
+            Length = length,
+            Width = width,
+            Height = height,
+            VolumeM3 = volume,
+            VolumeSource = volumeSource,
+            TopLevelElevation = topElevation,
+            BottomLevelElevation = bottomElevation,
             WeightTons = ReportWeightMapper.ResolveWeight(element),
             WeightSource = string.IsNullOrWhiteSpace(element.WeightSource) ? "Missing" : element.WeightSource,
             WeightVerified = mapping.WeightVerified,
             WeightStatus = mapping.WeightStatus,
             WeightWarning = mapping.WarningMessage,
-            IncludedInCraneOptimization = element.IncludeInGa && IsGaReady(element) ? "Yes" : "No"
+            IncludedInCraneOptimization = element.IncludeInGa ? "Yes" : "No",
+            ReadyForGa = IsGaReady(element) ? "Yes" : "No",
+            MissingReadinessReason = ResolveReadinessReason(element, mapping)
         };
+    }
+
+    private static string ResolveReadinessReason(PrecastElement element, WeightReportMapping mapping)
+    {
+        if (!element.IncludeInGa)
+            return "Element is not included in crane optimization.";
+
+        if (mapping.WeightStatus != "OK")
+            return mapping.WarningMessage == "-" ? $"Weight status is {mapping.WeightStatus}." : mapping.WarningMessage;
+
+        if (ReportWeightMapper.ResolveWeight(element) is not > 0)
+            return "Weight is missing or invalid.";
+
+        return "\u2014";
+    }
+
+    private static string ResolveElementMark(PrecastElement element)
+    {
+        var mark = element.ElementMark?.Trim();
+        if (!IsPlaceholder(mark)
+            && !EqualsAny(mark!, element.ElementType, element.ElementMaterial, element.ResolvedCategory, element.RawIfcType)
+            && !LooksLikeGenericTypeName(mark!))
+        {
+            return mark!;
+        }
+
+        var name = ResolveElementName(element);
+        return IsPlaceholder(name) ? "\u2014" : name;
+    }
+
+    private static string ResolveElementName(PrecastElement element)
+    {
+        var name = element.ElementName?.Trim();
+        return IsPlaceholder(name) ? "\u2014" : name!;
+    }
+
+    private static bool EqualsAny(string value, params string?[] candidates) =>
+        candidates.Any(candidate =>
+            !string.IsNullOrWhiteSpace(candidate)
+            && value.Equals(candidate.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsPlaceholder(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+        || value.Equals("-", StringComparison.OrdinalIgnoreCase)
+        || value.Equals("\u2014", StringComparison.OrdinalIgnoreCase)
+        || value.Equals("N/A", StringComparison.OrdinalIgnoreCase)
+        || value.Equals("Unknown", StringComparison.OrdinalIgnoreCase)
+        || value.Equals("null", StringComparison.OrdinalIgnoreCase);
+
+    private static bool LooksLikeGenericTypeName(string value)
+    {
+        var text = value.Trim();
+        if (text.Any(char.IsDigit))
+            return false;
+
+        var normalized = text.Replace("_", "-", StringComparison.Ordinal).ToUpperInvariant();
+        return normalized.Contains("FOOTING", StringComparison.Ordinal)
+            || normalized.Contains("FOUNDATION", StringComparison.Ordinal)
+            || normalized.Contains("SLAB", StringComparison.Ordinal)
+            || normalized.Contains("WALL", StringComparison.Ordinal)
+            || normalized.Contains("COLUMN", StringComparison.Ordinal)
+            || normalized.Contains("BEAM", StringComparison.Ordinal)
+            || normalized.Contains("STAIR", StringComparison.Ordinal)
+            || normalized.Contains("PILE", StringComparison.Ordinal);
     }
 
     private static IReadOnlyDictionary<double, string> BuildLevelLabels(IReadOnlyList<PrecastElement> elements)
     {
         return elements
             .Select(GetBaseElevationMeters)
+            .Where(elevation => elevation.HasValue)
+            .Select(elevation => elevation!.Value)
             .Distinct()
             .OrderBy(z => z)
             .Select((z, index) => new
@@ -112,18 +190,66 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
         IReadOnlyDictionary<double, string> levelLabels)
     {
         var baseElevation = GetBaseElevationMeters(element);
-        if (levelLabels.TryGetValue(baseElevation, out var label))
+        if (baseElevation.HasValue && levelLabels.TryGetValue(baseElevation.Value, out var label))
             return label;
 
-        return "Level";
+        return "\u2014";
     }
 
-    private static double GetBaseElevationMeters(PrecastElement element)
+    private static double? GetBaseElevationMeters(PrecastElement element)
     {
-        var z = element.ElementCOG?.Z ?? element.COG_M?.Z ?? 0d;
-        var halfHeight = (element.BBoxHeight ?? element.ElementHeight ?? element.BoundingBox_M?.Z ?? 0d) / 2d;
-        return Math.Round(z - halfHeight, 0);
+        var height = FirstPositive(element.ElementHeight, element.BBoxHeight, element.BoundingBox_M?.Z);
+        if (height is not > 0)
+            return null;
+
+        var z = ResolveCogZ(element);
+        if (!z.HasValue)
+            return null;
+
+        return Math.Round(z.Value - height.Value / 2d, 0);
     }
+
+    private static (double? Volume, string Source) ResolveReportVolume(
+        PrecastElement element,
+        double? length,
+        double? width,
+        double? height)
+    {
+        var explicitVolume = FirstPositive(element.VolumeM3, element.ElementVolume);
+        if (explicitVolume is > 0)
+            return (explicitVolume, "Explicit");
+
+        if (length is > 0 && width is > 0 && height is > 0)
+            return (length.Value * width.Value * height.Value, "Calculated from dimensions");
+
+        return (null, "Missing");
+    }
+
+    private static (string Bottom, string Top) ResolveElevationRange(PrecastElement element, double? height)
+    {
+        var z = ResolveCogZ(element);
+        if (!z.HasValue || height is not > 0)
+            return ("\u2014", "\u2014");
+
+        var halfHeight = height.Value / 2d;
+        return ($"{z.Value - halfHeight:0.00} m", $"{z.Value + halfHeight:0.00} m");
+    }
+
+    private static double? ResolveCogZ(PrecastElement element)
+    {
+        if (element.COG_M != null && HasNonZeroPoint(element.COG_M))
+            return element.COG_M.Z;
+
+        if (element.ElementCOG != null && HasNonZeroPoint(element.ElementCOG))
+            return element.ElementCOG.Z;
+
+        return null;
+    }
+
+    private static bool HasNonZeroPoint(CraneOptimizer.Domain.Common.DomainPoint3D point) =>
+        Math.Abs(point.X) > double.Epsilon
+        || Math.Abs(point.Y) > double.Epsilon
+        || Math.Abs(point.Z) > double.Epsilon;
 
     private static bool IsGaReady(PrecastElement element)
     {
@@ -135,4 +261,7 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
 
     private static string FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+
+    private static double? FirstPositive(params double?[] values) =>
+        values.FirstOrDefault(value => value is > 0);
 }

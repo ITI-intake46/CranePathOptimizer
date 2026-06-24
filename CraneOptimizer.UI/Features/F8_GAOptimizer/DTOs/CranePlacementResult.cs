@@ -58,8 +58,26 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         /// <summary>Display name of the crane used in this optimization run.</summary>
         public string? CraneName { get; set; }
 
+        public string? CraneManufacturer { get; set; }
+        public string? CraneModelOrSpecification { get; set; }
+        public string? CraneType { get; set; }
+        public double MaxCapacity { get; set; }
+        public double MinRadius { get; set; }
+        public double MaxRadius { get; set; }
+        public double MinBoomLength { get; set; }
+        public double MaxBoomLength { get; set; }
+        public double VehicleLength { get; set; }
+        public double VehicleWidth { get; set; }
+        public double VehicleHeight { get; set; }
+        public double? OutriggerLength { get; set; }
+        public double? OutriggerWidth { get; set; }
+        public string? OutriggerConfiguration { get; set; }
+
         /// <summary>Wire length setting (m) used in this optimization run.</summary>
         public double WireLength { get; set; }
+
+        /// <summary>Hook, rigging, and accessory weight setting (t) used in this optimization run.</summary>
+        public double AdditionalWeight { get; set; }
 
         /// <summary>Derating ratio applied to all load chart capacity values.</summary>
         public double DeratingRatio { get; set; }

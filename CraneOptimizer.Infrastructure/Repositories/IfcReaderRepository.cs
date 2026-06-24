@@ -462,7 +462,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 // Fallback: If Weight is 0 or missing, use direct volume and the project concrete density.
                 var revitId = GetRevitId(product);
-                var rawName = GetMark(product) ?? product.Name?.ToString();
+                var rawName = GetMark(product);
                 var cleanedName = CleanElementName(rawName ?? string.Empty);
 
                 if ((weight ?? 0) <= 0
@@ -512,7 +512,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var material = ResolveAggregateMaterial(parentSnapshot, childSnapshots);
 
                 var revitId = GetRevitId(assembly);
-                var rawName = GetMark(assembly) ?? assembly.Name?.ToString();
+                var rawName = GetMark(assembly);
                 var cleanedName = CleanElementName(rawName ?? string.Empty);
 
                 var aggregate = new AggregateSnapshot(
@@ -857,29 +857,55 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition)
                     .ToList();
 
-                var psetNames = new[] { "Pset_Revit_Identity Data", "Pset_ConcreteElementGeneral" };
+                var preferredSetNames = new[] { "Pset_Revit_Identity Data", "Revit_Identity", "Pset_ConcreteElementGeneral" };
 
-                foreach (var targetName in psetNames)
+                foreach (var preferredSetName in preferredSetNames)
                 {
-                    foreach (var pset in propertySets)
-                    {
-                        if (!pset.Name.ToString().Contains(targetName, StringComparison.OrdinalIgnoreCase))
-                            continue;
+                    var value = propertySets
+                        .Where(pset => pset.Name?.ToString().Contains(preferredSetName, StringComparison.OrdinalIgnoreCase) == true)
+                        .Select(ReadMarkProperty)
+                        .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 
-                        foreach (var prop in pset.HasProperties.OfType<IIfcPropertySingleValue>())
-                        {
-                            if (!prop.Name.ToString().Equals("Mark", StringComparison.OrdinalIgnoreCase))
-                                continue;
-
-                            var val = prop.NominalValue?.ToString()?.Trim();
-                            if (!string.IsNullOrWhiteSpace(val))
-                                return val;
-                        }
-                    }
+                    if (!string.IsNullOrWhiteSpace(value))
+                        return value;
                 }
 
-                var productName = product.Name?.ToString()?.Trim();
-                return string.IsNullOrWhiteSpace(productName) ? null : productName;
+                return propertySets
+                    .Select(ReadMarkProperty)
+                    .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+            }
+
+            private static string? ReadMarkProperty(IIfcPropertySet propertySet)
+            {
+                foreach (var prop in propertySet.HasProperties.OfType<IIfcPropertySingleValue>())
+                {
+                    if (!IsElementMarkPropertyName(prop.Name.ToString()))
+                        continue;
+
+                    var value = prop.NominalValue?.ToString()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(value))
+                        return value;
+                }
+
+                return null;
+            }
+
+            private static bool IsElementMarkPropertyName(string? propertyName)
+            {
+                if (string.IsNullOrWhiteSpace(propertyName))
+                    return false;
+
+                var normalized = propertyName
+                    .Replace(" ", string.Empty, StringComparison.Ordinal)
+                    .Replace("_", string.Empty, StringComparison.Ordinal)
+                    .Replace("-", string.Empty, StringComparison.Ordinal)
+                    .Trim();
+
+                return normalized.Equals("Mark", StringComparison.OrdinalIgnoreCase)
+                    || normalized.Equals("ElementMark", StringComparison.OrdinalIgnoreCase)
+                    || normalized.Equals("AssemblyMark", StringComparison.OrdinalIgnoreCase)
+                    || normalized.Equals("PartMark", StringComparison.OrdinalIgnoreCase)
+                    || normalized.Equals("PieceMark", StringComparison.OrdinalIgnoreCase);
             }
 
             private static string CleanElementName(string rawName)
@@ -1347,7 +1373,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     var pe = new PrecastElement();
                     pe.ElementID = preview.GlobalId;
                     pe.ElementRevitId = sourceSnapshot?.RevitId ?? (product != null ? GetRevitId(product) : null);
-                    pe.ElementMark = string.IsNullOrWhiteSpace(preview.Name) ? (product != null ? CleanElementName(GetMark(product) ?? product.Name?.ToString() ?? string.Empty) : string.Empty) : preview.Name;
+                    var importedMark = product != null ? GetMark(product) : null;
+                    pe.ElementMark = !string.IsNullOrWhiteSpace(importedMark)
+                        ? CleanElementName(importedMark)
+                        : string.Empty;
+                    pe.ElementName = product?.Name != null
+                        ? CleanElementName(product.Name.ToString() ?? string.Empty)
+                        : null;
                     
                     // Set ElementType = preview.CandidateCategory to fix UI filter labels (Requirement)
                     pe.ElementType = preview.CandidateCategory;
@@ -1696,6 +1728,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     ElementID = snapshot.ElementId,
                     ElementRevitId = snapshot.RevitId,
                     ElementMark = snapshot.Mark,
+                    ElementName = snapshot.Mark,
                     ElementType = snapshot.ElementType,
                     ElementLength = snapshot.ElementLength,
                     ElementWidth = snapshot.ElementWidth,
