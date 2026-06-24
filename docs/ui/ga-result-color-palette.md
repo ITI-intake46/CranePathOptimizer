@@ -40,6 +40,7 @@ These statuses do not compete with the main safety failure colors (red, orange, 
 * **Separation of Modes**:
   - In **`FinalAssignment`** mode, green indicates that the element is assigned *only* to the selected crane setup point. Elements assigned to other points are dimmed to `#9CA3AF`.
   - In **`SelectedPointFeasibility`** mode, green represents all elements that the selected point is *capable* of lifting, regardless of final assignments.
+* **Viewport Close Behavior (Option B)**: Closing the GA Results window **retains** the last selected GA result colors visible in the viewport to support ongoing user inspection. All elements return to `Default / Neutral` (concrete gray) only when the GA results are explicitly cleared (e.g., optimization is cancelled or a new optimization run begins).
 
 ---
 
