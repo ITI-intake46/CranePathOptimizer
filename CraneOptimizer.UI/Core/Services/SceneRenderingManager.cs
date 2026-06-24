@@ -102,7 +102,7 @@ namespace CraneOptimizer.UI.Core.Services
             var memBefore = GetPrivateMemoryMB();
 
             var liftResults = _context.GetLiftResults();
-            bool hasFinalAssignments = liftResults != null && liftResults.Any(r => r.IsFinalAssignedToPoint);
+            bool hasFinalAssignments = liftResults != null && liftResults.Any(r => r.IsFinalAssigned);
             string selectedPointId = liftResults?.FirstOrDefault(r => !string.IsNullOrEmpty(r.CandidatePointId))?.CandidatePointId ?? string.Empty;
 
             var viewMode = _context.GetGAViewMode?.Invoke() ?? GAViewMode.FinalAssignment;
@@ -254,7 +254,7 @@ namespace CraneOptimizer.UI.Core.Services
             }
 
             var liftResults = results ?? _context.GetLiftResults();
-            bool hasFinalAssignments = liftResults != null && liftResults.Any(r => r.IsFinalAssignedToPoint);
+            bool hasFinalAssignments = liftResults != null && liftResults.Any(r => r.IsFinalAssigned);
             string selectedPointId = liftResults?.FirstOrDefault(r => !string.IsNullOrEmpty(r.CandidatePointId))?.CandidatePointId ?? string.Empty;
 
             var viewMode = _context.GetGAViewMode?.Invoke() ?? GAViewMode.FinalAssignment;

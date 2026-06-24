@@ -188,17 +188,25 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             if (!CanShowResults() || Result == null)
                 return;
 
-            _resultsWindowService.Show(Result, 
-                point =>
-                {
-                    SelectedPosition = point;
-                    RenderElementsWithCurrentStatus?.Invoke();
-                },
-                viewMode =>
-                {
-                    CurrentGAViewMode = viewMode;
-                },
-                CurrentGAViewMode);
+            try
+            {
+                _resultsWindowService.Show(Result, 
+                    point =>
+                    {
+                        SelectedPosition = point;
+                        RenderElementsWithCurrentStatus?.Invoke();
+                    },
+                    viewMode =>
+                    {
+                        CurrentGAViewMode = viewMode;
+                    },
+                    CurrentGAViewMode);
+            }
+            finally
+            {
+                SelectedPosition = null;
+                RenderElementsWithCurrentStatus?.Invoke();
+            }
         }
 
         private void OpenDiagnostics()
