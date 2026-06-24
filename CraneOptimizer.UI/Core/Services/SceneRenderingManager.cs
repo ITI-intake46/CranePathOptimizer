@@ -190,6 +190,9 @@ namespace CraneOptimizer.UI.Core.Services
 
             _renderedElementModels = builder.ElementModelRegistry;
 
+            // Apply exact visual states (including AssignedToOtherPoint) immediately after rendering
+            UpdateElementMaterials(liftResults);
+
             sw.Stop();
             var memAfter = GetPrivateMemoryMB();
 
@@ -326,12 +329,28 @@ namespace CraneOptimizer.UI.Core.Services
                 if (!_renderedElementModels.TryGetValue(element.ElementID, out var models))
                     continue;
 
-                LiftStatus? liftStatus = null;
-                if (statusMap != null && statusMap.TryGetValue(element.ElementID, out var s))
-                    liftStatus = s;
-
                 bool isSelected = selectedIds.Contains(element.ElementID);
-                var visualStatus = ElementMaterialProvider.GetStatus(element, liftStatus, isSelected);
+                ElementVisualizationStatus visualStatus;
+
+                if (statusMap != null && statusMap.TryGetValue(element.ElementID, out var liftStatus))
+                {
+                    if (liftStatus == null)
+                    {
+                        bool isFinalAssignmentMode = (liftResults != null && viewMode == GAViewMode.FinalAssignment);
+                        visualStatus = isFinalAssignmentMode
+                            ? (isSelected ? ElementVisualizationStatus.Selected : ElementVisualizationStatus.AssignedToOtherPoint)
+                            : ElementVisualizationStatus.Default;
+                    }
+                    else
+                    {
+                        visualStatus = ElementMaterialProvider.GetStatus(element, liftStatus, isSelected);
+                    }
+                }
+                else
+                {
+                    visualStatus = ElementMaterialProvider.GetStatus(element, null, isSelected);
+                }
+
                 var material = ElementMaterialProvider.GetMaterial(visualStatus, ElementVisualBuilder.CurrentQuality);
 
                 foreach (var model in models)

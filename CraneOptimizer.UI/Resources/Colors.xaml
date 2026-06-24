@@ -29,7 +29,7 @@
     <!-- OnPrimary — dark text rendered ON the primary surface -->
     <Color x:Key="Color.OnPrimary">#1A1A1A</Color>
 
-    <!-- BuildingDefault — IFC geometry tint matching brand accent -->
+    <Color x:Key="Color.SelectedCranePoint">#3B82F6</Color>
     <Color x:Key="Color.BuildingDefault">#D68A56</Color>
 
 </ResourceDictionary>

@@ -23,5 +23,6 @@
     <SolidColorBrush x:Key="ErrorBrush"              Color="{StaticResource Color.Error}"/>
     <SolidColorBrush x:Key="DestructiveBrush"        Color="{StaticResource Color.Destructive}"/>
     <SolidColorBrush x:Key="DestructiveHoverBrush"   Color="{StaticResource Color.DestructiveHover}"/>
+    <SolidColorBrush x:Key="SelectedCranePointBrush" Color="{StaticResource Color.SelectedCranePoint}"/>
 
 </ResourceDictionary>

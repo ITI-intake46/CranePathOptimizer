@@ -56,13 +56,16 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         {
             return status switch
             {
-                ElementVisualizationStatus.Default => Color.FromRgb(180, 180, 180),
-                ElementVisualizationStatus.Liftable => Color.FromRgb(120, 220, 120),
-                ElementVisualizationStatus.Overweight => Color.FromRgb(220, 90, 90),
-                ElementVisualizationStatus.OutOfRadius => Color.FromRgb(120, 120, 120),
-                ElementVisualizationStatus.HeightIssue => Color.FromRgb(240, 180, 80),
-                ElementVisualizationStatus.Selected => Color.FromRgb(100, 160, 255),
-                _ => Color.FromRgb(180, 180, 180)
+                ElementVisualizationStatus.Default => Color.FromRgb(184, 184, 184),             // Concrete Gray #B8B8B8
+                ElementVisualizationStatus.Liftable => Color.FromRgb(0, 158, 115),              // Calm Green #009E73
+                ElementVisualizationStatus.Overweight => Color.FromRgb(213, 94, 0),             // Vermillion Red #D55E00
+                ElementVisualizationStatus.OutOfRadius => Color.FromRgb(230, 159, 0),            // Calm Orange #E69F00
+                ElementVisualizationStatus.HeightIssue => Color.FromRgb(142, 106, 184),           // Muted Purple #8E6AB8
+                ElementVisualizationStatus.Selected => Color.FromRgb(78, 161, 243),             // Soft Blue #4EA1F3
+                ElementVisualizationStatus.SpecialCase => Color.FromRgb(139, 139, 139),          // Neutral Gray #8B8B8B
+                ElementVisualizationStatus.ChartDataIssue => Color.FromRgb(100, 116, 139),       // Muted Gray-Blue #64748B
+                ElementVisualizationStatus.AssignedToOtherPoint => Color.FromRgb(156, 163, 175), // Dimmed Gray #9CA3AF
+                _ => Color.FromRgb(184, 184, 184)
             };
         }
 

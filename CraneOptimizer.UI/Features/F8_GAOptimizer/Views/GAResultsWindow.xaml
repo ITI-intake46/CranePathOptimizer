@@ -15,11 +15,13 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <SolidColorBrush x:Key="InfoBrush" Color="#38BDF8" />
-        <SolidColorBrush x:Key="LiftableRowBrush"    Color="#1A2E23" /><!-- dark green tint -->
-        <SolidColorBrush x:Key="OverweightRowBrush"  Color="#2E1818" /><!-- dark red tint -->
-        <SolidColorBrush x:Key="HeightFailRowBrush"  Color="#2E2316" /><!-- dark amber tint -->
-        <SolidColorBrush x:Key="OutOfRadiusRowBrush" Color="#1C1D1F" /><!-- dark gray tint -->
-        <SolidColorBrush x:Key="NeutralRowBrush"     Color="#1E1E1E" /><!-- dark neutral tint -->
+        <SolidColorBrush x:Key="LiftableRowBrush"        Color="#122A1E" />
+        <SolidColorBrush x:Key="OverweightRowBrush"      Color="#2D1818" />
+        <SolidColorBrush x:Key="OutOfRadiusRowBrush"     Color="#2C1D12" />
+        <SolidColorBrush x:Key="HeightFailRowBrush"      Color="#24172B" />
+        <SolidColorBrush x:Key="SpecialCaseRowBrush"     Color="#222224" />
+        <SolidColorBrush x:Key="ChartDataIssueRowBrush"  Color="#1E2530" />
+        <SolidColorBrush x:Key="NeutralRowBrush"          Color="#1E1E1E" />
     </Window.Resources>
 
     <Grid Margin="{StaticResource Space4}">
@@ -178,10 +180,10 @@
                                         <Setter Property="Background" Value="{StaticResource OutOfRadiusRowBrush}" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Source.Status}" Value="SpecialCase">
-                                        <Setter Property="Background" Value="{StaticResource NeutralRowBrush}" />
+                                        <Setter Property="Background" Value="{StaticResource SpecialCaseRowBrush}" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Source.Status}" Value="NotCharted">
-                                        <Setter Property="Background" Value="{StaticResource NeutralRowBrush}" />
+                                        <Setter Property="Background" Value="{StaticResource ChartDataIssueRowBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
