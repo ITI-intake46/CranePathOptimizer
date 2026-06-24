@@ -22,6 +22,15 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Media3D;
+using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Core.Models;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.UI.Features.F0_CoordinateSystem;
 
 namespace CraneOptimizer.Application.Tests
 {
@@ -453,6 +462,398 @@ namespace CraneOptimizer.Application.Tests
             // Assert that element2 (GA-Blocked) was completely excluded from GA scope elements
             Assert.Single(result.Elements);
             Assert.Equal("GA-Enabled", result.Elements[0].ElementID);
+        }
+
+        // =========================================================================
+        // Phase 1 Regression Tests
+        // =========================================================================
+
+        private static string? CallGetBestMarkCandidate(Xbim.Ifc4.Interfaces.IIfcProduct product)
+        {
+            var extractorType = typeof(IfcReaderRepository).GetNestedType("IfcEngineeringExtractor", System.Reflection.BindingFlags.NonPublic);
+            var method = extractorType?.GetMethod("GetBestMarkCandidate", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            return method?.Invoke(null, new object[] { product }) as string;
+        }
+
+        [Fact]
+        public void TestGetBestMarkCandidate_PreservesPropertySetMark()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create Element"))
+                {
+                    var beam = model.Instances.New<Xbim.Ifc4.SharedBldgElements.IfcBeam>();
+                    beam.GlobalId = Guid.NewGuid().ToString();
+                    beam.Name = "RawProductName";
+
+                    // Create property set Pset_Revit_Identity Data
+                    var pset = model.Instances.New<Xbim.Ifc4.Kernel.IfcPropertySet>();
+                    pset.Name = "Pset_Revit_Identity Data";
+
+                    var markProp = model.Instances.New<Xbim.Ifc4.PropertyResource.IfcPropertySingleValue>();
+                    markProp.Name = "Mark";
+                    markProp.NominalValue = new Xbim.Ifc4.MeasureResource.IfcLabel("B1-AssemblyMark");
+                    pset.HasProperties.Add(markProp);
+
+                    var rel = model.Instances.New<Xbim.Ifc4.Kernel.IfcRelDefinesByProperties>();
+                    rel.RelatedObjects.Add(beam);
+                    rel.RelatingPropertyDefinition = pset;
+
+                    txn.Commit();
+
+                    // Act
+                    var mark = CallGetBestMarkCandidate(beam);
+
+                    // Assert
+                    Assert.Equal("B1-AssemblyMark", mark);
+                }
+            }
+        }
+
+        [Fact]
+        public void TestGetBestMarkCandidate_FallsBackToNameIfNoMark()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create Element"))
+                {
+                    var beam = model.Instances.New<Xbim.Ifc4.SharedBldgElements.IfcBeam>();
+                    beam.GlobalId = Guid.NewGuid().ToString();
+                    beam.Name = "RawProductName";
+                    txn.Commit();
+
+                    // Act
+                    var mark = CallGetBestMarkCandidate(beam);
+
+                    // Assert
+                    Assert.Equal("RawProductName", mark);
+                }
+            }
+        }
+
+        private static bool CallHasExplicitAssemblyMarkProperties(Xbim.Ifc4.Interfaces.IIfcProduct product)
+        {
+            var extractorType = typeof(IfcReaderRepository).GetNestedType("IfcEngineeringExtractor", System.Reflection.BindingFlags.NonPublic);
+            var method = extractorType?.GetMethod("HasExplicitAssemblyMarkProperties", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            return (bool)(method?.Invoke(null, new object[] { product }) ?? false);
+        }
+
+        [Fact]
+        public void TestHasExplicitAssemblyMarkProperties_IgnoresNameFallback()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create Assembly"))
+                {
+                    var assembly = model.Instances.New<Xbim.Ifc4.ProductExtension.IfcElementAssembly>();
+                    assembly.GlobalId = Guid.NewGuid().ToString();
+                    assembly.Name = "AssemblyProductName";
+                    txn.Commit();
+
+                    // Act
+                    var hasExplicitMark = CallHasExplicitAssemblyMarkProperties(assembly);
+
+                    // Assert: Should be false because assembly.Name is not an explicit assembly property
+                    Assert.False(hasExplicitMark);
+                }
+            }
+        }
+
+        [Fact]
+        public void TestHasExplicitAssemblyMarkProperties_RecognizesExplicitProperties()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create Assembly"))
+                {
+                    var assembly = model.Instances.New<Xbim.Ifc4.ProductExtension.IfcElementAssembly>();
+                    assembly.GlobalId = Guid.NewGuid().ToString();
+                    assembly.Name = "AssemblyProductName";
+
+                    // Create property set with "Assembly Mark"
+                    var pset = model.Instances.New<Xbim.Ifc4.Kernel.IfcPropertySet>();
+                    pset.Name = "Pset_Revit_Identity Data";
+
+                    var markProp = model.Instances.New<Xbim.Ifc4.PropertyResource.IfcPropertySingleValue>();
+                    markProp.Name = "Assembly Mark";
+                    markProp.NominalValue = new Xbim.Ifc4.MeasureResource.IfcLabel("AM-101");
+                    pset.HasProperties.Add(markProp);
+
+                    var rel = model.Instances.New<Xbim.Ifc4.Kernel.IfcRelDefinesByProperties>();
+                    rel.RelatedObjects.Add(assembly);
+                    rel.RelatingPropertyDefinition = pset;
+
+                    txn.Commit();
+
+                    // Act
+                    var hasExplicitMark = CallHasExplicitAssemblyMarkProperties(assembly);
+
+                    // Assert: Should be true because we defined "Assembly Mark"
+                    Assert.True(hasExplicitMark);
+                }
+            }
+        }
+
+        private CranePlacementService CreatePlacementService(List<PrecastElement> elements, MockPlacementEngine placementEngine)
+        {
+            var inputBuilder = new OptimizationInputBuilder();
+            var orchestrator = new MockMultiStageGAOrchestrator();
+            var scopeEngine = new MockScopeEngine();
+            var sceneService = new MockSceneServiceForGating(elements);
+            var coordinateService = new CoordinateService();
+            var workspaceService = new MockProjectWorkspaceService();
+            var historyLogger = new MockHistoryLogger();
+            
+            return new CranePlacementService(
+                inputBuilder,
+                placementEngine,
+                orchestrator,
+                scopeEngine,
+                sceneService,
+                coordinateService,
+                workspaceService,
+                null!, // ifcViewer
+                historyLogger);
+        }
+
+        [Fact]
+        public async Task TestGA_Gating_BlocksEstimatedWeight()
+        {
+            // 1. Element has EstimatedFallback_NotAllowedForGA and IncludeInGa = false
+            var element = new PrecastElement
+            {
+                ElementID = "Element1",
+                ElementType = "Beam",
+                IncludeInGa = false,
+                WeightTrustLevel = IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA,
+                WeightTons = 5.0,
+                ElementWT = 5.0,
+                ElementCOG = new DomainPoint3D(10, 10, 2)
+            };
+
+            var placementEngine = new MockPlacementEngine();
+            var service = CreatePlacementService(new List<PrecastElement> { element }, placementEngine);
+            var crane = new Crane { Name = "Test Crane" };
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => 
+                service.RunOptimizationAsync(new GASettings(), crane));
+            Assert.Contains("IncludeInGa flag is false", ex.Message);
+        }
+
+        [Fact]
+        public async Task TestGA_Gating_BlocksEstimatedWeightEvenIfIncludeInGaIsTrue()
+        {
+            // 2. Element has EstimatedFallback_NotAllowedForGA and IncludeInGa = true
+            var element = new PrecastElement
+            {
+                ElementID = "Element1",
+                ElementType = "Beam",
+                IncludeInGa = true,
+                WeightTrustLevel = IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA,
+                WeightTons = 5.0,
+                ElementWT = 5.0,
+                ElementCOG = new DomainPoint3D(10, 10, 2)
+            };
+
+            var placementEngine = new MockPlacementEngine();
+            var service = CreatePlacementService(new List<PrecastElement> { element }, placementEngine);
+            var crane = new Crane { Name = "Test Crane" };
+
+            // Act & Assert
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => 
+                service.RunOptimizationAsync(new GASettings(), crane));
+            Assert.Contains("Untrusted weight source/trust level", ex.Message);
+        }
+
+        [Fact]
+        public async Task TestGA_AssemblyGating_PreventsDoubleCounting()
+        {
+            // Parent Assembly is included and has trusted weight
+            var parent = new PrecastElement
+            {
+                ElementID = "ParentAssembly",
+                ElementType = "Assembly",
+                Role = IfcElementRole.LiftAssembly,
+                IncludeInGa = true,
+                WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
+                WeightTons = 10.0,
+                ElementWT = 10.0,
+                ElementCOG = new DomainPoint3D(10, 10, 2)
+            };
+
+            // Child element is also included
+            var child = new PrecastElement
+            {
+                ElementID = "ChildPart",
+                ParentGlobalId = "ParentAssembly",
+                ElementType = "Beam",
+                Role = IfcElementRole.LiftableElement,
+                IncludeInGa = true,
+                WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
+                WeightTons = 5.0,
+                ElementWT = 5.0,
+                ElementCOG = new DomainPoint3D(10, 10, 2)
+            };
+
+            var placementEngine = new MockPlacementEngine();
+            var service = CreatePlacementService(new List<PrecastElement> { parent, child }, placementEngine);
+            
+            var crane = new Crane
+            {
+                Name = "Test Crane",
+                Specifications = new List<CraneSpecification>
+                {
+                    new()
+                    {
+                        MaxRadius = 40,
+                        MaxBoomLength = 50,
+                        LoadChart = new List<TargetPoint> { new() { Radius = 10, BoomLength = 20, Capacity = 50 } }
+                    }
+                }
+            };
+
+            // Act
+            await service.RunOptimizationAsync(new GASettings { EnableMultiStageDiscovery = false }, crane);
+
+            // Assert
+            Assert.NotNull(placementEngine.LastInput);
+            var gaElements = placementEngine.LastInput.Elements;
+            
+            // Should contain parent but exclude child part to prevent double-counting
+            Assert.Contains(gaElements, e => e.ElementID == "ParentAssembly");
+            Assert.DoesNotContain(gaElements, e => e.ElementID == "ChildPart");
+        }
+
+        // =========================================================================
+        // Mocks for testing CranePlacementService
+        // =========================================================================
+
+        private class MockPlacementEngine : ICranePlacementEngine
+        {
+            public PlacementInput? LastInput { get; private set; }
+            public PlacementResult RunOptimization(PlacementInput input, CancellationToken cancellationToken = default)
+            {
+                LastInput = input;
+                return new PlacementResult();
+            }
+        }
+
+        private class MockMultiStageGAOrchestrator : IMultiStageGAOrchestrator
+        {
+            public Task<MultiStageGAResult> RunAsync(PlacementInput project, Crane crane, GASettings baseSettings, double coverageTarget, CancellationToken cancellationToken)
+            {
+                var emptyResult = new PlacementResult();
+                return Task.FromResult(new MultiStageGAResult(emptyResult, 1, new List<PlacementResult> { emptyResult }, "Completed"));
+            }
+        }
+
+        private class MockScopeEngine : IOptimizationScopeEngine
+        {
+            public List<PrecastElement> FilterElements(List<PrecastElement> allElements, OptimizationScopeFilter filter)
+            {
+                return allElements; // No filtering
+            }
+        }
+
+        private class MockSceneServiceForGating : ISceneService
+        {
+            private readonly List<PrecastElement> _elements;
+            public MockSceneServiceForGating(List<PrecastElement> elements)
+            {
+                _elements = elements;
+            }
+            public List<PrecastElement> GetElements() => _elements;
+            public void SetElements(List<PrecastElement> elements) { }
+            public void ClearElements() { }
+            public List<PrecastElement> GetSelectedElements() => _elements;
+            public void SetSelectedElements(List<PrecastElement> elements) { }
+            public void ClearSelectedElements() { }
+            public event Action<List<PrecastElement>>? ElementsChanged;
+            public event Action<List<PrecastElement>>? ElementsSelectionChanged;
+            public List<GreenAreaZone> GetZones() => new()
+            {
+                new GreenAreaZone
+                {
+                    ZoneId = Guid.NewGuid(),
+                    Name = "Test Zone",
+                    Type = ZoneType.Allowed,
+                    Vertices = new List<DomainPoint3D>
+                    {
+                        new(0, 0, 0),
+                        new(100, 0, 0),
+                        new(100, 100, 0),
+                        new(0, 100, 0)
+                    }
+                }
+            };
+            public void AddZone(GreenAreaZone zone) { }
+            public void RemoveZone(GreenAreaZone zone) { }
+            public void RemoveSelectedZone() { }
+            public void ClearZones() { }
+            public void UpdateZone(GreenAreaZone zone) { }
+            public GreenAreaZone? SelectedZone => null;
+            public void SetSelectedZone(GreenAreaZone? zone) { }
+            public void ClearZoneSelection() { }
+            public event Action<GreenAreaZone>? ZoneAdded;
+            public event Action<GreenAreaZone>? ZoneRemoved;
+            public event Action<GreenAreaZone>? ZoneUpdated;
+            public event Action? ZonesCleared;
+            public event Action<GreenAreaZone?>? ZoneSelected;
+            
+            public List<SceneCrane> GetCranes() => new();
+            public void AddCrane(SceneCrane crane) { }
+            public void RemoveCrane(SceneCrane crane) { }
+            public void ClearCranes() { }
+            public void MoveCrane(SceneCrane crane, double x, double y, double z) { }
+            public void RotateCrane(SceneCrane crane, double angle) { }
+            public void UpdateCrane(SceneCrane crane) { }
+            public SceneCrane? SelectedCrane => null;
+            public void SetSelectedCrane(SceneCrane? crane) { }
+            public void ClearCraneSelection() { }
+            public event Action<SceneCrane>? CraneAdded;
+            public event Action<SceneCrane>? CraneRemoved;
+            public event Action? CranesCleared;
+            public event Action<SceneCrane>? CraneMoved;
+            public event Action<SceneCrane>? CraneRotated;
+            public event Action<SceneCrane>? CraneUpdated;
+            public event Action<SceneCrane?>? CraneSelected;
+            
+            public List<SceneDxf> GetDxfEntities() => new();
+            public void AddDxfEntity(SceneDxf entity) { }
+            public void RemoveDxfEntity(SceneDxf entity) { }
+            public void RemoveSelectedDxfEntity() { }
+            public void ClearDxfEntities() { }
+            public void UpdateDxfEntity(SceneDxf entity) { }
+            public SceneDxf? SelectedDxfEntity => null;
+            public void SetSelectedDxfEntity(SceneDxf? entity) { }
+            public void ClearDxfSelection() { }
+            public event Action<SceneDxf>? DxfEntityAdded;
+            public event Action<SceneDxf>? DxfEntityRemoved;
+            public event Action<SceneDxf>? DxfEntityUpdated;
+            public event Action? DxfEntitiesCleared;
+            public event Action<SceneDxf?>? DxfEntitySelected;
+            
+            public object? GetSelectedObject() => null;
+            public void SetSelectedObject(object? obj) { }
+            public event Action<object?>? SelectionChanged;
+        }
+
+        private class MockProjectWorkspaceService : IProjectWorkspaceService
+        {
+            public ProjectSession? CurrentSession => null;
+            public Task<ProjectSession> CreateProjectAsync(CreateProjectRequest r, CancellationToken c) => Task.FromResult(new ProjectSession());
+            public Task<IReadOnlyList<ProjectCardModel>> GetRecentProjectsAsync(CancellationToken c) => Task.FromResult<IReadOnlyList<ProjectCardModel>>(new List<ProjectCardModel>());
+            public Task<ProjectSession?> OpenProjectAsync(Guid id, CancellationToken c) => Task.FromResult<ProjectSession?>(null);
+            public Task<ProjectSession> OpenProjectFolderAsync(string path, CancellationToken c) => Task.FromResult(new ProjectSession());
+            public Task DeleteProjectAsync(Guid id, CancellationToken c) => Task.CompletedTask;
+            public Task ToggleFavoriteAsync(Guid id, bool f, CancellationToken c) => Task.CompletedTask;
+            public Task<IReadOnlyList<ProjectCardModel>> SearchProjectsAsync(string s, bool f, CancellationToken c) => Task.FromResult<IReadOnlyList<ProjectCardModel>>(new List<ProjectCardModel>());
+        }
+
+        private class MockHistoryLogger : IOptimizationHistoryLogger
+        {
+            public Task LogRunAsync(OptimizationRunEntry entry, string projectFolderPath) => Task.CompletedTask;
         }
     }
 }

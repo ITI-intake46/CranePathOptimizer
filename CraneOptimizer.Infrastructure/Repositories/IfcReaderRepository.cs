@@ -850,37 +850,173 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return null;
             }
 
-            private static string? GetMark(IIfcProduct product)
+            /// <summary>
+            /// Temporary best-mark candidate resolver. This is a compatibility method for Phase 1
+            /// and does not represent the final canonical schema.
+            /// Priority Chain: Assembly-level Mark Candidate > Explicit Element Mark > Type/Reference Candidate > product.Name fallback
+            /// </summary>
+            private static string? GetBestMarkCandidate(IIfcProduct product)
             {
-                var propertySets = product.IsDefinedBy
-                    .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
-                    .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition)
-                    .ToList();
+                if (product == null) return null;
 
-                var psetNames = new[] { "Pset_Revit_Identity Data", "Pset_ConcreteElementGeneral" };
-
-                foreach (var targetName in psetNames)
+                // 1. Assembly-level Mark Candidate (if it's an assembly product, check assembly mark properties)
+                if (product is IIfcElementAssembly || (product.ExpressType?.Name?.Equals("IfcElementAssembly", StringComparison.OrdinalIgnoreCase) ?? false))
                 {
-                    foreach (var pset in propertySets)
+                    var psetNames = new[] { "Pset_Revit_Identity Data", "Pset_ConcreteElementGeneral" };
+                    var assemblyPropNames = new[] { "Assembly Mark", "Cast Unit Mark", "Assembly Number", "Cast Unit Number" };
+                    
+                    foreach (var targetPset in psetNames)
                     {
-                        if (!pset.Name.ToString().Contains(targetName, StringComparison.OrdinalIgnoreCase))
-                            continue;
-
-                        foreach (var prop in pset.HasProperties.OfType<IIfcPropertySingleValue>())
+                        foreach (var propName in assemblyPropNames)
                         {
-                            if (!prop.Name.ToString().Equals("Mark", StringComparison.OrdinalIgnoreCase))
-                                continue;
-
-                            var val = prop.NominalValue?.ToString()?.Trim();
+                            var val = GetPropertyString(product, targetPset, propName);
                             if (!string.IsNullOrWhiteSpace(val))
                                 return val;
                         }
                     }
+
+                    // Fallback to "Mark" in those Psets for assembly
+                    foreach (var targetPset in psetNames)
+                    {
+                        var val = GetPropertyString(product, targetPset, "Mark");
+                        if (!string.IsNullOrWhiteSpace(val))
+                            return val;
+                    }
+                    
+                    // Generic "Assembly Mark" or similar in any pset
+                    foreach (var propName in assemblyPropNames)
+                    {
+                        var val = GetPropertyStringAnySet(product, propName);
+                        if (!string.IsNullOrWhiteSpace(val))
+                            return val;
+                    }
                 }
 
-                var productName = product.Name?.ToString()?.Trim();
-                return string.IsNullOrWhiteSpace(productName) ? null : productName;
+                // 2. Explicit Element Mark
+                // Look for "Mark" or "Element Mark" properties
+                var elementPsetNames = new[] { "Pset_Revit_Identity Data", "Pset_ConcreteElementGeneral" };
+                foreach (var targetPset in elementPsetNames)
+                {
+                    var val = GetPropertyString(product, targetPset, "Mark");
+                    if (!string.IsNullOrWhiteSpace(val))
+                        return val;
+                    
+                    var val2 = GetPropertyString(product, targetPset, "Element Mark");
+                    if (!string.IsNullOrWhiteSpace(val2))
+                        return val2;
+                }
+
+                var valAnySet = GetPropertyStringAnySet(product, "Mark");
+                if (!string.IsNullOrWhiteSpace(valAnySet))
+                    return valAnySet;
+
+                // 3. Type/Reference Candidate
+                // Look for "Type Mark", "Reference", "Type Name"
+                var typePropNames = new[] { "Type Mark", "Reference", "Type Name" };
+                foreach (var targetPset in elementPsetNames)
+                {
+                    foreach (var propName in typePropNames)
+                    {
+                        var val = GetPropertyString(product, targetPset, propName);
+                        if (!string.IsNullOrWhiteSpace(val))
+                            return val;
+                    }
+                }
+
+                foreach (var propName in typePropNames)
+                {
+                    var val = GetPropertyStringAnySet(product, propName);
+                    if (!string.IsNullOrWhiteSpace(val))
+                        return val;
+                }
+
+                // Try to get from ObjectType
+                var objType = product.ObjectType?.ToString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(objType))
+                    return objType;
+
+                // 4. product.Name fallback
+                var prodName = product.Name?.ToString()?.Trim();
+                return string.IsNullOrWhiteSpace(prodName) ? null : prodName;
             }
+
+            private static string? GetPropertyString(IIfcProduct product, string psetName, string propName)
+            {
+                var propertySets = product.IsDefinedBy
+                    .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
+                    .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition);
+
+                foreach (var pset in propertySets)
+                {
+                    if (!pset.Name.ToString().Contains(psetName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    foreach (var prop in pset.HasProperties.OfType<IIfcPropertySingleValue>())
+                    {
+                        if (!prop.Name.ToString().Equals(propName, StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        var val = prop.NominalValue?.ToString()?.Trim();
+                        if (!string.IsNullOrWhiteSpace(val))
+                            return val;
+                    }
+                }
+
+                return null;
+            }
+
+            private static string? GetPropertyStringAnySet(IIfcProduct product, string propName)
+            {
+                var propertySets = product.IsDefinedBy
+                    .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
+                    .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition);
+
+                foreach (var pset in propertySets)
+                {
+                    foreach (var prop in pset.HasProperties.OfType<IIfcPropertySingleValue>())
+                    {
+                        if (!prop.Name.ToString().Equals(propName, StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        var val = prop.NominalValue?.ToString()?.Trim();
+                        if (!string.IsNullOrWhiteSpace(val))
+                            return val;
+                    }
+                }
+
+                return null;
+            }
+
+            private static bool HasExplicitAssemblyMarkProperties(IIfcProduct product)
+            {
+                if (product == null) return false;
+                var psetNames = new[] { "Pset_Revit_Identity Data", "Pset_ConcreteElementGeneral" };
+                var assemblyPropNames = new[] { "Assembly Mark", "Cast Unit Mark", "Assembly Number", "Cast Unit Number" };
+                foreach (var targetPset in psetNames)
+                {
+                    foreach (var propName in assemblyPropNames)
+                    {
+                        var val = GetPropertyString(product, targetPset, propName);
+                        if (!string.IsNullOrWhiteSpace(val))
+                            return true;
+                    }
+                }
+
+                // Also check general properties across any property set
+                foreach (var propName in assemblyPropNames)
+                {
+                    var val = GetPropertyStringAnySet(product, propName);
+                    if (!string.IsNullOrWhiteSpace(val))
+                        return true;
+                }
+
+                return false;
+            }
+
+            // Compatibility wrapper for audit calls.
+            // Note: This is a transitional compatibility method for Phase 1 and does not represent the final canonical schema.
+            private static string? GetMark(IIfcProduct product) => GetBestMarkCandidate(product);
+
 
             private static string CleanElementName(string rawName)
             {
@@ -1304,6 +1440,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
     .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
                 var result = new List<PrecastElement>();
+                int unresolvedAssemblyMarkCount = 0;
 
                 // 2. Loop through elements from the previewSummary
                 foreach (var preview in previewSummary.Elements)
@@ -1347,8 +1484,15 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     var pe = new PrecastElement();
                     pe.ElementID = preview.GlobalId;
                     pe.ElementRevitId = sourceSnapshot?.RevitId ?? (product != null ? GetRevitId(product) : null);
-                    pe.ElementMark = string.IsNullOrWhiteSpace(preview.Name) ? (product != null ? CleanElementName(GetMark(product) ?? product.Name?.ToString() ?? string.Empty) : string.Empty) : preview.Name;
+                    pe.ElementMark = product != null 
+                        ? CleanElementName(GetBestMarkCandidate(product) ?? string.Empty) 
+                        : (preview.Name ?? string.Empty);
                     
+                    // Traceability to parent assembly
+                    pe.ParentAssemblyName = parentProduct != null 
+                        ? CleanElementName(GetBestMarkCandidate(parentProduct) ?? parentProduct.Name?.ToString() ?? string.Empty) 
+                        : (parentPreview?.Name ?? string.Empty);
+
                     // Set ElementType = preview.CandidateCategory to fix UI filter labels (Requirement)
                     pe.ElementType = preview.CandidateCategory;
 
@@ -1363,6 +1507,19 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     pe.IncludeInRender = preview.IncludeInRenderPreview;
                     pe.IncludeInElementTree = preview.IncludeInElementTreePreview;
                     pe.IncludeInGa = preview.IncludeInGaPreview;
+
+                    pe.ExplicitAssemblyMarkFound = product != null && HasExplicitAssemblyMarkProperties(product);
+                    pe.ResolvedDisplayMark = pe.ElementMark;
+
+                    // Assembly Identity Preservation Warnings
+                    if ((pe.Role == IfcElementRole.LiftAssembly || pe.Role == IfcElementRole.GroupingOnly) && product != null)
+                    {
+                        if (!pe.ExplicitAssemblyMarkFound)
+                        {
+                            unresolvedAssemblyMarkCount++;
+                            pe.ExtractionWarnings.Add("No explicit assembly-level mark found; falling back to element/type/product name.");
+                        }
+                    }
 
                     // Weight setup
                     pe.WeightTons = preview.WeightStandardValueTons;
@@ -1633,10 +1790,21 @@ namespace CraneOptimizer.Infrastructure.Repositories
     && pe.VolumeM3 is > 0
     && IsValidMaterialName(pe.ElementMaterial))
                     {
-                        pe.IncludeInGa = true;
-
-                        pe.NormalizationDecisionReason +=
-                            " | Re-enabled after material/volume/weight repair.";
+                        if (pe.WeightTrustLevel == IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA)
+                        {
+                            pe.IncludeInGa = false;
+                            if (!pe.NormalizationDecisionReason.Contains("Estimated weight (requires user approval for GA)", StringComparison.OrdinalIgnoreCase))
+                            {
+                                pe.NormalizationDecisionReason +=
+                                    " | Repaired with estimated fallback weight (requires user approval for GA).";
+                            }
+                        }
+                        else
+                        {
+                            pe.IncludeInGa = true;
+                            pe.NormalizationDecisionReason +=
+                                " | Re-enabled after material/volume/weight repair.";
+                        }
                     }
                     // Make sure standardized units are enforced (everything scaled to meters, tons, m3)
                     // If a NeedsReview parent/child exists, block it from GA
@@ -1683,6 +1851,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 Debug.WriteLine($"ExcludeInRender Elements: {result.Count(r => !r.IncludeInRender)}");
                 Debug.WriteLine($"Explicit Weights (Quantity/Property): {result.Count(r => r.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity || r.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty)}");
                 Debug.WriteLine($"Zero/Fallback/Missing Weights: {result.Count(r => r.WeightTrustLevel != IfcWeightTrustLevel.ExplicitQuantity && r.WeightTrustLevel != IfcWeightTrustLevel.ExplicitProperty)}");
+                if (unresolvedAssemblyMarkCount > 0)
+                {
+                    Debug.WriteLine($"[IFC_WARN] {unresolvedAssemblyMarkCount} assemblies did not have a resolved explicit assembly-level mark property.");
+                }
                 Debug.WriteLine("=============================================================");
 
                 progress?.Report(100d);
@@ -1868,12 +2040,24 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         && pe.VolumeM3 is > 0
                         && IsValidMaterialName(pe.ElementMaterial))
                     {
-                        pe.IncludeInGa = true;
-
-                        if (!pe.NormalizationDecisionReason.Contains("Final repaired", StringComparison.OrdinalIgnoreCase))
+                        if (pe.WeightTrustLevel == IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA)
                         {
-                            pe.NormalizationDecisionReason +=
-                                " | Final repaired: material, volume, and weight are valid.";
+                            pe.IncludeInGa = false;
+                            if (!pe.NormalizationDecisionReason.Contains("Estimated weight (requires user approval for GA)", StringComparison.OrdinalIgnoreCase))
+                            {
+                                pe.NormalizationDecisionReason +=
+                                    " | Estimated weight (requires user approval for GA).";
+                            }
+                        }
+                        else
+                        {
+                            pe.IncludeInGa = true;
+
+                            if (!pe.NormalizationDecisionReason.Contains("Final repaired", StringComparison.OrdinalIgnoreCase))
+                            {
+                                pe.NormalizationDecisionReason +=
+                                    " | Final repaired: material, volume, and weight are valid.";
+                            }
                         }
                     }
 

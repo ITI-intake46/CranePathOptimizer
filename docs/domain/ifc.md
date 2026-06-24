@@ -17,6 +17,30 @@ The implementation currently uses xBIM through `IfcModelSession.Open`, `IfcReade
 * No project-specific schema allow-list for IFC2X3, IFC4, IFC4X1, IFC4X2, or IFC4X3 exists. The project delegates opening to `IfcStore.Open()` and records `model.SchemaVersion`.
 * Spatial structure is only partially used: `IfcProject` units and `IfcBuildingStorey` elevation/storey mapping are read; `IfcSite`, `IfcBuilding`, and `IfcSpace` are not imported as optimization elements.
 * Requested files `docs/domain/ifc-architecture-review.md`, `docs/domain/ifc-feature-matrix.md`, and `docs/project/current-state.md` are absent.
+* Stale links to missing documentation have been annotated.
+
+## Phase 1 Stabilization & Transitional State
+
+> [!NOTE]
+> Phase 1 is a stabilization phase focused on fixing identity preservation, resolving `GeometryContext` disposal issues, and enforcing GA safety gating. It is transitional and does not represent the final canonical schema.
+
+### Core Changes in Phase 1
+1. **xBIM Geometry Context Disposal**: Safely disposes of the xBIM `GeometryContext` by casting to `IDisposable` inside `IfcModelSession.Dispose` to prevent memory leaks during consecutive loads.
+2. **Identity Preservation & Best-Candidate Mark Resolution**:
+   - Replaced simple `GetMark` logic with `GetBestMarkCandidate`. It resolves marks using a strict priority chain: Assembly-level Mark Candidate > Explicit Element Mark > Type/Reference Candidate > `product.Name` fallback.
+   - Preserves source marks and prevents `product.Name` from overwriting real property-set marks.
+   - `ElementMark` in the `PrecastElement` schema remains a transitional field.
+3. **Missing Assembly Mark Diagnostics**:
+   - Distinguishes between `ExplicitAssemblyMarkFound` (bool) and `ResolvedDisplayMark` (string).
+   - Warnings and missing assembly mark counts are calculated strictly based on explicit assembly properties: `Assembly Mark`, `Cast Unit Mark`, `Assembly Number`, `Cast Unit Number`. Falls back to `product.Name` for display (`ResolvedDisplayMark`), but does not suppress the missing assembly mark warning.
+4. **Genetic Algorithm Gating**:
+   - Blocks elements with `WeightTrustLevel == EstimatedFallback_NotAllowedForGA` from entering GA optimization passes regardless of the `IncludeInGa` setting.
+   - Implements parent-assembly child exclusion: if a parent assembly is selected as a GA target, its children parts are automatically excluded to prevent weight double-counting.
+
+### Future Canonical Assembly Data Model Direction
+Future phases will introduce the final **Canonical Assembly Data Model** to replace transitional mapping fields.
+* **Canonical Fields**: Future phases will implement canonical fields such as `AssemblyMark`, `AssemblyWeight`, `AssemblyCOG`, `AssemblyDimensions`, `AssemblyVolume`, and `AssemblyMaterial`.
+* **JSON Business Data Integration**: Future phases plan to support Tekla/Revit native add-ins exporting canonical JSON business data. In this model, the IFC file will remain primarily responsible for 3D mesh, geometry representation, and GlobalId mapping, while JSON provides the canonical business properties.
 
 ## Verified Statements
 

@@ -135,6 +135,18 @@ namespace CraneOptimizer.Infrastructure.Ifc
 
             try
             {
+                if (GeometryContext is IDisposable disposableContext)
+                {
+                    disposableContext.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[IfcSession] Error disposing geometry context: {ex.Message}");
+            }
+
+            try
+            {
                 Model.Close();
                 Model.Dispose();
             }

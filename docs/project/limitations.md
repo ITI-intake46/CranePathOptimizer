@@ -34,15 +34,20 @@ This document lists the assumptions, simplifications, and architectural limitati
 
 ## 3. Data & Material Assumptions
 
-### E. Material Density Fallbacks
+### E. Material Density Fallbacks & GA Safety Gating
 *   **Limitation:** When an IFC element lacks explicit weight or volume metadata, the extraction pipeline falls back to hardcoded density coefficients to estimate weight.
 *   **Code Reference:** Implemented in [IfcReaderRepository.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcReaderRepository.cs).
-*   **Assumption:** Concrete fallback weight estimation assumes a density of exactly $2500 \text{ kg/m}^3$. Other heuristic fallbacks include:
+*   **Assumption/Safety Gating:** Concrete fallback weight estimation assumes a density of exactly $2500 \text{ kg/m}^3$. Other heuristic fallbacks include:
     *   Steel: $7850 \text{ kg/m}^3$
     *   Aluminum: $2700 \text{ kg/m}^3$
     *   Glass: $2500 \text{ kg/m}^3$
     *   Timber: $600 \text{ kg/m}^3$
-*   Elements with untrusted weights are marked as `EstimatedFallback_NotAllowedForGA` and excluded from the optimization target set.
+*   **Safety Rule:** Any elements resolved through fallback estimation are marked with `WeightTrustLevel = EstimatedFallback_NotAllowedForGA`. These elements are **strictly blocked** from entering GA layout optimization passes, regardless of their `IncludeInGa` property. There is no user override for this gate in Phase 1.
+
+### E2. Parent-Assembly Child Exclusion (Double-Counting Prevention)
+*   **Limitation:** Parent assemblies and child parts must not both be sent to GA optimization if the parent is the liftable unit.
+*   **Code Reference:** Implemented in [CranePlacementService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Services/CranePlacementService.cs).
+*   **Gating Rule:** If a parent assembly (`Role == LiftAssembly` or `LiftableElement`) is present in the optimization set with a trusted weight, its children components/parts are automatically excluded from the active GA target list to prevent weight/coordinate double-counting.
 
 ---
 

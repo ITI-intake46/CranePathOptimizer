@@ -12,6 +12,10 @@ namespace CraneOptimizer.Domain.Schemas
 
         public string? ElementMark { get; set; }
 
+        public bool ExplicitAssemblyMarkFound { get; set; }
+
+        public string? ResolvedDisplayMark { get; set; }
+
         public string ElementType { get; set; }
 
         public double? ElementLength { get; set; }
