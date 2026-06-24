@@ -10,6 +10,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         Overweight,
         OutOfRadius,
         HeightIssue,
-        Selected
+        Selected,
+        SpecialCase,
+        ChartDataIssue,
+        AssignedToOtherPoint
     }
 }
