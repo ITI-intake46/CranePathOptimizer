@@ -3,6 +3,7 @@ namespace CraneOptimizer.Application.Reports.DTOs;
 public sealed class LiftingResultSourceRowDto
 {
     public IReadOnlyDictionary<string, object?> Values { get; init; } = new Dictionary<string, object?>();
+    public string SourceType { get; init; } = string.Empty;
     public string ElementId { get; init; } = string.Empty;
     public string? ElementMark { get; init; }
     public string? ElementType { get; init; }

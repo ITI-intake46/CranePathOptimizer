@@ -26,7 +26,30 @@ public sealed class UserFacingReportBuilder : IReportBuilder
         var columns = request.SelectedColumns
             .Where(column => column.IsSelected)
             .OrderBy(column => column.Order)
+            .GroupBy(column => column.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
             .ToList();
+
+        if (request.TemplateName.Equals(ReportTemplateCatalog.ReportDataSourceAudit, StringComparison.OrdinalIgnoreCase))
+        {
+            var auditRows = ReportDataSourceAuditProvider.BuildRows(request)
+                .Select(ToReportRow)
+                .ToList();
+            EnsureSelectedColumnValues(auditRows, columns);
+            ApplySequentialNumbers(auditRows);
+
+            return Task.FromResult(new ReportDocumentDto
+            {
+                InternalFamily = request.Family,
+                Metadata = CloneMetadata(request, BuildAuditSummary(auditRows)),
+                Columns = columns,
+                Rows = auditRows,
+                CraneSetups = Array.Empty<CraneSetupReportRowDto>(),
+                PreferA3Landscape = columns.Count > 10,
+                TextAlignment = columns.FirstOrDefault()?.Alignment ?? "Left",
+                TextSizePt = ParseTextSize(columns.FirstOrDefault()?.TextSize)
+            });
+        }
 
         IReadOnlyList<ReportDataRowDto> rows;
         IReadOnlyList<ReportSummaryItemDto> summary;
@@ -58,7 +81,7 @@ public sealed class UserFacingReportBuilder : IReportBuilder
             rows = elementRows.Select(ToReportRow).ToList();
             EnrichElementRowsWithLiftingValues(rows, liftingRows);
             EnsureSelectedColumnValues(rows, columns);
-            summary = BuildElementSummary(elementRows);
+            summary = BuildElementSummary(request.TemplateName, elementRows);
         }
         else
         {
@@ -144,6 +167,8 @@ public sealed class UserFacingReportBuilder : IReportBuilder
             ["ElementId"] = row.ElementId,
             ["ElementID"] = row.ElementId,
             ["ElementMark"] = row.ElementMark,
+            ["ElementName"] = row.ElementName,
+            ["ElementType"] = row.ElementType,
             ["SourceRevitId"] = row.SourceRevitId,
             ["ElementRevitId"] = row.SourceRevitId,
             ["StoreyLevel"] = row.StoreyLevel,
@@ -152,12 +177,17 @@ public sealed class UserFacingReportBuilder : IReportBuilder
             ["Width"] = row.Width,
             ["Height"] = row.Height,
             ["VolumeM3"] = row.VolumeM3,
+            ["VolumeSource"] = row.VolumeSource,
+            ["TopLevelElevation"] = row.TopLevelElevation,
+            ["BottomLevelElevation"] = row.BottomLevelElevation,
             ["WeightTons"] = row.WeightTons,
             ["WeightSource"] = row.WeightSource,
             ["WeightVerified"] = row.WeightVerified,
             ["WeightStatus"] = row.WeightStatus,
             ["WeightWarning"] = row.WeightWarning,
-            ["IncludedInCraneOptimization"] = row.IncludedInCraneOptimization
+            ["IncludedInCraneOptimization"] = row.IncludedInCraneOptimization,
+            ["ReadyForGa"] = row.ReadyForGa,
+            ["MissingReadinessReason"] = row.MissingReadinessReason
         }
     };
 
@@ -204,8 +234,7 @@ public sealed class UserFacingReportBuilder : IReportBuilder
                     Matches(values, "ElementId", key)
                     || Matches(values, "ElementID", key)
                     || Matches(values, "SourceRevitId", key)
-                    || Matches(values, "ElementRevitId", key)
-                    || Matches(values, "ElementMark", key)));
+                    || Matches(values, "ElementRevitId", key)));
 
             if (liftValues == null)
                 continue;
@@ -232,11 +261,69 @@ public sealed class UserFacingReportBuilder : IReportBuilder
             GetStringValue(values, "ElementID"),
             GetStringValue(values, "SourceRevitId"),
             GetStringValue(values, "ElementRevitId"),
-            GetStringValue(values, "ElementMark")
+            GetStringValue(values, "ElementRevitId")
         }
         .Where(value => !string.IsNullOrWhiteSpace(value))
         .Distinct(StringComparer.OrdinalIgnoreCase)
     ];
+
+    private static ReportDataRowDto ToReportRow(ReportDataSourceAuditRowDto row) => new()
+    {
+        Values =
+        {
+            ["No"] = row.No,
+            ["Area"] = row.Area,
+            ["ReportColumn"] = row.ReportColumn,
+            ["DisplayedHeader"] = row.DisplayedHeader,
+            ["CurrentSource"] = row.CurrentSource,
+            ["SourceObjectOrFile"] = row.SourceObjectOrFile,
+            ["SourceField"] = row.SourceField,
+            ["CurrentAvailability"] = row.CurrentAvailability,
+            ["RowsFound"] = row.RowsFound,
+            ["WhyItMayShowDash"] = row.WhyItMayShowDash,
+            ["RequiredAction"] = row.RequiredAction
+        }
+    };
+
+    private static ReportMetadataDto CloneMetadata(
+        ReportBuildRequestDto request,
+        IReadOnlyList<ReportSummaryItemDto> summary) => new()
+    {
+        ReportName = request.TemplateName,
+        ItemsIncluded = request.ItemsIncluded,
+        ProjectName = request.Metadata.ProjectName,
+        ReportDate = request.Metadata.ReportDate,
+        CompanyName = request.Metadata.CompanyName,
+        CompanyLogoPath = request.Metadata.CompanyLogoPath,
+        CreatedBy = request.Metadata.CreatedBy,
+        IssuedTo = request.Metadata.IssuedTo,
+        Revision = request.Metadata.Revision,
+        HasGaRun = request.Metadata.HasGaRun,
+        GaRunStatusText = request.Metadata.GaRunStatusText,
+        GaWarningText = request.Metadata.GaWarningText,
+        CraneInfo = request.Metadata.CraneInfo,
+        LiftingAccessories = request.Metadata.LiftingAccessories,
+        SummaryItems = summary,
+        GeneralNotes = request.Metadata.GeneralNotes
+    };
+
+    private static IReadOnlyList<ReportSummaryItemDto> BuildAuditSummary(IReadOnlyList<ReportDataRowDto> rows)
+    {
+        var gaRows = rows.Count(row =>
+            row.Values.TryGetValue("Area", out var value)
+            && string.Equals(value?.ToString(), "GA / Lifting", StringComparison.OrdinalIgnoreCase));
+        var missingRows = rows.Count(row =>
+            row.Values.TryGetValue("CurrentAvailability", out var value)
+            && (value?.ToString()?.Contains("Missing", StringComparison.OrdinalIgnoreCase) == true
+                || value?.ToString()?.Contains("No GA", StringComparison.OrdinalIgnoreCase) == true));
+
+        return
+        [
+            Summary("Audit Rows", rows.Count.ToString(CultureInfo.InvariantCulture)),
+            Summary("GA / Lifting Rows", gaRows.ToString(CultureInfo.InvariantCulture)),
+            Summary("Missing Sources", missingRows.ToString(CultureInfo.InvariantCulture))
+        ];
+    }
 
     private static void EnsureSelectedColumnValues(
         IReadOnlyList<ReportDataRowDto> rows,
@@ -267,11 +354,7 @@ public sealed class UserFacingReportBuilder : IReportBuilder
 
         var actualText = actual.Trim();
         var expectedText = expected.Trim();
-        if (string.Equals(actualText, expectedText, StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        return expectedText.Length >= 4
-            && actualText.Contains(expectedText, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(actualText, expectedText, StringComparison.Ordinal);
     }
 
     private static bool IsMissingValue(object? value) =>
@@ -293,7 +376,9 @@ public sealed class UserFacingReportBuilder : IReportBuilder
             rows[index].Values["No"] = index + 1;
     }
 
-    private static IReadOnlyList<ReportSummaryItemDto> BuildElementSummary(IReadOnlyList<ElementReportRowDto> rows)
+    private static IReadOnlyList<ReportSummaryItemDto> BuildElementSummary(
+        string templateName,
+        IReadOnlyList<ElementReportRowDto> rows)
     {
         int total = rows.Count;
         int verified = rows.Count(row => row.WeightVerified == "Yes");
@@ -301,14 +386,18 @@ public sealed class UserFacingReportBuilder : IReportBuilder
         int missing = rows.Count(row => row.WeightStatus == "Missing");
         int gaReady = rows.Count(row => row.IncludedInCraneOptimization == "Yes");
 
-        return
-        [
+        var summary = new List<ReportSummaryItemDto>
+        {
             Summary("Total Items", total.ToString(CultureInfo.InvariantCulture)),
             Summary("Verified Weights", CountPercent(verified, total)),
             Summary("Estimated Weights", CountPercent(estimated, total)),
-            Summary("Missing Weights", CountPercent(missing, total)),
-            Summary("GA-Ready Items", CountPercent(gaReady, total))
-        ];
+            Summary("Missing Weights", CountPercent(missing, total))
+        };
+
+        if (templateName.Equals(ReportTemplateCatalog.GaReadiness, StringComparison.OrdinalIgnoreCase))
+            summary.Add(Summary("GA-Ready Items", CountPercent(gaReady, total)));
+
+        return summary;
     }
 
     private static IReadOnlyList<ReportSummaryItemDto> BuildLiftingSummary(IReadOnlyList<LiftingResultReportRowDto> rows)

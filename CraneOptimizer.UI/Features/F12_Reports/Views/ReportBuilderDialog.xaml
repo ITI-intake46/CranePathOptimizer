@@ -233,6 +233,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Report Template" Style="{StaticResource FieldLabel}"/>
@@ -264,6 +265,14 @@
                            VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis"
                            Margin="0,0,0,2"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Preview Rows" Style="{StaticResource FieldLabel}" Margin="0,8,8,0"/>
+                <ComboBox Grid.Row="2" Grid.Column="1"
+                          MinWidth="180"
+                          Margin="0,8,0,0"
+                          Style="{StaticResource ReportComboBox}"
+                          ItemsSource="{Binding PreviewRowModeOptions}"
+                          SelectedItem="{Binding PreviewRowMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
             </Grid>
         </Border>
 

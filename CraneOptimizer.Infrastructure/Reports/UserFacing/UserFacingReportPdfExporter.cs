@@ -51,7 +51,7 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
         container.Page(page =>
         {
             ApplyPageDefaults(page, report, landscape: true);
-            page.Content().Element(content => ComposeMainTable(content, report, cancellationToken));
+            page.Content().Element(content => ComposeMainTables(content, report, cancellationToken));
             page.Footer().Element(footer => ComposeFooter(footer, report));
         });
 
@@ -120,14 +120,35 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
             if (metadata.CraneInfo != null)
             {
                 var crane = metadata.CraneInfo;
-                column.Item().Element(item => ComposeKeyValueBlock(item, "Crane Information",
+                column.Item().Element(item => ComposeKeyValueBlock(item, "Crane / GA Information",
                 [
+                    ("GA Run", metadata.GaRunStatusText),
                     ("Crane", crane.CraneName),
+                    ("Model / Specification", crane.CraneModelOrSpecification),
                     ("Manufacturer", crane.Manufacturer),
+                    ("Crane Type", crane.CraneType),
                     ("Load Chart", crane.LoadChartName),
+                    ("Counterweight", crane.CounterweightTons.HasValue ? $"{crane.CounterweightTons.Value:0.##} tons" : null),
+                    ("Outrigger Configuration", crane.OutriggerConfiguration),
+                    ("Vehicle Length", crane.VehicleLengthText),
+                    ("Vehicle Width", crane.VehicleWidthText),
+                    ("Vehicle Height", crane.VehicleHeightText),
+                    ("Outrigger Length", crane.OutriggerLengthText),
+                    ("Outrigger Width", crane.OutriggerWidthText),
                     ("Working Radius", crane.WorkingRadiusRangeText),
+                    ("Min Radius", crane.MinRadiusText),
+                    ("Max Radius", crane.MaxRadiusText),
                     ("Boom Length", crane.BoomLengthRangeText),
+                    ("Min Boom Length", crane.MinBoomLengthText),
+                    ("Max Boom Length", crane.MaxBoomLengthText),
                     ("Maximum Capacity", crane.MaximumCapacityTons.HasValue ? $"{crane.MaximumCapacityTons.Value:0.##} tons" : null),
+                    ("Safety Factor", crane.SafetyFactorText),
+                    ("Derating Ratio", crane.DeratingRatioText),
+                    ("Combined Capacity Factor", crane.CombinedCapacityFactorText),
+                    ("Wire Length", crane.WireLengthText),
+                    ("Lifting Accessories / Additional Weight", metadata.LiftingAccessories != null
+                        ? $"{metadata.LiftingAccessories.TotalAdditionalWeightTons:0.00} tons"
+                        : null),
                     ("Capacity Factor", crane.CapacityFactor.ToString("0.00", CultureInfo.InvariantCulture))
                 ]));
             }
@@ -147,7 +168,7 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
             }
 
             if (report.CraneSetups.Count > 0)
-                column.Item().Element(item => ComposeCraneSetupTable(item, report.CraneSetups));
+                column.Item().Element(item => ComposeCraneSetupTable(item, "Final GA Setup Points", report.CraneSetups));
         });
     }
 
@@ -221,11 +242,11 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
         return rows;
     }
 
-    private static void ComposeCraneSetupTable(IContainer container, IReadOnlyList<CraneSetupReportRowDto> setups)
+    private static void ComposeCraneSetupTable(IContainer container, string title, IReadOnlyList<CraneSetupReportRowDto> setups)
     {
         container.Column(column =>
         {
-            column.Item().Text("Crane Setups").FontSize(12).Bold().FontColor(Colors.Orange.Darken2);
+            column.Item().Text(title).FontSize(12).Bold().FontColor(Colors.Orange.Darken2);
             column.Item().PaddingTop(4).Table(table =>
             {
                 table.ColumnsDefinition(columns =>
@@ -238,12 +259,12 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
                     columns.RelativeColumn();
                 });
 
-                foreach (var header in new[] { "Setup No.", "Crane X", "Crane Y", "Crane Z", "Lifted Items", "Lifted %" })
+                foreach (var header in new[] { "Final Setup Point", "X", "Y", "Z", "Lifted Items", "Lifted %" })
                     table.Cell().Background(Colors.Grey.Lighten3).Padding(3).Text(header).SemiBold();
 
                 foreach (var setup in setups)
                 {
-                    table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3).Text(setup.SetupNo.ToString(CultureInfo.InvariantCulture));
+                    table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3).Text($"Point_{setup.SetupNo}");
                     table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3).AlignRight().Text($"{setup.CraneX:0.00}");
                     table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3).AlignRight().Text($"{setup.CraneY:0.00}");
                     table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3).AlignRight().Text($"{setup.CraneZ:0.00}");
@@ -254,29 +275,59 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
         });
     }
 
-    private static void ComposeMainTable(
+    private static void ComposeMainTables(
         IContainer container,
         ReportDocumentDto report,
         CancellationToken cancellationToken)
     {
+        var groups = BuildColumnGroups(report.Columns, report.PreferA3Landscape, report.TextSizePt);
+
+        container.Column(column =>
+        {
+            for (var index = 0; index < groups.Count; index++)
+            {
+                if (index > 0)
+                    column.Item().PageBreak();
+
+                if (groups.Count > 1)
+                {
+                    column.Item().PaddingBottom(6)
+                        .Text($"Columns {index + 1} of {groups.Count}")
+                        .FontSize(9)
+                        .SemiBold()
+                        .FontColor(Colors.Grey.Darken2);
+                }
+
+                var group = groups[index];
+                column.Item().Element(content => ComposeMainTable(content, group, report.Rows, cancellationToken));
+            }
+        });
+    }
+
+    private static void ComposeMainTable(
+        IContainer container,
+        IReadOnlyList<ReportColumnDefinition> columns,
+        IReadOnlyList<ReportDataRowDto> rows,
+        CancellationToken cancellationToken)
+    {
         container.Table(table =>
         {
-            table.ColumnsDefinition(columns =>
+            table.ColumnsDefinition(definition =>
             {
-                foreach (var column in report.Columns)
-                    columns.RelativeColumn(GetPdfColumnWeight(column));
+                foreach (var column in columns)
+                    definition.RelativeColumn(GetPdfColumnWeight(column));
             });
 
             table.Header(header =>
             {
-                foreach (var column in report.Columns)
+                foreach (var column in columns)
                     header.Cell().Background(Colors.Grey.Lighten3).Border(0.25f).BorderColor(Colors.Grey.Lighten1).Padding(3).Text(column.Header).SemiBold().FontSize(GetBodyFontSize(column));
             });
 
-            foreach (var row in report.Rows)
+            foreach (var row in rows)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                foreach (var column in report.Columns)
+                foreach (var column in columns)
                 {
                     row.Values.TryGetValue(column.Key, out var value);
                     var cell = table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3);
@@ -285,6 +336,52 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
             }
         });
     }
+
+    private static IReadOnlyList<IReadOnlyList<ReportColumnDefinition>> BuildColumnGroups(
+        IReadOnlyList<ReportColumnDefinition> columns,
+        bool preferA3Landscape,
+        double textSizePt)
+    {
+        var maxWeight = (preferA3Landscape ? 18.0 : 12.0) * Math.Max(1.0, 10.0 / Math.Clamp(textSizePt, 6, 32));
+        var totalWeight = columns.Sum(column => GetPdfColumnWeight(column));
+        if (totalWeight <= maxWeight)
+            return [columns];
+
+        var identityColumns = columns
+            .Where(IsRepeatedIdentityColumn)
+            .Take(2)
+            .ToList();
+        var dataColumns = columns
+            .Where(column => !identityColumns.Any(identity => identity.Key.Equals(column.Key, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        var groups = new List<IReadOnlyList<ReportColumnDefinition>>();
+        var current = new List<ReportColumnDefinition>(identityColumns);
+        var currentWeight = current.Sum(column => GetPdfColumnWeight(column));
+
+        foreach (var dataColumn in dataColumns)
+        {
+            var columnWeight = GetPdfColumnWeight(dataColumn);
+            if (current.Count > identityColumns.Count && currentWeight + columnWeight > maxWeight)
+            {
+                groups.Add(current.ToList());
+                current = new List<ReportColumnDefinition>(identityColumns);
+                currentWeight = current.Sum(column => GetPdfColumnWeight(column));
+            }
+
+            current.Add(dataColumn);
+            currentWeight += columnWeight;
+        }
+
+        if (current.Count > 0)
+            groups.Add(current);
+
+        return groups;
+    }
+
+    private static bool IsRepeatedIdentityColumn(ReportColumnDefinition column) =>
+        column.Key.Equals("No", StringComparison.OrdinalIgnoreCase)
+        || column.Key.Equals("ElementMark", StringComparison.OrdinalIgnoreCase);
 
     private static float GetBodyFontSize(ReportColumnDefinition column) =>
         (float)ParseTextSize(column.TextSize);

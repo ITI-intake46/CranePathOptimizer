@@ -23,7 +23,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public double BestRadius { get; set; }
         public double RequiredBoomLength { get; set; }
         public double RequiredCapacity { get; set; }
+        public double RawChartCapacity { get; set; }
         public double AvailableCapacity { get; set; }
+        public double AdditionalWt { get; set; }
+        public double DeratingRatio { get; set; }
+        public double SafetyFactor { get; set; }
+        public double WireLength { get; set; }
         public string LiftStatus { get; set; } = string.Empty;
         public bool IsLifted { get; set; }
         public string FailureReason { get; set; } = string.Empty;

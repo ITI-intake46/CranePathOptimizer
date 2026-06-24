@@ -154,13 +154,33 @@ public sealed class UserFacingReportExcelExporter : IReportExcelExporter
         {
             var crane = report.Metadata.CraneInfo;
             rows.Add(Row("", ""));
-            rows.Add(Row("Crane Information", ""));
+            rows.Add(Row("Crane / GA Information", ""));
+            rows.Add(Row("GA Run", report.Metadata.GaRunStatusText));
             rows.Add(Row("Crane", crane.CraneName));
+            rows.Add(Row("Model / Specification", crane.CraneModelOrSpecification));
             rows.Add(Row("Manufacturer", crane.Manufacturer));
+            rows.Add(Row("Crane Type", crane.CraneType));
             rows.Add(Row("Load Chart", crane.LoadChartName));
+            rows.Add(Row("Counterweight", crane.CounterweightTons.HasValue ? $"{crane.CounterweightTons.Value:0.##} tons" : null));
+            rows.Add(Row("Outrigger Configuration", crane.OutriggerConfiguration));
+            rows.Add(Row("Vehicle Length", crane.VehicleLengthText));
+            rows.Add(Row("Vehicle Width", crane.VehicleWidthText));
+            rows.Add(Row("Vehicle Height", crane.VehicleHeightText));
+            rows.Add(Row("Outrigger Length", crane.OutriggerLengthText));
+            rows.Add(Row("Outrigger Width", crane.OutriggerWidthText));
             rows.Add(Row("Working Radius", crane.WorkingRadiusRangeText));
+            rows.Add(Row("Min Radius", crane.MinRadiusText));
+            rows.Add(Row("Max Radius", crane.MaxRadiusText));
             rows.Add(Row("Boom Length", crane.BoomLengthRangeText));
+            rows.Add(Row("Min Boom Length", crane.MinBoomLengthText));
+            rows.Add(Row("Max Boom Length", crane.MaxBoomLengthText));
             rows.Add(Row("Maximum Capacity", crane.MaximumCapacityTons.HasValue ? $"{crane.MaximumCapacityTons.Value:0.##} tons" : null));
+            rows.Add(Row("Safety Factor", crane.SafetyFactorText));
+            rows.Add(Row("Derating Ratio", crane.DeratingRatioText));
+            rows.Add(Row("Combined Capacity Factor", crane.CombinedCapacityFactorText));
+            rows.Add(Row("Wire Length", crane.WireLengthText));
+            if (report.Metadata.LiftingAccessories != null)
+                rows.Add(Row("Lifting Accessories / Additional Weight", $"{report.Metadata.LiftingAccessories.TotalAdditionalWeightTons:0.00} tons"));
             rows.Add(Row("Capacity Factor", crane.CapacityFactor.ToString("0.00", CultureInfo.InvariantCulture)));
         }
 

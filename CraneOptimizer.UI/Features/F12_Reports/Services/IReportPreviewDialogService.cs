@@ -7,6 +7,7 @@ public interface IReportPreviewDialogService
     void ShowPreview(
         ReportDocumentDto report,
         ReportLayoutFitResult layoutFit,
+        int? previewRowLimit,
         Func<Task> exportPdfAsync,
         Func<Task> exportExcelAsync);
 }

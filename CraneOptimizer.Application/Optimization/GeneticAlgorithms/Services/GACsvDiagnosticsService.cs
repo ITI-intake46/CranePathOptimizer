@@ -190,7 +190,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         IfcFileName = input.IfcFileName ?? "N/A",
                         CraneNameOrId = input.CraneSpec?.Crane?.Name ?? (input.CraneSpec != null ? $"Spec ID: {input.CraneSpec.Id}" : "N/A"),
                         ElementId = element.ElementID,
-                        ElementName = element.ElementMark ?? "N/A",
+                        ElementName = element.ElementName ?? element.ElementMark ?? "N/A",
                         ElementType = element.ElementType ?? "N/A",
                         StoreyOrElevation = element.ElementCOG.Z.ToString("0.###", Invariant),
                         Weight = element.ElementWT ?? 0.0,
@@ -204,7 +204,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         BestRadius = bestResult.Radius,
                         RequiredBoomLength = bestResult.BoomLength,
                         RequiredCapacity = bestResult.RequiredCapacity,
+                        RawChartCapacity = bestResult.RawChartCapacity,
                         AvailableCapacity = bestResult.AvailableCapacity,
+                        AdditionalWt = input.Settings?.AdditionalWt ?? 0.0,
+                        DeratingRatio = input.Settings?.DeratingRatio ?? 0.0,
+                        SafetyFactor = input.Settings?.SafetyFactor ?? 0.0,
+                        WireLength = input.Settings?.WireLength ?? 0.0,
                         LiftStatus = bestResult.Status.ToString(),
                         IsLifted = isLifted,
                         FailureReason = failureReason,
@@ -283,7 +288,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         "Timestamp", "ProjectName", "IfcFileName", "CraneNameOrId", "ElementId", "ElementName", "ElementType",
                         "StoreyOrElevation", "Weight", "COG_X", "COG_Y", "COG_Z", "AssignedSetupIndex", "AssignedCraneX",
                         "AssignedCraneY", "AssignedCraneZ", "BestRadius", "RequiredBoomLength", "RequiredCapacity",
-                        "AvailableCapacity", "LiftStatus", "IsLifted", "FailureReason", "FailureCategory", "SuggestedAction",
+                        "RawChartCapacity", "AvailableCapacity", "AdditionalWt", "DeratingRatio", "SafetyFactor", "WireLength",
+                        "LiftStatus", "IsLifted", "FailureReason", "FailureCategory", "SuggestedAction",
                         "ReachStatus", "ChartStatus", "IsExactMatch", "IsSteppedRadius", "IsBlankCell", "IsZeroCell", "SafetyMargin",
                         "LookupMode", "RequiredRadius", "SelectedChartRadius", "SelectedChartBoomLength",
                         "SelectedVisualColumnIndex", "SelectedVisualColumnHeader", "SelectedNumberOfLines", "SelectedOperatingConditionLabel", "IsConservativeDuplicateFallback", "DuplicateAlternativeCount", "DuplicateAlternativeSummary",
@@ -368,7 +374,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                             row.BestRadius.ToString("0.###", Invariant),
                             row.RequiredBoomLength.ToString("0.###", Invariant),
                             row.RequiredCapacity.ToString("0.###", Invariant),
+                            row.RawChartCapacity.ToString("0.###", Invariant),
                             row.AvailableCapacity.ToString("0.###", Invariant),
+                            row.AdditionalWt.ToString("0.###", Invariant),
+                            row.DeratingRatio.ToString("0.###", Invariant),
+                            row.SafetyFactor.ToString("0.###", Invariant),
+                            row.WireLength.ToString("0.###", Invariant),
                             row.LiftStatus,
                             row.IsLifted ? "true" : "false",
                             Escape(row.FailureReason),
@@ -1360,7 +1371,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             public double BestRadius { get; set; }
             public double RequiredBoomLength { get; set; }
             public double RequiredCapacity { get; set; }
+            public double RawChartCapacity { get; set; }
             public double AvailableCapacity { get; set; }
+            public double AdditionalWt { get; set; }
+            public double DeratingRatio { get; set; }
+            public double SafetyFactor { get; set; }
+            public double WireLength { get; set; }
             public string LiftStatus { get; set; } = "";
             public bool IsLifted { get; set; }
             public string FailureReason { get; set; } = "";

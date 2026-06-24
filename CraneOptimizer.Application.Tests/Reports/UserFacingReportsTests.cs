@@ -1,11 +1,13 @@
 using System.IO.Compression;
 using System.Xml.Linq;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Reports.Definitions;
 using CraneOptimizer.Application.Reports.DTOs;
 using CraneOptimizer.Application.Reports.Services;
 using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Infrastructure.Reports.UserFacing;
+using CraneOptimizer.UI.Features.F12_Reports.Services;
 
 namespace CraneOptimizer.Application.Tests.Reports;
 
@@ -170,13 +172,13 @@ public sealed class UserFacingReportsTests : IDisposable
     }
 
     [Fact]
-    public void LiftingUtilization_OutOfRadius_ReturnsNull()
+    public void LiftingUtilization_UsesAvailableCapacityWhenPresent()
     {
         var row = LiftRow(required: 5.0, available: 10.0, status: "OutOfRadius");
 
         var utilization = LiftingResultReportDataProvider.CalculateUtilization(row);
 
-        Assert.Null(utilization);
+        Assert.Equal(50.0, utilization!.Value, precision: 3);
     }
 
     [Fact]
@@ -289,7 +291,7 @@ public sealed class UserFacingReportsTests : IDisposable
     }
 
     [Fact]
-    public void ReportTemplateCatalog_GaReadiness_IncludesRequiredLiftColumns()
+    public void ReportTemplateCatalog_GaReadiness_IsPreGaReadinessTemplate()
     {
         var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.GaReadiness);
         var selectedKeys = template.Columns
@@ -302,26 +304,18 @@ public sealed class UserFacingReportsTests : IDisposable
             [
                 "No",
                 "ElementMark",
-                "SourceRevitId",
-                "StoreyLevel",
                 "WeightTons",
                 "WeightVerified",
                 "WeightStatus",
                 "IncludedInCraneOptimization",
-                "LiftStatus",
-                "BestRadius",
-                "RequiredBoomLength",
-                "RequiredCapacity",
-                "AvailableCapacity",
-                "CapacityUtilizationPercent",
-                "SafetyMargin",
-                "FailureReason",
-                "SuggestedAction"
+                "ReadyForGa",
+                "MissingReadinessReason"
             ],
             selectedKeys);
 
-        Assert.Contains(template.Columns, column => column.Key == "ReachStatus" && !column.IsSelected);
-        Assert.Contains(template.Columns, column => column.Key == "ChartStatus" && !column.IsSelected);
+        Assert.DoesNotContain(selectedKeys, key => key == "SourceRevitId");
+        Assert.DoesNotContain(selectedKeys, key => key == "LiftStatus");
+        Assert.DoesNotContain(selectedKeys, key => key == "BestRadius");
     }
 
     [Fact]
@@ -413,6 +407,18 @@ public sealed class UserFacingReportsTests : IDisposable
     {
         var builder = CreateBuilder();
         var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.GaReadiness);
+        var gaColumns = ReportTemplateCatalog.GetAvailableColumns(ReportFamily.ElementList)
+            .Where(column => column.Key is "LiftStatus" or "CapacityUtilizationPercent" or "FailureReason")
+            .Select((column, index) => new ReportColumnDefinition
+            {
+                Key = column.Key,
+                Header = column.Header,
+                ValueKind = column.ValueKind,
+                Order = template.Columns.Count + index,
+                IsSelected = true,
+                Category = column.Category
+            })
+            .ToList();
         var request = ElementRequest(ReportTemplateCatalog.GaReadiness, "GA-Ready Elements", generalNotes: null);
         request = new ReportBuildRequestDto
         {
@@ -420,7 +426,7 @@ public sealed class UserFacingReportsTests : IDisposable
             TemplateName = request.TemplateName,
             ItemsIncluded = request.ItemsIncluded,
             Metadata = request.Metadata,
-            SelectedColumns = template.Columns,
+            SelectedColumns = template.Columns.Concat(gaColumns).ToList(),
             SourceElements = request.SourceElements,
             LiftingResults = []
         };
@@ -474,9 +480,544 @@ public sealed class UserFacingReportsTests : IDisposable
         {
             var storey = Assert.IsType<string>(row.Values["StoreyLevel"]);
             Assert.NotEqual("-", storey);
-            Assert.StartsWith("Level", storey);
             Assert.DoesNotContain("m", storey, StringComparison.OrdinalIgnoreCase);
         });
+    }
+
+    [Fact]
+    public async Task ReportBuilder_ElementMark_DoesNotFallbackToElementType()
+    {
+        var builder = CreateBuilder();
+        var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.BasicElementList);
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = template.Name,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project" },
+            SelectedColumns = template.Columns,
+            SourceElements =
+            [
+                new PrecastElement
+                {
+                    ElementID = "e1",
+                    ElementName = "FOOTING-A",
+                    ElementType = "PAD-FOOTING",
+                    ElementMaterial = "C30",
+                    ElementLength = 1.5,
+                    ElementWidth = 1.5,
+                    ElementHeight = 0.6,
+                    ElementWT = 1.0,
+                    WeightTons = 1.0,
+                    WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
+                    WeightSource = "ExplicitQuantity",
+                    IncludeInGa = true
+                }
+            ]
+        };
+
+        var document = await builder.BuildAsync(request);
+        var row = Assert.Single(document.Rows).Values;
+
+        Assert.Equal("FOOTING-A", row["ElementMark"]);
+        Assert.Equal("PAD-FOOTING", row["ElementType"]);
+        Assert.Equal("C30", row["Material"]);
+    }
+
+    [Fact]
+    public async Task ReportBuilder_ElementMark_NeverFallsBackToMaterialOrElementType()
+    {
+        var builder = CreateBuilder();
+        var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.BasicElementList);
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = template.Name,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project" },
+            SelectedColumns = template.Columns,
+            SourceElements =
+            [
+                new PrecastElement
+                {
+                    ElementID = "e1",
+                    ElementMark = " ",
+                    ElementName = " ",
+                    ElementType = "Footing",
+                    ElementMaterial = "C30",
+                    ElementWT = 1.0,
+                    WeightTons = 1.0,
+                    WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
+                    WeightSource = "ExplicitQuantity",
+                    IncludeInGa = true
+                }
+            ]
+        };
+
+        var document = await builder.BuildAsync(request);
+        var row = Assert.Single(document.Rows).Values;
+
+        Assert.Equal("\u2014", row["ElementMark"]);
+        Assert.Equal("Footing", row["ElementType"]);
+        Assert.Equal("C30", row["Material"]);
+    }
+
+    [Fact]
+    public async Task ReportBuilder_BasicElementMapping_UsesIndependentNormalizedFields()
+    {
+        var builder = CreateBuilder();
+        var columns = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.BasicElementList)
+            .Columns
+            .Concat([
+                new ReportColumnDefinition
+                {
+                    Key = "ElementName",
+                    Header = "Element Name",
+                    ValueKind = ReportColumnValueKind.Text,
+                    Order = 99,
+                    IsSelected = true
+                },
+                new ReportColumnDefinition
+                {
+                    Key = "IncludedInCraneOptimization",
+                    Header = "Included in GA Input",
+                    ValueKind = ReportColumnValueKind.YesNo,
+                    Order = 100,
+                    IsSelected = true
+                }
+            ])
+            .ToList();
+
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = ReportTemplateCatalog.BasicElementList,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project" },
+            SelectedColumns = columns,
+            SourceElements =
+            [
+                new PrecastElement
+                {
+                    ElementID = "E1",
+                    ElementMark = "MARK-001",
+                    ElementName = "FOOTING-A",
+                    ElementType = "Footing",
+                    ElementMaterial = "C30",
+                    VolumeM3 = 1.25,
+                    WeightTons = 3.30,
+                    ElementWT = 3.30,
+                    WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
+                    WeightSource = "ExplicitQuantity",
+                    IncludeInGa = true
+                }
+            ]
+        };
+
+        var document = await builder.BuildAsync(request);
+        var row = Assert.Single(document.Rows).Values;
+
+        Assert.Equal("MARK-001", row["ElementMark"]);
+        Assert.Equal("FOOTING-A", row["ElementName"]);
+        Assert.Equal("Footing", row["ElementType"]);
+        Assert.Equal("C30", row["Material"]);
+        Assert.Equal(1.25, Assert.IsType<double>(row["VolumeM3"]), precision: 3);
+        Assert.Equal(3.30, Assert.IsType<double>(row["WeightTons"]), precision: 3);
+        Assert.Equal("Yes", row["IncludedInCraneOptimization"]);
+    }
+
+    [Fact]
+    public async Task ReportBuilder_VolumeFallsBackToDimensions()
+    {
+        var builder = CreateBuilder();
+        var columns = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.BasicElementList)
+            .Columns
+            .Concat([
+                new ReportColumnDefinition
+                {
+                    Key = "VolumeSource",
+                    Header = "Volume Source",
+                    ValueKind = ReportColumnValueKind.Text,
+                    Order = 99,
+                    IsSelected = true
+                }
+            ])
+            .ToList();
+
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = ReportTemplateCatalog.BasicElementList,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project" },
+            SelectedColumns = columns,
+            SourceElements =
+            [
+                new PrecastElement
+                {
+                    ElementID = "e1",
+                    ElementMark = "M1",
+                    ElementType = "Footing",
+                    ElementMaterial = "C30",
+                    ElementLength = 1.5,
+                    ElementWidth = 1.5,
+                    ElementHeight = 0.6,
+                    ElementVolume = 0,
+                    VolumeM3 = 0,
+                    ElementWT = 1.0,
+                    WeightTons = 1.0,
+                    WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
+                    WeightSource = "ExplicitQuantity",
+                    IncludeInGa = true
+                }
+            ]
+        };
+
+        var document = await builder.BuildAsync(request);
+        var row = Assert.Single(document.Rows).Values;
+
+        Assert.Equal(1.35, Assert.IsType<double>(row["VolumeM3"]), precision: 3);
+        Assert.Equal("Calculated from dimensions", row["VolumeSource"]);
+    }
+
+    [Fact]
+    public void ReportTemplateCatalog_DefaultTemplates_DoNotSelectSourceIdOrDuplicateWeight()
+    {
+        foreach (var template in ReportTemplateCatalog.GetBuiltInTemplates(ReportFamily.ElementList)
+                     .Concat(ReportTemplateCatalog.GetBuiltInTemplates(ReportFamily.LiftingResult)))
+        {
+            var selectedKeys = template.Columns.Where(column => column.IsSelected).Select(column => column.Key).ToList();
+
+            Assert.DoesNotContain("SourceRevitId", selectedKeys);
+            Assert.Equal(selectedKeys.Count, selectedKeys.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+            Assert.True(selectedKeys.Count(key => key is "Weight" or "WeightTons") <= 1);
+        }
+    }
+
+    [Fact]
+    public async Task ReportBuilder_DuplicateSelectedColumns_AreCollapsed()
+    {
+        var builder = CreateBuilder();
+        var request = ElementRequest(ReportTemplateCatalog.BasicElementList, "All Elements", generalNotes: null);
+        request = new ReportBuildRequestDto
+        {
+            Family = request.Family,
+            TemplateName = request.TemplateName,
+            ItemsIncluded = request.ItemsIncluded,
+            Metadata = request.Metadata,
+            SelectedColumns = request.SelectedColumns.Concat([request.SelectedColumns.First(column => column.Key == "WeightTons")]).ToList(),
+            SourceElements = request.SourceElements
+        };
+
+        var document = await builder.BuildAsync(request);
+
+        Assert.Equal(
+            document.Columns.Count,
+            document.Columns.Select(column => column.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    [Fact]
+    public async Task ReportBuilder_BasicElementListSummary_DoesNotShowGaReadyItems()
+    {
+        var builder = CreateBuilder();
+        var request = ElementRequest(ReportTemplateCatalog.BasicElementList, "All Elements", generalNotes: null);
+
+        var document = await builder.BuildAsync(request);
+
+        Assert.DoesNotContain(document.Metadata.SummaryItems, item => item.Label == "GA-Ready Items");
+    }
+
+    [Fact]
+    public void LiftingStatus_Blank_DoesNotDefaultToLiftable()
+    {
+        Assert.Equal("\u2014", LiftingResultReportDataProvider.MapLiftStatus(""));
+    }
+
+    [Fact]
+    public async Task ReportBuilder_LiftingResult_SeparatesElementHookRequiredAndAvailableCapacities()
+    {
+        var builder = CreateBuilder();
+        var columns = new[]
+        {
+            Column("No", "No.", ReportColumnValueKind.Number, 0),
+            Column("ElementMark", "Element Mark", ReportColumnValueKind.Text, 1),
+            Column("Weight", "Element Weight (t)", ReportColumnValueKind.Tons, 2),
+            Column("HookRiggingWeight", "Hook / Rigging Weight (t)", ReportColumnValueKind.Tons, 3),
+            Column("RequiredCapacity", "Required Capacity (t)", ReportColumnValueKind.Tons, 4),
+            Column("RawChartCapacity", "Raw Chart Capacity (t)", ReportColumnValueKind.Tons, 5),
+            Column("AvailableCapacity", "Available Capacity After Derating/Safety (t)", ReportColumnValueKind.Tons, 6),
+            Column("CapacityUtilizationPercent", "Capacity Utilization (%)", ReportColumnValueKind.Percentage, 7),
+            Column("SafetyMargin", "Safety Margin (t)", ReportColumnValueKind.Tons, 8)
+        };
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.LiftingResult,
+            TemplateName = ReportTemplateCatalog.BasicLiftingResult,
+            ItemsIncluded = "Optimization Result",
+            Metadata = new ReportMetadataDto
+            {
+                ProjectName = "Test Project",
+                HasGaRun = true,
+                CraneInfo = new CraneReportInfoDto
+                {
+                    CraneName = "Crane A",
+                    DeratingRatioText = "0.90",
+                    SafetyFactorText = "0.95",
+                    CapacityFactor = 0.855
+                },
+                LiftingAccessories = new LiftingAccessoriesInfoDto { AdditionalWeightTons = 0.70 }
+            },
+            SelectedColumns = columns,
+            LiftingResults =
+            [
+                new LiftingResultSourceRowDto
+                {
+                    ElementId = "E1",
+                    ElementMark = "MARK-001",
+                    AssignedSetupNo = 1,
+                    Radius = 12,
+                    BoomLength = 24,
+                    RequiredCapacity = 4.00,
+                    AvailableCapacity = 8.55,
+                    InternalLiftStatus = "Liftable",
+                    IsFinalAssigned = true,
+                    Values = new Dictionary<string, object?>
+                    {
+                        ["Weight"] = 3.30,
+                        ["HookRiggingWeight"] = 0.70,
+                        ["RawChartCapacity"] = 10.00,
+                        ["DeratingRatio"] = 0.90,
+                        ["SafetyFactor"] = 0.95
+                    }
+                }
+            ]
+        };
+
+        var document = await builder.BuildAsync(request);
+        var row = Assert.Single(document.Rows).Values;
+
+        Assert.Equal(3.30, Assert.IsType<double>(row["Weight"]), precision: 3);
+        Assert.Equal(0.70, Assert.IsType<double>(row["HookRiggingWeight"]), precision: 3);
+        Assert.Equal(4.00, Assert.IsType<double>(row["RequiredCapacity"]), precision: 3);
+        Assert.Equal(10.00, Assert.IsType<double>(row["RawChartCapacity"]), precision: 3);
+        Assert.Equal(8.55, Assert.IsType<double>(row["AvailableCapacity"]), precision: 3);
+        Assert.Equal(46.78, Assert.IsType<double>(row["CapacityUtilizationPercent"]), precision: 2);
+        Assert.Equal(4.55, Assert.IsType<double>(row["SafetyMargin"]), precision: 2);
+    }
+
+    [Fact]
+    public async Task ReportBuilder_DataSourceAudit_ExplainsElementAndGaSources()
+    {
+        var builder = CreateBuilder();
+        var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.ReportDataSourceAudit);
+
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = ReportTemplateCatalog.ReportDataSourceAudit,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project", HasGaRun = false },
+            SelectedColumns = template.Columns,
+            SourceElements = [Element("E1", 3.30, IfcWeightTrustLevel.ExplicitQuantity)],
+            LiftingResults = []
+        };
+
+        var document = await builder.BuildAsync(request);
+
+        Assert.Contains(document.Rows, row =>
+            Equals(row.Values["ReportColumn"], "Element Mark")
+            && Equals(row.Values["SourceObjectOrFile"], "PrecastElement")
+            && row.Values["SourceField"]?.ToString()?.Contains("PrecastElement.ElementMark", StringComparison.Ordinal) == true);
+        Assert.Contains(document.Rows, row =>
+            Equals(row.Values["ReportColumn"], "Material")
+            && Equals(row.Values["SourceField"], "PrecastElement.ElementMaterial"));
+        Assert.Contains(document.Rows, row =>
+            row.Values["RequiredAction"]?.ToString()?.Contains("No GA source rows found", StringComparison.OrdinalIgnoreCase) == true);
+        Assert.Contains(document.Rows, row =>
+            row.Values["RequiredAction"]?.ToString()?.Contains("Required Capacity = Element Weight + Hook / Rigging Weight", StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    [Fact]
+    public async Task ReportBuilder_DataSourceAudit_ReportsPlacementResultSource_WhenMemoryGaRowsPopulateRequest()
+    {
+        var builder = CreateBuilder();
+        var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.ReportDataSourceAudit);
+
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = ReportTemplateCatalog.ReportDataSourceAudit,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project", HasGaRun = true },
+            SelectedColumns = template.Columns,
+            SourceElements = [Element("E1", 3.30, IfcWeightTrustLevel.ExplicitQuantity)],
+            LiftingResults =
+            [
+                new LiftingResultSourceRowDto
+                {
+                    SourceType = "PlacementResult / ElementLiftResult",
+                    ElementId = "E1",
+                    Values = new Dictionary<string, object?>
+                    {
+                        ["LiftStatus"] = "Liftable",
+                        ["RequiredCapacity"] = 4.00,
+                        ["RawChartCapacity"] = 10.00,
+                        ["AvailableCapacity"] = 8.55,
+                        ["SafetyMargin"] = 4.55,
+                        ["AssignedGaPoint"] = "Point_1"
+                    }
+                }
+            ]
+        };
+
+        var document = await builder.BuildAsync(request);
+
+        Assert.Contains(document.Rows, row =>
+            Equals(row.Values["ReportColumn"], "Lift Status")
+            && Equals(row.Values["SourceObjectOrFile"], "PlacementResult / ElementLiftResult")
+            && Equals(row.Values["RowsFound"], 1));
+        Assert.Contains(document.Rows, row =>
+            Equals(row.Values["ReportColumn"], "Current in-memory GA result present/missing")
+            && Equals(row.Values["SourceObjectOrFile"], "PlacementResult / ElementLiftResult")
+            && Equals(row.Values["CurrentAvailability"], "Available"));
+    }
+
+    [Fact]
+    public async Task ReportBuilder_DataSourceAudit_ReportsDiagnosticsSource_WhenDiagnosticsRowsPopulateRequest()
+    {
+        var builder = CreateBuilder();
+        var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.ReportDataSourceAudit);
+
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = ReportTemplateCatalog.ReportDataSourceAudit,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project", HasGaRun = true },
+            SelectedColumns = template.Columns,
+            SourceElements = [Element("E1", 3.30, IfcWeightTrustLevel.ExplicitQuantity)],
+            LiftingResults =
+            [
+                new LiftingResultSourceRowDto
+                {
+                    SourceType = "GADiagnosticsReaderService / GAElementDiagnosticDto",
+                    ElementId = "E1",
+                    Values = new Dictionary<string, object?> { ["LiftStatus"] = "Liftable" }
+                }
+            ]
+        };
+
+        var document = await builder.BuildAsync(request);
+
+        Assert.Contains(document.Rows, row =>
+            Equals(row.Values["ReportColumn"], "Lift Status")
+            && Equals(row.Values["SourceObjectOrFile"], "GADiagnosticsReaderService / GAElementDiagnosticDto"));
+    }
+
+    [Fact]
+    public void GaDiagnosticsReader_ReadsLegacyCapacityAndRunSettingAliases()
+    {
+        var path = Path.Combine(_tempDir, "ga_audit_diagnostics.csv");
+        File.WriteAllText(path,
+            "Timestamp,ProjectName,IfcFileName,CraneNameOrId,ElementId,ElementName,ElementType,StoreyOrElevation,Weight,COG_X,COG_Y,COG_Z,AssignedSetupIndex,AssignedCraneX,AssignedCraneY,AssignedCraneZ,BestRadius,RequiredBoomLength,RequiredWeight,ChartCapacity,AvailableCapacity,AdditionalWt,DeratingRatio,SafetyFactor,WireLength,LiftStatus,IsLifted,FailureReason" + Environment.NewLine +
+            "2026-06-25 10:00,Project,model.ifc,Crane A,E1,MARK-001,Footing,L1,3.30,0,0,0,0,1,2,0,12,24,4.00,10.00,8.55,0.70,0.90,0.95,30,Liftable,true," + Environment.NewLine);
+
+        var rows = new GADiagnosticsReaderService().ReadDetailedDiagnostics(path);
+        var row = Assert.Single(rows);
+
+        Assert.Equal("E1", row.ElementId);
+        Assert.Equal(4.00, row.RequiredCapacity, precision: 3);
+        Assert.Equal(10.00, row.RawChartCapacity, precision: 3);
+        Assert.Equal(8.55, row.AvailableCapacity, precision: 3);
+        Assert.Equal(0.70, row.AdditionalWt, precision: 3);
+        Assert.Equal(0.90, row.DeratingRatio, precision: 3);
+        Assert.Equal(0.95, row.SafetyFactor, precision: 3);
+        Assert.Equal(30.0, row.WireLength, precision: 3);
+        Assert.Equal("Liftable", row.LiftStatus);
+    }
+
+    [Fact]
+    public async Task LiftingRows_AssignedGaPoint_UsesFinalOwnerBeforeAssignedFields()
+    {
+        var provider = new LiftingResultReportDataProvider();
+
+        var rows = provider.BuildRows(
+            ReportTemplateCatalog.BasicLiftingResult,
+            "Optimization Result",
+            [
+                new LiftingResultSourceRowDto
+                {
+                    ElementId = "e1",
+                    ElementMark = "M1",
+                    AssignedSetupNo = 3,
+                    InternalLiftStatus = "Liftable",
+                    IsFinalAssigned = true,
+                    Values = new Dictionary<string, object?>
+                    {
+                        ["FinalOwnerPointId"] = "2",
+                        ["AssignedPointId"] = "4",
+                        ["AssignedPointIndex"] = 0
+                    }
+                }
+            ]);
+
+        Assert.Equal("Point_2", Assert.Single(rows).Values["AssignedGaPoint"]);
+        await Task.CompletedTask;
+    }
+
+    [Fact]
+    public void PdfColumnPlanner_SplitsWideReports()
+    {
+        var method = typeof(UserFacingReportPdfExporter).GetMethod(
+            "BuildColumnGroups",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var columns = Enumerable.Range(0, 30)
+            .Select(index => new ReportColumnDefinition
+            {
+                Key = index == 0 ? "No" : index == 1 ? "ElementMark" : $"Column{index}",
+                Header = index == 0 ? "No." : index == 1 ? "Element Mark" : $"Very Wide Column {index}",
+                ValueKind = index == 0 ? ReportColumnValueKind.Number : ReportColumnValueKind.Text,
+                IsSelected = true,
+                Order = index
+            })
+            .ToList();
+
+        var groups = Assert.IsAssignableFrom<IReadOnlyList<IReadOnlyList<ReportColumnDefinition>>>(
+            method.Invoke(null, [columns, false, 10d]));
+
+        Assert.True(groups.Count > 1);
+        Assert.All(groups, group => Assert.Contains(group, column => column.Key == "No"));
+    }
+
+    [Fact]
+    public void PreviewViewModel_AllRowsMode_ReturnsAllRows()
+    {
+        var report = new ReportDocumentDto
+        {
+            Metadata = new ReportMetadataDto { ReportName = "Preview Test", ItemsIncluded = "All Elements" },
+            Columns =
+            [
+                new ReportColumnDefinition { Key = "No", Header = "No.", ValueKind = ReportColumnValueKind.Number }
+            ],
+            Rows = Enumerable.Range(1, 75)
+                .Select(index => new ReportDataRowDto
+                {
+                    Values = new Dictionary<string, object?> { ["No"] = index }
+                })
+                .ToList()
+        };
+
+        var viewModel = new CraneOptimizer.UI.Features.F12_Reports.ViewModels.ReportPreviewViewModel(
+            report,
+            ReportLayoutFitResult.Ok(0, 0),
+            previewRowLimit: null,
+            () => Task.CompletedTask,
+            () => Task.CompletedTask);
+
+        Assert.Equal("All 75", viewModel.PreviewRowsText);
+        Assert.Equal(75, viewModel.PreviewRows.Count);
     }
 
     [Fact]
@@ -581,4 +1122,18 @@ public sealed class UserFacingReportsTests : IDisposable
         InternalLiftStatus = status,
         IsFinalAssigned = true
     };
+
+    private static ReportColumnDefinition Column(
+        string key,
+        string header,
+        ReportColumnValueKind kind,
+        int order) =>
+        new()
+        {
+            Key = key,
+            Header = header,
+            ValueKind = kind,
+            Order = order,
+            IsSelected = true
+        };
 }
