@@ -388,6 +388,21 @@ The coordinate placement offset depends on the selected import mode:
    * LocalReferenceX/Y/Z are set to `0.0`.
    * The manual "Move IFC" command is disabled in the UI to prevent coordinate misalignment.
 
+## Phase 4 — Import Validation & GA Readiness Diagnostics Foundation
+
+Phase 4 introduces a centralized diagnostics and import validation framework to assess precast elements before genetic optimization.
+
+### 1. Centralized Diagnostics Summary (`ImportReadinessSummary`)
+A unified readiness model encapsulates validation results for a collection of elements:
+* **Overall Status**: Driven by the highest severity warning/error among all checked elements (Valid, Warning, Error, or Not Checked).
+* **Element Counts**: Tracks total scoped elements, valid GA candidate elements, and GA-blocked elements.
+* **Breakdown Anomaly Counts**: Captures specific metric counts for missing marks, low confidence mappings, and blocked weights (estimated weights).
+* **Validation Messages**: Collects individual validation messages detailing specific issues per element.
+
+### 2. Genetic Algorithm Candidate Eligibility
+* **Eligibility Gating**: The readiness checks and GA execution share the exact same logic. Any element with an estimated fallback weight is classified as `EstimatedFallback_NotAllowedForGA` and blocked from GA optimization, ensuring consistency.
+* **UI Readiness Card**: Displays overall status badges (Valid/Warning/Error/Not Checked) and detail counts in the left panel of the GA Optimizer dialog. If zero valid candidate elements exist, the optimizer blocks execution and prompts the user.
+
 ## Phase 5 — Canonical Display Identity Alignment
 
 Phase 5 aligns all downstream data paths (Genetic Algorithm results, Reports, and CSV Diagnostics) to consume the Canonical Display Identity resolved from Phase 2/3.

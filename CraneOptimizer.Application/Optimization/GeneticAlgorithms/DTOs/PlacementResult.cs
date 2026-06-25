@@ -58,6 +58,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public string? MarkSource { get; set; }
         public string? MarkConfidence { get; set; }
         public bool IsExplicitMark { get; set; }
+        public string? ValidationStatus { get; set; }
+        public string? WeightTrustLevel { get; set; }
+        public int ValidationWarningCount { get; set; }
+        public string? ValidationWarningsJoined { get; set; }
 
         public string? ElementType { get; set; }
 

@@ -584,6 +584,24 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
             properties.Add(CreateGroup("Location", true, locationItems.ToArray()));
 
+            if (SelectedElement != null)
+            {
+                var identity = CraneOptimizer.Application.Services.Identity.CanonicalMarkResolver.Resolve(SelectedElement);
+
+                properties.Add(CreateGroup("Canonical Identity", true,
+                    CreateDisplayProperty("Display Label", identity.DisplayLabel),
+                    CreateDisplayProperty("Assembly Mark", identity.AssemblyMark ?? "-"),
+                    CreateDisplayProperty("Mark Confidence", identity.MarkConfidence),
+                    CreateDisplayProperty("Explicit Assembly Mark", identity.IsExplicitMark ? "Yes" : "No"),
+                    CreateDisplayProperty("Source System", identity.SourceSystem),
+                    CreateDisplayProperty("Exporter Profile", identity.ExporterProfile)));
+
+                properties.Add(CreateGroup("Validation", true,
+                    CreateDisplayProperty("Validation Status", identity.ValidationStatus),
+                    CreateDisplayProperty("Validation Warnings", identity.ValidationWarnings.Count > 0 ? string.Join("; ", identity.ValidationWarnings) : "-"),
+                    CreateDisplayProperty("Weight Trust Level", SelectedElement.WeightTrustLevel.ToString())));
+            }
+
             return properties;
         }
 

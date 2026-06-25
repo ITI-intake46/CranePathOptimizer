@@ -151,6 +151,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         public string? MarkSource { get; set; }
         public string? MarkConfidence { get; set; }
         public bool IsExplicitMark { get; set; }
+        public string? ValidationStatus { get; set; }
+        public string? WeightTrustLevel { get; set; }
+        public int ValidationWarningCount { get; set; }
+        public string? ValidationWarningsJoined { get; set; }
 
         /// <summary>
         /// Element type from the source model.

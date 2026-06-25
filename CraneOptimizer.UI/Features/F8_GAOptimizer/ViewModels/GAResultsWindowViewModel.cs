@@ -100,6 +100,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             !string.IsNullOrWhiteSpace(_source.CanonicalMark) ? _source.CanonicalMark :
             !string.IsNullOrWhiteSpace(_source.ElementMark) ? _source.ElementMark : "-";
 
+        public string MarkConfidence => !string.IsNullOrWhiteSpace(_source.MarkConfidence) ? _source.MarkConfidence : "None";
+        public string ValidationStatus => !string.IsNullOrWhiteSpace(_source.ValidationStatus) ? _source.ValidationStatus : "Valid";
+        public string WeightTrustLevel => !string.IsNullOrWhiteSpace(_source.WeightTrustLevel) ? _source.WeightTrustLevel : "Missing";
+        public string ValidationWarnings => !string.IsNullOrWhiteSpace(_source.ValidationWarningsJoined) ? _source.ValidationWarningsJoined : "-";
+        public int ValidationWarningCount => _source.ValidationWarningCount;
+
         /// <summary>Horizontal radius in metres.</summary>
         public string RadiusText => _source.Radius.ToString("F2") + " m";
 

@@ -207,18 +207,66 @@ This section details the organization of the Phase 4 diagnostics and model impor
 
 ---
 
-## 10. Phase 5 Canonical Display Identity Alignment Navigation
+## 10. Phase 5 & Reports Structured Closure Navigation
 
-This section details the navigation and data paths for the Phase 5 canonical display identity alignment:
+This section details the navigation and data paths for the canonical display identity, validation, and reports systems:
 
-### Architectural Components
-1. **Neutral Resolver**:
-   - Class: [CanonicalMarkResolver.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/Identity/CanonicalMarkResolver.cs)
-   - Contract: [ElementDisplayIdentityDto.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/Identity/ElementDisplayIdentityDto.cs)
-2. **Authoritative Downstream Models**:
-   - Element Lift DTOs: [ElementLiftResult.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/DTOs/PlacementResult.cs) and [ElementLiftResult.cs (UI)](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/DTOs/CranePlacementResult.cs)
-   - CSV Diagnostics: [GAElementDiagnosticDto.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/DTOs/GAElementDiagnosticDto.cs) and [GACsvDiagnosticsService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/GACsvDiagnosticsService.cs)
-   - Report Row DTOs: [ElementReportRowDto.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/DTOs/ElementReportRowDto.cs) and [LiftingResultSourceRowDto.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/DTOs/LiftingResultSourceRowDto.cs)
-3. **Downstream Views & ViewModels**:
-   - GA Results View: [GAResultsWindowViewModel.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/ViewModels/GAResultsWindowViewModel.cs) (prefers `CanonicalMark` for ElementLiftResultRowDto.Mark)
-   - Report Providers: [ElementReportDataProvider.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/Services/ElementReportDataProvider.cs) and [LiftingResultReportDataProvider.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/Services/LiftingResultReportDataProvider.cs) (prefer `CanonicalMark` for element display)
+### A. F5 Element Management Data Display
+*   **ViewModel:** [ElementManagementViewModel.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F5_ElementManagement/ViewModels/ElementManagementViewModel.cs)
+*   **XAML View:** [ElementManagementPanel.xaml](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F5_ElementManagement/Views/ElementManagementPanel.xaml)
+*   **Behavior:** F5 displays canonical identity and validation properties in a dynamic property sheet under the categories `"Canonical Identity"` and `"Validation"`. It resolves these properties via [CanonicalMarkResolver.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/Identity/CanonicalMarkResolver.cs) when an element is selected.
+
+### B. F8 GA Readiness & Results Display
+*   **Pre-run Readiness View:** [CraneOptimizerDialog.xaml](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Views/CraneOptimizerDialog.xaml) displays overall status, candidate counts, and warning codes (missing marks, low confidence mapping, blocked weights) driven by `ImportReadinessSummary` from [ImportReadinessService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/ImportReadinessService.cs).
+*   **Post-run Results View:** [GAResultsWindow.xaml](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Views/GAResultsWindow.xaml) displays the optimized setups. The assigned elements grid binds to [ElementLiftResultRowDto](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/ViewModels/GAResultsWindowViewModel.cs#L84), which displays:
+    *   **Mark:** Canonical display mark resolved by the resolver.
+    *   **Confidence, Validation, and Weight Trust:** Displayed in dedicated columns and rich tooltips on hover.
+
+### C. Reports Data Flow & Navigation Map
+The Reports module consumes resolved display and weight data across standard boundary DTOs:
+
+```mermaid
+graph TD
+    %% Source Data
+    Domain[PrecastElement / GA Results] --> Resolver[CanonicalMarkResolver]
+    Domain --> WeightMapper[ReportWeightMapper]
+    
+    %% Application Layer Providers
+    Resolver --> Provider1[ElementReportDataProvider]
+    WeightMapper --> Provider1
+    Provider1 --> DTO1[ElementReportRowDto]
+    
+    Resolver --> Provider2[LiftingResultReportDataProvider]
+    Provider2 --> DTO2[LiftingResultSourceRowDto]
+    
+    %% Report Builder
+    DTO1 --> Builder[UserFacingReportBuilder]
+    DTO2 --> Builder
+    Builder --> Doc[ReportDocumentDto]
+    
+    %% Export Layer
+    Doc --> Export[ReportExportService / Excel / PDF]
+```
+
+*   **Identity Single Source of Truth:** [CanonicalMarkResolver.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/Identity/CanonicalMarkResolver.cs) resolves display mark strings using the priority chain: Explicit `AssemblyMark` > Any `AssemblyMark` > `ResolvedDisplayMark` > `ElementMark` > `ElementName` > `ParentAssemblyName` > `ElementID` (excluding placeholders).
+*   **Weight Single Source of Truth:** [ReportWeightMapper.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/Services/ReportWeightMapper.cs) formats weights and handles estimated weight warnings.
+*   **Report Builders:** [UserFacingReportBuilder.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/Services/UserFacingReportBuilder.cs) constructs the output documents by consuming DTO collections, maintaining clean separation from raw DB entities.
+*   **Built-in Templates:** [ReportTemplateCatalog.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/Services/ReportTemplateCatalog.cs) defines the columns and metadata mapping schemas.
+
+### D. CSV Diagnostics & Backward Compatibility
+*   **Service:** [GACsvDiagnosticsService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/GACsvDiagnosticsService.cs)
+*   **Compatibility:** Flat canonical fields (`CanonicalMark`, `MarkSource`, `MarkConfidence`, `IsExplicitMark`) are appended to the right of `ga_audit_detailed_*.csv` sheets. [GADiagnosticsReaderService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/GADiagnosticsReaderService.cs) reads these fields safely, ensuring full backward compatibility with older session logs.
+
+### E. DTO Boundaries
+*   **Domain:** [PrecastElement.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Domain/Schemas/PrecastElement.cs)
+*   **Application Services:** [ElementDisplayIdentityDto.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/Identity/ElementDisplayIdentityDto.cs)
+*   **Report Layer:** [ElementReportRowDto.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/DTOs/ElementReportRowDto.cs) and [LiftingResultSourceRowDto.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/DTOs/LiftingResultSourceRowDto.cs)
+*   **GA Outputs:** [ElementLiftResult.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/DTOs/PlacementResult.cs) (backend) and [ElementLiftResult.cs (UI)](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/DTOs/CranePlacementResult.cs) (frontend).
+
+---
+
+## 11. Onboarding Checklist for Future Tasks
+When starting a new Phase or feature, ensure you verify that:
+1. All display formatting queries prefer the `CanonicalMarkResolver` and `ReportWeightMapper` single sources of truth.
+2. DTO boundaries are preserved (never pass domain `PrecastElement` directly across layer interfaces).
+3. GA candidate safety gates are untouched (e.g. blocking unapproved estimated weights).

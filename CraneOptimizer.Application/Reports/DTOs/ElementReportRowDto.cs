@@ -5,6 +5,8 @@ public sealed class ElementReportRowDto
     public int No { get; init; }
     public string ElementId { get; init; } = string.Empty;
     public string ElementMark { get; init; } = string.Empty;
+    public string ElementName { get; init; } = string.Empty;
+    public string ElementType { get; init; } = string.Empty;
 
     // Phase 5: Canonical Display Identity
     public string CanonicalMark { get; init; } = string.Empty;

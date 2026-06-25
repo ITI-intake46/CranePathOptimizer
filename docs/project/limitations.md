@@ -104,3 +104,14 @@ This document lists the assumptions, simplifications, and architectural limitati
 *   **Behavior when Disabled:** Turning OFF the `Element Checker` toggle skips all warning breakdowns and returns a neutral `Not Checked` state. It does not alter elements or disable existing GA safety gates or eligibility criteria required by the optimizer.
 *   **GA Blocking Rule:** The optimizer blocks runs and alerts the user only when there are zero valid candidate elements for GA optimization. Other warnings/errors do not block execution.
 
+---
+
+## 7. Reports & Identity Single Source of Truth
+
+### N. Read-Only Canonical Identity & Presentation Alignment
+*   **Limitation:** The canonical identity (`AssemblyMark`, `MarkConfidence`, `DisplayLabel`) and validation fields (`ValidationStatus`, `ValidationWarnings`, `WeightTrustLevel`) are read-only and resolved at presentation or mapping boundaries. They do not feed back into the database entities or mutate source IFC models.
+*   **Single Source of Truth Rules:**
+    *   **Identity Resolution:** Formatted display labels must always be resolved via [CanonicalMarkResolver.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/Identity/CanonicalMarkResolver.cs) using `CanonicalMarkResolver.Resolve()`. No raw fallback expressions (`ElementMark ?? Name ?? GlobalId`) should be implemented in presentation or builders.
+    *   **Weight Verification:** Weight status and warnings are mapped strictly via [ReportWeightMapper.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/Services/ReportWeightMapper.cs).
+    *   **GA Result Display:** GA outputs must rely on [ElementLiftResult](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/DTOs/PlacementResult.cs) values mapped during the placement engine pass, rather than re-running spatial optimization queries.
+

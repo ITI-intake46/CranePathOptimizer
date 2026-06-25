@@ -557,7 +557,7 @@ public sealed class UserFacingReportsTests : IDisposable
         var document = await builder.BuildAsync(request);
         var row = Assert.Single(document.Rows).Values;
 
-        Assert.Equal("\u2014", row["ElementMark"]);
+        Assert.Equal("e1", row["ElementMark"]);
         Assert.Equal("Footing", row["ElementType"]);
         Assert.Equal("C30", row["Material"]);
     }

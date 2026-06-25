@@ -74,12 +74,25 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
         var mapping = ReportWeightMapper.Map(element);
         var identity = CanonicalMarkResolver.Resolve(element);
 
+        var length = FirstPositive(element.ElementLength, element.BBoxLength, element.BoundingBox_M?.X);
+        var width = FirstPositive(element.ElementWidth, element.BBoxWidth, element.BoundingBox_M?.Y);
+        var height = FirstPositive(element.ElementHeight, element.BBoxHeight, element.BoundingBox_M?.Z);
+
+        var (volume, volumeSource) = ResolveReportVolume(element, length, width, height);
+        var (bottomElevation, topElevation) = ResolveElevationRange(element, height);
+
         return new ElementReportRowDto
         {
             No = number,
             ElementId = element.ElementID,
-            ElementMark = FirstNonEmpty(element.ElementMark, element.ParentAssemblyName, element.ElementID, "Unknown"),
-            SourceRevitId = FirstNonEmpty(element.ElementRevitId, element.ElementID, "Unknown"),
+            ElementMark = identity.DisplayLabel,
+            ElementName = ResolveElementName(element),
+            ElementType = FirstNonEmpty(element.ElementType, "\u2014"),
+            CanonicalMark = identity.DisplayLabel,
+            MarkSource = identity.MarkSource ?? string.Empty,
+            MarkConfidence = identity.MarkConfidence,
+            IsExplicitMark = identity.IsExplicitMark,
+            SourceRevitId = FirstNonEmpty(element.ElementRevitId, element.ElementID, "\u2014"),
             StoreyLevel = ResolveStoreyLevel(element, levelLabels),
             Material = string.IsNullOrWhiteSpace(element.ElementMaterial) ? "\u2014" : element.ElementMaterial,
             Length = length,

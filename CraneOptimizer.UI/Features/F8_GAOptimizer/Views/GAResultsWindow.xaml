@@ -191,9 +191,33 @@
 
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Mark"
-                                               Binding="{Binding Mark}"
-                                               Width="*"
-                                               MinWidth="70" />
+                                                Binding="{Binding Mark}"
+                                                Width="*"
+                                                MinWidth="70">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="ToolTip">
+                                            <Setter.Value>
+                                                <ToolTip Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}">
+                                                    <StackPanel Margin="4">
+                                                        <TextBlock FontWeight="Bold" Text="Canonical Identity Metadata" Margin="0,0,0,4"/>
+                                                        <TextBlock Text="{Binding MarkConfidence, StringFormat='Confidence: {0}'}"/>
+                                                        <TextBlock Text="{Binding ValidationStatus, StringFormat='Validation: {0}'}"/>
+                                                        <TextBlock Text="{Binding WeightTrustLevel, StringFormat='Weight Trust: {0}'}"/>
+                                                        <TextBlock Text="{Binding ValidationWarnings, StringFormat='Warnings: {0}'}" TextWrapping="Wrap" MaxWidth="300"/>
+                                                    </StackPanel>
+                                                </ToolTip>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Confidence"
+                                                Binding="{Binding MarkConfidence}"
+                                                Width="80" />
+                            <DataGridTextColumn Header="Val. Status"
+                                                Binding="{Binding ValidationStatus}"
+                                                Width="80" />
                             <DataGridTextColumn Header="Radius"
                                                Binding="{Binding RadiusText}"
                                                Width="75" />

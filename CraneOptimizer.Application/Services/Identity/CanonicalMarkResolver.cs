@@ -43,43 +43,59 @@ namespace CraneOptimizer.Application.Services.Identity
                 ExporterProfile   = element.ExporterProfile.ToString(),
             };
 
-            // Canonical priority resolution
-            if (!string.IsNullOrWhiteSpace(element.AssemblyMark))
+        // Canonical priority resolution
+            if (!IsPlaceholder(element.AssemblyMark))
             {
-                dto.DisplayLabel = element.AssemblyMark;
+                dto.DisplayLabel = element.AssemblyMark!.Trim();
                 dto.UsedFallback = false;
                 return dto;
             }
 
-            if (!string.IsNullOrWhiteSpace(element.ResolvedDisplayMark))
+            if (!IsPlaceholder(element.ResolvedDisplayMark))
             {
-                dto.DisplayLabel  = element.ResolvedDisplayMark;
+                dto.DisplayLabel  = element.ResolvedDisplayMark!.Trim();
                 dto.FallbackLabel = element.ResolvedDisplayMark;
                 dto.UsedFallback  = true;
                 return dto;
             }
 
-            if (!string.IsNullOrWhiteSpace(element.ElementMark))
+            if (!IsPlaceholder(element.ElementMark))
             {
-                dto.DisplayLabel  = element.ElementMark;
+                dto.DisplayLabel  = element.ElementMark!.Trim();
                 dto.FallbackLabel = element.ElementMark;
                 dto.UsedFallback  = true;
                 return dto;
             }
 
-            if (!string.IsNullOrWhiteSpace(element.ParentAssemblyName))
+            if (!IsPlaceholder(element.ElementName))
             {
-                dto.DisplayLabel  = element.ParentAssemblyName;
+                dto.DisplayLabel  = element.ElementName!.Trim();
+                dto.FallbackLabel = element.ElementName;
+                dto.UsedFallback  = true;
+                return dto;
+            }
+
+            if (!IsPlaceholder(element.ParentAssemblyName))
+            {
+                dto.DisplayLabel  = element.ParentAssemblyName!.Trim();
                 dto.FallbackLabel = element.ParentAssemblyName;
                 dto.UsedFallback  = true;
                 return dto;
             }
 
             // Final fallback: always non-null
-            dto.DisplayLabel  = element.ElementID ?? string.Empty;
+            dto.DisplayLabel  = !string.IsNullOrWhiteSpace(element.ElementID) ? element.ElementID.Trim() : string.Empty;
             dto.FallbackLabel = element.ElementID;
             dto.UsedFallback  = true;
             return dto;
+        }
+
+        private static bool IsPlaceholder(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return true;
+            var val = value.Trim().ToUpperInvariant();
+            return val == "-" || val == "—" || val == "N/A" || val == "UNKNOWN" || val == "NULL";
         }
 
         /// <summary>
