@@ -102,6 +102,22 @@ The resolver resides in the Infrastructure layer because it directly traverses x
 * **Traceable Resolutions**: Returns `SourcePropertyResolutionResult` objects detailing the exact source property set, property name, and confidence level for logical fields (`AssemblyMark`, `ElementMark`, `Weight`, `Volume`, `Material`, `Level`, `Storey`).
 * **Clean Boundaries**: Keeps the Domain project free of xBIM or Infrastructure-specific dependencies.
 
+## Phase 4 — Import Validation & GA Readiness Diagnostics Foundation
+
+Phase 4 exposes the validation/readiness state in a consistent, reusable way by creating a centralized diagnostics/readiness foundation and a minimal UI card ("Current Run Readiness") inside the GA Optimizer dialog.
+
+### 1. Centralized Models & Service
+* **ValidationMessage**: Represents a single user-facing diagnostic warning or info message. It contains `Code`, `Severity` ("Info", "Warning", "Error"), `Message`, `AffectedCount`, `AffectedElementIds`, `RecommendedAction`, `SourceSystem`, and `Category`.
+* **ImportReadinessSummary**: Summarizes total elements, renderable elements, GA candidates, blocked elements, specific check warning counts, overall status, and validation messages list.
+* **ImportReadinessService**: Evaluates the scoped elements, groups warning codes, counts affected items, and returns the readiness summary. If the Element Checker toggle is disabled, it returns a neutral Valid state with a single info message.
+
+### 2. GA Readiness Gating & Scoping
+* **Same Scoped Element List**: Readiness diagnostics are executed strictly on the same scoped element list used by the GA run, which honors viewport filters, target-type selections, and mouse-selection scoping.
+* **Zero-Candidate Blocking**: If `GaCandidateElements` count is 0, the optimizer blocks the run and displays a clear explanation of the errors and warnings to the user.
+
+### 3. Element Checker Toggle
+* **Element Checker Toggle (ON/OFF)**: Adds a UI toggle to optionally skip detailed diagnostics breakdowns. When disabled, the UI shows a neutral "Not Checked" state. It does not bypass existing GA safety gates.
+
 ---
 
 ## Verified Statements

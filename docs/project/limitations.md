@@ -93,3 +93,14 @@ This document lists the assumptions, simplifications, and architectural limitati
 ### L. Excluded Export Reports
 *   **Limitation:** PDF, Excel, and standard UI reports do not output survey coordinates.
 *   **Assumption:** Export integration remains out of scope for the current GIS epic phases.
+
+---
+
+## 6. Model Import Readiness & Diagnostics
+
+### M. Optional Element Checker Diagnostics
+*   **Limitation:** The Import Readiness service performs diagnostic evaluation on the active GA scoped element list when the `Element Checker` toggle is enabled. 
+*   **Code Reference:** Implemented in `ImportReadinessService` and `CraneOptimizerDialogViewModel`.
+*   **Behavior when Disabled:** Turning OFF the `Element Checker` toggle skips all warning breakdowns and returns a neutral `Not Checked` state. It does not alter elements or disable existing GA safety gates or eligibility criteria required by the optimizer.
+*   **GA Blocking Rule:** The optimizer blocks runs and alerts the user only when there are zero valid candidate elements for GA optimization. Other warnings/errors do not block execution.
+

@@ -7,6 +7,7 @@ using System.Windows;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.UI.Core.Base;
+using CraneOptimizer.Domain.Diagnostics;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 {
@@ -102,6 +103,86 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 
     public class CraneOptimizerDialogViewModel : ViewModelBase
     {
+        // -----------------------------------------------------------------------
+        // Model Import / Run Readiness Summary (Phase 4)
+        // -----------------------------------------------------------------------
+        private ImportReadinessSummary? _readinessSummary;
+        public ImportReadinessSummary? ReadinessSummary
+        {
+            get => _readinessSummary;
+            set
+            {
+                _readinessSummary = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ReadinessStatusText));
+                OnPropertyChanged(nameof(ReadinessStatusBrush));
+                OnPropertyChanged(nameof(ReadinessWarningsVisibility));
+            }
+        }
+
+        private bool _isElementCheckerEnabled = true;
+        public bool IsElementCheckerEnabled
+        {
+            get => _isElementCheckerEnabled;
+            set
+            {
+                if (_isElementCheckerEnabled != value)
+                {
+                    _isElementCheckerEnabled = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsElementCheckerDisabled));
+                    OnPropertyChanged(nameof(ReadinessStatusText));
+                    OnPropertyChanged(nameof(ReadinessStatusBrush));
+                    OnPropertyChanged(nameof(ReadinessWarningsVisibility));
+                }
+            }
+        }
+
+        public bool IsElementCheckerDisabled => !IsElementCheckerEnabled;
+
+        public string ReadinessStatusText
+        {
+            get
+            {
+                if (!IsElementCheckerEnabled)
+                    return "Not Checked";
+                if (ReadinessSummary == null)
+                    return "Not Checked";
+                return ReadinessSummary.OverallStatus.ToString();
+            }
+        }
+
+        public System.Windows.Media.Brush ReadinessStatusBrush
+        {
+            get
+            {
+                if (!IsElementCheckerEnabled || ReadinessSummary == null)
+                {
+                    return System.Windows.Application.Current?.Resources["TextSecondaryBrush"] as System.Windows.Media.Brush 
+                           ?? System.Windows.Media.Brushes.Gray;
+                }
+
+                string brushKey = ReadinessSummary.OverallStatus switch
+                {
+                    ValidationStatus.Valid => "SuccessBrush",
+                    ValidationStatus.Warning => "WarningBrush",
+                    ValidationStatus.Error => "DestructiveBrush",
+                    _ => "TextSecondaryBrush"
+                };
+
+                return System.Windows.Application.Current?.Resources[brushKey] as System.Windows.Media.Brush 
+                       ?? System.Windows.Media.Brushes.Gray;
+            }
+        }
+
+        public System.Windows.Visibility ReadinessWarningsVisibility
+        {
+            get
+            {
+                return IsElementCheckerEnabled ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+            }
+        }
+
         // -----------------------------------------------------------------------
         // GA Mode Preset selector
         // -----------------------------------------------------------------------

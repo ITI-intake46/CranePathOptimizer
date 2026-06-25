@@ -8,6 +8,7 @@ using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F3_CraneSetup;
@@ -39,6 +40,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly CraneVisualBuilder _craneVisualBuilder;
         private readonly IProjectStateService _projectStateService;
         private readonly IProjectCoordinateTransformService _transformService;
+        private readonly IImportReadinessService _readinessService;
 
         private Crane? _selectedCrane;
         private bool _disposed;
@@ -74,7 +76,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IProjectStateService projectStateService,
             SelectionViewModel selection,
             CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel coordinateReference,
-            IProjectCoordinateTransformService transformService)
+            IProjectCoordinateTransformService transformService,
+            IImportReadinessService readinessService)
         {
             Scene = scene;
             Drawing = drawing;
@@ -100,6 +103,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _unitSettings = unitSettings;
             _craneVisualBuilder = craneVisualBuilder;
             _projectStateService = projectStateService;
+            _readinessService = readinessService;
 
             _transformService.ReferenceChanged += OnReferenceChanged;
 

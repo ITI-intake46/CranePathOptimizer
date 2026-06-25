@@ -489,15 +489,185 @@
                     </Grid>
                 </Border>
 
-                <Border
-                    x:Name="PanelResults"
-                    Grid.Row="8"
-                    Padding="{StaticResource Space3}"
-                    Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="{StaticResource CardCornerRadius}"
-                    Visibility="Collapsed">
+                <Grid Grid.Row="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Border
+                        x:Name="PanelReadiness"
+                        Grid.Row="0"
+                        Padding="{StaticResource Space3}"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource CardCornerRadius}"
+                        Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="10" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="10" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="6" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Header: Title, CheckBox Toggle, and Badge -->
+                            <Grid Grid.Row="0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                
+                                <TextBlock
+                                    Style="{StaticResource PanelSectionHeader}"
+                                    Text="CURRENT RUN READINESS"
+                                    VerticalAlignment="Center" />
+
+                                <CheckBox
+                                    Grid.Column="1"
+                                    Content="Element Checker"
+                                    IsChecked="{Binding IsElementCheckerEnabled, Mode=TwoWay}"
+                                    VerticalAlignment="Center"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                                <Border
+                                    Grid.Column="3"
+                                    Padding="8,3"
+                                    CornerRadius="4"
+                                    Background="{Binding ReadinessStatusBrush}"
+                                    VerticalAlignment="Center">
+                                    <TextBlock
+                                        Text="{Binding ReadinessStatusText}"
+                                        FontWeight="Bold"
+                                        FontSize="10"
+                                        Foreground="White"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center" />
+                                </Border>
+                            </Grid>
+
+                            <Separator Grid.Row="1" Background="{DynamicResource BorderBrush}" Height="1" />
+
+                            <!-- Active Counts Grid -->
+                            <UniformGrid Grid.Row="2" Columns="3">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock
+                                        Text="{Binding ReadinessSummary.TotalElements, FallbackValue=0}"
+                                        FontSize="{StaticResource FontSizeLG}"
+                                        FontWeight="Bold"
+                                        Foreground="{DynamicResource TextPrimaryBrush}"
+                                        HorizontalAlignment="Center" />
+                                    <TextBlock
+                                        Text="Total Scoped"
+                                        FontSize="{StaticResource FontSizeXS}"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        HorizontalAlignment="Center" />
+                                </StackPanel>
+
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock
+                                        Text="{Binding ReadinessSummary.GaCandidateElements, FallbackValue=0}"
+                                        FontSize="{StaticResource FontSizeLG}"
+                                        FontWeight="Bold"
+                                        Foreground="{DynamicResource SuccessBrush}"
+                                        HorizontalAlignment="Center" />
+                                    <TextBlock
+                                        Text="GA Candidates"
+                                        FontSize="{StaticResource FontSizeXS}"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        HorizontalAlignment="Center" />
+                                </StackPanel>
+
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock
+                                        Text="{Binding ReadinessSummary.GaBlockedElements, FallbackValue=0}"
+                                        FontSize="{StaticResource FontSizeLG}"
+                                        FontWeight="Bold"
+                                        Foreground="{DynamicResource DestructiveBrush}"
+                                        HorizontalAlignment="Center" />
+                                    <TextBlock
+                                        Text="GA Blocked"
+                                        FontSize="{StaticResource FontSizeXS}"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </UniformGrid>
+
+                            <Separator Grid.Row="3" Background="{DynamicResource BorderBrush}" Height="1" Visibility="{Binding ReadinessWarningsVisibility}" />
+
+                            <!-- Warning Breakdown Grid -->
+                            <UniformGrid Grid.Row="4" Columns="3" Visibility="{Binding ReadinessWarningsVisibility}">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock
+                                        Text="{Binding ReadinessSummary.MissingAssemblyMarkCount, FallbackValue=0}"
+                                        FontSize="{StaticResource FontSizeSM}"
+                                        FontWeight="SemiBold"
+                                        Foreground="{DynamicResource TextPrimaryBrush}"
+                                        HorizontalAlignment="Center" />
+                                    <TextBlock
+                                        Text="Missing Marks"
+                                        FontSize="9"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        HorizontalAlignment="Center" />
+                                </StackPanel>
+
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock
+                                        Text="{Binding ReadinessSummary.LowConfidenceMappingCount, FallbackValue=0}"
+                                        FontSize="{StaticResource FontSizeSM}"
+                                        FontWeight="SemiBold"
+                                        Foreground="{DynamicResource TextPrimaryBrush}"
+                                        HorizontalAlignment="Center" />
+                                    <TextBlock
+                                        Text="Low Confidence"
+                                        FontSize="9"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        HorizontalAlignment="Center" />
+                                </StackPanel>
+
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock
+                                        Text="{Binding ReadinessSummary.EstimatedWeightBlockedCount, FallbackValue=0}"
+                                        FontSize="{StaticResource FontSizeSM}"
+                                        FontWeight="SemiBold"
+                                        Foreground="{DynamicResource TextPrimaryBrush}"
+                                        HorizontalAlignment="Center" />
+                                    <TextBlock
+                                        Text="Blocked Weights"
+                                        FontSize="9"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </UniformGrid>
+
+                            <!-- Disabled/Neutral message row -->
+                            <TextBlock
+                                Grid.Row="6"
+                                Text="Element Checker is disabled. Readiness diagnostics were not evaluated."
+                                FontSize="{StaticResource FontSizeXS}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                FontStyle="Italic"
+                                HorizontalAlignment="Center"
+                                Visibility="{Binding IsElementCheckerDisabled, Converter={StaticResource BoolToVis}}" />
+                        </Grid>
+                    </Border>
+
+                    <Border
+                        x:Name="PanelResults"
+                        Grid.Row="1"
+                        Padding="{StaticResource Space3}"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource CardCornerRadius}"
+                        Visibility="Collapsed">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -597,6 +767,7 @@
                             TextWrapping="Wrap" />
                     </Grid>
                 </Border>
+                </Grid>
             </Grid>
 
             <Border
