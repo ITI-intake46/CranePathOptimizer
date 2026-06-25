@@ -27,6 +27,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private const double ConcreteDensityKgPerCubicMeter = 2500.0;
         private const double TonToKgFactor = 1000.0;
         private readonly IIfcModelSessionService? _sessionService;
+        private readonly ICentralIfcPropertyAliasResolver _aliasResolver;
         private readonly object _auditCacheGate = new();
         private Guid? _lastAuditSessionId;
         private string? _lastAuditFileIdentity;
@@ -34,12 +35,19 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private IfcAuditResult? _lastAuditResult;
 
         public IfcDiagnosticAuditService()
+            : this(null, new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver()))
         {
         }
 
         public IfcDiagnosticAuditService(IIfcModelSessionService sessionService)
+            : this(sessionService, new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver()))
+        {
+        }
+
+        public IfcDiagnosticAuditService(IIfcModelSessionService? sessionService, ICentralIfcPropertyAliasResolver aliasResolver)
         {
             _sessionService = sessionService;
+            _aliasResolver = aliasResolver;
         }
 
         public Task<IfcAuditResult> RunAuditAsync(string ifcPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
@@ -192,7 +200,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return result;
         }
 
-        private static void PopulateAuditResult(
+        private void PopulateAuditResult(
             IfcAuditResult result,
             IfcStore model,
             Xbim3DModelContext geometryContext,
@@ -608,7 +616,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
         }
 
-        private static void ProcessPhysicalElements(
+        private void ProcessPhysicalElements(
             List<IIfcProduct> physicalProducts,
             Xbim3DModelContext geometryContext,
             IfcAuditResult auditResult,
@@ -625,6 +633,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     swallowedGlobalIds.Add(child.ChildGlobalId);
                 }
             }
+
+            var profileResolver = new IfcExporterProfileResolver();
+            var profile = profileResolver.ResolveProfile(auditResult.Metadata.ExporterApplication);
 
             foreach (var product in physicalProducts)
             {
@@ -650,11 +661,11 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 auditResult.Classifications.Add(classification);
 
                 // 2. Weight Audit
-                var weightDetail = AuditWeight(product, resolvedCategory, swallowedGlobalIds.Contains(globalId), concreteDensityKgPerM3);
+                var weightDetail = AuditWeight(product, resolvedCategory, swallowedGlobalIds.Contains(globalId), concreteDensityKgPerM3, profile);
                 auditResult.Weights.Add(weightDetail);
 
                 // 3. Volume and Material Audit
-                var volMat = AuditVolumeMaterial(product, volumeFactor);
+                var volMat = AuditVolumeMaterial(product, volumeFactor, profile);
                 auditResult.VolumesMaterials.Add(volMat);
 
                 // 4. Geometry Ownership Audit
@@ -711,11 +722,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return string.Empty;
         }
 
-        private static ElementWeightAuditDetail AuditWeight(
+        private ElementWeightAuditDetail AuditWeight(
             IIfcProduct product,
             string resolvedType,
             bool isSwallowed,
-            double concreteDensityKgPerM3)
+            double concreteDensityKgPerM3,
+            IfcExporterProfile profile)
         {
             var detail = new ElementWeightAuditDetail
             {
@@ -724,93 +736,78 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 IsWeightUsedByProductionCurrently = !isSwallowed && !(product is IIfcElementAssembly)
             };
 
-            // Search Quantities
-            var quantitySets = product.IsDefinedBy
-                .Where(r => r.RelatingPropertyDefinition is IIfcElementQuantity)
-                .Select(r => (IIfcElementQuantity)r.RelatingPropertyDefinition);
-
-            foreach (var qSet in quantitySets)
+            var qRes = _aliasResolver.ResolveProperty(product, "Weight", profile);
+            if (qRes.Value != null)
             {
-                foreach (var quantity in qSet.Quantities.OfType<IIfcQuantityWeight>())
+                if (double.TryParse(qRes.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedVal))
                 {
-                    if (quantity.Name.ToString().ContainsAny("weight", "mass"))
+                    detail.WeightRawValue = parsedVal;
+                    detail.WeightPropertyName = qRes.SourcePropertyName;
+                    detail.QuantitySetNameOrPropertySetName = qRes.SourcePropertySet;
+                    detail.WeightUnitDetected = "Unspecified";
+
+                    var isQty = IsQuantitySet(product, qRes.SourcePropertySet ?? string.Empty);
+                    if (isQty)
                     {
-                        detail.WeightRawValue = quantity.WeightValue;
-                        detail.WeightPropertyName = quantity.Name.ToString();
-                        detail.QuantitySetNameOrPropertySetName = qSet.Name.ToString();
                         detail.WeightSource = "IfcQuantityWeight.Instance";
-                        detail.WeightUnitDetected = "kg"; // Standard IFC weight quantity is stored in kilograms
-                        detail.WeightStandardValueTons = quantity.WeightValue / 1000.0;
-                        break;
+                        detail.WeightUnitDetected = "kg";
+                        detail.WeightStandardValueTons = parsedVal / 1000.0;
                     }
-                }
-                if (detail.WeightRawValue.HasValue) break;
-            }
-
-            // Search Properties if not found in quantities.
-            // Revit often exports explicit user/shared parameters with names that do not
-            // include the simple "weight" token. Keep this lookup explicit-only: volume
-            // or density-derived values are still handled later as non-GA fallback.
-            if (!detail.WeightRawValue.HasValue)
-            {
-                var propertySets = product.IsDefinedBy
-                    .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
-                    .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition);
-
-                foreach (var pSet in propertySets)
-                {
-                    foreach (var prop in pSet.HasProperties.OfType<IIfcPropertySingleValue>())
+                    else
                     {
-                        var name = prop.Name.ToString();
-                        if (IsExplicitWeightPropertyName(name, pSet.Name.ToString()))
+                        string? unitName = null;
+                        var propertySets = product.IsDefinedBy
+                            .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
+                            .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition);
+                        foreach (var pset in propertySets)
                         {
-                            if (TryReadNumericPropertyValue(prop, out var parsedVal))
+                            if (pset.Name.ToString().Equals(qRes.SourcePropertySet, StringComparison.OrdinalIgnoreCase))
                             {
-                                detail.WeightRawValue = parsedVal;
-                                detail.WeightPropertyName = name;
-                                detail.QuantitySetNameOrPropertySetName = pSet.Name.ToString();
-                                detail.WeightSource = IsLikelyRevitWeightProperty(name, pSet.Name.ToString())
-                                    ? "RevitPropertySet.Instance"
-                                    : "PropertySet.Instance";
-                                detail.WeightUnitDetected = prop.Unit?.ToString() ?? "Unspecified";
-
-                                // Convert to Standard Value (Tons) based on heuristics
-                                var unitInfo = $"{name} {detail.WeightUnitDetected}".ToLowerInvariant();
-                                if (unitInfo.ContainsAny("kg", "kilo"))
-                                {
-                                    detail.WeightStandardValueTons = parsedVal / 1000.0;
-                                }
-                                else if (unitInfo.ContainsAny("ton", "tonne"))
-                                {
-                                    detail.WeightStandardValueTons = parsedVal;
-                                }
-                                else if (unitInfo.ContainsAny("lb", "pound"))
-                                {
-                                    detail.WeightStandardValueTons = parsedVal * 0.00045359237;
-                                }
-                                else
-                                {
-                                    // Default heuristic used by existing Tekla extractor logic
-                                    detail.WeightStandardValueTons = parsedVal > 100.0 ? parsedVal / 1000.0 : parsedVal;
-                                    if (parsedVal > 100.0)
-                                    {
-                                        detail.WeightSource = $"{detail.WeightSource} (Heuristically Scaled)";
-                                        detail.Warning = "Weight property value exceeded 100. Assumed kilograms and converted to metric tons.";
-                                    }
-                                }
+                                var prop = pset.HasProperties.OfType<IIfcPropertySingleValue>()
+                                    .FirstOrDefault(p => p.Name.ToString().Equals(qRes.SourcePropertyName, StringComparison.OrdinalIgnoreCase));
+                                unitName = prop?.Unit?.ToString();
                                 break;
                             }
                         }
+                        if (unitName != null)
+                        {
+                            detail.WeightUnitDetected = unitName;
+                        }
+
+                        detail.WeightSource = IsLikelyRevitWeightProperty(qRes.SourcePropertyName ?? string.Empty, qRes.SourcePropertySet ?? string.Empty)
+                            ? "RevitPropertySet.Instance"
+                            : "PropertySet.Instance";
+
+                        var unitInfo = $"{qRes.SourcePropertyName} {detail.WeightUnitDetected}".ToLowerInvariant();
+                        if (unitInfo.ContainsAny("kg", "kilo"))
+                        {
+                            detail.WeightStandardValueTons = parsedVal / 1000.0;
+                        }
+                        else if (unitInfo.ContainsAny("ton", "tonne"))
+                        {
+                            detail.WeightStandardValueTons = parsedVal;
+                        }
+                        else if (unitInfo.ContainsAny("lb", "pound"))
+                        {
+                            detail.WeightStandardValueTons = parsedVal * 0.00045359237;
+                        }
+                        else
+                        {
+                            detail.WeightStandardValueTons = parsedVal > 100.0 ? parsedVal / 1000.0 : parsedVal;
+                            if (parsedVal > 100.0)
+                            {
+                                detail.WeightSource = $"{detail.WeightSource} (Heuristically Scaled)";
+                                detail.Warning = "Weight property value exceeded 100. Assumed kilograms and converted to metric tons.";
+                            }
+                        }
                     }
-                    if (detail.WeightRawValue.HasValue) break;
                 }
             }
 
             // Fallback estimation using existing concrete density logic in pipeline
             if (!detail.WeightRawValue.HasValue)
             {
-                // Fetch direct volume if available
-                double? volume = GetDirectVolume(product);
+                double? volume = GetDirectVolume(product, profile);
                 if (volume.HasValue && volume.Value > 0)
                 {
                     detail.WeightRawValue = volume.Value * concreteDensityKgPerM3;
@@ -851,93 +848,6 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return detail;
         }
 
-        private static bool TryReadNumericPropertyValue(IIfcPropertySingleValue property, out double value)
-        {
-            value = 0;
-
-            var nominal = property.NominalValue;
-            if (nominal == null)
-                return false;
-
-            object? rawValue = nominal;
-            var valueProperty = nominal.GetType().GetProperty("Value");
-            if (valueProperty != null)
-            {
-                rawValue = valueProperty.GetValue(nominal);
-            }
-
-            if (rawValue is double doubleValue)
-            {
-                value = doubleValue;
-                return true;
-            }
-
-            if (rawValue is float floatValue)
-            {
-                value = floatValue;
-                return true;
-            }
-
-            if (rawValue is decimal decimalValue)
-            {
-                value = (double)decimalValue;
-                return true;
-            }
-
-            if (rawValue is int intValue)
-            {
-                value = intValue;
-                return true;
-            }
-
-            if (rawValue is long longValue)
-            {
-                value = longValue;
-                return true;
-            }
-
-            var valueText = Convert.ToString(rawValue, CultureInfo.InvariantCulture);
-            if (double.TryParse(valueText, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
-                return true;
-
-            valueText = Convert.ToString(nominal, CultureInfo.InvariantCulture);
-            if (double.TryParse(valueText, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
-                return true;
-
-            var numericMatch = Regex.Match(valueText ?? string.Empty, @"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?");
-            return numericMatch.Success &&
-                   double.TryParse(numericMatch.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out value);
-        }
-
-        private static bool IsExplicitWeightPropertyName(string propertyName, string propertySetName)
-        {
-            if (string.IsNullOrWhiteSpace(propertyName))
-                return false;
-
-            var combined = $"{propertySetName} {propertyName}";
-            return combined.ContainsAny(
-                "weight",
-                "mass",
-                "netweight",
-                "grossweight",
-                "net weight",
-                "gross weight",
-                "self weight",
-                "selfweight",
-                "dead load",
-                "deadload",
-                "shipping weight",
-                "shippingweight",
-                "lifting weight",
-                "liftingweight",
-                "assembly weight",
-                "assemblyweight",
-                "precast weight",
-                "precastweight",
-                "revit weight",
-                "revit mass");
-        }
-
         private static bool IsLikelyRevitWeightProperty(string propertyName, string propertySetName)
         {
             var combined = $"{propertySetName} {propertyName}";
@@ -960,91 +870,32 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 : ConcreteDensityKgPerCubicMeter;
         }
 
-        private static double? GetDirectVolume(IIfcProduct product)
+        private double? GetDirectVolume(IIfcProduct product, IfcExporterProfile profile)
         {
-            var quantitySets = product.IsDefinedBy
-                .Where(r => r.RelatingPropertyDefinition is IIfcElementQuantity)
-                .Select(r => (IIfcElementQuantity)r.RelatingPropertyDefinition);
-
-            foreach (var qSet in quantitySets)
+            var qRes = _aliasResolver.ResolveProperty(product, "Volume", profile);
+            if (qRes.Value != null && double.TryParse(qRes.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
             {
-                foreach (var quantity in qSet.Quantities.OfType<IIfcQuantityVolume>())
-                {
-                    if (quantity.Name.ToString().ContainsAny("volume"))
-                    {
-                        return quantity.VolumeValue;
-                    }
-                }
+                return parsed;
             }
-
-            var propertySets = product.IsDefinedBy
-                .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
-                .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition);
-
-            foreach (var pSet in propertySets)
-            {
-                foreach (var prop in pSet.HasProperties.OfType<IIfcPropertySingleValue>())
-                {
-                    if (prop.Name.ToString().ContainsAny("volume"))
-                    {
-                        if (double.TryParse(prop.NominalValue?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
-                        {
-                            return parsed;
-                        }
-                    }
-                }
-            }
-
             return null;
         }
 
-        private static ElementVolumeMaterialAuditDetail AuditVolumeMaterial(IIfcProduct product, double volumeFactor)
+        private ElementVolumeMaterialAuditDetail AuditVolumeMaterial(IIfcProduct product, double volumeFactor, IfcExporterProfile profile)
         {
             var detail = new ElementVolumeMaterialAuditDetail();
             detail.GlobalId = product.GlobalId.ToString();
 
-            // Direct Volume
-            var quantitySets = product.IsDefinedBy
-                .Where(r => r.RelatingPropertyDefinition is IIfcElementQuantity)
-                .Select(r => (IIfcElementQuantity)r.RelatingPropertyDefinition);
-
-            foreach (var qSet in quantitySets)
+            var qRes = _aliasResolver.ResolveProperty(product, "Volume", profile);
+            if (qRes.Value != null)
             {
-                foreach (var quantity in qSet.Quantities.OfType<IIfcQuantityVolume>())
+                if (double.TryParse(qRes.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
                 {
-                    if (quantity.Name.ToString().ContainsAny("volume"))
-                    {
-                        detail.VolumeRawValue = quantity.VolumeValue;
-                        detail.VolumeStandardValueM3 = quantity.VolumeValue * volumeFactor;
-                        detail.VolumeSource = $"Quantity: {qSet.Name}.{quantity.Name}";
-                        break;
-                    }
-                }
-                if (detail.VolumeRawValue.HasValue) break;
-            }
-
-            if (!detail.VolumeRawValue.HasValue)
-            {
-                var propertySets = product.IsDefinedBy
-                    .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
-                    .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition);
-
-                foreach (var pSet in propertySets)
-                {
-                    foreach (var prop in pSet.HasProperties.OfType<IIfcPropertySingleValue>())
-                    {
-                        if (prop.Name.ToString().ContainsAny("volume"))
-                        {
-                            if (double.TryParse(prop.NominalValue?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
-                            {
-                                detail.VolumeRawValue = parsed;
-                                detail.VolumeStandardValueM3 = parsed * volumeFactor;
-                                detail.VolumeSource = $"Property: {pSet.Name}.{prop.Name}";
-                                break;
-                            }
-                        }
-                    }
-                    if (detail.VolumeRawValue.HasValue) break;
+                    detail.VolumeRawValue = parsed;
+                    detail.VolumeStandardValueM3 = parsed * volumeFactor;
+                    var isQty = IsQuantitySet(product, qRes.SourcePropertySet ?? string.Empty);
+                    detail.VolumeSource = isQty
+                        ? $"Quantity: {qRes.SourcePropertySet}.{qRes.SourcePropertyName}"
+                        : $"Property: {qRes.SourcePropertySet}.{qRes.SourcePropertyName}";
                 }
             }
 
@@ -1095,10 +946,15 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 detail.MaterialName = $"Error: {ex.Message}";
             }
 
-            // If the element has no explicit weight, its fallback estimation uses density, which depends heavily on material type
             detail.WeightFallbackDependsOnMaterial = true;
 
             return detail;
+        }
+
+        private static bool IsQuantitySet(IIfcProduct product, string psetName)
+        {
+            return product.IsDefinedBy
+                .Any(r => r.RelatingPropertyDefinition is IIfcElementQuantity eq && eq.Name.ToString().Equals(psetName, StringComparison.OrdinalIgnoreCase));
         }
 
         private static ElementGeometryOwnershipAuditDetail AuditGeometryOwnership(

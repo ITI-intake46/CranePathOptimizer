@@ -12,6 +12,7 @@ using System.Linq;
 using System.Threading;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Services.Identity;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.PlacementOrchestration
 {
@@ -448,10 +449,19 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 ? new Domain.Common.DomainPoint3D()
                 : element.ElementCOG;
 
+            // Phase 5: Resolve canonical display identity once; populate metadata additively.
+            // ElementMark is kept as the raw IFC field for backward compatibility.
+            // No GA physics data (weight, COG, radius, capacity) is modified.
+            var identity = element != null ? CanonicalMarkResolver.Resolve(element) : null;
+
             return new ElementLiftResult
             {
                 ElementId = evaluation.ElementId,
                 ElementMark = element?.ElementMark,
+                CanonicalMark = identity?.DisplayLabel,
+                MarkSource = identity?.MarkSource,
+                MarkConfidence = identity?.MarkConfidence,
+                IsExplicitMark = identity?.IsExplicitMark ?? false,
                 ElementType = element?.ElementType,
                 Weight = element?.ElementWT,
                 CogX = cog.X,
@@ -537,6 +547,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                     {
                         ElementId = er.ElementId,
                         ElementMark = er.ElementMark,
+                        CanonicalMark = er.CanonicalMark,
+                        MarkSource = er.MarkSource,
+                        MarkConfidence = er.MarkConfidence,
+                        IsExplicitMark = er.IsExplicitMark,
                         ElementType = er.ElementType,
                         Weight = er.Weight,
                         CogX = er.CogX,

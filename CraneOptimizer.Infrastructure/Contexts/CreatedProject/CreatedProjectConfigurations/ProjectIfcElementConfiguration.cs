@@ -52,6 +52,25 @@ namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject.CreatedProjectCo
             entity.Property(x => x.WeightTrustLevel)
                 .HasMaxLength(100);
 
+            // Canonical Assembly Persistence (Phase 2)
+            entity.Property(x => x.AssemblyMark)
+                .HasMaxLength(250);
+
+            entity.Property(x => x.AssemblyMarkSource)
+                .HasMaxLength(250);
+
+            entity.Property(x => x.AssemblyMarkConfidence)
+                .HasMaxLength(50);
+
+            entity.Property(x => x.SourceSystem)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.ExporterProfile)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.ValidationStatus)
+                .HasMaxLength(50);
+
             entity.Property(x => x.CachedAtUtc)
                 .IsRequired();
 

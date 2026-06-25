@@ -3,6 +3,8 @@ using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
+using CraneOptimizer.Application.Services;
+
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 {
     public class CraneOptimizerDialogService : ICraneOptimizerDialogService
@@ -14,6 +16,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         private readonly ISceneService _sceneService;
         private readonly CraneSetupViewModel _craneSetup;
         private readonly ISceneRenderingManager _sceneRenderingManager;
+        private readonly IImportReadinessService _readinessService;
 
         public CraneOptimizerDialogService(
             ICranePlacementService placementService,
@@ -22,7 +25,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             ICraneRepository craneRepository,
             ISceneService sceneService,
             CraneSetupViewModel craneSetup,
-            ISceneRenderingManager sceneRenderingManager)
+            ISceneRenderingManager sceneRenderingManager,
+            IImportReadinessService readinessService)
         {
             _placementService = placementService;
             _renderingService = renderingService;
@@ -31,6 +35,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             _sceneService = sceneService;
             _craneSetup = craneSetup;
             _sceneRenderingManager = sceneRenderingManager;
+            _readinessService = readinessService;
         }
 
         public CraneOptimizerDialogOutcome? ShowDialog()
@@ -42,7 +47,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 _craneRepository,
                 _sceneService,
                 _craneSetup,
-                _sceneRenderingManager);
+                _sceneRenderingManager,
+                _readinessService);
 
             if (System.Windows.Application.Current?.MainWindow != null)
                 dialog.Owner = System.Windows.Application.Current.MainWindow;

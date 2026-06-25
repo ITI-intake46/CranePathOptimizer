@@ -237,6 +237,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     int bestFailedRequiredRadiusIdx = GetHeaderIndex(headers, "BestFailedRequiredRadius");
                     int bestFailedRequiredBoomLengthIdx = GetHeaderIndex(headers, "BestFailedRequiredBoomLength");
 
+                    // Phase 5: Canonical Display Identity (optional columns; backward compatible)
+                    int canonicalMarkIdx = GetHeaderIndex(headers, "CanonicalMark");
+                    int markSourceIdx = GetHeaderIndex(headers, "MarkSource");
+                    int markConfidenceIdx = GetHeaderIndex(headers, "MarkConfidence");
+                    int isExplicitMarkIdx = GetHeaderIndex(headers, "IsExplicitMark");
+
                     string? line;
                     while ((line = reader.ReadLine()) != null)
                     {
@@ -337,7 +343,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                             BestFailedChartStatus = GetValue(row, bestFailedChartStatusIdx),
                             BestFailedSafetyMargin = GetValueDouble(row, bestFailedSafetyMarginIdx, 0.0),
                             BestFailedRequiredRadius = GetValueDouble(row, bestFailedRequiredRadiusIdx, 0.0),
-                            BestFailedRequiredBoomLength = GetValueDouble(row, bestFailedRequiredBoomLengthIdx, 0.0)
+                            BestFailedRequiredBoomLength = GetValueDouble(row, bestFailedRequiredBoomLengthIdx, 0.0),
+
+                            // Phase 5: Canonical Display Identity (empty string when reading old CSVs)
+                            CanonicalMark = GetValue(row, canonicalMarkIdx, string.Empty),
+                            MarkSource = GetValue(row, markSourceIdx, string.Empty),
+                            MarkConfidence = GetValue(row, markConfidenceIdx, string.Empty),
+                            IsExplicitMark = GetValueBool(row, isExplicitMarkIdx)
                         };
 
                         results.Add(dto);

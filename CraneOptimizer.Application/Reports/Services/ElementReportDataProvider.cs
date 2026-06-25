@@ -1,4 +1,5 @@
 using CraneOptimizer.Application.Reports.DTOs;
+using CraneOptimizer.Application.Services.Identity;
 using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Reports.Services;
@@ -71,20 +72,14 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
         IReadOnlyDictionary<double, string> levelLabels)
     {
         var mapping = ReportWeightMapper.Map(element);
-        var length = FirstPositive(element.ElementLength, element.BBoxLength);
-        var width = FirstPositive(element.ElementWidth, element.BBoxWidth);
-        var height = FirstPositive(element.ElementHeight, element.BBoxHeight);
-        var (volume, volumeSource) = ResolveReportVolume(element, length, width, height);
-        var (bottomElevation, topElevation) = ResolveElevationRange(element, height);
+        var identity = CanonicalMarkResolver.Resolve(element);
 
         return new ElementReportRowDto
         {
             No = number,
             ElementId = element.ElementID,
-            ElementMark = ResolveElementMark(element),
-            ElementName = ResolveElementName(element),
-            ElementType = FirstNonEmpty(element.ElementType, "\u2014"),
-            SourceRevitId = FirstNonEmpty(element.ElementRevitId, element.ElementID, "\u2014"),
+            ElementMark = FirstNonEmpty(element.ElementMark, element.ParentAssemblyName, element.ElementID, "Unknown"),
+            SourceRevitId = FirstNonEmpty(element.ElementRevitId, element.ElementID, "Unknown"),
             StoreyLevel = ResolveStoreyLevel(element, levelLabels),
             Material = string.IsNullOrWhiteSpace(element.ElementMaterial) ? "\u2014" : element.ElementMaterial,
             Length = length,

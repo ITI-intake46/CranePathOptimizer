@@ -146,6 +146,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         /// </summary>
         public string? ElementMark { get; set; }
 
+        // Phase 5: Canonical Display Identity (additive; ElementMark kept for backward compat)
+        public string? CanonicalMark { get; set; }
+        public string? MarkSource { get; set; }
+        public string? MarkConfidence { get; set; }
+        public bool IsExplicitMark { get; set; }
+
         /// <summary>
         /// Element type from the source model.
         /// </summary>

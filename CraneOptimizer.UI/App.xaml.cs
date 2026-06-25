@@ -105,6 +105,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IUnitSettingsService, UnitSettingsService>();
             services.AddSingleton<IIfcDiagnosticAuditService, IfcDiagnosticAuditService>();
             services.AddSingleton<IIfcExporterProfileResolver, IfcExporterProfileResolver>();
+            services.AddSingleton<ICentralIfcPropertyAliasResolver, CentralIfcPropertyAliasResolver>();
             services.AddSingleton<IIfcNormalizationDecisionService, IfcNormalizationDecisionService>();
 
             // =========================
@@ -115,6 +116,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<ISceneGridSizingService, SceneGridSizingService>();
             services.AddSingleton<IElementVisibilityFilterService, ElementVisibilityFilterService>();
             services.AddSingleton<IIfcSceneOperationService, IfcSceneOperationService>();
+            services.AddSingleton<IImportReadinessService, ImportReadinessService>();
 
             // =========================
             // F10 Project Management

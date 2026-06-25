@@ -92,8 +92,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 
         public ElementLiftResult Source => _source;
 
-        /// <summary>Element mark (or "-" when missing).</summary>
-        public string Mark => !string.IsNullOrWhiteSpace(_source.ElementMark) ? _source.ElementMark : "-";
+        /// <summary>
+        /// Best resolved display mark for this element.
+        /// Phase 5: prefers canonical AssemblyMark via CanonicalMark; falls back to raw ElementMark.
+        /// </summary>
+        public string Mark =>
+            !string.IsNullOrWhiteSpace(_source.CanonicalMark) ? _source.CanonicalMark :
+            !string.IsNullOrWhiteSpace(_source.ElementMark) ? _source.ElementMark : "-";
 
         /// <summary>Horizontal radius in metres.</summary>
         public string RadiusText => _source.Radius.ToString("F2") + " m";

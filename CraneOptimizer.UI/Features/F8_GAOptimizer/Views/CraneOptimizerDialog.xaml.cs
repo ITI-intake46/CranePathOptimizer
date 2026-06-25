@@ -12,6 +12,15 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows;
 using System.Windows;
 using System.Windows.Controls;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.Application.Services;
+using CraneOptimizer.Domain.Diagnostics;
+using System.ComponentModel;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 {
@@ -25,6 +34,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private readonly ISceneService _sceneService;
         private readonly CraneSetupViewModel _craneSetup;
         private readonly ISceneRenderingManager _sceneRenderingManager;
+        private readonly IImportReadinessService _readinessService;
         private readonly CraneOptimizerDialogWorkflow _workflow;
 
         private CranePlacementResult? _currentResult;
@@ -51,7 +61,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             ICraneRepository craneRepository,
             ISceneService sceneService,
             CraneSetupViewModel craneSetup,
-            ISceneRenderingManager sceneRenderingManager)
+            ISceneRenderingManager sceneRenderingManager,
+            IImportReadinessService readinessService)
         {
             InitializeComponent();
 
@@ -60,9 +71,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             _sceneService = sceneService;
             _craneSetup = craneSetup;
             _sceneRenderingManager = sceneRenderingManager;
+            _readinessService = readinessService;
             _workflow = new CraneOptimizerDialogWorkflow(placementService, craneRepository);
 
-            DataContext = new CraneOptimizerDialogViewModel();
+            var vm = new CraneOptimizerDialogViewModel();
+            vm.PropertyChanged += OnViewModelPropertyChanged;
+            DataContext = vm;
 
             Loaded += OnLoaded;
             Closed += OnClosed;
@@ -111,6 +125,39 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             try
             {
                 var options = CaptureOptions();
+
+                // Refresh readiness summary to evaluate the latest selected target types/selection
+                RefreshReadinessSummary();
+                var vm = DataContext as CraneOptimizerDialogViewModel;
+                if (vm != null && vm.IsElementCheckerEnabled && vm.ReadinessSummary != null)
+                {
+                    if (vm.ReadinessSummary.GaCandidateElements == 0)
+                    {
+                        TxtStatus.Text = "No valid GA candidates.";
+                        ProgBar.IsIndeterminate = false;
+                        ProgBar.Value = 0;
+
+                        var explanation = new StringBuilder();
+                        explanation.AppendLine("Optimization blocked: Zero valid GA candidate elements.");
+                        explanation.AppendLine();
+                        explanation.AppendLine("Details:");
+                        foreach (var msg in vm.ReadinessSummary.Messages)
+                        {
+                            if (msg.Severity == "Error" || msg.Severity == "Warning")
+                            {
+                                explanation.AppendLine($"- [{msg.Code}] {msg.Message}");
+                                if (!string.IsNullOrEmpty(msg.RecommendedAction))
+                                {
+                                    explanation.AppendLine($"  Recommended: {msg.RecommendedAction}");
+                                }
+                            }
+                        }
+
+                        _dialogService.ShowMessage(explanation.ToString());
+                        return;
+                    }
+                }
+
                 if (options.TargetElementTypes.Count == 0)
                 {
                     TxtStatus.Text = "Select at least one target type.";
@@ -387,6 +434,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         {
             _cachedElements = _sceneService.GetElements() ?? new List<PrecastElement>();
             RefreshTargetElementTypes();
+            RefreshReadinessSummary();
         }
 
         private void RefreshTargetElementTypes()
@@ -541,6 +589,52 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 option.IsSelected = checkBox.IsChecked == true;
 
             UpdateTargetElementSummary();
+            RefreshReadinessSummary();
+        }
+
+        private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(CraneOptimizerDialogViewModel.IsElementCheckerEnabled))
+            {
+                RefreshReadinessSummary();
+            }
+        }
+
+        private List<PrecastElement> GetScopedElements()
+        {
+            var sceneElements = _sceneService.GetElements() ?? new List<PrecastElement>();
+
+            // 1. Filter by selection
+            var selectedElements = _sceneService.GetSelectedElements();
+            if (selectedElements != null && selectedElements.Count > 0)
+            {
+                var selectedIds = selectedElements.Select(e => e.ElementID).Where(id => !string.IsNullOrEmpty(id)).ToHashSet();
+                sceneElements = sceneElements.Where(e => selectedIds.Contains(e.ElementID)).ToList();
+            }
+
+            // 2. Filter by target types
+            var selectedTypes = GetSelectedTargetElementTypes();
+            if (selectedTypes != null && selectedTypes.Count > 0)
+            {
+                var typeSet = selectedTypes.Select(t => t.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                sceneElements = sceneElements.Where(e => typeSet.Contains(NormalizeElementType(e.ElementType))).ToList();
+            }
+            else
+            {
+                sceneElements = new List<PrecastElement>();
+            }
+
+            return sceneElements;
+        }
+
+        private void RefreshReadinessSummary()
+        {
+            var vm = DataContext as CraneOptimizerDialogViewModel;
+            if (vm == null) return;
+
+            var scopedElements = GetScopedElements();
+            var summary = _readinessService.BuildSummary(scopedElements, vm.IsElementCheckerEnabled);
+            vm.ReadinessSummary = summary;
         }
 
         private sealed class ElementTypeFilterOption

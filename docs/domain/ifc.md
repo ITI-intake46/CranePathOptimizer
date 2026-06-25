@@ -17,6 +17,108 @@ The implementation currently uses xBIM through `IfcModelSession.Open`, `IfcReade
 * No project-specific schema allow-list for IFC2X3, IFC4, IFC4X1, IFC4X2, or IFC4X3 exists. The project delegates opening to `IfcStore.Open()` and records `model.SchemaVersion`.
 * Spatial structure is only partially used: `IfcProject` units and `IfcBuildingStorey` elevation/storey mapping are read; `IfcSite`, `IfcBuilding`, and `IfcSpace` are not imported as optimization elements.
 * Requested files `docs/domain/ifc-architecture-review.md`, `docs/domain/ifc-feature-matrix.md`, and `docs/project/current-state.md` are absent.
+* Stale links to missing documentation have been annotated.
+
+## Phase 1 Stabilization & Transitional State
+
+> [!NOTE]
+> Phase 1 is a stabilization phase focused on fixing identity preservation, resolving `GeometryContext` disposal issues, and enforcing GA safety gating. It is transitional and does not represent the final canonical schema.
+
+### Core Changes in Phase 1
+1. **xBIM Geometry Context Disposal**: Safely disposes of the xBIM `GeometryContext` by casting to `IDisposable` inside `IfcModelSession.Dispose` to prevent memory leaks during consecutive loads.
+2. **Identity Preservation & Best-Candidate Mark Resolution**:
+   - Replaced simple `GetMark` logic with `GetBestMarkCandidate`. It resolves marks using a strict priority chain: Assembly-level Mark Candidate > Explicit Element Mark > Type/Reference Candidate > `product.Name` fallback.
+   - Preserves source marks and prevents `product.Name` from overwriting real property-set marks.
+   - `ElementMark` in the `PrecastElement` schema remains a transitional field.
+3. **Missing Assembly Mark Diagnostics**:
+   - Distinguishes between `ExplicitAssemblyMarkFound` (bool) and `ResolvedDisplayMark` (string).
+   - Warnings and missing assembly mark counts are calculated strictly based on explicit assembly properties: `Assembly Mark`, `Cast Unit Mark`, `Assembly Number`, `Cast Unit Number`. Falls back to `product.Name` for display (`ResolvedDisplayMark`), but does not suppress the missing assembly mark warning.
+4. **Genetic Algorithm Gating**:
+   - Blocks elements with `WeightTrustLevel == EstimatedFallback_NotAllowedForGA` from entering GA optimization passes regardless of the `IncludeInGa` setting.
+   - Implements parent-assembly child exclusion: if a parent assembly is selected as a GA target, its children parts are automatically excluded to prevent weight double-counting.
+
+## Phase 2 Canonical Assembly Schema & Source Mapping Foundation
+
+Phase 2 introduces the foundation for a single source of truth for business-critical precast assembly data, reducing direct downstream dependency on raw exporter-specific schemas.
+
+### 1. Canonical Fields on PrecastElement
+The `PrecastElement` domain model has been expanded to include:
+* **Canonical Identity**:
+  * `AssemblyMark` (string): The canonical assembly identification mark.
+  * `AssemblyMarkSource` (string): The source property set and property path from which the mark was mapped (e.g. `Pset_Revit_Identity Data.Assembly Mark`).
+  * `AssemblyMarkConfidence` (enum): The resolution confidence level (`None`, `Low`, `Medium`, `High`).
+  * `AssemblyMarkIsExplicit` (bool): True if the mark represents an explicit assembly-level property, false if inferred or fallback.
+* **Metadata & Context**:
+  * `SourceSystem` (enum): The originating CAD/BIM environment (`IFC`, `Revit`, `Tekla`, `JSON`).
+  * `ExporterProfile` (enum): The specific software profile that exported the IFC (`Generic`, `Tekla`, `Revit`).
+* **Validation & Health**:
+  * `ValidationStatus` (enum): The validation health check status (`Valid`, `Warning`, `Error`).
+  * `ValidationWarnings` (list of strings): List of specific warning messages generated during validation rules processing.
+* **Non-Authoritative Engineering Mirrors (Future Migration Foundation)**:
+  * Getter properties `AssemblyWeightTons`, `AssemblyWeightSource`, `AssemblyWeightTrustLevel`, `AssemblyVolumeM3`, `AssemblyMaterial`, `AssemblyCenterOfGravity`, `AssemblyLength`, `AssemblyWidth`, and `AssemblyHeight` have been added as non-authoritative mirrors of existing engineering fields. Downstream GA and reporting modules will be transitioned to these in a future phase.
+
+### 2. Canonical Identity Mapping Priority Chain
+When processing elements from an IFC model, the mapping engine resolves the `AssemblyMark` and its confidence level in a strict priority order:
+1. **High Confidence (`AssemblyMarkConfidence.High`)**: Explicit assembly-level properties found in known property sets (e.g., `Assembly Mark`, `Cast Unit Mark`, `Assembly Number`, `Cast Unit Number`).
+2. **Medium Confidence (`AssemblyMarkConfidence.Medium`)**: Exporter-specific candidate fields such as Revit assembly marks or Tekla cast units on `IfcElementAssembly` types, or explicit element-level `Mark`/`Element Mark` properties.
+3. **Low Confidence (`AssemblyMarkConfidence.Low`)**: Type/reference candidates (e.g. `Type Mark`, `Reference`, `Type Name`), object types, or the product `Name` property.
+4. **None Confidence (`AssemblyMarkConfidence.None`)**: Fallback to preview name when no other identity candidate can be found.
+
+### 3. Validation Diagnostics Rules & Status
+Each normalized element is evaluated by the validation engine to identify missing attributes or assembly risks:
+* **MissingAssemblyMark (Warning)**: Triggered when `AssemblyMarkIsExplicit` is false. This occurs when falling back to a product Name, ObjectType, or type reference, highlighting that the mark might not be a stable, unique production identifier.
+* **MissingTrustedWeight (Warning)**: Triggered if `WeightTrustLevel` is not `ExplicitQuantity` or `ExplicitProperty` (e.g., estimated fallback weights).
+* **EstimatedWeightNotApproved (Error)**: Triggered if `WeightTrustLevel` is `EstimatedFallback_NotAllowedForGA`. Estimated fallback weights are strictly blocked from GA optimization.
+* **MissingAssemblyCOG (Warning)**: Triggered if Center of Gravity (COG) coordinates are missing, zero, or invalid.
+* **MissingAssemblyVolume (Warning)**: Triggered if volume is missing or zero.
+* **MissingMaterial (Info)**: Triggered if no material is specified.
+* **SourceMappingLowConfidence (Warning)**: Triggered if mapping confidence is `Low` or `None`.
+* **ParentChildDoubleCountRisk (Warning)**: Triggered if both parent assembly and child part are target candidates for GA optimization.
+
+The validation results dictate the overall `ValidationStatus`:
+* Any `Error` severity result promotes status to `ValidationStatus.Error`.
+* Any `Warning` severity result (with no Errors) promotes status to `ValidationStatus.Warning`.
+* Otherwise, status remains `ValidationStatus.Valid`.
+
+### 4. Direct JSON Data Source Direction
+In future phases, the system will support Tekla/Revit native add-ins exporting canonical JSON business data. In this model:
+* The IFC file will remain responsible for 3D mesh representation, geometry coordinate space, and `GlobalId` mapping.
+* The JSON business data sidecar will provide the canonical properties, directly mapping with high-confidence to `AssemblyMark`, `AssemblyWeight`, `AssemblyCOG`, etc., bypassing the heuristic property set mapping chain.
+
+
+## Phase 3 — Source Mapping Profiles & Central Alias Resolver
+
+Phase 3 organizes exporter-specific property names into clean profiles and centralizes IFC property traversal into a dedicated, testable service.
+
+### 1. Reusable Source Mapping Profiles
+All source-specific mapping metadata (property lists and keyword patterns) is defined in concrete profiles implementing the pure `IIfcSourceMappingProfile` interface (located in Domain):
+* [GenericIfcExporterProfile](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/GenericIfcExporterProfile.cs): Provides default aliases for standard IFC schemas.
+* [RevitIfcExporterProfile](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/RevitIfcExporterProfile.cs): Focuses on Revit identity property sets.
+* [TeklaIfcExporterProfile](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/TeklaIfcExporterProfile.cs): Handles Tekla-specific cast unit and assembly mark logic.
+
+### 2. Centralized Alias Resolver (`CentralIfcPropertyAliasResolver`)
+The resolver resides in the Infrastructure layer because it directly traverses xBIM/IFC models and interfaces (e.g., `IIfcProduct`, property sets, quantity sets).
+* **Stateless Service**: Registered as a singleton in the DI container.
+* **Traceable Resolutions**: Returns `SourcePropertyResolutionResult` objects detailing the exact source property set, property name, and confidence level for logical fields (`AssemblyMark`, `ElementMark`, `Weight`, `Volume`, `Material`, `Level`, `Storey`).
+* **Clean Boundaries**: Keeps the Domain project free of xBIM or Infrastructure-specific dependencies.
+
+## Phase 4 — Import Validation & GA Readiness Diagnostics Foundation
+
+Phase 4 exposes the validation/readiness state in a consistent, reusable way by creating a centralized diagnostics/readiness foundation and a minimal UI card ("Current Run Readiness") inside the GA Optimizer dialog.
+
+### 1. Centralized Models & Service
+* **ValidationMessage**: Represents a single user-facing diagnostic warning or info message. It contains `Code`, `Severity` ("Info", "Warning", "Error"), `Message`, `AffectedCount`, `AffectedElementIds`, `RecommendedAction`, `SourceSystem`, and `Category`.
+* **ImportReadinessSummary**: Summarizes total elements, renderable elements, GA candidates, blocked elements, specific check warning counts, overall status, and validation messages list.
+* **ImportReadinessService**: Evaluates the scoped elements, groups warning codes, counts affected items, and returns the readiness summary. If the Element Checker toggle is disabled, it returns a neutral Valid state with a single info message.
+
+### 2. GA Readiness Gating & Scoping
+* **Same Scoped Element List**: Readiness diagnostics are executed strictly on the same scoped element list used by the GA run, which honors viewport filters, target-type selections, and mouse-selection scoping.
+* **Zero-Candidate Blocking**: If `GaCandidateElements` count is 0, the optimizer blocks the run and displays a clear explanation of the errors and warnings to the user.
+
+### 3. Element Checker Toggle
+* **Element Checker Toggle (ON/OFF)**: Adds a UI toggle to optionally skip detailed diagnostics breakdowns. When disabled, the UI shows a neutral "Not Checked" state. It does not bypass existing GA safety gates.
+
+---
 
 ## Verified Statements
 
@@ -286,3 +388,17 @@ The coordinate placement offset depends on the selected import mode:
    * LocalReferenceX/Y/Z are set to `0.0`.
    * The manual "Move IFC" command is disabled in the UI to prevent coordinate misalignment.
 
+## Phase 5 — Canonical Display Identity Alignment
+
+Phase 5 aligns all downstream data paths (Genetic Algorithm results, Reports, and CSV Diagnostics) to consume the Canonical Display Identity resolved from Phase 2/3.
+
+### 1. Authoritative Identity Contract (`ElementDisplayIdentityDto`)
+A dedicated data contract, `ElementDisplayIdentityDto`, is resolved using a neutral static utility `CanonicalMarkResolver` in the Application layer. It decouples presentation logic from raw `PrecastElement` geometry-heavy entities:
+* **DisplayLabel**: Sourced via a strict priority chain: Explicit `AssemblyMark` > Any `AssemblyMark` > `ResolvedDisplayMark` > `ElementMark` > `ParentAssemblyName` > `ElementId`.
+* **Validation & Context Metadata**: Carries `MarkSource`, `MarkConfidence`, `IsExplicitMark`, `ValidationStatus`, `ValidationWarnings`, `SourceSystem`, and `ExporterProfile`.
+
+### 2. Downstream Mappings
+The display identity and resolved mark are mapped into the following locations without modifying core engineering data or fitness calculations:
+* **GA Results**: Enriched at `PlacementResult.ElementLiftResult` and propagated down to `GAResultsWindowViewModel` to display `CanonicalMark` in UI lists.
+* **Reports**: Mapped to `ElementReportRowDto` and `LiftingResultSourceRowDto` properties and preferred by data providers for labels.
+* **CSV Diagnostics**: Appended as flat headers/columns (`CanonicalMark`, `MarkSource`, `MarkConfidence`, `IsExplicitMark`) at the right of `ga_audit_detailed_*.csv` sheets.
