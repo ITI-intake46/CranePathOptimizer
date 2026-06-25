@@ -61,6 +61,31 @@ namespace CraneOptimizer.Domain.Schemas
         public string? ParentAssemblyName { get; set; }
         public List<string> ExtractionWarnings { get; set; } = new();
         public string NormalizationDecisionReason { get; set; } = string.Empty;
+
+        // Canonical Assembly Data Schema (Phase 2)
+        public string? AssemblyMark { get; set; }
+        public string? AssemblyMarkSource { get; set; }
+        public AssemblyMarkConfidence AssemblyMarkConfidence { get; set; } = AssemblyMarkConfidence.None;
+        public bool AssemblyMarkIsExplicit { get; set; }
+
+        // Non-authoritative mirrors of active engineering fields
+        public double? AssemblyWeightTons => WeightTons;
+        public string? AssemblyWeightSource => WeightSource;
+        public IfcWeightTrustLevel AssemblyWeightTrustLevel => WeightTrustLevel;
+        public double? AssemblyVolumeM3 => VolumeM3;
+        public string? AssemblyMaterial => ElementMaterial;
+        public DomainPoint3D AssemblyCenterOfGravity => COG_M;
+        public double? AssemblyLength => ElementLength;
+        public double? AssemblyWidth => ElementWidth;
+        public double? AssemblyHeight => ElementHeight;
+
+        public SourceSystem SourceSystem { get; set; } = SourceSystem.IFC;
+        public IfcExporterProfile ExporterProfile { get; set; } = IfcExporterProfile.Generic;
+        public string? SourceGlobalId => ElementID;
+        public string? ParentAssemblyGlobalId => ParentGlobalId;
+
+        public ValidationStatus ValidationStatus { get; set; } = ValidationStatus.Valid;
+        public List<string> ValidationWarnings { get; set; } = new();
     }
 }
 

@@ -850,6 +850,278 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return null;
             }
 
+            private static CanonicalAssemblyIdentityResult ResolveCanonicalAssemblyIdentity(
+                IIfcProduct? product, 
+                IfcNormalizedElementPreview preview,
+                IfcExporterProfile exporterProfile)
+            {
+                var result = new CanonicalAssemblyIdentityResult
+                {
+                    SourceSystem = exporterProfile == IfcExporterProfile.Tekla ? SourceSystem.Tekla.ToString() :
+                                   exporterProfile == IfcExporterProfile.Revit ? SourceSystem.Revit.ToString() :
+                                   SourceSystem.IFC.ToString(),
+                    Confidence = AssemblyMarkConfidence.None.ToString(),
+                    IsExplicitAssemblyMark = false,
+                    UsedFallback = false
+                };
+
+                if (product == null)
+                {
+                    result.AssemblyMark = preview.Name;
+                    result.Confidence = AssemblyMarkConfidence.Low.ToString();
+                    result.UsedFallback = true;
+                    result.Warnings.Add("No active product instance; fell back to preview name.");
+                    return result;
+                }
+
+                var psetNames = new[] { "Pset_Revit_Identity Data", "Pset_ConcreteElementGeneral" };
+                var explicitAssemblyPropNames = new[] { "Assembly Mark", "Cast Unit Mark", "Assembly Number", "Cast Unit Number" };
+
+                // 1. Explicit assembly-level properties
+                foreach (var targetPset in psetNames)
+                {
+                    foreach (var propName in explicitAssemblyPropNames)
+                    {
+                        var val = GetPropertyString(product, targetPset, propName);
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            result.AssemblyMark = val;
+                            result.SourcePropertySet = targetPset;
+                            result.SourcePropertyName = propName;
+                            result.Confidence = AssemblyMarkConfidence.High.ToString();
+                            result.IsExplicitAssemblyMark = true;
+                            return result;
+                        }
+                    }
+                }
+
+                foreach (var propName in explicitAssemblyPropNames)
+                {
+                    var val = GetPropertyStringAnySet(product, propName);
+                    if (!string.IsNullOrWhiteSpace(val))
+                    {
+                        result.AssemblyMark = val;
+                        result.SourcePropertySet = "AnySet";
+                        result.SourcePropertyName = propName;
+                        result.Confidence = AssemblyMarkConfidence.High.ToString();
+                        result.IsExplicitAssemblyMark = true;
+                        return result;
+                    }
+                }
+
+                // 2. Exporter-specific assembly candidates (Revit assembly mark, Tekla cast unit)
+                if (product is IIfcElementAssembly || (product.ExpressType?.Name?.Equals("IfcElementAssembly", StringComparison.OrdinalIgnoreCase) ?? false))
+                {
+                    foreach (var targetPset in psetNames)
+                    {
+                        var val = GetPropertyString(product, targetPset, "Mark");
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            result.AssemblyMark = val;
+                            result.SourcePropertySet = targetPset;
+                            result.SourcePropertyName = "Mark";
+                            result.Confidence = AssemblyMarkConfidence.Medium.ToString();
+                            result.IsExplicitAssemblyMark = true;
+                            return result;
+                        }
+                    }
+
+                    var revitAssemblyMark = GetPropertyStringAnySet(product, "Assembly Mark");
+                    if (!string.IsNullOrWhiteSpace(revitAssemblyMark))
+                    {
+                        result.AssemblyMark = revitAssemblyMark;
+                        result.SourcePropertySet = "AnySet";
+                        result.SourcePropertyName = "Assembly Mark";
+                        result.Confidence = AssemblyMarkConfidence.Medium.ToString();
+                        result.IsExplicitAssemblyMark = true;
+                        return result;
+                    }
+                }
+
+                // 3. Explicit element-level mark
+                foreach (var targetPset in psetNames)
+                {
+                    var val = GetPropertyString(product, targetPset, "Mark");
+                    if (!string.IsNullOrWhiteSpace(val))
+                    {
+                        result.AssemblyMark = val;
+                        result.SourcePropertySet = targetPset;
+                        result.SourcePropertyName = "Mark";
+                        result.Confidence = AssemblyMarkConfidence.Medium.ToString();
+                        result.IsExplicitAssemblyMark = false;
+                        return result;
+                    }
+
+                    var val2 = GetPropertyString(product, targetPset, "Element Mark");
+                    if (!string.IsNullOrWhiteSpace(val2))
+                    {
+                        result.AssemblyMark = val2;
+                        result.SourcePropertySet = targetPset;
+                        result.SourcePropertyName = "Element Mark";
+                        result.Confidence = AssemblyMarkConfidence.Medium.ToString();
+                        result.IsExplicitAssemblyMark = false;
+                        return result;
+                    }
+                }
+
+                var valAnyMark = GetPropertyStringAnySet(product, "Mark");
+                if (!string.IsNullOrWhiteSpace(valAnyMark))
+                {
+                    result.AssemblyMark = valAnyMark;
+                    result.SourcePropertySet = "AnySet";
+                    result.SourcePropertyName = "Mark";
+                    result.Confidence = AssemblyMarkConfidence.Medium.ToString();
+                    result.IsExplicitAssemblyMark = false;
+                    return result;
+                }
+
+                // 4. Type/reference candidates
+                var typePropNames = new[] { "Type Mark", "Reference", "Type Name" };
+                foreach (var targetPset in psetNames)
+                {
+                    foreach (var propName in typePropNames)
+                    {
+                        var val = GetPropertyString(product, targetPset, propName);
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            result.AssemblyMark = val;
+                            result.SourcePropertySet = targetPset;
+                            result.SourcePropertyName = propName;
+                            result.Confidence = AssemblyMarkConfidence.Low.ToString();
+                            result.IsExplicitAssemblyMark = false;
+                            return result;
+                        }
+                    }
+                }
+
+                foreach (var propName in typePropNames)
+                {
+                    var val = GetPropertyStringAnySet(product, propName);
+                    if (!string.IsNullOrWhiteSpace(val))
+                    {
+                        result.AssemblyMark = val;
+                        result.SourcePropertySet = "AnySet";
+                        result.SourcePropertyName = propName;
+                        result.Confidence = AssemblyMarkConfidence.Low.ToString();
+                        result.IsExplicitAssemblyMark = false;
+                        return result;
+                    }
+                }
+
+                var objType = product.ObjectType?.ToString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(objType))
+                {
+                    result.AssemblyMark = objType;
+                    result.SourcePropertySet = "ObjectType";
+                    result.SourcePropertyName = "ObjectType";
+                    result.Confidence = AssemblyMarkConfidence.Low.ToString();
+                    result.IsExplicitAssemblyMark = false;
+                    return result;
+                }
+
+                // 5. Display fallback only: product.Name
+                var prodName = product.Name?.ToString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(prodName))
+                {
+                    result.AssemblyMark = prodName;
+                    result.SourcePropertySet = "Product";
+                    result.SourcePropertyName = "Name";
+                    result.Confidence = AssemblyMarkConfidence.Low.ToString();
+                    result.IsExplicitAssemblyMark = false;
+                    result.UsedFallback = true;
+                    result.Warnings.Add("Fell back to product Name; no explicit assembly or element mark was found.");
+                }
+                else
+                {
+                    result.AssemblyMark = preview.Name;
+                    result.SourcePropertySet = "Preview";
+                    result.SourcePropertyName = "Name";
+                    result.Confidence = AssemblyMarkConfidence.None.ToString();
+                    result.IsExplicitAssemblyMark = false;
+                    result.UsedFallback = true;
+                    result.Warnings.Add("No name or mark properties found; fell back to preview name.");
+                }
+
+                return result;
+            }
+
+            private static void ValidateCanonicalAssembly(PrecastElement pe)
+            {
+                pe.ValidationWarnings = new List<string>();
+                var severities = new List<string>();
+
+                // 1. MissingAssemblyMark
+                if (!pe.AssemblyMarkIsExplicit)
+                {
+                    pe.ValidationWarnings.Add("MissingAssemblyMark: No explicit assembly-level or element-level mark found; falling back to display name.");
+                    severities.Add("Warning");
+                }
+
+                // 2. MissingTrustedWeight
+                var isWeightTrusted = pe.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
+                                      pe.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+                if (!isWeightTrusted)
+                {
+                    pe.ValidationWarnings.Add("MissingTrustedWeight: Element weight is not from an explicit trusted source.");
+                    severities.Add("Warning");
+                }
+
+                // 3. EstimatedWeightNotApproved
+                if (pe.WeightTrustLevel == IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA)
+                {
+                    pe.ValidationWarnings.Add("EstimatedWeightNotApproved: Estimated fallback weight is used and strictly blocked from GA.");
+                    severities.Add("Error");
+                }
+
+                // 4. MissingAssemblyCOG
+                if (pe.AssemblyCenterOfGravity == null || (Math.Abs(pe.AssemblyCenterOfGravity.X) < 0.0001 && Math.Abs(pe.AssemblyCenterOfGravity.Y) < 0.0001 && Math.Abs(pe.AssemblyCenterOfGravity.Z) < 0.0001))
+                {
+                    pe.ValidationWarnings.Add("MissingAssemblyCOG: Assembly Center of Gravity is missing, zero, or invalid.");
+                    severities.Add("Warning");
+                }
+
+                // 5. MissingAssemblyVolume
+                if (!pe.AssemblyVolumeM3.HasValue || pe.AssemblyVolumeM3.Value <= 0)
+                {
+                    pe.ValidationWarnings.Add("MissingAssemblyVolume: Assembly volume is missing or zero.");
+                    severities.Add("Warning");
+                }
+
+                // 6. MissingMaterial
+                if (string.IsNullOrWhiteSpace(pe.AssemblyMaterial) || pe.AssemblyMaterial == "-")
+                {
+                    pe.ValidationWarnings.Add("MissingMaterial: Assembly material is not specified.");
+                    severities.Add("Info");
+                }
+
+                // 7. SourceMappingLowConfidence
+                if (pe.AssemblyMarkConfidence == AssemblyMarkConfidence.Low || pe.AssemblyMarkConfidence == AssemblyMarkConfidence.None)
+                {
+                    pe.ValidationWarnings.Add($"SourceMappingLowConfidence: Assembly mark has low/no confidence ({pe.AssemblyMarkConfidence}).");
+                    severities.Add("Warning");
+                }
+
+                // ParentChildDoubleCountRisk (initial warning if parent global id is present)
+                if (!string.IsNullOrWhiteSpace(pe.ParentGlobalId) && pe.IncludeInGa)
+                {
+                    pe.ValidationWarnings.Add($"ParentChildDoubleCountRisk: Child component '{pe.ElementID}' is associated with parent assembly '{pe.ParentGlobalId}'. Excluded dynamically from GA if parent is liftable.");
+                    severities.Add("Warning");
+                }
+
+                if (severities.Contains("Error"))
+                {
+                    pe.ValidationStatus = ValidationStatus.Error;
+                }
+                else if (severities.Contains("Warning"))
+                {
+                    pe.ValidationStatus = ValidationStatus.Warning;
+                }
+                else
+                {
+                    pe.ValidationStatus = ValidationStatus.Valid;
+                }
+            }
+
             /// <summary>
             /// Temporary best-mark candidate resolver. This is a compatibility method for Phase 1
             /// and does not represent the final canonical schema.
@@ -1511,6 +1783,23 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     pe.ExplicitAssemblyMarkFound = product != null && HasExplicitAssemblyMarkProperties(product);
                     pe.ResolvedDisplayMark = pe.ElementMark;
 
+                    // Populate Canonical Assembly Schema (Phase 2)
+                    var canonicalIdentity = ResolveCanonicalAssemblyIdentity(product, preview, previewSummary.DetectedProfile);
+                    pe.AssemblyMark = canonicalIdentity.AssemblyMark;
+                    pe.AssemblyMarkSource = canonicalIdentity.SourcePropertyName != null 
+                        ? $"{canonicalIdentity.SourcePropertySet}.{canonicalIdentity.SourcePropertyName}" 
+                        : "Fallback";
+                    _ = Enum.TryParse<AssemblyMarkConfidence>(canonicalIdentity.Confidence, out var confidence);
+                    pe.AssemblyMarkConfidence = confidence;
+                    pe.AssemblyMarkIsExplicit = canonicalIdentity.IsExplicitAssemblyMark;
+                    pe.SourceSystem = previewSummary.DetectedProfile == IfcExporterProfile.Tekla ? SourceSystem.Tekla :
+                                      previewSummary.DetectedProfile == IfcExporterProfile.Revit ? SourceSystem.Revit :
+                                      SourceSystem.IFC;
+                    pe.ExporterProfile = previewSummary.DetectedProfile;
+
+                    // Run initial validation
+                    ValidateCanonicalAssembly(pe);
+
                     // Assembly Identity Preservation Warnings
                     if ((pe.Role == IfcElementRole.LiftAssembly || pe.Role == IfcElementRole.GroupingOnly) && product != null)
                     {
@@ -1829,6 +2118,27 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 // Recompute weight and GA eligibility after material propagation.
                 // This is important because material may be filled AFTER the first weight fallback.
                 RepairWeightsAndGaAfterMaterialPropagation(result);
+
+                // Second pass validation for parent-child double counting risk
+                var elementsMap = result.ToDictionary(e => e.ElementID, StringComparer.Ordinal);
+                foreach (var pe in result)
+                {
+                    if (!string.IsNullOrWhiteSpace(pe.ParentGlobalId) && elementsMap.TryGetValue(pe.ParentGlobalId, out var parentElement))
+                    {
+                        if (parentElement.IncludeInGa && pe.IncludeInGa &&
+                            (parentElement.Role == IfcElementRole.LiftAssembly || parentElement.Role == IfcElementRole.LiftableElement))
+                        {
+                            var parentWeightTrusted = parentElement.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
+                                                      parentElement.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+                            if (parentWeightTrusted)
+                            {
+                                pe.ValidationWarnings.Add($"ParentChildDoubleCountRisk: Both parent assembly '{pe.ParentGlobalId}' and child part '{pe.ElementID}' are marked for GA. Child will be dynamically excluded to prevent double-counting.");
+                                pe.ValidationStatus = ValidationStatus.Warning;
+                            }
+                        }
+                    }
+                }
+
                 foreach (var pe in result.Where(e =>
              e.ElementMark?.Contains("Hollow", StringComparison.OrdinalIgnoreCase) == true
           || e.ElementType?.Contains("Slab", StringComparison.OrdinalIgnoreCase) == true
@@ -1892,7 +2202,16 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         X = snapshot.Geometry?.Length ?? 0,
                         Y = snapshot.Geometry?.Width ?? 0,
                         Z = snapshot.Geometry?.Height ?? 0
-                    }
+                    },
+
+                    // Canonical Assembly Schema (Phase 2)
+                    AssemblyMark = snapshot.Mark,
+                    AssemblyMarkSource = "Snapshot",
+                    AssemblyMarkConfidence = AssemblyMarkConfidence.High,
+                    AssemblyMarkIsExplicit = true,
+                    SourceSystem = SourceSystem.IFC,
+                    ExporterProfile = IfcExporterProfile.Generic,
+                    ValidationStatus = ValidationStatus.Valid
                 };
             }
 

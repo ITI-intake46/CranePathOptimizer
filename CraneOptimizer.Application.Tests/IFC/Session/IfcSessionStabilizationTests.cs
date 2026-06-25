@@ -3,6 +3,8 @@ using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Schemas.Enums;
+using CraneOptimizer.Domain.CreatedProject.IfcFiles;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers;
 using CraneOptimizer.Infrastructure.Ifc;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
@@ -723,6 +725,200 @@ namespace CraneOptimizer.Application.Tests
             // Should contain parent but exclude child part to prevent double-counting
             Assert.Contains(gaElements, e => e.ElementID == "ParentAssembly");
             Assert.DoesNotContain(gaElements, e => e.ElementID == "ChildPart");
+        }
+
+        // =========================================================================
+        // Phase 2 Regression Tests
+        // =========================================================================
+
+        private static CanonicalAssemblyIdentityResult CallResolveCanonicalAssemblyIdentity(
+            Xbim.Ifc4.Interfaces.IIfcProduct? product, 
+            IfcNormalizedElementPreview preview, 
+            IfcExporterProfile exporterProfile)
+        {
+            var extractorType = typeof(IfcReaderRepository).GetNestedType("IfcEngineeringExtractor", System.Reflection.BindingFlags.NonPublic);
+            var method = extractorType?.GetMethod("ResolveCanonicalAssemblyIdentity", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            return method?.Invoke(null, new object[] { product, preview, exporterProfile }) as CanonicalAssemblyIdentityResult;
+        }
+
+        private static void CallValidateCanonicalAssembly(PrecastElement pe)
+        {
+            var extractorType = typeof(IfcReaderRepository).GetNestedType("IfcEngineeringExtractor", System.Reflection.BindingFlags.NonPublic);
+            var method = extractorType?.GetMethod("ValidateCanonicalAssembly", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            method?.Invoke(null, new object[] { pe });
+        }
+
+        private static PrecastElement CallToPrecastElement(object snapshot)
+        {
+            var extractorType = typeof(IfcReaderRepository).GetNestedType("IfcEngineeringExtractor", System.Reflection.BindingFlags.NonPublic);
+            var method = extractorType?.GetMethod("ToPrecastElement", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            return method?.Invoke(null, new object[] { snapshot }) as PrecastElement;
+        }
+
+        private static object CreateSourceElementSnapshot(
+            int entityLabel,
+            string elementId,
+            string elementType,
+            string? material,
+            double? weight,
+            double? volume,
+            double? elementLength,
+            double? elementWidth,
+            double? elementHeight,
+            string? revitId,
+            string? mark)
+        {
+            var type = typeof(IfcReaderRepository).GetNestedType("SourceElementSnapshot", System.Reflection.BindingFlags.NonPublic);
+            var ctors = type.GetConstructors(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var ctor = ctors[0];
+            return ctor.Invoke(new object[] { entityLabel, elementId, elementType, material, weight, volume, null!, elementLength, elementWidth, elementHeight, revitId, mark });
+        }
+
+        [Fact]
+        public void TestMapperRoundTrip_CanonicalFields()
+        {
+            var original = new PrecastElement
+            {
+                ElementID = "GID-CANONICAL-TEST",
+                AssemblyMark = "AM-CANONICAL",
+                AssemblyMarkSource = "Pset_Revit_Identity Data.Assembly Mark",
+                AssemblyMarkConfidence = AssemblyMarkConfidence.High,
+                AssemblyMarkIsExplicit = true,
+                SourceSystem = SourceSystem.Revit,
+                ExporterProfile = IfcExporterProfile.Revit,
+                ValidationStatus = ValidationStatus.Warning,
+                ValidationWarnings = new List<string> { "Warning 1", "Warning 2" }
+            };
+
+            var entity = PrecastElementMapper.ToEntity(original, projectInfoId: 1, ifcFileId: 2);
+            var restored = PrecastElementMapper.ToDomain(entity);
+
+            Assert.Equal(original.AssemblyMark, restored.AssemblyMark);
+            Assert.Equal(original.AssemblyMarkSource, restored.AssemblyMarkSource);
+            Assert.Equal(original.AssemblyMarkConfidence, restored.AssemblyMarkConfidence);
+            Assert.Equal(original.AssemblyMarkIsExplicit, restored.AssemblyMarkIsExplicit);
+            Assert.Equal(original.SourceSystem, restored.SourceSystem);
+            Assert.Equal(original.ExporterProfile, restored.ExporterProfile);
+            Assert.Equal(original.ValidationStatus, restored.ValidationStatus);
+            Assert.Equal(original.ValidationWarnings, restored.ValidationWarnings);
+        }
+
+        [Fact]
+        public void TestResolveCanonicalAssemblyIdentity_ResolvesFromExplicitProperty()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create Element"))
+                {
+                    var beam = model.Instances.New<Xbim.Ifc4.SharedBldgElements.IfcBeam>();
+                    beam.GlobalId = Guid.NewGuid().ToString();
+                    beam.Name = "RawProductName";
+
+                    var pset = model.Instances.New<Xbim.Ifc4.Kernel.IfcPropertySet>();
+                    pset.Name = "Pset_Revit_Identity Data";
+
+                    var markProp = model.Instances.New<Xbim.Ifc4.PropertyResource.IfcPropertySingleValue>();
+                    markProp.Name = "Assembly Mark";
+                    markProp.NominalValue = new Xbim.Ifc4.MeasureResource.IfcLabel("AM-Explicit");
+                    pset.HasProperties.Add(markProp);
+
+                    var rel = model.Instances.New<Xbim.Ifc4.Kernel.IfcRelDefinesByProperties>();
+                    rel.RelatedObjects.Add(beam);
+                    rel.RelatingPropertyDefinition = pset;
+
+                    txn.Commit();
+
+                    var preview = new IfcNormalizedElementPreview { Name = "PreviewName", GlobalId = beam.GlobalId };
+
+                    var identity = CallResolveCanonicalAssemblyIdentity(beam, preview, IfcExporterProfile.Revit);
+
+                    Assert.NotNull(identity);
+                    Assert.Equal("AM-Explicit", identity.AssemblyMark);
+                    Assert.Equal(AssemblyMarkConfidence.High.ToString(), identity.Confidence);
+                    Assert.True(identity.IsExplicitAssemblyMark);
+                    Assert.Equal("Pset_Revit_Identity Data", identity.SourcePropertySet);
+                    Assert.Equal("Assembly Mark", identity.SourcePropertyName);
+                }
+            }
+        }
+
+        [Fact]
+        public void TestResolveCanonicalAssemblyIdentity_FallsBackToNameWithLowConfidence()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create Element"))
+                {
+                    var beam = model.Instances.New<Xbim.Ifc4.SharedBldgElements.IfcBeam>();
+                    beam.GlobalId = Guid.NewGuid().ToString();
+                    beam.Name = "ProductFallbackName";
+                    txn.Commit();
+
+                    var preview = new IfcNormalizedElementPreview { Name = "PreviewName", GlobalId = beam.GlobalId };
+
+                    var identity = CallResolveCanonicalAssemblyIdentity(beam, preview, IfcExporterProfile.Revit);
+
+                    Assert.NotNull(identity);
+                    Assert.Equal("ProductFallbackName", identity.AssemblyMark);
+                    Assert.Equal(AssemblyMarkConfidence.Low.ToString(), identity.Confidence);
+                    Assert.False(identity.IsExplicitAssemblyMark);
+                    Assert.True(identity.UsedFallback);
+                    Assert.Equal("Product", identity.SourcePropertySet);
+                    Assert.Equal("Name", identity.SourcePropertyName);
+                }
+            }
+        }
+
+        [Fact]
+        public void TestValidateCanonicalAssembly_RaisesMissingMarkWarning()
+        {
+            var pe = new PrecastElement
+            {
+                ElementID = "GID-TEST",
+                AssemblyMark = "FallbackName",
+                AssemblyMarkIsExplicit = false,
+                WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
+                VolumeM3 = 2.0,
+                ElementMaterial = "Concrete",
+                COG_M = new DomainPoint3D(1, 1, 1),
+                AssemblyMarkConfidence = AssemblyMarkConfidence.Low,
+                IncludeInGa = true
+            };
+
+            CallValidateCanonicalAssembly(pe);
+
+            Assert.Contains(pe.ValidationWarnings, w => w.StartsWith("MissingAssemblyMark"));
+            Assert.Equal(ValidationStatus.Warning, pe.ValidationStatus);
+        }
+
+        [Fact]
+        public void TestToPrecastElement_MapsCanonicalProperties()
+        {
+            var snapshot = CreateSourceElementSnapshot(
+                entityLabel: 42,
+                elementId: "GID-SNAPSHOT-TEST",
+                elementType: "IfcBeam",
+                material: "Concrete C30/37",
+                weight: 5.5,
+                volume: 2.2,
+                elementLength: 6.0,
+                elementWidth: 0.5,
+                elementHeight: 0.5,
+                revitId: "Revit-12345",
+                mark: "B-SnapMark"
+            );
+
+            var pe = CallToPrecastElement(snapshot);
+
+            Assert.NotNull(pe);
+            Assert.Equal("GID-SNAPSHOT-TEST", pe.ElementID);
+            Assert.Equal("B-SnapMark", pe.AssemblyMark);
+            Assert.Equal("Snapshot", pe.AssemblyMarkSource);
+            Assert.Equal(AssemblyMarkConfidence.High, pe.AssemblyMarkConfidence);
+            Assert.True(pe.AssemblyMarkIsExplicit);
+            Assert.Equal(SourceSystem.IFC, pe.SourceSystem);
+            Assert.Equal(IfcExporterProfile.Generic, pe.ExporterProfile);
+            Assert.Equal(ValidationStatus.Valid, pe.ValidationStatus);
         }
 
         // =========================================================================

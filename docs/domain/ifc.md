@@ -37,10 +37,55 @@ The implementation currently uses xBIM through `IfcModelSession.Open`, `IfcReade
    - Blocks elements with `WeightTrustLevel == EstimatedFallback_NotAllowedForGA` from entering GA optimization passes regardless of the `IncludeInGa` setting.
    - Implements parent-assembly child exclusion: if a parent assembly is selected as a GA target, its children parts are automatically excluded to prevent weight double-counting.
 
-### Future Canonical Assembly Data Model Direction
-Future phases will introduce the final **Canonical Assembly Data Model** to replace transitional mapping fields.
-* **Canonical Fields**: Future phases will implement canonical fields such as `AssemblyMark`, `AssemblyWeight`, `AssemblyCOG`, `AssemblyDimensions`, `AssemblyVolume`, and `AssemblyMaterial`.
-* **JSON Business Data Integration**: Future phases plan to support Tekla/Revit native add-ins exporting canonical JSON business data. In this model, the IFC file will remain primarily responsible for 3D mesh, geometry representation, and GlobalId mapping, while JSON provides the canonical business properties.
+## Phase 2 Canonical Assembly Schema & Source Mapping Foundation
+
+Phase 2 introduces the foundation for a single source of truth for business-critical precast assembly data, reducing direct downstream dependency on raw exporter-specific schemas.
+
+### 1. Canonical Fields on PrecastElement
+The `PrecastElement` domain model has been expanded to include:
+* **Canonical Identity**:
+  * `AssemblyMark` (string): The canonical assembly identification mark.
+  * `AssemblyMarkSource` (string): The source property set and property path from which the mark was mapped (e.g. `Pset_Revit_Identity Data.Assembly Mark`).
+  * `AssemblyMarkConfidence` (enum): The resolution confidence level (`None`, `Low`, `Medium`, `High`).
+  * `AssemblyMarkIsExplicit` (bool): True if the mark represents an explicit assembly-level property, false if inferred or fallback.
+* **Metadata & Context**:
+  * `SourceSystem` (enum): The originating CAD/BIM environment (`IFC`, `Revit`, `Tekla`, `JSON`).
+  * `ExporterProfile` (enum): The specific software profile that exported the IFC (`Generic`, `Tekla`, `Revit`).
+* **Validation & Health**:
+  * `ValidationStatus` (enum): The validation health check status (`Valid`, `Warning`, `Error`).
+  * `ValidationWarnings` (list of strings): List of specific warning messages generated during validation rules processing.
+* **Non-Authoritative Engineering Mirrors (Future Migration Foundation)**:
+  * Getter properties `AssemblyWeightTons`, `AssemblyWeightSource`, `AssemblyWeightTrustLevel`, `AssemblyVolumeM3`, `AssemblyMaterial`, `AssemblyCenterOfGravity`, `AssemblyLength`, `AssemblyWidth`, and `AssemblyHeight` have been added as non-authoritative mirrors of existing engineering fields. Downstream GA and reporting modules will be transitioned to these in a future phase.
+
+### 2. Canonical Identity Mapping Priority Chain
+When processing elements from an IFC model, the mapping engine resolves the `AssemblyMark` and its confidence level in a strict priority order:
+1. **High Confidence (`AssemblyMarkConfidence.High`)**: Explicit assembly-level properties found in known property sets (e.g., `Assembly Mark`, `Cast Unit Mark`, `Assembly Number`, `Cast Unit Number`).
+2. **Medium Confidence (`AssemblyMarkConfidence.Medium`)**: Exporter-specific candidate fields such as Revit assembly marks or Tekla cast units on `IfcElementAssembly` types, or explicit element-level `Mark`/`Element Mark` properties.
+3. **Low Confidence (`AssemblyMarkConfidence.Low`)**: Type/reference candidates (e.g. `Type Mark`, `Reference`, `Type Name`), object types, or the product `Name` property.
+4. **None Confidence (`AssemblyMarkConfidence.None`)**: Fallback to preview name when no other identity candidate can be found.
+
+### 3. Validation Diagnostics Rules & Status
+Each normalized element is evaluated by the validation engine to identify missing attributes or assembly risks:
+* **MissingAssemblyMark (Warning)**: Triggered when `AssemblyMarkIsExplicit` is false. This occurs when falling back to a product Name, ObjectType, or type reference, highlighting that the mark might not be a stable, unique production identifier.
+* **MissingTrustedWeight (Warning)**: Triggered if `WeightTrustLevel` is not `ExplicitQuantity` or `ExplicitProperty` (e.g., estimated fallback weights).
+* **EstimatedWeightNotApproved (Error)**: Triggered if `WeightTrustLevel` is `EstimatedFallback_NotAllowedForGA`. Estimated fallback weights are strictly blocked from GA optimization.
+* **MissingAssemblyCOG (Warning)**: Triggered if Center of Gravity (COG) coordinates are missing, zero, or invalid.
+* **MissingAssemblyVolume (Warning)**: Triggered if volume is missing or zero.
+* **MissingMaterial (Info)**: Triggered if no material is specified.
+* **SourceMappingLowConfidence (Warning)**: Triggered if mapping confidence is `Low` or `None`.
+* **ParentChildDoubleCountRisk (Warning)**: Triggered if both parent assembly and child part are target candidates for GA optimization.
+
+The validation results dictate the overall `ValidationStatus`:
+* Any `Error` severity result promotes status to `ValidationStatus.Error`.
+* Any `Warning` severity result (with no Errors) promotes status to `ValidationStatus.Warning`.
+* Otherwise, status remains `ValidationStatus.Valid`.
+
+### 4. Direct JSON Data Source Direction
+In future phases, the system will support Tekla/Revit native add-ins exporting canonical JSON business data. In this model:
+* The IFC file will remain responsible for 3D mesh representation, geometry coordinate space, and `GlobalId` mapping.
+* The JSON business data sidecar will provide the canonical properties, directly mapping with high-confidence to `AssemblyMark`, `AssemblyWeight`, `AssemblyCOG`, etc., bypassing the heuristic property set mapping chain.
+
+
 
 ## Verified Statements
 

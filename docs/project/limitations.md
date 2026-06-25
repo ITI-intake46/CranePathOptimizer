@@ -49,6 +49,10 @@ This document lists the assumptions, simplifications, and architectural limitati
 *   **Code Reference:** Implemented in [CranePlacementService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Services/CranePlacementService.cs).
 *   **Gating Rule:** If a parent assembly (`Role == LiftAssembly` or `LiftableElement`) is present in the optimization set with a trusted weight, its children components/parts are automatically excluded from the active GA target list to prevent weight/coordinate double-counting.
 
+### E3. Canonical Identity Mapping Limitations
+*   **Limitation:** Relying on IFC property sets for assembly marks can be unreliable because property names, configurations, and structures vary wildly between export tools (Tekla vs. Revit vs. standard IFC) and custom user templates.
+*   **Upcoming Direct JSON Exports:** In future phases, the system will support Tekla/Revit native add-ins exporting canonical JSON business data. In this model, the IFC file will only be responsible for 3D mesh geometry and GlobalId mappings, while the JSON file provides the authoritative, high-confidence canonical business properties, bypassing the heuristic IFC property set mapping chain.
+
 ---
 
 ## 4. Optimization Engine Limits
