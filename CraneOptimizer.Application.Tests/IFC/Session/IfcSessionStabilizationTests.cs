@@ -472,9 +472,9 @@ namespace CraneOptimizer.Application.Tests
 
         private static string? CallGetBestMarkCandidate(Xbim.Ifc4.Interfaces.IIfcProduct product)
         {
-            var extractorType = typeof(IfcReaderRepository).GetNestedType("IfcEngineeringExtractor", System.Reflection.BindingFlags.NonPublic);
-            var method = extractorType?.GetMethod("GetBestMarkCandidate", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-            return method?.Invoke(null, new object[] { product }) as string;
+            var resolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+            var res = resolver.ResolveCanonicalAssemblyIdentity(product, product.Name?.ToString() ?? string.Empty, IfcExporterProfile.Generic);
+            return res.AssemblyMark;
         }
 
         [Fact]
@@ -535,9 +535,9 @@ namespace CraneOptimizer.Application.Tests
 
         private static bool CallHasExplicitAssemblyMarkProperties(Xbim.Ifc4.Interfaces.IIfcProduct product)
         {
-            var extractorType = typeof(IfcReaderRepository).GetNestedType("IfcEngineeringExtractor", System.Reflection.BindingFlags.NonPublic);
-            var method = extractorType?.GetMethod("HasExplicitAssemblyMarkProperties", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-            return (bool)(method?.Invoke(null, new object[] { product }) ?? false);
+            var resolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+            var res = resolver.ResolveCanonicalAssemblyIdentity(product, "PreviewName", IfcExporterProfile.Generic);
+            return res.IsExplicitAssemblyMark;
         }
 
         [Fact]
@@ -736,9 +736,8 @@ namespace CraneOptimizer.Application.Tests
             IfcNormalizedElementPreview preview, 
             IfcExporterProfile exporterProfile)
         {
-            var extractorType = typeof(IfcReaderRepository).GetNestedType("IfcEngineeringExtractor", System.Reflection.BindingFlags.NonPublic);
-            var method = extractorType?.GetMethod("ResolveCanonicalAssemblyIdentity", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-            return method?.Invoke(null, new object[] { product, preview, exporterProfile }) as CanonicalAssemblyIdentityResult;
+            var resolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+            return resolver.ResolveCanonicalAssemblyIdentity(product, preview.Name, exporterProfile);
         }
 
         private static void CallValidateCanonicalAssembly(PrecastElement pe)
@@ -1050,6 +1049,258 @@ namespace CraneOptimizer.Application.Tests
         private class MockHistoryLogger : IOptimizationHistoryLogger
         {
             public Task LogRunAsync(OptimizationRunEntry entry, string projectFolderPath) => Task.CompletedTask;
+        }
+
+        [Fact]
+        public void TestResolveProperty_TeklaWeightAlias()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create"))
+                {
+                    var product = model.Instances.New<Xbim.Ifc4.ProductExtension.IfcElementAssembly>();
+                    var pset = model.Instances.New<Xbim.Ifc4.Kernel.IfcPropertySet>();
+                    pset.Name = "Pset_Custom";
+                    var prop = model.Instances.New<Xbim.Ifc4.PropertyResource.IfcPropertySingleValue>();
+                    prop.Name = "Weight";
+                    prop.NominalValue = new Xbim.Ifc4.MeasureResource.IfcReal(1500.5);
+                    pset.HasProperties.Add(prop);
+                    var rel = model.Instances.New<Xbim.Ifc4.Kernel.IfcRelDefinesByProperties>();
+                    rel.RelatedObjects.Add(product);
+                    rel.RelatingPropertyDefinition = pset;
+                    txn.Commit();
+
+                    var resolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+                    var result = resolver.ResolveProperty(product, "Weight", IfcExporterProfile.Tekla);
+
+                    Assert.NotNull(result.Value);
+                    Assert.Equal("1500.5", result.Value);
+                    Assert.Equal("Pset_Custom", result.SourcePropertySet);
+                    Assert.Equal("Weight", result.SourcePropertyName);
+                }
+            }
+        }
+
+        [Fact]
+        public void TestResolveProperty_RevitWeightAlias()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create"))
+                {
+                    var product = model.Instances.New<Xbim.Ifc4.ProductExtension.IfcElementAssembly>();
+                    var pset = model.Instances.New<Xbim.Ifc4.Kernel.IfcPropertySet>();
+                    pset.Name = "Pset_Custom";
+                    var prop = model.Instances.New<Xbim.Ifc4.PropertyResource.IfcPropertySingleValue>();
+                    prop.Name = "Mass";
+                    prop.NominalValue = new Xbim.Ifc4.MeasureResource.IfcReal(12.3);
+                    pset.HasProperties.Add(prop);
+                    var rel = model.Instances.New<Xbim.Ifc4.Kernel.IfcRelDefinesByProperties>();
+                    rel.RelatedObjects.Add(product);
+                    rel.RelatingPropertyDefinition = pset;
+                    txn.Commit();
+
+                    var resolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+                    var result = resolver.ResolveProperty(product, "Weight", IfcExporterProfile.Revit);
+
+                    Assert.NotNull(result.Value);
+                    Assert.Equal("12.3", result.Value);
+                    Assert.Equal("Mass", result.SourcePropertyName);
+                }
+            }
+        }
+
+        [Fact]
+        public void TestResolveProperty_GenericWeightAlias()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create"))
+                {
+                    var product = model.Instances.New<Xbim.Ifc4.ProductExtension.IfcElementAssembly>();
+                    var pset = model.Instances.New<Xbim.Ifc4.Kernel.IfcPropertySet>();
+                    pset.Name = "Pset_Custom";
+                    var prop = model.Instances.New<Xbim.Ifc4.PropertyResource.IfcPropertySingleValue>();
+                    prop.Name = "ShippingWeight";
+                    prop.NominalValue = new Xbim.Ifc4.MeasureResource.IfcReal(99.9);
+                    pset.HasProperties.Add(prop);
+                    var rel = model.Instances.New<Xbim.Ifc4.Kernel.IfcRelDefinesByProperties>();
+                    rel.RelatedObjects.Add(product);
+                    rel.RelatingPropertyDefinition = pset;
+                    txn.Commit();
+
+                    var resolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+                    var result = resolver.ResolveProperty(product, "Weight", IfcExporterProfile.Generic);
+
+                    Assert.NotNull(result.Value);
+                    Assert.Equal("99.9", result.Value);
+                }
+            }
+        }
+
+        [Fact]
+        public void TestResolveProperty_VolumeAlias()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create"))
+                {
+                    var product = model.Instances.New<Xbim.Ifc4.ProductExtension.IfcElementAssembly>();
+                    var pset = model.Instances.New<Xbim.Ifc4.Kernel.IfcPropertySet>();
+                    pset.Name = "Pset_Custom";
+                    var prop = model.Instances.New<Xbim.Ifc4.PropertyResource.IfcPropertySingleValue>();
+                    prop.Name = "NetVolume";
+                    prop.NominalValue = new Xbim.Ifc4.MeasureResource.IfcReal(4.56);
+                    pset.HasProperties.Add(prop);
+                    var rel = model.Instances.New<Xbim.Ifc4.Kernel.IfcRelDefinesByProperties>();
+                    rel.RelatedObjects.Add(product);
+                    rel.RelatingPropertyDefinition = pset;
+                    txn.Commit();
+
+                    var resolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+                    var result = resolver.ResolveProperty(product, "Volume", IfcExporterProfile.Generic);
+
+                    Assert.NotNull(result.Value);
+                    Assert.Equal("4.56", result.Value);
+                }
+            }
+        }
+
+        [Fact]
+        public void TestResolveProperty_MaterialAlias()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create"))
+                {
+                    var product = model.Instances.New<Xbim.Ifc4.ProductExtension.IfcElementAssembly>();
+                    var pset = model.Instances.New<Xbim.Ifc4.Kernel.IfcPropertySet>();
+                    pset.Name = "Pset_Custom";
+                    var prop = model.Instances.New<Xbim.Ifc4.PropertyResource.IfcPropertySingleValue>();
+                    prop.Name = "Structural Material";
+                    prop.NominalValue = new Xbim.Ifc4.MeasureResource.IfcLabel("Concrete_C30");
+                    pset.HasProperties.Add(prop);
+                    var rel = model.Instances.New<Xbim.Ifc4.Kernel.IfcRelDefinesByProperties>();
+                    rel.RelatedObjects.Add(product);
+                    rel.RelatingPropertyDefinition = pset;
+                    txn.Commit();
+
+                    var resolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+                    var result = resolver.ResolveProperty(product, "Material", IfcExporterProfile.Generic);
+
+                    Assert.NotNull(result.Value);
+                    Assert.Equal("Concrete_C30", result.Value);
+                }
+            }
+        }
+
+        [Fact]
+        public void TestResolveCanonicalAssemblyIdentity_TeklaCastUnit()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create"))
+                {
+                    var product = model.Instances.New<Xbim.Ifc4.ProductExtension.IfcElementAssembly>();
+                    var pset = model.Instances.New<Xbim.Ifc4.Kernel.IfcPropertySet>();
+                    pset.Name = "Pset_Custom";
+                    var prop = model.Instances.New<Xbim.Ifc4.PropertyResource.IfcPropertySingleValue>();
+                    prop.Name = "Cast Unit Mark";
+                    prop.NominalValue = new Xbim.Ifc4.MeasureResource.IfcLabel("CU-5");
+                    pset.HasProperties.Add(prop);
+                    var rel = model.Instances.New<Xbim.Ifc4.Kernel.IfcRelDefinesByProperties>();
+                    rel.RelatedObjects.Add(product);
+                    rel.RelatingPropertyDefinition = pset;
+                    txn.Commit();
+
+                    var resolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+                    var result = resolver.ResolveCanonicalAssemblyIdentity(product, "FallbackName", IfcExporterProfile.Tekla);
+
+                    Assert.Equal("CU-5", result.AssemblyMark);
+                    Assert.Equal("High", result.Confidence);
+                    Assert.True(result.IsExplicitAssemblyMark);
+                }
+            }
+        }
+
+        [Fact]
+        public void TestResolveCanonicalAssemblyIdentity_RevitAssemblyMark()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create"))
+                {
+                    var product = model.Instances.New<Xbim.Ifc4.ProductExtension.IfcElementAssembly>();
+                    var pset = model.Instances.New<Xbim.Ifc4.Kernel.IfcPropertySet>();
+                    pset.Name = "Pset_Revit_Identity Data";
+                    var prop = model.Instances.New<Xbim.Ifc4.PropertyResource.IfcPropertySingleValue>();
+                    prop.Name = "Assembly Mark";
+                    prop.NominalValue = new Xbim.Ifc4.MeasureResource.IfcLabel("AM-12");
+                    pset.HasProperties.Add(prop);
+                    var rel = model.Instances.New<Xbim.Ifc4.Kernel.IfcRelDefinesByProperties>();
+                    rel.RelatedObjects.Add(product);
+                    rel.RelatingPropertyDefinition = pset;
+                    txn.Commit();
+
+                    var resolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+                    var result = resolver.ResolveCanonicalAssemblyIdentity(product, "FallbackName", IfcExporterProfile.Revit);
+
+                    Assert.Equal("AM-12", result.AssemblyMark);
+                    Assert.Equal("High", result.Confidence);
+                    Assert.True(result.IsExplicitAssemblyMark);
+                }
+            }
+        }
+
+        [Fact]
+        public void TestResolveCanonicalAssemblyIdentity_LowerConfidenceFallback()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create"))
+                {
+                    var product = model.Instances.New<Xbim.Ifc4.ProductExtension.IfcElementAssembly>();
+                    product.Name = "NameFallbackOnly";
+                    txn.Commit();
+
+                    var resolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+                    var result = resolver.ResolveCanonicalAssemblyIdentity(product, "FallbackName", IfcExporterProfile.Generic);
+
+                    Assert.Equal("NameFallbackOnly", result.AssemblyMark);
+                    Assert.Equal("Low", result.Confidence);
+                    Assert.False(result.IsExplicitAssemblyMark);
+                }
+            }
+        }
+
+        [Fact]
+        public void TestResolveCanonicalAssemblyIdentity_PartMarkIsolation()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create"))
+                {
+                    var product = model.Instances.New<Xbim.Ifc4.ProductExtension.IfcElementAssembly>();
+                    var pset = model.Instances.New<Xbim.Ifc4.Kernel.IfcPropertySet>();
+                    pset.Name = "Pset_Custom";
+                    var prop = model.Instances.New<Xbim.Ifc4.PropertyResource.IfcPropertySingleValue>();
+                    prop.Name = "Part Mark";
+                    prop.NominalValue = new Xbim.Ifc4.MeasureResource.IfcLabel("PM-99");
+                    pset.HasProperties.Add(prop);
+                    var rel = model.Instances.New<Xbim.Ifc4.Kernel.IfcRelDefinesByProperties>();
+                    rel.RelatedObjects.Add(product);
+                    rel.RelatingPropertyDefinition = pset;
+                    txn.Commit();
+
+                    var resolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+                    var result = resolver.ResolveCanonicalAssemblyIdentity(product, "FallbackName", IfcExporterProfile.Generic);
+
+                    // Part Mark must be ignored for determining assembly mark, so it falls back to the preview/fallback name.
+                    Assert.Equal("FallbackName", result.AssemblyMark);
+                    Assert.Equal("None", result.Confidence);
+                    Assert.False(result.IsExplicitAssemblyMark);
+                }
+            }
         }
     }
 }

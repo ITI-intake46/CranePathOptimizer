@@ -86,6 +86,23 @@ In future phases, the system will support Tekla/Revit native add-ins exporting c
 * The JSON business data sidecar will provide the canonical properties, directly mapping with high-confidence to `AssemblyMark`, `AssemblyWeight`, `AssemblyCOG`, etc., bypassing the heuristic property set mapping chain.
 
 
+## Phase 3 — Source Mapping Profiles & Central Alias Resolver
+
+Phase 3 organizes exporter-specific property names into clean profiles and centralizes IFC property traversal into a dedicated, testable service.
+
+### 1. Reusable Source Mapping Profiles
+All source-specific mapping metadata (property lists and keyword patterns) is defined in concrete profiles implementing the pure `IIfcSourceMappingProfile` interface (located in Domain):
+* [GenericIfcExporterProfile](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/GenericIfcExporterProfile.cs): Provides default aliases for standard IFC schemas.
+* [RevitIfcExporterProfile](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/RevitIfcExporterProfile.cs): Focuses on Revit identity property sets.
+* [TeklaIfcExporterProfile](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/TeklaIfcExporterProfile.cs): Handles Tekla-specific cast unit and assembly mark logic.
+
+### 2. Centralized Alias Resolver (`CentralIfcPropertyAliasResolver`)
+The resolver resides in the Infrastructure layer because it directly traverses xBIM/IFC models and interfaces (e.g., `IIfcProduct`, property sets, quantity sets).
+* **Stateless Service**: Registered as a singleton in the DI container.
+* **Traceable Resolutions**: Returns `SourcePropertyResolutionResult` objects detailing the exact source property set, property name, and confidence level for logical fields (`AssemblyMark`, `ElementMark`, `Weight`, `Volume`, `Material`, `Level`, `Storey`).
+* **Clean Boundaries**: Keeps the Domain project free of xBIM or Infrastructure-specific dependencies.
+
+---
 
 ## Verified Statements
 

@@ -105,6 +105,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IUnitSettingsService, UnitSettingsService>();
             services.AddSingleton<IIfcDiagnosticAuditService, IfcDiagnosticAuditService>();
             services.AddSingleton<IIfcExporterProfileResolver, IfcExporterProfileResolver>();
+            services.AddSingleton<ICentralIfcPropertyAliasResolver, CentralIfcPropertyAliasResolver>();
             services.AddSingleton<IIfcNormalizationDecisionService, IfcNormalizationDecisionService>();
 
             // =========================
