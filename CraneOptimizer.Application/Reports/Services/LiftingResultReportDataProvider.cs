@@ -21,7 +21,7 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
             {
                 var values = new Dictionary<string, object?>(row.Values, StringComparer.OrdinalIgnoreCase);
                 var rowNumber = index + 1;
-                var elementMark = string.IsNullOrWhiteSpace(row.ElementMark) ? row.ElementId : row.ElementMark!;
+                var elementMark = FirstNonEmpty(row.CanonicalMark, row.ElementMark, row.ElementId);
                 var utilization = CalculateUtilization(row);
                 var liftStatus = MapLiftStatus(row.InternalLiftStatus);
 
@@ -133,4 +133,7 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
         var status = MapLiftStatus(row.InternalLiftStatus);
         return status is "Liftable" or "Overweight";
     }
+
+    private static string FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? string.Empty;
 }

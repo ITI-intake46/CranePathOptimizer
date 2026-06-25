@@ -93,5 +93,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public double BestFailedSafetyMargin { get; set; }
         public double BestFailedRequiredRadius { get; set; }
         public double BestFailedRequiredBoomLength { get; set; }
+
+        // Phase 5: Canonical Display Identity
+        public string CanonicalMark { get; set; } = string.Empty;
+        public string MarkSource { get; set; } = string.Empty;
+        public string MarkConfidence { get; set; } = string.Empty;
+        public bool IsExplicitMark { get; set; }
     }
 }

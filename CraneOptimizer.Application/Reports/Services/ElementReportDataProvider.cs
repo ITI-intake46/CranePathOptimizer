@@ -1,4 +1,5 @@
 using CraneOptimizer.Application.Reports.DTOs;
+using CraneOptimizer.Application.Services.Identity;
 using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Reports.Services;
@@ -71,12 +72,17 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
         IReadOnlyDictionary<double, string> levelLabels)
     {
         var mapping = ReportWeightMapper.Map(element);
+        var identity = CanonicalMarkResolver.Resolve(element);
 
         return new ElementReportRowDto
         {
             No = number,
             ElementId = element.ElementID,
             ElementMark = FirstNonEmpty(element.ElementMark, element.ParentAssemblyName, element.ElementID, "Unknown"),
+            CanonicalMark = identity.DisplayLabel,
+            MarkSource = identity.MarkSource ?? string.Empty,
+            MarkConfidence = identity.MarkConfidence,
+            IsExplicitMark = identity.IsExplicitMark,
             SourceRevitId = FirstNonEmpty(element.ElementRevitId, element.ElementID, "Unknown"),
             StoreyLevel = ResolveStoreyLevel(element, levelLabels),
             Material = string.IsNullOrWhiteSpace(element.ElementMaterial) ? "N/A" : element.ElementMaterial,

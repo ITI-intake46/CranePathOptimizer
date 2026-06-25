@@ -412,6 +412,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                         {
                             ElementId = appElem.ElementId,
                             ElementMark = appElem.ElementMark,
+                            CanonicalMark = appElem.CanonicalMark,
+                            MarkSource = appElem.MarkSource,
+                            MarkConfidence = appElem.MarkConfidence,
+                            IsExplicitMark = appElem.IsExplicitMark,
                             ElementType = appElem.ElementType,
                             Weight = appElem.Weight,
                             CogX = sceneCog.X,

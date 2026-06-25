@@ -6,6 +6,7 @@ using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Interfaces;
+using CraneOptimizer.Application.Services.Identity;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -183,6 +184,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         suggestedAction = classification.SuggestedAction;
                     }
 
+                    // Phase 5: resolve canonical identity once per element
+                    var identity_temp = CanonicalMarkResolver.Resolve(element);
+
                     detailedRows.Add(new ElementDiagnosticRow
                     {
                         Timestamp = timeFormatted,
@@ -191,6 +195,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         CraneNameOrId = input.CraneSpec?.Crane?.Name ?? (input.CraneSpec != null ? $"Spec ID: {input.CraneSpec.Id}" : "N/A"),
                         ElementId = element.ElementID,
                         ElementName = element.ElementMark ?? "N/A",
+                        CanonicalMark = CanonicalMarkResolver.ResolveDisplayMark(element),
+                        MarkSource = identity_temp.MarkSource ?? string.Empty,
+                        MarkConfidence = identity_temp.MarkConfidence,
+                        IsExplicitMark = identity_temp.IsExplicitMark,
                         ElementType = element.ElementType ?? "N/A",
                         StoreyOrElevation = element.ElementCOG.Z.ToString("0.###", Invariant),
                         Weight = element.ElementWT ?? 0.0,
@@ -315,7 +323,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         "SlewCenter_SurveyEasting", "SlewCenter_SurveyNorthing", "SlewCenter_SurveyElevation",
                         "BoomHinge_SurveyEasting", "BoomHinge_SurveyNorthing", "BoomHinge_SurveyElevation",
                         "LoadPoint_SurveyEasting", "LoadPoint_SurveyNorthing", "LoadPoint_SurveyElevation",
-                        "SiteReferenceEnabled", "SiteOriginEasting", "SiteOriginNorthing", "SiteOriginElevation", "RotationToNorthDegrees"
+                        "SiteReferenceEnabled", "SiteOriginEasting", "SiteOriginNorthing", "SiteOriginElevation", "RotationToNorthDegrees",
+                        // Phase 5: Canonical Display Identity columns (right-appended, additive)
+                        "CanonicalMark", "MarkSource", "MarkConfidence", "IsExplicitMark"
                     };
                     if (!batchMode || !detailedExists)
                     {
@@ -483,7 +493,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                             isEnabled ? _transformService!.CurrentReference.SurveyEasting.ToString("0.###", Invariant) : "N/A",
                             isEnabled ? _transformService!.CurrentReference.SurveyNorthing.ToString("0.###", Invariant) : "N/A",
                             isEnabled ? _transformService!.CurrentReference.SurveyElevation.ToString("0.###", Invariant) : "N/A",
-                            isEnabled ? _transformService!.CurrentReference.RotationToNorthDegrees.ToString("0.###", Invariant) : "N/A"
+                            isEnabled ? _transformService!.CurrentReference.RotationToNorthDegrees.ToString("0.###", Invariant) : "N/A",
+                            Escape(row.CanonicalMark),
+                            Escape(row.MarkSource),
+                            Escape(row.MarkConfidence),
+                            row.IsExplicitMark ? "true" : "false"
                         };
                         writer.WriteLine(string.Join(",", FormatRowWithPrefix(input, true, originalHeader, originalRow, "1.0")));
                     }
@@ -1424,6 +1438,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             public double BestFailedSafetyMargin { get; set; }
             public double BestFailedRequiredRadius { get; set; }
             public double BestFailedRequiredBoomLength { get; set; }
+
+            // Phase 5: Canonical Display Identity
+            public string CanonicalMark { get; set; } = "";
+            public string MarkSource { get; set; } = "";
+            public string MarkConfidence { get; set; } = "";
+            public bool IsExplicitMark { get; set; }
         }
     }
 }

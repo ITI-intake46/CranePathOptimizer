@@ -203,4 +203,22 @@ This section details the organization of the Phase 4 diagnostics and model impor
 * **Phase 2: Canonical Assembly Identity**: Introduced standard schema properties (`AssemblyMark`, `ValidationStatus`, etc.) and mapped their confidences.
 * **Phase 3: Central Alias Resolver**: Factored out hardcoded property aliases into exporter profiles (`Revit`, `Tekla`, `Generic`) and resolved them via `CentralIfcPropertyAliasResolver`.
 * **Phase 4: Import Readiness Diagnostics**: Created the `ImportReadinessService` and added a minimal card UI to display warnings/errors.
+* **Phase 5: Canonical Display Identity**: Consistently consume and display canonical assembly identity and validation metadata across GA outputs, reports, and UI-facing data paths.
 
+---
+
+## 10. Phase 5 Canonical Display Identity Alignment Navigation
+
+This section details the navigation and data paths for the Phase 5 canonical display identity alignment:
+
+### Architectural Components
+1. **Neutral Resolver**:
+   - Class: [CanonicalMarkResolver.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/Identity/CanonicalMarkResolver.cs)
+   - Contract: [ElementDisplayIdentityDto.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/Identity/ElementDisplayIdentityDto.cs)
+2. **Authoritative Downstream Models**:
+   - Element Lift DTOs: [ElementLiftResult.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/DTOs/PlacementResult.cs) and [ElementLiftResult.cs (UI)](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/DTOs/CranePlacementResult.cs)
+   - CSV Diagnostics: [GAElementDiagnosticDto.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/DTOs/GAElementDiagnosticDto.cs) and [GACsvDiagnosticsService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Services/GACsvDiagnosticsService.cs)
+   - Report Row DTOs: [ElementReportRowDto.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/DTOs/ElementReportRowDto.cs) and [LiftingResultSourceRowDto.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/DTOs/LiftingResultSourceRowDto.cs)
+3. **Downstream Views & ViewModels**:
+   - GA Results View: [GAResultsWindowViewModel.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/ViewModels/GAResultsWindowViewModel.cs) (prefers `CanonicalMark` for ElementLiftResultRowDto.Mark)
+   - Report Providers: [ElementReportDataProvider.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/Services/ElementReportDataProvider.cs) and [LiftingResultReportDataProvider.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/Services/LiftingResultReportDataProvider.cs) (prefer `CanonicalMark` for element display)

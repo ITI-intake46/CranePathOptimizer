@@ -388,3 +388,17 @@ The coordinate placement offset depends on the selected import mode:
    * LocalReferenceX/Y/Z are set to `0.0`.
    * The manual "Move IFC" command is disabled in the UI to prevent coordinate misalignment.
 
+## Phase 5 — Canonical Display Identity Alignment
+
+Phase 5 aligns all downstream data paths (Genetic Algorithm results, Reports, and CSV Diagnostics) to consume the Canonical Display Identity resolved from Phase 2/3.
+
+### 1. Authoritative Identity Contract (`ElementDisplayIdentityDto`)
+A dedicated data contract, `ElementDisplayIdentityDto`, is resolved using a neutral static utility `CanonicalMarkResolver` in the Application layer. It decouples presentation logic from raw `PrecastElement` geometry-heavy entities:
+* **DisplayLabel**: Sourced via a strict priority chain: Explicit `AssemblyMark` > Any `AssemblyMark` > `ResolvedDisplayMark` > `ElementMark` > `ParentAssemblyName` > `ElementId`.
+* **Validation & Context Metadata**: Carries `MarkSource`, `MarkConfidence`, `IsExplicitMark`, `ValidationStatus`, `ValidationWarnings`, `SourceSystem`, and `ExporterProfile`.
+
+### 2. Downstream Mappings
+The display identity and resolved mark are mapped into the following locations without modifying core engineering data or fitness calculations:
+* **GA Results**: Enriched at `PlacementResult.ElementLiftResult` and propagated down to `GAResultsWindowViewModel` to display `CanonicalMark` in UI lists.
+* **Reports**: Mapped to `ElementReportRowDto` and `LiftingResultSourceRowDto` properties and preferred by data providers for labels.
+* **CSV Diagnostics**: Appended as flat headers/columns (`CanonicalMark`, `MarkSource`, `MarkConfidence`, `IsExplicitMark`) at the right of `ga_audit_detailed_*.csv` sheets.
