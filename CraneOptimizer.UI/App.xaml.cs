@@ -173,10 +173,12 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IReportValidator, ReportValidator>();
             services.AddSingleton<IReportValueFormatter, ReportValueFormatter>();
             services.AddSingleton<IReportDefinitionProvider, ReportDefinitionProvider>();
+#pragma warning disable CS0618
             services.AddSingleton<IReportExportService, ReportExportService>();
             services.AddSingleton<IReportExporter, CsvReportExporter>();
             services.AddSingleton<IReportExporter, PdfReportExporter>();
             services.AddSingleton<IReportBuilder<OptimizationReportInput>, OptimizationSummaryReportBuilder>();
+#pragma warning restore CS0618
             services.AddSingleton<CraneOptimizer.Application.Reports.Services.IReportBuilder, UserFacingReportBuilder>();
             services.AddSingleton<IReportableElementResolver, ReportableElementResolver>();
             services.AddSingleton<IElementReportDataProvider, ElementReportDataProvider>();

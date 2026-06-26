@@ -3,6 +3,7 @@ using CraneOptimizer.Application.Reports.Models;
 
 namespace CraneOptimizer.Application.Reports.Services;
 
+[System.Obsolete("Unused legacy headless reporting foundation.")]
 public sealed class ReportExportService : IReportExportService
 {
     private readonly IReadOnlyDictionary<ReportFormat, IReportExporter> _exporters;

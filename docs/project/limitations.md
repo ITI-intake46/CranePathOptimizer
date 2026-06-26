@@ -120,10 +120,10 @@ This document lists the assumptions, simplifications, and architectural limitati
 ## 8. Output & Storage Governance
 
 ### O. File Storage and Path Resolution Fallbacks
-*   **Limitation:** The application does not centralize all output path generation inside a dedicated, isolated service yet. Instead, path resolution is performed locally in each feature ViewModel or service.
+*   **Centralized Path Resolution:** All output path generation is centralized inside [IProjectOutputPathService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/IProjectOutputPathService.cs), preventing raw path concatenation and local fallback duplication across the codebase.
 *   **Project Context Gating:**
-    *   **With Active Project:** Generated reports (PDF, Excel), GA diagnostics (CSV), and IFC audit reports (CSV, JSON) are stored inside the active project folder (e.g. `<ProjectFolderPath>/Reports/`). GA profiling logs are stored in `<ProjectFolderPath>/Logs/GA/`.
-    *   **Fallback Without Project:** If the project folder is unresolved, reports default to `MyDocuments`, diagnostics default to `%LocalAppData%/Local/CraneOptimizer/Reports/GA`, and audits default to `%LocalAppData%/Local/CraneOptimizer/Reports/IFC_Audit`.
+    *   **With Active Project:** Generated reports (PDF, Excel) are stored in `Exports/PDF/` and `Exports/Excel/`. GA diagnostics are stored in `Reports/GA/<RunId>/`. IFC audit/normalization preview reports are stored in `Reports/IFC_Audit/`. GA profiling logs are stored in `Logs/GA/`.
+    *   **Fallback Without Project:** Silent local/system folder fallbacks are strictly disabled. The services and UI will throw or block action if no active project session is loaded.
 *   **Database Referencing:** Exported PDF/Excel reports, CSV run matrices, and TXT profiling summaries are external files. They are **not georeferenced or tracked** in the SQLite `.craneopt` database. Deleting or modifying these external files has no effect on the database session state.
 *   **Cleanup and Retention:** The application does not enforce automatic log rotation or size-based retention limits. Exported diagnostics and logs are retained indefinitely.
 

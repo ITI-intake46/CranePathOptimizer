@@ -245,7 +245,7 @@ graph TD
     Builder --> Doc[ReportDocumentDto]
     
     %% Export Layer
-    Doc --> Export[ReportExportService / Excel / PDF]
+    Doc --> Export[IReportPdfExporter / IReportExcelExporter]
 ```
 
 *   **Identity Single Source of Truth:** [CanonicalMarkResolver.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/Identity/CanonicalMarkResolver.cs) resolves display mark strings using the priority chain: Explicit `AssemblyMark` > Any `AssemblyMark` > `ResolvedDisplayMark` > `ElementMark` > `ElementName` > `ParentAssemblyName` > `ElementID` (excluding placeholders).
@@ -440,7 +440,7 @@ graph TD
     Builder --> Doc[ReportDocumentDto]
     
     %% Export Layer
-    Doc --> Export[ReportExportService / Excel / PDF]
+    Doc --> Export[IReportPdfExporter / IReportExcelExporter]
 ```
 
 *   **Identity Single Source of Truth:** [CanonicalMarkResolver.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/Identity/CanonicalMarkResolver.cs) resolves display mark strings using the priority chain: Explicit `AssemblyMark` > Any `AssemblyMark` > `ResolvedDisplayMark` > `ElementMark` > `ElementName` > `ParentAssemblyName` > `ElementID` (excluding placeholders).

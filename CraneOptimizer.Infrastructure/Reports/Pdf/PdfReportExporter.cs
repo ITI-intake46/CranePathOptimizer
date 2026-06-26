@@ -7,6 +7,7 @@ using QuestPDF.Infrastructure;
 
 namespace CraneOptimizer.Infrastructure.Reports.Pdf;
 
+[System.Obsolete("Unused legacy headless reporting foundation. UI uses UserFacingReportPdfExporter instead.")]
 public sealed class PdfReportExporter : IReportExporter
 {
     private readonly IReportValueFormatter _formatter;

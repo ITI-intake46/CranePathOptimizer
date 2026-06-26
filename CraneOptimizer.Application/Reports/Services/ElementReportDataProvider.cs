@@ -127,20 +127,6 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
         return "\u2014";
     }
 
-    private static string ResolveElementMark(PrecastElement element)
-    {
-        var mark = element.ElementMark?.Trim();
-        if (!IsPlaceholder(mark)
-            && !EqualsAny(mark!, element.ElementType, element.ElementMaterial, element.ResolvedCategory, element.RawIfcType)
-            && !LooksLikeGenericTypeName(mark!))
-        {
-            return mark!;
-        }
-
-        var name = ResolveElementName(element);
-        return IsPlaceholder(name) ? "\u2014" : name;
-    }
-
     private static string ResolveElementName(PrecastElement element)
     {
         var name = element.ElementName?.Trim();
