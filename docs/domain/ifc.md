@@ -102,6 +102,19 @@ The resolver resides in the Infrastructure layer because it directly traverses x
 * **Traceable Resolutions**: Returns `SourcePropertyResolutionResult` objects detailing the exact source property set, property name, and confidence level for logical fields (`AssemblyMark`, `ElementMark`, `Weight`, `Volume`, `Material`, `Level`, `Storey`).
 * **Clean Boundaries**: Keeps the Domain project free of xBIM or Infrastructure-specific dependencies.
 
+
+## Phase 7 -- Tekla IFC Assembly Marks and GA Lift Units
+
+Phase 7 extends the canonical identity pipeline for Tekla-style IFC4 exports without introducing a duplicate resolver:
+
+* `GenericIfcExporterProfile` and `TeklaIfcExporterProfile` both include uppercase assembly aliases: `ASSEMBLY_POS`, `CAST_UNIT_POS`, `ASSEMBLY_POSITION_CODE`, `CAST_UNIT_POSITION_CODE`, `ASSEMBLY_PREFIX`, `CAST_UNIT_PREFIX`, and `CAST_UNIT_SERIAL_NUMBER`.
+* `CentralIfcPropertyAliasResolver` continues to search all IFC property sets by property name case-insensitively. The property-set name is diagnostic context, not a hardcoded requirement.
+* `IfcDiagnosticAuditService` writes `debug_ifc_check_assembly_mark_{timestamp}.csv` under `<ProjectRoot>/Reports/IFC_Audit/`. The CSV includes raw assembly/cast-unit values, resolved mark metadata, assembly group key/member IDs, element and group weights, member/group COG values, source profile/system, validation status/warnings, and action.
+* GA grouping happens at `OptimizationInputBuilder`, after F8 safety gating. Repeated explicit high-confidence assembly marks become synthetic `PrecastElement` lift units with summed weight, weighted COG, and `ChildGlobalIds` traceability. Original imported members remain visible and persisted as source elements.
+* Low-confidence fallbacks and placeholder labels such as `WALL`, `BEAM`, `COLUMN`, `SLAB`, `ASSEMBLY`, and `UNKNOWN` are not grouped for GA.
+
+The sample `ifc4withAssemplymark.ifc` verifies `W5102` extraction from `ASSEMBLY_POS`/`CAST_UNIT_POS` and explicit `W1` grouping. One additional `W1` product in the raw IFC has missing weight; it appears in the audit group, but the GA gate blocks it before optimization because missing/untrusted weights remain unsafe.
+
 ## Phase 4 — Import Validation & GA Readiness Diagnostics Foundation
 
 Phase 4 exposes the validation/readiness state in a consistent, reusable way by creating a centralized diagnostics/readiness foundation and a minimal UI card ("Current Run Readiness") inside the GA Optimizer dialog.
@@ -387,6 +400,19 @@ The coordinate placement offset depends on the selected import mode:
    * The model loads exactly where it is drawn relative to its local origin in its source BIM authoring tool.
    * LocalReferenceX/Y/Z are set to `0.0`.
    * The manual "Move IFC" command is disabled in the UI to prevent coordinate misalignment.
+
+
+## Phase 7 -- Tekla IFC Assembly Marks and GA Lift Units
+
+Phase 7 extends the canonical identity pipeline for Tekla-style IFC4 exports without introducing a duplicate resolver:
+
+* `GenericIfcExporterProfile` and `TeklaIfcExporterProfile` both include uppercase assembly aliases: `ASSEMBLY_POS`, `CAST_UNIT_POS`, `ASSEMBLY_POSITION_CODE`, `CAST_UNIT_POSITION_CODE`, `ASSEMBLY_PREFIX`, `CAST_UNIT_PREFIX`, and `CAST_UNIT_SERIAL_NUMBER`.
+* `CentralIfcPropertyAliasResolver` continues to search all IFC property sets by property name case-insensitively. The property-set name is diagnostic context, not a hardcoded requirement.
+* `IfcDiagnosticAuditService` writes `debug_ifc_check_assembly_mark_{timestamp}.csv` under `<ProjectRoot>/Reports/IFC_Audit/`. The CSV includes raw assembly/cast-unit values, resolved mark metadata, assembly group key/member IDs, element and group weights, member/group COG values, source profile/system, validation status/warnings, and action.
+* GA grouping happens at `OptimizationInputBuilder`, after F8 safety gating. Repeated explicit high-confidence assembly marks become synthetic `PrecastElement` lift units with summed weight, weighted COG, and `ChildGlobalIds` traceability. Original imported members remain visible and persisted as source elements.
+* Low-confidence fallbacks and placeholder labels such as `WALL`, `BEAM`, `COLUMN`, `SLAB`, `ASSEMBLY`, and `UNKNOWN` are not grouped for GA.
+
+The sample `ifc4withAssemplymark.ifc` verifies `W5102` extraction from `ASSEMBLY_POS`/`CAST_UNIT_POS` and explicit `W1` grouping. One additional `W1` product in the raw IFC has missing weight; it appears in the audit group, but the GA gate blocks it before optimization because missing/untrusted weights remain unsafe.
 
 ## Phase 4 — Import Validation & GA Readiness Diagnostics Foundation
 

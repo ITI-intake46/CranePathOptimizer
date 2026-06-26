@@ -10,6 +10,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         public IReadOnlyList<string> AssemblyIdentityAliases { get; } = new[]
         {
+            "ASSEMBLY_POS", "CAST_UNIT_POS", "ASSEMBLY_POSITION_CODE", "CAST_UNIT_POSITION_CODE",
+            "ASSEMBLY_PREFIX", "CAST_UNIT_PREFIX", "CAST_UNIT_SERIAL_NUMBER",
             "Assembly Mark", "Cast Unit Mark", "Assembly Number", "Cast Unit Number",
             "Cast Unit Position", "Assembly Position", "AssemblyName", "AssemblyID"
         };

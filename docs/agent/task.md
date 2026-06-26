@@ -1,19 +1,22 @@
 # Current Task
 
-## Phase 6B Reports Structural Closure
+## Phase 7 Tekla IFC Assembly Mark Extraction & Assembly Lift Unit Grouping
 
 Implemented:
 
-- GA Readiness rows now use application-layer readiness diagnostics instead of simplified weight-only readiness.
-- Per-element readiness diagnostics are exposed through `ImportReadinessSummary.ElementDiagnostics`.
-- GA Readiness default scope is explicit `All Elements`; `Current GA Scope` remains documented future work.
-- Remaining PDF, Excel, and template polish work is documented in `docs/reports/remaining-work-on-reports.md`.
+- `ASSEMBLY_POS`, `CAST_UNIT_POS`, `ASSEMBLY_POSITION_CODE`, `CAST_UNIT_POSITION_CODE`, `ASSEMBLY_PREFIX`, `CAST_UNIT_PREFIX`, and `CAST_UNIT_SERIAL_NUMBER` are canonical assembly aliases in both Generic and Tekla IFC profiles.
+- `CentralIfcPropertyAliasResolver` now resolves Tekla-style uppercase underscore assembly fields through the existing all-property-set traversal, so detection does not depend on a Tekla exporter header.
+- `IfcDiagnosticAuditService.GenerateReportsAsync` writes `Reports/IFC_Audit/debug_ifc_check_assembly_mark_{timestamp}.csv` with raw aliases, resolved assembly mark, group key, member IDs, member/group weight, COG columns, validation warnings, and action.
+- `OptimizationInputBuilder` creates synthetic GA lift units for repeated explicit high-confidence assembly marks. Original `PrecastElement` members remain in the scene/project state; grouped GA units carry source member IDs in `ChildGlobalIds`.
+- F8 result mapping includes synthetic GA input units when mapping result coordinates, so grouped units display their actual load point instead of falling back to zero.
+- The sample IFC `F:\06-ITI\00-Project\tryProjects\project1\Models\IFC\ifc4withAssemplymark.ifc` was audited and produced `F:\06-ITI\00-Project\tryProjects\project1\Reports\IFC_Audit\debug_ifc_check_assembly_mark_20260626_174634.csv`.
 
-Explicitly deferred:
+Sample observations:
 
-- Full PDF redesign.
-- Full Excel redesign.
-- WPF Reports tab redesign.
-- Current GA Scope if it requires F8 viewport/service coupling.
-- GA optimizer logic changes.
-- IFC extraction or Tekla alias changes.
+- `01jhsjVXzBy81J1pRn_FyV` resolves `ASSEMBLY_POS=W5102`, `CAST_UNIT_POS=W5102`, and weight about `8810 kg` (`8.81 t`).
+- The known `W1` GUIDs resolve and group. The raw IFC also contains an additional `W1` product with missing weight; the audit lists it, while the F8 GA gate still blocks missing/untrusted weight before grouping.
+
+Verified:
+
+- `dotnet build CraneOptimizer.sln` passes with existing warning noise.
+- `dotnet test CraneOptimizer.Application.Tests\CraneOptimizer.Application.Tests.csproj --no-build --filter "FullyQualifiedName~OptimizationInputBuilderTests|FullyQualifiedName~TestResolveCanonicalAssemblyIdentity"` passes: 11 tests.

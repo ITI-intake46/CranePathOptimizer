@@ -11,6 +11,7 @@ namespace CraneOptimizer.Domain.Diagnostics
         public List<ElementWeightAuditDetail> Weights { get; set; } = new();
         public List<ElementVolumeMaterialAuditDetail> VolumesMaterials { get; set; } = new();
         public List<ElementGeometryOwnershipAuditDetail> Geometries { get; set; } = new();
+        public List<AssemblyMarkAuditDetail> AssemblyMarkDiagnostics { get; set; } = new();
     }
 
     public sealed class IfcAuditMetadata
@@ -134,5 +135,37 @@ namespace CraneOptimizer.Domain.Diagnostics
         public bool HasNoGeometry { get; set; }
         public string GeometryOwnerCandidateGlobalId { get; set; } = string.Empty;
         public string RenderRisk { get; set; } = "OK"; // "OK", "ChildHasGeometryButParentIsExtracted", etc.
+    }
+    public sealed class AssemblyMarkAuditDetail
+    {
+        public string GlobalId { get; set; } = string.Empty;
+        public string IfcEntity { get; set; } = string.Empty;
+        public string ElementName { get; set; } = string.Empty;
+        public string ElementType { get; set; } = string.Empty;
+        public string Material { get; set; } = string.Empty;
+        public double? ElementWeightKg { get; set; }
+        public double? ElementWeightTons { get; set; }
+        public string RawAssemblyPos { get; set; } = string.Empty;
+        public string RawCastUnitPos { get; set; } = string.Empty;
+        public string ResolvedAssemblyMark { get; set; } = string.Empty;
+        public string AssemblyMarkSource { get; set; } = string.Empty;
+        public string AssemblyMarkConfidence { get; set; } = string.Empty;
+        public bool IsExplicitAssemblyMark { get; set; }
+        public string AssemblyGroupKey { get; set; } = string.Empty;
+        public int AssemblyMemberCount { get; set; }
+        public List<string> AssemblyMemberGlobalIds { get; set; } = new();
+        public double? AssemblyTotalWeightKg { get; set; }
+        public double? AssemblyTotalWeightTons { get; set; }
+        public double? MemberCogX { get; set; }
+        public double? MemberCogY { get; set; }
+        public double? MemberCogZ { get; set; }
+        public double? AssemblyCogX { get; set; }
+        public double? AssemblyCogY { get; set; }
+        public double? AssemblyCogZ { get; set; }
+        public string ExporterProfile { get; set; } = string.Empty;
+        public string SourceSystem { get; set; } = string.Empty;
+        public string ValidationStatus { get; set; } = string.Empty;
+        public List<string> ValidationWarnings { get; set; } = new();
+        public string Action { get; set; } = string.Empty;
     }
 }

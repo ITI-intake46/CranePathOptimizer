@@ -672,6 +672,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var geomDetail = AuditGeometryOwnership(product, geometryContext, swallowedGlobalIds, auditResult.Assemblies.Details);
                 auditResult.Geometries.Add(geomDetail);
             }
+
+            auditResult.AssemblyMarkDiagnostics = BuildAssemblyMarkDiagnostics(
+                physicalProducts,
+                geometryContext,
+                auditResult,
+                lengthFactor,
+                profile);
         }
 
         private static string ResolveCandidateCategory(string rawTypeName, string name, string? objectType)
@@ -1028,6 +1035,312 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return detail;
         }
 
+        private List<AssemblyMarkAuditDetail> BuildAssemblyMarkDiagnostics(
+            List<IIfcProduct> physicalProducts,
+            Xbim3DModelContext geometryContext,
+            IfcAuditResult auditResult,
+            double lengthFactor,
+            IfcExporterProfile profile)
+        {
+            var weightsById = auditResult.Weights.ToDictionary(w => w.GlobalId, StringComparer.Ordinal);
+            var materialById = auditResult.VolumesMaterials.ToDictionary(v => v.GlobalId, StringComparer.Ordinal);
+            var classById = auditResult.Classifications.ToDictionary(c => c.GlobalId, StringComparer.Ordinal);
+            var details = new List<AssemblyMarkAuditDetail>(physicalProducts.Count);
+            var sourceSystem = profile == IfcExporterProfile.Tekla
+                ? SourceSystem.Tekla.ToString()
+                : profile == IfcExporterProfile.Revit
+                    ? SourceSystem.Revit.ToString()
+                    : SourceSystem.IFC.ToString();
+
+            foreach (var product in physicalProducts)
+            {
+                var globalId = product.GlobalId.ToString();
+                weightsById.TryGetValue(globalId, out var weight);
+                materialById.TryGetValue(globalId, out var material);
+                classById.TryGetValue(globalId, out var classification);
+
+                var identity = _aliasResolver.ResolveCanonicalAssemblyIdentity(
+                    product,
+                    product.Name?.ToString() ?? string.Empty,
+                    profile);
+
+                var warnings = new List<string>(identity.Warnings);
+                if (!identity.IsExplicitAssemblyMark)
+                {
+                    warnings.Add("MissingAssemblyMark: no explicit assembly mark property was resolved.");
+                }
+                if (weight?.WeightStandardValueTons is not > 0)
+                {
+                    warnings.Add("MissingTrustedWeight: no positive audit weight was resolved for this element.");
+                }
+
+                var cog = TryGetGeometryCenter(product, geometryContext, lengthFactor);
+                var groupKey = IsExplicitAssemblyGroupCandidate(identity)
+                    ? identity.AssemblyMark?.Trim() ?? string.Empty
+                    : string.Empty;
+
+                details.Add(new AssemblyMarkAuditDetail
+                {
+                    GlobalId = globalId,
+                    IfcEntity = product.ExpressType?.Name ?? product.GetType().Name,
+                    ElementName = product.Name?.ToString() ?? string.Empty,
+                    ElementType = classification?.CandidateResolvedCategory ?? string.Empty,
+                    Material = material?.MaterialName ?? string.Empty,
+                    ElementWeightKg = weight?.WeightStandardValueTons is > 0 ? weight.WeightStandardValueTons.Value * 1000.0 : null,
+                    ElementWeightTons = weight?.WeightStandardValueTons,
+                    RawAssemblyPos = ReadExactProperty(product, "ASSEMBLY_POS") ?? string.Empty,
+                    RawCastUnitPos = ReadExactProperty(product, "CAST_UNIT_POS") ?? string.Empty,
+                    ResolvedAssemblyMark = identity.AssemblyMark ?? string.Empty,
+                    AssemblyMarkSource = identity.SourcePropertyName != null
+                        ? $"{identity.SourcePropertySet}.{identity.SourcePropertyName}"
+                        : "Fallback",
+                    AssemblyMarkConfidence = identity.Confidence ?? AssemblyMarkConfidence.None.ToString(),
+                    IsExplicitAssemblyMark = identity.IsExplicitAssemblyMark,
+                    AssemblyGroupKey = groupKey,
+                    AssemblyMemberCount = string.IsNullOrWhiteSpace(groupKey) ? 0 : 1,
+                    AssemblyMemberGlobalIds = string.IsNullOrWhiteSpace(groupKey) ? new List<string>() : new List<string> { globalId },
+                    AssemblyTotalWeightKg = weight?.WeightStandardValueTons is > 0 ? weight.WeightStandardValueTons.Value * 1000.0 : null,
+                    AssemblyTotalWeightTons = weight?.WeightStandardValueTons,
+                    MemberCogX = cog.X,
+                    MemberCogY = cog.Y,
+                    MemberCogZ = cog.Z,
+                    AssemblyCogX = cog.X,
+                    AssemblyCogY = cog.Y,
+                    AssemblyCogZ = cog.Z,
+                    ExporterProfile = profile.ToString(),
+                    SourceSystem = sourceSystem,
+                    ValidationStatus = warnings.Count == 0 ? ValidationStatus.Valid.ToString() : ValidationStatus.Warning.ToString(),
+                    ValidationWarnings = warnings,
+                    Action = identity.IsExplicitAssemblyMark ? "UseElementAsLiftUnit" : "ReviewFallbackMark"
+                });
+            }
+
+            foreach (var group in details
+                .Where(d => !string.IsNullOrWhiteSpace(d.AssemblyGroupKey))
+                .GroupBy(d => d.AssemblyGroupKey, StringComparer.OrdinalIgnoreCase))
+            {
+                var members = group.ToList();
+                var memberIds = members.Select(m => m.GlobalId).OrderBy(id => id, StringComparer.Ordinal).ToList();
+                var totalWeightTons = SumPositive(members.Select(m => m.ElementWeightTons));
+                var totalWeightKg = totalWeightTons.HasValue ? totalWeightTons.Value * 1000.0 : (double?)null;
+                var weightedCog = ComputeWeightedCog(members, totalWeightTons);
+                var fallbackCog = ComputeAverageCog(members);
+                var groupCog = weightedCog ?? fallbackCog;
+                var action = members.Count > 1 ? "GroupForGALiftUnit" : "UseElementAsLiftUnit";
+
+                foreach (var member in members)
+                {
+                    member.AssemblyMemberCount = members.Count;
+                    member.AssemblyMemberGlobalIds = memberIds;
+                    member.AssemblyTotalWeightTons = totalWeightTons;
+                    member.AssemblyTotalWeightKg = totalWeightKg;
+                    member.AssemblyCogX = groupCog?.X;
+                    member.AssemblyCogY = groupCog?.Y;
+                    member.AssemblyCogZ = groupCog?.Z;
+                    member.Action = action;
+                }
+            }
+
+            return details;
+        }
+
+        private static bool IsExplicitAssemblyGroupCandidate(CanonicalAssemblyIdentityResult identity)
+        {
+            if (!identity.IsExplicitAssemblyMark || string.IsNullOrWhiteSpace(identity.AssemblyMark))
+                return false;
+
+            if (!Enum.TryParse<AssemblyMarkConfidence>(identity.Confidence, out var confidence) || confidence != AssemblyMarkConfidence.High)
+                return false;
+
+            var mark = identity.AssemblyMark.Trim();
+            return !IsPlaceholderAssemblyMark(mark);
+        }
+
+        private static bool IsPlaceholderAssemblyMark(string mark)
+        {
+            if (string.IsNullOrWhiteSpace(mark))
+                return true;
+
+            var normalized = mark.Trim().ToUpperInvariant();
+            return normalized is "WALL" or "BEAM" or "COLUMN" or "SLAB" or "ASSEMBLY" or "ELEMENT" or "UNKNOWN" or "-";
+        }
+
+        private static string? ReadExactProperty(IIfcProduct product, string propertyName)
+        {
+            var propertySets = product.IsDefinedBy
+                .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
+                .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition);
+
+            foreach (var pset in propertySets)
+            {
+                foreach (var prop in pset.HasProperties.OfType<IIfcPropertySingleValue>())
+                {
+                    if (!prop.Name.ToString().Equals(propertyName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var value = prop.NominalValue?.ToString()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(value))
+                        return value;
+                }
+            }
+
+            return null;
+        }
+
+        private static (double? X, double? Y, double? Z) TryGetGeometryCenter(
+            IIfcProduct product,
+            Xbim3DModelContext geometryContext,
+            double lengthFactor)
+        {
+            try
+            {
+                var shapes = geometryContext.ShapeInstancesOf(product).ToList();
+                if (shapes.Count == 0)
+                    return (null, null, null);
+
+                double minX = double.MaxValue, minY = double.MaxValue, minZ = double.MaxValue;
+                double maxX = double.MinValue, maxY = double.MinValue, maxZ = double.MinValue;
+
+                foreach (var shape in shapes)
+                {
+                    var bbox = shape.BoundingBox;
+                    var transform = shape.Transformation;
+                    var corners = new[]
+                    {
+                        new XbimPoint3D(bbox.Min.X, bbox.Min.Y, bbox.Min.Z),
+                        new XbimPoint3D(bbox.Max.X, bbox.Min.Y, bbox.Min.Z),
+                        new XbimPoint3D(bbox.Min.X, bbox.Max.Y, bbox.Min.Z),
+                        new XbimPoint3D(bbox.Max.X, bbox.Max.Y, bbox.Min.Z),
+                        new XbimPoint3D(bbox.Min.X, bbox.Min.Y, bbox.Max.Z),
+                        new XbimPoint3D(bbox.Max.X, bbox.Min.Y, bbox.Max.Z),
+                        new XbimPoint3D(bbox.Min.X, bbox.Max.Y, bbox.Max.Z),
+                        new XbimPoint3D(bbox.Max.X, bbox.Max.Y, bbox.Max.Z)
+                    };
+
+                    foreach (var corner in corners)
+                    {
+                        var world = transform.Transform(corner);
+                        minX = Math.Min(minX, world.X);
+                        minY = Math.Min(minY, world.Y);
+                        minZ = Math.Min(minZ, world.Z);
+                        maxX = Math.Max(maxX, world.X);
+                        maxY = Math.Max(maxY, world.Y);
+                        maxZ = Math.Max(maxZ, world.Z);
+                    }
+                }
+
+                if (minX == double.MaxValue)
+                    return (null, null, null);
+
+                return (((minX + maxX) / 2.0) * lengthFactor,
+                    ((minY + maxY) / 2.0) * lengthFactor,
+                    ((minZ + maxZ) / 2.0) * lengthFactor);
+            }
+            catch
+            {
+                return (null, null, null);
+            }
+        }
+
+        private static double? SumPositive(IEnumerable<double?> values)
+        {
+            double sum = 0;
+            bool hasValue = false;
+            foreach (var value in values)
+            {
+                if (value is > 0)
+                {
+                    sum += value.Value;
+                    hasValue = true;
+                }
+            }
+            return hasValue ? sum : null;
+        }
+
+        private static (double X, double Y, double Z)? ComputeWeightedCog(
+            IReadOnlyList<AssemblyMarkAuditDetail> members,
+            double? totalWeightTons)
+        {
+            if (totalWeightTons is not > 0)
+                return null;
+
+            double x = 0, y = 0, z = 0, weightSum = 0;
+            foreach (var member in members)
+            {
+                if (member.ElementWeightTons is not > 0 || member.MemberCogX == null || member.MemberCogY == null || member.MemberCogZ == null)
+                    continue;
+
+                x += member.MemberCogX.Value * member.ElementWeightTons.Value;
+                y += member.MemberCogY.Value * member.ElementWeightTons.Value;
+                z += member.MemberCogZ.Value * member.ElementWeightTons.Value;
+                weightSum += member.ElementWeightTons.Value;
+            }
+
+            return weightSum > 0 ? (x / weightSum, y / weightSum, z / weightSum) : null;
+        }
+
+        private static (double X, double Y, double Z)? ComputeAverageCog(IReadOnlyList<AssemblyMarkAuditDetail> members)
+        {
+            var valid = members
+                .Where(member => member.MemberCogX != null && member.MemberCogY != null && member.MemberCogZ != null)
+                .ToList();
+
+            return valid.Count == 0
+                ? null
+                : (valid.Average(member => member.MemberCogX!.Value),
+                    valid.Average(member => member.MemberCogY!.Value),
+                    valid.Average(member => member.MemberCogZ!.Value));
+        }
+
+        private static void GenerateAssemblyMarkCsvReport(IfcAuditResult auditResult, string csvPath)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("GlobalId,IfcEntity,ElementName,ElementType,Material,ElementWeightKg,ElementWeightTons,RawAssemblyPos,RawCastUnitPos,ResolvedAssemblyMark,AssemblyMarkSource,AssemblyMarkConfidence,IsExplicitAssemblyMark,AssemblyGroupKey,AssemblyMemberCount,AssemblyMemberGlobalIds,AssemblyTotalWeightKg,AssemblyTotalWeightTons,MemberCogX,MemberCogY,MemberCogZ,AssemblyCogX,AssemblyCogY,AssemblyCogZ,ExporterProfile,SourceSystem,ValidationStatus,ValidationWarnings,Action");
+
+            foreach (var detail in auditResult.AssemblyMarkDiagnostics)
+            {
+                sb.AppendLine(string.Join(",", new[]
+                {
+                    Csv(detail.GlobalId),
+                    Csv(detail.IfcEntity),
+                    Csv(detail.ElementName),
+                    Csv(detail.ElementType),
+                    Csv(detail.Material),
+                    FormatNullable(detail.ElementWeightKg),
+                    FormatNullable(detail.ElementWeightTons),
+                    Csv(detail.RawAssemblyPos),
+                    Csv(detail.RawCastUnitPos),
+                    Csv(detail.ResolvedAssemblyMark),
+                    Csv(detail.AssemblyMarkSource),
+                    Csv(detail.AssemblyMarkConfidence),
+                    detail.IsExplicitAssemblyMark ? "True" : "False",
+                    Csv(detail.AssemblyGroupKey),
+                    detail.AssemblyMemberCount.ToString(CultureInfo.InvariantCulture),
+                    Csv(string.Join(";", detail.AssemblyMemberGlobalIds)),
+                    FormatNullable(detail.AssemblyTotalWeightKg),
+                    FormatNullable(detail.AssemblyTotalWeightTons),
+                    FormatNullable(detail.MemberCogX),
+                    FormatNullable(detail.MemberCogY),
+                    FormatNullable(detail.MemberCogZ),
+                    FormatNullable(detail.AssemblyCogX),
+                    FormatNullable(detail.AssemblyCogY),
+                    FormatNullable(detail.AssemblyCogZ),
+                    Csv(detail.ExporterProfile),
+                    Csv(detail.SourceSystem),
+                    Csv(detail.ValidationStatus),
+                    Csv(string.Join(";", detail.ValidationWarnings)),
+                    Csv(detail.Action)
+                }));
+            }
+
+            File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
+        }
+
+        private static string FormatNullable(double? value) =>
+            value.HasValue ? value.Value.ToString("0.####", CultureInfo.InvariantCulture) : string.Empty;
+
+        private static string Csv(string? value) =>
+            $"\"{EscapeCsv(value ?? string.Empty)}\"";
         private string GenerateReportsCore(IfcAuditResult auditResult, string? projectFolderPath, CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(projectFolderPath))
@@ -1045,6 +1358,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
             var jsonPath = Path.Combine(outputDirectory, $"debug_ifc_details_{timestamp}.json");
             var csvPath = Path.Combine(outputDirectory, $"debug_ifc_elements_{timestamp}.csv");
+            var assemblyMarkCsvPath = Path.Combine(outputDirectory, $"debug_ifc_check_assembly_mark_{timestamp}.csv");
 
             cancellationToken.ThrowIfCancellationRequested();
             // 1. Generate JSON
@@ -1059,6 +1373,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
             cancellationToken.ThrowIfCancellationRequested();
             // 2. Generate CSV (Metadata included at top per user request)
             GenerateCsvReport(auditResult, csvPath);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            GenerateAssemblyMarkCsvReport(auditResult, assemblyMarkCsvPath);
 
             Debug.WriteLine($"[IfcDiagnosticAudit] JSON and CSV Reports generated successfully at: {outputDirectory}");
             return outputDirectory;

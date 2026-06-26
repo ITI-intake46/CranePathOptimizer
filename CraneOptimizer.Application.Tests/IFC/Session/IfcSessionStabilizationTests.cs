@@ -1205,6 +1205,43 @@ namespace CraneOptimizer.Application.Tests
             }
         }
 
+
+        [Fact]
+        public void TestResolveCanonicalAssemblyIdentity_GenericAssemblyPosAlias()
+        {
+            using (var model = IfcStore.Create(Xbim.Common.Step21.XbimSchemaVersion.Ifc4, Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var txn = model.BeginTransaction("Create"))
+                {
+                    var product = model.Instances.New<Xbim.Ifc4.ProductExtension.IfcElementAssembly>();
+                    var pset = model.Instances.New<Xbim.Ifc4.Kernel.IfcPropertySet>();
+                    pset.Name = "Tekla Common";
+
+                    var assemblyPos = model.Instances.New<Xbim.Ifc4.PropertyResource.IfcPropertySingleValue>();
+                    assemblyPos.Name = "ASSEMBLY_POS";
+                    assemblyPos.NominalValue = new Xbim.Ifc4.MeasureResource.IfcLabel("W5102");
+                    pset.HasProperties.Add(assemblyPos);
+
+                    var castUnitPos = model.Instances.New<Xbim.Ifc4.PropertyResource.IfcPropertySingleValue>();
+                    castUnitPos.Name = "CAST_UNIT_POS";
+                    castUnitPos.NominalValue = new Xbim.Ifc4.MeasureResource.IfcLabel("W5102");
+                    pset.HasProperties.Add(castUnitPos);
+
+                    var rel = model.Instances.New<Xbim.Ifc4.Kernel.IfcRelDefinesByProperties>();
+                    rel.RelatedObjects.Add(product);
+                    rel.RelatingPropertyDefinition = pset;
+                    txn.Commit();
+
+                    var resolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+                    var result = resolver.ResolveCanonicalAssemblyIdentity(product, "WALL", IfcExporterProfile.Generic);
+
+                    Assert.Equal("W5102", result.AssemblyMark);
+                    Assert.Equal("ASSEMBLY_POS", result.SourcePropertyName);
+                    Assert.Equal(AssemblyMarkConfidence.High.ToString(), result.Confidence);
+                    Assert.True(result.IsExplicitAssemblyMark);
+                }
+            }
+        }
         [Fact]
         public void TestResolveCanonicalAssemblyIdentity_TeklaCastUnit()
         {

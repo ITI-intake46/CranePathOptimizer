@@ -261,7 +261,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             sw.Stop();
 
             // Map results back to UI DTOs
-            var finalResult = MapPlacementResult(appResult, sceneElements, input.CraneSpec, input.Settings, crane.Name);
+            var resultElements = sceneElements.Concat(input.Elements ?? new List<PrecastElement>()).ToList();
+            var finalResult = MapPlacementResult(appResult, resultElements, input.CraneSpec, input.Settings, crane.Name);
 
             // Log optimization run history (Phase 5E: resolved via IProjectOutputPathService)
             try
@@ -404,9 +405,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     ElementResults = appPos.ElementResults.Select(appElem =>
                     {
                         elementLookup.TryGetValue(appElem.ElementId, out var element);
-                        var sceneCog = element == null
-                            ? new Domain.Common.DomainPoint3D()
-                            : _coordinateService.DenormalizePoint(element.ElementCOG);
+                        var normalizedCog = element?.ElementCOG
+                            ?? new Domain.Common.DomainPoint3D(appElem.LoadPointX, appElem.LoadPointY, appElem.LoadPointZ);
+                        var sceneCog = _coordinateService.DenormalizePoint(normalizedCog);
 
                         return new DTOs.ElementLiftResult
                         {
