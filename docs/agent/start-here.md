@@ -43,7 +43,8 @@ Use this index to route your research based on the specific subsystem or domain 
 *   For performance optimizations and profiling parameters, read [refactoring-opportunities.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/project/refactoring-opportunities.md).
 
 ### If Working On IFC Processing
-*   For parsing normalization pipelines, categories, and role classifications, read [ifc.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/ifc.md).
+*   For parsing normalization pipelines, categories, role classifications, and the Phase 7B IFC identity contract, read [ifc.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/ifc.md).
+*   When touching IFC identity, preserve the field ownership contract: `ElementID` is IFC `GlobalId`, `ElementName` is raw IFC/user object name, and `AssemblyMark`/canonical labels are display and grouping metadata only.
 *   For length scaling, mass extraction, fallback density estimations, and display unit preferences, read [units.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/domain/units.md).
 *   For EF Core entity mapping and DB schema layouts, read [database.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/architecture/database.md).
 *   For GIS & survey coordinate integrations (persistence and IFC georeferencing extraction), read [gis-survey-coordinate-integration.md](file:///F:/06-ITI/00-Project/Main%20Project/CraneOptimizer/docs/project/gis-survey-coordinate-integration.md).
@@ -204,6 +205,8 @@ This section details the organization of the Phase 4 diagnostics and model impor
 * **Phase 3: Central Alias Resolver**: Factored out hardcoded property aliases into exporter profiles (`Revit`, `Tekla`, `Generic`) and resolved them via `CentralIfcPropertyAliasResolver`.
 * **Phase 4: Import Readiness Diagnostics**: Created the `ImportReadinessService` and added a minimal card UI to display warnings/errors.
 * **Phase 5: Canonical Display Identity**: Consistently consume and display canonical assembly identity and validation metadata across GA outputs, reports, and UI-facing data paths.
+* **Phase 7A: Tekla Assembly Lift Units**: Resolve Tekla uppercase assembly aliases and group repeated explicit high-confidence assembly marks into synthetic GA lift units after safety gating.
+* **Phase 7B: IFC Identity Contract**: Keep IFC GUID, IFC name, display label, and assembly mark in separate fields across import, persistence, F5, reports, and audit CSVs.
 
 ---
 
@@ -399,6 +402,8 @@ This section details the organization of the Phase 4 diagnostics and model impor
 * **Phase 3: Central Alias Resolver**: Factored out hardcoded property aliases into exporter profiles (`Revit`, `Tekla`, `Generic`) and resolved them via `CentralIfcPropertyAliasResolver`.
 * **Phase 4: Import Readiness Diagnostics**: Created the `ImportReadinessService` and added a minimal card UI to display warnings/errors.
 * **Phase 5: Canonical Display Identity**: Consistently consume and display canonical assembly identity and validation metadata across GA outputs, reports, and UI-facing data paths.
+* **Phase 7A: Tekla Assembly Lift Units**: Resolve Tekla uppercase assembly aliases and group repeated explicit high-confidence assembly marks into synthetic GA lift units after safety gating.
+* **Phase 7B: IFC Identity Contract**: Keep IFC GUID, IFC name, display label, and assembly mark in separate fields across import, persistence, F5, reports, and audit CSVs.
 
 ---
 

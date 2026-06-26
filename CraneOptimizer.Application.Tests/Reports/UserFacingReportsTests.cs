@@ -10,6 +10,7 @@ using CraneOptimizer.Infrastructure.Reports.UserFacing;
 using CraneOptimizer.Application.Services;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.UI.Features.F12_Reports.Services;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers;
 
 namespace CraneOptimizer.Application.Tests.Reports;
 
@@ -216,6 +217,55 @@ public sealed class UserFacingReportsTests : IDisposable
         Assert.DoesNotContain("ElementIds", json, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void ElementReportDataProvider_KeepsGuidAndIfcName_WhenAssemblyMarkSuppliesDisplayLabel()
+    {
+        var element = Element("01jhsjVXzBy81J1pRn_FyV");
+        element.ElementRevitId = null;
+        element.ElementName = "W5102 - Wall";
+        element.ElementMark = "W5102";
+        element.AssemblyMark = "W5102";
+        element.AssemblyMarkSource = "Pset_Tekla_Common.ASSEMBLY_POS";
+        element.AssemblyMarkIsExplicit = true;
+        element.AssemblyMarkConfidence = AssemblyMarkConfidence.High;
+
+        var rows = new ElementReportDataProvider(
+                new ReportableElementResolver(),
+                new ImportReadinessService())
+            .BuildRows(ReportTemplateCatalog.BasicElementList, [element]);
+
+        var row = Assert.Single(rows);
+        Assert.Equal("01jhsjVXzBy81J1pRn_FyV", row.ElementId);
+        Assert.Equal("W5102 - Wall", row.ElementName);
+        Assert.Equal("W5102", row.ElementMark);
+        Assert.Equal("W5102", row.CanonicalMark);
+        Assert.Equal("01jhsjVXzBy81J1pRn_FyV", row.SourceRevitId);
+    }
+
+    [Fact]
+    public void PrecastElementMapper_RoundTripsIfcNameWithoutFallingBackToAssemblyMark()
+    {
+        var element = Element("01jhsjVXzBy81J1pRn_FyV");
+        element.ElementRevitId = null;
+        element.ElementName = "W5102 - Wall";
+        element.ElementMark = "W5102";
+        element.AssemblyMark = "W5102";
+        element.AssemblyMarkSource = "Pset_Tekla_Common.ASSEMBLY_POS";
+        element.SourceSystem = SourceSystem.Tekla;
+        element.ExporterProfile = IfcExporterProfile.Tekla;
+
+        var entity = PrecastElementMapper.ToEntity(element, projectInfoId: 10, ifcFileId: 20);
+        var roundTripped = PrecastElementMapper.ToDomain(entity);
+
+        Assert.Equal("01jhsjVXzBy81J1pRn_FyV", entity.GlobalId);
+        Assert.Null(entity.Name);
+        Assert.Equal("W5102 - Wall", entity.DisplayName);
+        Assert.Equal("W5102", entity.Mark);
+        Assert.Equal("01jhsjVXzBy81J1pRn_FyV", roundTripped.ElementID);
+        Assert.Equal("W5102 - Wall", roundTripped.ElementName);
+        Assert.Equal("W5102", roundTripped.ElementMark);
+        Assert.Equal("W5102", roundTripped.AssemblyMark);
+    }
     [Fact]
     public async Task ReportBuilder_UsesTemplateNameAsReportName()
     {

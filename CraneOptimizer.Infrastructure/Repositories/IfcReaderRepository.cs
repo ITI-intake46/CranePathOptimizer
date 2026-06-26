@@ -1302,6 +1302,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     pe.ElementMark = product != null 
                         ? CleanElementName(GetBestMarkCandidate(product) ?? string.Empty) 
                         : (preview.Name ?? string.Empty);
+                    var rawIfcName = product?.Name?.ToString()?.Trim();
+                    pe.ElementName = !string.IsNullOrWhiteSpace(rawIfcName)
+                        ? rawIfcName
+                        : (preview.Name ?? string.Empty);
                     
                     // Traceability to parent assembly
                     pe.ParentAssemblyName = parentProduct != null 
@@ -1326,9 +1330,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     // Populate Canonical Assembly Schema (Phase 2)
                     var canonicalIdentity = ResolveCanonicalAssemblyIdentity(product, preview, previewSummary.DetectedProfile);
                     pe.ExplicitAssemblyMarkFound = canonicalIdentity.IsExplicitAssemblyMark;
-                    pe.ResolvedDisplayMark = pe.ElementMark;
 
                     pe.AssemblyMark = canonicalIdentity.AssemblyMark;
+                    pe.ResolvedDisplayMark = canonicalIdentity.AssemblyMark ?? pe.ElementMark ?? pe.ElementName;
                     pe.AssemblyMarkSource = canonicalIdentity.SourcePropertyName != null 
                         ? $"{canonicalIdentity.SourcePropertySet}.{canonicalIdentity.SourcePropertyName}" 
                         : "Fallback";

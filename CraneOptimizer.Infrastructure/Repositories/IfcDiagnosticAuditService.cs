@@ -1055,14 +1055,23 @@ namespace CraneOptimizer.Infrastructure.Repositories
             foreach (var product in physicalProducts)
             {
                 var globalId = product.GlobalId.ToString();
+                var rawName = product.Name?.ToString() ?? string.Empty;
+                var rawTag = (product as IIfcElement)?.Tag?.ToString() ?? string.Empty;
                 weightsById.TryGetValue(globalId, out var weight);
                 materialById.TryGetValue(globalId, out var material);
                 classById.TryGetValue(globalId, out var classification);
 
                 var identity = _aliasResolver.ResolveCanonicalAssemblyIdentity(
                     product,
-                    product.Name?.ToString() ?? string.Empty,
+                    rawName,
                     profile);
+                var normalizedAssemblyMark = identity.AssemblyMark ?? string.Empty;
+                var resolvedDisplayMark = !string.IsNullOrWhiteSpace(normalizedAssemblyMark)
+                    ? normalizedAssemblyMark
+                    : rawName;
+                var canonicalDisplayLabel = !string.IsNullOrWhiteSpace(resolvedDisplayMark)
+                    ? resolvedDisplayMark
+                    : globalId;
 
                 var warnings = new List<string>(identity.Warnings);
                 if (!identity.IsExplicitAssemblyMark)
@@ -1082,15 +1091,21 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 details.Add(new AssemblyMarkAuditDetail
                 {
                     GlobalId = globalId,
+                    ElementID = globalId,
                     IfcEntity = product.ExpressType?.Name ?? product.GetType().Name,
-                    ElementName = product.Name?.ToString() ?? string.Empty,
+                    ElementName = rawName,
                     ElementType = classification?.CandidateResolvedCategory ?? string.Empty,
+                    RawName = rawName,
+                    RawTag = rawTag,
                     Material = material?.MaterialName ?? string.Empty,
                     ElementWeightKg = weight?.WeightStandardValueTons is > 0 ? weight.WeightStandardValueTons.Value * 1000.0 : null,
                     ElementWeightTons = weight?.WeightStandardValueTons,
                     RawAssemblyPos = ReadExactProperty(product, "ASSEMBLY_POS") ?? string.Empty,
                     RawCastUnitPos = ReadExactProperty(product, "CAST_UNIT_POS") ?? string.Empty,
-                    ResolvedAssemblyMark = identity.AssemblyMark ?? string.Empty,
+                    NormalizedAssemblyMark = normalizedAssemblyMark,
+                    ResolvedAssemblyMark = normalizedAssemblyMark,
+                    ResolvedDisplayMark = resolvedDisplayMark,
+                    CanonicalDisplayLabel = canonicalDisplayLabel,
                     AssemblyMarkSource = identity.SourcePropertyName != null
                         ? $"{identity.SourcePropertySet}.{identity.SourcePropertyName}"
                         : "Fallback",
@@ -1295,25 +1310,32 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private static void GenerateAssemblyMarkCsvReport(IfcAuditResult auditResult, string csvPath)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("GlobalId,IfcEntity,ElementName,ElementType,Material,ElementWeightKg,ElementWeightTons,RawAssemblyPos,RawCastUnitPos,ResolvedAssemblyMark,AssemblyMarkSource,AssemblyMarkConfidence,IsExplicitAssemblyMark,AssemblyGroupKey,AssemblyMemberCount,AssemblyMemberGlobalIds,AssemblyTotalWeightKg,AssemblyTotalWeightTons,MemberCogX,MemberCogY,MemberCogZ,AssemblyCogX,AssemblyCogY,AssemblyCogZ,ExporterProfile,SourceSystem,ValidationStatus,ValidationWarnings,Action");
+            sb.AppendLine("GlobalId,ElementID,ElementName,ElementType,RawName,RawTag,RawAssemblyPos,RawCastUnitPos,NormalizedAssemblyMark,ResolvedDisplayMark,CanonicalDisplayLabel,AssemblyMarkSource,AssemblyMarkConfidence,IsExplicitAssemblyMark,ValidationStatus,ValidationWarnings,IfcEntity,Material,ElementWeightKg,ElementWeightTons,AssemblyGroupKey,AssemblyMemberCount,AssemblyMemberGlobalIds,AssemblyTotalWeightKg,AssemblyTotalWeightTons,MemberCogX,MemberCogY,MemberCogZ,AssemblyCogX,AssemblyCogY,AssemblyCogZ,ExporterProfile,SourceSystem,Action");
 
             foreach (var detail in auditResult.AssemblyMarkDiagnostics)
             {
                 sb.AppendLine(string.Join(",", new[]
                 {
                     Csv(detail.GlobalId),
-                    Csv(detail.IfcEntity),
+                    Csv(detail.ElementID),
                     Csv(detail.ElementName),
                     Csv(detail.ElementType),
-                    Csv(detail.Material),
-                    FormatNullable(detail.ElementWeightKg),
-                    FormatNullable(detail.ElementWeightTons),
+                    Csv(detail.RawName),
+                    Csv(detail.RawTag),
                     Csv(detail.RawAssemblyPos),
                     Csv(detail.RawCastUnitPos),
-                    Csv(detail.ResolvedAssemblyMark),
+                    Csv(detail.NormalizedAssemblyMark),
+                    Csv(detail.ResolvedDisplayMark),
+                    Csv(detail.CanonicalDisplayLabel),
                     Csv(detail.AssemblyMarkSource),
                     Csv(detail.AssemblyMarkConfidence),
                     detail.IsExplicitAssemblyMark ? "True" : "False",
+                    Csv(detail.ValidationStatus),
+                    Csv(string.Join(";", detail.ValidationWarnings)),
+                    Csv(detail.IfcEntity),
+                    Csv(detail.Material),
+                    FormatNullable(detail.ElementWeightKg),
+                    FormatNullable(detail.ElementWeightTons),
                     Csv(detail.AssemblyGroupKey),
                     detail.AssemblyMemberCount.ToString(CultureInfo.InvariantCulture),
                     Csv(string.Join(";", detail.AssemblyMemberGlobalIds)),
@@ -1327,8 +1349,6 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     FormatNullable(detail.AssemblyCogZ),
                     Csv(detail.ExporterProfile),
                     Csv(detail.SourceSystem),
-                    Csv(detail.ValidationStatus),
-                    Csv(string.Join(";", detail.ValidationWarnings)),
                     Csv(detail.Action)
                 }));
             }

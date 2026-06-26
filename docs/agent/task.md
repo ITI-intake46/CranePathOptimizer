@@ -1,22 +1,26 @@
 # Current Task
 
-## Phase 7 Tekla IFC Assembly Mark Extraction & Assembly Lift Unit Grouping
+## Phase 7B -- IFC Schema Contract & Normalized Identity Mapping
 
 Implemented:
 
-- `ASSEMBLY_POS`, `CAST_UNIT_POS`, `ASSEMBLY_POSITION_CODE`, `CAST_UNIT_POSITION_CODE`, `ASSEMBLY_PREFIX`, `CAST_UNIT_PREFIX`, and `CAST_UNIT_SERIAL_NUMBER` are canonical assembly aliases in both Generic and Tekla IFC profiles.
-- `CentralIfcPropertyAliasResolver` now resolves Tekla-style uppercase underscore assembly fields through the existing all-property-set traversal, so detection does not depend on a Tekla exporter header.
-- `IfcDiagnosticAuditService.GenerateReportsAsync` writes `Reports/IFC_Audit/debug_ifc_check_assembly_mark_{timestamp}.csv` with raw aliases, resolved assembly mark, group key, member IDs, member/group weight, COG columns, validation warnings, and action.
-- `OptimizationInputBuilder` creates synthetic GA lift units for repeated explicit high-confidence assembly marks. Original `PrecastElement` members remain in the scene/project state; grouped GA units carry source member IDs in `ChildGlobalIds`.
-- F8 result mapping includes synthetic GA input units when mapping result coordinates, so grouped units display their actual load point instead of falling back to zero.
-- The sample IFC `F:\06-ITI\00-Project\tryProjects\project1\Models\IFC\ifc4withAssemplymark.ifc` was audited and produced `F:\06-ITI\00-Project\tryProjects\project1\Reports\IFC_Audit\debug_ifc_check_assembly_mark_20260626_174634.csv`.
+- IFC normalized import now keeps `ElementID` as IFC `GlobalId` and sets `ElementName` from raw IFC `IIfcProduct.Name` / preview name instead of letting Tekla assembly marks occupy the name slot.
+- Project persistence no longer stores `DisplayName = ElementName ?? ElementMark`; save/reload preserves IFC Name separately from `ElementMark` and `AssemblyMark`.
+- F5 Element Management now shows separate identity rows for `IFC GUID`, `IFC Name`, `IFC Type`, and `Material`, plus canonical rows for `Display Label / Lift Mark` and `Assembly Mark / Assembly Position`.
+- `debug_ifc_check_assembly_mark_{timestamp}.csv` begins with the Phase 7B identity fields: `GlobalId`, `ElementID`, `ElementName`, `ElementType`, `RawName`, `RawTag`, `RawAssemblyPos`, `RawCastUnitPos`, `NormalizedAssemblyMark`, `ResolvedDisplayMark`, `CanonicalDisplayLabel`, `AssemblyMarkSource`, `AssemblyMarkConfidence`, `IsExplicitAssemblyMark`, `ValidationStatus`, `ValidationWarnings`; existing grouping/weight/COG/exporter/action columns remain appended.
+- Added tests covering canonical resolver identity separation, report row identity separation, project persistence round-trip, existing IFC alias resolution, and GA assembly grouping.
+- Documented the field ownership matrix, exporter schema map, normalized project contract, screenshot root cause, minimal mapping fixes, audit columns, and deferred Phase 7D/7E work in `docs/domain/ifc.md`.
 
-Sample observations:
+Root cause fixed:
 
-- `01jhsjVXzBy81J1pRn_FyV` resolves `ASSEMBLY_POS=W5102`, `CAST_UNIT_POS=W5102`, and weight about `8810 kg` (`8.81 t`).
-- The known `W1` GUIDs resolve and group. The raw IFC also contains an additional `W1` product with missing weight; the audit lists it, while the F8 GA gate still blocks missing/untrusted weight before grouping.
+- The screenshot state `ID = W5102`, `Name = W5102 - Wall`, `Display Label = W5102`, `Assembly Mark = -` came from F5 using a readable-id helper that preferred marks over GUIDs and from persistence filling missing `ElementName` from `ElementMark`. `ASSEMBLY_POS` is now kept as assembly/display metadata and does not replace GUID or IFC Name.
 
 Verified:
 
 - `dotnet build CraneOptimizer.sln` passes with existing warning noise.
-- `dotnet test CraneOptimizer.Application.Tests\CraneOptimizer.Application.Tests.csproj --no-build --filter "FullyQualifiedName~OptimizationInputBuilderTests|FullyQualifiedName~TestResolveCanonicalAssemblyIdentity"` passes: 11 tests.
+- `dotnet test CraneOptimizer.Application.Tests\CraneOptimizer.Application.Tests.csproj --no-build --filter "FullyQualifiedName~CanonicalMarkResolverTests|FullyQualifiedName~UserFacingReportsTests|FullyQualifiedName~IfcSessionStabilizationTests|FullyQualifiedName~OptimizationInputBuilderTests"` passes: 95 tests.
+
+Carry-forward:
+
+- Phase 7D: add UI/review workflows for low-confidence or ambiguous assembly mark mappings.
+- Phase 7E: plan long-term schema cleanup and field-name migration. Do not delete existing identity fields before migration/compatibility work is designed.

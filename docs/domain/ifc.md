@@ -115,6 +115,77 @@ Phase 7 extends the canonical identity pipeline for Tekla-style IFC4 exports wit
 
 The sample `ifc4withAssemplymark.ifc` verifies `W5102` extraction from `ASSEMBLY_POS`/`CAST_UNIT_POS` and explicit `W1` grouping. One additional `W1` product in the raw IFC has missing weight; it appears in the audit group, but the GA gate blocks it before optimization because missing/untrusted weights remain unsafe.
 
+## Phase 7B -- IFC Schema Contract and Normalized Identity Mapping
+
+Phase 7B closes the identity-contract gap discovered while testing Tekla IFC assembly marks. The rule is explicit: importer fields are owned by their source semantic, and `ASSEMBLY_POS` or any assembly-position property must never overwrite the IFC GUID or IFC object name.
+
+### Field Ownership Matrix
+
+| Normalized field | Owner/source semantic | Allowed fallback | Must not contain |
+|---|---|---|---|
+| `ElementID` | IFC `GlobalId` for imported elements | Revit/native id only for non-IFC legacy inputs | `ASSEMBLY_POS`, `CAST_UNIT_POS`, display labels, type names |
+| `ElementName` | IFC product `Name` / user object name | Preview name when product name is absent | Canonical assembly mark as a silent fallback |
+| `ElementRevitId` | Revit/native element id if present | null | IFC assembly position, display label |
+| `ElementMark` | Legacy/raw best mark candidate for compatibility | Preview name for old data only | IFC GUID |
+| `AssemblyMark` | Canonical production assembly/cast-unit mark | null when not explicit/resolved | IFC GUID, object name |
+| `ResolvedDisplayMark` | Best display/lift label | `ElementMark`, then `ElementName` | Persistent unique id |
+| `CanonicalDisplayLabel` / report `CanonicalMark` | User-facing label from `CanonicalMarkResolver` | Display fallback only | Database primary identity |
+| `ValidationStatus` / warnings | Import/readiness validation | Warning/error from checks | Display-only formatting text |
+
+### Exporter Schema Map
+
+| Exporter profile | Stable identity | Object/user name | Assembly/cast-unit aliases | Notes |
+|---|---|---|---|---|
+| General IFC | `GlobalId` | `IIfcProduct.Name` | `Assembly Mark`, `Cast Unit Mark`, `Assembly Number`, `Cast Unit Number`, plus uppercase Tekla-compatible aliases | Property-set name is diagnostic context; resolver searches property names case-insensitively. |
+| Tekla IFC | `GlobalId` | `IIfcProduct.Name` | `ASSEMBLY_POS`, `CAST_UNIT_POS`, `ASSEMBLY_POSITION_CODE`, `CAST_UNIT_POSITION_CODE`, `ASSEMBLY_PREFIX`, `CAST_UNIT_PREFIX`, `CAST_UNIT_SERIAL_NUMBER` | `ASSEMBLY_POS` is canonical assembly identity, not element id or name. |
+| Revit IFC | `GlobalId` plus optional Revit id in `ElementRevitId` | `IIfcProduct.Name` | Revit identity-data assembly mark aliases handled by `RevitIfcExporterProfile` | Revit ids remain native-source ids and do not replace IFC GUID. |
+
+### Normalized Project Contract
+
+1. IFC import assigns `PrecastElement.ElementID = preview.GlobalId` and preserves it through project save/reload as `ProjectIfcElementEntity.GlobalId`.
+2. IFC import assigns `PrecastElement.ElementName` from raw IFC `product.Name` or preview name. Persistence stores this in `ProjectIfcElementEntity.DisplayName` without falling back to `ElementMark`.
+3. Canonical assembly fields (`AssemblyMark`, source, confidence, explicit flag, validation metadata) are additive. They are used for display labels, reports, readiness, and GA lift-unit grouping only after safety gating.
+4. F5 Element Management displays separate rows for IFC GUID, IFC Name, IFC Type, Material, Display Label / Lift Mark, Assembly Mark / Assembly Position, confidence, explicit flag, and validation state.
+5. F8 and reports may use the canonical label for user-facing labels, but they must keep `ElementID` as the real element identity.
+
+### Screenshot Root Cause
+
+The observed F5 state:
+
+```text
+ID = W5102
+Name = W5102 - Wall
+Display Label = W5102
+Assembly Mark = -
+```
+
+was caused by two separate leaks:
+
+1. F5 displayed the `ID` row through a readable-id helper that preferred `ElementRevitId` or `ElementMark` before `ElementID`; for Tekla imports this made the mark `W5102` look like the element id.
+2. Normalized IFC import did not populate `ElementName`, and project persistence stored `DisplayName = ElementName ?? ElementMark`. After save/reload, the missing name became the mark-derived label.
+
+Phase 7B fixes this by showing the IFC GUID directly in F5, assigning `ElementName` from raw IFC name during import, and removing the persistence fallback from `ElementName` to `ElementMark`.
+
+### Debug Audit Contract
+
+`debug_ifc_check_assembly_mark_{timestamp}.csv` now begins with the identity-contract columns:
+
+```text
+GlobalId, ElementID, ElementName, ElementType, RawName, RawTag, RawAssemblyPos, RawCastUnitPos, NormalizedAssemblyMark, ResolvedDisplayMark, CanonicalDisplayLabel, AssemblyMarkSource, AssemblyMarkConfidence, IsExplicitAssemblyMark, ValidationStatus, ValidationWarnings
+```
+
+Existing assembly grouping, member id, weight, COG, exporter, source-system, and action columns remain appended after these fields for traceability.
+
+### Phase 7D / 7E Deferred Work
+
+* Phase 7D should add deeper UI affordances for reviewing low-confidence/ambiguous mark mappings and bulk correction workflows.
+* Phase 7E should evaluate long-term schema cleanup, including deprecating confusing legacy display/name fallbacks after migration support exists.
+* Neither phase should delete existing fields until project-file compatibility and migration strategy are explicitly designed.
+
+### Phase 7B Verification
+
+* `dotnet build CraneOptimizer.sln` passes with existing warning noise.
+* `dotnet test CraneOptimizer.Application.Tests\CraneOptimizer.Application.Tests.csproj --no-build --filter "FullyQualifiedName~CanonicalMarkResolverTests|FullyQualifiedName~UserFacingReportsTests|FullyQualifiedName~IfcSessionStabilizationTests|FullyQualifiedName~OptimizationInputBuilderTests"` passes: 95 tests.
 ## Phase 4 — Import Validation & GA Readiness Diagnostics Foundation
 
 Phase 4 exposes the validation/readiness state in a consistent, reusable way by creating a centralized diagnostics/readiness foundation and a minimal UI card ("Current Run Readiness") inside the GA Optimizer dialog.

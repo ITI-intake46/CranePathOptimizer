@@ -30,7 +30,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers
                 IfcFileId = ifcFileId,
                 GlobalId = domain.ElementID,
                 Name = domain.ElementRevitId,
-                DisplayName = domain.ElementName ?? domain.ElementMark,
+                DisplayName = domain.ElementName,
                 Mark = domain.ElementMark,
                 ElementType = domain.ElementType,
                 Material = domain.ElementMaterial,

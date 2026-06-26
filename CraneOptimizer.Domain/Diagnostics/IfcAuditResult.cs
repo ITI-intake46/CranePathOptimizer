@@ -139,15 +139,21 @@ namespace CraneOptimizer.Domain.Diagnostics
     public sealed class AssemblyMarkAuditDetail
     {
         public string GlobalId { get; set; } = string.Empty;
+        public string ElementID { get; set; } = string.Empty;
         public string IfcEntity { get; set; } = string.Empty;
         public string ElementName { get; set; } = string.Empty;
         public string ElementType { get; set; } = string.Empty;
+        public string RawName { get; set; } = string.Empty;
+        public string RawTag { get; set; } = string.Empty;
         public string Material { get; set; } = string.Empty;
         public double? ElementWeightKg { get; set; }
         public double? ElementWeightTons { get; set; }
         public string RawAssemblyPos { get; set; } = string.Empty;
         public string RawCastUnitPos { get; set; } = string.Empty;
+        public string NormalizedAssemblyMark { get; set; } = string.Empty;
         public string ResolvedAssemblyMark { get; set; } = string.Empty;
+        public string ResolvedDisplayMark { get; set; } = string.Empty;
+        public string CanonicalDisplayLabel { get; set; } = string.Empty;
         public string AssemblyMarkSource { get; set; } = string.Empty;
         public string AssemblyMarkConfidence { get; set; } = string.Empty;
         public bool IsExplicitAssemblyMark { get; set; }

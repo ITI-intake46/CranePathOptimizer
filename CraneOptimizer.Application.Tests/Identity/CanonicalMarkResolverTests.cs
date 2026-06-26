@@ -177,6 +177,23 @@ namespace CraneOptimizer.Application.Tests.Identity
             Assert.True(result.UsedFallback);
         }
 
+        [Fact]
+        public void Resolve_ExplicitAssemblyMark_KeepsElementIdAndElementNameSeparate()
+        {
+            var element = MakeElement(
+                "01jhsjVXzBy81J1pRn_FyV",
+                assemblyMark: "W5102",
+                isExplicit: true,
+                confidence: AssemblyMarkConfidence.High,
+                elementMark: "W5102");
+            element.ElementName = "W5102 - Wall";
+
+            var result = CanonicalMarkResolver.Resolve(element);
+
+            Assert.Equal("01jhsjVXzBy81J1pRn_FyV", result.ElementId);
+            Assert.Equal("W5102", result.DisplayLabel);
+            Assert.Equal("W5102 - Wall", element.ElementName);
+        }
         // ─── helpers ────────────────────────────────────────────────────
 
         private static PrecastElement MakeElement(

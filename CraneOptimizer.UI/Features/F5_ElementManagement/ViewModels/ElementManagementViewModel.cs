@@ -519,7 +519,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             return new ElementPanelDto(
                 BuildLiftStateDto(liftState),
                 GetElementID(element),
-                GetPrecastDisplayName(element),
+                GetIfcElementName(element),
                 CleanElementType(element.ElementType),
                 string.IsNullOrWhiteSpace(element.ElementMaterial) ? "N/A" : element.ElementMaterial,
                 element.ElementLength,
@@ -548,9 +548,9 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 CreateLiftStateGroup(panel.LiftState),
 
                 CreateGroup("Identity", true,
-                    CreateProperty("ID", GetReadableElementId(SelectedElement, panel.Id), ""),
-                    CreateProperty("Name", panel.Name, ""),
-                    CreateProperty("Type", panel.Type, ""),
+                    CreateProperty("IFC GUID", GetIfcGuid(SelectedElement, panel.Id), ""),
+                    CreateProperty("IFC Name", panel.Name, ""),
+                    CreateProperty("IFC Type", panel.Type, ""),
                     CreateProperty("Material", panel.Material, "")),
 
                 CreateGroup("Geometry", true,
@@ -589,8 +589,8 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 var identity = CraneOptimizer.Application.Services.Identity.CanonicalMarkResolver.Resolve(SelectedElement);
 
                 properties.Add(CreateGroup("Canonical Identity", true,
-                    CreateDisplayProperty("Display Label", identity.DisplayLabel),
-                    CreateDisplayProperty("Assembly Mark", identity.AssemblyMark ?? "-"),
+                    CreateDisplayProperty("Display Label / Lift Mark", identity.DisplayLabel),
+                    CreateDisplayProperty("Assembly Mark / Assembly Position", identity.AssemblyMark ?? "-"),
                     CreateDisplayProperty("Mark Confidence", identity.MarkConfidence),
                     CreateDisplayProperty("Explicit Assembly Mark", identity.IsExplicitMark ? "Yes" : "No"),
                     CreateDisplayProperty("Source System", identity.SourceSystem),
@@ -605,6 +605,13 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             return properties;
         }
 
+        private static string GetIfcGuid(PrecastElement? element, string fallback)
+        {
+            if (!string.IsNullOrWhiteSpace(element?.ElementID) && !IsGenericOrMaterialId(element.ElementID))
+                return element.ElementID;
+
+            return IsGenericOrMaterialId(fallback) ? "Unknown" : (string.IsNullOrWhiteSpace(fallback) ? "Unknown" : fallback);
+        }
         private static string GetReadableElementId(PrecastElement? element, string fallback)
         {
             if (element == null)
@@ -701,6 +708,10 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             return CleanElementName(ElementDisplayNameConverter.GetDisplayName(e));
         }
 
+        private static string GetIfcElementName(PrecastElement e)
+        {
+            return CleanElementName(!string.IsNullOrWhiteSpace(e.ElementName) ? e.ElementName : e.ElementMark);
+        }
         private static string CleanElementName(string? rawName)
         {
             if (string.IsNullOrWhiteSpace(rawName)) return "-";
