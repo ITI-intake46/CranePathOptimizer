@@ -88,20 +88,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 }
                 else
                 {
-                    reportsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Reports", "GA");
+                    throw new InvalidOperationException(
+                        "Cannot write GA diagnostics: no project folder path is set. " +
+                        "Ensure a project is loaded and DiagnosticsReportsDirectory is populated before running diagnostics.");
                 }
             }
 
             bool batchMode = input.Settings?.BatchModeEnabled ?? false;
+            string runIdSegment = SanitizePathSegment(input.Settings?.OptimizationRunId);
             if (!batchMode)
             {
-                // Per-run folder policy: <reportsDir>\<ProjectName>\<OptimizationRunId>\
+                // Per-run folder policy: <reportsDir>\<OptimizationRunId>\
                 // Groups all CSVs from one execution into a dedicated subdirectory.
-                string projectNameSegment = SanitizePathSegment(input.ProjectName);
-                string runIdSegment = SanitizePathSegment(input.Settings?.OptimizationRunId);
-                if (!string.IsNullOrEmpty(projectNameSegment) && !string.IsNullOrEmpty(runIdSegment))
+                if (!string.IsNullOrEmpty(runIdSegment))
                 {
-                    reportsDir = Path.Combine(reportsDir, projectNameSegment, runIdSegment);
+                    reportsDir = Path.Combine(reportsDir, runIdSegment);
                 }
             }
 
@@ -110,13 +111,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             string timestampStr = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             string timeFormatted = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
-            string detailedFileName = batchMode ? "ga_audit_diagnostics.csv" : $"ga_audit_diagnostics_{timestampStr}.csv";
+            string detailedFileName = batchMode ? "debug_ga_diagnostics.csv" : $"debug_ga_diagnostics_{(string.IsNullOrEmpty(runIdSegment) ? "" : runIdSegment + "_")}{timestampStr}.csv";
             string detailedPath = Path.Combine(reportsDir, detailedFileName);
 
-            string breakdownFileName = batchMode ? "ga_audit_failure_breakdown.csv" : $"ga_audit_failure_breakdown_{timestampStr}.csv";
+            string breakdownFileName = batchMode ? "debug_ga_failure_breakdown.csv" : $"debug_ga_failure_breakdown_{(string.IsNullOrEmpty(runIdSegment) ? "" : runIdSegment + "_")}{timestampStr}.csv";
             string breakdownPath = Path.Combine(reportsDir, breakdownFileName);
 
-            string historyPath = Path.Combine(reportsDir, "ga_audit_run_history.csv");
+            string historyFileName = batchMode ? "debug_ga_run_history.csv" : $"debug_ga_run_history_{(string.IsNullOrEmpty(runIdSegment) ? "" : runIdSegment + "_")}{timestampStr}.csv";
+            string historyPath = Path.Combine(reportsDir, historyFileName);
 
             var allElements = input.Elements ?? new List<PrecastElement>();
 
@@ -514,8 +516,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     }
                 }
 
-                // 3A. Write ga_assignment_matrix_*.csv (one row per ElementGlobalId per CandidatePointId)
-                string matrixFileName = batchMode ? "ga_audit_assignment_matrix.csv" : $"ga_audit_assignment_matrix_{timestampStr}.csv";
+                // 3A. Write debug_ga_assignment_matrix_*.csv (one row per ElementGlobalId per CandidatePointId)
+                string matrixFileName = batchMode ? "debug_ga_assignment_matrix.csv" : $"debug_ga_assignment_matrix_{(string.IsNullOrEmpty(runIdSegment) ? "" : runIdSegment + "_")}{timestampStr}.csv";
                 string matrixPath = Path.Combine(reportsDir, matrixFileName);
                 bool matrixExists = File.Exists(matrixPath);
 
@@ -594,8 +596,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     }
                 }
 
-                // 3B. Write ga_final_assignments_*.csv (one row per ElementGlobalId)
-                string finalAssignmentsFileName = batchMode ? "ga_audit_final_assignments.csv" : $"ga_audit_final_assignments_{timestampStr}.csv";
+                // 3B. Write debug_ga_final_assignments_*.csv (one row per ElementGlobalId)
+                string finalAssignmentsFileName = batchMode ? "debug_ga_final_assignments.csv" : $"debug_ga_final_assignments_{(string.IsNullOrEmpty(runIdSegment) ? "" : runIdSegment + "_")}{timestampStr}.csv";
                 string finalAssignmentsPath = Path.Combine(reportsDir, finalAssignmentsFileName);
                 bool finalExists = File.Exists(finalAssignmentsPath);
 

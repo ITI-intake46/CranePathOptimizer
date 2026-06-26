@@ -288,7 +288,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                         logDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Logs", "GA");
                     }
                     System.IO.Directory.CreateDirectory(logDir);
-                    string fileName = $"ga_profile_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+                    string fileName = $"log_ga_profile_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
                     string fullPath = System.IO.Path.Combine(logDir, fileName);
 
                     GAProfiler.ProfilingLogPath = fullPath;

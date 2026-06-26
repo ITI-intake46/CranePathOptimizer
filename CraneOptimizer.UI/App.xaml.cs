@@ -127,6 +127,12 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IProjectShellService, ProjectShellService>();
             services.AddSingleton<IProjectNavigationService, ProjectNavigationService>();
 
+            // =========================
+            // Project Output Path Services (Phase 5E)
+            // =========================
+            services.AddSingleton<IActiveProjectPathProvider, UiActiveProjectPathProvider>();
+            services.AddSingleton<IProjectOutputPathService, ProjectOutputPathService>();
+
             services.AddTransient<SplashScreenViewModel>();
             services.AddTransient<ProjectManagementViewModel>();
 

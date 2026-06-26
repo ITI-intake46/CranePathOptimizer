@@ -494,21 +494,21 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         private string GeneratePreviewReportsCore(IfcNormalizationPreviewSummary preview, string? projectFolderPath, CancellationToken cancellationToken)
         {
-            string outputDirectory;
-            if (!string.IsNullOrEmpty(projectFolderPath) && Directory.Exists(projectFolderPath))
+            if (string.IsNullOrWhiteSpace(projectFolderPath))
             {
-                outputDirectory = Path.Combine(projectFolderPath, "Reports", "IFC_Audit");
+                throw new ArgumentException("projectFolderPath must not be null or whitespace. Ensure a project is loaded.", nameof(projectFolderPath));
             }
-            else
+            if (!Directory.Exists(projectFolderPath))
             {
-                outputDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Reports", "IFC_Audit");
+                throw new DirectoryNotFoundException($"The specified project folder path does not exist: {projectFolderPath}");
             }
 
+            string outputDirectory = Path.Combine(projectFolderPath, "Reports", "IFC_Audit");
             Directory.CreateDirectory(outputDirectory);
 
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var jsonPath = Path.Combine(outputDirectory, $"ifc_normalization_preview_details_{timestamp}.json");
-            var csvPath = Path.Combine(outputDirectory, $"ifc_normalization_preview_elements_{timestamp}.csv");
+            var jsonPath = Path.Combine(outputDirectory, $"debug_ifc_normalization_preview_details_{timestamp}.json");
+            var csvPath = Path.Combine(outputDirectory, $"debug_ifc_normalization_preview_elements_{timestamp}.csv");
 
             cancellationToken.ThrowIfCancellationRequested();
             // 1. JSON details

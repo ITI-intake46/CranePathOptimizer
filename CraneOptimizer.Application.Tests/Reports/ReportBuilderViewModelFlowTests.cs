@@ -128,7 +128,8 @@ public sealed class ReportBuilderViewModelFlowTests
                 new TestReportTemplateStore(),
                 new TestReportFileDialogService(),
                 previewDialogs,
-                diagnosticsReader);
+                diagnosticsReader,
+                new FakeProjectOutputPathService());
             viewModel.Initialize(ReportFamily.LiftingResult, ReportTemplateCatalog.BasicLiftingResult, "Optimization Result");
 
             Assert.True(viewModel.PreviewCommand.CanExecute(null));
@@ -264,7 +265,11 @@ public sealed class ReportBuilderViewModelFlowTests
 
     private sealed class TestProjectWorkspaceService : IProjectWorkspaceService
     {
-        public ProjectSession? CurrentSession => null;
+        public ProjectSession? CurrentSession => new ProjectSession
+        {
+            ProjectFolderPath = @"C:\FakeProjectFolderPath",
+            ProjectName = "Test Project"
+        };
         public Task<ProjectSession> CreateProjectAsync(CreateProjectRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<ProjectCardModel>> GetRecentProjectsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ProjectCardModel>>([]);
         public Task<ProjectSession?> OpenProjectAsync(Guid projectId, CancellationToken cancellationToken) => Task.FromResult<ProjectSession?>(null);
@@ -491,5 +496,27 @@ public sealed class ReportBuilderViewModelFlowTests
         public bool TryGetPlacementPoint(HelixViewport3D viewport, Point screenPt, out Point3D worldPoint) { worldPoint = new Point3D(); return false; }
         public bool TryGetHitCrane(HelixViewport3D viewport, Point screenPt, out SceneCrane crane) { crane = null!; return false; }
         public object? GetHitObject(HelixViewport3D viewport, Point screenPt) => null;
+    }
+
+    private sealed class FakeProjectOutputPathService : IProjectOutputPathService
+    {
+        private readonly string _root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "CraneOptimizerReportsTest");
+        private string R(params string[] segs) { var p = System.IO.Path.Combine(new[] { _root }.Concat(segs).ToArray()); System.IO.Directory.CreateDirectory(p); return p; }
+        public string GetProjectRoot() => _root;
+        public string GetExportsDirectory() => R("Exports");
+        public string GetUserPdfExportsDirectory() => R("Exports", "PDF");
+        public string GetUserExcelExportsDirectory() => R("Exports", "Excel");
+        public string GetUserCsvExportsDirectory() => R("Exports", "CSV");
+        public string GetReportsDirectory() => R("Reports");
+        public string GetGaReportsDirectory() => R("Reports", "GA");
+        public string GetGaRunReportsDirectory(string runId) => R("Reports", "GA", runId);
+        public string GetGaHistoryDirectory() => R("Reports", "GA", "History");
+        public string GetIfcAuditReportsDirectory() => R("Reports", "IFC");
+        public string GetDataSourceAuditDirectory() => R("Reports", "DataSourceAudit");
+        public string GetLogsDirectory() => R("Logs");
+        public string GetGaLogsDirectory() => R("Logs", "GA");
+        public string GetModelsDirectory() => R("Models");
+        public string GetIfcModelsDirectory() => R("Models", "IFC");
+        public string GetDxfModelsDirectory() => R("Models", "DXF");
     }
 }

@@ -68,7 +68,7 @@ namespace CraneOptimizer.Application.Tests.GA
                     StoppedByMaxGenerations = false
                 };
 
-                string csvPath = Path.Combine(tempDir, "OptimizationHistory.csv");
+                string csvPath = Path.Combine(tempDir, "debug_ga_optimization_history.csv");
 
                 // Act - Run 1 (Should create file and write header + data)
                 await logger.LogRunAsync(entry1, tempDir);
@@ -154,16 +154,16 @@ namespace CraneOptimizer.Application.Tests.GA
         }
 
         [Fact]
-        public async Task TestLoggerHandlesNullOrInvalidPathsGracefully()
+        public async Task TestLoggerThrowsOnNullOrEmptyPath()
         {
             using var logger = new CsvOptimizationHistoryLogger();
             var entry = new OptimizationRunEntry { Timestamp = DateTime.Now };
 
-            // Act & Assert: Should not throw any exception
-            await logger.LogRunAsync(entry, null!);
-            await logger.LogRunAsync(entry, "");
-            await logger.LogRunAsync(entry, "   ");
-            await logger.LogRunAsync(null!, "C:\\NonExistentPath");
+            // Phase 5E: null/empty historyDirectory must throw — no silent fallback
+            await Assert.ThrowsAsync<ArgumentException>(() => logger.LogRunAsync(entry, null!));
+            await Assert.ThrowsAsync<ArgumentException>(() => logger.LogRunAsync(entry, string.Empty));
+            await Assert.ThrowsAsync<ArgumentException>(() => logger.LogRunAsync(entry, "   "));
+            await Assert.ThrowsAsync<ArgumentNullException>(() => logger.LogRunAsync(null!, "C:\\NonExistentPath"));
         }
     }
 }

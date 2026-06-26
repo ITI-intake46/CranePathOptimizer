@@ -48,8 +48,8 @@ namespace CraneOptimizer.Application.Tests.GA
                 var fixture = CreateFixture(tempDirectory, DiagnosticsLevel.Summary);
                 fixture.Service.GenerateDiagnostics(fixture.Input, fixture.Result);
 
-                // Per-run folder: <tempDir>/DiagSepTest/diag-sep-test/
-                string runDir = Path.Combine(tempDirectory, "DiagSepTest", "diag-sep-test");
+                // Per-run folder: <tempDir>/diag-sep-test/
+                string runDir = Path.Combine(tempDirectory, "diag-sep-test");
 
                 string[] summaryPatterns =
                 {
@@ -57,17 +57,22 @@ namespace CraneOptimizer.Application.Tests.GA
                     "ga_audit_settings_snapshot.csv",
                     "ga_audit_stage_summary.csv",
                     "ga_audit_positions.csv",
-                    "ga_audit_element_assignments.csv",
-                    "ga_audit_run_history.csv"
+                    "ga_audit_element_assignments.csv"
                 };
 
                 bool hasBreakdown = false;
+                bool hasHistory = false;
                 foreach (string file in Directory.GetFiles(runDir, "*.csv"))
                 {
                     string name = Path.GetFileName(file);
-                    if (name.StartsWith("ga_audit_failure_breakdown_"))
+                    if (name.StartsWith("debug_ga_failure_breakdown_"))
                     {
                         hasBreakdown = true;
+                        continue;
+                    }
+                    if (name.StartsWith("debug_ga_run_history_"))
+                    {
+                        hasHistory = true;
                         continue;
                     }
                     bool matchesSummary = false;
@@ -77,7 +82,8 @@ namespace CraneOptimizer.Application.Tests.GA
                     }
                     Assert.True(matchesSummary, $"Unexpected file at Summary level: {name}");
                 }
-                Assert.True(hasBreakdown, "Missing ga_audit_failure_breakdown file at Summary level");
+                Assert.True(hasBreakdown, "Missing debug_ga_failure_breakdown file at Summary level");
+                Assert.True(hasHistory, "Missing debug_ga_run_history file at Summary level");
             }
             finally
             {
@@ -98,9 +104,9 @@ namespace CraneOptimizer.Application.Tests.GA
 
                 string[] researchPatterns =
                 {
-                    "ga_audit_diagnostics_*",
-                    "ga_audit_assignment_matrix_*",
-                    "ga_audit_final_assignments_*",
+                    "debug_ga_diagnostics_*",
+                    "debug_ga_assignment_matrix_*",
+                    "debug_ga_final_assignments_*",
                     "ga_audit_generation_summary.csv",
                     "ga_audit_reachability_hotspots.csv",
                     "ga_audit_project_features.csv",
@@ -108,12 +114,12 @@ namespace CraneOptimizer.Application.Tests.GA
                     "ga_audit_zone_reachability_summary.csv"
                 };
 
-                // Per-run folder: <tempDir>/DiagSepTest/diag-sep-test/
-                string runDirR = Path.Combine(tempDirectory, "DiagSepTest", "diag-sep-test");
+                // Per-run folder: <tempDir>/diag-sep-test/
+                string runDirR = Path.Combine(tempDirectory, "diag-sep-test");
 
                 foreach (string pattern in researchPatterns)
                 {
-                    string searchPattern = pattern.Contains('*') ? pattern : pattern;
+                    string searchPattern = pattern;
                     // Summary level should have no research files even in subdirectories
                     string[] matches = Directory.Exists(runDirR)
                         ? Directory.GetFiles(runDirR, searchPattern)
@@ -138,8 +144,8 @@ namespace CraneOptimizer.Application.Tests.GA
                 var fixture = CreateFixture(tempDirectory, DiagnosticsLevel.Summary);
                 fixture.Service.GenerateDiagnostics(fixture.Input, fixture.Result);
 
-                // Per-run folder: <tempDir>/DiagSepTest/diag-sep-test/
-                string runDirS = Path.Combine(tempDirectory, "DiagSepTest", "diag-sep-test");
+                // Per-run folder: <tempDir>/diag-sep-test/
+                string runDirS = Path.Combine(tempDirectory, "diag-sep-test");
 
                 List<Dictionary<string, string>> assignments = ReadRows(
                     Path.Combine(runDirS, "ga_audit_element_assignments.csv"));
@@ -157,10 +163,11 @@ namespace CraneOptimizer.Application.Tests.GA
                     Path.Combine(runDirS, "ga_audit_settings_snapshot.csv")).Single();
                 Assert.Equal("Summary", settings["DiagnosticsLevel"]);
 
-                Dictionary<string, string> history = ReadRows(
-                    Path.Combine(runDirS, "ga_audit_run_history.csv")).Single();
+                // Find history file dynamically using GetFiles
+                string historyFile = Directory.GetFiles(runDirS, "debug_ga_run_history_*.csv").Single();
+                Dictionary<string, string> history = ReadRows(historyFile).Single();
                 Assert.Equal("N/A", history["DetailedDiagnosticsCsvPath"]);
-                Assert.Empty(Directory.GetFiles(runDirS, "ga_audit_diagnostics_*.csv"));
+                Assert.Empty(Directory.GetFiles(runDirS, "debug_ga_diagnostics_*.csv"));
             }
             finally
             {
@@ -179,8 +186,8 @@ namespace CraneOptimizer.Application.Tests.GA
                 var fixture = CreateFixture(tempDirectory, DiagnosticsLevel.Research);
                 fixture.Service.GenerateDiagnostics(fixture.Input, fixture.Result);
 
-                // Per-run folder: <tempDir>/DiagSepTest/diag-sep-test/
-                string runDirRes = Path.Combine(tempDirectory, "DiagSepTest", "diag-sep-test");
+                // Per-run folder: <tempDir>/diag-sep-test/
+                string runDirRes = Path.Combine(tempDirectory, "diag-sep-test");
 
                 string[] requiredFiles =
                 {
@@ -189,7 +196,6 @@ namespace CraneOptimizer.Application.Tests.GA
                     "ga_audit_stage_summary.csv",
                     "ga_audit_positions.csv",
                     "ga_audit_element_assignments.csv",
-                    "ga_audit_run_history.csv",
                     "ga_audit_generation_summary.csv",
                     "ga_audit_reachability_hotspots.csv",
                     "ga_audit_project_features.csv",
@@ -207,18 +213,21 @@ namespace CraneOptimizer.Application.Tests.GA
                 bool hasMatrix = false;
                 bool hasFinalAssignments = false;
                 bool hasBreakdown = false;
+                bool hasHistory = false;
                 foreach (string file in Directory.GetFiles(runDirRes, "*.csv"))
                 {
                     string name = Path.GetFileName(file);
-                    if (name.StartsWith("ga_audit_diagnostics_")) hasDiagnostics = true;
-                    if (name.StartsWith("ga_audit_assignment_matrix_")) hasMatrix = true;
-                    if (name.StartsWith("ga_audit_final_assignments_")) hasFinalAssignments = true;
-                    if (name.StartsWith("ga_audit_failure_breakdown_")) hasBreakdown = true;
+                    if (name.StartsWith("debug_ga_diagnostics_")) hasDiagnostics = true;
+                    if (name.StartsWith("debug_ga_assignment_matrix_")) hasMatrix = true;
+                    if (name.StartsWith("debug_ga_final_assignments_")) hasFinalAssignments = true;
+                    if (name.StartsWith("debug_ga_failure_breakdown_")) hasBreakdown = true;
+                    if (name.StartsWith("debug_ga_run_history_")) hasHistory = true;
                 }
-                Assert.True(hasDiagnostics, "Missing ga_audit_diagnostics file at Research level");
-                Assert.True(hasMatrix, "Missing ga_audit_assignment_matrix file at Research level");
-                Assert.True(hasFinalAssignments, "Missing ga_audit_final_assignments file at Research level");
-                Assert.True(hasBreakdown, "Missing ga_audit_failure_breakdown file at Research level");
+                Assert.True(hasDiagnostics, "Missing debug_ga_diagnostics file at Research level");
+                Assert.True(hasMatrix, "Missing debug_ga_assignment_matrix file at Research level");
+                Assert.True(hasFinalAssignments, "Missing debug_ga_final_assignments file at Research level");
+                Assert.True(hasBreakdown, "Missing debug_ga_failure_breakdown file at Research level");
+                Assert.True(hasHistory, "Missing debug_ga_run_history file at Research level");
             }
             finally
             {

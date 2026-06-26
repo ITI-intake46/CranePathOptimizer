@@ -17,6 +17,7 @@ using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Services;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 {
@@ -31,6 +32,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         private readonly IProjectWorkspaceService _workspaceService;
         private readonly IfcViewerViewModel _ifcViewer;
         private readonly IOptimizationHistoryLogger _historyLogger;
+        private readonly IProjectOutputPathService _outputPathService;
 
         public CranePlacementService(
             IOptimizationInputBuilder inputBuilder,
@@ -41,7 +43,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             CoordinateService coordinateService,
             IProjectWorkspaceService workspaceService,
             IfcViewerViewModel ifcViewer,
-            IOptimizationHistoryLogger historyLogger)
+            IOptimizationHistoryLogger historyLogger,
+            IProjectOutputPathService outputPathService)
         {
             _inputBuilder = inputBuilder;
             _placementEngine = placementEngine;
@@ -52,6 +55,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             _workspaceService = workspaceService;
             _ifcViewer = ifcViewer;
             _historyLogger = historyLogger;
+            _outputPathService = outputPathService ?? throw new ArgumentNullException(nameof(outputPathService));
         }
 
         public async Task<CranePlacementResult> RunOptimizationAsync(
@@ -201,29 +205,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 zones.Add(_coordinateService.NormalizeZoneToMeters(sceneZones[i]));
             }
 
-            // Determine profiling logs folder path from ProjectWorkspaceService
-            string? projectFolder = _workspaceService?.CurrentSession?.ProjectFolderPath;
-            string logsDir;
-            if (!string.IsNullOrWhiteSpace(projectFolder))
-            {
-                logsDir = System.IO.Path.Combine(projectFolder, "Logs", "GA");
-            }
-            else
-            {
-                logsDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Logs", "GA");
-            }
+            // Resolve profiling logs folder via IProjectOutputPathService (Phase 5E)
+            string logsDir = _outputPathService.GetGaLogsDirectory();
             settings.ProfilingLogDirectory = logsDir;
 
-            // Determine diagnostics reports folder path from ProjectWorkspaceService (Phase 8)
-            string reportsDir;
-            if (!string.IsNullOrWhiteSpace(projectFolder))
-            {
-                reportsDir = System.IO.Path.Combine(projectFolder, "Reports", "GA");
-            }
-            else
-            {
-                reportsDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Reports", "GA");
-            }
+            // Resolve diagnostics reports folder via IProjectOutputPathService (Phase 5E)
+            string reportsDir = _outputPathService.GetGaReportsDirectory();
 
             // Build input in normalized meters
             var input = _inputBuilder.Build(settings, crane, elements, zones);
@@ -276,75 +263,73 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             // Map results back to UI DTOs
             var finalResult = MapPlacementResult(appResult, sceneElements, input.CraneSpec, input.Settings, crane.Name);
 
-            // Log optimization run history
-            if (!string.IsNullOrWhiteSpace(projectFolder))
+            // Log optimization run history (Phase 5E: resolved via IProjectOutputPathService)
+            try
             {
-                try
+                var historyDir = _outputPathService.GetGaHistoryDirectory();
+                var bestPos = finalResult.Positions.FirstOrDefault();
+                var allLiftedElements = finalResult.Positions
+                    .SelectMany(p => p.ElementResults)
+                    .Where(e => e.Status == LiftStatus.Liftable)
+                    .ToList();
+
+                double maxRadius = allLiftedElements.Any() ? allLiftedElements.Max(e => e.Radius) : 0.0;
+                double averageRadius = allLiftedElements.Any() ? allLiftedElements.Average(e => e.Radius) : 0.0;
+
+                var entry = new OptimizationRunEntry
                 {
-                    var bestPos = finalResult.Positions.FirstOrDefault();
-                    var allLiftedElements = finalResult.Positions
-                        .SelectMany(p => p.ElementResults)
-                        .Where(e => e.Status == LiftStatus.Liftable)
-                        .ToList();
+                    Timestamp = DateTime.Now,
+                    ProjectName = currentSession?.ProjectName ?? string.Empty,
+                    IfcFileName = input.IfcFileName ?? string.Empty,
+                    CraneModel = crane.Name ?? string.Empty,
 
-                    double maxRadius = allLiftedElements.Any() ? allLiftedElements.Max(e => e.Radius) : 0.0;
-                    double averageRadius = allLiftedElements.Any() ? allLiftedElements.Average(e => e.Radius) : 0.0;
+                    PopulationSize = settings.PopulationSize,
+                    MaxGenerations = settings.MaxGenerations,
+                    MutationRate = settings.MutationRate,
+                    CrossoverRate = settings.CrossoverRate,
+                    EliteCount = (int)(settings.PopulationSize * 0.1),
+                    TournamentSize = 3,
+                    ConvergenceThreshold = settings.ConvergenceThresholdPercent,
+                    EarlyStopGenerations = settings.EarlyStoppingGenerations,
+                    WireLength = settings.WireLength,
+                    AdditionalWt = settings.AdditionalWt,
+                    SafetyFactor = settings.SafetyFactor,
+                    DeratingRatio = settings.DeratingRatio,
+                    MaxCranePositions = settings.MaxCranePositions,
+                    MinimumRelocationDistance = settings.MinimumRelocationDistance,
+                    MutationSigma = settings.MutationSigma,
+                    GridStep = settings.GridStep,
 
-                    var entry = new OptimizationRunEntry
-                    {
-                        Timestamp = DateTime.Now,
-                        ProjectName = input.ProjectName ?? string.Empty,
-                        IfcFileName = input.IfcFileName ?? string.Empty,
-                        CraneModel = crane.Name ?? string.Empty,
+                    CandidatePointsGenerated = GAProfiler.CandidatePointsGenerated,
+                    ValidPointsGenerated = GAProfiler.ValidPointsGenerated,
+                    FinalSolutionsCount = appResult.Positions.Count,
+                    BestFitness = appResult.FitnessScore,
+                    CoveragePercent = appResult.CoverageRatio * 100.0,
+                    ExecutionTimeMs = sw.ElapsedMilliseconds,
 
-                        PopulationSize = settings.PopulationSize,
-                        MaxGenerations = settings.MaxGenerations,
-                        MutationRate = settings.MutationRate,
-                        CrossoverRate = settings.CrossoverRate,
-                        EliteCount = (int)(settings.PopulationSize * 0.1),
-                        TournamentSize = 3,
-                        ConvergenceThreshold = settings.ConvergenceThresholdPercent,
-                        EarlyStopGenerations = settings.EarlyStoppingGenerations,
-                        WireLength = settings.WireLength,
-                        AdditionalWt = settings.AdditionalWt,
-                        SafetyFactor = settings.SafetyFactor,
-                        DeratingRatio = settings.DeratingRatio,
-                        MaxCranePositions = settings.MaxCranePositions,
-                        MinimumRelocationDistance = settings.MinimumRelocationDistance,
-                        MutationSigma = settings.MutationSigma,
-                        GridStep = settings.GridStep,
+                    TotalElements = appResult.TotalElementCount,
+                    LiftableElements = appResult.Statistics.Liftable,
+                    UnliftableElements = appResult.TotalElementCount - appResult.Statistics.Liftable,
 
-                        CandidatePointsGenerated = GAProfiler.CandidatePointsGenerated,
-                        ValidPointsGenerated = GAProfiler.ValidPointsGenerated,
-                        FinalSolutionsCount = appResult.Positions.Count,
-                        BestFitness = appResult.FitnessScore,
-                        CoveragePercent = appResult.CoverageRatio * 100.0,
-                        ExecutionTimeMs = sw.ElapsedMilliseconds,
+                    BestPointX = bestPos?.X ?? 0.0,
+                    BestPointY = bestPos?.Y ?? 0.0,
+                    BestPointZ = bestPos?.Z ?? 0.0,
+                    ElementsLiftedByBestPoint = bestPos?.LiftableCount ?? 0,
+                    CoveragePercentBestPoint = appResult.TotalElementCount > 0 ? (double)(bestPos?.LiftableCount ?? 0) / appResult.TotalElementCount * 100.0 : 0.0,
+                    AverageRadius = averageRadius,
+                    MaxRadius = maxRadius,
 
-                        TotalElements = appResult.TotalElementCount,
-                        LiftableElements = appResult.Statistics.Liftable,
-                        UnliftableElements = appResult.TotalElementCount - appResult.Statistics.Liftable,
+                    GenerationReached = GAProfiler.ActualGenerationLoopCount,
+                    StoppedByConvergence = GAProfiler.StoppedByConvergence,
+                    StoppedByMaxGenerations = GAProfiler.StoppedByMaxGenerations
+                };
 
-                        BestPointX = bestPos?.X ?? 0.0,
-                        BestPointY = bestPos?.Y ?? 0.0,
-                        BestPointZ = bestPos?.Z ?? 0.0,
-                        ElementsLiftedByBestPoint = bestPos?.LiftableCount ?? 0,
-                        CoveragePercentBestPoint = appResult.TotalElementCount > 0 ? (double)(bestPos?.LiftableCount ?? 0) / appResult.TotalElementCount * 100.0 : 0.0,
-                        AverageRadius = averageRadius,
-                        MaxRadius = maxRadius,
-
-                        GenerationReached = GAProfiler.ActualGenerationLoopCount,
-                        StoppedByConvergence = GAProfiler.StoppedByConvergence,
-                        StoppedByMaxGenerations = GAProfiler.StoppedByMaxGenerations
-                    };
-
-                    // Execute logging asynchronously in background context (failsafe)
-                    _ = Task.Run(async () => await _historyLogger.LogRunAsync(entry, projectFolder));
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[History Logger Pre-Check Error] {ex.Message}");
-                }
+                // Execute logging asynchronously in background context (failsafe)
+                _ = Task.Run(async () => await _historyLogger.LogRunAsync(entry, historyDir));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[History Logger Pre-Check Error] {ex.Message}");
             }
 
             // Map the newly generated per-project diagnostics path to DebugReportPath
@@ -506,19 +491,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             return result;
         }
 
-        private static void WriteDebugReport(CranePlacementResult result)
-        {
-            try
-            {
-                result.DebugReportPath = GADebugReportWriter.Write(result);
-                result.DebugReportError = null;
-            }
-            catch (Exception ex)
-            {
-                result.DebugReportPath = null;
-                result.DebugReportError = ex.Message;
-            }
-        }
 
         private static string BuildGaEligibilityFailureMessage(
             int sceneElementCount,

@@ -605,6 +605,8 @@ namespace CraneOptimizer.Application.Tests
             var coordinateService = new CoordinateService();
             var workspaceService = new MockProjectWorkspaceService();
             var historyLogger = new MockHistoryLogger();
+            var pathProvider = new FakeProjectPathProviderForGating();
+            var outputPathService = new CraneOptimizer.Application.Services.ProjectOutputPathService(pathProvider);
             
             return new CranePlacementService(
                 inputBuilder,
@@ -615,7 +617,8 @@ namespace CraneOptimizer.Application.Tests
                 coordinateService,
                 workspaceService,
                 null!, // ifcViewer
-                historyLogger);
+                historyLogger,
+                outputPathService);
         }
 
         [Fact]
@@ -1048,7 +1051,15 @@ namespace CraneOptimizer.Application.Tests
 
         private class MockHistoryLogger : IOptimizationHistoryLogger
         {
-            public Task LogRunAsync(OptimizationRunEntry entry, string projectFolderPath) => Task.CompletedTask;
+            public Task LogRunAsync(OptimizationRunEntry entry, string historyDirectory) => Task.CompletedTask;
+        }
+
+        private sealed class FakeProjectPathProviderForGating : CraneOptimizer.Application.Services.IActiveProjectPathProvider
+        {
+            private readonly string _path;
+            public FakeProjectPathProviderForGating(string? path = null)
+                => _path = path ?? System.IO.Path.Combine(System.IO.Path.GetTempPath(), "CraneOptimizerGatingTest");
+            public string? GetActiveProjectPath() => _path;
         }
 
         [Fact]
