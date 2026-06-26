@@ -218,6 +218,55 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
         }
 
         [Fact]
+        public void TestBuildSummary_ElementDiagnostics_SurfaceMissingCogBlocker()
+        {
+            var elements = new List<PrecastElement>
+            {
+                new PrecastElement
+                {
+                    ElementID = "EL-1",
+                    ElementType = "Beam",
+                    IncludeInGa = true,
+                    WeightTons = 5.0,
+                    WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
+                    ElementCOG = new DomainPoint3D()
+                }
+            };
+
+            var summary = _readinessService.BuildSummary(elements);
+
+            var diagnostic = Assert.Single(summary.ElementDiagnostics);
+            Assert.False(diagnostic.IsReadyForGa);
+            Assert.Equal("Blocked", diagnostic.ReadinessStatus);
+            Assert.Contains(diagnostic.BlockingReasons, reason => reason.Contains("COG", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public void TestBuildSummary_ElementDiagnostics_SurfaceWarningsForReadyElements()
+        {
+            var elements = new List<PrecastElement>
+            {
+                new PrecastElement
+                {
+                    ElementID = "EL-1",
+                    ElementType = "Beam",
+                    IncludeInGa = true,
+                    WeightTons = 5.0,
+                    WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
+                    ElementCOG = new DomainPoint3D(1, 2, 3),
+                    AssemblyMarkConfidence = AssemblyMarkConfidence.Low,
+                    AssemblyMarkIsExplicit = false
+                }
+            };
+
+            var summary = _readinessService.BuildSummary(elements);
+
+            var diagnostic = Assert.Single(summary.ElementDiagnostics);
+            Assert.True(diagnostic.IsReadyForGa);
+            Assert.Equal("Warning", diagnostic.ReadinessStatus);
+            Assert.NotEmpty(diagnostic.WarningMessages);
+        }
+        [Fact]
         public void TestBuildSummary_DoesNotMutateInputs()
         {
             // Arrange

@@ -29,7 +29,7 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
         var levelLabels = BuildLevelLabels(filtered);
 
         var readinessSummary = _readinessService.BuildSummary(filtered, isCheckerEnabled: true);
-        var lookup = BuildElementReadinessLookup(filtered, readinessSummary);
+        var lookup = BuildElementReadinessLookup(readinessSummary);
 
         return filtered
             .Select((element, index) => ToRow(element, index + 1, levelLabels, lookup))
@@ -45,114 +45,25 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
     }
 
     private static IReadOnlyDictionary<string, ElementReadinessInfo> BuildElementReadinessLookup(
-        IReadOnlyList<PrecastElement> elements,
-        ImportReadinessSummary readinessSummary)
-    {
-        var allElementsMap = new Dictionary<string, PrecastElement>(StringComparer.OrdinalIgnoreCase);
-        foreach (var el in elements)
-        {
-            if (!string.IsNullOrEmpty(el.ElementID) && !allElementsMap.ContainsKey(el.ElementID))
-            {
-                allElementsMap[el.ElementID] = el;
-            }
-        }
-
-        var lookup = new Dictionary<string, ElementReadinessInfo>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var el in elements)
-        {
-            if (string.IsNullOrEmpty(el.ElementID))
-                continue;
-
-            var blockingReasons = new List<string>();
-
-            if (!el.IncludeInGa)
-            {
-                blockingReasons.Add("Element is not included in crane optimization.");
-            }
-
-            if (el.Role == IfcElementRole.NeedsReview ||
-                el.Role == IfcElementRole.GroupingOnly ||
-                el.Role == IfcElementRole.InternalAuxiliary ||
-                el.Role == IfcElementRole.Excluded)
-            {
-                blockingReasons.Add($"Invalid element role for GA: {el.Role}.");
-            }
-
-            if (!el.WeightTons.HasValue || el.WeightTons.Value <= 0)
-            {
-                blockingReasons.Add("Weight is missing or invalid (<= 0).");
-            }
-            else
-            {
-                var hasExplicitTrustedWeight =
-                    el.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
-                    el.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
-
-                if (!hasExplicitTrustedWeight)
+        ImportReadinessSummary readinessSummary) =>
+        readinessSummary.ElementDiagnostics
+            .Where(diagnostic => !string.IsNullOrWhiteSpace(diagnostic.ElementId))
+            .GroupBy(diagnostic => diagnostic.ElementId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group =>
                 {
-                    blockingReasons.Add($"Weight status is {ReportWeightMapper.Map(el).WeightStatus} (Trust Level: {el.WeightTrustLevel}).");
-                }
-            }
-
-            // Parent-child double count risk check
-            if (!string.IsNullOrWhiteSpace(el.ParentGlobalId) && allElementsMap.TryGetValue(el.ParentGlobalId, out var parentElement))
-            {
-                if (parentElement.IncludeInGa &&
-                    (parentElement.Role == IfcElementRole.LiftAssembly ||
-                     parentElement.Role == IfcElementRole.LiftableElement))
-                {
-                    var parentWeightTrusted = parentElement.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
-                                              parentElement.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
-                    if (parentWeightTrusted)
+                    var diagnostic = group.First();
+                    var blockingReasons = JoinMessages(diagnostic.BlockingReasons);
+                    return new ElementReadinessInfo
                     {
-                        blockingReasons.Add("Parent-child double-counting risk: child component is enabled alongside its parent assembly.");
-                    }
-                }
-            }
-
-            // COG check
-            if (el.ElementCOG == null ||
-                (Math.Abs(el.ElementCOG.X) < 0.0001 &&
-                 Math.Abs(el.ElementCOG.Y) < 0.0001 &&
-                 Math.Abs(el.ElementCOG.Z) < 0.0001) ||
-                double.IsNaN(el.ElementCOG.X) || double.IsInfinity(el.ElementCOG.X) ||
-                double.IsNaN(el.ElementCOG.Y) || double.IsInfinity(el.ElementCOG.Y) ||
-                double.IsNaN(el.ElementCOG.Z) || double.IsInfinity(el.ElementCOG.Z))
-            {
-                blockingReasons.Add("Center of Gravity (COG) is missing, zero, or invalid.");
-            }
-
-            var warningMessages = new List<string>();
-            if (readinessSummary.Messages != null)
-            {
-                foreach (var msg in readinessSummary.Messages)
-                {
-                    if (msg.AffectedElementIds != null && msg.AffectedElementIds.Contains(el.ElementID, StringComparer.OrdinalIgnoreCase))
-                    {
-                        warningMessages.Add(msg.Message);
-                    }
-                }
-            }
-
-            var isBlocked = blockingReasons.Count > 0;
-            var valStatus = isBlocked ? "Blocked" : (warningMessages.Count > 0 ? "Warning" : "Ready");
-            var readyForGa = isBlocked ? "No" : "Yes";
-            var missingReason = isBlocked ? string.Join("; ", blockingReasons) : "\u2014";
-            var warnings = warningMessages.Count > 0 ? string.Join("; ", warningMessages.Distinct(StringComparer.OrdinalIgnoreCase)) : "\u2014";
-
-            lookup[el.ElementID] = new ElementReadinessInfo
-            {
-                ValidationStatus = valStatus,
-                ValidationWarnings = warnings,
-                ReadyForGa = readyForGa,
-                MissingReadinessReason = missingReason
-            };
-        }
-
-        return lookup;
-    }
-
+                        ValidationStatus = diagnostic.ReadinessStatus,
+                        ValidationWarnings = JoinMessages(diagnostic.WarningMessages),
+                        ReadyForGa = diagnostic.IsReadyForGa ? "Yes" : "No",
+                        MissingReadinessReason = diagnostic.IsReadyForGa ? "\u2014" : blockingReasons
+                    };
+                },
+                StringComparer.OrdinalIgnoreCase);
     private static IReadOnlyList<PrecastElement> ApplyTemplateFilter(
         IReadOnlyList<PrecastElement> elements,
         string templateName)
@@ -240,6 +151,10 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
 
 
 
+    private static string JoinMessages(IReadOnlyList<string> messages) =>
+        messages.Count == 0
+            ? "\u2014"
+            : string.Join("; ", messages.Where(message => !string.IsNullOrWhiteSpace(message)).Distinct(StringComparer.OrdinalIgnoreCase));
     private static string ResolveElementName(PrecastElement element)
     {
         var name = element.ElementName?.Trim();

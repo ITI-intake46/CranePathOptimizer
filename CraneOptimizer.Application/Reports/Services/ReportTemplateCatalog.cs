@@ -89,7 +89,7 @@ public static class ReportTemplateCatalog
         {
             Name = GaReadiness,
             Family = ReportFamily.ElementList,
-            DefaultItemsIncluded = "Current GA Scope",
+            DefaultItemsIncluded = "All Elements",
             Columns =
             [
                 Column("No", "No.", ReportColumnValueKind.Number, 0, "Identity"),

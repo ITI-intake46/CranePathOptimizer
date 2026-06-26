@@ -12,7 +12,6 @@ using CraneOptimizer.Application.Reports.Definitions;
 using CraneOptimizer.Application.Reports.DTOs;
 using CraneOptimizer.Application.Reports.Services;
 using CraneOptimizer.Application.Services;
-using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
@@ -35,7 +34,6 @@ public sealed class ReportBuilderViewModel : ViewModelBase
     private readonly IProjectWorkspaceService _workspace;
     private readonly CranePlacementViewModel _cranePlacement;
     private readonly ElementManagementViewModel _elementManagement;
-    private readonly GASettings _gaSettings;
     private readonly IReportBuilder _reportBuilder;
     private readonly IReportPdfExporter _pdfExporter;
     private readonly IReportExcelExporter _excelExporter;
@@ -101,7 +99,6 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         _workspace = workspace;
         _cranePlacement = cranePlacement;
         _elementManagement = elementManagement;
-        _gaSettings = gaSettings;
         _reportBuilder = reportBuilder;
         _pdfExporter = pdfExporter;
         _excelExporter = excelExporter;
@@ -488,8 +485,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
                 "GA-Ready Elements",
                 "Needs Review Elements",
                 "Selected Elements Only",
-                "Current Filter Result",
-                "Current GA Scope"
+                "Current Filter Result"
             }
             : new[]
             {
@@ -1151,126 +1147,39 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             "Rendered Elements Only" => allElements.Where(element => element.IncludeInRender).ToList(),
             "Selected Elements Only" => _scene.GetSelectedElements(),
             "Current Filter Result" => _elementManagement.FilteredElements.ToList(),
-            "Current GA Scope" => ResolveCurrentGaScope(allElements),
             "GA-Ready Elements" => ResolveGaReadyElements(allElements),
             "Needs Review Elements" => ResolveNeedsReviewElements(allElements),
             _ => allElements
         };
 
-        if (SelectedReportName.Equals(ReportTemplateCatalog.GaReadiness, StringComparison.OrdinalIgnoreCase)
-            && ItemsIncluded.Equals("GA-Ready Elements", StringComparison.OrdinalIgnoreCase)
-            && scoped.Count == 0
-            && allElements.Count > 0)
-        {
-            scoped = allElements;
-        }
 
         return scoped;
     }
 
-    private IReadOnlyList<PrecastElement> ResolveCurrentGaScope(List<PrecastElement> allElements)
-    {
-        var elements = allElements;
-        var selected = _scene.GetSelectedElements();
-        if (selected != null && selected.Count > 0)
-        {
-            var selectedIds = selected.Select(e => e.ElementID).Where(id => !string.IsNullOrEmpty(id)).ToHashSet(StringComparer.Ordinal);
-            elements = elements.Where(e => selectedIds.Contains(e.ElementID)).ToList();
-        }
-
-        var targetTypes = _gaSettings.TargetElementTypes;
-        if (targetTypes != null && targetTypes.Count > 0)
-        {
-            var typeSet = targetTypes.Select(t => t.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            elements = elements.Where(e => typeSet.Contains(NormalizeElementType(e.ElementType))).ToList();
-        }
-
-        return elements;
-    }
-
-    private static string NormalizeElementType(string? elementType)
-    {
-        return string.IsNullOrWhiteSpace(elementType)
-            ? "Unknown"
-            : elementType.Trim();
-    }
-
     private IReadOnlyList<PrecastElement> ResolveGaReadyElements(List<PrecastElement> allElements)
     {
-        var allElementsMap = new Dictionary<string, PrecastElement>(StringComparer.OrdinalIgnoreCase);
-        foreach (var el in allElements)
-        {
-            if (!string.IsNullOrEmpty(el.ElementID) && !allElementsMap.ContainsKey(el.ElementID))
-            {
-                allElementsMap[el.ElementID] = el;
-            }
-        }
+        var readyIds = _readinessService.BuildSummary(allElements)
+            .ElementDiagnostics
+            .Where(diagnostic => diagnostic.IsReadyForGa)
+            .Select(diagnostic => diagnostic.ElementId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        return allElements.Where(el => IsGaCandidateElement(el, allElementsMap)).ToList();
+        return allElements
+            .Where(element => !string.IsNullOrWhiteSpace(element.ElementID) && readyIds.Contains(element.ElementID))
+            .ToList();
     }
 
     private IReadOnlyList<PrecastElement> ResolveNeedsReviewElements(List<PrecastElement> allElements)
     {
-        var allElementsMap = new Dictionary<string, PrecastElement>(StringComparer.OrdinalIgnoreCase);
-        foreach (var el in allElements)
-        {
-            if (!string.IsNullOrEmpty(el.ElementID) && !allElementsMap.ContainsKey(el.ElementID))
-            {
-                allElementsMap[el.ElementID] = el;
-            }
-        }
+        var needsReviewIds = _readinessService.BuildSummary(allElements)
+            .ElementDiagnostics
+            .Where(diagnostic => !diagnostic.IsReadyForGa || diagnostic.WarningMessages.Count > 0)
+            .Select(diagnostic => diagnostic.ElementId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        return allElements.Where(el => !IsGaCandidateElement(el, allElementsMap) || ReportWeightMapper.Map(el).WeightStatus != "OK").ToList();
-    }
-
-    private static bool IsGaCandidateElement(PrecastElement element, Dictionary<string, PrecastElement> allElementsMap)
-    {
-        if (!element.IncludeInGa)
-            return false;
-
-        if (element.Role == IfcElementRole.NeedsReview ||
-            element.Role == IfcElementRole.GroupingOnly ||
-            element.Role == IfcElementRole.InternalAuxiliary ||
-            element.Role == IfcElementRole.Excluded)
-            return false;
-
-        if (!element.WeightTons.HasValue || element.WeightTons.Value <= 0)
-            return false;
-
-        var hasExplicitTrustedWeight =
-            element.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
-            element.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
-
-        if (!hasExplicitTrustedWeight)
-            return false;
-
-        if (!string.IsNullOrWhiteSpace(element.ParentGlobalId) && allElementsMap.TryGetValue(element.ParentGlobalId, out var parentElement))
-        {
-            if (parentElement.IncludeInGa &&
-                (parentElement.Role == IfcElementRole.LiftAssembly ||
-                 parentElement.Role == IfcElementRole.LiftableElement))
-            {
-                var parentWeightTrusted = parentElement.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
-                                          parentElement.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
-                if (parentWeightTrusted)
-                {
-                    return false;
-                }
-            }
-        }
-
-        if (element.ElementCOG == null ||
-            (Math.Abs(element.ElementCOG.X) < 0.0001 &&
-             Math.Abs(element.ElementCOG.Y) < 0.0001 &&
-             Math.Abs(element.ElementCOG.Z) < 0.0001) ||
-            double.IsNaN(element.ElementCOG.X) || double.IsInfinity(element.ElementCOG.X) ||
-            double.IsNaN(element.ElementCOG.Y) || double.IsInfinity(element.ElementCOG.Y) ||
-            double.IsNaN(element.ElementCOG.Z) || double.IsInfinity(element.ElementCOG.Z))
-        {
-            return false;
-        }
-
-        return true;
+        return allElements
+            .Where(element => !string.IsNullOrWhiteSpace(element.ElementID) && needsReviewIds.Contains(element.ElementID))
+            .ToList();
     }
 
     private IReadOnlyList<LiftingResultSourceRowDto> BuildLiftingSourceRows(GaReportContext gaContext)

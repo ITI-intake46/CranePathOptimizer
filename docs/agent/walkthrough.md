@@ -1,15 +1,12 @@
 # Agent Walkthrough
 
-## Current Benchmark_v2 Diagnostics Flow
+## Phase 6B Reports Closure Flow
 
-1. UI or GAExperiment builds `PlacementInput` with project identity, raw/scoped/GA-ready counts, feature-scope elements, crane specification, and settings.
-2. `BenchmarkDiagnosticsIdentity.Ensure` derives deterministic scenario, scope, and feature-snapshot keys when callers did not supply them.
-3. Multi-stage orchestration preserves `OptimizationRunId`, creates a unique `StageRunId`, and assigns a one-based `StageIndex`.
-4. Existing reachability calculation records compact global and per-zone counters plus actual selected hotspot seeds.
-5. Existing optimization and assignment behavior runs unchanged.
-6. `GACsvDiagnosticsService` preserves the legacy detailed files and delegates compact schema 2.0 output to `BenchmarkV2CsvWriter`.
-7. Contract tests validate CSV shape, unique headers, stable joins, stage identity, formulas, invariant culture, and best-stage selection.
+1. Reports UI resolves the requested element scope (`All Elements`, `Selected Elements Only`, rendered/filter result, GA-ready, or needs-review) before building the report request.
+2. `UserFacingReportBuilder` keeps the active user-facing flow: `ReportBuildRequestDto` -> providers -> `ReportDocumentDto` -> PDF/Excel exporters.
+3. `ElementReportDataProvider` maps scoped elements and evaluates `ImportReadinessService.BuildSummary` once for that report element collection.
+4. `ImportReadinessSummary.ElementDiagnostics` is the reporting-safe per-element readiness source for GA Readiness rows.
+5. GA Readiness rows expose canonical label, mark confidence, validation status/warnings, weight trust level, IncludeInGa, ReadyForGa, readiness status, and blocking reasons.
+6. Exporters remain presentation-only and outputs stay under `Exports/` through `IProjectOutputPathService`.
 
-The schema reference and unavailable-field notes are in [Benchmark_v2 diagnostics](../ga/benchmark-v2-diagnostics.md).
-
-GA_RunModes and mode thresholds are not implemented.
+See `docs/reports/remaining-work-on-reports.md` before starting future report layout/export work.

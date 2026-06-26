@@ -21,5 +21,6 @@ namespace CraneOptimizer.Domain.Diagnostics
 
         public ValidationStatus OverallStatus { get; set; } = ValidationStatus.Valid;
         public IReadOnlyList<ValidationMessage> Messages { get; set; } = Array.Empty<ValidationMessage>();
+        public IReadOnlyList<ImportReadinessElementDiagnostic> ElementDiagnostics { get; set; } = Array.Empty<ImportReadinessElementDiagnostic>();
     }
 }

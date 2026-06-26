@@ -1,23 +1,19 @@
 # Current Task
 
-## Benchmark_v2 Minimal Diagnostic Contract
+## Phase 6B Reports Structural Closure
 
 Implemented:
 
-- Stable optimization, stage, scenario, project-feature, and scope keys.
-- Project/scope/crane feature snapshots.
-- Stage solution-quality metrics.
-- Position and element-assignment crane stress metrics.
-- Reachability hotspot provenance and per-zone counters.
-- Schema 2.0 CSV integrity checks and staged join-key tests.
-- Isolated GAExperiment smoke configuration for `try4 / STC800 / Hungarian`.
+- GA Readiness rows now use application-layer readiness diagnostics instead of simplified weight-only readiness.
+- Per-element readiness diagnostics are exposed through `ImportReadinessSummary.ElementDiagnostics`.
+- GA Readiness default scope is explicit `All Elements`; `Current GA Scope` remains documented future work.
+- Remaining PDF, Excel, and template polish work is documented in `docs/reports/remaining-work-on-reports.md`.
 
 Explicitly deferred:
 
-- GA_RunModes and user-facing mode selection.
-- Mode thresholds and candidate ranking policy.
-- GA parameter tuning or search changes.
-- Full benchmark execution.
-- Diagnostics-level gating; heavy outputs are documented as research files.
-
-See [Benchmark_v2 diagnostics](../ga/benchmark-v2-diagnostics.md) for the contract.
+- Full PDF redesign.
+- Full Excel redesign.
+- WPF Reports tab redesign.
+- Current GA Scope if it requires F8 viewport/service coupling.
+- GA optimizer logic changes.
+- IFC extraction or Tekla alias changes.

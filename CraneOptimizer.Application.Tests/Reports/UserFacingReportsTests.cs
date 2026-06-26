@@ -8,6 +8,7 @@ using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Infrastructure.Reports.UserFacing;
 using CraneOptimizer.Application.Services;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.UI.Features.F12_Reports.Services;
 
 namespace CraneOptimizer.Application.Tests.Reports;
@@ -300,7 +301,7 @@ public sealed class UserFacingReportsTests : IDisposable
             .Select(column => column.Key)
             .ToList();
 
-        Assert.Equal("Current GA Scope", template.DefaultItemsIncluded);
+        Assert.Equal("All Elements", template.DefaultItemsIncluded);
         Assert.Equal(
             [
                 "No",
@@ -475,6 +476,101 @@ public sealed class UserFacingReportsTests : IDisposable
         Assert.Equal("Missing", document.Rows[0].Values["WeightStatus"]);
     }
 
+    [Fact]
+    public async Task ReportBuilder_GaReadiness_BlocksMissingCogElement()
+    {
+        var builder = CreateBuilder();
+        var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.GaReadiness);
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = template.Name,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project", ReportDate = new DateTime(2026, 6, 23) },
+            SelectedColumns = template.Columns,
+            SourceElements = [Element("missing-cog", hasCog: false)]
+        };
+
+        var document = await builder.BuildAsync(request);
+
+        var values = Assert.Single(document.Rows).Values;
+        Assert.Equal("No", values["ReadyForGa"]);
+        Assert.Equal("Blocked", values["ReadinessStatus"]);
+        Assert.Contains("COG", Assert.IsType<string>(values["MissingReadinessReason"]));
+        Assert.Contains("COG", Assert.IsType<string>(values["BlockingReasons"]));
+    }
+
+    [Fact]
+    public async Task ReportBuilder_GaReadiness_BlocksElementsExcludedFromGa()
+    {
+        var builder = CreateBuilder();
+        var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.GaReadiness);
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = template.Name,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project", ReportDate = new DateTime(2026, 6, 23) },
+            SelectedColumns = template.Columns,
+            SourceElements = [Element("excluded", includeInGa: false)]
+        };
+
+        var document = await builder.BuildAsync(request);
+
+        var values = Assert.Single(document.Rows).Values;
+        Assert.Equal("No", values["IncludedInCraneOptimization"]);
+        Assert.Equal("No", values["ReadyForGa"]);
+        Assert.Equal("Blocked", values["ValidationStatus"]);
+        Assert.Contains("not included in crane optimization", Assert.IsType<string>(values["BlockingReasons"]));
+    }
+
+    [Fact]
+    public async Task ReportBuilder_GaReadiness_IncludesIdentityAndWeightReadinessWarnings()
+    {
+        var builder = CreateBuilder();
+        var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.GaReadiness);
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = template.Name,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project", ReportDate = new DateTime(2026, 6, 23) },
+            SelectedColumns = template.Columns,
+            SourceElements = [Element("low-confidence", markConfidence: AssemblyMarkConfidence.Low, assemblyMarkIsExplicit: false)]
+        };
+
+        var document = await builder.BuildAsync(request);
+
+        var values = Assert.Single(document.Rows).Values;
+        Assert.Equal("Yes", values["ReadyForGa"]);
+        Assert.Equal("Warning", values["ReadinessStatus"]);
+        Assert.Equal("Low", values["MarkConfidence"]);
+        Assert.Equal(IfcWeightTrustLevel.ExplicitQuantity.ToString(), values["WeightTrustLevel"]);
+        Assert.Contains("assembly", Assert.IsType<string>(values["ValidationWarnings"]), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ReportBuilder_GaReadiness_IncludesNonWeightBlockingReasons()
+    {
+        var builder = CreateBuilder();
+        var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.GaReadiness);
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = template.Name,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project", ReportDate = new DateTime(2026, 6, 23) },
+            SelectedColumns = template.Columns,
+            SourceElements = [Element("grouping", role: IfcElementRole.GroupingOnly)]
+        };
+
+        var document = await builder.BuildAsync(request);
+
+        var values = Assert.Single(document.Rows).Values;
+        Assert.Equal("No", values["ReadyForGa"]);
+        Assert.Equal("Blocked", values["ReadinessStatus"]);
+        Assert.Contains("Invalid element role", Assert.IsType<string>(values["BlockingReasons"]));
+    }
     [Fact]
     public async Task ReportBuilder_ElementReports_DeriveStoreyLevelFromElevation()
     {
@@ -1106,8 +1202,15 @@ public sealed class UserFacingReportsTests : IDisposable
         string id,
         double? weight = 10.0,
         IfcWeightTrustLevel trustLevel = IfcWeightTrustLevel.ExplicitQuantity,
-        string? parentId = null)
+        string? parentId = null,
+        bool? includeInGa = null,
+        bool hasCog = true,
+        AssemblyMarkConfidence markConfidence = AssemblyMarkConfidence.High,
+        bool assemblyMarkIsExplicit = true,
+        IfcElementRole role = IfcElementRole.LiftableElement)
     {
+        var hasTrustedWeight = trustLevel is IfcWeightTrustLevel.ExplicitQuantity or IfcWeightTrustLevel.ExplicitProperty;
+
         return new PrecastElement
         {
             ElementID = id,
@@ -1116,13 +1219,19 @@ public sealed class UserFacingReportsTests : IDisposable
             ElementType = "IfcWall",
             ElementMaterial = "Concrete",
             ParentGlobalId = parentId,
+            Role = role,
             WeightTons = weight,
             ElementWT = weight,
             WeightTrustLevel = trustLevel,
             WeightSource = trustLevel.ToString(),
             VolumeM3 = 4.0,
-            IncludeInGa = trustLevel == IfcWeightTrustLevel.ExplicitQuantity && weight is > 0,
-            IncludeInRender = true
+            ElementCOG = hasCog ? new DomainPoint3D(1, 2, 3) : new DomainPoint3D(),
+            COG_M = hasCog ? new DomainPoint3D(1, 2, 3) : new DomainPoint3D(),
+            IncludeInGa = includeInGa ?? (hasTrustedWeight && weight is > 0),
+            IncludeInRender = true,
+            AssemblyMark = $"M-{id}",
+            AssemblyMarkIsExplicit = assemblyMarkIsExplicit,
+            AssemblyMarkConfidence = markConfidence
         };
     }
 

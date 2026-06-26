@@ -31,9 +31,13 @@ namespace CraneOptimizer.Application.Services
                 }
             }
 
+            var readinessEvaluations = elementList
+                .Select(element => EvaluateElementReadiness(element, allElementsMap))
+                .ToList();
+
             // Calculate active GA candidates and blocked elements based on safety gates
-            summary.GaCandidateElements = elementList.Count(e => IsGaCandidate(e, allElementsMap));
-            summary.GaBlockedElements = elementList.Count(e => e.IncludeInGa && !IsGaCandidate(e, allElementsMap));
+            summary.GaCandidateElements = readinessEvaluations.Count(evaluation => evaluation.IsReadyForGa);
+            summary.GaBlockedElements = readinessEvaluations.Count(evaluation => evaluation.Element.IncludeInGa && !evaluation.IsReadyForGa);
 
             var messages = new List<ValidationMessage>();
 
@@ -52,6 +56,7 @@ namespace CraneOptimizer.Application.Services
                 });
 
                 summary.Messages = messages;
+                summary.ElementDiagnostics = BuildElementDiagnostics(readinessEvaluations, messages);
                 return summary;
             }
 
@@ -301,6 +306,7 @@ namespace CraneOptimizer.Application.Services
             }
 
             summary.Messages = messages;
+            summary.ElementDiagnostics = BuildElementDiagnostics(readinessEvaluations, messages);
 
             // Set OverallStatus based on message severities
             if (messages.Any(m => m.Severity == "Error"))
@@ -319,28 +325,42 @@ namespace CraneOptimizer.Application.Services
             return summary;
         }
 
-        private static bool IsGaCandidate(PrecastElement element, Dictionary<string, PrecastElement> allElementsMap)
+        private sealed class ElementReadinessEvaluation
         {
+            public PrecastElement Element { get; init; } = null!;
+            public bool IsReadyForGa => BlockingReasons.Count == 0;
+            public IReadOnlyList<string> BlockingReasons { get; init; } = Array.Empty<string>();
+        }
+
+        private static ElementReadinessEvaluation EvaluateElementReadiness(
+            PrecastElement element,
+            Dictionary<string, PrecastElement> allElementsMap)
+        {
+            var blockingReasons = new List<string>();
+
             if (!element.IncludeInGa)
-                return false;
+                blockingReasons.Add("Element is not included in crane optimization.");
 
             if (element.Role == IfcElementRole.NeedsReview ||
                 element.Role == IfcElementRole.GroupingOnly ||
                 element.Role == IfcElementRole.InternalAuxiliary ||
                 element.Role == IfcElementRole.Excluded)
-                return false;
+                blockingReasons.Add($"Invalid element role for GA: {element.Role}.");
 
             if (!element.WeightTons.HasValue || element.WeightTons.Value <= 0)
-                return false;
+            {
+                blockingReasons.Add("Weight is missing or invalid.");
+            }
+            else
+            {
+                var hasExplicitTrustedWeight =
+                    element.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
+                    element.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
 
-            var hasExplicitTrustedWeight =
-                element.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
-                element.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+                if (!hasExplicitTrustedWeight)
+                    blockingReasons.Add($"Weight is not from an explicit trusted source: {element.WeightTrustLevel}.");
+            }
 
-            if (!hasExplicitTrustedWeight)
-                return false;
-
-            // Double count risk: child excluded if parent assembly is also a GA target unit and has trusted weight
             if (!string.IsNullOrWhiteSpace(element.ParentGlobalId) && allElementsMap.TryGetValue(element.ParentGlobalId, out var parentElement))
             {
                 if (parentElement.IncludeInGa &&
@@ -351,7 +371,7 @@ namespace CraneOptimizer.Application.Services
                                               parentElement.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
                     if (parentWeightTrusted)
                     {
-                        return false;
+                        blockingReasons.Add("Parent-child double-counting risk: child component is enabled alongside its parent assembly.");
                     }
                 }
             }
@@ -364,11 +384,68 @@ namespace CraneOptimizer.Application.Services
                 double.IsNaN(element.ElementCOG.Y) || double.IsInfinity(element.ElementCOG.Y) ||
                 double.IsNaN(element.ElementCOG.Z) || double.IsInfinity(element.ElementCOG.Z))
             {
-                return false;
+                blockingReasons.Add("Assembly Center of Gravity (COG) is missing, zero, or invalid.");
             }
 
-            return true;
+            return new ElementReadinessEvaluation
+            {
+                Element = element,
+                BlockingReasons = blockingReasons
+            };
         }
+
+        private static IReadOnlyList<ImportReadinessElementDiagnostic> BuildElementDiagnostics(
+            IReadOnlyList<ElementReadinessEvaluation> evaluations,
+            IReadOnlyList<ValidationMessage> messages)
+        {
+            var warningMessagesByElementId = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var message in messages)
+            {
+                if (!IsElementWarning(message))
+                    continue;
+
+                foreach (var elementId in message.AffectedElementIds.Where(id => !string.IsNullOrWhiteSpace(id)))
+                {
+                    if (!warningMessagesByElementId.TryGetValue(elementId, out var elementMessages))
+                    {
+                        elementMessages = new List<string>();
+                        warningMessagesByElementId[elementId] = elementMessages;
+                    }
+
+                    elementMessages.Add(message.Message);
+                }
+            }
+
+            return evaluations
+                .Select(evaluation =>
+                {
+                    var elementId = evaluation.Element.ElementID ?? string.Empty;
+                    var warningMessages = warningMessagesByElementId.TryGetValue(elementId, out var elementMessages)
+                        ? elementMessages.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                        : new List<string>();
+                    var readinessStatus = evaluation.BlockingReasons.Count > 0
+                        ? "Blocked"
+                        : warningMessages.Count > 0
+                            ? "Warning"
+                            : "Ready";
+
+                    return new ImportReadinessElementDiagnostic
+                    {
+                        ElementId = elementId,
+                        IsReadyForGa = evaluation.IsReadyForGa,
+                        ReadinessStatus = readinessStatus,
+                        BlockingReasons = evaluation.BlockingReasons,
+                        WarningMessages = warningMessages
+                    };
+                })
+                .ToList();
+        }
+
+        private static bool IsElementWarning(ValidationMessage message) =>
+            message.AffectedElementIds.Count > 0
+            && (message.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase)
+                || message.Severity.Equals("Error", StringComparison.OrdinalIgnoreCase));
 
         private static SourceSystem? GetFirstSourceSystem(List<PrecastElement> elements, List<string> ids)
         {
