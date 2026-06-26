@@ -588,13 +588,33 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             {
                 var identity = CraneOptimizer.Application.Services.Identity.CanonicalMarkResolver.Resolve(SelectedElement);
 
-                properties.Add(CreateGroup("Canonical Identity", true,
+                var canonicalGroup = new List<PropertyItem>
+                {
                     CreateDisplayProperty("Display Label / Lift Mark", identity.DisplayLabel),
                     CreateDisplayProperty("Assembly Mark / Assembly Position", identity.AssemblyMark ?? "-"),
                     CreateDisplayProperty("Mark Confidence", identity.MarkConfidence),
                     CreateDisplayProperty("Explicit Assembly Mark", identity.IsExplicitMark ? "Yes" : "No"),
                     CreateDisplayProperty("Source System", identity.SourceSystem),
-                    CreateDisplayProperty("Exporter Profile", identity.ExporterProfile)));
+                    CreateDisplayProperty("Exporter Profile", identity.ExporterProfile)
+                };
+
+                bool needsReview = (identity.ValidationStatus != "Valid") ||
+                                   (identity.MarkConfidence == "Low" || identity.MarkConfidence == "None") ||
+                                   (!identity.IsExplicitMark) ||
+                                   (identity.ValidationWarnings != null && identity.ValidationWarnings.Count > 0);
+
+                if (needsReview)
+                {
+                    string reviewReason = "Needs Review: identity was inferred from a low-confidence source.";
+                    if (string.IsNullOrWhiteSpace(identity.AssemblyMark))
+                        reviewReason = "Needs Review: assembly mark is missing.";
+                    else if (identity.ValidationWarnings != null && identity.ValidationWarnings.Count > 0)
+                        reviewReason = "Needs Review: conflicting assembly/cast-unit mark values.";
+
+                    canonicalGroup.Insert(0, CreateDisplayProperty("Review Status", $"⚠️ {reviewReason}"));
+                }
+
+                properties.Add(CreateGroup("Canonical Identity", true, canonicalGroup.ToArray()));
 
                 properties.Add(CreateGroup("Validation", true,
                     CreateDisplayProperty("Validation Status", identity.ValidationStatus),
@@ -710,7 +730,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
         private static string GetIfcElementName(PrecastElement e)
         {
-            return CleanElementName(!string.IsNullOrWhiteSpace(e.ElementName) ? e.ElementName : e.ElementMark);
+            return CleanElementName(!string.IsNullOrWhiteSpace(e.ElementName) ? e.ElementName : "-");
         }
         private static string CleanElementName(string? rawName)
         {

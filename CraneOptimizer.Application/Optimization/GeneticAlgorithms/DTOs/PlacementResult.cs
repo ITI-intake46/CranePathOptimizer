@@ -63,6 +63,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public int ValidationWarningCount { get; set; }
         public string? ValidationWarningsJoined { get; set; }
 
+        // Phase 7D: Assembly Group Identification
+        public bool IsAssemblyGroup { get; set; }
+        public int AssemblyMemberCount { get; set; }
+        public string? AssemblyMemberIdsJoined { get; set; }
+
         public string? ElementType { get; set; }
 
         public double? Weight { get; set; }

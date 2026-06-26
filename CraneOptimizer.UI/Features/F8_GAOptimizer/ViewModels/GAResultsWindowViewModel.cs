@@ -148,6 +148,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             _                        => _source.Status.ToString()
         };
 
+        /// <summary>Type of lift unit (Single vs Grouped Assembly).</summary>
+        public string LiftUnitText => _source.IsAssemblyGroup ? $"Assembly Group ({_source.AssemblyMemberCount})" : "Single";
+
+        /// <summary>Tooltip for the Lift Unit column showing member GUIDs.</summary>
+        public string LiftUnitTooltip => _source.IsAssemblyGroup ? $"Assembly Mark: {Mark}\nMembers:\n- {_source.AssemblyMemberIdsJoined}" : "Single Element";
+
         /// <summary>True when lift is successful, drives row colour in XAML.</summary>
         public bool IsLiftable => _source.Status == LiftStatus.Liftable;
 

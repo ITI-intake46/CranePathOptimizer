@@ -449,14 +449,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 ? new Domain.Common.DomainPoint3D()
                 : element.ElementCOG;
 
-            // Phase 5: Resolve canonical display identity once; populate metadata additively.
-            // ElementMark is kept as the raw IFC field for backward compatibility.
-            // No GA physics data (weight, COG, radius, capacity) is modified.
             var identity = element != null ? CanonicalMarkResolver.Resolve(element) : null;
+
+            bool isGroup = element?.ChildGlobalIds != null && element.ChildGlobalIds.Count > 0;
+            string? memberIdsJoined = isGroup ? string.Join("\n- ", element!.ChildGlobalIds) : null;
 
             return new ElementLiftResult
             {
                 ElementId = evaluation.ElementId,
+                IsAssemblyGroup = isGroup,
+                AssemblyMemberCount = isGroup ? element!.ChildGlobalIds.Count : 0,
+                AssemblyMemberIdsJoined = memberIdsJoined,
                 ElementMark = element?.ElementMark,
                 CanonicalMark = identity?.DisplayLabel,
                 MarkSource = identity?.MarkSource,
