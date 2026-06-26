@@ -530,3 +530,24 @@ The canonical identity mapping is displayed consistently in the F5 (Element Mana
 1. **Lift Unit**: Replaces generic element identifiers to explicitly denote 'Single' or 'Assembly Group (N)'.
 2. **Group Detection**: Detects grouping via `ChildGlobalIds.Count > 0` rather than relying on `ElementType == "Assembly"`.
 3. **Grouping Tooltip**: Lists member GUIDs included in the assembly group for verification.
+
+## Phase 7E — Legacy Identity Field Cleanup Audit & Migration Plan
+
+Phase 7E establishes a cleanup strategy for redundant identity fields inherited from earlier schemas without breaking saved project files or external CSV integrations.
+
+### 1. Retention Matrix
+
+*   **Canonical Keep (Do Not Delete)**:
+    *   `ElementID` (Stable IFC GlobalId)
+    *   `ElementName` (Raw IFC product name)
+    *   `AssemblyMark`, `AssemblyMarkSource`, `AssemblyMarkConfidence`, `AssemblyMarkIsExplicit`
+    *   `CanonicalMark` / `DisplayLabel` (DTO/UI level resolved output)
+    *   `ChildGlobalIds`, `ValidationStatus`, `ValidationWarnings`, `SourceSystem`, `ExporterProfile`, `ElementType`
+*   **Legacy Compatibility Keep**:
+    *   `ElementMark`: Maintained for backward compatibility in DTOs and old saved projects where `AssemblyMark` was not extracted. Safe to hide from modern UI but retained in CSVs.
+*   **Obsolete Candidates**:
+    *   `ElementRevitId`: Slated for removal or strict EF Core renaming (`ProjectIfcElementEntity.Name`).
+    *   `ResolvedDisplayMark`, `ParentAssemblyName`: Not persisted; deprecated and slated for removal from `PrecastElement`.
+
+### 2. Migration Strategy
+Due to the dependency on `ProjectIfcElementEntity` and EF Core migrations, no schema fields are deleted in Phase 7E-1. Safe property cleanup requires sequential rollout: deprecating usage, implementing formal DB migrations, and removing fallback code from `CanonicalMarkResolver`.
