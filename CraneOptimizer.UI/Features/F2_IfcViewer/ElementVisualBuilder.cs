@@ -446,8 +446,63 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                     }
                 }
 
-                // E. Set Diagnostics counters
+                // E. Create transparent hit-test boxes when spatial hit testing is disabled
                 var hitBoxesCount = 0;
+                if (!UseSpatialHitTestingInsteadOfTransparentBoxes)
+                {
+                    var transparentMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromArgb(1, 255, 255, 255)));
+                    if (transparentMaterial.CanFreeze) transparentMaterial.Freeze();
+
+                    foreach (var item in itemsList)
+                    {
+                        var el = item.element;
+                        var cogX = el.ElementCOG.X - origin.X;
+                        var cogY = el.ElementCOG.Y - origin.Y;
+                        var cogZ = el.ElementCOG.Z - origin.Z;
+                        var dx = el.BBoxLength ?? MinimumBoxSize;
+                        var dy = el.BBoxWidth ?? MinimumBoxSize;
+                        var dz = el.BBoxHeight ?? MinimumBoxSize;
+
+                        var boxBuilder = new MeshBuilder(true, true);
+                        boxBuilder.AddBox(
+                            new Vector3((float)cogX, (float)cogY, (float)cogZ),
+                            (float)dx, (float)dy, (float)dz);
+                        var helixMesh = boxBuilder.ToMesh();
+                        var hitMesh = new MediaMeshGeometry3D
+                        {
+                            Positions = new Point3DCollection(helixMesh.Positions.Select(p => new Point3D(p.X, p.Y, p.Z))),
+                            TriangleIndices = new Int32Collection(helixMesh.TriangleIndices),
+                            Normals = helixMesh.Normals == null
+                                ? new Vector3DCollection()
+                                : new Vector3DCollection(helixMesh.Normals.Select(n => new Vector3D(n.X, n.Y, n.Z)))
+                        };
+                        if (hitMesh.CanFreeze) hitMesh.Freeze();
+
+                        var hitGeoModel = new GeometryModel3D
+                        {
+                            Geometry = hitMesh,
+                            Material = transparentMaterial,
+                            BackMaterial = transparentMaterial
+                        };
+
+                        // Add to element's visual if it exists, or create one
+                        if (elementVisualMap.TryGetValue(el.ElementID, out var existingVisual))
+                        {
+                            ((Model3DGroup)existingVisual.Content!).Children.Add(hitGeoModel);
+                        }
+                        else
+                        {
+                            var hitVisual = new ModelVisual3D { Content = new Model3DGroup() };
+                            hitVisual.SetValue(System.Windows.FrameworkElement.TagProperty, el);
+                            ((Model3DGroup)hitVisual.Content).Children.Add(hitGeoModel);
+                            batchVisual.Children.Add(hitVisual);
+                        }
+
+                        hitBoxesCount++;
+                    }
+                }
+
+                // F. Set Diagnostics counters
                 DiagMeshesCreated += meshesCreated;
                 DiagMeshCacheHits += meshesReused;
                 DiagMeshCacheMisses += meshesCreated;
