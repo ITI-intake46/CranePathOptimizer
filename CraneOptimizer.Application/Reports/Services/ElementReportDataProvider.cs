@@ -1,5 +1,7 @@
 using CraneOptimizer.Application.Reports.DTOs;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.Application.Services.Identity;
+using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Reports.Services;
@@ -7,46 +9,148 @@ namespace CraneOptimizer.Application.Reports.Services;
 public sealed class ElementReportDataProvider : IElementReportDataProvider
 {
     private readonly IReportableElementResolver _resolver;
+    private readonly IImportReadinessService _readinessService;
 
-    public ElementReportDataProvider(IReportableElementResolver resolver)
+    public ElementReportDataProvider(
+        IReportableElementResolver resolver,
+        IImportReadinessService readinessService)
     {
         _resolver = resolver;
+        _readinessService = readinessService;
     }
 
     public IReadOnlyList<ElementReportRowDto> BuildRows(
         string templateName,
-        string itemsIncluded,
-        IEnumerable<PrecastElement> sourceElements,
-        IEnumerable<PrecastElement> selectedElements)
+        IEnumerable<PrecastElement> scopedElements)
     {
-        var selectedIds = selectedElements
-            .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
-            .Select(element => element.ElementID)
-            .ToHashSet(StringComparer.Ordinal);
-
-        var scoped = ApplyItemsIncluded(sourceElements, itemsIncluded, selectedIds);
-        var reportable = _resolver.ResolveReportableElements(scoped);
+        var elementsList = scopedElements.ToList();
+        var reportable = _resolver.ResolveReportableElements(elementsList);
         var filtered = ApplyTemplateFilter(reportable, templateName);
         var levelLabels = BuildLevelLabels(filtered);
 
+        var readinessSummary = _readinessService.BuildSummary(filtered, isCheckerEnabled: true);
+        var lookup = BuildElementReadinessLookup(filtered, readinessSummary);
+
         return filtered
-            .Select((element, index) => ToRow(element, index + 1, levelLabels))
+            .Select((element, index) => ToRow(element, index + 1, levelLabels, lookup))
             .ToList();
     }
 
-    private static IEnumerable<PrecastElement> ApplyItemsIncluded(
-        IEnumerable<PrecastElement> sourceElements,
-        string itemsIncluded,
-        ISet<string> selectedIds)
+    private sealed class ElementReadinessInfo
     {
-        return itemsIncluded switch
+        public string ValidationStatus { get; init; } = "Valid";
+        public string ValidationWarnings { get; init; } = "\u2014";
+        public string ReadyForGa { get; init; } = "No";
+        public string MissingReadinessReason { get; init; } = "\u2014";
+    }
+
+    private static IReadOnlyDictionary<string, ElementReadinessInfo> BuildElementReadinessLookup(
+        IReadOnlyList<PrecastElement> elements,
+        ImportReadinessSummary readinessSummary)
+    {
+        var allElementsMap = new Dictionary<string, PrecastElement>(StringComparer.OrdinalIgnoreCase);
+        foreach (var el in elements)
         {
-            "Rendered Elements Only" => sourceElements.Where(element => element.IncludeInRender),
-            "GA-Ready Elements" => sourceElements.Where(IsGaReady),
-            "Needs Review Elements" => sourceElements.Where(element => ReportWeightMapper.Map(element).WeightStatus != "OK" || !element.IncludeInGa),
-            "Selected Elements Only" => sourceElements.Where(element => !string.IsNullOrWhiteSpace(element.ElementID) && selectedIds.Contains(element.ElementID)),
-            _ => sourceElements
-        };
+            if (!string.IsNullOrEmpty(el.ElementID) && !allElementsMap.ContainsKey(el.ElementID))
+            {
+                allElementsMap[el.ElementID] = el;
+            }
+        }
+
+        var lookup = new Dictionary<string, ElementReadinessInfo>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var el in elements)
+        {
+            if (string.IsNullOrEmpty(el.ElementID))
+                continue;
+
+            var blockingReasons = new List<string>();
+
+            if (!el.IncludeInGa)
+            {
+                blockingReasons.Add("Element is not included in crane optimization.");
+            }
+
+            if (el.Role == IfcElementRole.NeedsReview ||
+                el.Role == IfcElementRole.GroupingOnly ||
+                el.Role == IfcElementRole.InternalAuxiliary ||
+                el.Role == IfcElementRole.Excluded)
+            {
+                blockingReasons.Add($"Invalid element role for GA: {el.Role}.");
+            }
+
+            if (!el.WeightTons.HasValue || el.WeightTons.Value <= 0)
+            {
+                blockingReasons.Add("Weight is missing or invalid (<= 0).");
+            }
+            else
+            {
+                var hasExplicitTrustedWeight =
+                    el.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
+                    el.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+
+                if (!hasExplicitTrustedWeight)
+                {
+                    blockingReasons.Add($"Weight status is {ReportWeightMapper.Map(el).WeightStatus} (Trust Level: {el.WeightTrustLevel}).");
+                }
+            }
+
+            // Parent-child double count risk check
+            if (!string.IsNullOrWhiteSpace(el.ParentGlobalId) && allElementsMap.TryGetValue(el.ParentGlobalId, out var parentElement))
+            {
+                if (parentElement.IncludeInGa &&
+                    (parentElement.Role == IfcElementRole.LiftAssembly ||
+                     parentElement.Role == IfcElementRole.LiftableElement))
+                {
+                    var parentWeightTrusted = parentElement.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
+                                              parentElement.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+                    if (parentWeightTrusted)
+                    {
+                        blockingReasons.Add("Parent-child double-counting risk: child component is enabled alongside its parent assembly.");
+                    }
+                }
+            }
+
+            // COG check
+            if (el.ElementCOG == null ||
+                (Math.Abs(el.ElementCOG.X) < 0.0001 &&
+                 Math.Abs(el.ElementCOG.Y) < 0.0001 &&
+                 Math.Abs(el.ElementCOG.Z) < 0.0001) ||
+                double.IsNaN(el.ElementCOG.X) || double.IsInfinity(el.ElementCOG.X) ||
+                double.IsNaN(el.ElementCOG.Y) || double.IsInfinity(el.ElementCOG.Y) ||
+                double.IsNaN(el.ElementCOG.Z) || double.IsInfinity(el.ElementCOG.Z))
+            {
+                blockingReasons.Add("Center of Gravity (COG) is missing, zero, or invalid.");
+            }
+
+            var warningMessages = new List<string>();
+            if (readinessSummary.Messages != null)
+            {
+                foreach (var msg in readinessSummary.Messages)
+                {
+                    if (msg.AffectedElementIds != null && msg.AffectedElementIds.Contains(el.ElementID, StringComparer.OrdinalIgnoreCase))
+                    {
+                        warningMessages.Add(msg.Message);
+                    }
+                }
+            }
+
+            var isBlocked = blockingReasons.Count > 0;
+            var valStatus = isBlocked ? "Blocked" : (warningMessages.Count > 0 ? "Warning" : "Ready");
+            var readyForGa = isBlocked ? "No" : "Yes";
+            var missingReason = isBlocked ? string.Join("; ", blockingReasons) : "\u2014";
+            var warnings = warningMessages.Count > 0 ? string.Join("; ", warningMessages.Distinct(StringComparer.OrdinalIgnoreCase)) : "\u2014";
+
+            lookup[el.ElementID] = new ElementReadinessInfo
+            {
+                ValidationStatus = valStatus,
+                ValidationWarnings = warnings,
+                ReadyForGa = readyForGa,
+                MissingReadinessReason = missingReason
+            };
+        }
+
+        return lookup;
     }
 
     private static IReadOnlyList<PrecastElement> ApplyTemplateFilter(
@@ -69,7 +173,8 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
     private static ElementReportRowDto ToRow(
         PrecastElement element,
         int number,
-        IReadOnlyDictionary<double, string> levelLabels)
+        IReadOnlyDictionary<double, string> levelLabels,
+        IReadOnlyDictionary<string, ElementReadinessInfo> readinessLookup)
     {
         var mapping = ReportWeightMapper.Map(element);
         var identity = CanonicalMarkResolver.Resolve(element);
@@ -80,6 +185,19 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
 
         var (volume, volumeSource) = ResolveReportVolume(element, length, width, height);
         var (bottomElevation, topElevation) = ResolveElevationRange(element, height);
+
+        string readyForGa = "No";
+        string missingReason = "Element ID is missing.";
+        string valStatus = "Blocked";
+        string valWarnings = "\u2014";
+
+        if (!string.IsNullOrEmpty(element.ElementID) && readinessLookup.TryGetValue(element.ElementID, out var readInfo))
+        {
+            readyForGa = readInfo.ReadyForGa;
+            missingReason = readInfo.MissingReadinessReason;
+            valStatus = readInfo.ValidationStatus;
+            valWarnings = readInfo.ValidationWarnings;
+        }
 
         return new ElementReportRowDto
         {
@@ -108,24 +226,19 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
             WeightStatus = mapping.WeightStatus,
             WeightWarning = mapping.WarningMessage,
             IncludedInCraneOptimization = element.IncludeInGa ? "Yes" : "No",
-            ReadyForGa = IsGaReady(element) ? "Yes" : "No",
-            MissingReadinessReason = ResolveReadinessReason(element, mapping)
+            ReadyForGa = readyForGa,
+            MissingReadinessReason = missingReason,
+
+            // New validation properties
+            ValidationStatus = valStatus,
+            ValidationWarnings = valWarnings,
+            WeightTrustLevel = element.WeightTrustLevel.ToString(),
+            ReadinessStatus = valStatus,
+            BlockingReasons = missingReason
         };
     }
 
-    private static string ResolveReadinessReason(PrecastElement element, WeightReportMapping mapping)
-    {
-        if (!element.IncludeInGa)
-            return "Element is not included in crane optimization.";
 
-        if (mapping.WeightStatus != "OK")
-            return mapping.WarningMessage == "-" ? $"Weight status is {mapping.WeightStatus}." : mapping.WarningMessage;
-
-        if (ReportWeightMapper.ResolveWeight(element) is not > 0)
-            return "Weight is missing or invalid.";
-
-        return "\u2014";
-    }
 
     private static string ResolveElementName(PrecastElement element)
     {
@@ -245,13 +358,7 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
         || Math.Abs(point.Y) > double.Epsilon
         || Math.Abs(point.Z) > double.Epsilon;
 
-    private static bool IsGaReady(PrecastElement element)
-    {
-        var mapping = ReportWeightMapper.Map(element);
-        return element.IncludeInGa
-            && mapping.WeightStatus == "OK"
-            && ReportWeightMapper.ResolveWeight(element) is > 0;
-    }
+
 
     private static string FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;

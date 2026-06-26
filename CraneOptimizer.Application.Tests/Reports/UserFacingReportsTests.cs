@@ -7,6 +7,7 @@ using CraneOptimizer.Application.Reports.Services;
 using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Infrastructure.Reports.UserFacing;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.UI.Features.F12_Reports.Services;
 
 namespace CraneOptimizer.Application.Tests.Reports;
@@ -299,17 +300,23 @@ public sealed class UserFacingReportsTests : IDisposable
             .Select(column => column.Key)
             .ToList();
 
-        Assert.Equal("All Elements", template.DefaultItemsIncluded);
+        Assert.Equal("Current GA Scope", template.DefaultItemsIncluded);
         Assert.Equal(
             [
                 "No",
                 "ElementMark",
+                "MarkConfidence",
+                "ValidationStatus",
+                "ValidationWarnings",
                 "WeightTons",
+                "WeightTrustLevel",
                 "WeightVerified",
                 "WeightStatus",
                 "IncludedInCraneOptimization",
                 "ReadyForGa",
-                "MissingReadinessReason"
+                "ReadinessStatus",
+                "MissingReadinessReason",
+                "BlockingReasons"
             ],
             selectedKeys);
 
@@ -440,7 +447,7 @@ public sealed class UserFacingReportsTests : IDisposable
     }
 
     [Fact]
-    public async Task ReportBuilder_GaReadinessReadyOnlyEmpty_FallsBackToAllElementsForExport()
+    public async Task ReportBuilder_GaReadiness_DoesNotSilentlyChangeScope()
     {
         var builder = CreateBuilder();
         var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.GaReadiness);
@@ -463,7 +470,7 @@ public sealed class UserFacingReportsTests : IDisposable
 
         var document = await builder.BuildAsync(request);
 
-        Assert.Equal("All Elements", document.Metadata.ItemsIncluded);
+        Assert.Equal("GA-Ready Elements", document.Metadata.ItemsIncluded);
         Assert.Single(document.Rows);
         Assert.Equal("Missing", document.Rows[0].Values["WeightStatus"]);
     }
@@ -1058,13 +1065,26 @@ public sealed class UserFacingReportsTests : IDisposable
     {
         var resolver = new ReportableElementResolver();
         return new UserFacingReportBuilder(
-            new ElementReportDataProvider(resolver),
+            new ElementReportDataProvider(resolver, new ImportReadinessService()),
             new LiftingResultReportDataProvider());
     }
 
     private static ReportBuildRequestDto ElementRequest(string templateName, string itemsIncluded, string? generalNotes)
     {
         var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, templateName);
+
+        var allElements = new List<PrecastElement>
+        {
+            Element("e1", 10.0, IfcWeightTrustLevel.ExplicitQuantity),
+            Element("e2", null, IfcWeightTrustLevel.Missing)
+        };
+
+        var scopedElements = itemsIncluded switch
+        {
+            "GA-Ready Elements" => allElements.Where(e => e.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity).ToList(),
+            "Needs Review Elements" => allElements.Where(e => e.WeightTrustLevel != IfcWeightTrustLevel.ExplicitQuantity).ToList(),
+            _ => allElements
+        };
 
         return new ReportBuildRequestDto
         {
@@ -1078,11 +1098,7 @@ public sealed class UserFacingReportsTests : IDisposable
                 GeneralNotes = generalNotes
             },
             SelectedColumns = template.Columns,
-            SourceElements =
-            [
-                Element("e1", 10.0, IfcWeightTrustLevel.ExplicitQuantity),
-                Element("e2", null, IfcWeightTrustLevel.Missing)
-            ]
+            SourceElements = scopedElements
         };
     }
 

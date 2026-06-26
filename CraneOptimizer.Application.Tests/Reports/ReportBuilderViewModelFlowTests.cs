@@ -129,7 +129,8 @@ public sealed class ReportBuilderViewModelFlowTests
                 new TestReportFileDialogService(),
                 previewDialogs,
                 diagnosticsReader,
-                new FakeProjectOutputPathService());
+                new FakeProjectOutputPathService(),
+                new ImportReadinessService());
             viewModel.Initialize(ReportFamily.LiftingResult, ReportTemplateCatalog.BasicLiftingResult, "Optimization Result");
 
             Assert.True(viewModel.PreviewCommand.CanExecute(null));
@@ -193,7 +194,7 @@ public sealed class ReportBuilderViewModelFlowTests
     private sealed class CapturingReportBuilder : IReportBuilder
     {
         private readonly UserFacingReportBuilder _inner = new(
-            new ElementReportDataProvider(new ReportableElementResolver()),
+            new ElementReportDataProvider(new ReportableElementResolver(), new ImportReadinessService()),
             new LiftingResultReportDataProvider());
 
         public ReportBuildRequestDto? LastRequest { get; private set; }

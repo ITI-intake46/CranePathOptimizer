@@ -59,19 +59,7 @@ public sealed class UserFacingReportBuilder : IReportBuilder
         {
             var elementRows = _elementProvider.BuildRows(
                 request.TemplateName,
-                effectiveItemsIncluded,
-                request.SourceElements,
-                request.SelectedElements);
-
-            if (IsGaReadinessReadyOnlyEmpty(request, elementRows))
-            {
-                effectiveItemsIncluded = "All Elements";
-                elementRows = _elementProvider.BuildRows(
-                    request.TemplateName,
-                    effectiveItemsIncluded,
-                    request.SourceElements,
-                    request.SelectedElements);
-            }
+                request.SourceElements);
 
             var liftingRows = _liftingProvider.BuildRows(
                 request.TemplateName,
@@ -151,13 +139,7 @@ public sealed class UserFacingReportBuilder : IReportBuilder
         };
     }
 
-    private static bool IsGaReadinessReadyOnlyEmpty(
-        ReportBuildRequestDto request,
-        IReadOnlyList<ElementReportRowDto> elementRows) =>
-        request.TemplateName.Equals(ReportTemplateCatalog.GaReadiness, StringComparison.OrdinalIgnoreCase)
-        && request.ItemsIncluded.Equals("GA-Ready Elements", StringComparison.OrdinalIgnoreCase)
-        && elementRows.Count == 0
-        && request.SourceElements.Count > 0;
+
 
     private static ReportDataRowDto ToReportRow(ElementReportRowDto row) => new()
     {
@@ -187,7 +169,13 @@ public sealed class UserFacingReportBuilder : IReportBuilder
             ["WeightWarning"] = row.WeightWarning,
             ["IncludedInCraneOptimization"] = row.IncludedInCraneOptimization,
             ["ReadyForGa"] = row.ReadyForGa,
-            ["MissingReadinessReason"] = row.MissingReadinessReason
+            ["MissingReadinessReason"] = row.MissingReadinessReason,
+            ["MarkConfidence"] = row.MarkConfidence,
+            ["ValidationStatus"] = row.ValidationStatus,
+            ["ValidationWarnings"] = row.ValidationWarnings,
+            ["WeightTrustLevel"] = row.WeightTrustLevel,
+            ["ReadinessStatus"] = row.ReadinessStatus,
+            ["BlockingReasons"] = row.BlockingReasons
         }
     };
 

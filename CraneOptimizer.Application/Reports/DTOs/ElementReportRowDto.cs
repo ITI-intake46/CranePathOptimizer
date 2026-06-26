@@ -32,4 +32,11 @@ public sealed class ElementReportRowDto
     public string IncludedInCraneOptimization { get; init; } = "No";
     public string ReadyForGa { get; init; } = "No";
     public string MissingReadinessReason { get; init; } = "\u2014";
+
+    // Aligned validation fields
+    public string ValidationStatus { get; init; } = "Valid";
+    public string ValidationWarnings { get; init; } = "\u2014";
+    public string WeightTrustLevel { get; init; } = string.Empty;
+    public string ReadinessStatus { get; init; } = "Ready";
+    public string BlockingReasons { get; init; } = "\u2014";
 }
