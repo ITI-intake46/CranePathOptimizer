@@ -551,3 +551,51 @@ Phase 7E establishes a cleanup strategy for redundant identity fields inherited 
 
 ### 2. Migration Strategy
 Due to the dependency on `ProjectIfcElementEntity` and EF Core migrations, no schema fields are deleted in Phase 7E-1. Safe property cleanup requires sequential rollout: deprecating usage, implementing formal DB migrations, and removing fallback code from `CanonicalMarkResolver`.
+
+## Phase 7D Identity Display Contract
+
+The canonical identity mapping is displayed consistently in the F5 (Element Management) and F8 (GA Results) interfaces without modifying the underlying database or IFC extraction fields.
+
+### F5 Display Rules
+
+1. **Element Name**: Fallback uses `-` if `ElementName` is blank, avoiding fallback to `ElementMark`.
+2. **Canonical Identity Group**: Explicitly lists Display Label, Assembly Mark, Confidence, Source System, and Validation Status.
+3. **Review Status**: A warning is displayed in F5 if confidence is low/none, missing explicit marks, or if there are conflicting marks between assembly and cast-unit attributes.
+
+### F8 Grouping Rules
+
+1. **Lift Unit**: Replaces generic element identifiers to explicitly denote 'Single' or 'Assembly Group (N)'.
+2. **Group Detection**: Detects grouping via `ChildGlobalIds.Count > 0` rather than relying on `ElementType == "Assembly"`.
+3. **Grouping Tooltip**: Lists member GUIDs included in the assembly group for verification.
+
+## Phase 7D Identity Display Contract
+
+The canonical identity mapping is displayed consistently in the F5 (Element Management) and F8 (GA Results) interfaces without modifying the underlying database or IFC extraction fields.
+
+### F5 Display Rules
+
+1. **Element Name**: Fallback uses `-` if `ElementName` is blank, avoiding fallback to `ElementMark`.
+2. **Canonical Identity Group**: Explicitly lists Display Label, Assembly Mark, Confidence, Source System, and Validation Status.
+3. **Review Status**: A warning is displayed in F5 if confidence is low/none, missing explicit marks, or if there are conflicting marks between assembly and cast-unit attributes.
+
+### F8 Grouping Rules
+
+1. **Lift Unit**: Replaces generic element identifiers to explicitly denote 'Single' or 'Assembly Group (N)'.
+2. **Group Detection**: Detects grouping via `ChildGlobalIds.Count > 0` rather than relying on `ElementType == "Assembly"`.
+3. **Grouping Tooltip**: Lists member GUIDs included in the assembly group for verification.
+
+## Phase 7D Identity Display Contract
+
+The canonical identity mapping is displayed consistently in the F5 (Element Management) and F8 (GA Results) interfaces without modifying the underlying database or IFC extraction fields.
+
+### F5 Display Rules
+
+1. **Element Name**: Fallback uses `-` if `ElementName` is blank, avoiding fallback to `ElementMark`.
+2. **Canonical Identity Group**: Explicitly lists Display Label, Assembly Mark, Confidence, Source System, and Validation Status.
+3. **Review Status**: A warning is displayed in F5 if confidence is low/none, missing explicit marks, or if there are conflicting marks between assembly and cast-unit attributes.
+
+### F8 Grouping Rules
+
+1. **Lift Unit**: Replaces generic element identifiers to explicitly denote 'Single' or 'Assembly Group (N)'.
+2. **Group Detection**: Detects grouping via `ChildGlobalIds.Count > 0` rather than relying on `ElementType == "Assembly"`.
+3. **Grouping Tooltip**: Lists member GUIDs included in the assembly group for verification.

@@ -543,6 +543,13 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
         private List<PropertyItem> BuildPropertyGroups(ElementPanelDto panel)
         {
+            var identityLabel = "-";
+            if (SelectedElement != null)
+            {
+                var identity = CraneOptimizer.Application.Services.Identity.CanonicalMarkResolver.Resolve(SelectedElement);
+                identityLabel = identity.DisplayLabel;
+            }
+
             var properties = new List<PropertyItem>
             {
                 CreateLiftStateGroup(panel.LiftState),
@@ -551,7 +558,8 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                     CreateProperty("IFC GUID", GetIfcGuid(SelectedElement, panel.Id), ""),
                     CreateProperty("IFC Name", panel.Name, ""),
                     CreateProperty("IFC Type", panel.Type, ""),
-                    CreateProperty("Material", panel.Material, "")),
+                    CreateProperty("Material", panel.Material, ""),
+                    CreateDisplayProperty("Display Label / Lift Mark", identityLabel)),
 
                 CreateGroup("Geometry", true,
                     CreateDisplayProperty("Length", FormatLength(panel.Length)),
@@ -584,43 +592,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
             properties.Add(CreateGroup("Location", true, locationItems.ToArray()));
 
-            if (SelectedElement != null)
-            {
-                var identity = CraneOptimizer.Application.Services.Identity.CanonicalMarkResolver.Resolve(SelectedElement);
-
-                var canonicalGroup = new List<PropertyItem>
-                {
-                    CreateDisplayProperty("Display Label / Lift Mark", identity.DisplayLabel),
-                    CreateDisplayProperty("Assembly Mark / Assembly Position", identity.AssemblyMark ?? "-"),
-                    CreateDisplayProperty("Mark Confidence", identity.MarkConfidence),
-                    CreateDisplayProperty("Explicit Assembly Mark", identity.IsExplicitMark ? "Yes" : "No"),
-                    CreateDisplayProperty("Source System", identity.SourceSystem),
-                    CreateDisplayProperty("Exporter Profile", identity.ExporterProfile)
-                };
-
-                bool needsReview = (identity.ValidationStatus != "Valid") ||
-                                   (identity.MarkConfidence == "Low" || identity.MarkConfidence == "None") ||
-                                   (!identity.IsExplicitMark) ||
-                                   (identity.ValidationWarnings != null && identity.ValidationWarnings.Count > 0);
-
-                if (needsReview)
-                {
-                    string reviewReason = "Needs Review: identity was inferred from a low-confidence source.";
-                    if (string.IsNullOrWhiteSpace(identity.AssemblyMark))
-                        reviewReason = "Needs Review: assembly mark is missing.";
-                    else if (identity.ValidationWarnings != null && identity.ValidationWarnings.Count > 0)
-                        reviewReason = "Needs Review: conflicting assembly/cast-unit mark values.";
-
-                    canonicalGroup.Insert(0, CreateDisplayProperty("Review Status", $"⚠️ {reviewReason}"));
-                }
-
-                properties.Add(CreateGroup("Canonical Identity", true, canonicalGroup.ToArray()));
-
-                properties.Add(CreateGroup("Validation", true,
-                    CreateDisplayProperty("Validation Status", identity.ValidationStatus),
-                    CreateDisplayProperty("Validation Warnings", identity.ValidationWarnings.Count > 0 ? string.Join("; ", identity.ValidationWarnings) : "-"),
-                    CreateDisplayProperty("Weight Trust Level", SelectedElement.WeightTrustLevel.ToString())));
-            }
+            // Technical validation and canonical identity groups removed in Phase 7F simplification
 
             return properties;
         }

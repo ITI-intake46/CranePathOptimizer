@@ -89,14 +89,25 @@ namespace CraneOptimizer.Application.Services
 
             // 2. LowConfidenceMapping
             var lowConfidenceIds = new List<string>();
+            var needsReviewIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            
             foreach (var el in elementList)
             {
                 if (el.AssemblyMarkConfidence == AssemblyMarkConfidence.Low || el.AssemblyMarkConfidence == AssemblyMarkConfidence.None)
                 {
                     lowConfidenceIds.Add(el.ElementID);
                 }
+                
+                if (!el.AssemblyMarkIsExplicit || el.AssemblyMarkConfidence == AssemblyMarkConfidence.Low || el.AssemblyMarkConfidence == AssemblyMarkConfidence.None)
+                {
+                    if (!string.IsNullOrEmpty(el.ElementID))
+                    {
+                        needsReviewIds.Add(el.ElementID);
+                    }
+                }
             }
             summary.LowConfidenceMappingCount = lowConfidenceIds.Count;
+            summary.NeedsReviewCount = needsReviewIds.Count;
             if (lowConfidenceIds.Count > 0)
             {
                 messages.Add(new ValidationMessage

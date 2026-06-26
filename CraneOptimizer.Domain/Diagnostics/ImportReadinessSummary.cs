@@ -12,6 +12,7 @@ namespace CraneOptimizer.Domain.Diagnostics
 
         public int MissingAssemblyMarkCount { get; set; }
         public int LowConfidenceMappingCount { get; set; }
+        public int NeedsReviewCount { get; set; }
         public int EstimatedWeightBlockedCount { get; set; }
         public int MissingTrustedWeightCount { get; set; }
         public int MissingVolumeCount { get; set; }
