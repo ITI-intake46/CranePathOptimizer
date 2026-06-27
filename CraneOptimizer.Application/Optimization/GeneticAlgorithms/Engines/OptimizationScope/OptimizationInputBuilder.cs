@@ -30,7 +30,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
                 throw new InvalidOperationException("No elements found in the scene.");
 
             var gaEnabledElements = elements
-                .Where(element => element.IncludeInGa && !IsGridReference(element))
+                .Where(element => element.IncludeInGa && !IfcReferenceGeometryPolicy.IsGridReference(element))
                 .ToList();
 
             if (gaEnabledElements.Count == 0)
@@ -175,7 +175,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
             {
                 ElementID = $"ASM:{SanitizeAssemblyId(assemblyMark)}",
                 ElementMark = assemblyMark,
-                ElementName = assemblyMark,
+                ElementName = null,
                 ResolvedDisplayMark = assemblyMark,
                 ElementType = "Assembly",
                 ElementMaterial = JoinDistinct(members.Select(member => member.ElementMaterial)),
@@ -367,10 +367,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
             double footprintDiameterMeters = Math.Max(maxBodyDimension, maxOutriggerDimension);
             return footprintDiameterMeters / 2.0;
         }
-
-        private static bool IsGridReference(PrecastElement element) =>
-            element.RawIfcType.Equals("IfcGrid", StringComparison.OrdinalIgnoreCase)
-            || element.RawIfcType.Equals("IfcGridAxis", StringComparison.OrdinalIgnoreCase);
 
         private static HashSet<string>? CreateElementTypeSet(IReadOnlyCollection<string>? elementTypes)
         {

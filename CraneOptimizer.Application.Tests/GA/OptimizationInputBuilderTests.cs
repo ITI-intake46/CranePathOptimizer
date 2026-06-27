@@ -83,6 +83,7 @@ namespace CraneOptimizer.Application.Tests
             Assert.Equal(2, input.Elements.Count);
             var group = Assert.Single(input.Elements.Where(element => element.ElementID == "ASM:W1"));
             Assert.Equal("W1", group.AssemblyMark);
+            Assert.Null(group.ElementName);
             Assert.Equal(6, group.WeightTons);
             Assert.Equal(6, group.ElementWT);
             Assert.Equal(6, group.ElementCOG.X, 3);

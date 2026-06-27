@@ -196,7 +196,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         IfcFileName = input.IfcFileName ?? "N/A",
                         CraneNameOrId = input.CraneSpec?.Crane?.Name ?? (input.CraneSpec != null ? $"Spec ID: {input.CraneSpec.Id}" : "N/A"),
                         ElementId = element.ElementID,
-                        ElementName = element.ElementMark ?? "N/A",
+                        ElementName = element.ElementName ?? string.Empty,
                         CanonicalMark = CanonicalMarkResolver.ResolveDisplayMark(element),
                         MarkSource = identity_temp.MarkSource ?? string.Empty,
                         MarkConfidence = identity_temp.MarkConfidence,

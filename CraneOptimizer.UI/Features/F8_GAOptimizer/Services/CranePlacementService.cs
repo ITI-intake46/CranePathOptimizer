@@ -2,6 +2,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Entities;
+using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F0_CoordinateSystem;
@@ -92,6 +93,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             for (int i = 0; i < filteredElements.Count; i++)
             {
                 var element = filteredElements[i];
+
+                if (IfcReferenceGeometryPolicy.IsGridReference(element))
+                {
+                    blockedElements.Add((element, "Reference grids cannot enter crane placement or lift checks."));
+                    continue;
+                }
 
                 if (!element.IncludeInGa)
                 {

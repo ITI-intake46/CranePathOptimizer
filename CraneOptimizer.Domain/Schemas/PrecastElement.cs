@@ -6,6 +6,20 @@ namespace CraneOptimizer.Domain.Schemas
 {
     public class PrecastElement
     {
+        public PrecastElement CreateCopy()
+        {
+            var copy = (PrecastElement)MemberwiseClone();
+            copy.ElementCOG = new DomainPoint3D(ElementCOG.X, ElementCOG.Y, ElementCOG.Z);
+            copy.COG_M = new DomainPoint3D(COG_M.X, COG_M.Y, COG_M.Z);
+            copy.BoundingBox_M = new DomainPoint3D(BoundingBox_M.X, BoundingBox_M.Y, BoundingBox_M.Z);
+            copy.ChildGlobalIds = new List<string>(ChildGlobalIds);
+            copy.VisibleGeometryOwnerGlobalIds = new List<string>(VisibleGeometryOwnerGlobalIds);
+            copy.HiddenInternalGeometryOwnerGlobalIds = new List<string>(HiddenInternalGeometryOwnerGlobalIds);
+            copy.ExtractionWarnings = new List<string>(ExtractionWarnings);
+            copy.ValidationWarnings = new List<string>(ValidationWarnings);
+            return copy;
+        }
+
         public string ElementID { get; set; }
 
         public string? ElementRevitId { get; set; }

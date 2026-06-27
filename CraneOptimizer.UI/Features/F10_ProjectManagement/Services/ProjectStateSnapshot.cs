@@ -10,6 +10,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
         public List<PrecastElement> IfcElements { get; set; } = new();
 
+        public bool RequiresIfcCacheRefresh { get; set; }
+
         public ProjectModelFileState? DxfFile { get; set; }
 
         public List<ProjectSiteZoneState> Zones { get; set; } = new();

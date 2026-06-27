@@ -484,6 +484,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 // Fallback: If Weight is 0 or missing, use direct volume and the project concrete density.
                 var revitId = GetRevitId(product);
+                var productName = product.Name?.ToString()?.Trim();
                 var rawName = GetMark(product);
                 var cleanedName = CleanElementName(rawName ?? string.Empty);
 
@@ -507,7 +508,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     elementWidth,
                     elementHeight,
                     revitId,
-                    cleanedName);
+                    cleanedName, productName);
             }
 
             private AggregateSnapshot? BuildAggregateSnapshot(
@@ -534,6 +535,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var material = ResolveAggregateMaterial(parentSnapshot, childSnapshots);
 
                 var revitId = GetRevitId(assembly);
+                var productName = assembly.Name?.ToString()?.Trim();
                 var rawName = GetMark(assembly);
                 var cleanedName = CleanElementName(rawName ?? string.Empty);
 
@@ -549,7 +551,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     geometry?.Width,
                     geometry?.Height,
                     revitId,
-                    cleanedName);
+                    cleanedName, productName);
 
                 _aggregateCache[assembly.EntityLabel] = aggregate;
                 return aggregate;
@@ -1245,6 +1247,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     .GroupBy(product => product.EntityLabel)
                     .Select(group => group.First())
                     .ToList();
+                var retainedGridGlobalIds = new IfcGridReferenceDeduplicator(
+                        _geometryContext,
+                        _lengthToMetersFactor)
+                    .SelectBottomGridGlobalIds(selectedProducts.OfType<IIfcGrid>());
 
                 if (physicalProducts.Count > 0)
                 {
@@ -1277,6 +1283,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     if (productByGlobalId.TryGetValue(preview.GlobalId, out product))
                     {
                         _sourceCache.TryGetValue(product.EntityLabel, out sourceSnapshot);
+                    }
+
+                    if (product is IIfcGrid
+                        && !retainedGridGlobalIds.Contains(preview.GlobalId))
+                    {
+                        continue;
                     }
 
                     IIfcProduct? parentProduct = null;
@@ -1733,7 +1745,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     ElementID = snapshot.ElementId,
                     ElementRevitId = snapshot.RevitId,
                     ElementMark = snapshot.Mark,
-                    ElementName = snapshot.Mark,
+                    ElementName = snapshot.Name,
                     ElementType = snapshot.ElementType,
                     ElementLength = snapshot.ElementLength,
                     ElementWidth = snapshot.ElementWidth,
@@ -1981,6 +1993,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             string ElementId { get; }
             string? RevitId { get; }
             string? Mark { get; }
+            string? Name { get; }
             string ElementType { get; }
             string? Material { get; }
             double? Weight { get; }
@@ -2004,7 +2017,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
             double? ElementWidth,
             double? ElementHeight,
             string? RevitId,
-            string? Mark) : IEngineeringSnapshot
+            string? Mark,
+            string? Name) : IEngineeringSnapshot
         {
             public bool HasEngineeringData =>
                 Geometry?.HasBounds == true ||
@@ -2027,7 +2041,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
             double? ElementWidth,
             double? ElementHeight,
             string? RevitId,
-            string? Mark) : IEngineeringSnapshot
+            string? Mark,
+            string? Name) : IEngineeringSnapshot
         {
             public DomainPoint3D CenterOfGravity =>
                 Geometry?.Center ?? new DomainPoint3D();
@@ -2044,7 +2059,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     parent.ElementWidth,
                     parent.ElementHeight,
                     parent.RevitId,
-                    parent.Mark);
+                    parent.Mark,
+                    parent.Name);
         }
 
         private sealed record GeometrySnapshot(

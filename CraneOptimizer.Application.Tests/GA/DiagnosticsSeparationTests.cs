@@ -228,6 +228,12 @@ namespace CraneOptimizer.Application.Tests.GA
                 Assert.True(hasFinalAssignments, "Missing debug_ga_final_assignments file at Research level");
                 Assert.True(hasBreakdown, "Missing debug_ga_failure_breakdown file at Research level");
                 Assert.True(hasHistory, "Missing debug_ga_run_history file at Research level");
+
+                string diagnosticsPath = Directory.GetFiles(runDirRes, "debug_ga_diagnostics_*.csv").Single();
+                Dictionary<string, string> identityRow = ReadRows(diagnosticsPath)
+                    .Single(row => row["ElementId"] == "E1");
+                Assert.Equal("My BEAM", identityRow["ElementName"]);
+                Assert.Equal("ASM-101", identityRow["CanonicalMark"]);
             }
             finally
             {
@@ -303,6 +309,12 @@ namespace CraneOptimizer.Application.Tests.GA
                 new()
                 {
                     ElementID = "E1",
+                    ElementName = "My BEAM",
+                    ElementMark = "B-101",
+                    AssemblyMark = "ASM-101",
+                    AssemblyMarkIsExplicit = true,
+                    AssemblyMarkConfidence = AssemblyMarkConfidence.High,
+                    ResolvedDisplayMark = "ASM-101",
                     ElementType = "IfcColumn",
                     ResolvedCategory = "Column",
                     ElementCOG = new DomainPoint3D(5, 0, 1),

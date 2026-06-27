@@ -730,6 +730,56 @@ namespace CraneOptimizer.Application.Tests
             Assert.DoesNotContain(gaElements, e => e.ElementID == "ChildPart");
         }
 
+        [Fact]
+        public async Task TestGA_Gating_ExcludesGridFromPlacementInput()
+        {
+            var liftElement = new PrecastElement
+            {
+                ElementID = "LiftElement",
+                ElementType = "Beam",
+                Role = IfcElementRole.LiftableElement,
+                IncludeInGa = true,
+                WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
+                WeightTons = 5.0,
+                ElementWT = 5.0,
+                ElementCOG = new DomainPoint3D(10, 10, 2)
+            };
+            var grid = new PrecastElement
+            {
+                ElementID = "ReferenceGrid",
+                ElementType = "IfcGrid",
+                RawIfcType = "IfcGrid",
+                Role = IfcElementRole.InternalAuxiliary,
+                IncludeInGa = true,
+                WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
+                WeightTons = 1.0,
+                ElementWT = 1.0,
+                ElementCOG = new DomainPoint3D(0, 0, 0)
+            };
+
+            var placementEngine = new MockPlacementEngine();
+            var service = CreatePlacementService(new List<PrecastElement> { liftElement, grid }, placementEngine);
+            var crane = new Crane
+            {
+                Name = "Test Crane",
+                Specifications = new List<CraneSpecification>
+                {
+                    new()
+                    {
+                        MaxRadius = 40,
+                        MaxBoomLength = 50,
+                        LoadChart = new List<TargetPoint> { new() { Radius = 10, BoomLength = 20, Capacity = 50 } }
+                    }
+                }
+            };
+
+            await service.RunOptimizationAsync(new GASettings { EnableMultiStageDiscovery = false }, crane);
+
+            Assert.NotNull(placementEngine.LastInput);
+            Assert.Contains(placementEngine.LastInput.Elements, element => element.ElementID == "LiftElement");
+            Assert.DoesNotContain(placementEngine.LastInput.Elements, element => element.ElementID == "ReferenceGrid");
+        }
+
         // =========================================================================
         // Phase 2 Regression Tests
         // =========================================================================
@@ -768,12 +818,13 @@ namespace CraneOptimizer.Application.Tests
             double? elementWidth,
             double? elementHeight,
             string? revitId,
-            string? mark)
+            string? mark,
+            string? name)
         {
             var type = typeof(IfcReaderRepository).GetNestedType("SourceElementSnapshot", System.Reflection.BindingFlags.NonPublic);
             var ctors = type.GetConstructors(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             var ctor = ctors[0];
-            return ctor.Invoke(new object[] { entityLabel, elementId, elementType, material, weight, volume, null!, elementLength, elementWidth, elementHeight, revitId, mark });
+            return ctor.Invoke(new object[] { entityLabel, elementId, elementType, material, weight, volume, null!, elementLength, elementWidth, elementHeight, revitId, mark, name });
         }
 
         [Fact]
@@ -907,7 +958,8 @@ namespace CraneOptimizer.Application.Tests
                 elementWidth: 0.5,
                 elementHeight: 0.5,
                 revitId: "Revit-12345",
-                mark: "B-SnapMark"
+                mark: "B-SnapMark",
+                name: "Raw Snapshot Name"
             );
 
             var pe = CallToPrecastElement(snapshot);
@@ -915,6 +967,7 @@ namespace CraneOptimizer.Application.Tests
             Assert.NotNull(pe);
             Assert.Equal("GID-SNAPSHOT-TEST", pe.ElementID);
             Assert.Equal("B-SnapMark", pe.AssemblyMark);
+            Assert.Equal("Raw Snapshot Name", pe.ElementName);
             Assert.Equal("Snapshot", pe.AssemblyMarkSource);
             Assert.Equal(AssemblyMarkConfidence.High, pe.AssemblyMarkConfidence);
             Assert.True(pe.AssemblyMarkIsExplicit);

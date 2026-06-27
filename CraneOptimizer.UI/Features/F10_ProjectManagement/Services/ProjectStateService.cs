@@ -20,7 +20,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
         private const string IfcFolder = "Models/IFC";
         private const string DxfFolder = "Models/DXF";
         private const string IfcNormalizationCacheVersionKey = "ifcNormalizationCacheVersion";
-        private const string IfcNormalizationCacheVersion = "revit-explicit-weight-v2";
+        private const string IfcNormalizationCacheVersion = "ifc-identity-grid-ssot-v3";
         private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
         private readonly IProjectCoordinateTransformService _transformService;
@@ -126,6 +126,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 .ConfigureAwait(false);
 
             List<PrecastElement> restoredElements = new();
+            bool requiresIfcCacheRefresh = false;
             if (ifc != null)
             {
                 if (ValidateIfcCache(session.ProjectFolderPath, ifc, out var validationReason))
@@ -146,6 +147,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 else
                 {
                     Debug.WriteLine($"[ProjectState] DB Restore Fallback: Cache is invalid/missing. Reason: {validationReason}");
+                    requiresIfcCacheRefresh = true;
                 }
             }
 
@@ -153,6 +155,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             {
                 IfcFile = ToIfcState(session.ProjectFolderPath, ifc),
                 IfcElements = restoredElements,
+                RequiresIfcCacheRefresh = requiresIfcCacheRefresh,
                 DxfFile = ToModelFileState(session.ProjectFolderPath, dxf),
                 Zones = zones.Select(ToZoneState).ToList(),
                 Cranes = cranes.Select(ToCraneState).ToList(),
@@ -185,7 +188,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
             if (!HasCurrentIfcNormalizationCacheVersion(entity.MetadataJson))
             {
-                validationReason = "IFC normalization cache version is missing or outdated; elements must be rebuilt with current Revit weight/assembly rules.";
+                validationReason = "IFC normalization cache version is missing or outdated; elements must be rebuilt with current identity and grid rules.";
                 return false;
             }
 
@@ -298,13 +301,21 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
             if (canReuseCache && existingFile != null)
             {
-                var dbElementCount = await context.IfcElements
-                    .CountAsync(x => x.IfcFileId == existingFile.Id, cancellationToken)
+                var persistedIdentities = await context.IfcElements
+                    .AsNoTracking()
+                    .Where(x => x.IfcFileId == existingFile.Id)
+                    .Select(x => new { x.GlobalId, x.DisplayName })
+                    .ToListAsync(cancellationToken)
                     .ConfigureAwait(false);
-                if (dbElementCount == 0)
-                {
-                    canReuseCache = false;
-                }
+                var runtimeNames = elements
+                    .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
+                    .GroupBy(element => element.ElementID, StringComparer.Ordinal)
+                    .ToDictionary(group => group.Key, group => group.First().ElementName, StringComparer.Ordinal);
+
+                canReuseCache = persistedIdentities.Count > 0
+                    && persistedIdentities.Count == runtimeNames.Count
+                    && persistedIdentities.All(row => runtimeNames.TryGetValue(row.GlobalId, out var runtimeName)
+                        && string.Equals(row.DisplayName, runtimeName, StringComparison.Ordinal));
             }
 
             if (canReuseCache && existingFile != null)
