@@ -34,6 +34,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
 
         public async Task CreateAsync(LoadChartCraneDto crane)
         {
+            LoadChartCraneValidator.ValidateForSave(crane);
+
             await using var context = await _contextFactory.CreateDbContextAsync();
             await context.Cranes.AddAsync(crane.ToCraneEntity());
             await context.SaveChangesAsync();
@@ -41,6 +43,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
 
         public async Task UpdateAsync(LoadChartCraneDto updatedCrane)
         {
+            LoadChartCraneValidator.ValidateForSave(updatedCrane);
+
             await using var context = await _contextFactory.CreateDbContextAsync();
             var existingCrane = await context.Cranes
                 .Include(crane => crane.Specifications)
@@ -96,7 +100,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                         BoomLength = point.BoomLength,
                         Capacity = point.Capacity,
                         VisualColumnIndex = point.VisualColumnIndex,
-                        VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader
+                        VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader,
+                        NumberOfLines = point.NumberOfLines,
+                        OperatingConditionLabel = string.IsNullOrWhiteSpace(point.OperatingConditionLabel) ? null : point.OperatingConditionLabel
                     });
                 }
             }
@@ -151,7 +157,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                         point.BoomLength,
                         point.Capacity,
                         point.VisualColumnIndex,
-                        point.VisualColumnHeader ?? string.Empty))
+                        point.VisualColumnHeader ?? string.Empty,
+                        point.NumberOfLines,
+                        point.OperatingConditionLabel ?? string.Empty))
                     .ToList(),
                 parsedChart.LoadChartStorageMode,
                 parsedChart.LoadChartCapacityPolicy,
@@ -181,7 +189,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                         BoomLength = point.BoomLength,
                         Capacity = point.Capacity,
                         VisualColumnIndex = point.VisualColumnIndex,
-                        VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader
+                        VisualColumnHeader = string.IsNullOrWhiteSpace(point.VisualColumnHeader) ? null : point.VisualColumnHeader,
+                        NumberOfLines = point.NumberOfLines,
+                        OperatingConditionLabel = string.IsNullOrWhiteSpace(point.OperatingConditionLabel) ? null : point.OperatingConditionLabel
                     })
                     .ToList()
             };

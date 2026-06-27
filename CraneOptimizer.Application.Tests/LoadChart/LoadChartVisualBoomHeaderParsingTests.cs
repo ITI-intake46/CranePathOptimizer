@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using CraneOptimizer.UI.Features.F4_LoadChart.Services;
@@ -81,6 +81,23 @@ namespace CraneOptimizer.Application.Tests.LoadChart
                 }));
 
             Assert.Contains(ambiguousHeader, exception.Message);
+        }
+
+
+        [Fact]
+        public void ExactVisualPreviewHeaderCorrection_CorrectsDroppedDecimal177InRuntimeGridHeader()
+        {
+            var corrected = LoadChartPdfService.CorrectVisualBoomHeaderGridForDisplay(new List<List<string>>
+            {
+                new() { "Radius (m)", "13.2 *", "13.2", "177", "22.2", "26.7", "31.3" },
+                new() { "3", "200", "133.8", "124.4", "120.5", "", "" }
+            });
+
+            Assert.Equal("17.7", corrected[0][3]);
+
+            ParsedLoadChart parsed = LoadChartCsvService.ParseExactVisualRawGrid(corrected);
+            Assert.Contains(parsed.Points, point => Math.Abs(point.BoomLength - 17.7d) < 0.001d);
+            Assert.DoesNotContain(parsed.Points, point => Math.Abs(point.BoomLength - 177d) < 0.001d);
         }
     }
 }

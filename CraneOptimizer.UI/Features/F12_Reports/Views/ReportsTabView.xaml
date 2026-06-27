@@ -15,8 +15,8 @@
                     <StackPanel Margin="0,2,0,0">
                         <Button Style="{StaticResource RibbonSmallBtn}"
                                 Width="142"
-                                ToolTip="Full table: name, type, material, weight, dimensions, volume, storey, IsLiftable"
-                                Click="AllElementsList_Click">
+                                ToolTip="Build an element list report"
+                                Command="{Binding OpenAllElementsReportCommand}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="📋" Margin="0,0,6,0" />
                                 <TextBlock Text="All Elements List" />
@@ -36,8 +36,8 @@
                     <StackPanel Margin="0,2,0,0">
                         <Button Style="{StaticResource RibbonSmallBtn}"
                                 Width="155"
-                                ToolTip="Per-element: Radius, Hoist Height, Hook Load, Available Capacity, LiftStatus"
-                                Click="LiftingSummary_Click">
+                                ToolTip="Build a lifting summary report"
+                                Command="{Binding OpenLiftingSummaryReportCommand}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="⛓" Margin="0,0,6,0" />
                                 <TextBlock Text="Lifting Summary Report" />

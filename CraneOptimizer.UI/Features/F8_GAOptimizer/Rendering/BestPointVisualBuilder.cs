@@ -41,7 +41,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering
                     helixMesh.Normals.Select(normal => new Vector3D(normal.X, normal.Y, normal.Z)));
             }
 
-            var material = new DiffuseMaterial(new SolidColorBrush(Colors.Blue));
+            var brush = System.Windows.Application.Current?.TryFindResource("SelectedCranePointBrush") as Brush
+                ?? new SolidColorBrush(Color.FromRgb(59, 130, 246));
+            var material = new DiffuseMaterial(brush);
             var geometryModel = new GeometryModel3D
             {
                 Geometry = mesh,

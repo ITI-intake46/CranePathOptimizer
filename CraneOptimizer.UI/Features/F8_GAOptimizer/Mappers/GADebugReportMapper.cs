@@ -10,7 +10,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Mappers
     {
         public static GADebugReportDto ToDebugReportDto(this CranePlacementResult result)
         {
-            var coveredElements = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var coveredElements = new HashSet<string>(StringComparer.Ordinal);
             var rows = new List<GADebugReportRowDto>();
 
             for (int index = 0; index < result.Positions.Count; index++)

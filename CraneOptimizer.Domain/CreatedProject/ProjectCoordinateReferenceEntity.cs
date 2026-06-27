@@ -19,6 +19,9 @@ namespace CraneOptimizer.Domain.CreatedProject
         public double RotationToNorthDegrees { get; set; }
         public double Scale { get; set; } = 1.0;
         public string Source { get; set; } = "ManualSinglePoint";
+        public double? Latitude { get; set; }
+        public double? Longitude { get; set; }
+        public string? Description { get; set; }
         public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 

@@ -52,7 +52,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             var elementIds = elements
                 .Where(e => !string.IsNullOrWhiteSpace(e.ElementID))
                 .Select(e => e.ElementID)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct(StringComparer.Ordinal)
                 .ToList();
 
             foreach (var elementId in elementIds)
@@ -62,7 +62,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 for (int i = 0; i < positions.Count; i++)
                 {
                     var pos = positions[i];
-                    var elemResult = pos.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, elementId, StringComparison.OrdinalIgnoreCase));
+                    var elemResult = pos.ElementResults.FirstOrDefault(r => string.Equals(r.ElementId, elementId, StringComparison.Ordinal));
                     if (elemResult != null)
                     {
                         candidates.Add((i, elemResult));

@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.UI.Features.F4_LoadChart.Views;
+using CraneOptimizer.UI.Features.F4_LoadChart.Views;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,6 +13,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
         public ParsedLoadChart? ImportableEnvelopeChart { get; init; }
         public string SourceKind { get; init; } = "Unknown";
         public string SourceDescription { get; init; } = string.Empty;
+        public LoadChartPdfMetadataDto DetectedMetadata { get; init; } = LoadChartPdfMetadataDto.Empty;
         public List<string> Warnings { get; init; } = new();
         public List<List<string>> ExactVisualPreviewGrid { get; init; } = new();
         public string ExactVisualPreviewTitle { get; init; } = string.Empty;

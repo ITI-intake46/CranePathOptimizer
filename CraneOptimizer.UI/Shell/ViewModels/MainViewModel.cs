@@ -8,6 +8,7 @@ using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F3_CraneSetup;
@@ -39,6 +40,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly CraneVisualBuilder _craneVisualBuilder;
         private readonly IProjectStateService _projectStateService;
         private readonly IProjectCoordinateTransformService _transformService;
+        private readonly IImportReadinessService _readinessService;
 
         private Crane? _selectedCrane;
         private bool _disposed;
@@ -74,7 +76,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             IProjectStateService projectStateService,
             SelectionViewModel selection,
             CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel coordinateReference,
-            IProjectCoordinateTransformService transformService)
+            IProjectCoordinateTransformService transformService,
+            IImportReadinessService readinessService)
         {
             Scene = scene;
             Drawing = drawing;
@@ -100,6 +103,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _unitSettings = unitSettings;
             _craneVisualBuilder = craneVisualBuilder;
             _projectStateService = projectStateService;
+            _readinessService = readinessService;
 
             _transformService.ReferenceChanged += OnReferenceChanged;
 
@@ -511,18 +515,20 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _hasCoordinate = true;
 
             var settings = _unitSettings.Current;
-            var zVal = 0.0; // ground/plane Z clearly shown as 0.0 as requested
-            if (_transformService != null && _transformService.IsEnabled)
+            var zVal = 0.0; // default ground Z
+            if (CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowCoordinateReferenceUi && _transformService != null && _transformService.IsEnabled)
             {
                 var localPt = new DomainPoint3D(x, y, zVal);
                 var surveyPt = _transformService.LocalToSurvey(localPt);
-                CoordX = $"{UnitSystem.FormatLength(x, settings)} (E: {surveyPt.X:F3}m)";
-                CoordY = $"{UnitSystem.FormatLength(y, settings)} (N: {surveyPt.Y:F3}m) [Z: {UnitSystem.FormatLength(zVal, settings)} / H: {surveyPt.Z:F3}m Ground]";
+                CoordX = $"{UnitSystem.FormatLength(x, settings)} (Easting: {surveyPt.X:F3} m)";
+                CoordY = $"{UnitSystem.FormatLength(y, settings)} (Northing: {surveyPt.Y:F3} m) [Default Local Z: {UnitSystem.FormatLength(zVal, settings)} | Elevation: {surveyPt.Z:F3} m (Ground)]";
             }
             else
             {
                 CoordX = UnitSystem.FormatLength(x, settings);
-                CoordY = $"{UnitSystem.FormatLength(y, settings)} [Z: {UnitSystem.FormatLength(zVal, settings)} Ground]";
+                // Temporarily hidden by product decision. Keep logic intact for future re-enable.
+                // CoordY = $"{UnitSystem.FormatLength(y, settings)} [Default Local Z: {UnitSystem.FormatLength(zVal, settings)}] (Survey: Not active)";
+                CoordY = $"{UnitSystem.FormatLength(y, settings)} [Default Local Z: {UnitSystem.FormatLength(zVal, settings)}]";
             }
         }
 

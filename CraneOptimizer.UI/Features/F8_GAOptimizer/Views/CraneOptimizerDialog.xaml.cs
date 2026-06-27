@@ -11,6 +11,16 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows;
 using System.Windows;
 using System.Windows.Controls;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.Application.Services;
+using CraneOptimizer.Domain.Diagnostics;
+using System.ComponentModel;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 {
@@ -24,6 +34,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private readonly ISceneService _sceneService;
         private readonly CraneSetupViewModel _craneSetup;
         private readonly ISceneRenderingManager _sceneRenderingManager;
+        private readonly IImportReadinessService _readinessService;
         private readonly CraneOptimizerDialogWorkflow _workflow;
 
         private CranePlacementResult? _currentResult;
@@ -50,7 +61,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             ICraneRepository craneRepository,
             ISceneService sceneService,
             CraneSetupViewModel craneSetup,
-            ISceneRenderingManager sceneRenderingManager)
+            ISceneRenderingManager sceneRenderingManager,
+            IImportReadinessService readinessService)
         {
             InitializeComponent();
 
@@ -59,7 +71,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             _sceneService = sceneService;
             _craneSetup = craneSetup;
             _sceneRenderingManager = sceneRenderingManager;
+            _readinessService = readinessService;
             _workflow = new CraneOptimizerDialogWorkflow(placementService, craneRepository);
+
+            var vm = new CraneOptimizerDialogViewModel();
+            vm.PropertyChanged += OnViewModelPropertyChanged;
+            DataContext = vm;
 
             Loaded += OnLoaded;
             Closed += OnClosed;
@@ -75,6 +92,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         {
             var cranes = await _workflow.LoadCranesAsync();
             CboCrane.ItemsSource = cranes;
+            RefreshLoadChartOperatingSetupOptions(CboCrane.SelectedItem as Crane);
         }
 
         private async void BtnRun_Click(object sender, RoutedEventArgs e)
@@ -107,6 +125,39 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             try
             {
                 var options = CaptureOptions();
+
+                // Refresh readiness summary to evaluate the latest selected target types/selection
+                RefreshReadinessSummary();
+                var vm = DataContext as CraneOptimizerDialogViewModel;
+                if (vm != null && vm.IsElementCheckerEnabled && vm.ReadinessSummary != null)
+                {
+                    if (vm.ReadinessSummary.GaCandidateElements == 0)
+                    {
+                        TxtStatus.Text = "No valid GA candidates.";
+                        ProgBar.IsIndeterminate = false;
+                        ProgBar.Value = 0;
+
+                        var explanation = new StringBuilder();
+                        explanation.AppendLine("Optimization blocked: Zero valid GA candidate elements.");
+                        explanation.AppendLine();
+                        explanation.AppendLine("Details:");
+                        foreach (var msg in vm.ReadinessSummary.Messages)
+                        {
+                            if (msg.Severity == "Error" || msg.Severity == "Warning")
+                            {
+                                explanation.AppendLine($"- [{msg.Code}] {msg.Message}");
+                                if (!string.IsNullOrEmpty(msg.RecommendedAction))
+                                {
+                                    explanation.AppendLine($"  Recommended: {msg.RecommendedAction}");
+                                }
+                            }
+                        }
+
+                        _dialogService.ShowMessage(explanation.ToString());
+                        return;
+                    }
+                }
+
                 if (options.TargetElementTypes.Count == 0)
                 {
                     TxtStatus.Text = "Select at least one target type.";
@@ -125,6 +176,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
                 LatestResult = result;
                 _currentResult = result;
+
+                if (result.ReachabilityDiagnostics != null && result.ReachabilityDiagnostics.MaxHotSpotCoverage < 0.20)
+                {
+                    _dialogService.ShowMessage("The current allowed zones may not provide sufficient crane reach. Consider expanding or relocating the allowed zones.");
+                }
 
                 PointsList.ItemsSource = _workflow.CreatePointItems(result);
 
@@ -275,8 +331,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         {
             PanelResults.Visibility = Visibility.Visible;
 
-            TxtScore.Text = $"Fitness: {result.FitnessScore:F2}";
-            TxtCoverage.Text = $"Total Lifted: {result.LiftedElementCount} / {result.TotalElementCount}";
+            double coveragePct = result.TotalElementCount > 0
+                ? ((double)result.LiftedElementCount / result.TotalElementCount * 100.0)
+                : 0.0;
+
+            TxtScore.Text = $"Coverage: {coveragePct:F2}%";
+            TxtCoverage.Text = $"Lifted: {result.LiftedElementCount} / {result.TotalElementCount} | GA Score: {result.FitnessScore:F2}";
 
             if (!result.Positions.Any())
             {
@@ -315,6 +375,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private CraneOptimizerDialogOptions CaptureOptions()
         {
+            var vm = (CraneOptimizerDialogViewModel)DataContext;
             return new CraneOptimizerDialogOptions(
                 TxtCoverageWeight.Text,
                 TxtRelocationWeight.Text,
@@ -334,10 +395,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtSimilarPositionPenaltyWeight.Text,
                 TxtRelocationDistancePenaltyWeight.Text,
                 TxtMinimumRelocationDistance.Text,
-                TxtDuplicatePositionDistance.Text,
+                null, // Retired DuplicatePositionDistance
                 TxtMutationExplorationMultiplier.Text,
                 TxtPositionSamplingAttempts.Text,
-                TxtMaxRadiusForNormalisation.Text,
+                null, // Retired MaxRadiusForNormalisation
                 TxtPopulationSize.Text,
                 TxtMaxGenerations.Text,
                 TxtDevMutationRate.Text,
@@ -351,21 +412,29 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 TxtSigmaCoolingExponent.Text,
                 TxtMinimumMutationSigma.Text,
                 ChkEnableConcurrentOptimization.IsChecked == true ? "true" : "false",
-                TxtSlewOffsetX.Text,
-                TxtSlewOffsetY.Text,
-                TxtSlewOffsetZ.Text,
-                TxtBoomHingeOffsetX.Text,
-                TxtBoomHingeOffsetY.Text,
-                TxtBoomHingeOffsetZ.Text,
-                TxtCraneFootprintRadius.Text,
+                null, // Retired SlewOffsetX
+                null, // Retired SlewOffsetY
+                null, // Retired SlewOffsetZ
+                null, // Retired BoomHingeOffsetX
+                null, // Retired BoomHingeOffsetY
+                null, // Retired BoomHingeOffsetZ
+                null, // Retired CraneFootprintRadius
                 ChkEnableProfiling.IsChecked == true ? "true" : "false",
-                TxtProfilingLogDirectory.Text);
+                null, // Retired ProfilingLogDirectory
+                vm.EnableMultiStageDiscovery ? "true" : "false",
+                vm.MultiStageCoverageTarget.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                vm.AdaptiveRelocationScaleFactor.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                vm.UseHungarianAssignment ? "true" : "false",
+                vm.SelectedLoadChartOperatingSetupOption.NumberOfLinesConstraint,
+                vm.SelectedLoadChartOperatingSetupOption.OperatingConditionConstraint,
+                vm.SelectedGaModePresetOption.Mode);
         }
 
         private void RefreshSceneCache()
         {
             _cachedElements = _sceneService.GetElements() ?? new List<PrecastElement>();
             RefreshTargetElementTypes();
+            RefreshReadinessSummary();
         }
 
         private void RefreshTargetElementTypes()
@@ -468,7 +537,17 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private double CalculateMarkerRadius() => 0.2;
         private double CalculateMarkerZ(double r) => 0.5;
 
-        private void CboCrane_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
+        private void CboCrane_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            RefreshLoadChartOperatingSetupOptions(CboCrane.SelectedItem as Crane);
+        }
+
+        private void RefreshLoadChartOperatingSetupOptions(Crane? crane)
+        {
+            if (DataContext is CraneOptimizerDialogViewModel vm)
+                vm.RefreshLoadChartOperatingSetupOptions(crane);
+        }
+
         private void RbExclusion_Checked(object sender, RoutedEventArgs e) { }
 
         private void BtnApply_Click(object sender, RoutedEventArgs e)
@@ -510,6 +589,52 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 option.IsSelected = checkBox.IsChecked == true;
 
             UpdateTargetElementSummary();
+            RefreshReadinessSummary();
+        }
+
+        private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(CraneOptimizerDialogViewModel.IsElementCheckerEnabled))
+            {
+                RefreshReadinessSummary();
+            }
+        }
+
+        private List<PrecastElement> GetScopedElements()
+        {
+            var sceneElements = _sceneService.GetElements() ?? new List<PrecastElement>();
+
+            // 1. Filter by selection
+            var selectedElements = _sceneService.GetSelectedElements();
+            if (selectedElements != null && selectedElements.Count > 0)
+            {
+                var selectedIds = selectedElements.Select(e => e.ElementID).Where(id => !string.IsNullOrEmpty(id)).ToHashSet();
+                sceneElements = sceneElements.Where(e => selectedIds.Contains(e.ElementID)).ToList();
+            }
+
+            // 2. Filter by target types
+            var selectedTypes = GetSelectedTargetElementTypes();
+            if (selectedTypes != null && selectedTypes.Count > 0)
+            {
+                var typeSet = selectedTypes.Select(t => t.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                sceneElements = sceneElements.Where(e => typeSet.Contains(NormalizeElementType(e.ElementType))).ToList();
+            }
+            else
+            {
+                sceneElements = new List<PrecastElement>();
+            }
+
+            return sceneElements;
+        }
+
+        private void RefreshReadinessSummary()
+        {
+            var vm = DataContext as CraneOptimizerDialogViewModel;
+            if (vm == null) return;
+
+            var scopedElements = GetScopedElements();
+            var summary = _readinessService.BuildSummary(scopedElements, vm.IsElementCheckerEnabled);
+            vm.ReadinessSummary = summary;
         }
 
         private sealed class ElementTypeFilterOption

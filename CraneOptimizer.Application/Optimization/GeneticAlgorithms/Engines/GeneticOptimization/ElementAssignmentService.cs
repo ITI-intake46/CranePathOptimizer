@@ -73,7 +73,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 Dictionary<string, int>? assignmentLookup = null;
                 if (assignment != null && assignment.Count > 0)
                 {
-                    assignmentLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    assignmentLookup = new Dictionary<string, int>(StringComparer.Ordinal);
                     foreach (var entry in assignment)
                     {
                         if (entry.Value != null)
@@ -152,7 +152,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 Dictionary<string, int>? assignmentLookup = null;
                 if (assignment != null && assignment.Count > 0)
                 {
-                    assignmentLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    assignmentLookup = new Dictionary<string, int>(StringComparer.Ordinal);
                     foreach (var entry in assignment)
                     {
                         if (entry.Value != null)
@@ -457,6 +457,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 Radius = radius,
                 BoomLength = boomLength,
                 AvailableCapacity = resolveResult.AvailableCapacity,
+                RawChartCapacity = resolveResult.RawChartCapacity,
                 RequiredCapacity = requiredCapacity,
                 ReachStatus = resolveResult.ReachStatus,
                 ChartStatus = resolveResult.ChartStatus,
@@ -469,6 +470,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 RequiredRadius = radius,
                 SelectedChartRadius = resolveResult.SelectedChartRadius,
                 SelectedChartBoomLength = resolveResult.SelectedChartBoomLength,
+                SelectedVisualColumnIndex = resolveResult.SelectedVisualColumnIndex,
+                SelectedVisualColumnHeader = resolveResult.SelectedVisualColumnHeader,
+                SelectedNumberOfLines = resolveResult.SelectedNumberOfLines,
+                SelectedOperatingConditionLabel = resolveResult.SelectedOperatingConditionLabel,
+                IsConservativeDuplicateFallback = resolveResult.IsConservativeDuplicateFallback,
+                DuplicateAlternativeCount = resolveResult.DuplicateAlternativeCount,
+                DuplicateAlternativeSummary = resolveResult.DuplicateAlternativeSummary,
                 CraneBaseX = cranePosition.X,
                 CraneBaseY = cranePosition.Y,
                 CraneBaseZ = cranePosition.Z,
@@ -563,6 +571,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 Radius = radius,
                 BoomLength = boomLength,
                 AvailableCapacity = resolveResult.AvailableCapacity,
+                RawChartCapacity = resolveResult.RawChartCapacity,
                 RequiredCapacity = requiredCapacity,
                 ReachStatus = resolveResult.ReachStatus,
                 ChartStatus = resolveResult.ChartStatus,
@@ -575,6 +584,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 RequiredRadius = radius,
                 SelectedChartRadius = resolveResult.SelectedChartRadius,
                 SelectedChartBoomLength = resolveResult.SelectedChartBoomLength,
+                SelectedVisualColumnIndex = resolveResult.SelectedVisualColumnIndex,
+                SelectedVisualColumnHeader = resolveResult.SelectedVisualColumnHeader,
+                SelectedNumberOfLines = resolveResult.SelectedNumberOfLines,
+                SelectedOperatingConditionLabel = resolveResult.SelectedOperatingConditionLabel,
+                IsConservativeDuplicateFallback = resolveResult.IsConservativeDuplicateFallback,
+                DuplicateAlternativeCount = resolveResult.DuplicateAlternativeCount,
+                DuplicateAlternativeSummary = resolveResult.DuplicateAlternativeSummary,
                 CraneBaseX = cranePosition.X,
                 CraneBaseY = cranePosition.Y,
                 CraneBaseZ = cranePosition.Z,
@@ -626,6 +642,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 RequiredRadius = 0,
                 SelectedChartRadius = 0,
                 SelectedChartBoomLength = 0,
+                SelectedVisualColumnIndex = null,
+                SelectedVisualColumnHeader = string.Empty,
+                SelectedNumberOfLines = null,
+                SelectedOperatingConditionLabel = string.Empty,
+                IsConservativeDuplicateFallback = false,
+                DuplicateAlternativeCount = 0,
+                DuplicateAlternativeSummary = string.Empty,
                 RadiusOriginType = "SlewCenter",
                 BoomOriginType = "BoomHinge",
                 CandidateBoomsChecked = string.Empty,

@@ -13,8 +13,16 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public CraneSpecification CraneSpec { get; set; }
         public GASettings Settings { get; set; }
         public string? ProjectName { get; set; }
+        public string? ProjectId { get; set; }
         public string? ProjectFolderPath { get; set; }
         public string? IfcFileName { get; set; }
+        public string? ScenarioId { get; set; }
+        public string? ProjectFeatureSnapshotId { get; set; }
+        public string? ScopeDefinitionHash { get; set; }
+        public int RawElementCount { get; set; }
+        public int OptimizationScopeElementCount { get; set; }
+        public int RequestedMaxCranePositions { get; set; }
+        public List<PrecastElement> FeatureScopeElements { get; set; } = new();
         public int TotalElementsCount { get; set; }
         public string? DiagnosticsReportsDirectory { get; set; }
     }

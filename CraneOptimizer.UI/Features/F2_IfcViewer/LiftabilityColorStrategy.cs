@@ -22,6 +22,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 LiftStatus.Overweight => ElementVisualizationStatus.Overweight,
                 LiftStatus.OutOfRadius => ElementVisualizationStatus.OutOfRadius,
                 LiftStatus.HeightFail => ElementVisualizationStatus.HeightIssue,
+                LiftStatus.SpecialCase => ElementVisualizationStatus.SpecialCase,
+                LiftStatus.NotCharted => ElementVisualizationStatus.ChartDataIssue,
                 _ => ElementVisualizationStatus.Default
             };
         }

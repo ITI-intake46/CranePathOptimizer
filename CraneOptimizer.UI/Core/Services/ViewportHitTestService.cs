@@ -18,7 +18,8 @@ namespace CraneOptimizer.UI.Core.Services
 
             try
             {
-                bool ok = Viewport3DHelper.Point2DtoPoint3D(viewport.Viewport, screenPt, out Point3D near, out Point3D far);
+                var innerPt = ToInnerViewportPoint(viewport, screenPt);
+                bool ok = Viewport3DHelper.Point2DtoPoint3D(viewport.Viewport, innerPt, out Point3D near, out Point3D far);
                 if (!ok) return false;
 
                 var dir = far - near;
@@ -36,7 +37,7 @@ namespace CraneOptimizer.UI.Core.Services
 
             try
             {
-                var hit = viewport.FindNearestPoint(screenPt);
+                var hit = viewport.FindNearestPoint(ToInnerViewportPoint(viewport, screenPt));
                 if (hit.HasValue)
                 {
                     worldPoint = hit.Value;
@@ -95,6 +96,10 @@ namespace CraneOptimizer.UI.Core.Services
         public static bool FellBackToNativeHitTesting { get; set; }
         public static int HitTestRegistryCount { get; set; }
 
+        public static int TotalHitTestCount { get; set; }
+        public static double TotalHitTestDurationMs { get; set; }
+        public static double MaxHitTestDurationMs { get; set; }
+
         // Narrow-phase configuration and timing diagnostics
         public static int MaxNarrowPhaseCandidates { get; set; } = 50;
         public static double SafeNarrowPhaseThresholdMs { get; set; } = 50.0;
@@ -117,6 +122,10 @@ namespace CraneOptimizer.UI.Core.Services
             UsedSpatialHitTesting = false;
             FellBackToNativeHitTesting = false;
             HitTestRegistryCount = 0;
+
+            TotalHitTestCount = 0;
+            TotalHitTestDurationMs = 0;
+            MaxHitTestDurationMs = 0;
 
             NarrowPhaseDurationMs = 0;
             BroadPhaseDurationMs = 0;
@@ -259,219 +268,244 @@ namespace CraneOptimizer.UI.Core.Services
             return score;
         }
 
+        private static Point ToInnerViewportPoint(HelixViewport3D viewport, Point helixPoint)
+        {
+            try
+            {
+                return viewport.TranslatePoint(helixPoint, viewport.Viewport);
+            }
+            catch
+            {
+                return helixPoint;
+            }
+        }
+
         public object? GetHitObject(HelixViewport3D viewport, Point screenPt)
         {
-            ResetDiagnostics();
-            HitTestRegistryCount = ElementVisualBuilder.SpatialHitTestElementCount;
-
-            if (ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes)
+            var totalSw = System.Diagnostics.Stopwatch.StartNew();
+            try
             {
-                UsedSpatialHitTesting = true;
-                var sw = System.Diagnostics.Stopwatch.StartNew();
-                var broadSw = System.Diagnostics.Stopwatch.StartNew();
-                try
+                ResetDiagnostics();
+                HitTestRegistryCount = ElementVisualBuilder.SpatialHitTestElementCount;
+                var innerPt = ToInnerViewportPoint(viewport, screenPt);
+
+                if (ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes)
                 {
-                    bool ok = Viewport3DHelper.Point2DtoPoint3D(viewport.Viewport, screenPt, out Point3D near, out Point3D far);
-                    if (ok)
+                    UsedSpatialHitTesting = true;
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    var broadSw = System.Diagnostics.Stopwatch.StartNew();
+                    try
                     {
-                        var dir = far - near;
-                        if (dir.LengthSquared > 1e-18)
+                        bool ok = Viewport3DHelper.Point2DtoPoint3D(viewport.Viewport, innerPt, out Point3D near, out Point3D far);
+                        if (ok)
                         {
-                            dir.Normalize();
-                            var candidates = ElementVisualBuilder.GetSpatialHitTestElements();
-                            SpatialHitTestCandidateCount = candidates.Count;
-                            MeshDerivedAABBCount = candidates.Count(c => c.UsedMeshDerivedBounds);
-                            CogFallbackAABBCount = candidates.Count(c => !c.UsedMeshDerivedBounds);
-
-                            // Broad-phase: AABB raycasts
-                            var intersectedCandidates = new List<(ElementVisualBuilder.SpatialHitTestElement Candidate, double TNear)>();
-                            foreach (var candidate in candidates)
+                            var dir = far - near;
+                            if (dir.LengthSquared > 1e-18)
                             {
-                                if (!candidate.IsVisible) continue;
-                                if (candidate.Element == null) continue;
+                                dir.Normalize();
+                                var candidates = ElementVisualBuilder.GetSpatialHitTestElements();
+                                SpatialHitTestCandidateCount = candidates.Count;
+                                MeshDerivedAABBCount = candidates.Count(c => c.UsedMeshDerivedBounds);
+                                CogFallbackAABBCount = candidates.Count(c => !c.UsedMeshDerivedBounds);
 
-                                if (RayIntersectsAABB(near, dir, candidate.Min, candidate.Max, out double tNear))
+                                // Broad-phase: AABB raycasts
+                                var intersectedCandidates = new List<(ElementVisualBuilder.SpatialHitTestElement Candidate, double TNear)>();
+                                foreach (var candidate in candidates)
                                 {
-                                    intersectedCandidates.Add((candidate, tNear));
-                                }
-                            }
+                                    if (!candidate.IsVisible) continue;
+                                    if (candidate.Element == null) continue;
 
-                            broadSw.Stop();
-                            BroadPhaseDurationMs = broadSw.Elapsed.TotalMilliseconds;
-                            BroadPhaseCandidateCount = intersectedCandidates.Count;
-
-                            System.Diagnostics.Debug.WriteLine($"[ViewportHitTestService] Broad-phase: Selected {intersectedCandidates.Count} intersected candidates out of {candidates.Count} total. MeshDerived count: {MeshDerivedAABBCount}, CogFallback count: {CogFallbackAABBCount}.");
-
-                            if (intersectedCandidates.Count > 0)
-                            {
-                                // Sort candidates by tNear ascending
-                                var sortedCandidates = intersectedCandidates
-                                    .OrderBy(c => c.TNear)
-                                    .ToList();
-
-                                // Select up to MaxNarrowPhaseCandidates
-                                var narrowCandidates = sortedCandidates
-                                    .Take(MaxNarrowPhaseCandidates)
-                                    .ToList();
-
-                                var narrowSw = System.Diagnostics.Stopwatch.StartNew();
-                                PrecastElement? bestTriangleElement = null;
-                                double bestTriangleDist = double.MaxValue;
-
-                                bool hasMeshCandidates = narrowCandidates.Any(c => c.Candidate.Meshes != null && c.Candidate.Meshes.Count > 0);
-
-                                if (hasMeshCandidates)
-                                {
-                                    foreach (var c in narrowCandidates)
+                                    if (RayIntersectsAABB(near, dir, candidate.Min, candidate.Max, out double tNear))
                                     {
-                                        var candidate = c.Candidate;
-                                        if (candidate.Meshes == null || candidate.Meshes.Count == 0)
-                                            continue;
+                                        intersectedCandidates.Add((candidate, tNear));
+                                    }
+                                }
 
-                                        foreach (var m in candidate.Meshes)
+                                broadSw.Stop();
+                                BroadPhaseDurationMs = broadSw.Elapsed.TotalMilliseconds;
+                                BroadPhaseCandidateCount = intersectedCandidates.Count;
+
+                                System.Diagnostics.Debug.WriteLine($"[ViewportHitTestService] Broad-phase: Selected {intersectedCandidates.Count} intersected candidates out of {candidates.Count} total. MeshDerived count: {MeshDerivedAABBCount}, CogFallback count: {CogFallbackAABBCount}.");
+
+                                if (intersectedCandidates.Count > 0)
+                                {
+                                    // Sort candidates by tNear ascending
+                                    var sortedCandidates = intersectedCandidates
+                                        .OrderBy(c => c.TNear)
+                                        .ToList();
+
+                                    // Select up to MaxNarrowPhaseCandidates
+                                    var narrowCandidates = sortedCandidates
+                                        .Take(MaxNarrowPhaseCandidates)
+                                        .ToList();
+
+                                    var narrowSw = System.Diagnostics.Stopwatch.StartNew();
+                                    PrecastElement? bestTriangleElement = null;
+                                    double bestTriangleDist = double.MaxValue;
+
+                                    bool hasMeshCandidates = narrowCandidates.Any(c => c.Candidate.Meshes != null && c.Candidate.Meshes.Count > 0);
+
+                                    if (hasMeshCandidates)
+                                    {
+                                        foreach (var c in narrowCandidates)
                                         {
-                                            var mesh = m.Mesh;
-                                            var transform = m.Transform;
-                                            var positions = mesh.Positions;
-                                            var indices = mesh.TriangleIndices;
+                                            var candidate = c.Candidate;
+                                            if (candidate.Meshes == null || candidate.Meshes.Count == 0)
+                                                continue;
 
-                                            for (int i = 0; i + 2 < indices.Count; i += 3)
+                                            foreach (var m in candidate.Meshes)
                                             {
-                                                var p0 = transform.Transform(positions[indices[i]]);
-                                                var p1 = transform.Transform(positions[indices[i + 1]]);
-                                                var p2 = transform.Transform(positions[indices[i + 2]]);
+                                                var mesh = m.Mesh;
+                                                var transform = m.Transform;
+                                                var positions = mesh.Positions;
+                                                var indices = mesh.TriangleIndices;
 
-                                                NarrowPhaseTestsCount++;
-
-                                                if (RayTriangleIntersect(near, dir, p0, p1, p2, out double tTriangle))
+                                                for (int i = 0; i + 2 < indices.Count; i += 3)
                                                 {
-                                                    if (tTriangle < bestTriangleDist)
+                                                    var p0 = transform.Transform(positions[indices[i]]);
+                                                    var p1 = transform.Transform(positions[indices[i + 1]]);
+                                                    var p2 = transform.Transform(positions[indices[i + 2]]);
+
+                                                    NarrowPhaseTestsCount++;
+
+                                                    if (RayTriangleIntersect(near, dir, p0, p1, p2, out double tTriangle))
                                                     {
-                                                        bestTriangleDist = tTriangle;
-                                                        bestTriangleElement = candidate.Element;
+                                                        if (tTriangle < bestTriangleDist)
+                                                        {
+                                                            bestTriangleDist = tTriangle;
+                                                            bestTriangleElement = candidate.Element;
+                                                        }
                                                     }
                                                 }
                                             }
+
+                                            // Safety check
+                                            if (narrowSw.Elapsed.TotalMilliseconds > SafeNarrowPhaseThresholdMs)
+                                            {
+                                                NarrowPhaseTimedOut = true;
+                                                System.Diagnostics.Debug.WriteLine($"[ViewportHitTestService] Warning: Narrow phase refinement exceeded {SafeNarrowPhaseThresholdMs}ms threshold. Graceful fallback triggered.");
+                                                break;
+                                            }
                                         }
 
-                                        // Safety check
-                                        if (narrowSw.Elapsed.TotalMilliseconds > SafeNarrowPhaseThresholdMs)
+                                        narrowSw.Stop();
+                                        NarrowPhaseDurationMs = narrowSw.Elapsed.TotalMilliseconds;
+
+                                        if (bestTriangleElement != null)
                                         {
-                                            NarrowPhaseTimedOut = true;
-                                            System.Diagnostics.Debug.WriteLine($"[ViewportHitTestService] Warning: Narrow phase refinement exceeded {SafeNarrowPhaseThresholdMs}ms threshold. Graceful fallback triggered.");
-                                            break;
+                                            var pickedCandidate = narrowCandidates.FirstOrDefault(c => c.Candidate.Element == bestTriangleElement).Candidate;
+                                            PickedUsedMeshDerivedBounds = pickedCandidate?.UsedMeshDerivedBounds ?? false;
+                                            sw.Stop();
+                                            SpatialHitTestDurationMs = sw.Elapsed.TotalMilliseconds;
+                                            PickedElementId = bestTriangleElement.ElementID;
+
+                                            // Diagnostics log
+                                            System.Diagnostics.Debug.WriteLine($"[HitTest Diagnosis] Selected ElementID: {bestTriangleElement.ElementID}");
+                                            System.Diagnostics.Debug.WriteLine($"  Type: {bestTriangleElement.ElementType}");
+                                            System.Diagnostics.Debug.WriteLine($"  COG: {bestTriangleElement.ElementCOG}");
+                                            System.Diagnostics.Debug.WriteLine($"  COG BBox Size: {bestTriangleElement.BBoxLength} x {bestTriangleElement.BBoxWidth} x {bestTriangleElement.BBoxHeight}");
+                                            if (pickedCandidate != null)
+                                            {
+                                                System.Diagnostics.Debug.WriteLine($"  Mesh Bounds: Min={pickedCandidate.Min}, Max={pickedCandidate.Max}");
+                                            }
+                                            System.Diagnostics.Debug.WriteLine($"  Reason: Ray-Triangle intersection in narrow phase (distance={bestTriangleDist:F4})");
+
+                                            return bestTriangleElement;
+                                        }
+                                        else
+                                        {
+                                            // If meshes are available but no triangle is hit, then it's an empty-space click!
+                                            // Return null immediately and do not perform fallback AABB scoring.
+                                            sw.Stop();
+                                            SpatialHitTestDurationMs = sw.Elapsed.TotalMilliseconds;
+                                            return null;
                                         }
                                     }
 
-                                    narrowSw.Stop();
-                                    NarrowPhaseDurationMs = narrowSw.Elapsed.TotalMilliseconds;
+                                    // Fallback: no triangles intersected, or mesh data unavailable
+                                    // Use fallback scoring to choose the best candidate
+                                    double bestScore = double.MaxValue;
+                                    PrecastElement? bestFallbackElement = null;
 
-                                    if (bestTriangleElement != null)
+                                    foreach (var c in sortedCandidates)
                                     {
-                                        var pickedCandidate = narrowCandidates.FirstOrDefault(c => c.Candidate.Element == bestTriangleElement).Candidate;
+                                        double score = ComputeFallbackScore(near, dir, c.TNear, c.Candidate);
+                                        if (score < bestScore)
+                                        {
+                                            bestScore = score;
+                                            bestFallbackElement = c.Candidate.Element;
+                                        }
+                                    }
+
+                                    if (bestFallbackElement != null)
+                                    {
+                                        var pickedCandidate = candidates.FirstOrDefault(c => c.Element == bestFallbackElement);
                                         PickedUsedMeshDerivedBounds = pickedCandidate?.UsedMeshDerivedBounds ?? false;
                                         sw.Stop();
                                         SpatialHitTestDurationMs = sw.Elapsed.TotalMilliseconds;
-                                        PickedElementId = bestTriangleElement.ElementID;
+                                        PickedElementId = bestFallbackElement.ElementID;
 
                                         // Diagnostics log
-                                        System.Diagnostics.Debug.WriteLine($"[HitTest Diagnosis] Selected ElementID: {bestTriangleElement.ElementID}");
-                                        System.Diagnostics.Debug.WriteLine($"  Type: {bestTriangleElement.ElementType}");
-                                        System.Diagnostics.Debug.WriteLine($"  COG: {bestTriangleElement.ElementCOG}");
-                                        System.Diagnostics.Debug.WriteLine($"  COG BBox Size: {bestTriangleElement.BBoxLength} x {bestTriangleElement.BBoxWidth} x {bestTriangleElement.BBoxHeight}");
+                                        System.Diagnostics.Debug.WriteLine($"[HitTest Diagnosis] Selected ElementID (Fallback): {bestFallbackElement.ElementID}");
+                                        System.Diagnostics.Debug.WriteLine($"  Type: {bestFallbackElement.ElementType}");
+                                        System.Diagnostics.Debug.WriteLine($"  COG: {bestFallbackElement.ElementCOG}");
+                                        System.Diagnostics.Debug.WriteLine($"  COG BBox Size: {bestFallbackElement.BBoxLength} x {bestFallbackElement.BBoxWidth} x {bestFallbackElement.BBoxHeight}");
                                         if (pickedCandidate != null)
                                         {
-                                            System.Diagnostics.Debug.WriteLine($"  Mesh Bounds: Min={pickedCandidate.Min}, Max={pickedCandidate.Max}");
+                                            System.Diagnostics.Debug.WriteLine($"  AABB Bounds: Min={pickedCandidate.Min}, Max={pickedCandidate.Max}");
                                         }
-                                        System.Diagnostics.Debug.WriteLine($"  Reason: Ray-Triangle intersection in narrow phase (distance={bestTriangleDist:F4})");
+                                        System.Diagnostics.Debug.WriteLine($"  Reason: Fallback AABB proximity score (score={bestScore:F4})");
 
-                                        return bestTriangleElement;
+                                        return bestFallbackElement;
                                     }
-                                    else
-                                    {
-                                        // If meshes are available but no triangle is hit, then it's an empty-space click!
-                                        // Return null immediately and do not perform fallback AABB scoring.
-                                        sw.Stop();
-                                        SpatialHitTestDurationMs = sw.Elapsed.TotalMilliseconds;
-                                        return null;
-                                    }
-                                }
-
-                                // Fallback: no triangles intersected, or mesh data unavailable
-                                // Use fallback scoring to choose the best candidate
-                                double bestScore = double.MaxValue;
-                                PrecastElement? bestFallbackElement = null;
-
-                                foreach (var c in sortedCandidates)
-                                {
-                                    double score = ComputeFallbackScore(near, dir, c.TNear, c.Candidate);
-                                    if (score < bestScore)
-                                    {
-                                        bestScore = score;
-                                        bestFallbackElement = c.Candidate.Element;
-                                    }
-                                }
-
-                                if (bestFallbackElement != null)
-                                {
-                                    var pickedCandidate = candidates.FirstOrDefault(c => c.Element == bestFallbackElement);
-                                    PickedUsedMeshDerivedBounds = pickedCandidate?.UsedMeshDerivedBounds ?? false;
-                                    sw.Stop();
-                                    SpatialHitTestDurationMs = sw.Elapsed.TotalMilliseconds;
-                                    PickedElementId = bestFallbackElement.ElementID;
-
-                                    // Diagnostics log
-                                    System.Diagnostics.Debug.WriteLine($"[HitTest Diagnosis] Selected ElementID (Fallback): {bestFallbackElement.ElementID}");
-                                    System.Diagnostics.Debug.WriteLine($"  Type: {bestFallbackElement.ElementType}");
-                                    System.Diagnostics.Debug.WriteLine($"  COG: {bestFallbackElement.ElementCOG}");
-                                    System.Diagnostics.Debug.WriteLine($"  COG BBox Size: {bestFallbackElement.BBoxLength} x {bestFallbackElement.BBoxWidth} x {bestFallbackElement.BBoxHeight}");
-                                    if (pickedCandidate != null)
-                                    {
-                                        System.Diagnostics.Debug.WriteLine($"  AABB Bounds: Min={pickedCandidate.Min}, Max={pickedCandidate.Max}");
-                                    }
-                                    System.Diagnostics.Debug.WriteLine($"  Reason: Fallback AABB proximity score (score={bestScore:F4})");
-
-                                    return bestFallbackElement;
                                 }
                             }
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[ViewportHitTestService] Error in spatial hit testing: {ex.Message}");
-                }
-                sw.Stop();
-                SpatialHitTestDurationMs = sw.Elapsed.TotalMilliseconds;
-            }
-
-            // Fallback to legacy native hit-testing
-            FellBackToNativeHitTesting = true;
-            try
-            {
-                var hits = viewport.Viewport.FindHits(screenPt);
-                if (hits != null && hits.Count > 0)
-                {
-                    foreach (var hit in hits)
+                    catch (Exception ex)
                     {
-                        if (hit.Visual is not ModelVisual3D mv)
-                            continue;
+                        System.Diagnostics.Debug.WriteLine($"[ViewportHitTestService] Error in spatial hit testing: {ex.Message}");
+                    }
+                    sw.Stop();
+                    SpatialHitTestDurationMs = sw.Elapsed.TotalMilliseconds;
+                }
 
-                        var tag = mv.GetValue(FrameworkElement.TagProperty);
-                        if (tag != null && tag is not string)
+                // Fallback to legacy native hit-testing (same coordinate space as SelectionHandler.FindHits)
+                FellBackToNativeHitTesting = true;
+                try
+                {
+                    var hits = viewport.Viewport.FindHits(innerPt);
+                    if (hits != null && hits.Count > 0)
+                    {
+                        foreach (var hit in hits)
                         {
-                            if (tag is PrecastElement el)
+                            if (hit.Visual is not ModelVisual3D mv)
+                                continue;
+
+                            var tag = mv.GetValue(FrameworkElement.TagProperty);
+                            if (tag != null && tag is not string)
                             {
-                                PickedElementId = el.ElementID;
+                                if (tag is PrecastElement el)
+                                {
+                                    PickedElementId = el.ElementID;
+                                }
+                                return tag;
                             }
-                            return tag;
                         }
                     }
                 }
-            }
-            catch { }
+                catch { }
 
-            return null;
+                return null;
+            }
+            finally
+            {
+                totalSw.Stop();
+                var duration = totalSw.Elapsed.TotalMilliseconds;
+                TotalHitTestCount++;
+                TotalHitTestDurationMs += duration;
+                MaxHitTestDurationMs = Math.Max(MaxHitTestDurationMs, duration);
+            }
         }
     }
 }

@@ -19,7 +19,7 @@ namespace CraneOptimizer.UI.Core.Services
         private readonly IElementVisibilityFilterService _filterService;
         private readonly IRenderDiagnosticsStore _diagnosticsStore;
         private readonly List<PrecastElement> _sceneElements = new();
-        private Dictionary<string, List<System.Windows.Media.Media3D.GeometryModel3D>> _renderedElementModels = new(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, List<System.Windows.Media.Media3D.GeometryModel3D>> _renderedElementModels = new(StringComparer.Ordinal);
         // Persistent builder so per-crane MobileCraneVisual3D and the
         // INotifyPropertyChanged -> Rebuild plumbing survive across renders.
         private readonly CraneVisualBuilder _craneBuilder;
@@ -102,14 +102,14 @@ namespace CraneOptimizer.UI.Core.Services
             var memBefore = GetPrivateMemoryMB();
 
             var liftResults = _context.GetLiftResults();
-            bool hasFinalAssignments = liftResults != null && liftResults.Any(r => r.IsFinalAssignedToPoint);
+            bool hasFinalAssignments = liftResults != null && liftResults.Any(r => r.IsFinalAssigned);
             string selectedPointId = liftResults?.FirstOrDefault(r => !string.IsNullOrEmpty(r.CandidatePointId))?.CandidatePointId ?? string.Empty;
 
             var viewMode = _context.GetGAViewMode?.Invoke() ?? GAViewMode.FinalAssignment;
 
             var statusMap = liftResults
                 ?.Where(result => !string.IsNullOrWhiteSpace(result.ElementId))
-                .GroupBy(result => result.ElementId, StringComparer.OrdinalIgnoreCase)
+                .GroupBy(result => result.ElementId, StringComparer.Ordinal)
                 .ToDictionary(
                     group => group.Key,
                     group =>
@@ -147,9 +147,9 @@ namespace CraneOptimizer.UI.Core.Services
                             return (LiftStatus?)item.Status;
                         }
                     },
-                    StringComparer.OrdinalIgnoreCase);
+                    StringComparer.Ordinal);
 
-            var selectedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var selectedIds = new HashSet<string>(StringComparer.Ordinal);
             if (_context.GetSelectedElementIds != null)
             {
                 var ids = _context.GetSelectedElementIds();
@@ -189,6 +189,9 @@ namespace CraneOptimizer.UI.Core.Services
                 "Elements");
 
             _renderedElementModels = builder.ElementModelRegistry;
+
+            // Apply exact visual states (including AssignedToOtherPoint) immediately after rendering
+            UpdateElementMaterials(liftResults);
 
             sw.Stop();
             var memAfter = GetPrivateMemoryMB();
@@ -236,7 +239,8 @@ namespace CraneOptimizer.UI.Core.Services
                 $"Visible={stats.VisibleElements} Skipped={stats.IncludeInRenderSkippedCount} " +
                 $"BatchedGroups={stats.BatchedGroupCount} HitBoxes={stats.HitTestBoxCount} " +
                 $"RenderGeomModels={stats.RenderGeometryModel3DCount} HitTestGeomModels={stats.HitTestGeometryModel3DCount} " +
-                $"HQCacheHits={stats.HighQualityMeshCacheHitCount} HQCacheMisses={stats.HighQualityMeshCacheMissCount} " +
+                $"MeshCacheHits={stats.MeshCacheHitCount} MeshCacheMisses={stats.MeshCacheMissCount} MeshCacheHitRatio={stats.MeshCacheHitRatio:P1} " +
+                $"HQCacheHits={stats.HighQualityMeshCacheHitCount} HQCacheMisses={stats.HighQualityMeshCacheMissCount} HQCacheHitRatio={stats.HighQualityMeshCacheHitRatio:P1} " +
                 $"HQMeshesCreated={stats.HighQualityMeshesCreatedCount} HQCacheSize={stats.HighQualityCacheCount} " +
                 $"DurationMs={stats.RenderDurationMs:F1} MemBefore={memBefore:F1}MB MemAfter={memAfter:F1}MB");
         }
@@ -253,14 +257,14 @@ namespace CraneOptimizer.UI.Core.Services
             }
 
             var liftResults = results ?? _context.GetLiftResults();
-            bool hasFinalAssignments = liftResults != null && liftResults.Any(r => r.IsFinalAssignedToPoint);
+            bool hasFinalAssignments = liftResults != null && liftResults.Any(r => r.IsFinalAssigned);
             string selectedPointId = liftResults?.FirstOrDefault(r => !string.IsNullOrEmpty(r.CandidatePointId))?.CandidatePointId ?? string.Empty;
 
             var viewMode = _context.GetGAViewMode?.Invoke() ?? GAViewMode.FinalAssignment;
 
             var statusMap = liftResults
                 ?.Where(result => !string.IsNullOrWhiteSpace(result.ElementId))
-                .GroupBy(result => result.ElementId, StringComparer.OrdinalIgnoreCase)
+                .GroupBy(result => result.ElementId, StringComparer.Ordinal)
                 .ToDictionary(
                     group => group.Key,
                     group =>
@@ -298,9 +302,9 @@ namespace CraneOptimizer.UI.Core.Services
                             return (LiftStatus?)item.Status;
                         }
                     },
-                    StringComparer.OrdinalIgnoreCase);
+                    StringComparer.Ordinal);
 
-            var selectedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var selectedIds = new HashSet<string>(StringComparer.Ordinal);
             if (_context.GetSelectedElementIds != null)
             {
                 var ids = _context.GetSelectedElementIds();
@@ -325,12 +329,28 @@ namespace CraneOptimizer.UI.Core.Services
                 if (!_renderedElementModels.TryGetValue(element.ElementID, out var models))
                     continue;
 
-                LiftStatus? liftStatus = null;
-                if (statusMap != null && statusMap.TryGetValue(element.ElementID, out var s))
-                    liftStatus = s;
-
                 bool isSelected = selectedIds.Contains(element.ElementID);
-                var visualStatus = ElementMaterialProvider.GetStatus(element, liftStatus, isSelected);
+                ElementVisualizationStatus visualStatus;
+
+                if (statusMap != null && statusMap.TryGetValue(element.ElementID, out var liftStatus))
+                {
+                    if (liftStatus == null)
+                    {
+                        bool isFinalAssignmentMode = (liftResults != null && viewMode == GAViewMode.FinalAssignment);
+                        visualStatus = isFinalAssignmentMode
+                            ? (isSelected ? ElementVisualizationStatus.Selected : ElementVisualizationStatus.AssignedToOtherPoint)
+                            : ElementVisualizationStatus.Default;
+                    }
+                    else
+                    {
+                        visualStatus = ElementMaterialProvider.GetStatus(element, liftStatus, isSelected);
+                    }
+                }
+                else
+                {
+                    visualStatus = ElementMaterialProvider.GetStatus(element, null, isSelected);
+                }
+
                 var material = ElementMaterialProvider.GetMaterial(visualStatus, ElementVisualBuilder.CurrentQuality);
 
                 foreach (var model in models)

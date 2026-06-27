@@ -1,3 +1,5 @@
+using CraneOptimizer.Domain.CreatedProject;
+
 namespace CraneOptimizer.UI.Features.F2_IfcViewer.DTOs
 {
     /// <summary>
@@ -12,5 +14,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.DTOs
         public bool HideSpaces { get; init; }
         public bool HideOpenings { get; init; }
         public bool HideVirtualElements { get; init; }
+        public CoordinateReferenceMode CoordinateMode { get; init; }
     }
 }

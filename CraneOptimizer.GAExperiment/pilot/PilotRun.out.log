@@ -1,0 +1,674 @@
+==================================================
+      GA Headless Parameter Sweep Validation      
+==================================================
+Database Path:   F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.UI\bin\Debug\net8.0-windows\Data\crane.db
+Projects Count:  2
+Cranes Count:    2 (STC800, 180Tons)
+Combinations:    1
+Seeds Count:     3 (List Mode: 1, 42, 99)
+Estimated Runs:  12
+Max GA Evaluations: 43,200
+Output CSV:      F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\pilot\ExperimentResults.csv
+==================================================
+╔═══════════════════════════════════════════════════════════════════════════════════════╗
+║                        GA BENCHMARK SCENARIO METADATA                                 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Timestamp:            2026-06-05 02:44:10                                            ║
+║ Project Name:         try4                                                           ║
+║ Project Folder:       F:\06-ITI\00-Project\tryProjects\try4                          ║
+║ IFC File Name:        IfcBuilding_12_ifc4.ifc                                        ║
+║ Crane Name/ID:        STC800                                                         ║
+║ Target Elements:      196                                                            ║
+║ Selected Elements:    196                                                            ║
+║ Population Size:      60                                                             ║
+║ Configured Gens:      60                                                             ║
+║ Actual Gen Loop Count:21                                                             ║
+║ Greedy Iterations:    1                                                              ║
+║ Final Setup Count:    1                                                              ║
+║ Lifted Element Count: 58                                                             ║
+║ Coverage Ratio:       29.59%                                                         ║
+║ Profiling Enabled:    True                                                           ║
+║ Profiling Log Path:   F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\bin\Debug\net8.0-windows\Logs\ga_profile_20260605_024410.txt ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                APPROXIMATE MANAGED MEMORY METRICS (NO FORCED GC)                      ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Managed Memory Before:  7.586 MB                                                     ║
+║ Managed Memory After:   9.455 MB                                                     ║
+║ Managed Memory Delta:   1.868 MB                                                     ║
+║ GC Gen 0 Collections:   4 -> 189 (Delta: 185)                                        ║
+║ GC Gen 1 Collections:   1 -> 2 (Delta: 1)                                            ║
+║ GC Gen 2 Collections:   0 -> 1 (Delta: 1)                                            ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                               OPTIMIZATION DIAGNOSTICS                                ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Empty Chromosomes Encountered: 0                                                     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                           GA PIPELINE PERFORMANCE PROFILE                             ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Component                          │ Hit Count  │ Total Time (ms) │ Avg Time (ms)     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ FitnessEvaluator.EvaluateFitness   │       2460 │         229.087 │           0.09312 ║
+║ ConstraintEngine.FilterDistinctValidPoints │       2400 │         117.204 │           0.04883 ║
+║ CranePlacementEngine.ConcurrentRun │          1 │        4390.835 │        4390.83510 ║
+║ ConstraintEngine.IsValidSetupPoint │       9475 │         168.797 │           0.01782 ║
+║ CoverageEngine.RecalculateCoverage │          3 │           0.658 │           0.21920 ║
+║ ConstraintEngine.CalculateSimilarityPenalty │       2459 │           3.750 │           0.00153 ║
+║ ElementAssignmentService.EvaluateAssignment │       2460 │        3703.705 │           1.50557 ║
+║ ElementAssignmentService.EvaluatePosition │          1 │          11.102 │          11.10200 ║
+║ GAEngine.Run                       │          1 │        4364.311 │        4364.31120 ║
+║ GAEngine.GenerationLoop            │         21 │        4167.314 │         198.44353 ║
+║ ConstraintEngine.IsMeaningfullySeparated │       6970 │           3.788 │           0.00054 ║
+║ ConstraintEngine.CalculateNormalizedRelocationDistance │       2459 │           1.567 │           0.00064 ║
+║ CoverageEngine.DeduplicateFinalPositions │          2 │           0.054 │           0.02695 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ CraneCapacity Cache Hits: 0          │ Misses: 0          │ Hit Ratio:   0.00%          ║
+╚═══════════════════════════════════════════════════════════════════════════════════════╝
+
+[1/12] project.craneopt | STC800 | Pop=60, Gen=60, Mut=0.10, Seed=1 ... Coverage=29.6% Time=4496ms ✓
+╔═══════════════════════════════════════════════════════════════════════════════════════╗
+║                        GA BENCHMARK SCENARIO METADATA                                 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Timestamp:            2026-06-05 02:44:14                                            ║
+║ Project Name:         try4                                                           ║
+║ Project Folder:       F:\06-ITI\00-Project\tryProjects\try4                          ║
+║ IFC File Name:        IfcBuilding_12_ifc4.ifc                                        ║
+║ Crane Name/ID:        STC800                                                         ║
+║ Target Elements:      196                                                            ║
+║ Selected Elements:    196                                                            ║
+║ Population Size:      60                                                             ║
+║ Configured Gens:      60                                                             ║
+║ Actual Gen Loop Count:21                                                             ║
+║ Greedy Iterations:    1                                                              ║
+║ Final Setup Count:    2                                                              ║
+║ Lifted Element Count: 41                                                             ║
+║ Coverage Ratio:       20.92%                                                         ║
+║ Profiling Enabled:    True                                                           ║
+║ Profiling Log Path:   F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\bin\Debug\net8.0-windows\Logs\ga_profile_20260605_024414.txt ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                APPROXIMATE MANAGED MEMORY METRICS (NO FORCED GC)                      ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Managed Memory Before:  7.604 MB                                                     ║
+║ Managed Memory After:   10.098 MB                                                    ║
+║ Managed Memory Delta:   2.495 MB                                                     ║
+║ GC Gen 0 Collections:   190 -> 379 (Delta: 189)                                      ║
+║ GC Gen 1 Collections:   2 -> 2 (Delta: 0)                                            ║
+║ GC Gen 2 Collections:   1 -> 1 (Delta: 0)                                            ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                               OPTIMIZATION DIAGNOSTICS                                ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Empty Chromosomes Encountered: 0                                                     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                           GA PIPELINE PERFORMANCE PROFILE                             ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Component                          │ Hit Count  │ Total Time (ms) │ Avg Time (ms)     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ FitnessEvaluator.EvaluateFitness   │       2460 │         170.826 │           0.06944 ║
+║ ConstraintEngine.FilterDistinctValidPoints │       2400 │         108.653 │           0.04527 ║
+║ CranePlacementEngine.ConcurrentRun │          1 │        3840.823 │        3840.82290 ║
+║ ConstraintEngine.IsValidSetupPoint │       9948 │         114.834 │           0.01154 ║
+║ CoverageEngine.RecalculateCoverage │          3 │           0.300 │           0.10017 ║
+║ ConstraintEngine.CalculateSimilarityPenalty │       2460 │           3.412 │           0.00139 ║
+║ ElementAssignmentService.EvaluateAssignment │       2460 │        3468.116 │           1.40980 ║
+║ ElementAssignmentService.EvaluatePosition │          3 │          30.257 │          10.08580 ║
+║ GAEngine.Run                       │          1 │        3808.471 │        3808.47120 ║
+║ GAEngine.GenerationLoop            │         21 │        3796.334 │         180.77780 ║
+║ ConstraintEngine.IsMeaningfullySeparated │       7097 │           2.210 │           0.00031 ║
+║ ConstraintEngine.CalculateNormalizedRelocationDistance │       2460 │           1.670 │           0.00068 ║
+║ CoverageEngine.DeduplicateFinalPositions │          2 │           0.380 │           0.18985 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ CraneCapacity Cache Hits: 0          │ Misses: 0          │ Hit Ratio:   0.00%          ║
+╚═══════════════════════════════════════════════════════════════════════════════════════╝
+
+[2/12] project.craneopt | STC800 | Pop=60, Gen=60, Mut=0.10, Seed=42 ... Coverage=20.9% Time=3958ms ✓
+╔═══════════════════════════════════════════════════════════════════════════════════════╗
+║                        GA BENCHMARK SCENARIO METADATA                                 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Timestamp:            2026-06-05 02:44:21                                            ║
+║ Project Name:         try4                                                           ║
+║ Project Folder:       F:\06-ITI\00-Project\tryProjects\try4                          ║
+║ IFC File Name:        IfcBuilding_12_ifc4.ifc                                        ║
+║ Crane Name/ID:        STC800                                                         ║
+║ Target Elements:      196                                                            ║
+║ Selected Elements:    196                                                            ║
+║ Population Size:      60                                                             ║
+║ Configured Gens:      60                                                             ║
+║ Actual Gen Loop Count:54                                                             ║
+║ Greedy Iterations:    1                                                              ║
+║ Final Setup Count:    1                                                              ║
+║ Lifted Element Count: 112                                                            ║
+║ Coverage Ratio:       57.14%                                                         ║
+║ Profiling Enabled:    True                                                           ║
+║ Profiling Log Path:   F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\bin\Debug\net8.0-windows\Logs\ga_profile_20260605_024421.txt ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                APPROXIMATE MANAGED MEMORY METRICS (NO FORCED GC)                      ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Managed Memory Before:  8.948 MB                                                     ║
+║ Managed Memory After:   9.479 MB                                                     ║
+║ Managed Memory Delta:   0.531 MB                                                     ║
+║ GC Gen 0 Collections:   380 -> 602 (Delta: 222)                                      ║
+║ GC Gen 1 Collections:   2 -> 3 (Delta: 1)                                            ║
+║ GC Gen 2 Collections:   1 -> 1 (Delta: 0)                                            ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                               OPTIMIZATION DIAGNOSTICS                                ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Empty Chromosomes Encountered: 0                                                     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                           GA PIPELINE PERFORMANCE PROFILE                             ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Component                          │ Hit Count  │ Total Time (ms) │ Avg Time (ms)     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ FitnessEvaluator.EvaluateFitness   │       6420 │         547.790 │           0.08533 ║
+║ ConstraintEngine.FilterDistinctValidPoints │       6360 │         165.545 │           0.02603 ║
+║ CranePlacementEngine.ConcurrentRun │          1 │        6082.302 │        6082.30210 ║
+║ ConstraintEngine.IsValidSetupPoint │      11785 │         184.993 │           0.01570 ║
+║ CoverageEngine.RecalculateCoverage │          3 │           0.101 │           0.03380 ║
+║ ConstraintEngine.CalculateSimilarityPenalty │       6420 │           2.847 │           0.00044 ║
+║ ElementAssignmentService.EvaluateAssignment │       6420 │        5190.344 │           0.80846 ║
+║ ElementAssignmentService.EvaluatePosition │          1 │           9.897 │           9.89740 ║
+║ GAEngine.Run                       │          1 │        6071.834 │        6071.83380 ║
+║ GAEngine.GenerationLoop            │         54 │        6037.247 │         111.80086 ║
+║ ConstraintEngine.IsMeaningfullySeparated │       8038 │           1.800 │           0.00022 ║
+║ ConstraintEngine.CalculateNormalizedRelocationDistance │       6420 │           1.307 │           0.00020 ║
+║ CoverageEngine.DeduplicateFinalPositions │          2 │           0.001 │           0.00040 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ CraneCapacity Cache Hits: 0          │ Misses: 0          │ Hit Ratio:   0.00%          ║
+╚═══════════════════════════════════════════════════════════════════════════════════════╝
+
+[3/12] project.craneopt | STC800 | Pop=60, Gen=60, Mut=0.10, Seed=99 ... Coverage=57.1% Time=6179ms ✓
+╔═══════════════════════════════════════════════════════════════════════════════════════╗
+║                        GA BENCHMARK SCENARIO METADATA                                 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Timestamp:            2026-06-05 02:44:25                                            ║
+║ Project Name:         try4                                                           ║
+║ Project Folder:       F:\06-ITI\00-Project\tryProjects\try4                          ║
+║ IFC File Name:        IfcBuilding_12_ifc4.ifc                                        ║
+║ Crane Name/ID:        180Tons                                                        ║
+║ Target Elements:      196                                                            ║
+║ Selected Elements:    196                                                            ║
+║ Population Size:      60                                                             ║
+║ Configured Gens:      60                                                             ║
+║ Actual Gen Loop Count:46                                                             ║
+║ Greedy Iterations:    1                                                              ║
+║ Final Setup Count:    1                                                              ║
+║ Lifted Element Count: 195                                                            ║
+║ Coverage Ratio:       99.49%                                                         ║
+║ Profiling Enabled:    True                                                           ║
+║ Profiling Log Path:   F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\bin\Debug\net8.0-windows\Logs\ga_profile_20260605_024425.txt ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                APPROXIMATE MANAGED MEMORY METRICS (NO FORCED GC)                      ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Managed Memory Before:  7.299 MB                                                     ║
+║ Managed Memory After:   5.321 MB                                                     ║
+║ Managed Memory Delta:   -1.978 MB                                                    ║
+║ GC Gen 0 Collections:   603 -> 768 (Delta: 165)                                      ║
+║ GC Gen 1 Collections:   3 -> 25 (Delta: 22)                                          ║
+║ GC Gen 2 Collections:   1 -> 2 (Delta: 1)                                            ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                               OPTIMIZATION DIAGNOSTICS                                ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Empty Chromosomes Encountered: 0                                                     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                           GA PIPELINE PERFORMANCE PROFILE                             ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Component                          │ Hit Count  │ Total Time (ms) │ Avg Time (ms)     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ FitnessEvaluator.EvaluateFitness   │       5460 │         500.964 │           0.09175 ║
+║ ConstraintEngine.FilterDistinctValidPoints │       5400 │          95.547 │           0.01769 ║
+║ CranePlacementEngine.ConcurrentRun │          1 │        4527.244 │        4527.24420 ║
+║ ConstraintEngine.IsValidSetupPoint │       9907 │         137.406 │           0.01387 ║
+║ CoverageEngine.RecalculateCoverage │          3 │           0.115 │           0.03840 ║
+║ ConstraintEngine.CalculateSimilarityPenalty │       5460 │           1.933 │           0.00035 ║
+║ ElementAssignmentService.EvaluateAssignment │       5460 │        3751.574 │           0.68710 ║
+║ ElementAssignmentService.EvaluatePosition │          1 │          48.422 │          48.42210 ║
+║ GAEngine.Run                       │          1 │        4478.189 │        4478.18870 ║
+║ GAEngine.GenerationLoop            │         46 │        4446.681 │          96.66697 ║
+║ ConstraintEngine.IsMeaningfullySeparated │       5874 │           1.038 │           0.00018 ║
+║ ConstraintEngine.CalculateNormalizedRelocationDistance │       5460 │           0.856 │           0.00016 ║
+║ CoverageEngine.DeduplicateFinalPositions │          2 │           0.001 │           0.00060 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ CraneCapacity Cache Hits: 0          │ Misses: 0          │ Hit Ratio:   0.00%          ║
+╚═══════════════════════════════════════════════════════════════════════════════════════╝
+
+[4/12] project.craneopt | 180Tons | Pop=60, Gen=60, Mut=0.10, Seed=1 ... Coverage=99.5% Time=4600ms ✓
+╔═══════════════════════════════════════════════════════════════════════════════════════╗
+║                        GA BENCHMARK SCENARIO METADATA                                 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Timestamp:            2026-06-05 02:44:29                                            ║
+║ Project Name:         try4                                                           ║
+║ Project Folder:       F:\06-ITI\00-Project\tryProjects\try4                          ║
+║ IFC File Name:        IfcBuilding_12_ifc4.ifc                                        ║
+║ Crane Name/ID:        180Tons                                                        ║
+║ Target Elements:      196                                                            ║
+║ Selected Elements:    196                                                            ║
+║ Population Size:      60                                                             ║
+║ Configured Gens:      60                                                             ║
+║ Actual Gen Loop Count:34                                                             ║
+║ Greedy Iterations:    1                                                              ║
+║ Final Setup Count:    1                                                              ║
+║ Lifted Element Count: 195                                                            ║
+║ Coverage Ratio:       99.49%                                                         ║
+║ Profiling Enabled:    True                                                           ║
+║ Profiling Log Path:   F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\bin\Debug\net8.0-windows\Logs\ga_profile_20260605_024429.txt ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                APPROXIMATE MANAGED MEMORY METRICS (NO FORCED GC)                      ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Managed Memory Before:  6.961 MB                                                     ║
+║ Managed Memory After:   8.619 MB                                                     ║
+║ Managed Memory Delta:   1.658 MB                                                     ║
+║ GC Gen 0 Collections:   768 -> 891 (Delta: 123)                                      ║
+║ GC Gen 1 Collections:   25 -> 36 (Delta: 11)                                         ║
+║ GC Gen 2 Collections:   2 -> 2 (Delta: 0)                                            ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                               OPTIMIZATION DIAGNOSTICS                                ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Empty Chromosomes Encountered: 0                                                     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                           GA PIPELINE PERFORMANCE PROFILE                             ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Component                          │ Hit Count  │ Total Time (ms) │ Avg Time (ms)     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ FitnessEvaluator.EvaluateFitness   │       4020 │         389.559 │           0.09691 ║
+║ ConstraintEngine.FilterDistinctValidPoints │       3960 │          76.785 │           0.01939 ║
+║ CranePlacementEngine.ConcurrentRun │          1 │        3436.249 │        3436.24850 ║
+║ ConstraintEngine.IsValidSetupPoint │       8274 │         108.061 │           0.01306 ║
+║ CoverageEngine.RecalculateCoverage │          3 │           0.175 │           0.05843 ║
+║ ConstraintEngine.CalculateSimilarityPenalty │       4020 │           1.476 │           0.00037 ║
+║ ElementAssignmentService.EvaluateAssignment │       4020 │        2859.725 │           0.71137 ║
+║ ElementAssignmentService.EvaluatePosition │          1 │          11.905 │          11.90520 ║
+║ GAEngine.Run                       │          1 │        3423.942 │        3423.94170 ║
+║ GAEngine.GenerationLoop            │         34 │        3399.959 │          99.99880 ║
+║ ConstraintEngine.IsMeaningfullySeparated │       4385 │           1.754 │           0.00040 ║
+║ ConstraintEngine.CalculateNormalizedRelocationDistance │       4020 │           0.595 │           0.00015 ║
+║ CoverageEngine.DeduplicateFinalPositions │          2 │           0.001 │           0.00055 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ CraneCapacity Cache Hits: 0          │ Misses: 0          │ Hit Ratio:   0.00%          ║
+╚═══════════════════════════════════════════════════════════════════════════════════════╝
+
+[5/12] project.craneopt | 180Tons | Pop=60, Gen=60, Mut=0.10, Seed=42 ... Coverage=99.5% Time=3494ms ✓
+╔═══════════════════════════════════════════════════════════════════════════════════════╗
+║                        GA BENCHMARK SCENARIO METADATA                                 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Timestamp:            2026-06-05 02:44:31                                            ║
+║ Project Name:         try4                                                           ║
+║ Project Folder:       F:\06-ITI\00-Project\tryProjects\try4                          ║
+║ IFC File Name:        IfcBuilding_12_ifc4.ifc                                        ║
+║ Crane Name/ID:        180Tons                                                        ║
+║ Target Elements:      196                                                            ║
+║ Selected Elements:    196                                                            ║
+║ Population Size:      60                                                             ║
+║ Configured Gens:      60                                                             ║
+║ Actual Gen Loop Count:26                                                             ║
+║ Greedy Iterations:    1                                                              ║
+║ Final Setup Count:    1                                                              ║
+║ Lifted Element Count: 195                                                            ║
+║ Coverage Ratio:       99.49%                                                         ║
+║ Profiling Enabled:    True                                                           ║
+║ Profiling Log Path:   F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\bin\Debug\net8.0-windows\Logs\ga_profile_20260605_024431.txt ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                APPROXIMATE MANAGED MEMORY METRICS (NO FORCED GC)                      ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Managed Memory Before:  6.524 MB                                                     ║
+║ Managed Memory After:   8.386 MB                                                     ║
+║ Managed Memory Delta:   1.862 MB                                                     ║
+║ GC Gen 0 Collections:   892 -> 987 (Delta: 95)                                       ║
+║ GC Gen 1 Collections:   36 -> 38 (Delta: 2)                                          ║
+║ GC Gen 2 Collections:   2 -> 2 (Delta: 0)                                            ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                               OPTIMIZATION DIAGNOSTICS                                ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Empty Chromosomes Encountered: 0                                                     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                           GA PIPELINE PERFORMANCE PROFILE                             ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Component                          │ Hit Count  │ Total Time (ms) │ Avg Time (ms)     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ FitnessEvaluator.EvaluateFitness   │       3060 │         251.379 │           0.08215 ║
+║ ConstraintEngine.FilterDistinctValidPoints │       3000 │          52.129 │           0.01738 ║
+║ CranePlacementEngine.ConcurrentRun │          1 │        2362.771 │        2362.77100 ║
+║ ConstraintEngine.IsValidSetupPoint │       6230 │          84.853 │           0.01362 ║
+║ CoverageEngine.RecalculateCoverage │          3 │           0.126 │           0.04213 ║
+║ ConstraintEngine.CalculateSimilarityPenalty │       3060 │           0.972 │           0.00032 ║
+║ ElementAssignmentService.EvaluateAssignment │       3060 │        1958.688 │           0.64009 ║
+║ ElementAssignmentService.EvaluatePosition │          1 │          13.225 │          13.22540 ║
+║ GAEngine.Run                       │          1 │        2348.428 │        2348.42810 ║
+║ GAEngine.GenerationLoop            │         26 │        2319.778 │          89.22223 ║
+║ ConstraintEngine.IsMeaningfullySeparated │       3304 │           0.600 │           0.00018 ║
+║ ConstraintEngine.CalculateNormalizedRelocationDistance │       3060 │           0.480 │           0.00016 ║
+║ CoverageEngine.DeduplicateFinalPositions │          2 │           0.001 │           0.00035 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ CraneCapacity Cache Hits: 0          │ Misses: 0          │ Hit Ratio:   0.00%          ║
+╚═══════════════════════════════════════════════════════════════════════════════════════╝
+
+[6/12] project.craneopt | 180Tons | Pop=60, Gen=60, Mut=0.10, Seed=99 ... Coverage=99.5% Time=2422ms ✓
+╔═══════════════════════════════════════════════════════════════════════════════════════╗
+║                        GA BENCHMARK SCENARIO METADATA                                 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Timestamp:            2026-06-05 02:45:43                                            ║
+║ Project Name:         try9                                                           ║
+║ Project Folder:       F:\06-ITI\00-Project\tryProjects\try9                          ║
+║ IFC File Name:        CONTROL JIZAN.ifc                                              ║
+║ Crane Name/ID:        STC800                                                         ║
+║ Target Elements:      3940                                                           ║
+║ Selected Elements:    3940                                                           ║
+║ Population Size:      60                                                             ║
+║ Configured Gens:      60                                                             ║
+║ Actual Gen Loop Count:21                                                             ║
+║ Greedy Iterations:    1                                                              ║
+║ Final Setup Count:    1                                                              ║
+║ Lifted Element Count: 720                                                            ║
+║ Coverage Ratio:       18.27%                                                         ║
+║ Profiling Enabled:    True                                                           ║
+║ Profiling Log Path:   F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\bin\Debug\net8.0-windows\Logs\ga_profile_20260605_024543.txt ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                APPROXIMATE MANAGED MEMORY METRICS (NO FORCED GC)                      ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Managed Memory Before:  17.293 MB                                                    ║
+║ Managed Memory After:   20.211 MB                                                    ║
+║ Managed Memory Delta:   2.918 MB                                                     ║
+║ GC Gen 0 Collections:   991 -> 3501 (Delta: 2510)                                    ║
+║ GC Gen 1 Collections:   39 -> 927 (Delta: 888)                                       ║
+║ GC Gen 2 Collections:   2 -> 170 (Delta: 168)                                        ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                               OPTIMIZATION DIAGNOSTICS                                ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Empty Chromosomes Encountered: 0                                                     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                           GA PIPELINE PERFORMANCE PROFILE                             ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Component                          │ Hit Count  │ Total Time (ms) │ Avg Time (ms)     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ FitnessEvaluator.EvaluateFitness   │       2460 │        3298.565 │           1.34088 ║
+║ ConstraintEngine.FilterDistinctValidPoints │       2400 │         124.597 │           0.05192 ║
+║ CranePlacementEngine.ConcurrentRun │          1 │       70576.756 │       70576.75580 ║
+║ ConstraintEngine.IsValidSetupPoint │       7816 │         128.507 │           0.01644 ║
+║ CoverageEngine.RecalculateCoverage │          3 │           3.472 │           1.15723 ║
+║ ConstraintEngine.CalculateSimilarityPenalty │       2455 │           6.403 │           0.00261 ║
+║ ElementAssignmentService.EvaluateAssignment │       2460 │       66916.341 │          27.20176 ║
+║ ElementAssignmentService.EvaluatePosition │          1 │          54.087 │          54.08710 ║
+║ GAEngine.Run                       │          1 │       70505.070 │       70505.07040 ║
+║ GAEngine.GenerationLoop            │         21 │       70402.754 │        3352.51212 ║
+║ ConstraintEngine.IsMeaningfullySeparated │       6902 │           2.025 │           0.00029 ║
+║ ConstraintEngine.CalculateNormalizedRelocationDistance │       2455 │           2.073 │           0.00084 ║
+║ CoverageEngine.DeduplicateFinalPositions │          2 │           0.001 │           0.00070 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ CraneCapacity Cache Hits: 0          │ Misses: 0          │ Hit Ratio:   0.00%          ║
+╚═══════════════════════════════════════════════════════════════════════════════════════╝
+
+[7/12] project.craneopt | STC800 | Pop=60, Gen=60, Mut=0.10, Seed=1 ... Coverage=18.3% Time=74171ms ✓
+╔═══════════════════════════════════════════════════════════════════════════════════════╗
+║                        GA BENCHMARK SCENARIO METADATA                                 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Timestamp:            2026-06-05 02:46:41                                            ║
+║ Project Name:         try9                                                           ║
+║ Project Folder:       F:\06-ITI\00-Project\tryProjects\try9                          ║
+║ IFC File Name:        CONTROL JIZAN.ifc                                              ║
+║ Crane Name/ID:        STC800                                                         ║
+║ Target Elements:      3940                                                           ║
+║ Selected Elements:    3940                                                           ║
+║ Population Size:      60                                                             ║
+║ Configured Gens:      60                                                             ║
+║ Actual Gen Loop Count:21                                                             ║
+║ Greedy Iterations:    1                                                              ║
+║ Final Setup Count:    2                                                              ║
+║ Lifted Element Count: 856                                                            ║
+║ Coverage Ratio:       21.73%                                                         ║
+║ Profiling Enabled:    True                                                           ║
+║ Profiling Log Path:   F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\bin\Debug\net8.0-windows\Logs\ga_profile_20260605_024641.txt ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                APPROXIMATE MANAGED MEMORY METRICS (NO FORCED GC)                      ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Managed Memory Before:  17.645 MB                                                    ║
+║ Managed Memory After:   24.138 MB                                                    ║
+║ Managed Memory Delta:   6.493 MB                                                     ║
+║ GC Gen 0 Collections:   3509 -> 5599 (Delta: 2090)                                   ║
+║ GC Gen 1 Collections:   930 -> 1911 (Delta: 981)                                     ║
+║ GC Gen 2 Collections:   171 -> 349 (Delta: 178)                                      ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                               OPTIMIZATION DIAGNOSTICS                                ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Empty Chromosomes Encountered: 0                                                     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                           GA PIPELINE PERFORMANCE PROFILE                             ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Component                          │ Hit Count  │ Total Time (ms) │ Avg Time (ms)     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ FitnessEvaluator.EvaluateFitness   │       2460 │        2729.796 │           1.10967 ║
+║ ConstraintEngine.FilterDistinctValidPoints │       2400 │          92.639 │           0.03860 ║
+║ CranePlacementEngine.ConcurrentRun │          1 │       52826.221 │       52826.22090 ║
+║ ConstraintEngine.IsValidSetupPoint │       6595 │          99.509 │           0.01509 ║
+║ CoverageEngine.RecalculateCoverage │          3 │           5.939 │           1.97970 ║
+║ ConstraintEngine.CalculateSimilarityPenalty │       2456 │           5.217 │           0.00212 ║
+║ ElementAssignmentService.EvaluateAssignment │       2460 │       49768.239 │          20.23099 ║
+║ ElementAssignmentService.EvaluatePosition │          3 │          66.469 │          22.15637 ║
+║ GAEngine.Run                       │          1 │       52741.854 │       52741.85360 ║
+║ GAEngine.GenerationLoop            │         21 │       52632.130 │        2506.29191 ║
+║ ConstraintEngine.IsMeaningfullySeparated │       5596 │           1.300 │           0.00023 ║
+║ ConstraintEngine.CalculateNormalizedRelocationDistance │       2456 │           2.260 │           0.00092 ║
+║ CoverageEngine.DeduplicateFinalPositions │          2 │           0.021 │           0.01065 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ CraneCapacity Cache Hits: 0          │ Misses: 0          │ Hit Ratio:   0.00%          ║
+╚═══════════════════════════════════════════════════════════════════════════════════════╝
+
+[8/12] project.craneopt | STC800 | Pop=60, Gen=60, Mut=0.10, Seed=42 ... Coverage=21.7% Time=59499ms ✓
+╔═══════════════════════════════════════════════════════════════════════════════════════╗
+║                        GA BENCHMARK SCENARIO METADATA                                 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Timestamp:            2026-06-05 02:48:08                                            ║
+║ Project Name:         try9                                                           ║
+║ Project Folder:       F:\06-ITI\00-Project\tryProjects\try9                          ║
+║ IFC File Name:        CONTROL JIZAN.ifc                                              ║
+║ Crane Name/ID:        STC800                                                         ║
+║ Target Elements:      3940                                                           ║
+║ Selected Elements:    3940                                                           ║
+║ Population Size:      60                                                             ║
+║ Configured Gens:      60                                                             ║
+║ Actual Gen Loop Count:21                                                             ║
+║ Greedy Iterations:    1                                                              ║
+║ Final Setup Count:    1                                                              ║
+║ Lifted Element Count: 453                                                            ║
+║ Coverage Ratio:       11.50%                                                         ║
+║ Profiling Enabled:    True                                                           ║
+║ Profiling Log Path:   F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\bin\Debug\net8.0-windows\Logs\ga_profile_20260605_024808.txt ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                APPROXIMATE MANAGED MEMORY METRICS (NO FORCED GC)                      ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Managed Memory Before:  26.582 MB                                                    ║
+║ Managed Memory After:   27.201 MB                                                    ║
+║ Managed Memory Delta:   0.619 MB                                                     ║
+║ GC Gen 0 Collections:   5609 -> 8134 (Delta: 2525)                                   ║
+║ GC Gen 1 Collections:   1913 -> 2801 (Delta: 888)                                    ║
+║ GC Gen 2 Collections:   350 -> 523 (Delta: 173)                                      ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                               OPTIMIZATION DIAGNOSTICS                                ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Empty Chromosomes Encountered: 0                                                     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                           GA PIPELINE PERFORMANCE PROFILE                             ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Component                          │ Hit Count  │ Total Time (ms) │ Avg Time (ms)     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ FitnessEvaluator.EvaluateFitness   │       2460 │        3548.602 │           1.44252 ║
+║ ConstraintEngine.FilterDistinctValidPoints │       2400 │         146.853 │           0.06119 ║
+║ CranePlacementEngine.ConcurrentRun │          1 │       78312.208 │       78312.20830 ║
+║ ConstraintEngine.IsValidSetupPoint │       7602 │         148.330 │           0.01951 ║
+║ CoverageEngine.RecalculateCoverage │          3 │          12.208 │           4.06923 ║
+║ ConstraintEngine.CalculateSimilarityPenalty │       2453 │           7.956 │           0.00324 ║
+║ ElementAssignmentService.EvaluateAssignment │       2460 │       74334.243 │          30.21717 ║
+║ ElementAssignmentService.EvaluatePosition │          2 │          81.376 │          40.68775 ║
+║ GAEngine.Run                       │          1 │       78191.601 │       78191.60070 ║
+║ GAEngine.GenerationLoop            │         21 │       78087.071 │        3718.43194 ║
+║ ConstraintEngine.IsMeaningfullySeparated │       6749 │           2.333 │           0.00035 ║
+║ ConstraintEngine.CalculateNormalizedRelocationDistance │       2453 │           2.169 │           0.00088 ║
+║ CoverageEngine.DeduplicateFinalPositions │          2 │           0.020 │           0.00980 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ CraneCapacity Cache Hits: 0          │ Misses: 0          │ Hit Ratio:   0.00%          ║
+╚═══════════════════════════════════════════════════════════════════════════════════════╝
+
+[9/12] project.craneopt | STC800 | Pop=60, Gen=60, Mut=0.10, Seed=99 ... Coverage=11.5% Time=85449ms ✓
+╔═══════════════════════════════════════════════════════════════════════════════════════╗
+║                        GA BENCHMARK SCENARIO METADATA                                 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Timestamp:            2026-06-05 02:49:17                                            ║
+║ Project Name:         try9                                                           ║
+║ Project Folder:       F:\06-ITI\00-Project\tryProjects\try9                          ║
+║ IFC File Name:        CONTROL JIZAN.ifc                                              ║
+║ Crane Name/ID:        180Tons                                                        ║
+║ Target Elements:      3940                                                           ║
+║ Selected Elements:    3940                                                           ║
+║ Population Size:      60                                                             ║
+║ Configured Gens:      60                                                             ║
+║ Actual Gen Loop Count:38                                                             ║
+║ Greedy Iterations:    1                                                              ║
+║ Final Setup Count:    1                                                              ║
+║ Lifted Element Count: 2917                                                           ║
+║ Coverage Ratio:       74.04%                                                         ║
+║ Profiling Enabled:    True                                                           ║
+║ Profiling Log Path:   F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\bin\Debug\net8.0-windows\Logs\ga_profile_20260605_024917.txt ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                APPROXIMATE MANAGED MEMORY METRICS (NO FORCED GC)                      ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Managed Memory Before:  21.475 MB                                                    ║
+║ Managed Memory After:   17.864 MB                                                    ║
+║ Managed Memory Delta:   -3.611 MB                                                    ║
+║ GC Gen 0 Collections:   8142 -> 9964 (Delta: 1822)                                   ║
+║ GC Gen 1 Collections:   2803 -> 4462 (Delta: 1659)                                   ║
+║ GC Gen 2 Collections:   524 -> 561 (Delta: 37)                                       ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                               OPTIMIZATION DIAGNOSTICS                                ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Empty Chromosomes Encountered: 0                                                     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                           GA PIPELINE PERFORMANCE PROFILE                             ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Component                          │ Hit Count  │ Total Time (ms) │ Avg Time (ms)     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ FitnessEvaluator.EvaluateFitness   │       4500 │        7026.958 │           1.56155 ║
+║ ConstraintEngine.FilterDistinctValidPoints │       4440 │          71.342 │           0.01607 ║
+║ CranePlacementEngine.ConcurrentRun │          1 │       64389.081 │       64389.08050 ║
+║ ConstraintEngine.IsValidSetupPoint │       6366 │          86.467 │           0.01358 ║
+║ CoverageEngine.RecalculateCoverage │          3 │          24.749 │           8.24953 ║
+║ ConstraintEngine.CalculateSimilarityPenalty │       4494 │           4.414 │           0.00098 ║
+║ ElementAssignmentService.EvaluateAssignment │       4500 │       56858.349 │          12.63519 ║
+║ ElementAssignmentService.EvaluatePosition │          1 │         208.970 │         208.96960 ║
+║ GAEngine.Run                       │          1 │       64163.775 │       64163.77520 ║
+║ GAEngine.GenerationLoop            │         38 │       64033.938 │        1685.10362 ║
+║ ConstraintEngine.IsMeaningfullySeparated │       4905 │           0.765 │           0.00016 ║
+║ ConstraintEngine.CalculateNormalizedRelocationDistance │       4494 │           1.137 │           0.00025 ║
+║ CoverageEngine.DeduplicateFinalPositions │          2 │           0.005 │           0.00265 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ CraneCapacity Cache Hits: 0          │ Misses: 0          │ Hit Ratio:   0.00%          ║
+╚═══════════════════════════════════════════════════════════════════════════════════════╝
+
+[10/12] project.craneopt | 180Tons | Pop=60, Gen=60, Mut=0.10, Seed=1 ... Coverage=74.0% Time=70304ms ✓
+╔═══════════════════════════════════════════════════════════════════════════════════════╗
+║                        GA BENCHMARK SCENARIO METADATA                                 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Timestamp:            2026-06-05 02:50:55                                            ║
+║ Project Name:         try9                                                           ║
+║ Project Folder:       F:\06-ITI\00-Project\tryProjects\try9                          ║
+║ IFC File Name:        CONTROL JIZAN.ifc                                              ║
+║ Crane Name/ID:        180Tons                                                        ║
+║ Target Elements:      3940                                                           ║
+║ Selected Elements:    3940                                                           ║
+║ Population Size:      60                                                             ║
+║ Configured Gens:      60                                                             ║
+║ Actual Gen Loop Count:41                                                             ║
+║ Greedy Iterations:    1                                                              ║
+║ Final Setup Count:    1                                                              ║
+║ Lifted Element Count: 2890                                                           ║
+║ Coverage Ratio:       73.35%                                                         ║
+║ Profiling Enabled:    True                                                           ║
+║ Profiling Log Path:   F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\bin\Debug\net8.0-windows\Logs\ga_profile_20260605_025055.txt ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                APPROXIMATE MANAGED MEMORY METRICS (NO FORCED GC)                      ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Managed Memory Before:  21.051 MB                                                    ║
+║ Managed Memory After:   20.724 MB                                                    ║
+║ Managed Memory Delta:   -0.327 MB                                                    ║
+║ GC Gen 0 Collections:   9971 -> 11969 (Delta: 1998)                                  ║
+║ GC Gen 1 Collections:   4463 -> 6237 (Delta: 1774)                                   ║
+║ GC Gen 2 Collections:   561 -> 616 (Delta: 55)                                       ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                               OPTIMIZATION DIAGNOSTICS                                ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Empty Chromosomes Encountered: 0                                                     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                           GA PIPELINE PERFORMANCE PROFILE                             ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Component                          │ Hit Count  │ Total Time (ms) │ Avg Time (ms)     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ FitnessEvaluator.EvaluateFitness   │       4860 │       10110.972 │           2.08045 ║
+║ ConstraintEngine.FilterDistinctValidPoints │       4800 │         120.065 │           0.02501 ║
+║ CranePlacementEngine.ConcurrentRun │          1 │       92650.560 │       92650.56010 ║
+║ ConstraintEngine.IsValidSetupPoint │       7076 │         141.555 │           0.02000 ║
+║ CoverageEngine.RecalculateCoverage │          3 │           2.979 │           0.99300 ║
+║ ConstraintEngine.CalculateSimilarityPenalty │       4856 │           3.703 │           0.00076 ║
+║ ElementAssignmentService.EvaluateAssignment │       4860 │       81900.849 │          16.85203 ║
+║ ElementAssignmentService.EvaluatePosition │          1 │         135.656 │         135.65560 ║
+║ GAEngine.Run                       │          1 │       92504.439 │       92504.43930 ║
+║ GAEngine.GenerationLoop            │         41 │       92264.561 │        2250.35515 ║
+║ ConstraintEngine.IsMeaningfullySeparated │       5383 │           1.042 │           0.00019 ║
+║ ConstraintEngine.CalculateNormalizedRelocationDistance │       4856 │           1.371 │           0.00028 ║
+║ CoverageEngine.DeduplicateFinalPositions │          2 │           0.001 │           0.00045 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ CraneCapacity Cache Hits: 0          │ Misses: 0          │ Hit Ratio:   0.00%          ║
+╚═══════════════════════════════════════════════════════════════════════════════════════╝
+
+[11/12] project.craneopt | 180Tons | Pop=60, Gen=60, Mut=0.10, Seed=42 ... Coverage=73.4% Time=95089ms ✓
+╔═══════════════════════════════════════════════════════════════════════════════════════╗
+║                        GA BENCHMARK SCENARIO METADATA                                 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Timestamp:            2026-06-05 02:52:33                                            ║
+║ Project Name:         try9                                                           ║
+║ Project Folder:       F:\06-ITI\00-Project\tryProjects\try9                          ║
+║ IFC File Name:        CONTROL JIZAN.ifc                                              ║
+║ Crane Name/ID:        180Tons                                                        ║
+║ Target Elements:      3940                                                           ║
+║ Selected Elements:    3940                                                           ║
+║ Population Size:      60                                                             ║
+║ Configured Gens:      60                                                             ║
+║ Actual Gen Loop Count:40                                                             ║
+║ Greedy Iterations:    1                                                              ║
+║ Final Setup Count:    1                                                              ║
+║ Lifted Element Count: 2904                                                           ║
+║ Coverage Ratio:       73.71%                                                         ║
+║ Profiling Enabled:    True                                                           ║
+║ Profiling Log Path:   F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\bin\Debug\net8.0-windows\Logs\ga_profile_20260605_025233.txt ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                APPROXIMATE MANAGED MEMORY METRICS (NO FORCED GC)                      ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Managed Memory Before:  17.213 MB                                                    ║
+║ Managed Memory After:   18.765 MB                                                    ║
+║ Managed Memory Delta:   1.552 MB                                                     ║
+║ GC Gen 0 Collections:   11977 -> 13934 (Delta: 1957)                                 ║
+║ GC Gen 1 Collections:   6239 -> 7960 (Delta: 1721)                                   ║
+║ GC Gen 2 Collections:   617 -> 671 (Delta: 54)                                       ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                               OPTIMIZATION DIAGNOSTICS                                ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Empty Chromosomes Encountered: 0                                                     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║                           GA PIPELINE PERFORMANCE PROFILE                             ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ Component                          │ Hit Count  │ Total Time (ms) │ Avg Time (ms)     ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ FitnessEvaluator.EvaluateFitness   │       4740 │       10122.240 │           2.13549 ║
+║ ConstraintEngine.FilterDistinctValidPoints │       4680 │          96.955 │           0.02072 ║
+║ CranePlacementEngine.ConcurrentRun │          1 │       95070.297 │       95070.29700 ║
+║ ConstraintEngine.IsValidSetupPoint │       6675 │         102.529 │           0.01536 ║
+║ CoverageEngine.RecalculateCoverage │          3 │           4.470 │           1.48983 ║
+║ ConstraintEngine.CalculateSimilarityPenalty │       4735 │           3.651 │           0.00077 ║
+║ ElementAssignmentService.EvaluateAssignment │       4740 │       84206.982 │          17.76519 ║
+║ ElementAssignmentService.EvaluatePosition │          1 │         244.985 │         244.98460 ║
+║ GAEngine.Run                       │          1 │       94813.021 │       94813.02110 ║
+║ GAEngine.GenerationLoop            │         40 │       94528.318 │        2363.20795 ║
+║ ConstraintEngine.IsMeaningfullySeparated │       5257 │           0.982 │           0.00019 ║
+║ ConstraintEngine.CalculateNormalizedRelocationDistance │       4735 │           1.180 │           0.00025 ║
+║ CoverageEngine.DeduplicateFinalPositions │          2 │           0.004 │           0.00215 ║
+╠═══════════════════════════════════════════════════════════════════════════════════════╣
+║ CraneCapacity Cache Hits: 0          │ Misses: 0          │ Hit Ratio:   0.00%          ║
+╚═══════════════════════════════════════════════════════════════════════════════════════╝
+
+[12/12] project.craneopt | 180Tons | Pop=60, Gen=60, Mut=0.10, Seed=99 ... Coverage=73.7% Time=98335ms ✓
+Generating post-processing summary report...
+Experiment complete! Summary generated at: F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\pilot\ExperimentSummary.csv

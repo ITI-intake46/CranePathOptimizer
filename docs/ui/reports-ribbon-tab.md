@@ -1,103 +1,93 @@
-# Reports Ribbon Tab — Documentation
+# Reports Ribbon Tab
 
----
+The Reports tab now contains the first user-facing reporting workflow in addition to the existing GA diagnostics shortcuts.
 
-## 1. How the Ribbon System Works
+## Active Report Buttons
 
-The ribbon sits at the top of the app. It has two parts stacked vertically:
+- **All Elements List** opens the report builder for the internal Element List Report family.
+  - Default report template: `Basic Element List`
+  - Default items included: `All Elements`
+- **Lifting Summary Report** opens the report builder for the internal Lifting Result Report family.
+  - Default report template: `Basic Lifting Result`
+  - Default items included: `Optimization Result`
+  - The button is disabled until an optimization result exists.
 
-- **Tab strip (top)** — a row of clickable tab names: HOME, IFC MODEL, DXF, CRANES, ZONES, ANALYZE, **REPORTS**, SETTINGS, COORDINATE REFERENCE
-- **Content area (bottom)** — one panel per tab, all sitting on top of each other; only the selected tab's panel is visible, all others are hidden
+The exported report metadata does not show the internal report family. For users, **Report Name** is the selected template name.
 
-When you click a tab, all panels hide, then only the one matching your click becomes visible. Every tab panel is its own self-contained UserControl file.
+## Report Builder
 
----
+The report builder dialog supports:
 
-## 2. ⭐ The Shared-Backend Pattern
+- Metadata entry: company, logo path, created by, issued to, revision, and general notes.
+- A compact setup strip for **Report Template**, **Items Included**, read-only project, and automatic **Generated On**.
+- A tabbed workflow: `Report Info`, `Columns`, and `Preview & Export`.
+- Revit Schedule style column selection using **Available Columns** and **Selected Columns** lists.
+- Column add/remove, add all/remove all, move up/down, reset to built-in template defaults, and basic column settings.
+- Preview of the first 50 rows with report name, items included, preview row count, total item count, and warning count.
+- PDF export.
+- Excel export.
+- Save As Template.
 
-> **The same button can live in multiple ribbon tabs and call the exact same logic — with zero code duplication.**
+Logo browsing accepts `.png`, `.jpg`, and `.jpeg`. The selected logo path is used for the current export and is not copied into project assets.
+The report date is not editable. It is generated automatically when a preview/export document is built.
 
-### Why it works
+## Export Structure
 
-Every tab panel that needs access to the optimizer's data is given the same **DataContext** — a pointer to the single `CranePlacementViewModel` instance that lives for the entire app session. This means any button in any tab that binds to a command on that ViewModel calls the same underlying method.
+PDF exports are metadata-first:
 
-Think of it like a TV remote — you can have two remotes in two different rooms, but pressing "Volume Up" on either one controls the same TV.
+- Page 1: report information, summary, optional crane information, optional lifting accessories, and lifting setup summary.
+- Page 2 onward: main report table.
+- Final page: general notes, only when notes are provided.
 
-### Live examples in this app
+Excel exports use separate sheets:
 
-| Button Label | Analyze Tab | Reports Tab | What it does |
-|---|---|---|---|
-| **GA Diagnostics** | ✅ present | ✅ present | Opens the GA convergence graph window |
-| **View Results** | ✅ present | ✅ present | Opens the optimization results window |
+- `Report Info`
+- `Report Data`
+- `Crane Setups`, only for lifting reports with setup data.
+- `Notes`, only when notes are provided.
 
-Both buttons in both tabs are wired to the same command. Clicking either one does the exact same thing. If the optimizer hasn't been run yet, **both buttons are automatically disabled** — the ViewModel controls that, not the individual tabs.
+## Terminology
 
-### How to add a new shared button
+- **Report Name** means the selected template name, for example `Basic Element List` or `Capacity Utilization Review`.
+- **Report Template** is the chooser label in the dialog.
+- **Items Included** replaces the older "Report Source" wording.
+- **Generated On** replaces manually edited report dates.
+- **Report Type** is internal only and must not appear in exported metadata.
+- `Rendered Elements Only` is an Items Included option, not a report template.
 
-1. Define the command and its logic once in [CranePlacementViewModel.cs](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/ViewModels/CranePlacementViewModel.cs)
-2. Add a button to [AnalyzeTabView.xaml](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Views/AnalyzeTabView.xaml) bound to that command
-3. Add the same button to [ReportsTabView.xaml](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Features/F12_Reports/Views/ReportsTabView.xaml) bound to the same command
-4. Done — both tabs now trigger the same logic, no code repeated anywhere
+## Element List Rules
 
----
+Element List reports export reportable lift items only:
 
-## 3. Files Changed
+- Assembly children resolve to the parent assembly when the parent is available.
+- Standalone elements export as themselves.
+- Duplicate parent rows are removed.
 
-| File | What happened |
-|---|---|
-| [ReportsTabView.xaml](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Features/F12_Reports/Views/ReportsTabView.xaml) | **Created** — the new Reports ribbon panel with 6 groups |
-| [ReportsTabView.xaml.cs](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Features/F12_Reports/Views/ReportsTabView.xaml.cs) | **Created** — placeholder click handlers, all marked TODO |
-| [TopNavigation.xaml](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Shared/Layouts/TopNavigation.xaml) | Reports tab button added to the strip; Reports panel added to the content area |
-| [TopNavigation.xaml.cs](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Shared/Layouts/TopNavigation.xaml.cs) | Reports panel included in the hide/show switching logic |
-| [AnalyzeTabView.xaml](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Views/AnalyzeTabView.xaml) | Restored the original 3-column layout (OPTIMIZE · REPORTS · RESULTS) |
-| [GAResultsWindow.xaml](file:///c:/Users/m7md/source/repos/CranePathOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Views/GAResultsWindow.xaml) | Two bug fixes applied (see section 6) |
+User-facing Element List templates intentionally exclude internal/debug IFC columns such as raw IFC type, processing role, bounding box min/max, geometry owner IDs, and element tree visibility flags.
 
----
+## Lifting Result Rules
 
-## 4. Reports Tab — All Buttons
+Lifting reports are based on the latest optimization result. Capacity utilization is calculated from the already reduced available capacity stored in the optimization result:
 
-### ELEMENTS
-- **All Elements List** — Full table of every IFC element: name, type, material, weight, dimensions, volume, storey, and whether it can be lifted
+```text
+Capacity Utilization (%) = Required Capacity / Available Capacity * 100
+```
 
-### LIFTING
-- **Lifting Summary Report** — One row per element showing operating radius, hoist height, hook load, available crane capacity at that radius, and lift status (Liftable / Overweight / Out of range). This single report replaces four older buttons that showed the same data in smaller pieces.
+The metadata shows:
 
-### CRANE CATALOG
-- **All Cranes in Database** — Catalog of every crane in the database: brand, model, max capacity, radius range, boom range, outrigger configuration
+```text
+Capacity Factor: 0.90
+```
 
-### COMPARE
-- **Compare 2 Cranes** — Pick any two cranes from the catalog and see them side by side: full spec comparison plus which elements each crane can and cannot lift for the current building
+This means available crane capacity is reported as 90% of chart capacity for user-facing report context. The reporting layer does not apply the factor a second time to optimization result rows.
 
-### PROJECT
-- **Project Overview** — Project name, ID, unit system, creation date, plus a table of all imported IFC files with their element counts and file sizes
-- **Site Zones Report** — All site zones defined on the project: name, type (Exclusion / Green / Working), and boundary coordinates
+## Buttons Still Stubbed
 
-### ANALYSIS *(shared with Analyze tab)*
-- **GA Diagnostics** — Opens the optimizer convergence graph (shared backend with Analyze tab)
-- **View Results** — Opens the optimization results window (shared backend with Analyze tab)
+The following report buttons remain placeholders:
 
----
+- All Cranes in Database
+- Compare 2 Cranes
+- Project Overview
+- Site Zones Report
 
-## 5. Analyze Tab — Final Layout
-
-The Analyze tab was temporarily simplified during development and then restored to its original 3-group layout:
-
-| OPTIMIZE | REPORTS | RESULTS |
-|---|---|---|
-| Run Optimizer button | Export Analysis · Export Zones (JSON) · GA Diagnostics | View Results |
-
----
-
-## 6. Bugs Fixed Along the Way
-
-### Missing color resource in the Results window
-When clicking **View Results** from any tab, the window was crashing immediately on load because it referenced a color called `InfoBrush` that was never defined in that window's own resources. It was defined in the Diagnostics window only. Added the missing definition to the Results window — both windows now use the same sky-blue color.
-
-### Incorrect binding direction on display-only fields
-All the coordinate display fields in the Results window (Candidate Point, Crane Base, Slew Center, Boom Hinge, Load Point) were crashing at runtime because WPF was trying to write back to read-only properties. Marked all those display fields as one-directional (read-only data flow) while leaving the interactive controls (ComboBox for view mode, ListBox for selecting a position) untouched with their original two-way bindings.
-
----
-
-## 7. Build Status
-
-✅ **0 errors** — full solution builds clean after all changes.
+The shared **GA Diagnostics** and **View Results** buttons remain wired to the existing `CranePlacementViewModel` commands.

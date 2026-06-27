@@ -28,8 +28,10 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         void SetStoreyEnabled(string storey, bool enabled);
         void SetWeightRange(double minWeightKg, double maxWeightKg);
         void SetIncludedElementIds(IEnumerable<string>? elementIds);
+        void SetExcludedElementIds(IEnumerable<string>? elementIds);
         void ResetFilters();
         void ShowAll();
+        void ShowElements(IEnumerable<PrecastElement> elements);
         void HideElements(IEnumerable<PrecastElement> elements);
         void IsolateElements(IEnumerable<PrecastElement> elements);
         void ApplyLoadOptions(IfcLoadOptionsDto options);
@@ -38,5 +40,6 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         bool IsMaterialEnabled(string material);
         bool IsStoreyEnabled(string storey);
         bool IsElementIncluded(PrecastElement element);
+        bool IsElementHidden(PrecastElement element);
     }
 }

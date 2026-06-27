@@ -6,71 +6,93 @@ using System.Windows.Media.Media3D;
 
 namespace CraneOptimizer.UI.Features.F7_Zones
 {
-    /// <summary>Data passed to the snap indicator builder.</summary>
-    public record SnapIndicatorData(DomainPoint3D Point, SnapType Type);
+    public record SnapIndicatorData(
+        DomainPoint3D Point,
+        SnapType Type,
+        bool IsMeasurement = false);
 
-    /// <summary>
-    /// Renders a crosshair + small sphere at the snap location with colour-coded type:
-    ///   Cyan    = point snap
-    ///   Yellow  = orthogonal lock
-    ///   Green   = grid snap
-    /// </summary>
     public sealed class SnapIndicatorBuilder : IVisualBuilder<SnapIndicatorData>
     {
         public Visual3D Build(SnapIndicatorData data)
         {
             var container = new ModelVisual3D();
 
-            Color color = data.Type switch
-            {
-                SnapType.Point => Colors.Cyan,
-                SnapType.Orthogonal => Colors.Yellow,
-                SnapType.Grid => Colors.LightGreen,
-                _ => Colors.White
+            Color color = data.IsMeasurement
+                ? Colors.Magenta
+                : data.Type switch
+                {
+                    SnapType.Point => Colors.Cyan,
+                    SnapType.Orthogonal => Colors.Yellow,
+                    SnapType.Grid => Colors.LightGreen,
+                    _ => Colors.White
             };
 
-            var p = data.Point;
-            const double arm = 0.4;
+            var point = data.Point;
+            double arm = data.IsMeasurement ? 0.7 : 0.4;
+            double diamondSize = data.IsMeasurement ? 0.38 : 0.22;
 
-            // Crosshair — three axes
-            var cross = new LinesVisual3D { Color = color, Thickness = 3 };
-            cross.Points.Add(new Point3D(p.X - arm, p.Y, p.Z));
-            cross.Points.Add(new Point3D(p.X + arm, p.Y, p.Z));
-            cross.Points.Add(new Point3D(p.X, p.Y - arm, p.Z));
-            cross.Points.Add(new Point3D(p.X, p.Y + arm, p.Z));
-            cross.Points.Add(new Point3D(p.X, p.Y, p.Z - arm * 0.5));
-            cross.Points.Add(new Point3D(p.X, p.Y, p.Z + arm * 0.5));
+            var cross = new LinesVisual3D
+            {
+                Color = color,
+                Thickness = data.IsMeasurement ? 5 : 3
+            };
+            cross.Points.Add(new Point3D(point.X - arm, point.Y, point.Z));
+            cross.Points.Add(new Point3D(point.X + arm, point.Y, point.Z));
+            cross.Points.Add(new Point3D(point.X, point.Y - arm, point.Z));
+            cross.Points.Add(new Point3D(point.X, point.Y + arm, point.Z));
+            cross.Points.Add(new Point3D(point.X, point.Y, point.Z - arm * 0.5));
+            cross.Points.Add(new Point3D(point.X, point.Y, point.Z + arm * 0.5));
             container.Children.Add(cross);
 
-            // Diamond loop in XY plane
-            const double d = 0.22;
-            var ring = new LinesVisual3D { Color = color, Thickness = 2 };
+            var ring = new LinesVisual3D
+            {
+                Color = color,
+                Thickness = data.IsMeasurement ? 4 : 2
+            };
             var diamond = new[]
             {
-                new Point3D(p.X,     p.Y + d, p.Z),
-                new Point3D(p.X + d, p.Y,     p.Z),
-                new Point3D(p.X,     p.Y - d, p.Z),
-                new Point3D(p.X - d, p.Y,     p.Z),
-                new Point3D(p.X,     p.Y + d, p.Z),
+                new Point3D(point.X,               point.Y + diamondSize, point.Z),
+                new Point3D(point.X + diamondSize, point.Y,               point.Z),
+                new Point3D(point.X,               point.Y - diamondSize, point.Z),
+                new Point3D(point.X - diamondSize, point.Y,               point.Z),
+                new Point3D(point.X,               point.Y + diamondSize, point.Z)
             };
 
-            for (int i = 0; i < diamond.Length - 1; i++)
+            for (int index = 0; index < diamond.Length - 1; index++)
             {
-                ring.Points.Add(diamond[i]);
-                ring.Points.Add(diamond[i + 1]);
+                ring.Points.Add(diamond[index]);
+                ring.Points.Add(diamond[index + 1]);
+            }
+            container.Children.Add(ring);
+
+            if (data.IsMeasurement)
+            {
+                var outline = new PointsVisual3D
+                {
+                    Color = Colors.White,
+                    Size = 17
+                };
+                outline.Points.Add(new Point3D(point.X, point.Y, point.Z));
+                container.Children.Add(outline);
+
+                var center = new PointsVisual3D
+                {
+                    Color = color,
+                    Size = 11
+                };
+                center.Points.Add(new Point3D(point.X, point.Y, point.Z));
+                container.Children.Add(center);
             }
 
-            container.Children.Add(ring);
             return container;
         }
 
         public Visual3D BuildBatch(IEnumerable<SnapIndicatorData> items)
         {
             var container = new ModelVisual3D();
-            foreach (var item in items)
-            {
+            foreach (SnapIndicatorData item in items)
                 container.Children.Add(Build(item));
-            }
+
             return container;
         }
     }

@@ -601,6 +601,7 @@ namespace CraneOptimizer.Application.Tests
                         ElementWT = 1.0 // extremely light
                     });
                 }
+                settings.DiagnosticsLevel = CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings.DiagnosticsLevel.Research;
                 var inputHigh = CreateInput("High Coverage Project", lightElements, allowedZone, forbiddenZone, craneSpec, settings);
                 inputHigh.ProjectFolderPath = tempProjectFolder;
                 inputHigh.DiagnosticsReportsDirectory = System.IO.Path.Combine(tempProjectFolder, "Reports", "GA");
@@ -608,10 +609,11 @@ namespace CraneOptimizer.Application.Tests
                 var resultHigh = placementEngine.RunOptimization(inputHigh);
 
                 // Verify files exist and are correct
+                // Per-run folder: reportsFolder/<ProjectName>/<OptimizationRunId>/
                 string reportsFolder = inputHigh.DiagnosticsReportsDirectory;
-                string historyPath = System.IO.Path.Combine(reportsFolder, "ga_run_history.csv");
-                Assert.True(System.IO.File.Exists(historyPath), "ga_run_history.csv should be created.");
                 Assert.True(System.IO.File.Exists(resultHigh.DiagnosticsReportPath), "Detailed diagnostics CSV should be created.");
+                string historyPath = resultHigh.DiagnosticsReportPath.Replace("debug_ga_diagnostics_", "debug_ga_run_history_");
+                Assert.True(System.IO.File.Exists(historyPath), "debug_ga_run_history.csv should be created.");
 
                 string historyText = System.IO.File.ReadAllText(historyPath);
                 Assert.Contains("High Coverage Project", historyText);
@@ -634,7 +636,10 @@ namespace CraneOptimizer.Application.Tests
 
                 var resultLow = placementEngine.RunOptimization(inputLow);
 
-                string historyTextLow = System.IO.File.ReadAllText(historyPath);
+                // Low Coverage run: also writes to a per-run subfolder
+                Assert.True(System.IO.File.Exists(resultLow.DiagnosticsReportPath), "Detailed diagnostics CSV should be created.");
+                string historyPathLow = resultLow.DiagnosticsReportPath.Replace("debug_ga_diagnostics_", "debug_ga_run_history_");
+                string historyTextLow = System.IO.File.ReadAllText(historyPathLow);
                 Assert.Contains("Low Coverage Project", historyTextLow);
                 Assert.Contains("Critical", historyTextLow); // health should be Critical since coverage < 40%
 
@@ -650,8 +655,10 @@ namespace CraneOptimizer.Application.Tests
                 Assert.NotNull(resultLarge.DiagnosticsReportPath);
                 string detailedCsvName = System.IO.Path.GetFileName(resultLarge.DiagnosticsReportPath)!;
                 Assert.NotNull(detailedCsvName);
-                string breakdownCsvName = detailedCsvName.Replace("ga_diagnostics_", "ga_failure_breakdown_");
-                string breakdownCsvPath = System.IO.Path.Combine(reportsFolder!, breakdownCsvName);
+                string breakdownCsvName = detailedCsvName.Replace("debug_ga_diagnostics_", "debug_ga_failure_breakdown_");
+                // The breakdown CSV sits in the same per-run folder as the detailed CSV
+                string breakdownCsvPath = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(resultLarge.DiagnosticsReportPath)!, breakdownCsvName);
 
                 Assert.True(System.IO.File.Exists(breakdownCsvPath), "Failure breakdown CSV should be created.");
                 string breakdownText = System.IO.File.ReadAllText(breakdownCsvPath);

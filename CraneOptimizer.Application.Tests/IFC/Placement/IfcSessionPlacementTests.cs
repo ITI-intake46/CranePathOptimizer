@@ -3,6 +3,7 @@ using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Schemas.Enums;
+using CraneOptimizer.Domain.CreatedProject;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
@@ -806,6 +807,8 @@ namespace CraneOptimizer.Application.Tests
             public double ModelLengthFactor => 1.0;
             public double? ModelGroundElevation => 0.0;
 
+            public IfcGeoreferencingResult? GetGeoreferencingData() => null;
+
             public void ClearData() { }
             public void Dispose() { }
         }
@@ -951,8 +954,10 @@ namespace CraneOptimizer.Application.Tests
             public void SetStoreyEnabled(string storey, bool enabled) { }
             public void SetWeightRange(double minWeightKg, double maxWeightKg) { }
             public void SetIncludedElementIds(IEnumerable<string>? elementIds) { }
+            public void SetExcludedElementIds(IEnumerable<string>? elementIds) { }
             public void ResetFilters() { }
             public void ShowAll() { }
+            public void ShowElements(IEnumerable<PrecastElement> elements) { }
             public void HideElements(IEnumerable<PrecastElement> elements) { }
             public void IsolateElements(IEnumerable<PrecastElement> elements) { }
             public void ApplyLoadOptions(IfcLoadOptionsDto options) { }
@@ -961,6 +966,7 @@ namespace CraneOptimizer.Application.Tests
             public bool IsMaterialEnabled(string material) => true;
             public bool IsStoreyEnabled(string storey) => true;
             public bool IsElementIncluded(PrecastElement element) => true;
+            public bool IsElementHidden(PrecastElement element) => false;
         }
     }
 }

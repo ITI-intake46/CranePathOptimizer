@@ -2,7 +2,7 @@ using CraneOptimizer.Domain.Diagnostics;
 
 namespace CraneOptimizer.Domain.Interfaces
 {
-    public interface IIfcExporterProfile
+    public interface IIfcExporterProfile : IIfcSourceMappingProfile
     {
         IfcExporterProfile Exporter { get; }
 

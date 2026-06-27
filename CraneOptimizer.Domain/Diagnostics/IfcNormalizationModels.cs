@@ -90,4 +90,27 @@ namespace CraneOptimizer.Domain.Diagnostics
         public int BlockedGaFallbackWeightCount { get; set; }
         public List<IfcNormalizedElementPreview> Elements { get; set; } = new();
     }
+
+    public enum AssemblyMarkConfidence
+    {
+        None,
+        Low,
+        Medium,
+        High
+    }
+
+    public enum ValidationStatus
+    {
+        Valid,
+        Warning,
+        Error
+    }
+
+    public enum SourceSystem
+    {
+        IFC,
+        Revit,
+        Tekla,
+        JSON
+    }
 }

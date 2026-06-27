@@ -26,7 +26,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         /// <summary>
         /// Registry mapping Element ID to the rendered GeometryModel3D instances.
         /// </summary>
-        public Dictionary<string, List<GeometryModel3D>> ElementModelRegistry { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, List<GeometryModel3D>> ElementModelRegistry { get; } = new(StringComparer.Ordinal);
 
 
         // ── Diagnostics counters (instance-scoped, reset per render cycle) ──
@@ -272,7 +272,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         {
             ElementModelRegistry.Clear();
 
-            var elementMeshes = new Dictionary<string, List<(MediaMeshGeometry3D Mesh, Matrix3D Transform)>>(StringComparer.OrdinalIgnoreCase);
+            var elementMeshes = new Dictionary<string, List<(MediaMeshGeometry3D Mesh, Matrix3D Transform)>>(StringComparer.Ordinal);
             var allItems = items.ToList();
             DiagTotalElements += allItems.Count;
             var skipped = allItems.Count(i => !i.element.IncludeInRender);
@@ -322,10 +322,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 var meshesCreated = 0;
                 var meshesReused = 0;
                 var geometryModelsCreated = 0;
-                var modelVisualsCreated = 1; // batch root visual
+                var modelVisualsCreated = 0;
                 DiagRealMeshElements += itemsList.Count;
 
-                var elementMap = new Dictionary<string, (PrecastElement el, LiftStatus? st, bool sel)>(StringComparer.OrdinalIgnoreCase);
+                var elementMap = new Dictionary<string, (PrecastElement el, LiftStatus? st, bool sel)>(StringComparer.Ordinal);
                 foreach (var item in itemsList)
                 {
                     elementMap[item.element.ElementID] = (item.element, item.status, item.isSelected);
@@ -355,8 +355,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                     .ToList();
                 DiagShapeInstances += allInstances.Count;
 
-                var batchVisual = new ModelVisual3D { Content = new Model3DGroup() };
-                var mainGroup = (Model3DGroup)batchVisual.Content;
+                var elementVisualMap = new Dictionary<string, ModelVisual3D>(StringComparer.Ordinal);
+                var batchVisual = new ModelVisual3D();
 
                 foreach (var si in allInstances)
                 {
@@ -411,6 +411,15 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                         var material = ElementMaterialProvider.GetMaterial(visualStatus, CurrentQuality);
                         DiagMaterialCreated++;
 
+                        if (!elementVisualMap.TryGetValue(gid, out var elementVisual))
+                        {
+                            elementVisual = new ModelVisual3D { Content = new Model3DGroup() };
+                            elementVisual.SetValue(System.Windows.FrameworkElement.TagProperty, el);
+                            elementVisualMap[gid] = elementVisual;
+                            batchVisual.Children.Add(elementVisual);
+                            modelVisualsCreated++;
+                        }
+
                         var geoModel = new GeometryModel3D
                         {
                             Geometry = mesh,
@@ -421,7 +430,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                                 : CreateInstanceTransform(si.Transformation, oneMeter, origin, placementOffset)
                         };
 
-                        mainGroup.Children.Add(geoModel);
+                        ((Model3DGroup)elementVisual.Content!).Children.Add(geoModel);
                         geometryModelsCreated++;
 
                         // Populate registry for dynamic coloring
@@ -437,27 +446,29 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                     }
                 }
 
-                // D. Render Lightweight Transparent Hit-Testing Boxes for selection if spatial is disabled
+                // E. Create transparent hit-test boxes when spatial hit testing is disabled
                 var hitBoxesCount = 0;
                 if (!UseSpatialHitTestingInsteadOfTransparentBoxes)
                 {
                     foreach (var item in itemsList)
                     {
-                        try
+                        if (!item.isSelected)
                         {
-                            if (!item.isSelected)
+                            try
                             {
                                 var hitBox = CreateTransparentHitBox(item.element, origin, placementOffset);
                                 batchVisual.Children.Add(hitBox);
                                 modelVisualsCreated++;
                                 hitBoxesCount++;
                             }
+                            catch
+                            {
+                            }
                         }
-                        catch { }
                     }
                 }
 
-                // E. Set Diagnostics counters
+                // F. Set Diagnostics counters
                 DiagMeshesCreated += meshesCreated;
                 DiagMeshCacheHits += meshesReused;
                 DiagMeshCacheMisses += meshesCreated;
@@ -566,6 +577,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             };
 
             mesh.Normals = CalculateIndexedNormals(positions, indices);
+            if (mesh.CanFreeze)
+            {
+                mesh.Freeze();
+            }
             return mesh;
         }
 
@@ -1019,6 +1034,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                     ? new Vector3DCollection()
                     : new Vector3DCollection(helixMesh.Normals.Select(n => new Vector3D(n.X, n.Y, n.Z)))
             };
+            if (meshGeom.CanFreeze)
+            {
+                meshGeom.Freeze();
+            }
 
             var group = new Model3DGroup();
             var geoModel = new GeometryModel3D { Geometry = meshGeom, Material = finalMaterial, BackMaterial = finalMaterial };
@@ -1213,9 +1232,9 @@ var ev = new ModelVisual3D { Content = group };
                 var revitId = (p as IIfcElement)?.Tag?.ToString();
 
                 bool match = false;
-                if (revitId != null && string.Equals(revitId, el.ElementID, StringComparison.OrdinalIgnoreCase))
+                if (revitId != null && string.Equals(revitId, el.ElementID, StringComparison.Ordinal))
                     match = true;
-                else if (!string.IsNullOrEmpty(gid) && string.Equals(gid, el.ElementID, StringComparison.OrdinalIgnoreCase))
+                else if (!string.IsNullOrEmpty(gid) && string.Equals(gid, el.ElementID, StringComparison.Ordinal))
                     match = true;
 
                 if (match)

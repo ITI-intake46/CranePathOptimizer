@@ -41,6 +41,10 @@ erDiagram
         double Radius
         double BoomLength
         double Capacity
+        int VisualColumnIndex
+        string VisualColumnHeader
+        int NumberOfLines
+        string OperatingConditionLabel
     }
     Project {
         Guid Id PK
@@ -76,6 +80,8 @@ erDiagram
     ProjectInfoEntity ||--o{ ProjectIfcElementEntity : contains
     ProjectInfoEntity ||--o{ SiteZoneEntity : has
     ProjectInfoEntity ||--o{ CraneSetupEntity : has
+    ProjectInfoEntity ||--o{ ProjectCraneSnapshotEntity : contains
+    ProjectCraneSnapshotEntity ||--o{ ProjectCraneLoadChartSnapshotEntity : has
 
     ProjectInfoEntity {
         int Id PK
@@ -154,6 +160,44 @@ erDiagram
         double BoomLength
         bool IsValidPlacement
     }
+    ProjectCraneSnapshotEntity {
+        int Id PK
+        int ProjectInfoId FK
+        string SourceCraneId
+        string CraneName
+        string CraneType
+        string Manufacturer
+        string Model
+        double MaxCapacityTons
+        double VehicleLengthM
+        double VehicleWidthM
+        double VehicleHeightM
+        double OutriggerLengthM
+        double OutriggerWidthM
+        double MinRadiusM
+        double MaxRadiusM
+        double MinBoomLengthM
+        double MaxBoomLengthM
+        double MaxHookHeightM
+        double CounterWeightTons
+        double MachineRotation
+        double DeratingRatio
+        string ConfigurationJson
+        string OutriggerConfig
+        DateTime SnapshottedAtUtc
+    }
+    ProjectCraneLoadChartSnapshotEntity {
+        int Id PK
+        int CraneSnapshotId FK
+        double RadiusM
+        double BoomLengthM
+        double CapacityTons
+        int VisualColumnIndex
+        string VisualColumnHeader
+        int NumberOfLines
+        string OperatingConditionLabel
+        string Notes
+    }
 ```
 
 ---
@@ -168,11 +212,19 @@ Database changes are tracked via EF Core migrations located in [Migrations/](fil
 *   `20260428183336_AddCSVToCeaneSpecification` - Adds CSV mapping support for specs.
 *   `20260519000100_NormalizeUnitSystemStorage` - Standardizes metrics conversions.
 *   `20260521194249_AddProjectFolderpathtoProject` - Integrates directory paths.
+*   `20260528181000_AddFullFidelityLoadChartMetadata` - Adds `VisualColumnIndex` and `VisualColumnHeader` to `TargetPoints` for exact-visual column matching.
+*   `20260603120000_AddProjectConcreteDensity` - Integrates per-project concrete density adjustments in `Projects`.
+*   `20260608165000_AddLoadChartNumberOfLinesMetadata` - Adds `NumberOfLines` metadata to `TargetPoints`.
+*   `20260609011000_AddLoadChartOperatingConditionLabel` - Adds `OperatingConditionLabel` to `TargetPoints`.
 
 ### Project `.craneopt` migrations:
 *   `20260521202008_InitialCreatedProjectDb` - Sets up baseline schema for project elements.
 *   `20260523163420_AddProjectStateTables` - Adds scene snapshots and optimization run tables.
 *   `20260525231817_AddLightweightElementMetadata` - Integrates element properties and visibility flags.
+*   `20260528181100_AddFullFidelityLoadChartSnapshotMetadata` - Adds `VisualColumnIndex` and `VisualColumnHeader` columns to `ProjectCraneLoadChartSnapshots` for exact-visual matching.
+*   `20260530180000_AddProjectOptionalFields` - Adds optional fields (such as viewport states) to the project state.
+*   `20260608165100_AddLoadChartNumberOfLinesSnapshotMetadata` - Adds `NumberOfLines` to `ProjectCraneLoadChartSnapshots`.
+*   `20260609011100_AddLoadChartSnapshotOperatingConditionLabel` - Adds `OperatingConditionLabel` to `ProjectCraneLoadChartSnapshots`.
 
 ---
 

@@ -33,6 +33,7 @@ The Minimum Viable Product (MVP) of the **Mobile Crane Path Optimizer** focuses 
 
 ### 6. SQLite-Based Project Persistence
 *   **Project Files:** Storing the entire project (elements, site boundary, obstacles, green areas, crane settings, optimization parameters) into a single SQLite database file using the `.craneopt` extension.
+*   **GIS / Survey Coordinate Integration:** Persistence of coordinate reference mappings directly in the SQLite `.craneopt` project database. Automatic extraction of projected CRS (`IfcProjectedCRS`) and map conversion parameters (`IfcMapConversion`) from IFC4 files. Dynamic formatting of local model coordinates to real-world survey coordinates (`Easting`, `Northing`, `Elevation`) in the UI presentation layer (status bar, element management grids, GA optimizer optimal result readouts, and diagnostics logs). Choice of coordinate modes ("Local Only" vs "IFC Origin Mapping") inside the IFC Load Options dialog during import.
 
 ---
 
@@ -46,3 +47,7 @@ The following features are explicitly excluded from the current scope of the app
 *   **Multi-Crane Optimization:** Optimizing the placement of multiple cranes working in tandem or sharing overlapping working zones.
 *   **Interactive Geometry Modification:** Editing the dimensions or shapes of imported IFC elements directly inside the application.
 *   **Hoist Schedule & Time Estimation:** Simulating the time durations of slewing, hoisting, and trolley movements to calculate erection schedules (speeds are stored in the database but are not active in optimization logic).
+*   **Manual Picked Coordinate Reference / Local Points:** Interactive viewport selection of reference points or manual coordinate offsets mapping (Manual Picked mode is not supported).
+*   **Reprojection Engine:** Conversion from geographic curve coordinates (e.g. site latitude/longitude) to projected grid coordinate values (Easting/Northing).
+*   **Geometry Transformations:** Applying coordinate reference parameters to translate, rotate, scale, or transform physical 3D model meshes, optimization coordinates, DXF zones, collision check shapes, or database locations.
+*   **Survey Coordinate Reports:** Exporting crane layout maps, PDF lift reports, or Excel summary sheets with survey coordinates (reports remain out of scope).

@@ -17,7 +17,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cove
         {
             using (new GAProfiler.ProfileScope("CoverageEngine.RecalculateCoverage"))
             {
-                var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var covered = new HashSet<string>(StringComparer.Ordinal);
 
                 // Check if final assignments are resolved
                 bool hasFinalAssignments = result.Positions.Any(p => p.ElementResults.Any(er => er.IsFinalAssignedToPoint));
@@ -119,7 +119,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cove
         {
             using (new GAProfiler.ProfileScope("CoverageEngine.GetCoveredElementIds"))
             {
-                var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var covered = new HashSet<string>(StringComparer.Ordinal);
                 if (result == null || result.Positions == null)
                     return covered;
 

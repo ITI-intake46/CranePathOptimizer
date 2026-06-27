@@ -12,6 +12,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
         NoDiscreteLoadChartEntry,
         ZeroCapacityChartEntry, // kept for backward-compatibility if referenced elsewhere
         NoListedCapacityForBoomRadius,
+        LoadChartConditionMismatch,
         OutsideChartEnvelope,
         InvalidBlankCell,
         InvalidZeroCell

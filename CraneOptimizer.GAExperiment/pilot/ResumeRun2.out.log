@@ -1,0 +1,16 @@
+==================================================
+      GA Headless Parameter Sweep Validation      
+==================================================
+Database Path:   F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.UI\bin\Debug\net8.0-windows\Data\crane.db
+Projects Count:  2
+Cranes Count:    2 (STC800, 180Tons)
+Combinations:    1
+Seeds Count:     3 (List Mode: 1, 42, 99)
+Estimated Runs:  12
+Max GA Evaluations: 43,200
+Output CSV:      F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\pilot\ExperimentResults.csv
+==================================================
+Loaded 12 completed runs. Resume is active.
+Skipped 12 already completed runs.
+Generating post-processing summary report...
+Experiment complete! Summary generated at: F:\06-ITI\00-Project\Main Project\CraneOptimizer\CraneOptimizer.GAExperiment\pilot\ExperimentSummary.csv

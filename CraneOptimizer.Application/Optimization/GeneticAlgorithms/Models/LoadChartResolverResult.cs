@@ -6,8 +6,22 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models
         public double RequiredBoomLength { get; set; }
         public double SelectedChartRadius { get; set; }
         public double SelectedChartBoomLength { get; set; }
+        public int? SelectedVisualColumnIndex { get; set; }
+        public string SelectedVisualColumnHeader { get; set; } = string.Empty;
+        public int? SelectedNumberOfLines { get; set; }
+        public string SelectedOperatingConditionLabel { get; set; } = string.Empty;
+        public bool IsConservativeDuplicateFallback { get; set; }
+        public int DuplicateAlternativeCount { get; set; }
+        public string DuplicateAlternativeSummary { get; set; } = string.Empty;
         public double ElementWeight { get; set; }
         public double AvailableCapacity { get; set; }
+
+        /// <summary>
+        /// Raw manufacturer load chart capacity at the selected (radius, boom) cell,
+        /// before derating ratio and safety factor are applied.
+        /// AvailableCapacity = RawChartCapacity * DeratingRatio * SafetyFactor.
+        /// </summary>
+        public double RawChartCapacity { get; set; }
         public ReachStatus ReachStatus { get; set; }
         public ChartStatus ChartStatus { get; set; }
         public LiftStatus LiftStatus { get; set; }

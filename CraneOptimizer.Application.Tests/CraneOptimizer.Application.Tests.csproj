@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CS0618</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,6 +24,7 @@
     <ProjectReference Include="..\CraneOptimizer.Domain\CraneOptimizer.Domain.csproj" />
     <ProjectReference Include="..\CraneOptimizer.Infrastructure\CraneOptimizer.Infrastructure.csproj" />
     <ProjectReference Include="..\CraneOptimizer.UI\CraneOptimizer.UI.csproj" />
+    <ProjectReference Include="..\CraneOptimizer.GAExperiment\CraneOptimizer.GAExperiment.csproj" />
   </ItemGroup>
   <Target Name="CopyXbimNativeDll" AfterTargets="Build">
     <ItemGroup>

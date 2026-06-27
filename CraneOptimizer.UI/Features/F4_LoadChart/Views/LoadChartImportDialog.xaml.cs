@@ -8,7 +8,9 @@ using Microsoft.Win32;
 using System.Data;
 using System.Globalization;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -30,6 +32,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         private bool _hasExactVisualPreview;
         private bool _isShowingExactVisualPreview;
         private bool _suppressCapacityUnitRefresh;
+        private bool _isApplyingMetadataAutoFill;
+        private readonly LoadChartMetadataAutoFillState _metadataAutoFillState = new();
+        private LoadChartPdfMetadataDto? _lastDetectedMetadata;
+        private string _lastMetadataEvidenceText = string.Empty;
+        private string _lastMetadataEvidenceSummary = string.Empty;
         private double _vehicleLengthMeters;
         private double _vehicleHeightMeters;
         private double _vehicleWidthMeters;
@@ -45,12 +52,34 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             _unitSettings = _unitSettingsService.Current;
             _existingCrane = craneToEdit;
             ApplyUnitLabels();
+            WireMetadataAutoFillOwnershipTracking();
             RefreshDimensionsSummary();
+            ClearPdfMetadataEvidence();
 
             if (_existingCrane != null)
                 LoadExistingCrane(_existingCrane);
         }
 
+        private void WireMetadataAutoFillOwnershipTracking()
+        {
+            TxtModel.TextChanged += (_, _) =>
+            {
+                if (!_isApplyingMetadataAutoFill)
+                    _metadataAutoFillState.ClearModelOwnership();
+            };
+
+            TxtMfg.TextChanged += (_, _) =>
+            {
+                if (!_isApplyingMetadataAutoFill)
+                    _metadataAutoFillState.ClearManufacturerOwnership();
+            };
+
+            TxtCounterweight.TextChanged += (_, _) =>
+            {
+                if (!_isApplyingMetadataAutoFill)
+                    _metadataAutoFillState.ClearCounterweightOwnership();
+            };
+        }
         private void LoadExistingCrane(LoadChartCraneDto crane)
         {
             TxtHeader.Text = "Edit Crane Load Chart";
@@ -65,6 +94,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             _vehicleWidthMeters = crane.VehicleWidthMeters;
             _outriggerWidthMeters = crane.OutriggerWidthMeters;
             _outriggerLengthMeters = crane.OutriggerLengthMeters;
+            _metadataAutoFillState.Clear();
+            _metadataAutoFillState.ClearOutriggerOwnership();
+            ClearOutriggerDimensionsWhenOnRubber();
             RefreshDimensionsSummary();
 
             var rawGrid = BuildRawGridFromDto(crane);
@@ -199,6 +231,22 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 rawGrid.Add(row);
             }
 
+            var numberOfLinesRow = new List<string> { "Number of lines" };
+            bool hasNumberOfLines = false;
+            foreach (var column in orderedColumns)
+            {
+                int? numberOfLines = crane.Points
+                    .Where(point => point.VisualColumnIndex == column.Index)
+                    .Select(point => point.NumberOfLines)
+                    .FirstOrDefault(value => value.HasValue);
+
+                numberOfLinesRow.Add(numberOfLines?.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
+                hasNumberOfLines |= numberOfLines.HasValue;
+            }
+
+            if (hasNumberOfLines)
+                rawGrid.Add(numberOfLinesRow);
+
             return rawGrid;
         }
 
@@ -235,6 +283,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         {
             try
             {
+                ClearPdfMetadataEvidence();
                 var importResult = LoadChartImportService.Import(path, this);
 
                 ClearExactVisualPreview();
@@ -242,6 +291,10 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 SetCapacityUnitMode(importResult.Chart.RequestedCapacityUnitMode, suppressRefresh: true);
                 SetNominalChart(importResult.Chart);
                 ApplyExactVisualPreview(importResult);
+                string metadataSourceIdentity = BuildMetadataSourceIdentity(path, importResult.SourceDescription);
+                PrepareForNewFileMetadataAutofill(metadataSourceIdentity);
+                var metadataPrefillNotes = ApplyDetectedCraneMetadata(importResult.DetectedMetadata, Path.GetFileNameWithoutExtension(path), metadataSourceIdentity);
+                UpdatePdfMetadataEvidence(importResult.DetectedMetadata, metadataPrefillNotes);
 
                 TxtFileName.Text = Path.GetFileName(path);
                 var info = new FileInfo(path);
@@ -249,11 +302,26 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 FileInfoPanel.Visibility = Visibility.Visible;
 
                 if (string.IsNullOrWhiteSpace(TxtModel.Text))
-                    TxtModel.Text = Path.GetFileNameWithoutExtension(path);
+                {
+                    _isApplyingMetadataAutoFill = true;
+                    try
+                    {
+                        TxtModel.Text = Path.GetFileNameWithoutExtension(path);
+                        _metadataAutoFillState.RememberModel(TxtModel.Text);
+                    }
+                    finally
+                    {
+                        _isApplyingMetadataAutoFill = false;
+                    }
+                }
 
                 TxtMaxRadius.Text = _nominalChart == null ? string.Empty : FormatLengthInput(_nominalChart.MaxRadius);
 
-                TxtStatus.Text = importResult.BuildStatusMessage(Path.GetFileName(path)) + " " + LoadChartCsvService.GetCapacityUnitSummary(importResult.Chart);
+                string metadataStatus = metadataPrefillNotes.Count == 0
+                    ? string.Empty
+                    : " " + string.Join(" ", metadataPrefillNotes);
+
+                TxtStatus.Text = importResult.BuildStatusMessage(Path.GetFileName(path)) + " " + LoadChartCsvService.GetCapacityUnitSummary(importResult.Chart) + metadataStatus;
 
                 if (importResult.HasActionableWarnings())
                 {
@@ -302,20 +370,656 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             TxtStatus.Text = "Grid orientation swapped.";
         }
 
+        private void PrepareForNewFileMetadataAutofill(string sourceIdentity)
+        {
+            bool dimensionsChanged = false;
+            bool wasApplying = _isApplyingMetadataAutoFill;
+            _isApplyingMetadataAutoFill = true;
+
+            try
+            {
+                if (_metadataAutoFillState.IsSameSource(sourceIdentity))
+                    return;
+
+                ClearTextIfStillAuto(TxtModel, _metadataAutoFillState.ModelText);
+                ClearTextIfStillAuto(TxtMfg, _metadataAutoFillState.ManufacturerText);
+                ClearTextIfStillAuto(TxtCounterweight, _metadataAutoFillState.CounterweightText);
+
+                if (_metadataAutoFillState.ShouldReplaceVehicleLength(_vehicleLengthMeters) && _vehicleLengthMeters > 0d)
+                {
+                    _vehicleLengthMeters = 0d;
+                    dimensionsChanged = true;
+                }
+
+                if (_metadataAutoFillState.ShouldReplaceVehicleHeight(_vehicleHeightMeters) && _vehicleHeightMeters > 0d)
+                {
+                    _vehicleHeightMeters = 0d;
+                    dimensionsChanged = true;
+                }
+
+                if (_metadataAutoFillState.ShouldReplaceVehicleWidth(_vehicleWidthMeters) && _vehicleWidthMeters > 0d)
+                {
+                    _vehicleWidthMeters = 0d;
+                    dimensionsChanged = true;
+                }
+
+                if (_metadataAutoFillState.ShouldReplaceOutriggerWidth(_outriggerWidthMeters) && _outriggerWidthMeters.HasValue)
+                {
+                    _outriggerWidthMeters = null;
+                    dimensionsChanged = true;
+                }
+
+                if (_metadataAutoFillState.ShouldReplaceOutriggerLength(_outriggerLengthMeters) && _outriggerLengthMeters.HasValue)
+                {
+                    _outriggerLengthMeters = null;
+                    dimensionsChanged = true;
+                }
+
+                _metadataAutoFillState.Clear();
+                _metadataAutoFillState.BeginSource(sourceIdentity);
+
+                if (dimensionsChanged)
+                    RefreshDimensionsSummary();
+            }
+            finally
+            {
+                _isApplyingMetadataAutoFill = wasApplying;
+            }
+        }
+
+        private static void ClearTextIfStillAuto(TextBox textBox, string? previousAutoFill)
+        {
+            if (LoadChartMetadataAutoFillState.TextStillMatchesAutoFill(textBox.Text, previousAutoFill))
+                textBox.Clear();
+        }
+
+        private static string BuildMetadataSourceIdentity(string path, string sourceDescription)
+        {
+            string normalizedPath = NormalizeMetadataSourcePath(path);
+            string normalizedDescription = string.IsNullOrWhiteSpace(sourceDescription)
+                ? string.Empty
+                : sourceDescription.Trim();
+
+            try
+            {
+                var info = new FileInfo(path);
+                if (!info.Exists)
+                    return $"{normalizedPath}|{normalizedDescription}";
+
+                using var stream = info.Open(FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                string hash = Convert.ToHexString(SHA256.HashData(stream));
+
+                return string.Join("|", new[]
+                {
+                    normalizedPath,
+                    info.Length.ToString(CultureInfo.InvariantCulture),
+                    info.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture),
+                    hash,
+                    normalizedDescription
+                });
+            }
+            catch
+            {
+                return $"{normalizedPath}|{normalizedDescription}";
+            }
+        }
+
+        private static string NormalizeMetadataSourcePath(string path)
+        {
+            try
+            {
+                return Path.GetFullPath(path).Trim();
+            }
+            catch
+            {
+                return path?.Trim() ?? string.Empty;
+            }
+        }
+
+        private List<string> ApplyDetectedCraneMetadata(LoadChartPdfMetadataDto metadata, string fallbackModelName, string sourceIdentity)
+        {
+            var applied = new List<string>();
+
+            if (metadata == null || !metadata.HasAnyValue)
+                return applied;
+
+            bool wasApplying = _isApplyingMetadataAutoFill;
+            _isApplyingMetadataAutoFill = true;
+
+            try
+            {
+                _metadataAutoFillState.BeginSource(sourceIdentity);
+
+                if (!string.IsNullOrWhiteSpace(metadata.Model)
+                    && _metadataAutoFillState.ShouldReplaceModel(TxtModel.Text, fallbackModelName))
+                {
+                    TxtModel.Text = metadata.Model;
+                    _metadataAutoFillState.RememberModel(TxtModel.Text);
+                    applied.Add($"Detected model '{metadata.Model}'.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(metadata.Manufacturer)
+                    && _metadataAutoFillState.ShouldReplaceManufacturer(TxtMfg.Text))
+                {
+                    TxtMfg.Text = metadata.Manufacturer;
+                    _metadataAutoFillState.RememberManufacturer(TxtMfg.Text);
+                    applied.Add($"Detected manufacturer '{metadata.Manufacturer}'.");
+                }
+
+                if (metadata.CounterweightTons.HasValue
+                    && _metadataAutoFillState.ShouldReplaceCounterweight(TxtCounterweight.Text))
+                {
+                    TxtCounterweight.Text = FormatMassInput(metadata.CounterweightTons.Value);
+                    _metadataAutoFillState.RememberCounterweight(TxtCounterweight.Text);
+                    applied.Add($"Detected counterweight {metadata.CounterweightTons.Value:0.###} t.");
+                }
+
+                bool dimensionsChanged = false;
+
+                if (metadata.VehicleLengthMeters.HasValue && _metadataAutoFillState.ShouldReplaceVehicleLength(_vehicleLengthMeters))
+                {
+                    _vehicleLengthMeters = metadata.VehicleLengthMeters.Value;
+                    _metadataAutoFillState.RememberVehicleLength(_vehicleLengthMeters);
+                    dimensionsChanged = true;
+                }
+
+                if (metadata.VehicleHeightMeters.HasValue && _metadataAutoFillState.ShouldReplaceVehicleHeight(_vehicleHeightMeters))
+                {
+                    _vehicleHeightMeters = metadata.VehicleHeightMeters.Value;
+                    _metadataAutoFillState.RememberVehicleHeight(_vehicleHeightMeters);
+                    dimensionsChanged = true;
+                }
+
+                if (metadata.VehicleWidthMeters.HasValue && _metadataAutoFillState.ShouldReplaceVehicleWidth(_vehicleWidthMeters))
+                {
+                    _vehicleWidthMeters = metadata.VehicleWidthMeters.Value;
+                    _metadataAutoFillState.RememberVehicleWidth(_vehicleWidthMeters);
+                    dimensionsChanged = true;
+                }
+
+                if (!IsOnRubberSelected())
+                {
+                    if (metadata.OutriggerWidthMeters.HasValue && _metadataAutoFillState.ShouldReplaceOutriggerWidth(_outriggerWidthMeters))
+                    {
+                        _outriggerWidthMeters = metadata.OutriggerWidthMeters.Value;
+                        _metadataAutoFillState.RememberOutriggerWidth(_outriggerWidthMeters);
+                        dimensionsChanged = true;
+                    }
+
+                    if (metadata.OutriggerLengthMeters.HasValue && _metadataAutoFillState.ShouldReplaceOutriggerLength(_outriggerLengthMeters))
+                    {
+                        _outriggerLengthMeters = metadata.OutriggerLengthMeters.Value;
+                        _metadataAutoFillState.RememberOutriggerLength(_outriggerLengthMeters);
+                        dimensionsChanged = true;
+                    }
+                }
+
+                if (dimensionsChanged)
+                {
+                    ClearOutriggerDimensionsWhenOnRubber();
+                    RefreshDimensionsSummary();
+                    applied.Add("Detected crane dimensions from the PDF.");
+                }
+            }
+            finally
+            {
+                _isApplyingMetadataAutoFill = wasApplying;
+            }
+
+            if (metadata.Notes.Count > 0)
+            {
+                foreach (string note in metadata.Notes.Take(6))
+                    applied.Add(note);
+            }
+
+            return applied.Distinct().ToList();
+        }
+
+        private void ClearPdfMetadataEvidence()
+        {
+            _lastDetectedMetadata = null;
+            _lastMetadataEvidenceText = string.Empty;
+            _lastMetadataEvidenceSummary = string.Empty;
+            MetadataEvidencePanel.Visibility = Visibility.Collapsed;
+            TxtMetadataEvidence.Text = string.Empty;
+            TxtMetadataEvidenceSummary.Text = string.Empty;
+            BtnViewFullMetadataEvidence.IsEnabled = false;
+            TxtModel.ToolTip = null;
+            TxtMfg.ToolTip = null;
+            TxtCounterweight.ToolTip = null;
+            TxtDimensionsSummary.ToolTip = null;
+        }
+        private void UpdatePdfMetadataEvidence(LoadChartPdfMetadataDto? metadata, IReadOnlyList<string> appliedNotes)
+        {
+            IEnumerable<string> safeAppliedNotes = appliedNotes == null ? Array.Empty<string>() : appliedNotes;
+            if (metadata == null)
+            {
+                ClearPdfMetadataEvidence();
+                return;
+            }
+
+            IEnumerable<string> metadataNotes = metadata.Notes == null ? Array.Empty<string>() : metadata.Notes;
+            if (!metadata.HasAnyValue && !metadataNotes.Any() && !safeAppliedNotes.Any())
+            {
+                ClearPdfMetadataEvidence();
+                return;
+            }
+
+            _lastDetectedMetadata = metadata;
+
+            _lastMetadataEvidenceText = BuildProfessionalMetadataEvidence(metadata, safeAppliedNotes);
+            _lastMetadataEvidenceSummary = BuildMetadataEvidenceSummary(metadata);
+            TxtMetadataEvidenceSummary.Text = _lastMetadataEvidenceSummary;
+            TxtMetadataEvidence.Text = _lastMetadataEvidenceText;
+            MetadataEvidencePanel.Visibility = Visibility.Visible;
+            BtnViewFullMetadataEvidence.IsEnabled = !string.IsNullOrWhiteSpace(_lastMetadataEvidenceText);
+
+            TxtModel.ToolTip = BuildEvidenceToolTip("Model", metadata.ModelSource);
+            TxtMfg.ToolTip = BuildEvidenceToolTip("Manufacturer", metadata.ManufacturerSource);
+            TxtCounterweight.ToolTip = BuildEvidenceToolTip("Counterweight", metadata.CounterweightSource);
+            TxtDimensionsSummary.ToolTip = BuildDimensionsEvidenceToolTip(metadata);
+        }
+
+        private double? ConvertLengthForDisplay(double? meters)
+        {
+            return meters.HasValue
+                ? UnitSystem.FromMeters(meters.Value, _unitSettings.DisplayLengthUnit)
+                : null;
+        }
+
+        private double? ConvertMassForDisplay(double? tons)
+        {
+            return tons.HasValue
+                ? UnitSystem.FromTons(tons.Value, _unitSettings.DisplayMassUnit)
+                : null;
+        }
+
+        private string BuildProfessionalMetadataEvidence(LoadChartPdfMetadataDto metadata, IEnumerable<string> appliedNotes)
+        {
+            var lines = new List<string>
+            {
+                "PDF Metadata Details",
+                "",
+                "Status",
+                "- " + BuildMetadataEvidenceSummary(metadata),
+                "",
+                "Detected values"
+            };
+
+            AddProfessionalTextValue(lines, "Model", metadata.Model, metadata.ModelSource, "model not detected");
+            AddProfessionalTextValue(lines, "Manufacturer", metadata.Manufacturer, metadata.ManufacturerSource, "manufacturer not detected");
+            AddProfessionalNumberValue(lines, "Counterweight", ConvertMassForDisplay(metadata.CounterweightTons), UnitSystem.MassSymbol(_unitSettings.DisplayMassUnit), metadata.CounterweightSource, "counterweight not detected");
+            AddProfessionalNumberValue(lines, "Transport length", ConvertLengthForDisplay(metadata.VehicleLengthMeters), UnitSystem.LengthSymbol(_unitSettings.DisplayLengthUnit), metadata.VehicleLengthSource, "transport length not detected");
+            AddProfessionalNumberValue(lines, "Transport height", ConvertLengthForDisplay(metadata.VehicleHeightMeters), UnitSystem.LengthSymbol(_unitSettings.DisplayLengthUnit), metadata.VehicleHeightSource, "transport height not detected");
+            AddProfessionalNumberValue(lines, "Travel width", ConvertLengthForDisplay(metadata.VehicleWidthMeters), UnitSystem.LengthSymbol(_unitSettings.DisplayLengthUnit), metadata.VehicleWidthSource, "travel width not detected");
+            AddProfessionalNumberValue(lines, "Outrigger pad-to-pad", ConvertLengthForDisplay(metadata.OutriggerWidthMeters), UnitSystem.LengthSymbol(_unitSettings.DisplayLengthUnit), metadata.OutriggerWidthSource, "outrigger pad-to-pad span not detected");
+            AddProfessionalNumberValue(lines, "Outrigger front-to-rear", ConvertLengthForDisplay(metadata.OutriggerLengthMeters), UnitSystem.LengthSymbol(_unitSettings.DisplayLengthUnit), metadata.OutriggerLengthSource, "outrigger front-to-rear span not detected");
+
+            var reviewNotes = metadata.Notes
+                .Concat(appliedNotes ?? Array.Empty<string>())
+                .Where(note => !string.IsNullOrWhiteSpace(note))
+                .Select(SanitizeEvidenceDisplayText)
+                .Where(note => !string.IsNullOrWhiteSpace(note))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(8)
+                .ToList();
+
+            if (reviewNotes.Count > 0)
+            {
+                lines.Add("");
+                lines.Add("Review notes");
+                foreach (string note in reviewNotes)
+                    lines.Add("- " + note);
+            }
+
+            return SanitizeEvidenceDisplayText(string.Join(Environment.NewLine, lines));
+        }
+
+        private string BuildMetadataEvidenceSummary(LoadChartPdfMetadataDto metadata)
+        {
+            int detectedCount = new[]
+            {
+                !string.IsNullOrWhiteSpace(metadata.Model),
+                !string.IsNullOrWhiteSpace(metadata.Manufacturer),
+                metadata.CounterweightTons.HasValue,
+                metadata.VehicleLengthMeters.HasValue,
+                metadata.VehicleHeightMeters.HasValue,
+                metadata.VehicleWidthMeters.HasValue,
+                metadata.OutriggerWidthMeters.HasValue,
+                metadata.OutriggerLengthMeters.HasValue
+            }.Count(value => value);
+
+            string confidence = detectedCount >= 6 ? "High confidence" : detectedCount > 0 ? "Review recommended" : "No metadata detected";
+            return $"{confidence} - {detectedCount} fields auto-filled.";
+        }
+
+        private static void AddProfessionalTextValue(List<string> lines, string label, string value, string source, string missingReason)
+        {
+            string displayValue = string.IsNullOrWhiteSpace(value) ? "Missing" : SanitizeEvidenceDisplayText(value.Trim());
+            lines.Add($"- {label}: {displayValue}");
+            lines.Add($"  Evidence: {BuildCleanSourceSummary(source, missingReason)}");
+        }
+
+        private static void AddProfessionalNumberValue(List<string> lines, string label, double? value, string unit, string source, string missingReason)
+        {
+            string displayValue = value.HasValue
+                ? FormatEvidenceNumber(value.Value) + " " + unit
+                : "Missing";
+
+            if (value.HasValue && SourceLooksInferred(source) && !displayValue.Contains("inferred", StringComparison.OrdinalIgnoreCase))
+                displayValue += " (inferred)";
+
+            lines.Add($"- {label}: {displayValue}");
+            lines.Add($"  Evidence: {BuildCleanSourceSummary(source, missingReason)}");
+        }
+
+        private static string BuildSourceText(string source, string missingReason)
+        {
+            return BuildCleanSourceSummary(source, missingReason);
+        }
+
+        private static string BuildCleanSourceSummary(string source, string missingReason)
+        {
+            if (string.IsNullOrWhiteSpace(source))
+                return "Missing PDF evidence - " + missingReason;
+
+            string clean = SanitizeEvidenceDisplayText(source);
+            var parts = new List<string>();
+
+            string confidence = "PDF evidence";
+            if (clean.Contains("confidence high", StringComparison.OrdinalIgnoreCase))
+                confidence = "High confidence";
+            else if (clean.Contains("confidence medium", StringComparison.OrdinalIgnoreCase))
+                confidence = "Medium confidence";
+            else if (clean.Contains("confidence low", StringComparison.OrdinalIgnoreCase))
+                confidence = "Low confidence";
+
+            parts.Add(confidence);
+
+            var pages = Regex.Matches(clean, @"Page\s+(\d+)", RegexOptions.IgnoreCase)
+                .Cast<Match>()
+                .Select(match => match.Groups[1].Value)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(3)
+                .ToList();
+
+            if (pages.Count == 1)
+                parts.Add("Page " + pages[0]);
+            else if (pages.Count > 1)
+                parts.Add("Pages " + string.Join(", ", pages));
+
+            parts.Add(GetEvidenceKind(clean));
+
+            string values = ExtractEvidenceValuesSummary(clean);
+            if (!string.IsNullOrWhiteSpace(values))
+                parts.Add(values);
+
+            return string.Join(" - ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
+        }
+
+        private static string GetEvidenceKind(string cleanSource)
+        {
+            if (cleanSource.Contains("transverse", StringComparison.OrdinalIgnoreCase)
+                || cleanSource.Contains("pad-to-pad", StringComparison.OrdinalIgnoreCase))
+                return "transverse support diagram";
+
+            if (cleanSource.Contains("longitudinal", StringComparison.OrdinalIgnoreCase)
+                || cleanSource.Contains("front-to-rear", StringComparison.OrdinalIgnoreCase)
+                || cleanSource.Contains("support base", StringComparison.OrdinalIgnoreCase))
+                return "front-to-rear support base";
+
+            if (cleanSource.Contains("dimension table", StringComparison.OrdinalIgnoreCase))
+                return "dimension table";
+
+            if (cleanSource.Contains("dimension diagram", StringComparison.OrdinalIgnoreCase)
+                || cleanSource.Contains("dimensions page", StringComparison.OrdinalIgnoreCase))
+                return "dimensions diagram";
+
+            if (cleanSource.Contains("counterweight", StringComparison.OrdinalIgnoreCase)
+                || cleanSource.Contains("ballast", StringComparison.OrdinalIgnoreCase))
+                return "counterweight evidence";
+
+            return "PDF text evidence";
+        }
+
+        private static string ExtractEvidenceValuesSummary(string cleanSource)
+        {
+            var tokens = new List<string>();
+
+            var valuesMatch = Regex.Match(cleanSource, @"values\s+([^\.]+)", RegexOptions.IgnoreCase);
+            if (valuesMatch.Success)
+            {
+                tokens.AddRange(Regex.Matches(valuesMatch.Groups[1].Value, @"\d+(?:\.\d+)?")
+                    .Cast<Match>()
+                    .Select(match => match.Value)
+                    .Take(8));
+            }
+
+            var selectedMatch = Regex.Match(cleanSource, @"selected\s+(\d{3,5})\s*mm", RegexOptions.IgnoreCase);
+            if (selectedMatch.Success && !tokens.Contains(selectedMatch.Groups[1].Value))
+                tokens.Add(selectedMatch.Groups[1].Value);
+
+            tokens = tokens
+                .Where(token => !string.IsNullOrWhiteSpace(token))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(8)
+                .ToList();
+
+            return tokens.Count > 0
+                ? "values " + string.Join(" / ", tokens)
+                : string.Empty;
+        }
+
+        private static string FormatEvidenceNumber(double value)
+        {
+            return value.ToString("0.###", CultureInfo.InvariantCulture);
+        }
+
+        private static string SanitizeEvidenceDisplayText(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return string.Empty;
+
+            string cleaned = text
+                .Replace('\u00A0', ' ')
+                .Replace('\uFFFD', ' ')
+                .Replace("\u00C2", " ")
+                .Replace("\u00C3", " ")
+                .Replace("\uFFFD", " ");
+
+            cleaned = Regex.Replace(cleaned, "[^\u0009\u000A\u000D\u0020-\u007E]", " ");
+            cleaned = Regex.Replace(cleaned, @"[\u0000-\u0008\u000B\u000C\u000E-\u001F]", " ");
+            cleaned = Regex.Replace(cleaned, @"[^\S\r\n]+", " ");
+            cleaned = Regex.Replace(cleaned, @"[ ]+(\r?\n)", "$1");
+
+            return cleaned.Trim();
+        }
+
+        private static bool SourceLooksInferred(string source)
+        {
+            return !string.IsNullOrWhiteSpace(source)
+                && (source.Contains("inferred", StringComparison.OrdinalIgnoreCase)
+                    || source.Contains("diagram-cluster", StringComparison.OrdinalIgnoreCase)
+                    || source.Contains("diagram cluster", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string? BuildEvidenceToolTip(string label, string source)
+        {
+            if (string.IsNullOrWhiteSpace(source))
+                return null;
+
+            return label + " - " + BuildCleanSourceSummary(source, "source not available");
+        }
+
+        private static string? BuildDimensionsEvidenceToolTip(LoadChartPdfMetadataDto metadata)
+        {
+            var sources = new[]
+            {
+                metadata.VehicleLengthSource,
+                metadata.VehicleHeightSource,
+                metadata.VehicleWidthSource,
+                metadata.OutriggerWidthSource,
+                metadata.OutriggerLengthSource
+            }
+            .Where(source => !string.IsNullOrWhiteSpace(source))
+            .Select(source => BuildCleanSourceSummary(source, "source not available"))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+            return sources.Count == 0
+                ? null
+                : "PDF dimension evidence" + Environment.NewLine + string.Join(Environment.NewLine, sources);
+        }
+        private void BtnViewFullMetadataEvidence_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_lastMetadataEvidenceText))
+            {
+                TxtStatus.Text = "No PDF metadata details are available for the current import.";
+                return;
+            }
+
+            var dialog = new Window
+            {
+                Title = "PDF Metadata Details",
+                Owner = this,
+                Width = 820,
+                Height = 640,
+                MinWidth = 620,
+                MinHeight = 440,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+            dialog.SetResourceReference(Window.BackgroundProperty, "BackgroundBrush");
+
+            var root = new Grid { Margin = new Thickness(18) };
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var title = new TextBlock
+            {
+                Text = "PDF Metadata Details",
+                FontSize = 18,
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 0, 0, 4)
+            };
+            title.SetResourceReference(TextBlock.ForegroundProperty, "PrimaryBrush");
+            Grid.SetRow(title, 0);
+            root.Children.Add(title);
+
+            var summary = new TextBlock
+            {
+                Text = _lastMetadataEvidenceSummary,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 12)
+            };
+            summary.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");
+            Grid.SetRow(summary, 1);
+            root.Children.Add(summary);
+
+            var evidenceBox = new TextBox
+            {
+                Text = _lastMetadataEvidenceText,
+                IsReadOnly = true,
+                AcceptsReturn = true,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                FontFamily = TxtMetadataEvidence.FontFamily,
+                FontSize = 13,
+                Padding = new Thickness(12),
+                Margin = new Thickness(0, 0, 0, 14)
+            };
+            evidenceBox.SetResourceReference(Control.BackgroundProperty, "SurfaceBrush");
+            evidenceBox.SetResourceReference(Control.ForegroundProperty, "TextPrimaryBrush");
+            Grid.SetRow(evidenceBox, 2);
+            root.Children.Add(evidenceBox);
+
+            var footer = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+
+            var copyButton = new Button
+            {
+                Content = "Copy details",
+                Width = 120,
+                Height = 32,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+            if (TryFindResource("ButtonPrimary") is Style copyStyle)
+                copyButton.Style = copyStyle;
+            copyButton.Click += (_, _) =>
+            {
+                Clipboard.SetText(_lastMetadataEvidenceText);
+                TxtStatus.Text = "PDF metadata details copied to clipboard.";
+            };
+
+            var closeButton = new Button
+            {
+                Content = "Close",
+                Width = 90,
+                Height = 32
+            };
+            if (TryFindResource("ButtonSecondary") is Style closeStyle)
+                closeButton.Style = closeStyle;
+            closeButton.Click += (_, _) => dialog.Close();
+
+            footer.Children.Add(copyButton);
+            footer.Children.Add(closeButton);
+            Grid.SetRow(footer, 3);
+            root.Children.Add(footer);
+
+            dialog.Content = root;
+            dialog.ShowDialog();
+        }
+
+        private void BtnCopyMetadataEvidence_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_lastMetadataEvidenceSummary))
+            {
+                TxtStatus.Text = "No PDF metadata summary is available to copy.";
+                return;
+            }
+
+            Clipboard.SetText(_lastMetadataEvidenceSummary);
+            TxtStatus.Text = "PDF metadata summary copied to clipboard.";
+        }
         private void BtnToggleDimensions_Click(object sender, RoutedEventArgs e)
         {
+            double previousVehicleLengthMeters = _vehicleLengthMeters;
+            double previousVehicleHeightMeters = _vehicleHeightMeters;
+            double previousVehicleWidthMeters = _vehicleWidthMeters;
+            double? previousOutriggerWidthMeters = _outriggerWidthMeters;
+            double? previousOutriggerLengthMeters = _outriggerLengthMeters;
+
             var dialog = new CraneDimensionsDialog(
                 _vehicleLengthMeters,
                 _vehicleHeightMeters,
                 _vehicleWidthMeters,
                 _outriggerWidthMeters,
-                _outriggerLengthMeters)
+                _outriggerLengthMeters,
+                IsOnRubberSelected(),
+                _lastDetectedMetadata)
             {
                 Owner = this
             };
 
             if (dialog.ShowDialog() != true)
                 return;
+
+            _metadataAutoFillState.ClearChangedDimensionOwnership(
+                previousVehicleLengthMeters,
+                previousVehicleHeightMeters,
+                previousVehicleWidthMeters,
+                previousOutriggerWidthMeters,
+                previousOutriggerLengthMeters,
+                dialog.VehicleLengthMeters,
+                dialog.VehicleHeightMeters,
+                dialog.VehicleWidthMeters,
+                dialog.OutriggerWidthMeters,
+                dialog.OutriggerLengthMeters);
 
             _vehicleLengthMeters = dialog.VehicleLengthMeters;
             _vehicleHeightMeters = dialog.VehicleHeightMeters;
@@ -332,7 +1036,22 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             {
                 if (string.IsNullOrWhiteSpace(TxtModel.Text))
                 {
-                    TxtStatus.Text = "Model name is required.";
+                    ShowRequiredFieldError("Model name is required.", TxtModel);
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(TxtMfg.Text))
+                {
+                    ShowRequiredFieldError("Manufacturer is required.", TxtMfg);
+                    return;
+                }
+
+                if (!TryParseRequiredCounterweight(out double counterweightTons))
+                    return;
+
+                if (!HasRequiredDimensions(out string dimensionError))
+                {
+                    ShowRequiredFieldError(dimensionError, BtnToggleDimensions);
                     return;
                 }
 
@@ -364,7 +1083,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                     _nominalChart = chartForSave;
                 }
 
-                if (TryParseOptionalNumber(TxtMaxCap.Text, "Max Capacity", out double manualMaxCapacity))
+                if (TryParseOptionalNumber(TxtMaxCap.Text, "Imported Chart Max", out double manualMaxCapacity))
                     chartForSave = CopyChartWith(chartForSave, maxCapacity: UnitSystem.ToTons(manualMaxCapacity, _unitSettings.DisplayMassUnit));
 
                 if (TryParseOptionalNumber(TxtMaxRadius.Text, "Max Radius", out double manualMaxRadius))
@@ -374,12 +1093,12 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                     TxtModel.Text.Trim(),
                     TxtMfg.Text.Trim(),
                     GetSelectedOutriggerConfig(),
-                    UnitSystem.ToTons(ParseNumberOrZero(TxtCounterweight.Text, "Counterweight"), _unitSettings.DisplayMassUnit),
+                    counterweightTons,
                     _vehicleLengthMeters,
                     _vehicleHeightMeters,
                     _vehicleWidthMeters,
-                    _outriggerWidthMeters,
-                    _outriggerLengthMeters,
+                    IsOnRubberSelected() ? null : _outriggerWidthMeters,
+                    IsOnRubberSelected() ? null : _outriggerLengthMeters,
                     chartForSave,
                     _existingCrane?.Id ?? 0);
 
@@ -491,6 +1210,79 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 : "100%";
         }
 
+        private void CboOutriggerConfig_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsInitialized)
+                return;
+
+            _metadataAutoFillState.ClearOutriggerOwnership();
+            ClearOutriggerDimensionsWhenOnRubber();
+            RefreshDimensionsSummary();
+        }
+
+        private bool IsOnRubberSelected()
+        {
+            return LoadChartCraneValidator.IsOnRubber(GetSelectedOutriggerConfig());
+        }
+
+        private void ClearOutriggerDimensionsWhenOnRubber()
+        {
+            if (!IsOnRubberSelected())
+                return;
+
+            _outriggerWidthMeters = null;
+            _outriggerLengthMeters = null;
+        }
+
+        private bool TryParseRequiredCounterweight(out double counterweightTons)
+        {
+            counterweightTons = 0d;
+
+            if (string.IsNullOrWhiteSpace(TxtCounterweight.Text))
+            {
+                ShowRequiredFieldError("Counterweight is required.", TxtCounterweight);
+                return false;
+            }
+
+            if (!LoadChartCsvService.TryParseUserEnteredNumber(TxtCounterweight.Text, out double displayValue)
+                || !double.IsFinite(displayValue)
+                || displayValue < 0d)
+            {
+                ShowRequiredFieldError("Counterweight must be a valid non-negative value.", TxtCounterweight);
+                return false;
+            }
+
+            counterweightTons = UnitSystem.ToTons(displayValue, _unitSettings.DisplayMassUnit);
+            return true;
+        }
+
+        private bool HasRequiredDimensions(out string error)
+        {
+            if (_vehicleLengthMeters <= 0d || _vehicleWidthMeters <= 0d || _vehicleHeightMeters <= 0d)
+            {
+                error = "Total length, travel width, and transport height are required.";
+                return false;
+            }
+
+            if (!IsOnRubberSelected()
+                && (!_outriggerWidthMeters.HasValue || _outriggerWidthMeters.Value <= 0d
+                    || !_outriggerLengthMeters.HasValue || _outriggerLengthMeters.Value <= 0d))
+            {
+                error = "Both outrigger dimensions are required unless the crane operates On Rubber.";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+
+        private void ShowRequiredFieldError(string message, Control control)
+        {
+            TxtStatus.Text = message;
+            control.Focus();
+            MessageBox.Show(this, message, "Required Crane Information", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
         private void SelectOutriggerConfig(string? value)
         {
             string normalized = string.IsNullOrWhiteSpace(value)
@@ -528,22 +1320,26 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             if (_vehicleLengthMeters > 0 || _vehicleWidthMeters > 0 || _vehicleHeightMeters > 0)
             {
                 parts.Add(
-                    $"Transport L {FormatLength(_vehicleLengthMeters)}  W {FormatLength(_vehicleWidthMeters)}  H {FormatLength(_vehicleHeightMeters)}");
+                    $"Transport L {FormatLengthForSummary(_vehicleLengthMeters)}  W {FormatLengthForSummary(_vehicleWidthMeters)}  H {FormatLengthForSummary(_vehicleHeightMeters)}");
             }
 
-            if (_outriggerWidthMeters.HasValue || _outriggerLengthMeters.HasValue)
+            if (IsOnRubberSelected())
+            {
+                parts.Add("Operating configuration: On Rubber (no outriggers)");
+            }
+            else if (_outriggerWidthMeters.HasValue || _outriggerLengthMeters.HasValue)
             {
                 parts.Add(
-                    $"Outriggers W {FormatLength(_outriggerWidthMeters)}  B {FormatLength(_outriggerLengthMeters)}");
+                    $"Outriggers W {FormatLengthForSummary(_outriggerWidthMeters, preservePrecision: true)}  B {FormatLengthForSummary(_outriggerLengthMeters, preservePrecision: true)}");
             }
 
             TxtDimensionsSummary.Text = parts.Count > 0
                 ? string.Join(Environment.NewLine, parts)
-                : "No crane dimensions entered yet.";
+                : "Required crane dimensions have not been entered.";
 
-            BtnToggleDimensions.Content = parts.Count > 0
+            BtnToggleDimensions.Content = _vehicleLengthMeters > 0d && _vehicleWidthMeters > 0d && _vehicleHeightMeters > 0d
                 ? "Edit Crane Dimensions"
-                : "Enter Crane Dimensions";
+                : "Enter Required Crane Dimensions";
         }
 
         private void SetNominalChart(ParsedLoadChart nominalChart)
@@ -795,7 +1591,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                         BoomLength = point.BoomLength,
                         Capacity = point.Capacity,
                         VisualColumnIndex = point.VisualColumnIndex,
-                        VisualColumnHeader = point.VisualColumnHeader
+                        VisualColumnHeader = point.VisualColumnHeader,
+                        NumberOfLines = point.NumberOfLines,
+                        OperatingConditionLabel = point.OperatingConditionLabel
                     })
                     .ToList(),
                 MinRadius = source.MinRadius,
@@ -815,8 +1613,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
         private void ApplyUnitLabels()
         {
-            LblCounterweight.Text = $"Counterweight ({UnitSystem.MassSymbol(_unitSettings.DisplayMassUnit)})";
-            LblMaxCapacity.Text = $"Max Capacity ({UnitSystem.MassSymbol(_unitSettings.DisplayMassUnit)})";
+            LblCounterweight.Text = $"Counterweight * ({UnitSystem.MassSymbol(_unitSettings.DisplayMassUnit)})";
+            LblMaxCapacity.Text = $"Imported Chart Max ({UnitSystem.MassSymbol(_unitSettings.DisplayMassUnit)})";
             LblMaxRadius.Text = $"Max Radius ({UnitSystem.LengthSymbol(_unitSettings.DisplayLengthUnit)})";
         }
 
@@ -869,10 +1667,20 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 return false;
             }
 
-            if (LoadChartCsvService.TryParseFlexibleNumber(text, out value))
+            if (LoadChartCsvService.TryParseUserEnteredNumber(text, out value))
                 return true;
 
             throw new FormatException($"{fieldName} value '{text}' is invalid.");
+        }
+
+        private string FormatLengthForSummary(double? value, bool preservePrecision = false)
+        {
+            if (!value.HasValue || value.Value <= 0)
+                return "-";
+
+            double displayValue = UnitSystem.FromMeters(value.Value, _unitSettings.DisplayLengthUnit);
+            string format = preservePrecision ? "0.###" : "0.##";
+            return displayValue.ToString(format, CultureInfo.InvariantCulture) + " " + UnitSystem.LengthSymbol(_unitSettings.DisplayLengthUnit);
         }
 
         private string FormatLength(double? value)
@@ -881,7 +1689,6 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 ? UnitSystem.FormatLength(value.Value, _unitSettings, CultureInfo.InvariantCulture)
                 : "-";
         }
-
         private string FormatLengthInput(double value)
         {
             return UnitSystem.FromMeters(value, _unitSettings.DisplayLengthUnit)

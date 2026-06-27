@@ -1,6 +1,7 @@
-﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Entities;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
 {
@@ -45,6 +46,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces
             List<PrecastElement> elements,
             int populationSize,
             int maxCranePositions,
-            GASettings settings);
+            GASettings settings,
+            CraneSpecification craneSpec);
     }
 }

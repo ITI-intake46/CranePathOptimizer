@@ -2,6 +2,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 using System;
@@ -11,6 +12,7 @@ using System.Linq;
 using System.Threading;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Services.Identity;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.PlacementOrchestration
 {
@@ -21,6 +23,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
         private readonly ICoverageEngine _coverageEngine;
         private readonly ICraneConfigurationEngine _configEngine;
         private readonly IGACsvDiagnosticsService _diagnosticsService;
+        private readonly IReachabilityMapService? _reachabilityMapService;
 
         public CranePlacementEngine(
             IGeneticAlgorithmEngine gaEngine,
@@ -28,20 +31,48 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
             ICoverageEngine coverageEngine,
             ICraneConfigurationEngine configEngine,
             IGACsvDiagnosticsService diagnosticsService)
+            : this(gaEngine, assignmentService, coverageEngine, configEngine, diagnosticsService, null)
+        {
+        }
+
+        public CranePlacementEngine(
+            IGeneticAlgorithmEngine gaEngine,
+            IElementAssignmentService assignmentService,
+            ICoverageEngine coverageEngine,
+            ICraneConfigurationEngine configEngine,
+            IGACsvDiagnosticsService diagnosticsService,
+            IReachabilityMapService? reachabilityMapService)
         {
             _gaEngine = gaEngine;
             _assignmentService = assignmentService;
             _coverageEngine = coverageEngine;
             _configEngine = configEngine;
             _diagnosticsService = diagnosticsService;
+            _reachabilityMapService = reachabilityMapService;
         }
 
         public PlacementResult RunOptimization(
             PlacementInput input,
             CancellationToken cancellationToken = default)
         {
-            GAProfiler.Enabled = input.Settings.EnableProfiling;
-            GAProfiler.Reset();
+            var sw = Stopwatch.StartNew();
+            if (string.IsNullOrEmpty(input.Settings.OptimizationRunId))
+            {
+                input.Settings.OptimizationRunId = Guid.NewGuid().ToString();
+            }
+            if (string.IsNullOrEmpty(input.Settings.StageRunId))
+            {
+                input.Settings.StageRunId = Guid.NewGuid().ToString();
+            }
+
+            GAProfiler.Enabled = input.Settings.EnableProfiling && input.Settings.DiagnosticsLevel >= DiagnosticsLevel.Research;
+
+            if (GAProfiler.CurrentRunId != input.Settings.OptimizationRunId)
+            {
+                GAProfiler.Reset();
+                GAProfiler.CurrentRunId = input.Settings.OptimizationRunId;
+            }
+
             _configEngine.ClearCache();
 
             if (GAProfiler.Enabled)
@@ -68,12 +99,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
 
                 var allElements = input.Elements;
                 var remainingElements = new List<PrecastElement>(allElements);
-                var coveredElements = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var coveredElements = new HashSet<string>(StringComparer.Ordinal);
                 var finalResult = new PlacementResult();
                 LiftStatistics? concurrentStats = null;
 
                 double previousCoverage = 0;
-                int maxPoints = 4;
+                int maxPoints = Math.Clamp(input.Settings.MaxCranePositions, 1, 10);
                 double targetCoverage = 0.95;
                 double minImprovement = 0.05;
                 int iteration = 0;
@@ -96,6 +127,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                             input.Settings);
 
                         concurrentStats = concurrentResult.Statistics;
+                        finalResult.FitnessScore = concurrentResult.FitnessScore;
 
                         foreach (var pos in concurrentResult.Positions)
                         {
@@ -204,8 +236,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
 
                 _coverageEngine.DeduplicateFinalPositions(finalResult, input.Settings);
                 _coverageEngine.RecalculateCoverage(finalResult, allElements.Count);
-
-                finalResult.FitnessScore = finalResult.CoverageRatio;
                 finalResult.Positions = finalResult.Positions
                     .OrderByDescending(position => position.NewLiftableCount)
                     .ToList();
@@ -214,7 +244,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 AssignmentPolicy.ResolveFinalAssignments(finalResult.Positions, allElements, input.CraneSpec!, input.Settings);
 
                 // Validation: no ElementGlobalId has more than one final AssignedPointId
-                var assignedTracker = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var assignedTracker = new Dictionary<string, string>(StringComparer.Ordinal);
                 foreach (var pos in finalResult.Positions)
                 {
                     foreach (var er in pos.ElementResults)
@@ -258,7 +288,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                         logDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Logs", "GA");
                     }
                     System.IO.Directory.CreateDirectory(logDir);
-                    string fileName = $"ga_profile_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+                    string fileName = $"log_ga_profile_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
                     string fullPath = System.IO.Path.Combine(logDir, fileName);
 
                     GAProfiler.ProfilingLogPath = fullPath;
@@ -297,12 +327,61 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 try
                 {
                     input.Elements = allElements;
-                    finalResult.DiagnosticsReportPath = _diagnosticsService.GenerateDiagnostics(input, finalResult);
+
+                    if (GAProfiler.Enabled)
+                    {
+                        var usedZoneIdsList = finalResult.Positions.Select(pos => {
+                            var containingZone = input.Zones?.FirstOrDefault(z => SpatialMath.PointInPolygon(new DomainPoint3D(pos.X, pos.Y, 0), z.Vertices));
+                            return containingZone?.ZoneId.ToString() ?? Guid.Empty.ToString();
+                        }).Distinct().ToList();
+
+                        string usedZoneIds = string.Join(";", usedZoneIdsList);
+
+                        string stageTermReason = "MaxGenerationsReached";
+                        if (cancellationToken.IsCancellationRequested) stageTermReason = "Cancelled";
+                        else if (GAProfiler.StoppedByConvergence) stageTermReason = "Convergence";
+                        else if (GAProfiler.ActualGenerationLoopCount < input.Settings.EarlyStoppingGenerations) stageTermReason = "EarlyStopping";
+
+                        double stageTime = sw.ElapsedMilliseconds;
+
+                        var stageLog = new GAProfiler.StageLogEntry
+                        {
+                            RunId = input.Settings.RunId ?? string.Empty,
+                            OptimizationRunId = input.Settings.OptimizationRunId ?? string.Empty,
+                            StageRunId = input.Settings.StageRunId ?? string.Empty,
+                            StageIndex = input.Settings.StageIndex,
+                            MaxPositions = input.Settings.MaxCranePositions,
+                            RelocationWeight = input.Settings.RelocationWeight,
+                            BestCoverageRatio = finalResult.CoverageRatio,
+                            BestCoveragePercent = finalResult.CoverageRatio * 100.0,
+                            BestLiftedCount = finalResult.LiftedElementCount,
+                            BestFitnessScore = finalResult.FitnessScore,
+                            RawPositionCount = finalResult.Positions.Count,
+                            FinalPositionCount = finalResult.Positions.Count,
+                            UsedZoneIds = usedZoneIds,
+                            RuntimeMs = stageTime,
+                            Escalated = finalResult.CoverageRatio < input.Settings.MultiStageCoverageTarget,
+                            TerminationReason = stageTermReason
+                        };
+                        GAProfiler.StageLogs.Add(stageLog);
+                    }
+
+                    if (input.Settings.DiagnosticsLevel != DiagnosticsLevel.Off)
+                    {
+                        finalResult.DiagnosticsReportPath = _diagnosticsService.GenerateDiagnostics(input, finalResult);
+                    }
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"Failed to generate GA CSV diagnostics: {ex.Message}");
                     Console.WriteLine($"Failed to generate GA CSV diagnostics: {ex.Message}");
+                }
+
+                finalResult.ReachabilityDiagnostics = _reachabilityMapService?.LastDiagnostics;
+
+                if (!input.Settings.EnableConcurrentOptimization)
+                {
+                    finalResult.FitnessScore = finalResult.CoverageRatio;
                 }
 
                 return finalResult;
@@ -323,8 +402,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
 
             var elementLookup = elements
                 .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
-                .GroupBy(element => element.ElementID, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+                .GroupBy(element => element.ElementID, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
             for (int i = 0; i < solution.Chromosome.CranePositions.Count; i++)
             {
@@ -370,10 +449,26 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 ? new Domain.Common.DomainPoint3D()
                 : element.ElementCOG;
 
+            var identity = element != null ? CanonicalMarkResolver.Resolve(element) : null;
+
+            bool isGroup = element?.ChildGlobalIds != null && element.ChildGlobalIds.Count > 0;
+            string? memberIdsJoined = isGroup ? string.Join("\n- ", element!.ChildGlobalIds) : null;
+
             return new ElementLiftResult
             {
                 ElementId = evaluation.ElementId,
+                IsAssemblyGroup = isGroup,
+                AssemblyMemberCount = isGroup ? element!.ChildGlobalIds.Count : 0,
+                AssemblyMemberIdsJoined = memberIdsJoined,
                 ElementMark = element?.ElementMark,
+                CanonicalMark = identity?.DisplayLabel,
+                MarkSource = identity?.MarkSource,
+                MarkConfidence = identity?.MarkConfidence,
+                IsExplicitMark = identity?.IsExplicitMark ?? false,
+                ValidationStatus = identity?.ValidationStatus,
+                WeightTrustLevel = element?.WeightTrustLevel.ToString(),
+                ValidationWarningCount = identity?.ValidationWarnings?.Count ?? 0,
+                ValidationWarningsJoined = identity?.ValidationWarnings != null ? string.Join("; ", identity.ValidationWarnings) : string.Empty,
                 ElementType = element?.ElementType,
                 Weight = element?.ElementWT,
                 CogX = cog.X,
@@ -383,6 +478,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 Radius = evaluation.Radius,
                 BoomLength = evaluation.BoomLength,
                 AvailableCapacity = evaluation.AvailableCapacity,
+                RawChartCapacity = evaluation.RawChartCapacity,
                 RequiredCapacity = evaluation.RequiredCapacity,
                 ReachStatus = evaluation.ReachStatus,
                 ChartStatus = evaluation.ChartStatus,
@@ -395,6 +491,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 RequiredRadius = evaluation.RequiredRadius,
                 SelectedChartRadius = evaluation.SelectedChartRadius,
                 SelectedChartBoomLength = evaluation.SelectedChartBoomLength,
+                SelectedVisualColumnIndex = evaluation.SelectedVisualColumnIndex,
+                SelectedVisualColumnHeader = evaluation.SelectedVisualColumnHeader,
+                SelectedNumberOfLines = evaluation.SelectedNumberOfLines,
+                SelectedOperatingConditionLabel = evaluation.SelectedOperatingConditionLabel,
+                IsConservativeDuplicateFallback = evaluation.IsConservativeDuplicateFallback,
+                DuplicateAlternativeCount = evaluation.DuplicateAlternativeCount,
+                DuplicateAlternativeSummary = evaluation.DuplicateAlternativeSummary,
                 CraneBaseX = evaluation.CraneBaseX,
                 CraneBaseY = evaluation.CraneBaseY,
                 CraneBaseZ = evaluation.CraneBaseZ,
@@ -451,6 +554,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                     {
                         ElementId = er.ElementId,
                         ElementMark = er.ElementMark,
+                        CanonicalMark = er.CanonicalMark,
+                        MarkSource = er.MarkSource,
+                        MarkConfidence = er.MarkConfidence,
+                        IsExplicitMark = er.IsExplicitMark,
                         ElementType = er.ElementType,
                         Weight = er.Weight,
                         CogX = er.CogX,
@@ -460,6 +567,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                         Radius = er.Radius,
                         BoomLength = er.BoomLength,
                         AvailableCapacity = er.AvailableCapacity,
+                        RawChartCapacity = er.RawChartCapacity,
                         RequiredCapacity = er.RequiredCapacity,
                         ReachStatus = er.ReachStatus,
                         ChartStatus = er.ChartStatus,
@@ -472,6 +580,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                         RequiredRadius = er.RequiredRadius,
                         SelectedChartRadius = er.SelectedChartRadius,
                         SelectedChartBoomLength = er.SelectedChartBoomLength,
+                        SelectedVisualColumnIndex = er.SelectedVisualColumnIndex,
+                        SelectedVisualColumnHeader = er.SelectedVisualColumnHeader,
+                        SelectedNumberOfLines = er.SelectedNumberOfLines,
+                        SelectedOperatingConditionLabel = er.SelectedOperatingConditionLabel,
+                        IsConservativeDuplicateFallback = er.IsConservativeDuplicateFallback,
+                        DuplicateAlternativeCount = er.DuplicateAlternativeCount,
+                        DuplicateAlternativeSummary = er.DuplicateAlternativeSummary,
                         CraneBaseX = er.CraneBaseX,
                         CraneBaseY = er.CraneBaseY,
                         CraneBaseZ = er.CraneBaseZ,
@@ -537,7 +652,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
 
         private static void LegacyRecalculateCoverage(PlacementResult result, int totalElementCount)
         {
-            var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var covered = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (var position in result.Positions)
             {

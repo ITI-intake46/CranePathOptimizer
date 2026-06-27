@@ -1,4 +1,4 @@
-﻿using CraneOptimizer.Domain.Entities;
+using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Units;
 using System.Data;
 using System.Globalization;
@@ -14,6 +14,63 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
         Ton = 1,
         Kilogram = 2
     }
+    // SEMANTIC_VISUAL_ROW_TYPING_PATCH_V1
+    internal enum LoadChartVisualRowKind
+    {
+        CapacityRadiusRow = 0,
+        LineRequirementRow = 1,
+        FooterMetadataRow = 2,
+        HeaderRow = 3,
+        NoteRow = 4,
+        SeparatorRow = 5
+    }
+
+    internal sealed class LoadChartVisualRowSummary
+    {
+        public int RowIndex { get; init; }
+        public string DisplayLabel { get; init; } = string.Empty;
+        public LoadChartVisualRowKind RowKind { get; init; } = LoadChartVisualRowKind.FooterMetadataRow;
+        public int VisualCellCount { get; init; }
+        public int CapacityGridSlotCount { get; init; }
+        public int NumericRatedCapacityCellCount { get; init; }
+        public int BlankUnavailableCellCount { get; init; }
+        // LINE_REQUIREMENT_PRECISION_PATCH_V1
+        public int LineRequirementVisualSlotCount { get; init; }
+        public int ParsedLineRequirementValueCount { get; init; }
+        public int MappedLineRequirementColumnCount { get; init; }
+        public int LineRequirementCellCount => ParsedLineRequirementValueCount;
+        public bool ParticipatesInCapacityLookup => RowKind == LoadChartVisualRowKind.CapacityRadiusRow;
+        public bool ParticipatesInLineRequirementLookup => RowKind == LoadChartVisualRowKind.LineRequirementRow;
+    }
+
+    internal sealed class LoadChartVisualChartSummary
+    {
+        public static LoadChartVisualChartSummary Empty { get; } = new();
+
+        public int VisualBoomColumnCount { get; init; }
+        public int UniqueBoomLengthCount { get; init; }
+        public int CapacityRadiusRowCount { get; init; }
+        public int LineRequirementRowCount { get; init; }
+        public int FooterMetadataRowCount { get; init; }
+        public int HeaderRowCount { get; init; }
+        public int NoteRowCount { get; init; }
+        public int SeparatorRowCount { get; init; }
+        public int TotalVisualGridSlotCount { get; init; }
+        public int CapacityGridSlotCount { get; init; }
+        public int NumericRatedCapacityCellCount { get; init; }
+        public int BlankUnavailableCellCount { get; init; }
+        // LINE_REQUIREMENT_PRECISION_PATCH_V1
+        public int LineRequirementVisualSlotCount { get; init; }
+        public int ParsedLineRequirementValueCount { get; init; }
+        public int MappedLineRequirementColumnCount { get; init; }
+        public int LineRequirementCellCount => ParsedLineRequirementValueCount;
+        public bool HasOperationalLineRequirements =>
+            LineRequirementRowCount > 0 ||
+            LineRequirementVisualSlotCount > 0 ||
+            ParsedLineRequirementValueCount > 0 ||
+            MappedLineRequirementColumnCount > 0;
+    }
+
     internal sealed class ParsedLoadChart
     {
         public DataTable PreviewTable { get; init; } = new();
@@ -32,6 +89,8 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
         public string ExactLoadChartRawGridJson { get; init; } = string.Empty;
         public string LoadChartSourceDescription { get; init; } = string.Empty;
         public bool IsExactVisualChart => string.Equals(LoadChartStorageMode, "ExactPdfVisual", StringComparison.OrdinalIgnoreCase);
+        public LoadChartVisualChartSummary VisualSummary { get; init; } = LoadChartVisualChartSummary.Empty;
+        public List<LoadChartVisualRowSummary> VisualRows { get; init; } = new();
     }
 
     internal static class LoadChartCsvService
@@ -155,6 +214,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             }
 
             var points = new List<TargetPoint>();
+            var numberOfLinesByColumn = ExtractNumberOfLinesByColumn(table, boomLengths.Count);
             double? minRadius = null;
             double? maxRadius = null;
             double? minBoom = null;
@@ -163,9 +223,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             var capacityUnitResolution = ResolveCapacityUnit(table, capacityUnitMode);
             MassUnit effectiveCapacityUnit = capacityUnitResolution.EffectiveUnit;
             double rawMaxCapacity = capacityUnitResolution.RawMaxCapacity;
+            var visualRows = BuildVisualRowSummaries(table, boomLengths.Count);
+            var visualSummary = BuildVisualChartSummary(boomLengths, visualRows, numberOfLinesByColumn);
 
             foreach (DataRow row in table.Rows)
             {
+                if (IsNumberOfLinesRow(row))
+                    continue;
+
                 string radiusText = NormalizeGridNumber(row[0]?.ToString());
                 if (string.IsNullOrWhiteSpace(radiusText))
                     continue;
@@ -198,13 +263,20 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                     minBoom = !minBoom.HasValue || boomLength < minBoom.Value ? boomLength : minBoom;
                     maxBoom = !maxBoom.HasValue || boomLength > maxBoom.Value ? boomLength : maxBoom;
 
+                    int? numberOfLines = numberOfLinesByColumn.TryGetValue(i, out int parsedNumberOfLines)
+                        ? parsedNumberOfLines
+                        : null;
+                    string? visualColumnHeader = allowDuplicateBoomLengths ? boomHeaderLabels[i] : null;
+
                     points.Add(new TargetPoint
                     {
                         Radius = radius,
                         BoomLength = boomLength,
                         Capacity = capacity,
                         VisualColumnIndex = allowDuplicateBoomLengths ? i + 1 : null,
-                        VisualColumnHeader = allowDuplicateBoomLengths ? boomHeaderLabels[i] : null
+                        VisualColumnHeader = visualColumnHeader,
+                        NumberOfLines = numberOfLines,
+                        OperatingConditionLabel = BuildOperatingConditionLabel(visualColumnHeader, numberOfLines)
                     });
                 }
             }
@@ -229,7 +301,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
                 LoadChartStorageMode = storageMode,
                 LoadChartCapacityPolicy = capacityPolicy,
                 ExactLoadChartRawGridJson = exactRawGridJson,
-                LoadChartSourceDescription = sourceDescription
+                LoadChartSourceDescription = sourceDescription,
+                VisualSummary = visualSummary,
+                VisualRows = visualRows
             };
         }
 
@@ -249,6 +323,14 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             string normalized = NormalizeFlexibleNumber(input);
             return !string.IsNullOrWhiteSpace(normalized)
                 && double.TryParse(normalized, NumberStyles.Any, CultureInfo.InvariantCulture, out value);
+        }
+
+        internal static bool TryParseUserEnteredNumber(string? input, out double value)
+        {
+            value = 0d;
+            string normalized = NormalizeUserEnteredNumber(input);
+            return !string.IsNullOrWhiteSpace(normalized)
+                && double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
         }
 
         private static DataTable CreatePreviewTable(IReadOnlyList<List<string>> rawGrid, out List<string> previewHeaders)
@@ -742,7 +824,7 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             if (compact.Length == 0)
                 return false;
 
-            if (compact.All(character => character == '/' || character == '-' || character == '–' || character == '—'))
+            if (compact.All(character => character == '/' || character == '-' || character == '\u2013' || character == '\u2014'))
                 return false;
 
             return compact.Any(character => !char.IsWhiteSpace(character));
@@ -797,6 +879,347 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
             return clean.Trim();
         }
 
+        private static string NormalizeUserEnteredNumber(string? input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return string.Empty;
+
+            string clean = input.Trim().Trim('"').Trim();
+            clean = clean.Replace('\u00A0', ' ');
+            clean = Regex.Replace(clean, @"(?i)\s*(mm|cm|kg|tonnes?|tons?|ton|t|m|%)\s*$", string.Empty);
+            clean = clean.Replace(" ", string.Empty);
+
+            if (clean.Contains(',') && clean.Contains('.'))
+            {
+                int lastComma = clean.LastIndexOf(',');
+                int lastDot = clean.LastIndexOf('.');
+
+                if (lastComma > lastDot)
+                {
+                    clean = clean.Replace(".", string.Empty);
+                    clean = ReplaceLast(clean, ',', '.');
+                    clean = clean.Replace(",", string.Empty);
+                }
+                else
+                {
+                    clean = clean.Replace(",", string.Empty);
+                }
+            }
+            else if (clean.Count(character => character == ',') == 1)
+            {
+                clean = clean.Replace(',', '.');
+            }
+            else if (clean.Count(character => character == ',') > 1)
+            {
+                clean = clean.Replace(",", string.Empty);
+            }
+            else if (clean.Count(character => character == '.') > 1)
+            {
+                string[] parts = clean.Split('.');
+                if (parts.Skip(1).All(part => part.Length == 3))
+                    clean = clean.Replace(".", string.Empty);
+            }
+
+            return clean.Trim();
+        }
+
+        private static List<LoadChartVisualRowSummary> BuildVisualRowSummaries(DataTable table, int boomColumnCount)
+        {
+            var result = new List<LoadChartVisualRowSummary>();
+
+            for (int rowIndex = 0; rowIndex < table.Rows.Count; rowIndex++)
+            {
+                DataRow row = table.Rows[rowIndex];
+                var rowKind = ClassifyVisualRow(row);
+                int numericCapacityCells = 0;
+                int blankUnavailableCells = 0;
+                int parsedLineRequirementValues = 0;
+                int lineRequirementVisualSlots = rowKind == LoadChartVisualRowKind.LineRequirementRow ? boomColumnCount : 0;
+                int capacityGridSlots = rowKind == LoadChartVisualRowKind.CapacityRadiusRow ? boomColumnCount : 0;
+
+                for (int columnIndex = 1; columnIndex < table.Columns.Count && columnIndex <= boomColumnCount; columnIndex++)
+                {
+                    string cellText = row[columnIndex]?.ToString() ?? string.Empty;
+
+                    if (rowKind == LoadChartVisualRowKind.CapacityRadiusRow)
+                    {
+                        if (IsPositiveRatedCapacityCell(cellText))
+                            numericCapacityCells++;
+                        else
+                            blankUnavailableCells++;
+                    }
+                    else if (rowKind == LoadChartVisualRowKind.LineRequirementRow)
+                    {
+                        if (TryParseNumberOfLines(cellText, out _))
+                            parsedLineRequirementValues++;
+                    }
+                }
+
+                result.Add(new LoadChartVisualRowSummary
+                {
+                    RowIndex = rowIndex + 1,
+                    DisplayLabel = row[0]?.ToString() ?? string.Empty,
+                    RowKind = rowKind,
+                    VisualCellCount = boomColumnCount,
+                    CapacityGridSlotCount = capacityGridSlots,
+                    NumericRatedCapacityCellCount = numericCapacityCells,
+                    BlankUnavailableCellCount = blankUnavailableCells,
+                    LineRequirementVisualSlotCount = lineRequirementVisualSlots,
+                    ParsedLineRequirementValueCount = parsedLineRequirementValues,
+                    MappedLineRequirementColumnCount = rowKind == LoadChartVisualRowKind.LineRequirementRow ? parsedLineRequirementValues : 0
+                });
+            }
+
+            return result;
+        }
+
+        private static LoadChartVisualChartSummary BuildVisualChartSummary(
+            IReadOnlyList<double> boomLengths,
+            IReadOnlyList<LoadChartVisualRowSummary> rows,
+            IReadOnlyDictionary<int, int> mappedLineRequirements)
+        {
+            int visualBoomColumnCount = boomLengths.Count;
+            int uniqueBoomLengthCount = boomLengths
+                .Select(value => Math.Round(value, 3))
+                .Distinct()
+                .Count();
+
+            return new LoadChartVisualChartSummary
+            {
+                VisualBoomColumnCount = visualBoomColumnCount,
+                UniqueBoomLengthCount = uniqueBoomLengthCount,
+                CapacityRadiusRowCount = rows.Count(row => row.RowKind == LoadChartVisualRowKind.CapacityRadiusRow),
+                LineRequirementRowCount = rows.Count(row => row.RowKind == LoadChartVisualRowKind.LineRequirementRow),
+                FooterMetadataRowCount = rows.Count(row => row.RowKind == LoadChartVisualRowKind.FooterMetadataRow),
+                HeaderRowCount = rows.Count(row => row.RowKind == LoadChartVisualRowKind.HeaderRow),
+                NoteRowCount = rows.Count(row => row.RowKind == LoadChartVisualRowKind.NoteRow),
+                SeparatorRowCount = rows.Count(row => row.RowKind == LoadChartVisualRowKind.SeparatorRow),
+                TotalVisualGridSlotCount = rows.Sum(row => row.VisualCellCount),
+                CapacityGridSlotCount = rows.Sum(row => row.CapacityGridSlotCount),
+                NumericRatedCapacityCellCount = rows.Sum(row => row.NumericRatedCapacityCellCount),
+                BlankUnavailableCellCount = rows.Sum(row => row.BlankUnavailableCellCount),
+                LineRequirementVisualSlotCount = rows.Sum(row => row.LineRequirementVisualSlotCount),
+                ParsedLineRequirementValueCount = rows.Sum(row => row.ParsedLineRequirementValueCount),
+                MappedLineRequirementColumnCount = mappedLineRequirements?.Count ?? 0
+            };
+        }
+
+        private static LoadChartVisualRowKind ClassifyVisualRow(DataRow row)
+        {
+            if (row == null)
+                return LoadChartVisualRowKind.FooterMetadataRow;
+
+            if (IsNumberOfLinesRow(row))
+                return LoadChartVisualRowKind.LineRequirementRow;
+
+            if (IsAllCellsBlank(row))
+                return LoadChartVisualRowKind.SeparatorRow;
+
+            string label = row[0]?.ToString() ?? string.Empty;
+            string normalizedLabel = NormalizeGridNumber(label);
+            if (TryParseFlexibleNumber(normalizedLabel, out double radius) && radius > 0)
+                return LoadChartVisualRowKind.CapacityRadiusRow;
+
+            if (LooksLikeHeaderLabel(label))
+                return LoadChartVisualRowKind.HeaderRow;
+
+            if (LooksLikeNoteLabel(label) || RowContainsNoteLabel(row))
+                return LoadChartVisualRowKind.NoteRow;
+
+            return LoadChartVisualRowKind.FooterMetadataRow;
+        }
+
+        private static bool IsPositiveRatedCapacityCell(string? value)
+        {
+            string normalized = NormalizeGridNumber(value);
+            return !string.IsNullOrWhiteSpace(normalized)
+                && TryParseFlexibleNumber(normalized, out double parsed)
+                && parsed > 0;
+        }
+
+        private static bool IsAllCellsBlank(DataRow row)
+        {
+            for (int columnIndex = 0; columnIndex < row.Table.Columns.Count; columnIndex++)
+            {
+                if (!string.IsNullOrWhiteSpace(row[columnIndex]?.ToString()))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static bool RowContainsNoteLabel(DataRow row)
+        {
+            for (int columnIndex = 0; columnIndex < row.Table.Columns.Count; columnIndex++)
+            {
+                if (LooksLikeNoteLabel(row[columnIndex]?.ToString()))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool LooksLikeHeaderLabel(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            string compact = Regex.Replace(value.ToLowerInvariant(), @"[^a-z0-9]+", string.Empty);
+            return compact.Contains("radius")
+                || compact.Contains("boomlength")
+                || compact.Contains("workingradius")
+                || compact.Contains("mainboom")
+                || compact.Contains("loadradius");
+        }
+
+        private static bool LooksLikeNoteLabel(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            string compact = Regex.Replace(value.ToLowerInvariant(), @"[^a-z0-9]+", string.Empty);
+            return compact.StartsWith("note")
+                || compact.StartsWith("remark")
+                || compact.Contains("notes")
+                || compact.Contains("remarks")
+                || compact.Contains("workingarea")
+                || compact.Contains("counterweight")
+                || compact.Contains("outrigger")
+                || compact.Contains("stability")
+                || compact.Contains("strength");
+        }
+
+        private static Dictionary<int, int> ExtractNumberOfLinesByColumn(DataTable table, int boomColumnCount)
+        {
+            var result = new Dictionary<int, int>();
+
+            foreach (DataRow row in table.Rows)
+            {
+                if (!IsNumberOfLinesRow(row))
+                    continue;
+
+                for (int columnIndex = 1; columnIndex < table.Columns.Count && columnIndex <= boomColumnCount; columnIndex++)
+                {
+                    if (TryParseNumberOfLines(row[columnIndex]?.ToString(), out int numberOfLines))
+                        result[columnIndex - 1] = numberOfLines;
+                }
+            }
+
+            return result;
+        }
+
+        private static bool IsNumberOfLinesRow(DataRow row)
+        {
+            if (row == null)
+                return false;
+
+            for (int columnIndex = 0; columnIndex < row.Table.Columns.Count; columnIndex++)
+            {
+                if (IsNumberOfLinesLabel(row[columnIndex]?.ToString()))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsNumberOfLinesLabel(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            string compact = Regex.Replace(value.ToLowerInvariant(), @"[^a-z0-9]+", string.Empty);
+            if (compact.Length == 0)
+                return false;
+
+            return compact.Contains("numberoflines")
+                || compact.Contains("nooflines")
+                || compact.Contains("numberofline")
+                || compact.Contains("noofline")
+                || compact.Contains("numberofparts")
+                || compact.Contains("partsofline")
+                || compact.Contains("partsoflines")
+                || compact.Contains("partsofrope")
+                || compact.Contains("reeving")
+                || compact.Contains("lineparts")
+                || compact.Contains("linecount");
+        }
+
+        private static bool TryParseNumberOfLines(string? value, out int numberOfLines)
+        {
+            numberOfLines = 0;
+
+            string normalized = NormalizeGridNumber(value);
+            if (string.IsNullOrWhiteSpace(normalized))
+                return false;
+
+            if (!TryParseFlexibleNumber(normalized, out double parsed))
+                return false;
+
+            double rounded = Math.Round(parsed);
+            if (Math.Abs(parsed - rounded) > 0.001)
+                return false;
+
+            int candidate = (int)rounded;
+            if (candidate < 1 || candidate > 40)
+                return false;
+
+            numberOfLines = candidate;
+            return true;
+        }
+
+        private static string? BuildOperatingConditionLabel(string? visualColumnHeader, int? numberOfLines)
+        {
+            string header = NormalizeEngineeringOperatingConditionHeader(visualColumnHeader);
+
+            if (string.IsNullOrWhiteSpace(header) && !numberOfLines.HasValue)
+                return null;
+
+            if (!string.IsNullOrWhiteSpace(header))
+            {
+                if (numberOfLines.HasValue && !ContainsLineCountMetadata(header))
+                    return $"{header} / {numberOfLines.Value} lines";
+
+                return header;
+            }
+
+            return $"{numberOfLines!.Value} lines";
+        }
+
+        private static string NormalizeEngineeringOperatingConditionHeader(string? visualColumnHeader)
+        {
+            if (string.IsNullOrWhiteSpace(visualColumnHeader))
+                return string.Empty;
+
+            string clean = visualColumnHeader.Trim();
+            clean = clean.Replace('\u00A0', ' ');
+            clean = Regex.Replace(clean, @"\s+", " ").Trim();
+            clean = RemoveGeneratedVisualDuplicateDiscriminator(clean);
+            return Regex.Replace(clean, @"\s+", " ").Trim();
+        }
+
+        private static string RemoveGeneratedVisualDuplicateDiscriminator(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            string clean = value.Trim();
+            clean = Regex.Replace(clean, @"\s*\(([2-9]|[1-9][0-9])\)\s*$", string.Empty);
+            clean = Regex.Replace(clean, @"_([2-9]|[1-9][0-9])$", string.Empty);
+            return clean.Trim();
+        }
+
+        private static bool ContainsLineCountMetadata(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            string compact = Regex.Replace(value.ToLowerInvariant(), @"[^a-z0-9]+", string.Empty);
+            return compact.Contains("line")
+                || compact.Contains("part")
+                || compact.Contains("fall")
+                || compact.Contains("reev");
+        }
+
         public static string GetCapacityUnitSummary(ParsedLoadChart chart)
         {
             if (chart == null)
@@ -820,6 +1243,9 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Services
 
             foreach (DataRow row in table.Rows)
             {
+                if (IsNumberOfLinesRow(row))
+                    continue;
+
                 for (int columnIndex = 1; columnIndex < table.Columns.Count; columnIndex++)
                 {
                     string rawCapacityText = row[columnIndex]?.ToString() ?? string.Empty;

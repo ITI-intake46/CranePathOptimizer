@@ -22,6 +22,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
 
         public LiftStatistics Statistics { get; set; } = new();
         public string? DiagnosticsReportPath { get; set; }
+        public ReachabilityDiagnostics? ReachabilityDiagnostics { get; set; }
     }
 
     /// <summary>
@@ -52,6 +53,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
 
         public string? ElementMark { get; set; }
 
+        // Phase 5: Canonical Display Identity (additive; ElementMark kept for backward compat)
+        public string? CanonicalMark { get; set; }
+        public string? MarkSource { get; set; }
+        public string? MarkConfidence { get; set; }
+        public bool IsExplicitMark { get; set; }
+        public string? ValidationStatus { get; set; }
+        public string? WeightTrustLevel { get; set; }
+        public int ValidationWarningCount { get; set; }
+        public string? ValidationWarningsJoined { get; set; }
+
+        // Phase 7D: Assembly Group Identification
+        public bool IsAssemblyGroup { get; set; }
+        public int AssemblyMemberCount { get; set; }
+        public string? AssemblyMemberIdsJoined { get; set; }
+
         public string? ElementType { get; set; }
 
         public double? Weight { get; set; }
@@ -70,6 +86,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
 
         public double AvailableCapacity { get; set; }
 
+        /// <summary>
+        /// Raw manufacturer load chart capacity at the selected (radius, boom) cell,
+        /// before derating ratio and safety factor are applied.
+        /// </summary>
+        public double RawChartCapacity { get; set; }
+
         public double RequiredCapacity { get; set; }
 
         public ReachStatus ReachStatus { get; set; }
@@ -83,6 +105,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public double RequiredRadius { get; set; }
         public double SelectedChartRadius { get; set; }
         public double SelectedChartBoomLength { get; set; }
+        public int? SelectedVisualColumnIndex { get; set; }
+        public string SelectedVisualColumnHeader { get; set; } = string.Empty;
+        public int? SelectedNumberOfLines { get; set; }
+        public string SelectedOperatingConditionLabel { get; set; } = string.Empty;
+        public bool IsConservativeDuplicateFallback { get; set; }
+        public int DuplicateAlternativeCount { get; set; }
+        public string DuplicateAlternativeSummary { get; set; } = string.Empty;
 
         public double CraneBaseX { get; set; }
         public double CraneBaseY { get; set; }

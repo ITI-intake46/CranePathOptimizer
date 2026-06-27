@@ -88,6 +88,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public double CoverageWeight { get; set; } = 10;
 
         /// <summary>
+        /// Scaling multiplier for the coverage term to ensure it dominates relocation and failure penalties.
+        /// </summary>
+        public double CoverageDominanceMultiplier { get; set; } = 100.0;
+
+        /// <summary>
         /// Weight applied to crane relocation penalty.
         /// Higher value discourages multiple crane setups.
         /// </summary>
@@ -224,8 +229,62 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
 
         /// <summary>
         /// Enables high-resolution timing and profiling for the Genetic Algorithm pipeline.
+        /// Default is false for Release; set to true when DiagnosticsLevel is Research.
         /// </summary>
-        public bool EnableProfiling { get; set; } = true;
+        public bool EnableProfiling { get; set; } = false;
+
+        /// <summary>
+        /// Controls which diagnostics files are emitted.
+        /// Off     = No CSV diagnostics except critical error logs.
+        /// Summary = Compact, user-readable summaries only (default for Release).
+        /// Research= All files including heavy profiler, assignment matrix, generation summary.
+        /// </summary>
+        public DiagnosticsLevel DiagnosticsLevel { get; set; } = DiagnosticsLevel.Summary;
+
+        /// <summary>
+        /// Whether the GA is running in batch mode. If true, diagnostics CSVs are appended to aggregate files in a single folder.
+        /// </summary>
+        public bool BatchModeEnabled { get; set; } = false;
+
+        /// <summary>
+        /// A unique identifier for the calibration/sweep batch.
+        /// </summary>
+        public string? ExperimentBatchId { get; set; }
+
+        /// <summary>
+        /// Human-readable name of the experiment.
+        /// </summary>
+        public string? ExperimentName { get; set; }
+
+        /// <summary>
+        /// Key identifier for the active candidate parameter set (e.g. B01, R02).
+        /// </summary>
+        public string? ParameterSetId { get; set; }
+
+        /// <summary>
+        /// Descriptive name of the parameter set.
+        /// </summary>
+        public string? ParameterSetName { get; set; }
+
+        /// <summary>
+        /// One-based index of the run within the active sweep batch.
+        /// </summary>
+        public int? RunIndex { get; set; }
+
+        /// <summary>
+        /// Optional load-chart condition constraint supplied by the user/run context.
+        /// Null means the resolver keeps the existing conservative duplicate-column policy.
+        /// When set, load-chart entries whose imported NumberOfLines metadata is less than
+        /// or equal to this maximum available line count are eligible for capacity selection.
+        /// </summary>
+        public int? LoadChartNumberOfLinesConstraint { get; set; }
+
+        /// <summary>
+        /// Optional load-chart operating-condition constraint supplied by the user/run context.
+        /// The resolver matches this against imported per-entry OperatingConditionLabel and
+        /// VisualColumnHeader text. Null/empty means no label constraint.
+        /// </summary>
+        public string? LoadChartOperatingConditionConstraint { get; set; }
 
         /// <summary>
         /// Slew center horizontal offset X relative to crane base.
@@ -261,5 +320,70 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// Enables the concurrent multi-setup optimization engine.
         /// </summary>
         public bool EnableConcurrentOptimization { get; set; } = true;
+
+        /// <summary>
+        /// Fraction of initial population seeded at reachability hot spots (0.0 = disabled, 1.0 = all).
+        /// </summary>
+        public double HotSpotSeedingRatio { get; set; } = 0.30;
+
+        /// <summary>
+        /// Whether to run reachability pre-computation before GA.
+        /// </summary>
+        public bool EnableReachabilitySeeding { get; set; } = true;
+
+        /// <summary>
+        /// Coverage threshold above which multi-stage escalation stops (0.0–1.0).
+        /// </summary>
+        public double MultiStageCoverageTarget { get; set; } = 0.95;
+
+        /// <summary>
+        /// Enable multi-stage dynamic position discovery (false = legacy single-run behavior).
+        /// </summary>
+        public bool EnableMultiStageDiscovery { get; set; } = true;
+
+        /// <summary>
+        /// Scaling factor for adaptive relocation weight formula.
+        /// </summary>
+        public double AdaptiveRelocationScaleFactor { get; set; } = 0.40;
+
+        /// <summary>
+        /// Use Hungarian bipartite matching for element assignment (false = legacy greedy).
+        /// </summary>
+        public bool UseHungarianAssignment { get; set; } = false;
+
+        /// <summary>
+        /// A unique identifier for the overall optimization execution (shared by all stages of a run).
+        /// </summary>
+        public string OptimizationRunId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// A unique identifier for the specific stage execution within the optimization run.
+        /// </summary>
+        public string StageRunId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// One-based stage ordinal for the current optimization execution.
+        /// The current multi-stage orchestrator maps stages 1/2/3 to maximum
+        /// position counts 1/2/3, while single-stage runs use 1.
+        /// </summary>
+        public int StageIndex { get; set; } = 1;
+
+        /// <summary>
+        /// A unique identifier for the optimization run (maps to StageRunId for backward compatibility).
+        /// </summary>
+        [Obsolete("Use StageRunId instead.")]
+        public string RunId
+        {
+            get => StageRunId;
+            set => StageRunId = value;
+        }
+
+        /// <summary>
+        /// Performs a shallow copy of the settings.
+        /// </summary>
+        public GASettings Clone()
+        {
+            return (GASettings)this.MemberwiseClone();
+        }
     }
 }

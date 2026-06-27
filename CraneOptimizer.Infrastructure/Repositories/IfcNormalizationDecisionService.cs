@@ -53,7 +53,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 _ => new GenericIfcExporterProfile()
             };
 
-            var previews = new Dictionary<string, IfcNormalizedElementPreview>(StringComparer.OrdinalIgnoreCase);
+            var previews = new Dictionary<string, IfcNormalizedElementPreview>(StringComparer.Ordinal);
 
             // First pass: Initialize previews for all elements
             foreach (var elem in auditResult.Classifications)
@@ -118,6 +118,34 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var category = preview.CandidateCategory;
                 var name = preview.Name;
 
+                // Rule 0: Treat an IFC grid and its owned axes as reference geometry.
+                // Grid axes have no independent GlobalId and remain owned by the grid product.
+                if (rawType.Equals("IfcGrid", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool hideGrids = auditResult.Options?.HideGrids ?? false;
+
+                    preview.Role = IfcElementRole.InternalAuxiliary;
+                    preview.IncludeInRenderPreview = !hideGrids;
+                    preview.IncludeInElementTreePreview = !hideGrids;
+                    preview.IncludeInGaPreview = false;
+                    preview.IncludeInWeightRollupPreview = false;
+
+                    if (hideGrids)
+                    {
+                        preview.DecisionReason = "Classified as reference geometry grid. Hidden by user option (HideGrids). Excluded from UI and lift items.";
+                    }
+                    else
+                    {
+                        preview.DecisionReason = "Classified as reference geometry grid. Included in rendering/UI but strictly excluded from lift items.";
+                    }
+
+                    if (preview.HasGeometryOwner())
+                    {
+                        preview.VisibleGeometryOwnerGlobalIds = hideGrids ? new List<string>() : new List<string> { preview.GlobalId };
+                    }
+                    continue;
+                }
+
                 // Rule 1: Exclude reinforcement/internal auxiliaries
                 if (rawType.ContainsAny("ReinforcingBar", "ReinforcingMesh", "ReinforcingElement", "Tendon", "TendonAnchor") ||
                     name.ContainsAny("rebar", "reinforcing", "tie-wire", "stirrup"))
@@ -140,7 +168,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     {
                         if (preview.WeightStandardValueTons.HasValue && preview.WeightStandardValueTons.Value > 0)
                         {
-                            if (host.WeightTrustLevel == IfcWeightTrustLevel.Missing || 
+                            if (host.WeightTrustLevel == IfcWeightTrustLevel.Missing ||
                                 host.WeightTrustLevel == IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA)
                             {
                                 host.ReinforcementWeightContributionTons = (host.ReinforcementWeightContributionTons ?? 0) + preview.WeightStandardValueTons.Value;
@@ -195,11 +223,11 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         {
                             childPreview.Role = IfcElementRole.LiftableElement;
                             childPreview.ParentGlobalId = preview.GlobalId;
-                            childPreview.IncludeInGaPreview = childPreview.WeightTrustLevel != IfcWeightTrustLevel.Missing && 
-                                                               childPreview.WeightTrustLevel != IfcWeightTrustLevel.ExplicitZeroFromIFC && 
-                                                               childPreview.WeightTrustLevel != IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA;
+                            childPreview.IncludeInGaPreview = HasGaApprovedExplicitWeight(childPreview);
                             childPreview.VisibleGeometryOwnerGlobalIds = new List<string> { childId };
-                            childPreview.DecisionReason = "Unrolled structural child from single-child assembly wrapper.";
+                            childPreview.DecisionReason = childPreview.IncludeInGaPreview
+                                ? "Unrolled structural child from single-child assembly wrapper."
+                                : $"Unrolled structural child from single-child assembly wrapper, but blocked from GA because {DescribeWeightBlock(childPreview)}";
                         }
                         continue;
                     }
@@ -208,7 +236,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     if (nonInternalChildrenIds.Count > 1)
                     {
                         // Revit Beam System Rule
-                        if (profile.Exporter == IfcExporterProfile.Revit && 
+                        if (profile.Exporter == IfcExporterProfile.Revit &&
                             profile.IsStructuralGroupingAssembly(preview.Name, preview.RawIfcType))
                         {
                             preview.Role = IfcElementRole.GroupingOnly;
@@ -222,23 +250,49 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                 {
                                     childPreview.Role = IfcElementRole.LiftableElement;
                                     childPreview.ParentGlobalId = preview.GlobalId;
-                                    childPreview.IncludeInGaPreview = childPreview.WeightTrustLevel != IfcWeightTrustLevel.Missing && 
-                                                                       childPreview.WeightTrustLevel != IfcWeightTrustLevel.ExplicitZeroFromIFC && 
-                                                                       childPreview.WeightTrustLevel != IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA;
+                                    childPreview.IncludeInGaPreview = HasGaApprovedExplicitWeight(childPreview);
                                     childPreview.VisibleGeometryOwnerGlobalIds = new List<string> { childId };
-                                    childPreview.DecisionReason = "Unrolled structural beam child from Revit Structural Beam System grouping.";
+                                    childPreview.DecisionReason = childPreview.IncludeInGaPreview
+                                        ? "Unrolled structural beam child from Revit Structural Beam System grouping."
+                                        : $"Unrolled structural beam child from Revit Structural Beam System grouping, but blocked from GA because {DescribeWeightBlock(childPreview)}";
+                                }
+                            }
+                            continue;
+                        }
+
+                        // Revit sometimes exports safe precast/structural groupings as generic assemblies.
+                        // Only unwrap when geometry belongs to children and every child is a known structural product.
+                        if (profile.Exporter == IfcExporterProfile.Revit &&
+                            IsSafeRevitChildGroupingAssembly(assemblyDetail, nonInternalChildrenIds, previews))
+                        {
+                            preview.Role = IfcElementRole.GroupingOnly;
+                            preview.AssemblyDecision = IfcAssemblyDecision.GenericGroupingAssembly;
+                            preview.IncludeInGaPreview = false;
+                            preview.DecisionReason = "Safe Revit child-geometry grouping. Parent is grouping only; structural children are unrolled as independent liftable items.";
+
+                            foreach (var childId in nonInternalChildrenIds)
+                            {
+                                if (previews.TryGetValue(childId, out var childPreview))
+                                {
+                                    childPreview.Role = IfcElementRole.LiftableElement;
+                                    childPreview.ParentGlobalId = preview.GlobalId;
+                                    childPreview.IncludeInGaPreview = HasGaApprovedExplicitWeight(childPreview);
+                                    childPreview.VisibleGeometryOwnerGlobalIds = new List<string> { childId };
+                                    childPreview.DecisionReason = childPreview.IncludeInGaPreview
+                                        ? "Unrolled structural child from safe Revit grouping assembly."
+                                        : $"Unrolled structural child from safe Revit grouping assembly, but blocked from GA because {DescribeWeightBlock(childPreview)}";
                                 }
                             }
                             continue;
                         }
 
                         // Tekla Precast Cast-Unit / Welded Lift Assembly Rule
-                        if (profile.Exporter == IfcExporterProfile.Tekla && 
+                        if (profile.Exporter == IfcExporterProfile.Tekla &&
                             profile.IsPrecastLiftAssembly(preview.Name, preview.RawIfcType))
                         {
                             preview.Role = IfcElementRole.LiftAssembly;
                             preview.AssemblyDecision = IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly;
-                            
+
                             // Check geometry owners: parent has no geometry in ChildrenOnly pattern, so visible owners are children
                             if (assemblyDetail.GeometryOwnershipPattern == "ChildrenOnly")
                             {
@@ -249,9 +303,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                 preview.VisibleGeometryOwnerGlobalIds = new List<string> { preview.GlobalId };
                             }
 
-                            if (preview.WeightTrustLevel != IfcWeightTrustLevel.Missing &&
-                                preview.WeightTrustLevel != IfcWeightTrustLevel.ExplicitZeroFromIFC &&
-                                preview.WeightTrustLevel != IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA)
+                            if (HasGaApprovedExplicitWeight(preview))
                             {
                                 preview.IncludeInGaPreview = true;
                                 preview.DecisionReason = "Tekla precast cast-unit/welded aggregate lift item. Parent assembly has trusted total weight; children double-counting excluded.";
@@ -311,14 +363,14 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     }
 
                     preview.Role = IfcElementRole.LiftableElement;
-                    preview.IncludeInGaPreview = preview.WeightTrustLevel != IfcWeightTrustLevel.Missing &&
-                                                 preview.WeightTrustLevel != IfcWeightTrustLevel.ExplicitZeroFromIFC &&
-                                                 preview.WeightTrustLevel != IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA;
+                    preview.IncludeInGaPreview = HasGaApprovedExplicitWeight(preview);
                     if (preview.VisibleGeometryOwnerGlobalIds.Count == 0)
                     {
                         preview.VisibleGeometryOwnerGlobalIds.Add(preview.GlobalId);
                     }
-                    preview.DecisionReason = "Direct structural physical leaf element.";
+                    preview.DecisionReason = preview.IncludeInGaPreview
+                        ? "Direct structural physical leaf element with explicit GA-approved weight."
+                        : $"Direct structural physical leaf element blocked from GA because {DescribeWeightBlock(preview)}";
                 }
             }
 
@@ -353,7 +405,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 {
                     summary.VisibleRenderGeometryCount += elem.VisibleGeometryOwnerGlobalIds.Count;
                 }
-                
+
                 summary.HiddenInternalGeometryCount += elem.HiddenInternalGeometryOwnerGlobalIds.Count;
 
                 if (!elem.IncludeInGaPreview && (elem.Role == IfcElementRole.LiftableElement || elem.Role == IfcElementRole.LiftAssembly))
@@ -393,6 +445,69 @@ namespace CraneOptimizer.Infrastructure.Repositories
             };
         }
 
+        private static bool HasGaApprovedExplicitWeight(IfcNormalizedElementPreview preview)
+        {
+            return preview.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
+                   preview.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+        }
+
+        private static string DescribeWeightBlock(IfcNormalizedElementPreview preview)
+        {
+            return preview.WeightTrustLevel switch
+            {
+                IfcWeightTrustLevel.Missing => "no explicit weight was found",
+                IfcWeightTrustLevel.ExplicitZeroFromIFC => "IFC explicitly reports zero weight",
+                IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA => "weight was estimated by density fallback and needs explicit approval",
+                IfcWeightTrustLevel.RequiresUserApproval => "weight requires user approval before GA",
+                IfcWeightTrustLevel.AmbiguousUnit => "the weight unit is ambiguous",
+                IfcWeightTrustLevel.SuspiciousExtreme => "the weight value is suspicious and needs review",
+                _ => $"weight trust level is {preview.WeightTrustLevel}"
+            };
+        }
+
+        private static bool IsSafeRevitChildGroupingAssembly(
+            AssemblyDecompositionDetail assemblyDetail,
+            IReadOnlyList<string> nonInternalChildrenIds,
+            IReadOnlyDictionary<string, IfcNormalizedElementPreview> previews)
+        {
+            if (nonInternalChildrenIds.Count == 0)
+                return false;
+
+            if (assemblyDetail.ParentHasGeometry || !assemblyDetail.ChildrenHaveGeometry)
+                return false;
+
+            if (!string.Equals(assemblyDetail.GeometryOwnershipPattern, "ChildrenOnly", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            foreach (var childId in nonInternalChildrenIds)
+            {
+                if (!previews.TryGetValue(childId, out var child))
+                    return false;
+
+                if (child.RawIfcType.Equals("IfcElementAssembly", StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                if (!IsKnownStructuralRevitChild(child))
+                    return false;
+
+                var childDetail = assemblyDetail.ChildDetails.FirstOrDefault(c =>
+                    string.Equals(c.ChildGlobalId, childId, StringComparison.Ordinal));
+                if (childDetail != null && !childDetail.HasGeometry)
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static bool IsKnownStructuralRevitChild(IfcNormalizedElementPreview child)
+        {
+            var rawType = child.RawIfcType ?? string.Empty;
+            var category = child.CandidateCategory ?? string.Empty;
+
+            return rawType.ContainsAny("IfcBeam", "IfcColumn", "IfcSlab", "IfcWall", "IfcMember", "IfcPlate", "IfcFooting") ||
+                   category.ContainsAny("Beam", "Column", "Slab", "Wall", "Member", "Plate", "Footing");
+        }
+
         private static bool HasDirectGeometry(IIfcProduct product, Xbim3DModelContext geometryContext)
         {
             try
@@ -407,21 +522,21 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         private string GeneratePreviewReportsCore(IfcNormalizationPreviewSummary preview, string? projectFolderPath, CancellationToken cancellationToken)
         {
-            string outputDirectory;
-            if (!string.IsNullOrEmpty(projectFolderPath) && Directory.Exists(projectFolderPath))
+            if (string.IsNullOrWhiteSpace(projectFolderPath))
             {
-                outputDirectory = Path.Combine(projectFolderPath, "Reports", "IFC_Audit");
+                throw new ArgumentException("projectFolderPath must not be null or whitespace. Ensure a project is loaded.", nameof(projectFolderPath));
             }
-            else
+            if (!Directory.Exists(projectFolderPath))
             {
-                outputDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Reports", "IFC_Audit");
+                throw new DirectoryNotFoundException($"The specified project folder path does not exist: {projectFolderPath}");
             }
 
+            string outputDirectory = Path.Combine(projectFolderPath, "Reports", "IFC_Audit");
             Directory.CreateDirectory(outputDirectory);
 
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var jsonPath = Path.Combine(outputDirectory, $"ifc_normalization_preview_details_{timestamp}.json");
-            var csvPath = Path.Combine(outputDirectory, $"ifc_normalization_preview_elements_{timestamp}.csv");
+            var jsonPath = Path.Combine(outputDirectory, $"debug_ifc_normalization_preview_details_{timestamp}.json");
+            var csvPath = Path.Combine(outputDirectory, $"debug_ifc_normalization_preview_elements_{timestamp}.csv");
 
             cancellationToken.ThrowIfCancellationRequested();
             // 1. JSON details
@@ -522,7 +637,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             sb.AppendLine();
 
             sb.AppendLine("## 4. Key Structural Normalization Decisions");
-            
+
             // Revit Beam Systems
             var revitDecisions = preview.Elements.Where(e => e.AssemblyDecision == IfcAssemblyDecision.RevitStructuralBeamSystemGrouping).ToList();
             sb.AppendLine("### Revit Structural Beam Systems");
@@ -627,7 +742,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
     {
         internal static bool HasGeometryOwner(this IfcNormalizedElementPreview element)
         {
-            return element.VisibleGeometryOwnerGlobalIds.Count > 0 || 
+            return element.VisibleGeometryOwnerGlobalIds.Count > 0 ||
                    element.HiddenInternalGeometryOwnerGlobalIds.Count > 0;
         }
     }

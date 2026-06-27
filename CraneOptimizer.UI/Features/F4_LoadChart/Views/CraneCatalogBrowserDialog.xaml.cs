@@ -17,16 +17,18 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
         private readonly LoadChartCatalogService _catalogService;
         private readonly IUnitSettingsService _unitSettingsService;
         private readonly bool _isReadOnlyView;
+        private readonly Func<int, Task>? _onCraneUpdated;
         private List<LoadChartCraneDto> _allCranes = new();
 
         public CraneCatalogBrowserDialog()
-            : this(isReadOnlyView: false)
+            : this(isReadOnlyView: false, onCraneUpdated: null)
         {
         }
 
-        public CraneCatalogBrowserDialog(bool isReadOnlyView)
+        public CraneCatalogBrowserDialog(bool isReadOnlyView, Func<int, Task>? onCraneUpdated = null)
         {
             _isReadOnlyView = isReadOnlyView;
+            _onCraneUpdated = onCraneUpdated;
             InitializeComponent();
             ApplyDialogMode();
 
@@ -221,6 +223,24 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
                 table.Rows.Add(row);
             }
 
+            var numberOfLinesRow = table.NewRow();
+            numberOfLinesRow[0] = "Number of lines";
+            bool hasNumberOfLines = false;
+            for (int i = 0; i < orderedColumns.Count; i++)
+            {
+                var column = orderedColumns[i];
+                int? numberOfLines = crane.Points
+                    .Where(point => point.VisualColumnIndex == column.Index)
+                    .Select(point => point.NumberOfLines)
+                    .FirstOrDefault(value => value.HasValue);
+
+                numberOfLinesRow[i + 1] = numberOfLines?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+                hasNumberOfLines |= numberOfLines.HasValue;
+            }
+
+            if (hasNumberOfLines)
+                table.Rows.Add(numberOfLinesRow);
+
             return table;
         }
 
@@ -327,7 +347,11 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
 
             var dialog = new LoadChartImportDialog(crane) { Owner = this };
             if (dialog.ShowDialog() == true)
+            {
                 await LoadCranesAsync();
+                if (_onCraneUpdated != null)
+                    await _onCraneUpdated(crane.Id);
+            }
         }
 
         private async void BtnDelete_Click(object sender, RoutedEventArgs e)

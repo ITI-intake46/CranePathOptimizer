@@ -87,6 +87,16 @@ namespace CraneOptimizer.Domain.CreatedProject.IfcFiles
         public string? ExtractionWarningsJson { get; set; }
         public string? NormalizationDecisionReason { get; set; }
 
+        // Canonical Assembly Persistence (Phase 2)
+        public string? AssemblyMark { get; set; }
+        public string? AssemblyMarkSource { get; set; }
+        public string? AssemblyMarkConfidence { get; set; }
+        public bool AssemblyMarkIsExplicit { get; set; }
+        public string? SourceSystem { get; set; }
+        public string? ExporterProfile { get; set; }
+        public string? ValidationStatus { get; set; }
+        public string? ValidationWarningsJson { get; set; }
+
         public DateTime CachedAtUtc { get; set; } = DateTime.UtcNow;
 
         public ProjectInfoEntity? ProjectInfo { get; set; }

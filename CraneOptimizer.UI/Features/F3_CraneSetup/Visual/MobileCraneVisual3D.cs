@@ -1,6 +1,10 @@
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Features.F3_CraneSetup.Parameters;
 using HelixToolkit.Wpf;
+using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;
+using System.Globalization;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 
@@ -49,6 +53,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
         private static readonly Material AmberMat       = CreatePhongMaterial(Color.FromRgb(255, 142, 36), 0.45, Color.FromRgb(255, 240, 210), 0.34, 48);
         private static readonly Material SwingMat       = MaterialHelper.CreateMaterial(Color.FromArgb(80, 52, 152, 219));
         private static readonly Material ExclusionMat   = MaterialHelper.CreateMaterial(Color.FromArgb(100, 214, 138, 86));
+        private static readonly Material DimensionMat   = CreatePhongMaterial(Color.FromRgb(65, 190, 225), 0.5, Color.FromRgb(230, 255, 255), 0.45, 64);
 
         private static Color ScaleRgb(Color color, double strength)
         {
@@ -120,9 +125,25 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
 
         private void OnParameterChanged(object? sender, PropertyChangedEventArgs e) => Rebuild();
 
-        public void Rebuild() => Content = BuildCraneGeometry();
+        public void Rebuild()
+        {
+            Children.Clear();
+            Content = BuildCraneGeometry();
+
+            if (_params.IsVisible && _params.ShowDimensionGuide)
+                Children.Add(BuildDimensionLabels());
+        }
 
         public void Dispose() => _params.PropertyChanged -= OnParameterChanged;
+
+        private double GetCarrierDeckHeight()
+        {
+            double transportHeight = _params.CarrierHeight;
+            if (transportHeight <= 0.55)
+                return transportHeight * 0.5;
+
+            return Math.Max(0.2, Math.Min(transportHeight * 0.32, transportHeight - 0.45));
+        }
 
         // ─────────────────────────────────────────────────────────────────────
         //  Top-level builder
@@ -134,16 +155,19 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
             if (!_params.IsVisible)
                 return group;
 
-            if (_params.ShowOutriggerPads)
-                group.Children.Add(BuildOutriggerPads());
+            if (!_params.IsOnRubber)
+            {
+                if (_params.ShowOutriggerPads)
+                    group.Children.Add(BuildOutriggerPads());
 
-            group.Children.Add(BuildOutriggerLegs());
+                group.Children.Add(BuildOutriggerLegs());
+            }
 
             // Carrier
             group.Children.Add(BuildCarrier());
 
             // Turntable
-            double turntableZ = _params.CarrierHeight;
+            double turntableZ = GetCarrierDeckHeight();
             group.Children.Add(BuildTurntable(turntableZ));
 
             // Superstructure + boom — rotated around Z by SlewAngle
@@ -159,6 +183,16 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
             if (_params.ExclusionRadiusM > 0)
                 group.Children.Add(BuildExclusionRing());
 
+            if (_params.ShowDimensionGuide)
+                group.Children.Add(BuildDimensionGuide());
+
+            group.Transform = BuildSceneTransform();
+
+            return group;
+        }
+
+        private Transform3D BuildSceneTransform()
+        {
             var transformGroup = new Transform3DGroup();
             if (_params.BodyAngle != 0)
             {
@@ -174,9 +208,8 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
 
             transformGroup.Children.Add(new TranslateTransform3D(
                 _params.PositionX, _params.PositionY, _params.PositionZ));
-            group.Transform = transformGroup;
 
-            return group;
+            return transformGroup;
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -196,15 +229,148 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
 
         private GeometryModel3D BuildExclusionRing()
         {
-            double halfW = _params.OutriggerSpanM / 2.0;
-            double halfB = _params.SpanToSpanM / 2.0;
-            double r = Math.Max(halfW, halfB) + _params.ExclusionRadiusM;
+            double halfWidth = _params.IsOnRubber
+                ? _params.TravelWidthM / 2.0
+                : _params.OutriggerSpanM / 2.0;
+            double halfLength = _params.IsOnRubber
+                ? _params.CarrierLength / 2.0
+                : _params.SpanToSpanM / 2.0;
+            double r = Math.Max(halfWidth, halfLength) + _params.ExclusionRadiusM;
             return new GeometryModel3D(
                 MeshHelper.CreatePipe(
                     new Point3D(0, 0, 0.02),
                     new Point3D(0, 0, 0.08),
                     Math.Max(0.2, r - 0.4), r + 0.4, 48),
                 ExclusionMat);
+        }
+
+        private Model3DGroup BuildDimensionGuide()
+        {
+            var group = new Model3DGroup();
+            double halfVehicleLength = _params.CarrierLength / 2.0;
+            double halfVehicleWidth = _params.TravelWidthM / 2.0;
+            double height = _params.CarrierHeight;
+            const double lineRadius = 0.035;
+
+            var bottom = new[]
+            {
+                new Point3D(-halfVehicleLength, -halfVehicleWidth, 0.04),
+                new Point3D(halfVehicleLength, -halfVehicleWidth, 0.04),
+                new Point3D(halfVehicleLength, halfVehicleWidth, 0.04),
+                new Point3D(-halfVehicleLength, halfVehicleWidth, 0.04)
+            };
+            var top = bottom
+                .Select(point => new Point3D(point.X, point.Y, height))
+                .ToArray();
+
+            AddRectangleGuide(group, bottom, lineRadius);
+            AddRectangleGuide(group, top, lineRadius);
+
+            for (int index = 0; index < bottom.Length; index++)
+            {
+                group.Children.Add(CreateModel(
+                    MeshHelper.CreateCylinder(bottom[index], top[index], lineRadius, 10),
+                    DimensionMat));
+            }
+
+            if (!_params.IsOnRubber)
+            {
+                double halfOutriggerLength = _params.SpanToSpanM / 2.0;
+                double halfOutriggerWidth = _params.OutriggerSpanM / 2.0;
+                var outriggerFootprint = new[]
+                {
+                    new Point3D(-halfOutriggerLength, -halfOutriggerWidth, 0.08),
+                    new Point3D(halfOutriggerLength, -halfOutriggerWidth, 0.08),
+                    new Point3D(halfOutriggerLength, halfOutriggerWidth, 0.08),
+                    new Point3D(-halfOutriggerLength, halfOutriggerWidth, 0.08)
+                };
+
+                AddRectangleGuide(group, outriggerFootprint, lineRadius * 1.4);
+            }
+
+            return group;
+        }
+
+        private static void AddRectangleGuide(
+            Model3DGroup group,
+            IReadOnlyList<Point3D> corners,
+            double lineRadius)
+        {
+            for (int index = 0; index < corners.Count; index++)
+            {
+                Point3D start = corners[index];
+                Point3D end = corners[(index + 1) % corners.Count];
+                group.Children.Add(CreateModel(
+                    MeshHelper.CreateCylinder(start, end, lineRadius, 10),
+                    DimensionMat));
+            }
+        }
+
+        private ModelVisual3D BuildDimensionLabels()
+        {
+            double halfVehicleLength = _params.CarrierLength / 2.0;
+            double halfVehicleWidth = _params.TravelWidthM / 2.0;
+            double height = _params.CarrierHeight;
+            var container = new ModelVisual3D
+            {
+                Transform = BuildSceneTransform()
+            };
+
+            container.Children.Add(CreateDimensionLabel(
+                $"L  {FormatLength(_params.CarrierLength)}",
+                new Point3D(0, -halfVehicleWidth - 0.45, height + 0.25)));
+            container.Children.Add(CreateDimensionLabel(
+                $"W  {FormatLength(_params.TravelWidthM)}",
+                new Point3D(halfVehicleLength + 0.45, 0, height + 0.25)));
+            container.Children.Add(CreateDimensionLabel(
+                $"H  {FormatLength(_params.CarrierHeight)}",
+                new Point3D(halfVehicleLength + 0.45, halfVehicleWidth + 0.25, height / 2.0)));
+
+            if (!_params.IsOnRubber)
+            {
+                double halfOutriggerLength = _params.SpanToSpanM / 2.0;
+                double halfOutriggerWidth = _params.OutriggerSpanM / 2.0;
+                container.Children.Add(CreateDimensionLabel(
+                    $"OW  {FormatLength(_params.OutriggerSpanM)}",
+                    new Point3D(halfOutriggerLength + 0.55, 0, 0.35)));
+                container.Children.Add(CreateDimensionLabel(
+                    $"OL  {FormatLength(_params.SpanToSpanM)}",
+                    new Point3D(0, -halfOutriggerWidth - 0.55, 0.35)));
+            }
+
+            return container;
+        }
+
+        private static BillboardTextVisual3D CreateDimensionLabel(string text, Point3D position)
+        {
+            return new BillboardTextVisual3D
+            {
+                Text = text,
+                Position = position,
+                FontSize = 15,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brushes.White,
+                Background = new SolidColorBrush(Color.FromArgb(220, 12, 35, 45)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(65, 190, 225)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(5, 2, 5, 2),
+                DepthOffset = 0.002
+            };
+        }
+
+        private static string FormatLength(double meters)
+        {
+            try
+            {
+                UnitSettings settings = App.ServiceProvider
+                    .GetRequiredService<IUnitSettingsService>()
+                    .Current;
+                return UnitSystem.FormatLength(meters, settings, CultureInfo.CurrentCulture);
+            }
+            catch
+            {
+                return $"{meters:0.##} m";
+            }
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -214,17 +380,17 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
         private Model3DGroup BuildOutriggerPads()
         {
             var g = new Model3DGroup();
-            double halfW = _params.OutriggerSpanM / 2.0;
-            double halfB = _params.SpanToSpanM / 2.0;
+            double halfWidth = _params.OutriggerSpanM / 2.0;
+            double halfLength = _params.SpanToSpanM / 2.0;
             double padSize = _params.OutriggerPadSize;
             const double padThickness = 0.12;
 
             var positions = new[]
             {
-                new Point3D( halfW,  halfB, padThickness / 2.0),
-                new Point3D( halfW, -halfB, padThickness / 2.0),
-                new Point3D(-halfW,  halfB, padThickness / 2.0),
-                new Point3D(-halfW, -halfB, padThickness / 2.0)
+                new Point3D( halfLength,  halfWidth, padThickness / 2.0),
+                new Point3D( halfLength, -halfWidth, padThickness / 2.0),
+                new Point3D(-halfLength,  halfWidth, padThickness / 2.0),
+                new Point3D(-halfLength, -halfWidth, padThickness / 2.0)
             };
 
             foreach (var pos in positions)
@@ -258,26 +424,26 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
         private Model3DGroup BuildOutriggerLegs()
         {
             var g = new Model3DGroup();
-            double halfW = _params.OutriggerSpanM / 2.0;
-            double halfB = _params.SpanToSpanM / 2.0;
+            double halfWidth = _params.OutriggerSpanM / 2.0;
+            double halfLength = _params.SpanToSpanM / 2.0;
             double effectiveBodyWidth = _params.TravelWidthM > 0
-                ? Math.Max(1.2, _params.TravelWidthM - 1.35)
+                ? Math.Max(0.4, _params.TravelWidthM - 1.35)
                 : _params.CarrierWidth;
             double carrierHalfWidth  = effectiveBodyWidth / 2.0 + 0.3;
             double carrierHalfLength = _params.CarrierLength / 4.0;
-            double legTopZ    = _params.CarrierHeight + 0.2;
+            double legTopZ    = GetCarrierDeckHeight() + 0.2;
             double legBottomZ = 0.2;
 
             var data = new[]
             {
                 (c: new Point3D( carrierHalfLength,  carrierHalfWidth, legTopZ),
-                 p: new Point3D( halfW,  halfB, legBottomZ)),
+                 p: new Point3D( halfLength,  halfWidth, legBottomZ)),
                 (c: new Point3D( carrierHalfLength, -carrierHalfWidth, legTopZ),
-                 p: new Point3D( halfW, -halfB, legBottomZ)),
+                 p: new Point3D( halfLength, -halfWidth, legBottomZ)),
                 (c: new Point3D(-carrierHalfLength,  carrierHalfWidth, legTopZ),
-                 p: new Point3D(-halfW,  halfB, legBottomZ)),
+                 p: new Point3D(-halfLength,  halfWidth, legBottomZ)),
                 (c: new Point3D(-carrierHalfLength, -carrierHalfWidth, legTopZ),
-                 p: new Point3D(-halfW, -halfB, legBottomZ))
+                 p: new Point3D(-halfLength, -halfWidth, legBottomZ))
             };
 
             foreach (var (carrier, pad) in data)
@@ -319,9 +485,9 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
             var g = new Model3DGroup();
             double length = _params.CarrierLength;
             double width = _params.TravelWidthM > 0
-                ? Math.Max(1.2, _params.TravelWidthM - 1.35)
+                ? Math.Max(0.4, _params.TravelWidthM - 1.35)
                 : _params.CarrierWidth;
-            double height = _params.CarrierHeight;
+            double height = GetCarrierDeckHeight();
 
             // Body surfaces are chamfered inside the same overall footprint so the carrier reads as heavy steel, not stacked blocks.
             g.Children.Add(CreateModel(
@@ -376,7 +542,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
 
 
             // Wheels — fixed proportions matching reference
-            double lampX = length / 2 + 0.055;
+            double lampX = Math.Max(0.02, length / 2 - 0.03);
             foreach (double lampY in new[] { -width * 0.24, width * 0.24 })
             {
                 g.Children.Add(CreateModel(
@@ -432,22 +598,26 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
         private Model3DGroup BuildTurntable(double baseZ)
         {
             var g = new Model3DGroup();
+            double outerRadius = Math.Min(1.6, _params.TravelWidthM * 0.48);
+            double innerRadius = outerRadius * 0.75;
+            double centerRadius = outerRadius * 0.68;
             g.Children.Add(new GeometryModel3D(
                 MeshHelper.CreatePipe(
                     new Point3D(0, 0, baseZ),
                     new Point3D(0, 0, baseZ + 0.3),
-                    1.2, 1.6, 24),
+                    innerRadius, outerRadius, 24),
                 DarkGrayMat));
             g.Children.Add(CreateModel(
                 MeshHelper.CreateCylinder(
                     new Point3D(0, 0, baseZ + 0.05),
                     new Point3D(0, 0, baseZ + 0.42),
-                    1.08, 40),
+                    centerRadius, 40),
                 SteelMat));
             for (int i = 0; i < 12; i++)
             {
                 double a = 2 * Math.PI * i / 12.0;
-                var bolt = new Point3D(1.43 * Math.Cos(a), 1.43 * Math.Sin(a), baseZ + 0.36);
+                double boltRadius = outerRadius * 0.89;
+                var bolt = new Point3D(boltRadius * Math.Cos(a), boltRadius * Math.Sin(a), baseZ + 0.36);
                 g.Children.Add(CreateModel(
                     MeshHelper.CreateCylinder(
                         bolt,
@@ -465,51 +635,68 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Visual
         private Model3DGroup BuildSuperstructure(double baseZ)
         {
             var g = new Model3DGroup();
+            var body = new Model3DGroup();
             double superZ = baseZ + 0.3;
 
-            g.Children.Add(new GeometryModel3D(
+            body.Children.Add(new GeometryModel3D(
                 MeshHelper.CreateBox(new Point3D(-0.5, 0, superZ + 0.5), 3, 2.5, 1), YellowMat));
-            g.Children.Add(new GeometryModel3D(
+            body.Children.Add(new GeometryModel3D(
                 MeshHelper.CreateBox(new Point3D(-1.5, 0, superZ + 1.6), 2.2, 2.2, 2.2), YellowMat));
-            g.Children.Add(new GeometryModel3D(
+            body.Children.Add(new GeometryModel3D(
                 MeshHelper.CreateBox(new Point3D(-0.35, 0, superZ + 1.8), 0.08, 1.4, 1.0), WindowMat));
-            g.Children.Add(new GeometryModel3D(
+            body.Children.Add(new GeometryModel3D(
                 MeshHelper.CreateBox(new Point3D(-1.5, 1.15, superZ + 1.8), 1.2, 0.08, 1.0), WindowMat));
-            g.Children.Add(new GeometryModel3D(
+            body.Children.Add(new GeometryModel3D(
                 MeshHelper.CreateBox(new Point3D(-1.5, -1.15, superZ + 1.8), 1.2, 0.08, 1.0), WindowMat));
-            g.Children.Add(new GeometryModel3D(
+            body.Children.Add(new GeometryModel3D(
                 MeshHelper.CreateBox(new Point3D(-2.8, 0, superZ + 0.8), 2, 2.2, 1.4), DarkGrayMat));
-            g.Children.Add(new GeometryModel3D(
+            body.Children.Add(new GeometryModel3D(
                 MeshHelper.CreateBox(new Point3D(-2.5, 0, superZ + 2), 1.5, 1.8, 1), YellowMat));
-            g.Children.Add(CreateModel(
+            body.Children.Add(CreateModel(
                 MeshHelper.CreateBox(new Point3D(-3.28, 0, superZ + 0.95), 0.18, 2.26, 1.1),
                 LightGrayMat));
-            g.Children.Add(CreateModel(
+            body.Children.Add(CreateModel(
                 MeshHelper.CreateBox(new Point3D(-3.0, 0, superZ + 1.45), 1.55, 2.12, 0.12),
                 SteelMat));
-            g.Children.Add(CreateModel(
+            body.Children.Add(CreateModel(
                 MeshHelper.CreateCylinder(
                     new Point3D(0.35, -1.42, superZ + 1.45),
                     new Point3D(0.35, 1.42, superZ + 1.45),
                     0.22, 32),
                 SteelMat));
-            g.Children.Add(CreateModel(
+            body.Children.Add(CreateModel(
                 MeshHelper.CreateCylinder(
                     new Point3D(-2.95, -0.82, superZ + 2.5),
                     new Point3D(-2.95, -0.82, superZ + 3.25),
                     0.09, 18),
                 DarkGrayMat));
-            g.Children.Add(CreateModel(
+            body.Children.Add(CreateModel(
                 MeshHelper.CreateCylinder(
                     new Point3D(-1.2, 0, superZ + 2.63),
                     new Point3D(-1.2, 0, superZ + 2.78),
                     0.12, 20),
                 AmberMat));
-            g.Children.Add(CreateModel(
+            body.Children.Add(CreateModel(
                 MeshHelper.CreateBox(new Point3D(-0.36, 0, superZ + 2.36), 0.1, 1.36, 0.18),
                 DarkGrayMat));
 
-            g.Children.Add(BuildBoom(superZ + 1));
+            const double referenceBodyHeight = 3.7;
+            const double referenceBodyLength = 7.0;
+            const double referenceBodyWidth = 3.3;
+            double availableBodyHeight = Math.Max(0.2, _params.CarrierHeight - baseZ);
+            double bodyHeightScale = availableBodyHeight / referenceBodyHeight;
+            double bodyLengthScale = Math.Min(1.0, _params.CarrierLength * 0.9 / referenceBodyLength);
+            double bodyWidthScale = Math.Min(1.0, _params.TravelWidthM * 0.95 / referenceBodyWidth);
+            body.Transform = new ScaleTransform3D(
+                bodyLengthScale,
+                bodyWidthScale,
+                bodyHeightScale,
+                0,
+                0,
+                baseZ);
+            g.Children.Add(body);
+
+            g.Children.Add(BuildBoom(_params.BoomPivotHeight - 0.5));
             return g;
         }
 

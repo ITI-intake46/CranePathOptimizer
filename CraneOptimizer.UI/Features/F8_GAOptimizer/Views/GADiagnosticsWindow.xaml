@@ -672,7 +672,8 @@
                                 GridLinesVisibility="Horizontal">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Element ID" Binding="{Binding ElementId}" />
-                                    <DataGridTextColumn Header="Mark" Binding="{Binding ElementName}" />
+                                    <DataGridTextColumn Header="Name" Binding="{Binding ElementName}" />
+                                    <DataGridTextColumn Header="Lift Mark" Binding="{Binding CanonicalMark}" />
                                     <DataGridTextColumn Header="Type" Binding="{Binding ElementType}" />
                                     <DataGridTextColumn Header="Storey/Elev" Binding="{Binding StoreyOrElevation}" />
                                     <DataGridTextColumn Header="Weight" Binding="{Binding Weight, StringFormat={}{0:F2}}" />

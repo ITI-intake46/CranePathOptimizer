@@ -1,17 +1,17 @@
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
-using CraneOptimizer.UI.Features.F17_Selection.Services;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
+using CraneOptimizer.UI.Features.F17_Selection.Services;
 using HelixToolkit.Wpf;
+using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using System.Windows.Shapes;
-
-[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("CraneOptimizer.Application.Tests")]
 
 namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
 {
@@ -22,23 +22,20 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
     /// </summary>
     public sealed class SelectionHandler : IInteractionMode, IDisposable
     {
-#if DEBUG
-        // Testing-only hook for headless projection tests. Do not use in runtime.
-        internal static System.Func<HelixViewport3D, Point3D, Point>? TestProjectHook { get; set; }
-#endif
-
-        public enum BoxSelectionMode { BoundsOnly, MeshProxy }
-        public static BoxSelectionMode SelectionPrecision { get; set; } = BoxSelectionMode.MeshProxy;
-        public static bool EnableSelectionDiagnostics { get; set; } = false;
-
-        private const int DefaultMeshProxyTriangles = 32;
-        private const int HighPrecisionMeshProxyTriangles = 64;
-        private const double WindowSelectionTolerancePx = 2.0;
-
         private const double DragThresholdPx = 5.0;
         private const double TabNearCursorRadiusPx = 8.0;
         private const double CrossingSampleStepPx = 6.0;
         private const int MaxCrossingSamplePoints = 7000;
+
+        public enum BoxSelectionMode
+        {
+            MeshProxy,
+            ViewportHitSampling
+        }
+
+        public static BoxSelectionMode SelectionPrecision { get; set; } = BoxSelectionMode.MeshProxy;
+        public static bool EnableSelectionDiagnostics { get; set; }
+        public static Func<HelixViewport3D, Point3D, Point>? TestProjectHook { get; set; }
 
         private readonly IViewportSelectionService _selection;
         private readonly IViewportHitTestService _hitTest;
@@ -55,18 +52,6 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
         private Point _dragStart;
         private Point _dragCurrent;
         private bool _lastWasCrossing;
-
-        private List<ElementProjection>? _cachedProjections;
-        private ProjectionCacheKey _cachedKey;
-
-        private readonly record struct ProjectionCacheKey(
-            Point3D CameraPosition,
-            Vector3D CameraLookDirection,
-            double ViewportWidth,
-            double ViewportHeight,
-            int VisibleElementsCount,
-            int SpatialRegistryCount,
-            BoxSelectionMode Precision);
 
         public SelectionHandler(
             IViewportSelectionService selection,
@@ -96,49 +81,21 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             while (current != null && current != viewport)
             {
                 var typeName = current.GetType().Name;
-                if (typeName.Contains("ViewCube") || 
-                    typeName.Contains("CoordinateSystem") || 
-                    typeName.Contains("Button") || 
-                    typeName.Contains("Menu") || 
-                    typeName.Contains("ComboBox") || 
+                if (typeName.Contains("ViewCube") ||
+                    typeName.Contains("CoordinateSystem") ||
+                    typeName.Contains("Button") ||
+                    typeName.Contains("Menu") ||
+                    typeName.Contains("ComboBox") ||
                     typeName.Contains("TextBox") ||
-                    current is Button || 
-                    current is ComboBox || 
+                    current is Button ||
+                    current is ComboBox ||
                     current is MenuItem ||
                     current is TextBox)
                 {
                     return true;
                 }
-                current = VisualTreeHelper.GetParent(current);
-            }
 
-            if (!skipFindHits && e is MouseEventArgs mouseEventArgs)
-            {
-                var pos = mouseEventArgs.GetPosition(viewport);
-                try
-                {
-                    var hits = viewport.Viewport.FindHits(pos);
-                    if (hits != null)
-                    {
-                        foreach (var hit in hits)
-                        {
-                            var visual = hit.Visual;
-                            while (visual != null)
-                            {
-                                var typeName = visual.GetType().Name;
-                                if (typeName.Contains("ViewCube") || 
-                                    typeName.Contains("CoordinateSystem") || 
-                                    typeName.Contains("CameraDirectVisual") || 
-                                    (typeName.Contains("ModelVisual3D") && visual.GetType().FullName != null && visual.GetType().FullName.Contains("HelixToolkit")))
-                                {
-                                    return true;
-                                }
-                                visual = VisualTreeHelper.GetParent(visual) as Visual3D;
-                            }
-                        }
-                    }
-                }
-                catch { }
+                current = VisualTreeHelper.GetParent(current);
             }
 
             return false;
@@ -151,18 +108,12 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
 
         public void OnMouseDown(HelixViewport3D viewport, MouseButtonEventArgs e)
         {
-            // Clicks on elements/empty space are already armed/hit-tested in OnPreviewMouseDown.
+            ArmBoxSelectIfEmpty(viewport, e);
         }
 
         public void OnMouseMove(HelixViewport3D viewport, MouseEventArgs e)
         {
             if (!IsEnabled)
-                return;
-
-            if (_isDragging)
-                return;
-
-            if (IsClickOnViewCubeOrOverlay(viewport, e, skipFindHits: true))
                 return;
 
             _hoverCache.OnMouseMove(e.GetPosition(viewport));
@@ -173,18 +124,11 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             if (!IsEnabled || e.ChangedButton != MouseButton.Left)
                 return;
 
-            if (IsClickOnViewCubeOrOverlay(viewport, e))
-                return;
-
             if (_isDragging)
             {
                 try
                 {
-                    var pos = e.GetPosition(viewport);
-                    if (pos.X != 0 || pos.Y != 0)
-                    {
-                        _dragCurrent = pos;
-                    }
+                    _dragCurrent = e.GetPosition(viewport);
                     FinishBoxSelect(viewport);
                     e.Handled = true;
                 }
@@ -199,8 +143,37 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
                 return;
             }
 
-            _clickArmed = false;
-            _dragArmed = false;
+            if (_clickArmed)
+            {
+                try
+                {
+                    if (!HasMovedEnoughToDrag(e.GetPosition(viewport)))
+                    {
+                        PerformClickSelect(viewport, e.GetPosition(viewport));
+                        e.Handled = true;
+                    }
+                }
+                finally
+                {
+                    _clickArmed = false;
+                }
+                return;
+            }
+
+            if (_dragArmed)
+            {
+                try
+                {
+                    PerformClickSelect(viewport, e.GetPosition(viewport));
+                    e.Handled = true;
+                }
+                finally
+                {
+                    _dragArmed = false;
+                    _clickArmed = false;
+                    ReleaseMouseCapture(viewport);
+                }
+            }
         }
 
         public void OnPreviewMouseMove(HelixViewport3D viewport, MouseEventArgs e)
@@ -208,11 +181,8 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             if (!IsEnabled || e.LeftButton != MouseButtonState.Pressed || !_dragArmed)
                 return;
 
-            // During active drag, skip expensive ViewCube/FindHits check
-            if (!_isDragging && IsClickOnViewCubeOrOverlay(viewport, e))
-                return;
-
             var pos = e.GetPosition(viewport);
+            e.Handled = true;
 
             if (!_isDragging)
             {
@@ -223,10 +193,8 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
                     _selection.Clear();
 
                 _isDragging = true;
-                Mouse.Capture(viewport, CaptureMode.SubTree);
             }
 
-            e.Handled = true;
             _dragCurrent = pos;
             UpdateRubberBand();
         }
@@ -236,21 +204,19 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             if (!IsEnabled || e.ChangedButton != MouseButton.Left || !_dragArmed)
                 return;
 
-            if (IsClickOnViewCubeOrOverlay(viewport, e))
-                return;
-
             try
             {
                 if (_isDragging)
                 {
-                    var pos = e.GetPosition(viewport);
-                    if (pos.X != 0 || pos.Y != 0)
-                    {
-                        _dragCurrent = pos;
-                    }
+                    _dragCurrent = e.GetPosition(viewport);
                     FinishBoxSelect(viewport);
-                    e.Handled = true;
                 }
+                else
+                {
+                    PerformClickSelect(viewport, e.GetPosition(viewport));
+                }
+
+                e.Handled = true;
             }
             finally
             {
@@ -285,9 +251,6 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             if (!IsEnabled || e.ChangedButton != MouseButton.Left)
                 return;
 
-            if (IsClickOnViewCubeOrOverlay(viewport, e))
-                return;
-
             _clickArmed = false;
             _dragArmed = false;
             _isDragging = false;
@@ -299,40 +262,42 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
                 _clickArmed = true;
                 _dragStart = pos;
                 _dragCurrent = pos;
-                
-                // Fetch the fully sorted and filtered candidate list for hover cache
-                var candidates = GetTabCandidateElements(viewport, pos).ToList();
-                _hoverCache.SetCandidates(pos, candidates);
+                _hoverCache.SetCandidates(pos, rayHits);
                 return;
             }
 
             var hit = _hitTest.GetHitObject(viewport, pos);
             if (hit != null)
-            {
                 return;
-            }
 
             _dragArmed = true;
             _isDragging = false;
             _dragStart = pos;
             _dragCurrent = pos;
+            Mouse.Capture(viewport, CaptureMode.SubTree);
+            e.Handled = true;
         }
 
-        private class TabCandidate
+        private void PerformClickSelect(HelixViewport3D viewport, Point pos)
         {
-            public PrecastElement Element { get; }
-            public bool IsRayHit { get; }
-            public double RayDistance { get; }
-            public double ScreenDistanceSq { get; }
-            public string GlobalId { get; }
-
-            public TabCandidate(PrecastElement element, bool isRayHit, double rayDistance, double screenDistanceSq, string globalId)
+            var hits = GetRayHitElements(viewport, pos).ToList();
+            if (hits.Count > 0)
             {
-                Element = element;
-                IsRayHit = isRayHit;
-                RayDistance = rayDistance;
-                ScreenDistanceSq = screenDistanceSq;
-                GlobalId = globalId ?? string.Empty;
+                var element = hits[0];
+                _hoverCache.SetCandidates(pos, hits);
+
+                if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+                    _selection.ToggleElement(element);
+                else
+                    _selection.SetElements(new[] { element });
+
+                return;
+            }
+
+            if (_hitTest.GetHitObject(viewport, pos) == null)
+            {
+                _selection.Clear();
+                _hoverCache.Invalidate();
             }
         }
 
@@ -341,18 +306,19 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             if (!EnsureHoverCandidates(viewport))
                 return;
 
-            var current = _selection.GetSelectedTargets().Select(t => t.UnderlyingObject).OfType<PrecastElement>().FirstOrDefault();
+            var current = _selection.GetSelectedTargets()
+                .Select(t => t.UnderlyingObject)
+                .OfType<PrecastElement>()
+                .FirstOrDefault();
+
             var currentInCandidates = current != null &&
                                       _hoverCache.Candidates.Any(candidate => ReferenceEquals(candidate, current));
-
-            bool isShiftHeld = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
-            bool isCtrlHeld = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
 
             PrecastElement? next;
             if (currentInCandidates)
             {
                 _hoverCache.AlignTo(current!);
-                next = isShiftHeld ? _hoverCache.CyclePrevious() : _hoverCache.CycleNext();
+                next = _hoverCache.CycleNext();
             }
             else
             {
@@ -362,14 +328,7 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             if (next == null)
                 return;
 
-            if (isCtrlHeld)
-            {
-                _selection.ToggleElement(next);
-            }
-            else
-            {
-                _selection.SetElements(new[] { next });
-            }
+            _selection.SetElements(new[] { next });
             e.Handled = true;
         }
 
@@ -401,80 +360,40 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
 
         private IEnumerable<PrecastElement> GetTabCandidateElements(HelixViewport3D viewport, Point pos)
         {
-            var rayHits = new Dictionary<PrecastElement, double>(ReferenceEqualityComparer.Instance);
-            try
+            var result = new List<PrecastElement>();
+            var seen = new HashSet<PrecastElement>(ReferenceEqualityComparer.Instance);
+
+            foreach (var element in GetRayHitElements(viewport, pos))
             {
-                var hits = viewport.Viewport.FindHits(pos);
-                if (hits != null)
-                {
-                    foreach (var hit in hits)
-                    {
-                        var element = TryGetElementTag(hit.Visual);
-                        if (element != null && _filterService.IsElementIncluded(element))
-                        {
-                            double dist = hit.Distance;
-                            if (!rayHits.TryGetValue(element, out var existingDist) || dist < existingDist)
-                            {
-                                rayHits[element] = dist;
-                            }
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // Tab cycling is optional; failed ray hits simply mean no cycle.
+                if (seen.Add(element))
+                    result.Add(element);
             }
 
-            var nearProjections = new Dictionary<PrecastElement, double>(ReferenceEqualityComparer.Instance);
-            var maxDistanceSq = TabNearCursorRadiusPx * TabNearCursorRadiusPx;
-            foreach (var projection in GetElementProjections(viewport))
-            {
-                if (!_filterService.IsElementIncluded(projection.Element))
-                    continue;
+            if (result.Count > 1)
+                return result;
 
-                var distSq = GetDistanceToProjectionSquared(pos, projection);
-                if (distSq <= maxDistanceSq)
-                {
-                    nearProjections[projection.Element] = distSq;
-                }
+            foreach (var projection in GetNearCursorProjections(viewport, pos, TabNearCursorRadiusPx))
+            {
+                if (seen.Add(projection.Element))
+                    result.Add(projection.Element);
             }
 
-            var candidates = new List<TabCandidate>();
-            var allElements = new HashSet<PrecastElement>(rayHits.Keys.Concat(nearProjections.Keys), ReferenceEqualityComparer.Instance);
-
-            foreach (var element in allElements)
-            {
-                bool isRayHit = rayHits.TryGetValue(element, out var rayDist);
-                double screenDistSq = nearProjections.TryGetValue(element, out var sDistSq) ? sDistSq : 0.0;
-                string globalId = element.ElementID ?? string.Empty;
-
-                candidates.Add(new TabCandidate(element, isRayHit, isRayHit ? rayDist : double.MaxValue, screenDistSq, globalId));
-            }
-
-            return candidates
-                .OrderBy(c => c.IsRayHit ? 0 : 1) // Ray hits first, then near-projections
-                .ThenBy(c => c.IsRayHit ? c.RayDistance : c.ScreenDistanceSq) // Closest ray distance for ray hits, closest screen distance for projections
-                .ThenBy(c => c.GlobalId) // Global ID tie-breaker
-                .Select(c => c.Element);
+            return result;
         }
 
         private IEnumerable<PrecastElement> GetRayHitElements(HelixViewport3D viewport, Point pos)
         {
             var result = new List<PrecastElement>();
             var seen = new HashSet<PrecastElement>(ReferenceEqualityComparer.Instance);
+            var viewportPoint = TranslatePoint(viewport, pos, viewport.Viewport);
 
             try
             {
-                var hits = viewport.Viewport.FindHits(pos);
-                if (hits != null)
+                foreach (var hit in viewport.Viewport.FindHits(viewportPoint))
                 {
-                    foreach (var hit in hits)
-                    {
-                        var element = TryGetElementTag(hit.Visual);
-                        if (element != null && _filterService.IsElementIncluded(element) && seen.Add(element))
-                            result.Add(element);
-                    }
+                    var element = TryGetElementTag(hit.Visual);
+                    if (element != null && _filterService.IsElementIncluded(element) && seen.Add(element))
+                        result.Add(element);
                 }
             }
             catch
@@ -492,195 +411,149 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
                 return;
 
             var isCrossing = _dragStart.X > _dragCurrent.X;
-
-            System.Diagnostics.Stopwatch? sw = null;
-#if DEBUG
-            if (EnableSelectionDiagnostics)
-            {
-                sw = System.Diagnostics.Stopwatch.StartNew();
-            }
-#endif
-
             var hits = GetElementsInRect(viewport, rect, isCrossing);
 
-#if DEBUG
-            if (EnableSelectionDiagnostics && sw != null)
+            if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
             {
-                sw.Stop();
-                System.Diagnostics.Debug.WriteLine($"[Box Selection Audit]");
-                System.Diagnostics.Debug.WriteLine($"  DragStart: ({_dragStart.X:F1}, {_dragStart.Y:F1})");
-                System.Diagnostics.Debug.WriteLine($"  DragEnd: ({_dragCurrent.X:F1}, {_dragCurrent.Y:F1})");
-                System.Diagnostics.Debug.WriteLine($"  SelectionRect: {rect}");
-                System.Diagnostics.Debug.WriteLine($"  IsCrossing: {isCrossing}");
-                System.Diagnostics.Debug.WriteLine($"  SelectionPrecision: {SelectionPrecision}");
-                System.Diagnostics.Debug.WriteLine($"  MouseUpEvaluationTimeMs: {sw.Elapsed.TotalMilliseconds:F2}");
-                System.Diagnostics.Debug.WriteLine($"  MatchedElementsCount: {hits.Count}");
-                System.Diagnostics.Debug.WriteLine($"  SelectedGlobalIds: {string.Join(", ", hits.Select(h => h.ElementID))}");
+                if (hits.Count > 0)
+                    AddElements(hits);
+                return;
             }
-#endif
 
-            bool isCtrlHeld = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
-
-            if (isCtrlHeld)
-            {
-                _selection.SelectElements(hits, isCtrlHeld: true);
-            }
-            else
-            {
+            if (hits.Count > 0)
                 _selection.SetElements(hits);
+            else
+                _selection.Clear();
+        }
+
+        private void AddElements(IEnumerable<PrecastElement> elements)
+        {
+            var selected = _selection.GetSelectedTargets()
+                .Select(target => target.UnderlyingObject)
+                .OfType<PrecastElement>()
+                .ToList();
+            var seen = new HashSet<string>(
+                selected.Select(GetElementKey),
+                StringComparer.Ordinal);
+
+            foreach (var element in elements)
+            {
+                if (seen.Add(GetElementKey(element)))
+                    selected.Add(element);
             }
+
+            _selection.SetElements(selected);
         }
 
         private List<PrecastElement> GetElementsInRect(HelixViewport3D viewport, Rect screenRect, bool crossing)
         {
             var result = new List<PrecastElement>();
-            var seen = new HashSet<PrecastElement>(ReferenceEqualityComparer.Instance);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var projections = GetElementProjections(viewport);
 
-            var spatialElements = ElementVisualBuilder.GetSpatialHitTestElements();
-            var spatialLookup = new Dictionary<string, ElementVisualBuilder.SpatialHitTestElement>(
-                StringComparer.OrdinalIgnoreCase);
-            foreach (var se in spatialElements)
+            foreach (var projection in projections)
             {
-                if (!string.IsNullOrEmpty(se.ElementId))
-                    spatialLookup[se.ElementId] = se;
-            }
+                var isHit = crossing
+                    ? IsCrossingBoxHit(screenRect, projection)
+                    : IsWindowBoxHit(screenRect, projection);
 
-            int broadCandidateCount = 0;
-            int narrowAcceptedCount = 0;
-
-            foreach (var projection in GetElementProjections(viewport))
-            {
-                // Stage 1: Broad phase — AABB check
-                bool broadMatch;
-                if (crossing)
-                {
-                    broadMatch = screenRect.IntersectsWith(projection.ScreenBounds) ||
-                                 projection.ScreenSamples.Any(screenRect.Contains);
-                }
-                else
-                {
-                    broadMatch = BoundaryBoxFullyContained(screenRect, projection.ScreenBounds) &&
-                                 projection.ScreenSamples.All(screenRect.Contains);
-                }
-
-                if (!broadMatch)
-                    continue;
-
-                broadCandidateCount++;
-
-                // Stage 2: Narrow phase — mesh proxy test
-                bool narrowMatch;
-                Point[]? meshProxySamples = null;
-                Tuple<Point, Point>[]? meshProxyEdges = null;
-
-                if (SelectionPrecision == BoxSelectionMode.MeshProxy &&
-                    !string.IsNullOrEmpty(projection.Element.ElementID) &&
-                    spatialLookup.TryGetValue(projection.Element.ElementID, out var spatial))
-                {
-                    int maxTriangles = DefaultMeshProxyTriangles;
-                    // Allow 64 only when candidate count is small (e.g. < 10)
-                    if (broadCandidateCount < 10)
-                    {
-                        maxTriangles = HighPrecisionMeshProxyTriangles;
-                    }
-
-                    BuildMeshProxy(viewport, spatial, maxTriangles, out meshProxySamples, out meshProxyEdges);
-
-                    if (meshProxySamples != null && meshProxySamples.Length > 0)
-                    {
-                        narrowMatch = NarrowPhaseTest(screenRect, meshProxySamples, meshProxyEdges, crossing);
-                    }
-                    else
-                    {
-                        // Approximate AABB fallback: stricter rules
-                        if (crossing)
-                        {
-                            narrowMatch = projection.ScreenSamples.Any(screenRect.Contains);
-                        }
-                        else
-                        {
-                            narrowMatch = true; // Broad-phase window selection is already strict
-                        }
-                    }
-                }
-                else
-                {
-                    // BoundsOnly mode or fallback: AABB-only
-                    if (crossing)
-                    {
-                        narrowMatch = projection.ScreenSamples.Any(screenRect.Contains);
-                    }
-                    else
-                    {
-                        narrowMatch = true;
-                    }
-                }
-
-#if DEBUG
-                if (EnableSelectionDiagnostics)
-                {
-                    var reason = narrowMatch ? "ACCEPTED" : "REJECTED_NARROW";
-                    var meshCount = meshProxySamples?.Length ?? 0;
-                    var edgeCount = meshProxyEdges?.Length ?? 0;
-                    var edgeIntersectResult = (crossing && meshProxyEdges != null && !meshProxySamples.Any(screenRect.Contains)) 
-                        ? (narrowMatch ? "EdgeIntersected" : "NoEdgeIntersection")
-                        : "N/A";
-
-                    System.Diagnostics.Debug.WriteLine(
-                        $"  [{reason}] {projection.Element.ElementID} " +
-                        $"Bounds={projection.ScreenBounds} MeshSamples={meshCount} Edges={edgeCount} " +
-                        $"EdgeIntersect={edgeIntersectResult}");
-                }
-#endif
-
-                if (narrowMatch && seen.Add(projection.Element))
-                {
-                    narrowAcceptedCount++;
+                if (isHit && seen.Add(GetElementKey(projection.Element)))
                     result.Add(projection.Element);
-                }
             }
 
-#if DEBUG
-            if (EnableSelectionDiagnostics)
+            if (crossing &&
+                result.Count == 0 &&
+                (SelectionPrecision == BoxSelectionMode.ViewportHitSampling || projections.Count == 0))
             {
-                System.Diagnostics.Debug.WriteLine($"  BroadCandidates: {broadCandidateCount}");
-                System.Diagnostics.Debug.WriteLine($"  NarrowAccepted: {narrowAcceptedCount}");
+                return GetElementsHitBySampledRect(viewport, screenRect);
             }
-#endif
 
             return result;
         }
 
-        private static bool NarrowPhaseTest(Rect screenRect, Point[] meshSamples, Tuple<Point, Point>[]? meshEdges, bool crossing)
+        private List<PrecastElement> GetElementsHitBySampledRect(HelixViewport3D viewport, Rect screenRect)
         {
-            if (crossing)
-            {
-                // Crossing: at least one mesh proxy point inside, OR at least one edge intersects
-                if (meshSamples.Any(screenRect.Contains))
-                    return true;
+            var result = new List<PrecastElement>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
 
-                if (meshEdges != null)
+            var viewportWidth = viewport.ActualWidth > 0 ? viewport.ActualWidth : viewport.Width;
+            var viewportHeight = viewport.ActualHeight > 0 ? viewport.ActualHeight : viewport.Height;
+
+            foreach (var point in EnumerateRectSamplePoints(screenRect, viewportWidth, viewportHeight))
+            {
+                var element = GetFrontRayHitElement(viewport, point);
+                if (element != null && seen.Add(GetElementKey(element)))
+                    result.Add(element);
+            }
+
+            return result;
+        }
+
+        private PrecastElement? GetFrontRayHitElement(HelixViewport3D viewport, Point pos)
+        {
+            var viewportPoint = TranslatePoint(viewport, pos, viewport.Viewport);
+
+            try
+            {
+                foreach (var hit in viewport.Viewport.FindHits(viewportPoint))
                 {
-                    foreach (var edge in meshEdges)
-                    {
-                        if (SegmentIntersectsRect(edge.Item1, edge.Item2, screenRect))
-                            return true;
-                    }
+                    var element = TryGetElementTag(hit.Visual);
+                    if (element != null && _filterService.IsElementIncluded(element))
+                        return element;
                 }
-
-                return false;
             }
-            else
+            catch
             {
-                // Window: all mesh proxy samples must be inside the rectangle (with tiny tolerance)
-                var tolerantRect = new Rect(
-                    screenRect.X - WindowSelectionTolerancePx,
-                    screenRect.Y - WindowSelectionTolerancePx,
-                    screenRect.Width + WindowSelectionTolerancePx * 2,
-                    screenRect.Height + WindowSelectionTolerancePx * 2);
-
-                return meshSamples.All(tolerantRect.Contains);
+                // Fall through to the shared hit-test service.
             }
+
+            var hitObj = _hitTest.GetHitObject(viewport, pos);
+            if (TryGetElementFromHitObject(hitObj, out var hitElement) &&
+                _filterService.IsElementIncluded(hitElement))
+            {
+                return hitElement;
+            }
+
+            return null;
+        }
+
+        private static bool TryGetElementFromHitObject(object? hitObj, out PrecastElement element)
+        {
+            element = null!;
+
+            if (hitObj is PrecastElement direct)
+            {
+                element = direct;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsSameElement(PrecastElement left, PrecastElement right)
+        {
+            if (ReferenceEquals(left, right))
+                return true;
+
+            return !string.IsNullOrWhiteSpace(left.ElementID) &&
+                   string.Equals(left.ElementID, right.ElementID, StringComparison.Ordinal);
+        }
+
+        private static string GetElementKey(PrecastElement element)
+        {
+            if (!string.IsNullOrWhiteSpace(element.ElementID))
+                return $"id:{element.ElementID.Trim()}";
+
+            return $"ref:{RuntimeHelpers.GetHashCode(element)}";
+        }
+
+        private PrecastElement? ResolveVisibleElement(PrecastElement element)
+        {
+            var visibleElements = _filterService.VisibleElements;
+            if (visibleElements.Count == 0)
+                return element;
+
+            return visibleElements.FirstOrDefault(visible => IsSameElement(visible, element));
         }
 
         private IEnumerable<ElementProjection> GetNearCursorProjections(
@@ -704,75 +577,205 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
 
         private List<ElementProjection> GetElementProjections(HelixViewport3D viewport)
         {
-            var projCam = viewport.Camera as ProjectionCamera;
-            var camPos = projCam?.Position ?? new Point3D();
-            var camLook = projCam?.LookDirection ?? new Vector3D(0, 0, -1);
-            var width = viewport.ActualWidth;
-            var height = viewport.ActualHeight;
-            var visibleCount = _filterService.VisibleElements.Count;
-            
-            // Get spatial registry elements count
-            var spatialElements = ElementVisualBuilder.GetSpatialHitTestElements();
-            var spatialCount = spatialElements.Count;
-
-            var key = new ProjectionCacheKey(camPos, camLook, width, height, visibleCount, spatialCount, SelectionPrecision);
-
-            if (_cachedProjections != null && _cachedKey.Equals(key))
-            {
-                return _cachedProjections;
-            }
-
-            var projections = new List<ElementProjection>();
-            var seen = new HashSet<PrecastElement>(ReferenceEqualityComparer.Instance);
-
-            // Build dictionary once to avoid O(N^2) linear lookup
-            var spatialLookup = new Dictionary<string, ElementVisualBuilder.SpatialHitTestElement>(
-                StringComparer.OrdinalIgnoreCase);
-            foreach (var se in spatialElements)
-            {
-                if (!string.IsNullOrEmpty(se.ElementId))
-                    spatialLookup[se.ElementId] = se;
-            }
+            var projections = new Dictionary<string, ElementProjection>(StringComparer.Ordinal);
 
             foreach (var child in viewport.Children.OfType<ModelVisual3D>())
-                CollectElementProjections(viewport, child, Transform3D.Identity, projections, seen);
+                CollectElementProjections(viewport, child, Transform3D.Identity, projections);
+
+            foreach (var projection in GetSpatialElementProjections(viewport))
+            {
+                var key = GetElementKey(projection.Element);
+                if (projections.TryGetValue(key, out var existing) && existing.HasMeshGeometry)
+                    continue;
+
+                AddOrMergeProjection(projections, projection);
+            }
+
+            if (projections.Count > 0)
+                return projections.Values.ToList();
 
             foreach (var element in _filterService.VisibleElements)
             {
-                if (TryProjectElementBox(viewport, element, spatialLookup, out var screenBounds, out var samples, out var depth) &&
-                    seen.Add(element))
+                var key = GetElementKey(element);
+                if (TryProjectElementBox(viewport, element, out var screenBounds, out var samples, out var depth) &&
+                    samples.Length > 0)
                 {
-                    projections.Add(new ElementProjection(element, screenBounds, samples, depth));
+                    projections[key] = new ElementProjection(element, screenBounds, samples, depth, [], false);
                 }
             }
 
-            _cachedProjections = projections;
-            _cachedKey = key;
+            return projections.Values.ToList();
+        }
 
-            return projections;
+        private IEnumerable<ElementProjection> GetSpatialElementProjections(
+            HelixViewport3D viewport)
+        {
+            foreach (var candidate in ElementVisualBuilder.GetSpatialHitTestElements())
+            {
+                var element = ResolveVisibleElement(candidate.Element);
+                if (!candidate.IsVisible ||
+                    element == null ||
+                    !_filterService.IsElementIncluded(element))
+                {
+                    continue;
+                }
+
+                if (TryProjectSpatialElement(viewport, candidate, element, out var projection))
+                    yield return projection;
+            }
+        }
+
+        private static bool TryProjectSpatialElement(
+            HelixViewport3D viewport,
+            ElementVisualBuilder.SpatialHitTestElement candidate,
+            PrecastElement element,
+            out ElementProjection projection)
+        {
+            projection = default;
+
+            if (candidate.Meshes.Count > 0)
+                return TryProjectSpatialMeshes(viewport, candidate, element, out projection);
+
+            var bounds = new Rect3D(
+                candidate.Min.X,
+                candidate.Min.Y,
+                candidate.Min.Z,
+                candidate.Max.X - candidate.Min.X,
+                candidate.Max.Y - candidate.Min.Y,
+                candidate.Max.Z - candidate.Min.Z);
+
+            return TryProjectBounds(viewport, bounds, Transform3D.Identity, out var screenBounds, out var samples, out var depth) &&
+                   SetProjection(element, screenBounds, samples, depth, [], false, out projection);
+        }
+
+        private static bool TryProjectSpatialMeshes(
+            HelixViewport3D viewport,
+            ElementVisualBuilder.SpatialHitTestElement candidate,
+            PrecastElement element,
+            out ElementProjection projection)
+        {
+            projection = default;
+
+            Rect? rect = null;
+            var samples = new List<Point>();
+            var triangles = new List<ScreenTriangle>();
+            var depthSum = 0d;
+            var projectedCount = 0;
+
+            foreach (var (mesh, transform) in candidate.Meshes)
+            {
+                var positions = mesh.Positions;
+                var indices = mesh.TriangleIndices;
+
+                if (positions == null || indices == null || positions.Count == 0 || indices.Count < 3)
+                    continue;
+
+                for (var i = 0; i + 2 < indices.Count; i += 3)
+                {
+                    var p0 = transform.Transform(positions[indices[i]]);
+                    var p1 = transform.Transform(positions[indices[i + 1]]);
+                    var p2 = transform.Transform(positions[indices[i + 2]]);
+
+                    if (!TryProjectWorldPoint(viewport, p0, out var s0) ||
+                        !TryProjectWorldPoint(viewport, p1, out var s1) ||
+                        !TryProjectWorldPoint(viewport, p2, out var s2))
+                    {
+                        return false;
+                    }
+
+                    AddProjectedPoint(s0, p0, viewport.Camera, ref rect, samples, ref depthSum, ref projectedCount);
+                    AddProjectedPoint(s1, p1, viewport.Camera, ref rect, samples, ref depthSum, ref projectedCount);
+                    AddProjectedPoint(s2, p2, viewport.Camera, ref rect, samples, ref depthSum, ref projectedCount);
+                    triangles.Add(new ScreenTriangle(s0, s1, s2));
+                }
+            }
+
+            if (!rect.HasValue || projectedCount == 0)
+                return false;
+
+            return SetProjection(
+                element,
+                rect.Value,
+                samples.ToArray(),
+                depthSum / projectedCount,
+                triangles.ToArray(),
+                true,
+                out projection);
+        }
+
+        private static bool SetProjection(
+            PrecastElement element,
+            Rect screenBounds,
+            Point[] samples,
+            double depth,
+            ScreenTriangle[] triangles,
+            bool hasMeshGeometry,
+            out ElementProjection projection)
+        {
+            projection = default;
+
+            if (screenBounds.IsEmpty || samples.Length == 0)
+                return false;
+
+            projection = new ElementProjection(element, screenBounds, samples, depth, triangles, hasMeshGeometry);
+            return true;
         }
 
         private void CollectElementProjections(
             HelixViewport3D viewport,
             ModelVisual3D visual,
             Transform3D parentTransform,
-            List<ElementProjection> projections,
-            HashSet<PrecastElement> seen)
+            Dictionary<string, ElementProjection> projections)
         {
             var visualTransform = Combine(parentTransform, visual.Transform);
-            var element = visual.GetValue(FrameworkElement.TagProperty) as PrecastElement;
+            var taggedElement = visual.GetValue(FrameworkElement.TagProperty) as PrecastElement;
+            var element = taggedElement == null ? null : ResolveVisibleElement(taggedElement);
 
             if (element != null &&
                 _filterService.IsElementIncluded(element) &&
-                !seen.Contains(element) &&
-                TryProjectVisualBounds(viewport, visual, visualTransform, out var screenBounds, out var samples, out var depth) &&
-                seen.Add(element))
+                TryProjectVisualGeometry(viewport, visual, visualTransform, element, out var projection))
             {
-                projections.Add(new ElementProjection(element, screenBounds, samples, depth));
+                AddOrMergeProjection(projections, projection);
             }
 
             foreach (var child in visual.Children.OfType<ModelVisual3D>())
-                CollectElementProjections(viewport, child, visualTransform, projections, seen);
+                CollectElementProjections(viewport, child, visualTransform, projections);
+        }
+
+        private static void AddOrMergeProjection(
+            Dictionary<string, ElementProjection> projections,
+            ElementProjection projection)
+        {
+            var key = GetElementKey(projection.Element);
+            if (!projections.TryGetValue(key, out var existing))
+            {
+                projections[key] = projection;
+                return;
+            }
+
+            if (existing.HasMeshGeometry && !projection.HasMeshGeometry)
+                return;
+
+            if (!existing.HasMeshGeometry && projection.HasMeshGeometry)
+            {
+                projections[key] = projection;
+                return;
+            }
+
+            var samples = existing.ScreenSamples.Concat(projection.ScreenSamples).ToArray();
+            var triangles = existing.ScreenTriangles.Concat(projection.ScreenTriangles).ToArray();
+            var weightedDepth =
+                (existing.Depth * existing.ScreenSamples.Length +
+                 projection.Depth * projection.ScreenSamples.Length) /
+                Math.Max(1, samples.Length);
+
+            projections[key] = new ElementProjection(
+                existing.Element,
+                Rect.Union(existing.ScreenBounds, projection.ScreenBounds),
+                samples,
+                weightedDepth,
+                triangles,
+                existing.HasMeshGeometry || projection.HasMeshGeometry);
         }
 
         private static PrecastElement? TryGetElementTag(Visual3D? visual)
@@ -789,97 +792,58 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             return null;
         }
 
-        private bool TryProjectVisualBounds(
+        private static bool TryProjectVisualGeometry(
             HelixViewport3D viewport,
             ModelVisual3D visual,
             Transform3D transform,
-            out Rect screenBounds,
-            out Point[] samples,
-            out double depth)
+            PrecastElement element,
+            out ElementProjection projection)
         {
-            screenBounds = Rect.Empty;
-            samples = [];
-            depth = 0d;
+            projection = default;
 
             if (visual.Content == null)
                 return false;
 
-            var worldPoints = new List<Point3D>();
-            CollectModelBoundsSamplePoints(visual.Content, transform, worldPoints);
+            Rect? screenBounds = null;
+            var samples = new List<Point>();
+            var triangles = new List<ScreenTriangle>();
+            var depthSum = 0d;
+            var projectedCount = 0;
+            var hasMeshGeometry = false;
+            var isComplete = true;
 
-            return TryProjectWorldPoints(viewport, worldPoints, out screenBounds, out samples, out depth);
-        }
+            CollectProjectedModelGeometry(
+                viewport,
+                visual.Content,
+                transform,
+                ref screenBounds,
+                samples,
+                triangles,
+                ref depthSum,
+                ref projectedCount,
+                ref hasMeshGeometry,
+                ref isComplete);
 
-        private static bool IsValidAABB(Point3D min, Point3D max)
-        {
-            double dx = max.X - min.X;
-            double dy = max.Y - min.Y;
-            double dz = max.Z - min.Z;
-
-            if (double.IsNaN(dx) || double.IsNaN(dy) || double.IsNaN(dz) ||
-                double.IsInfinity(dx) || double.IsInfinity(dy) || double.IsInfinity(dz))
-            {
+            if (!isComplete || !screenBounds.HasValue || projectedCount == 0)
                 return false;
-            }
 
-            if (dx <= 1e-4 || dy <= 1e-4 || dz <= 1e-4)
-            {
-                return false;
-            }
-
-            if (dx > 150.0 || dy > 150.0 || dz > 150.0)
-            {
-                return false;
-            }
-
-            double volume = dx * dy * dz;
-            if (volume > 200000.0)
-            {
-                return false;
-            }
-
-            return true;
+            return SetProjection(
+                element,
+                screenBounds.Value,
+                samples.ToArray(),
+                depthSum / projectedCount,
+                triangles.ToArray(),
+                hasMeshGeometry,
+                out projection);
         }
 
         private bool TryProjectElementBox(
             HelixViewport3D viewport,
             PrecastElement element,
-            Dictionary<string, ElementVisualBuilder.SpatialHitTestElement> spatialLookup,
             out Rect screenBounds,
             out Point[] samples,
             out double depth)
         {
-            // Try to find the element in the cached spatial registry lookup
-            ElementVisualBuilder.SpatialHitTestElement? spatialElement = null;
-            if (!string.IsNullOrEmpty(element.ElementID))
-                spatialLookup.TryGetValue(element.ElementID, out spatialElement);
-
-            if (spatialElement != null)
-            {
-                if (!spatialElement.IsVisible)
-                {
-                    screenBounds = Rect.Empty;
-                    samples = [];
-                    depth = 0d;
-                    return false;
-                }
-
-                var min = spatialElement.Min;
-                var max = spatialElement.Max;
-                if (IsValidAABB(min, max))
-                {
-                    var spatialBounds = new Rect3D(min.X, min.Y, min.Z, max.X - min.X, max.Y - min.Y, max.Z - min.Z);
-                    return TryProjectBounds(viewport, spatialBounds, Transform3D.Identity, out screenBounds, out samples, out depth);
-                }
-
-                // If present in spatial registry but bounds are invalid/outliers/NaN, reject completely
-                screenBounds = Rect.Empty;
-                samples = [];
-                depth = 0d;
-                return false;
-            }
-
-            // Fallback to COG-based bounding box
             var cog = element.ElementCOG;
             var origin = _originService.OriginPoint;
             var boundsCenter = new Point3D(
@@ -887,23 +851,15 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
                 cog.Y - (origin?.Y ?? 0d),
                 cog.Z - (origin?.Z ?? 0d));
 
-            var length = Math.Max(element.BBoxLength ?? element.ElementLength ?? 1d, 0.01d);
-            var width = Math.Max(element.BBoxWidth ?? element.ElementWidth ?? 1d, 0.01d);
-            var height = Math.Max(element.BBoxHeight ?? element.ElementHeight ?? 1d, 0.01d);
+            var bounds = new Rect3D(
+                boundsCenter.X - Math.Max(element.BBoxLength ?? element.ElementLength ?? 1d, 0.01d) / 2d,
+                boundsCenter.Y - Math.Max(element.BBoxWidth ?? element.ElementWidth ?? 1d, 0.01d) / 2d,
+                boundsCenter.Z - Math.Max(element.BBoxHeight ?? element.ElementHeight ?? 1d, 0.01d) / 2d,
+                Math.Max(element.BBoxLength ?? element.ElementLength ?? 1d, 0.01d),
+                Math.Max(element.BBoxWidth ?? element.ElementWidth ?? 1d, 0.01d),
+                Math.Max(element.BBoxHeight ?? element.ElementHeight ?? 1d, 0.01d));
 
-            var fallbackMin = new Point3D(boundsCenter.X - length / 2d, boundsCenter.Y - width / 2d, boundsCenter.Z - height / 2d);
-            var fallbackMax = new Point3D(boundsCenter.X + length / 2d, boundsCenter.Y + width / 2d, boundsCenter.Z + height / 2d);
-
-            if (!IsValidAABB(fallbackMin, fallbackMax))
-            {
-                screenBounds = Rect.Empty;
-                samples = [];
-                depth = 0d;
-                return false;
-            }
-
-            var fallbackBounds = new Rect3D(fallbackMin.X, fallbackMin.Y, fallbackMin.Z, length, width, height);
-            return TryProjectBounds(viewport, fallbackBounds, Transform3D.Identity, out screenBounds, out samples, out depth);
+            return TryProjectBounds(viewport, bounds, Transform3D.Identity, out screenBounds, out samples, out depth);
         }
 
         private static bool TryProjectBounds(
@@ -944,133 +900,213 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             var projectedCount = 0;
             var projectedPoints = new List<Point>();
 
-            var projCam = viewport.Camera as ProjectionCamera;
-            Vector3D lookDir = new Vector3D(0, 0, -1);
-            Point3D camPos = new Point3D(0, 0, 0);
-            double nearPlane = 0.05;
-            bool hasProjCam = false;
-
-            if (projCam != null)
-            {
-                camPos = projCam.Position;
-                var rawLook = projCam.LookDirection;
-                var len = rawLook.Length;
-                if (len > 0.0001)
-                {
-                    lookDir = rawLook / len;
-                }
-
-                if (projCam.NearPlaneDistance > 0.0001)
-                {
-                    nearPlane = projCam.NearPlaneDistance;
-                }
-                hasProjCam = true;
-            }
-
-            const double epsilon = 0.01;
-            double depthThreshold = nearPlane + epsilon;
-
             foreach (var worldPoint in worldPoints)
             {
-                if (hasProjCam)
-                {
-                    var toPoint = worldPoint - camPos;
-                    var ptDepth = Vector3D.DotProduct(toPoint, lookDir);
-                    if (ptDepth <= depthThreshold)
-                    {
-                        // Point is behind camera or inside near plane, skip it.
-                        continue;
-                    }
-                }
+                if (!TryProjectWorldPoint(viewport, worldPoint, out var screenPoint))
+                    return false;
 
-                Point screenPoint;
-                try
-                {
-#if DEBUG
-                    if (TestProjectHook != null)
-                    {
-                        screenPoint = TestProjectHook(viewport, worldPoint);
-                    }
-                    else
-#endif
-                    {
-                        var wpfPoint = Viewport3DHelper.Point3DtoPoint2D(viewport.Viewport, worldPoint);
-                        // Explicit coordinate space translation using SafeTranslatePoint helper
-                        screenPoint = SafeTranslatePoint(viewport.Viewport, wpfPoint, viewport);
-                    }
-                }
-                catch
-                {
-                    continue;
-                }
-
-                // Sanity check: finite coordinates
-                if (double.IsNaN(screenPoint.X) || double.IsInfinity(screenPoint.X) ||
-                    double.IsNaN(screenPoint.Y) || double.IsInfinity(screenPoint.Y))
-                {
-                    continue;
-                }
-
-                var pointRect = new Rect(screenPoint, new Size(0, 0));
-                rect = rect.HasValue ? Rect.Union(rect.Value, pointRect) : pointRect;
-                projectedPoints.Add(screenPoint);
-                depthSum += GetCameraDistance(viewport.Camera, worldPoint);
-                projectedCount++;
+                AddProjectedPoint(screenPoint, worldPoint, viewport.Camera, ref rect, projectedPoints, ref depthSum, ref projectedCount);
             }
 
             if (!rect.HasValue || projectedCount == 0)
                 return false;
 
-            var finalRect = InflateTinyRect(rect.Value);
-
-            // Sanity check: finite sizes
-            if (double.IsNaN(finalRect.Width) || double.IsInfinity(finalRect.Width) ||
-                double.IsNaN(finalRect.Height) || double.IsInfinity(finalRect.Height))
-            {
-                return false;
-            }
-
-            // Sanity check: strictly positive width/height
-            if (finalRect.Width <= 0.001 || finalRect.Height <= 0.001)
-                return false;
-
-            // Strict sanity check: reasonable width/height relative to viewport dimensions
-            double viewWidth = viewport.ActualWidth > 0 ? viewport.ActualWidth : 1920;
-            double viewHeight = viewport.ActualHeight > 0 ? viewport.ActualHeight : 1080;
-
-            if (finalRect.Width > viewWidth * 4.0 || finalRect.Height > viewHeight * 4.0)
-                return false;
-
-            // Strict sanity check: reasonable area relative to viewport area
-            var rectArea = finalRect.Width * finalRect.Height;
-            var viewArea = viewWidth * viewHeight;
-            if (rectArea > viewArea * 8.0)
-                return false;
-
-            // Strict sanity check: intersects visible viewport bounds
-            var viewportBounds = new Rect(0, 0, viewWidth, viewHeight);
-            if (!viewportBounds.IntersectsWith(finalRect))
-                return false;
-
-            screenBounds = finalRect;
-            samples = [.. projectedPoints];
+            screenBounds = InflateTinyRect(rect.Value);
+            samples = projectedPoints.ToArray();
             depth = depthSum / projectedCount;
             return true;
         }
 
-        private static Point SafeTranslatePoint(UIElement fromElement, Point point, UIElement toElement)
+        private static bool TryProjectWorldPoint(HelixViewport3D viewport, Point3D worldPoint, out Point screenPoint)
         {
+            screenPoint = default;
+
+            if (viewport.Camera is ProjectionCamera projectionCamera)
+            {
+                var lookDirection = projectionCamera.LookDirection;
+                if (lookDirection.LengthSquared > 0.00000001d)
+                {
+                    lookDirection.Normalize();
+                    var cameraDepth = Vector3D.DotProduct(worldPoint - projectionCamera.Position, lookDirection);
+                    var nearPlane = Math.Max(0d, projectionCamera.NearPlaneDistance);
+                    if (cameraDepth <= nearPlane + 0.000001d)
+                        return false;
+                }
+            }
+
+            if (TestProjectHook != null)
+            {
+                try
+                {
+                    screenPoint = TestProjectHook(viewport, worldPoint);
+                    return IsFinite(screenPoint);
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
             try
             {
-                if (PresentationSource.FromVisual(fromElement) != null)
-                {
-                    return fromElement.TranslatePoint(point, toElement);
-                }
+                var viewportPoint = Viewport3DHelper.Point3DtoPoint2D(viewport.Viewport, worldPoint);
+                screenPoint = TranslatePoint(viewport.Viewport, viewportPoint, viewport);
+                return IsFinite(screenPoint);
             }
             catch
             {
+                return false;
             }
-            return point; // Safe fallback when detached (e.g. in unit tests)
+        }
+
+        private static Point TranslatePoint(UIElement from, Point point, UIElement to)
+        {
+            try
+            {
+                return from.TranslatePoint(point, to);
+            }
+            catch
+            {
+                return point;
+            }
+        }
+
+        private static bool IsFinite(Point point)
+        {
+            return !double.IsNaN(point.X) &&
+                   !double.IsNaN(point.Y) &&
+                   !double.IsInfinity(point.X) &&
+                   !double.IsInfinity(point.Y);
+        }
+
+        private static void AddProjectedPoint(
+            Point screenPoint,
+            Point3D worldPoint,
+            Camera? camera,
+            ref Rect? rect,
+            List<Point> projectedPoints,
+            ref double depthSum,
+            ref int projectedCount)
+        {
+            var pointRect = new Rect(screenPoint, new Size(0, 0));
+            rect = rect.HasValue ? Rect.Union(rect.Value, pointRect) : pointRect;
+            projectedPoints.Add(screenPoint);
+            depthSum += GetCameraDistance(camera, worldPoint);
+            projectedCount++;
+        }
+
+        private static void CollectProjectedModelGeometry(
+            HelixViewport3D viewport,
+            Model3D model,
+            Transform3D parentTransform,
+            ref Rect? screenBounds,
+            List<Point> samples,
+            List<ScreenTriangle> triangles,
+            ref double depthSum,
+            ref int projectedCount,
+            ref bool hasMeshGeometry,
+            ref bool isComplete)
+        {
+            var modelTransform = Combine(parentTransform, model.Transform);
+
+            if (model is GeometryModel3D geometryModel)
+            {
+                if (geometryModel.Geometry is MeshGeometry3D mesh && mesh.Positions.Count > 0)
+                {
+                    hasMeshGeometry = true;
+                    var matrix = modelTransform.Value;
+                    var projectedPositions = new Point[mesh.Positions.Count];
+
+                    for (var i = 0; i < mesh.Positions.Count; i++)
+                    {
+                        var worldPoint = matrix.Transform(mesh.Positions[i]);
+                        if (!TryProjectWorldPoint(viewport, worldPoint, out var screenPoint))
+                        {
+                            isComplete = false;
+                            return;
+                        }
+
+                        projectedPositions[i] = screenPoint;
+                        AddProjectedPoint(
+                            screenPoint,
+                            worldPoint,
+                            viewport.Camera,
+                            ref screenBounds,
+                            samples,
+                            ref depthSum,
+                            ref projectedCount);
+                    }
+
+                    var indices = mesh.TriangleIndices;
+                    for (var i = 0; i + 2 < indices.Count; i += 3)
+                    {
+                        var i0 = indices[i];
+                        var i1 = indices[i + 1];
+                        var i2 = indices[i + 2];
+                        if (i0 < 0 || i1 < 0 || i2 < 0 ||
+                            i0 >= projectedPositions.Length ||
+                            i1 >= projectedPositions.Length ||
+                            i2 >= projectedPositions.Length)
+                        {
+                            continue;
+                        }
+
+                        triangles.Add(new ScreenTriangle(
+                            projectedPositions[i0],
+                            projectedPositions[i1],
+                            projectedPositions[i2]));
+                    }
+
+                    return;
+                }
+
+                var bounds = geometryModel.Geometry?.Bounds ?? Rect3D.Empty;
+                if (bounds.IsEmpty)
+                    return;
+
+                var boundsMatrix = modelTransform.Value;
+                foreach (var localPoint in GetBoundsSamplePoints(bounds))
+                {
+                    var worldPoint = boundsMatrix.Transform(localPoint);
+                    if (!TryProjectWorldPoint(viewport, worldPoint, out var screenPoint))
+                    {
+                        isComplete = false;
+                        return;
+                    }
+
+                    AddProjectedPoint(
+                        screenPoint,
+                        worldPoint,
+                        viewport.Camera,
+                        ref screenBounds,
+                        samples,
+                        ref depthSum,
+                        ref projectedCount);
+                }
+
+                return;
+            }
+
+            if (model is not Model3DGroup group)
+                return;
+
+            foreach (var child in group.Children)
+            {
+                CollectProjectedModelGeometry(
+                    viewport,
+                    child,
+                    modelTransform,
+                    ref screenBounds,
+                    samples,
+                    triangles,
+                    ref depthSum,
+                    ref projectedCount,
+                    ref hasMeshGeometry,
+                    ref isComplete);
+
+                if (!isComplete)
+                    return;
+            }
         }
 
         private static void CollectModelBoundsSamplePoints(
@@ -1108,205 +1144,6 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
                 rect.Inflate(0, (4 - rect.Height) / 2d);
 
             return rect;
-        }
-
-        private static void BuildMeshProxy(
-            HelixViewport3D viewport,
-            ElementVisualBuilder.SpatialHitTestElement spatialElement,
-            int maxTriangles,
-            out Point[]? projectedVertices,
-            out Tuple<Point, Point>[]? projectedEdges)
-        {
-            projectedVertices = null;
-            projectedEdges = null;
-
-            if (spatialElement.Meshes == null || spatialElement.Meshes.Count == 0)
-                return;
-
-            var projCam = viewport.Camera as ProjectionCamera;
-            Vector3D lookDir = new Vector3D(0, 0, -1);
-            Point3D camPos = new Point3D(0, 0, 0);
-            double nearPlane = 0.05;
-            bool hasProjCam = false;
-
-            if (projCam != null)
-            {
-                camPos = projCam.Position;
-                var rawLook = projCam.LookDirection;
-                var len = rawLook.Length;
-                if (len > 0.0001) lookDir = rawLook / len;
-                if (projCam.NearPlaneDistance > 0.0001) nearPlane = projCam.NearPlaneDistance;
-                hasProjCam = true;
-            }
-
-            double depthThreshold = nearPlane + 0.01;
-            var validVertices = new List<Point>();
-            var validEdges = new List<Tuple<Point, Point>>();
-            int trianglesBudget = maxTriangles;
-
-            foreach (var mesh in spatialElement.Meshes)
-            {
-                var geometry = mesh.Mesh;
-                var transform = mesh.Transform;
-
-                if (trianglesBudget <= 0)
-                    break;
-
-                if (geometry == null)
-                    continue;
-
-                var positions = geometry.Positions;
-                var indices = geometry.TriangleIndices;
-
-                if (positions == null || positions.Count == 0)
-                    continue;
-
-                // If triangle indices available, sample triangles for vertices + edges
-                if (indices != null && indices.Count >= 3)
-                {
-                    int triCount = indices.Count / 3;
-                    int stride = Math.Max(1, triCount / trianglesBudget);
-
-                    for (int t = 0; t < triCount && trianglesBudget > 0; t += stride)
-                    {
-                        int i0 = indices[t * 3];
-                        int i1 = indices[t * 3 + 1];
-                        int i2 = indices[t * 3 + 2];
-
-                        if (i0 >= positions.Count || i1 >= positions.Count || i2 >= positions.Count)
-                            continue;
-
-                        var wp0 = transform.Transform(positions[i0]);
-                        var wp1 = transform.Transform(positions[i1]);
-                        var wp2 = transform.Transform(positions[i2]);
-
-                        var sp0 = ProjectSinglePoint(viewport, wp0, camPos, lookDir, depthThreshold, hasProjCam);
-                        var sp1 = ProjectSinglePoint(viewport, wp1, camPos, lookDir, depthThreshold, hasProjCam);
-                        var sp2 = ProjectSinglePoint(viewport, wp2, camPos, lookDir, depthThreshold, hasProjCam);
-
-                        if (sp0.HasValue) validVertices.Add(sp0.Value);
-                        if (sp1.HasValue) validVertices.Add(sp1.Value);
-                        if (sp2.HasValue) validVertices.Add(sp2.Value);
-
-                        if (sp0.HasValue && sp1.HasValue) validEdges.Add(Tuple.Create(sp0.Value, sp1.Value));
-                        if (sp1.HasValue && sp2.HasValue) validEdges.Add(Tuple.Create(sp1.Value, sp2.Value));
-                        if (sp2.HasValue && sp0.HasValue) validEdges.Add(Tuple.Create(sp2.Value, sp0.Value));
-
-                        trianglesBudget--;
-                    }
-                }
-                else
-                {
-                    // No triangle indices — sample vertices only
-                    int vertStride = Math.Max(1, positions.Count / (trianglesBudget * 3));
-                    for (int i = 0; i < positions.Count && validVertices.Count < trianglesBudget * 3; i += vertStride)
-                    {
-                        var wp = transform.Transform(positions[i]);
-                        var sp = ProjectSinglePoint(viewport, wp, camPos, lookDir, depthThreshold, hasProjCam);
-                        if (sp.HasValue)
-                            validVertices.Add(sp.Value);
-                    }
-                    trianglesBudget = 0;
-                }
-            }
-
-            if (validVertices.Count > 0)
-                projectedVertices = validVertices.ToArray();
-            if (validEdges.Count > 0)
-                projectedEdges = validEdges.ToArray();
-        }
-
-        private static Point? ProjectSinglePoint(
-            HelixViewport3D viewport,
-            Point3D worldPoint,
-            Point3D camPos,
-            Vector3D lookDir,
-            double depthThreshold,
-            bool hasProjCam)
-        {
-            if (hasProjCam)
-            {
-                var toPoint = worldPoint - camPos;
-                var ptDepth = Vector3D.DotProduct(toPoint, lookDir);
-                if (ptDepth <= depthThreshold)
-                    return null;
-            }
-
-            Point screenPoint;
-            try
-            {
-#if DEBUG
-                if (TestProjectHook != null)
-                {
-                    screenPoint = TestProjectHook(viewport, worldPoint);
-                }
-                else
-#endif
-                {
-                    var wpfPoint = Viewport3DHelper.Point3DtoPoint2D(viewport.Viewport, worldPoint);
-                    screenPoint = SafeTranslatePoint(viewport.Viewport, wpfPoint, viewport);
-                }
-            }
-            catch
-            {
-                return null;
-            }
-
-            if (double.IsNaN(screenPoint.X) || double.IsInfinity(screenPoint.X) ||
-                double.IsNaN(screenPoint.Y) || double.IsInfinity(screenPoint.Y))
-            {
-                return null;
-            }
-
-            return screenPoint;
-        }
-
-        private static bool SegmentIntersectsRect(Point a, Point b, Rect rect)
-        {
-            // Check if either endpoint is inside the rect
-            if (rect.Contains(a) || rect.Contains(b))
-                return true;
-
-            // Check intersection with all 4 edges of the rect
-            var tl = new Point(rect.Left, rect.Top);
-            var tr = new Point(rect.Right, rect.Top);
-            var br = new Point(rect.Right, rect.Bottom);
-            var bl = new Point(rect.Left, rect.Bottom);
-
-            return SegmentsIntersect(a, b, tl, tr) ||
-                   SegmentsIntersect(a, b, tr, br) ||
-                   SegmentsIntersect(a, b, br, bl) ||
-                   SegmentsIntersect(a, b, bl, tl);
-        }
-
-        private static bool SegmentsIntersect(Point p1, Point p2, Point p3, Point p4)
-        {
-            double d1 = Cross(p3, p4, p1);
-            double d2 = Cross(p3, p4, p2);
-            double d3 = Cross(p1, p2, p3);
-            double d4 = Cross(p1, p2, p4);
-
-            if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
-                ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)))
-                return true;
-
-            if (Math.Abs(d1) < 1e-10 && OnSegment(p3, p4, p1)) return true;
-            if (Math.Abs(d2) < 1e-10 && OnSegment(p3, p4, p2)) return true;
-            if (Math.Abs(d3) < 1e-10 && OnSegment(p1, p2, p3)) return true;
-            if (Math.Abs(d4) < 1e-10 && OnSegment(p1, p2, p4)) return true;
-
-            return false;
-        }
-
-        private static double Cross(Point o, Point a, Point b)
-        {
-            return (a.X - o.X) * (b.Y - o.Y) - (a.Y - o.Y) * (b.X - o.X);
-        }
-
-        private static bool OnSegment(Point p, Point q, Point r)
-        {
-            return r.X >= Math.Min(p.X, q.X) && r.X <= Math.Max(p.X, q.X) &&
-                   r.Y >= Math.Min(p.Y, q.Y) && r.Y <= Math.Max(p.Y, q.Y);
         }
 
         private static Point3D[] GetBoundsSamplePoints(Rect3D bounds)
@@ -1368,6 +1205,14 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
                    projection.ScreenSamples.All(rect.Contains);
         }
 
+        private static bool IsCrossingBoxHit(Rect rect, ElementProjection projection)
+        {
+            if (projection.ScreenTriangles.Length > 0)
+                return projection.ScreenTriangles.Any(triangle => TriangleTouchesRect(triangle, rect));
+
+            return RectsTouchOrOverlap(rect, projection.ScreenBounds);
+        }
+
         private static bool BoundaryBoxFullyContained(Rect selectionRect, Rect elementBounds)
         {
             return elementBounds.Left >= selectionRect.Left &&
@@ -1375,6 +1220,118 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
                    elementBounds.Right <= selectionRect.Right &&
                    elementBounds.Bottom <= selectionRect.Bottom;
         }
+
+        private static bool RectsTouchOrOverlap(Rect selectionRect, Rect elementBounds)
+        {
+            if (selectionRect.IsEmpty || elementBounds.IsEmpty)
+                return false;
+
+            return elementBounds.Right >= selectionRect.Left &&
+                   elementBounds.Left <= selectionRect.Right &&
+                   elementBounds.Bottom >= selectionRect.Top &&
+                   elementBounds.Top <= selectionRect.Bottom;
+        }
+
+        private static bool TriangleTouchesRect(ScreenTriangle triangle, Rect rect)
+        {
+            if (!RectsTouchOrOverlap(rect, GetTriangleBounds(triangle)))
+                return false;
+
+            if (rect.Contains(triangle.A) ||
+                rect.Contains(triangle.B) ||
+                rect.Contains(triangle.C))
+            {
+                return true;
+            }
+
+            var rectCorners = GetRectCorners(rect);
+            if (rectCorners.Any(corner => PointInTriangleInclusive(corner, triangle)))
+                return true;
+
+            var triangleEdges = new[]
+            {
+                (triangle.A, triangle.B),
+                (triangle.B, triangle.C),
+                (triangle.C, triangle.A)
+            };
+            var rectEdges = new[]
+            {
+                (rectCorners[0], rectCorners[1]),
+                (rectCorners[1], rectCorners[2]),
+                (rectCorners[2], rectCorners[3]),
+                (rectCorners[3], rectCorners[0])
+            };
+
+            return triangleEdges.Any(triangleEdge =>
+                rectEdges.Any(rectEdge => SegmentsIntersectInclusive(
+                    triangleEdge.Item1,
+                    triangleEdge.Item2,
+                    rectEdge.Item1,
+                    rectEdge.Item2)));
+        }
+
+        private static Rect GetTriangleBounds(ScreenTriangle triangle)
+        {
+            var minX = Math.Min(triangle.A.X, Math.Min(triangle.B.X, triangle.C.X));
+            var minY = Math.Min(triangle.A.Y, Math.Min(triangle.B.Y, triangle.C.Y));
+            var maxX = Math.Max(triangle.A.X, Math.Max(triangle.B.X, triangle.C.X));
+            var maxY = Math.Max(triangle.A.Y, Math.Max(triangle.B.Y, triangle.C.Y));
+
+            return new Rect(new Point(minX, minY), new Point(maxX, maxY));
+        }
+
+        private static Point[] GetRectCorners(Rect rect) =>
+        [
+            new Point(rect.Left, rect.Top),
+            new Point(rect.Right, rect.Top),
+            new Point(rect.Right, rect.Bottom),
+            new Point(rect.Left, rect.Bottom)
+        ];
+
+        private static bool PointInTriangleInclusive(Point point, ScreenTriangle triangle)
+        {
+            var d1 = Cross(point, triangle.A, triangle.B);
+            var d2 = Cross(point, triangle.B, triangle.C);
+            var d3 = Cross(point, triangle.C, triangle.A);
+
+            const double epsilon = 0.000001d;
+            var hasNegative = d1 < -epsilon || d2 < -epsilon || d3 < -epsilon;
+            var hasPositive = d1 > epsilon || d2 > epsilon || d3 > epsilon;
+
+            return !(hasNegative && hasPositive);
+        }
+
+        private static bool SegmentsIntersectInclusive(Point a, Point b, Point c, Point d)
+        {
+            const double epsilon = 0.000001d;
+            var d1 = Cross(a, b, c);
+            var d2 = Cross(a, b, d);
+            var d3 = Cross(c, d, a);
+            var d4 = Cross(c, d, b);
+
+            if (((d1 > epsilon && d2 < -epsilon) || (d1 < -epsilon && d2 > epsilon)) &&
+                ((d3 > epsilon && d4 < -epsilon) || (d3 < -epsilon && d4 > epsilon)))
+            {
+                return true;
+            }
+
+            return Math.Abs(d1) <= epsilon && PointOnSegment(c, a, b) ||
+                   Math.Abs(d2) <= epsilon && PointOnSegment(d, a, b) ||
+                   Math.Abs(d3) <= epsilon && PointOnSegment(a, c, d) ||
+                   Math.Abs(d4) <= epsilon && PointOnSegment(b, c, d);
+        }
+
+        private static bool PointOnSegment(Point point, Point a, Point b)
+        {
+            const double epsilon = 0.000001d;
+            return point.X >= Math.Min(a.X, b.X) - epsilon &&
+                   point.X <= Math.Max(a.X, b.X) + epsilon &&
+                   point.Y >= Math.Min(a.Y, b.Y) - epsilon &&
+                   point.Y <= Math.Max(a.Y, b.Y) + epsilon;
+        }
+
+        private static double Cross(Point a, Point b, Point c) =>
+            (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
 
         private static double GetDistanceToProjectionSquared(Point point, ElementProjection projection)
         {
@@ -1403,7 +1360,7 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
 
         private static IEnumerable<Point> EnumerateRectSamplePoints(Rect rect, double viewportWidth, double viewportHeight)
         {
-            var viewportRect = new Rect(0, 0, Math.Max(0, viewportWidth), Math.Max(0, viewportHeight));
+            var viewportRect = new Rect(0, 0, Math.Max(1, viewportWidth), Math.Max(1, viewportHeight));
             rect.Intersect(viewportRect);
 
             if (rect.IsEmpty || rect.Width <= 0 || rect.Height <= 0)
@@ -1547,7 +1504,9 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
             Rect ScreenBounds,
             Point[] ScreenSamples,
             double Depth,
-            Point[]? MeshProxySamples = null,
-            Tuple<Point, Point>[]? MeshProxyEdges = null);
+            ScreenTriangle[] ScreenTriangles,
+            bool HasMeshGeometry);
+
+        public readonly record struct ScreenTriangle(Point A, Point B, Point C);
     }
 }

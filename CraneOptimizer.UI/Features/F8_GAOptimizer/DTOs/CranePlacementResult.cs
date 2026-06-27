@@ -47,6 +47,49 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         /// Non-fatal error captured if writing the diagnostic report fails.
         /// </summary>
         public string? DebugReportError { get; set; }
+
+        /// <summary>
+        /// Reachability diagnostics computed before running GA.
+        /// </summary>
+        public ReachabilityDiagnostics? ReachabilityDiagnostics { get; set; }
+
+        // ── Crane / run metadata (populated by CranePlacementService) ─────────
+
+        /// <summary>Display name of the crane used in this optimization run.</summary>
+        public string? CraneName { get; set; }
+
+        public string? CraneManufacturer { get; set; }
+        public string? CraneModelOrSpecification { get; set; }
+        public string? CraneType { get; set; }
+        public double MaxCapacity { get; set; }
+        public double MinRadius { get; set; }
+        public double MaxRadius { get; set; }
+        public double MinBoomLength { get; set; }
+        public double MaxBoomLength { get; set; }
+        public double VehicleLength { get; set; }
+        public double VehicleWidth { get; set; }
+        public double VehicleHeight { get; set; }
+        public double? OutriggerLength { get; set; }
+        public double? OutriggerWidth { get; set; }
+        public string? OutriggerConfiguration { get; set; }
+
+        /// <summary>Wire length setting (m) used in this optimization run.</summary>
+        public double WireLength { get; set; }
+
+        /// <summary>Hook, rigging, and accessory weight setting (t) used in this optimization run.</summary>
+        public double AdditionalWeight { get; set; }
+
+        /// <summary>Derating ratio applied to all load chart capacity values.</summary>
+        public double DeratingRatio { get; set; }
+
+        /// <summary>Safety factor applied after derating.</summary>
+        public double SafetyFactor { get; set; }
+
+        /// <summary>
+        /// Counterweight configured on the crane specification (tonnes).
+        /// Zero if not set.
+        /// </summary>
+        public double CounterWeight { get; set; }
     }
 
     /// <summary>
@@ -96,12 +139,27 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         /// <summary>
         /// Element unique identifier.
         /// </summary>
-        public string ElementId { get; set; }
+        public string ElementId { get; set; } = string.Empty;
 
         /// <summary>
         /// Element mark/name from the source model when available.
         /// </summary>
         public string? ElementMark { get; set; }
+
+        // Phase 5: Canonical Display Identity (additive; ElementMark kept for backward compat)
+        public string? CanonicalMark { get; set; }
+        public string? MarkSource { get; set; }
+        public string? MarkConfidence { get; set; }
+        public bool IsExplicitMark { get; set; }
+        public string? ValidationStatus { get; set; }
+        public string? WeightTrustLevel { get; set; }
+        public int ValidationWarningCount { get; set; }
+        public string? ValidationWarningsJoined { get; set; }
+
+        // Phase 7D: Assembly Group Identification
+        public bool IsAssemblyGroup { get; set; }
+        public int AssemblyMemberCount { get; set; }
+        public string? AssemblyMemberIdsJoined { get; set; }
 
         /// <summary>
         /// Element type from the source model.
@@ -139,8 +197,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
 
         /// <summary>
         /// Available capacity found in the selected crane load chart.
+        /// This is the raw chart value multiplied by DeratingRatio × SafetyFactor.
         /// </summary>
         public double AvailableCapacity { get; set; }
+
+        /// <summary>
+        /// Raw manufacturer load chart capacity at the selected (radius, boom) cell,
+        /// before derating ratio and safety factor are applied.
+        /// Null when no chart cell was resolved (e.g. OutOfRadius, NotCharted).
+        /// </summary>
+        public double? RawChartCapacity { get; set; }
 
         /// <summary>
         /// Required lifting capacity for the element.

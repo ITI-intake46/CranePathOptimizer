@@ -109,7 +109,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 BoomHingeOffsetZ = ParseDouble(options.BoomHingeOffsetZText, 0.0),
                 CraneFootprintRadius = ParseDouble(options.CraneFootprintRadiusText, 0.0),
                 EnableProfiling = ParseBool(options.EnableProfilingText, true),
-                ProfilingLogDirectory = options.ProfilingLogDirectoryText
+                ProfilingLogDirectory = options.ProfilingLogDirectoryText,
+                // Phase 7: EnableMultiStageDiscovery is always true for normal UI optimization runs.
+                // Developer/experiment paths can override GASettings directly after construction.
+                EnableMultiStageDiscovery = true,
+                MultiStageCoverageTarget = ParseDouble(options.MultiStageCoverageTargetText, 0.95),
+                AdaptiveRelocationScaleFactor = ParseDouble(options.AdaptiveRelocationScaleFactorText, 0.40),
+                UseHungarianAssignment = ParseBool(options.UseHungarianAssignmentText, false),
+                LoadChartNumberOfLinesConstraint = options.LoadChartNumberOfLinesConstraint,
+                LoadChartOperatingConditionConstraint = NullIfWhiteSpace(options.LoadChartOperatingConditionConstraint)
             };
         }
 
@@ -120,6 +128,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
             return value;
         }
 
+
+
         internal static string FormatPointCoordinates(CranePositionResult point)
         {
             return Math.Abs(point.Z) > 0.005
@@ -129,12 +139,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
 
         private static int ParseInt(string? value, int fallback)
         {
-            return int.TryParse(value, out var parsed) ? parsed : fallback;
+            return int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
         }
 
         private static double ParseDouble(string? value, double fallback)
         {
-            return double.TryParse(value, out var parsed) ? parsed : fallback;
+            return double.TryParse(value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
         }
 
         private static bool ParseBool(string? value, bool fallback)
@@ -147,7 +157,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
             if (string.IsNullOrWhiteSpace(value))
                 return null;
 
-            return int.TryParse(value, out var parsed) ? parsed : fallback;
+            return int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : fallback;
+        }
+
+        private static string? NullIfWhiteSpace(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value)
+                ? null
+                : value.Trim();
         }
     }
 
@@ -195,7 +212,18 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         string? BoomHingeOffsetZText,
         string? CraneFootprintRadiusText,
         string? EnableProfilingText,
-        string? ProfilingLogDirectoryText);
+        string? ProfilingLogDirectoryText,
+        string? EnableMultiStageDiscoveryText,
+        string? MultiStageCoverageTargetText,
+        string? AdaptiveRelocationScaleFactorText,
+        string? UseHungarianAssignmentText,
+        int? LoadChartNumberOfLinesConstraint,
+        string? LoadChartOperatingConditionConstraint,
+        /// <summary>
+        /// GA Mode Preset to apply after building settings from UI text boxes.
+        /// When <see cref="GAModePreset.None"/>, no preset is applied.
+        /// </summary>
+        GAModePreset SelectedPreset = GAModePreset.None);
 
     public sealed class CraneOptimizerPointListItem
     {

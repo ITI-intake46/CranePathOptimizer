@@ -30,17 +30,19 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
 
         public static double GetWeightTons(PrecastElement element)
         {
-            if (!IsEstimated(element))
-            {
-                if (element.ElementWT.HasValue && element.ElementWT.Value > 0d)
-                    return element.ElementWT.Value;
-            }
+            if (element.WeightTons is > 0d)
+                return element.WeightTons.Value;
+
+            if (element.ElementWT is > 0d)
+                return element.ElementWT.Value;
 
             var volumeM3 = GetVolumeCubicMeters(element);
             if (volumeM3 <= 0d)
                 return 0d;
 
-            return UnitSystem.ToTons(volumeM3 * GetDensityKgPerCubicMeter(element), MassUnit.Kilogram);
+            return UnitSystem.ToTons(
+                volumeM3 * GetDensityKgPerCubicMeter(element),
+                MassUnit.Kilogram);
         }
 
         public static double GetWeightKg(PrecastElement element) =>
@@ -74,7 +76,10 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
 
         private static double GetVolumeCubicMeters(PrecastElement element)
         {
-            if (element.ElementVolume.HasValue && element.ElementVolume.Value > 0d)
+            if (element.VolumeM3 is > 0d)
+                return element.VolumeM3.Value;
+
+            if (element.ElementVolume is > 0d)
                 return element.ElementVolume.Value;
 
             if ((element.BBoxLength ?? 0d) <= 0d

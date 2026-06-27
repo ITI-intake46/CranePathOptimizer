@@ -28,6 +28,7 @@ The weights are defined in [GASettings.cs](file:///f:/06-ITI/00-Project/Main%20P
 
 ### 1. `CoverageWeight` (Default: 10.0)
 *   **Purpose:** Promotes the core objective of the optimization—maximizing precast erection coverage.
+*   **Implementation Note:** In the fitness function, the coverage ratio term is scaled by `CoverageDominanceMultiplier` (default `100.0`) times `CoverageWeight` to ensure that coverage improvements always override all penalties.
 *   **Increasing the weight:** Forces the solver to prioritize lifting every single element, even if it requires adding extra relocation setups or moving the crane over long distances.
 *   **Decreasing the weight:** The solver will accept lower coverage if it means saving on relocation setups or mobilization costs.
 

@@ -1,0 +1,47 @@
+{
+  "CatalogDatabasePath": "F:\\06-ITI\\00-Project\\Main Project\\CraneOptimizer\\CraneOptimizer.UI\\bin\\Debug\\net8.0-windows\\Data\\crane.db",
+  "ProjectFiles": [
+    "F:\\06-ITI\\00-Project\\tryProjects\\try8\\project.craneopt",
+    "F:\\06-ITI\\00-Project\\tryProjects\\try4\\project.craneopt",
+    "F:\\06-ITI\\00-Project\\tryProjects\\Try1\\project.craneopt",
+    "F:\\06-ITI\\00-Project\\tryProjects\\try9\\project.craneopt"
+  ],
+  "Cranes": [
+    "STC800",
+    "180Tons"
+  ],
+  "ExperimentResultsCsvPath": "ExperimentResults.csv",
+  "SeedMode": "Fixed",
+  "Seeds": [
+    42
+  ],
+  "RandomSeedCount": 5,
+  "MaxRuns": 10000,
+  "ResumeEnabled": true,
+  "Matrix": {
+    "PopulationSize": [
+      30
+    ],
+    "MaxGenerations": [
+      30
+    ],
+    "MutationRate": [
+      0.05
+    ],
+    "CrossoverRate": [
+      0.8
+    ],
+    "MaxCranePositions": [
+      3
+    ],
+    "MinimumRelocationDistance": [
+      5.0
+    ],
+    "MutationSigma": [
+      0.05
+    ],
+    "GridStep": [
+      0.5
+    ]
+  }
+}

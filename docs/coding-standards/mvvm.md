@@ -51,8 +51,8 @@ Class:
 
 ## 3. Navigation System
 
-Navigation between main screens is structured as **ViewModel-First**:
+Navigation between main screens is structured as **Window-First** and **ViewModel-First** orchestration:
 
-1.  **IProjectNavigationService:** Configured as a singleton. Tracks navigation state.
-2.  **Implicit DataTemplates:** Defined in [ViewDataTemplates.xaml](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Data/ViewDataTemplates.xaml), which maps ViewModels to Views.
-3.  **Content Control:** Binds its content to the current active viewmodel.
+1.  **IProjectNavigationService:** Configured as a singleton. Resolves and displays top-level Windows (e.g., `MainWindow` and `ProjectManagementWindow`) from DI.
+2.  **Views and ViewModel Coupling:** Child views (e.g., `ElementManagementPanel` or `CraneManagerView`) are declared directly in container XAML layouts (like `MainWindow.xaml`) and bound to properties on the parent `MainViewModel` (such as `ElementManagement` or `CraneManager`).
+3.  **Content Control:** Container controls (like `ContentHost` or custom split panels) host specific features by binding their Content or DataContext directly to their corresponding sub-ViewModel.

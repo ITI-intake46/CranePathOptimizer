@@ -3,11 +3,18 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization;
+using CraneOptimizer.Application.Reports.Builders;
+using CraneOptimizer.Application.Reports.Inputs;
+using CraneOptimizer.Application.Reports.Interfaces;
+using CraneOptimizer.Application.Reports.Services;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Application.Services;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.Ifc;
+using CraneOptimizer.Infrastructure.Reports.Csv;
+using CraneOptimizer.Infrastructure.Reports.Pdf;
+using CraneOptimizer.Infrastructure.Reports.UserFacing;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
@@ -26,6 +33,8 @@ using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.UI.Features.F12_Reports.Services;
+using CraneOptimizer.UI.Features.F12_Reports.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
 using CraneOptimizer.UI.F10_ProjectManagement.Views;
@@ -89,12 +98,14 @@ namespace CraneOptimizer.UI
             // =========================
             services.AddScoped<ICraneRepository, CraneRepository>();
             services.AddSingleton<IIfcModelSessionService, IfcModelSessionService>();
+            services.AddSingleton<IIfcGeoreferencingExtractor, IfcGeoreferencingExtractor>();
             services.AddSingleton<IIfcReaderRepository, IfcReaderRepository>();
             services.AddSingleton<IProjectRepository, ProjectRepository>();
             services.AddSingleton<IProjectMaterialSettingsService, ProjectMaterialSettingsService>();
             services.AddSingleton<IUnitSettingsService, UnitSettingsService>();
             services.AddSingleton<IIfcDiagnosticAuditService, IfcDiagnosticAuditService>();
             services.AddSingleton<IIfcExporterProfileResolver, IfcExporterProfileResolver>();
+            services.AddSingleton<ICentralIfcPropertyAliasResolver, CentralIfcPropertyAliasResolver>();
             services.AddSingleton<IIfcNormalizationDecisionService, IfcNormalizationDecisionService>();
 
             // =========================
@@ -105,6 +116,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<ISceneGridSizingService, SceneGridSizingService>();
             services.AddSingleton<IElementVisibilityFilterService, ElementVisibilityFilterService>();
             services.AddSingleton<IIfcSceneOperationService, IfcSceneOperationService>();
+            services.AddSingleton<IImportReadinessService, ImportReadinessService>();
 
             // =========================
             // F10 Project Management
@@ -114,6 +126,12 @@ namespace CraneOptimizer.UI
             services.AddTransient<IProjectService, ProjectService>();
             services.AddSingleton<IProjectShellService, ProjectShellService>();
             services.AddSingleton<IProjectNavigationService, ProjectNavigationService>();
+
+            // =========================
+            // Project Output Path Services (Phase 5E)
+            // =========================
+            services.AddSingleton<IActiveProjectPathProvider, UiActiveProjectPathProvider>();
+            services.AddSingleton<IProjectOutputPathService, ProjectOutputPathService>();
 
             services.AddTransient<SplashScreenViewModel>();
             services.AddTransient<ProjectManagementViewModel>();
@@ -149,6 +167,28 @@ namespace CraneOptimizer.UI
             services.AddSingleton<CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces.IGADiagnosticsReaderService, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GADiagnosticsReaderService>();
             services.AddSingleton<CraneOptimizer.UI.Features.F8_GAOptimizer.Services.IGADiagnosticsWindowService, CraneOptimizer.UI.Features.F8_GAOptimizer.Services.GADiagnosticsWindowService>();
 
+            // =========================
+            // User-facing Reports
+            // =========================
+            services.AddSingleton<IReportValidator, ReportValidator>();
+            services.AddSingleton<IReportValueFormatter, ReportValueFormatter>();
+            services.AddSingleton<IReportDefinitionProvider, ReportDefinitionProvider>();
+#pragma warning disable CS0618
+            services.AddSingleton<IReportExportService, ReportExportService>();
+            services.AddSingleton<IReportExporter, CsvReportExporter>();
+            services.AddSingleton<IReportExporter, PdfReportExporter>();
+            services.AddSingleton<IReportBuilder<OptimizationReportInput>, OptimizationSummaryReportBuilder>();
+#pragma warning restore CS0618
+            services.AddSingleton<CraneOptimizer.Application.Reports.Services.IReportBuilder, UserFacingReportBuilder>();
+            services.AddSingleton<IReportableElementResolver, ReportableElementResolver>();
+            services.AddSingleton<IElementReportDataProvider, ElementReportDataProvider>();
+            services.AddSingleton<ILiftingResultReportDataProvider, LiftingResultReportDataProvider>();
+            services.AddSingleton<IReportPdfExporter, UserFacingReportPdfExporter>();
+            services.AddSingleton<IReportExcelExporter, UserFacingReportExcelExporter>();
+            services.AddSingleton<IReportTemplateStore, JsonReportTemplateStore>();
+            services.AddSingleton<IReportFileDialogService, ReportFileDialogService>();
+            services.AddSingleton<IReportPreviewDialogService, ReportPreviewDialogService>();
+            services.AddSingleton<IReportBuilderDialogService, ReportBuilderDialogService>();
 
             // =========================
             // Rendering
@@ -178,6 +218,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<DxfTabViewModel>();
             services.AddSingleton<CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel>();
             services.AddScoped<ElementManagementViewModel>();
+            services.AddTransient<ReportBuilderViewModel>();
             services.AddSingleton<SelectionHandler>();
             services.AddSingleton<HoverHitCache>();
             services.AddTransient<SelectionViewModel>();
@@ -286,8 +327,11 @@ namespace CraneOptimizer.UI
                 await using var scope = ServiceProvider.CreateAsyncScope();
                 var context = scope.ServiceProvider.GetRequiredService<CraneDbContext>();
 
+                await SqliteMigrationCompatibilityGuard.EnsureCatalogOperatingConditionSchemaAsync(context);
+
                 await context.Database.MigrateAsync();
 
+                await SqliteMigrationCompatibilityGuard.EnsureCatalogOperatingConditionSchemaAsync(context);
                 var seeder = scope.ServiceProvider.GetRequiredService<CraneSeedService>();
                 await seeder.SeedAsync();
             }
@@ -347,7 +391,11 @@ namespace CraneOptimizer.UI
             services.AddScoped<ICoverageEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Coverage.CoverageEngine>();
 
             services.AddScoped<IGAInitializer, GAInitializer>();
-            services.AddScoped<IElementAssignmentService, ElementAssignmentService>();
+            services.AddScoped<IReachabilityMapService, ReachabilityMapService>();
+            services.AddScoped<ElementAssignmentService>();
+            services.AddScoped<HungarianAssignmentService>();
+            services.AddScoped<IElementAssignmentService, RoutingAssignmentService>();
+            services.AddScoped<IMultiStageGAOrchestrator, MultiStageGAOrchestrator>();
             services.AddScoped<IFitnessEvaluator, FitnessEvaluator>();
             services.AddScoped<IGACsvDiagnosticsService, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GACsvDiagnosticsService>();
             services.AddSingleton<CraneSetupViewModel>();

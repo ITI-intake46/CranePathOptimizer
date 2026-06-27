@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 
@@ -64,11 +65,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                     input.Elements,
                     input.Settings.PopulationSize,
                     input.Settings.MaxCranePositions,
-                    input.Settings);
+                    input.Settings,
+                    input.CraneSpec);
 
                 // ── Phase 1 Performance: Build pre-indexed data structures ──
                 var loadChartIndex = new LoadChartIndex(input.CraneSpec);
                 var elementCache = new ElementStaticCache(input.Elements, input.Settings);
+
+                var parallelOptions = new ParallelOptions
+                {
+                    CancellationToken = cancellationToken
+                };
 
                 for (int generation = 0; generation < input.Settings.MaxGenerations; generation++)
                 {
@@ -80,27 +87,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                         }
                         cancellationToken.ThrowIfCancellationRequested();
 
-                        foreach (var solution in population.Individuals)
+                        Parallel.ForEach(population.Individuals, parallelOptions, solution =>
                         {
-                            cancellationToken.ThrowIfCancellationRequested();
-
-                            var evaluation = _assignmentService.EvaluateAssignment(
-                                solution,
-                                input.Elements,
-                                input.Assignment,
-                                input.CraneSpec,
-                                input.Settings,
-                                loadChartIndex,
-                                elementCache);
-
-                            var fitness = _fitnessEvaluator.EvaluateFitness(
-                                solution,
-                                evaluation,
-                                input.Settings);
-
-                            solution.Fitness = fitness.FitnessScore;
-                            solution.CoverageRatio = fitness.CoverageRatio;
-                        }
+                            EvaluateSolution(solution, input, loadChartIndex, elementCache);
+                        });
 
                         var currentBest = population.Individuals
                             .OrderByDescending(s => s.Fitness)
@@ -128,6 +118,31 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                         else
                         {
                             stagnantGenerations++;
+                        }
+
+                        if (GAProfiler.Enabled)
+                        {
+                            int stageIdx = input.Settings.StageIndex;
+                            var logEntry = new GAProfiler.GenerationLogEntry
+                            {
+                                RunId = input.Settings.RunId ?? string.Empty,
+                                OptimizationRunId = input.Settings.OptimizationRunId ?? string.Empty,
+                                StageRunId = input.Settings.StageRunId ?? string.Empty,
+                                StageIndex = stageIdx,
+                                GenerationIndex = generation,
+                                BestFitness = currentBest.Fitness,
+                                AverageFitness = population.Individuals.Average(s => s.Fitness),
+                                BestCoverageRatio = currentBest.CoverageRatio,
+                                AverageCoverageRatio = population.Individuals.Average(s => s.CoverageRatio),
+                                BestPositionCount = currentBest.Chromosome.CranePositions.Count,
+                                Count1Position = population.Individuals.Count(s => s.Chromosome.CranePositions.Count == 1),
+                                Count2Positions = population.Individuals.Count(s => s.Chromosome.CranePositions.Count == 2),
+                                Count3Positions = population.Individuals.Count(s => s.Chromosome.CranePositions.Count == 3),
+                                MutationSuccessRate = 0.0,
+                                InvalidMutationCount = 0,
+                                StagnationCounter = stagnantGenerations
+                            };
+                            GAProfiler.GenerationLogs.Add(logEntry);
                         }
 
                         if (stagnantGenerations >= input.Settings.EarlyStoppingGenerations)
@@ -173,27 +188,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                             SanitizeSolution(child, input);
                         }
 
-                        foreach (var child in children)
+                        Parallel.ForEach(children, parallelOptions, child =>
                         {
-                            cancellationToken.ThrowIfCancellationRequested();
-
-                            var evaluation = _assignmentService.EvaluateAssignment(
-                                child,
-                                input.Elements,
-                                input.Assignment,
-                                input.CraneSpec,
-                                input.Settings,
-                                loadChartIndex,
-                                elementCache);
-
-                            var fitness = _fitnessEvaluator.EvaluateFitness(
-                                child,
-                                evaluation,
-                                input.Settings);
-
-                            child.Fitness = fitness.FitnessScore;
-                            child.CoverageRatio = fitness.CoverageRatio;
-                        }
+                            EvaluateSolution(child, input, loadChartIndex, elementCache);
+                        });
 
                         population = _replacement.Replace(population, children);
                     }
@@ -266,6 +264,30 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             }
 
             return null;
+        }
+
+        private void EvaluateSolution(
+            CraneSolution solution,
+            PlacementInput input,
+            LoadChartIndex loadChartIndex,
+            ElementStaticCache elementCache)
+        {
+            var evaluation = _assignmentService.EvaluateAssignment(
+                solution,
+                input.Elements,
+                input.Assignment,
+                input.CraneSpec,
+                input.Settings,
+                loadChartIndex,
+                elementCache);
+
+            var fitness = _fitnessEvaluator.EvaluateFitness(
+                solution,
+                evaluation,
+                input.Settings);
+
+            solution.Fitness = fitness.FitnessScore;
+            solution.CoverageRatio = fitness.CoverageRatio;
         }
     }
 }

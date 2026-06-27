@@ -23,7 +23,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public double BestRadius { get; set; }
         public double RequiredBoomLength { get; set; }
         public double RequiredCapacity { get; set; }
+        public double RawChartCapacity { get; set; }
         public double AvailableCapacity { get; set; }
+        public double AdditionalWt { get; set; }
+        public double DeratingRatio { get; set; }
+        public double SafetyFactor { get; set; }
+        public double WireLength { get; set; }
         public string LiftStatus { get; set; } = string.Empty;
         public bool IsLifted { get; set; }
         public string FailureReason { get; set; } = string.Empty;
@@ -41,6 +46,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public double RequiredRadius { get; set; }
         public double SelectedChartRadius { get; set; }
         public double SelectedChartBoomLength { get; set; }
+        public int? SelectedVisualColumnIndex { get; set; }
+        public string SelectedVisualColumnHeader { get; set; } = string.Empty;
+        public int? SelectedNumberOfLines { get; set; }
+        public string SelectedOperatingConditionLabel { get; set; } = string.Empty;
+        public bool IsConservativeDuplicateFallback { get; set; }
+        public int DuplicateAlternativeCount { get; set; }
+        public string DuplicateAlternativeSummary { get; set; } = string.Empty;
 
         public double CraneBaseX { get; set; }
         public double CraneBaseY { get; set; }
@@ -86,5 +98,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public double BestFailedSafetyMargin { get; set; }
         public double BestFailedRequiredRadius { get; set; }
         public double BestFailedRequiredBoomLength { get; set; }
+
+        // Phase 5: Canonical Display Identity
+        public string CanonicalMark { get; set; } = string.Empty;
+        public string MarkSource { get; set; } = string.Empty;
+        public string MarkConfidence { get; set; } = string.Empty;
+        public bool IsExplicitMark { get; set; }
     }
 }

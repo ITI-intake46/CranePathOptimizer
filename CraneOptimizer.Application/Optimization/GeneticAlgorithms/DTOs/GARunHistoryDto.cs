@@ -4,6 +4,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
 {
     public class GARunHistoryDto
     {
+        // Run identity — used as deduplication key when merging multiple history files.
+        public string OptimizationRunId { get; set; } = string.Empty;
+        public string StageRunId { get; set; } = string.Empty;
+
         public string Timestamp { get; set; } = string.Empty;
         public string ProjectName { get; set; } = string.Empty;
         public string ProjectFolderPath { get; set; } = string.Empty;

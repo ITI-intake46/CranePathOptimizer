@@ -1,11 +1,13 @@
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas.Enums;
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
 using CraneOptimizer.UI.Features.F7_Zones.Views;
+using System.Globalization;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -38,6 +40,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         private readonly IViewportHitTestService _hitTest;
         private readonly ZoneListViewModel _zoneList;
         private readonly IZoneGeometryService _geometryService;
+        private readonly IUnitSettingsService? _unitSettings;
 
         // ── Timers ───────────────────────────────────────────────────────────
         private readonly DispatcherTimer _inlineWarningTimer;
@@ -54,7 +57,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         private readonly List<DomainPoint3D> _measurePoints = new();
         private readonly List<MeasurementVisualData> _measureSegments = new();
         private DomainPoint3D? _measureHoverPoint;
-        private double _measureTotalDistance;
+
+        public event EventHandler? MeasurementLabelsChanged;
 
         // ── Snap ─────────────────────────────────────────────────────────────
         private readonly SnapSystem _snap = new();
@@ -69,6 +73,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         // ── Geometry constants ───────────────────────────────────────────────
         private const double PointEqualityTolerance = 0.001;
         private const double SnapToFirstThresholdPercent = 0.005;
+        private const double MeasurementDistanceTolerance = 1e-6;
 
         // ════════════════════════════════════════════════════════════════════
         // Constructor
@@ -79,7 +84,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             IRenderingService render,
             IViewportInteractionService interaction,
             IViewportHitTestService hitTest,
-            IZoneGeometryService geometryService)
+            IZoneGeometryService geometryService,
+            IUnitSettingsService? unitSettings = null)
         {
             _drawing = drawing;
             _scene = scene;
@@ -87,7 +93,11 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             _interaction = interaction;
             _hitTest = hitTest;
             _geometryService = geometryService;
+            _unitSettings = unitSettings;
             _zoneList = new ZoneListViewModel(scene);
+
+            if (_unitSettings != null)
+                _unitSettings.SettingsChanged += OnUnitSettingsChanged;
 
             // Commands
             StartAllowedCommand = new RelayCommand(StartAllowed);
@@ -190,6 +200,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         }
 
         public bool IsMeasureOverlayVisible => IsMeasuring;
+        public IReadOnlyList<MeasurementVisualData> MeasurementSegments => _measureSegments;
 
         // ── Commands ──────────────────────────────────────────────────────────
         public ICommand StartAllowedCommand { get; }
@@ -219,13 +230,13 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         {
             bool shift = shiftDown || IsShiftDown;
             if (IsDrawing) { AddPoint(rawPoint, shift); return; }
-            if (IsMeasuring) { HandleMeasureClick(rawPoint, shift); }
+            if (IsMeasuring) { HandleMeasureClick(rawPoint); }
         }
 
         /// <summary>Entry point for right-click from the viewport.</summary>
         public void HandleRightClick()
         {
-            if (IsMeasuring) { ResetMeasurement(); return; }
+            if (IsMeasuring) return;
             if (IsDrawing) { FinishDrawingFromUserAction(FinishReason.RightClick); }
         }
 
@@ -261,14 +272,18 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         {
             if (!IsMeasuring) return;
 
-            bool shift = shiftDown || IsShiftDown;
-            _snap.UpdateScale(GetSceneSize());
-            var lastPt = _measurePoints.Count > 0 ? _measurePoints[^1] : null;
-            var snap = _snap.Snap(rawPoint, GetAllSnapTargets(), lastPt, shift, _isGridEnabled);
-
-            _measureHoverPoint = snap.Point;
+            _measureHoverPoint = rawPoint;
             RenderMeasurePreview();
-            if (!IsDrawing) RenderSnapIndicator(snap); // avoid double-render when both active
+            RenderMeasurementPickMarker(rawPoint);
+        }
+
+        public void ClearMeasureHoverPoint()
+        {
+            if (!IsMeasuring) return;
+
+            _measureHoverPoint = null;
+            _render.ClearLayer(MeasurePreviewLayer);
+            _render.ClearLayer(SnapIndicatorLayer);
         }
 
         /// <summary>Key-down forwarded from PreviewKeyDown in the View.</summary>
@@ -496,7 +511,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // Measure — multi-segment
+        // Measure - independent point-to-point distances
         // ════════════════════════════════════════════════════════════════════
 
         private void StartMeasure()
@@ -519,46 +534,50 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         {
             _measurePoints.Clear();
             _measureSegments.Clear();
-            _measureTotalDistance = 0.0;
             _measureHoverPoint = null;
-            MeasureText = "📏 Click first point to start measuring";
+            MeasureText = "Click first point to start measuring";
             _render.ClearLayer(MeasurePreviewLayer);
             _render.ClearLayer(MeasureFinalLayer);
             _render.ClearLayer(SnapIndicatorLayer);
+            MeasurementLabelsChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        private void HandleMeasureClick(DomainPoint3D rawPoint, bool shiftDown = false)
+        private void HandleMeasureClick(DomainPoint3D point)
         {
-            _snap.UpdateScale(GetSceneSize());
-            var lastPt = _measurePoints.Count > 0 ? _measurePoints[^1] : null;
-            var snap = _snap.Snap(rawPoint, GetAllSnapTargets(), lastPt, shiftDown, _isGridEnabled);
-            var point = snap.Point;
-
-            // First point — anchor only
             if (_measurePoints.Count == 0)
             {
                 _measurePoints.Add(point);
-                MeasureText = "📏 Point A set — click next point | Right-click to reset";
+                _measureHoverPoint = point;
+                MeasureText = "Point A set - click Point B";
+                RenderMeasurePreview();
+                RenderMeasurementPickMarker(point);
                 return;
             }
 
-            // Subsequent points — accumulate segment
-            var prev = _measurePoints[^1];
-            var dx = point.X - prev.X;
-            var dy = point.Y - prev.Y;
-            var dz = point.Z - prev.Z;
+            var start = _measurePoints[0];
+            var dx = point.X - start.X;
+            var dy = point.Y - start.Y;
+            var dz = point.Z - start.Z;
             var dist = System.Math.Sqrt(dx * dx + dy * dy + dz * dz);
 
-            _measureTotalDistance += dist;
-            _measureSegments.Add(new MeasurementVisualData(prev, point, dist));
-            _measurePoints.Add(point);
+            if (dist <= MeasurementDistanceTolerance)
+            {
+                MeasureText = "Point B must differ from Point A";
+                _measureHoverPoint = point;
+                RenderMeasurePreview();
+                RenderMeasurementPickMarker(point);
+                return;
+            }
 
-            int segCount = _measureSegments.Count;
-            MeasureText = segCount == 1
-                ? $"📏 {dist:F3} m | Click for more segments | Right-click to reset"
-                : $"📏 Seg {segCount}: {dist:F3} m | Total: {_measureTotalDistance:F3} m | Right-click to reset";
-
+            string labelText = FormatMeasurementDistance(dist);
+            _measureSegments.Add(new MeasurementVisualData(start, point, dist, labelText));
+            _measurePoints.Clear();
+            _measureHoverPoint = null;
+            MeasureText = $"{labelText} - click a new Point A";
+            _render.ClearLayer(MeasurePreviewLayer);
+            RenderMeasurementPickMarker(point);
             RenderAllMeasureSegments();
+            MeasurementLabelsChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private void RenderMeasurePreview()
@@ -587,6 +606,53 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             }
         }
 
+        private string FormatMeasurementDistance(double distanceMeters)
+        {
+            UnitSettings settings = _unitSettings?.Current ?? UnitSettings.Default;
+            return FormatMeasurementDistance(distanceMeters, settings);
+        }
+
+        private static string FormatMeasurementDistance(
+            double distanceMeters,
+            UnitSettings settings)
+        {
+            double displayValue = UnitSystem.FromMeters(
+                distanceMeters,
+                settings.DisplayLengthUnit);
+            string numberFormat = settings.DisplayLengthUnit switch
+            {
+                LengthUnit.Millimeter => "0",
+                LengthUnit.Centimeter => "0.#",
+                LengthUnit.Meter => "0.000",
+                _ => "0.###"
+            };
+            string valueText = displayValue.ToString(
+                numberFormat,
+                CultureInfo.CurrentCulture);
+            string unitSymbol = UnitSystem.LengthSymbol(settings.DisplayLengthUnit);
+            return $"{valueText} {unitSymbol}";
+        }
+
+        private void OnUnitSettingsChanged(object? sender, UnitSettings settings)
+        {
+            for (int index = 0; index < _measureSegments.Count; index++)
+            {
+                MeasurementVisualData measurement = _measureSegments[index];
+                _measureSegments[index] = measurement with
+                {
+                    LabelText = FormatMeasurementDistance(
+                        measurement.Distance,
+                        settings)
+                };
+            }
+
+            if (_measureSegments.Count > 0)
+                MeasureText = $"{_measureSegments[^1].LabelText} - click a new Point A";
+
+            RenderAllMeasureSegments();
+            MeasurementLabelsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         // ════════════════════════════════════════════════════════════════════
         // Snap indicator
         // ════════════════════════════════════════════════════════════════════
@@ -601,6 +667,14 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 
             _render.Render(
                 new[] { new SnapIndicatorData(snap.Point, snap.Type) },
+                new SnapIndicatorBuilder(),
+                SnapIndicatorLayer);
+        }
+
+        private void RenderMeasurementPickMarker(DomainPoint3D point)
+        {
+            _render.Render(
+                new[] { new SnapIndicatorData(point, SnapType.Point, IsMeasurement: true) },
                 new SnapIndicatorBuilder(),
                 SnapIndicatorLayer);
         }

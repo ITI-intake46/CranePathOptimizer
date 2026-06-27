@@ -5,7 +5,7 @@ namespace CraneOptimizer.UI.Core.Services
 {
     public sealed class ElementLiftStateService : IElementLiftStateService
     {
-        private readonly Dictionary<string, ElementLiftStateDto> _states = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, ElementLiftStateDto> _states = new(StringComparer.Ordinal);
 
         public event Action? StateChanged;
 

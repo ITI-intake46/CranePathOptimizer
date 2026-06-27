@@ -12,18 +12,22 @@ public sealed class CsvOptimizationHistoryLogger : IOptimizationHistoryLogger, I
 {
     private readonly SemaphoreSlim _writeLock = new(1, 1);
 
-    public async Task LogRunAsync(OptimizationRunEntry entry, string projectFolderPath)
+    public async Task LogRunAsync(OptimizationRunEntry entry, string historyDirectory)
     {
-        if (entry == null || string.IsNullOrWhiteSpace(projectFolderPath))
-        {
-            return;
-        }
+        if (entry == null)
+            throw new ArgumentNullException(nameof(entry));
+
+        if (string.IsNullOrWhiteSpace(historyDirectory))
+            throw new ArgumentException(
+                "historyDirectory must not be null or whitespace. Ensure a project is loaded before logging.",
+                nameof(historyDirectory));
 
         try
         {
             await _writeLock.WaitAsync();
 
-            string filePath = Path.Combine(projectFolderPath, "OptimizationHistory.csv");
+            Directory.CreateDirectory(historyDirectory);
+            string filePath = Path.Combine(historyDirectory, "debug_ga_optimization_history.csv");
             bool isNewFile = !File.Exists(filePath) || new FileInfo(filePath).Length == 0;
 
             // Open stream with UTF-8 encoding and append mode

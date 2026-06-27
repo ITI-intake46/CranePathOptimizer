@@ -37,3 +37,49 @@ Thumbs.db
 # IFC Diagnostic reports
 Reports/
 **/Reports/
+!CraneOptimizer.Application/Reports/
+!CraneOptimizer.Application/Reports/**
+!CraneOptimizer.Infrastructure/Reports/
+!CraneOptimizer.Infrastructure/Reports/**
+!CraneOptimizer.Application.Tests/Reports/
+!CraneOptimizer.Application.Tests/Reports/**
+!docs/reports/
+!docs/reports/**
+
+# GA generated diagnostics CSVs (old naming - kept for backward compat)
+**/Diagnostics/ga_diagnostics_*.csv
+**/Diagnostics/ga_assignment_matrix_*.csv
+**/Diagnostics/ga_final_assignments_*.csv
+**/Diagnostics/ga_failure_breakdown_*.csv
+
+# GA generated diagnostics CSVs (new ga_audit_ naming, flat and per-run subfolder)
+**/Diagnostics/ga_audit_diagnostics_*.csv
+**/Diagnostics/ga_audit_assignment_matrix_*.csv
+**/Diagnostics/ga_audit_final_assignments_*.csv
+**/Diagnostics/ga_audit_failure_breakdown_*.csv
+**/Diagnostics/**/ga_audit_*.csv
+
+# GA profiler logs
+**/Logs/ga_profile_*.txt
+
+# GAExperiment build output (generated diagnostics)
+CraneOptimizer.GAExperiment/bin/
+
+# GAExperiment generated CSV results
+CraneOptimizer.GAExperiment/ExperimentResults.csv
+CraneOptimizer.GAExperiment/baselines/
+
+# GAExperiment smoke output
+CraneOptimizer.GAExperiment/smoke/
+
+# Analytics generated datasets
+Analytics/datasets/
+Analytics/charts/
+Analytics/scripts/__pycache__/
+
+# Local test result artifacts
+**/TestResults/
+*.trx
+
+# Local uploaded review bundles
+docs.zip

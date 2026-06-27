@@ -24,6 +24,7 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
             var maxCapacityFromPoints = loadChart != null && loadChart.Count > 0
                 ? loadChart.Where(point => point.Capacity > 0.0).Select(point => point.Capacity).DefaultIfEmpty(0.0).Max()
                 : 0.0;
+            bool isOnRubber = IsOnRubber(spec?.OutriggerConfig);
 
             var minReach = spec is { MinRadius: > 0.0 }
                 ? spec.MinRadius
@@ -53,10 +54,11 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
                 CarrierLength = ToMeters(crane.VehicleLength, 12.0),
                 CarrierWidth = ToMeters(crane.VehicleWidth, 2.75),
                 CarrierHeight = ToMeters(crane.VehicleHeight, 2.0),
-                OutriggerSpanM = ToMeters(crane.OutriggerLength, 7.0),
-                SpanToSpanM = ToMeters(crane.OutriggerWidth, 7.0),
+                OutriggerSpanM = ToMeters(crane.OutriggerWidth, 7.0),
+                SpanToSpanM = ToMeters(crane.OutriggerLength, 7.0),
                 OutriggerPadSize = 2.0,
-                ShowOutriggerPads = true,
+                ShowOutriggerPads = !isOnRubber,
+                IsOnRubber = isOnRubber,
                 TravelWidthM = ToMeters(crane.VehicleWidth, 3.0),
                 BodyAngle = scene.Rotation,
                 BoomSections = 4,
@@ -93,12 +95,14 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
             target.SpanToSpanM = fresh.SpanToSpanM;
             target.OutriggerPadSize = fresh.OutriggerPadSize;
             target.ShowOutriggerPads = fresh.ShowOutriggerPads;
+            target.IsOnRubber = fresh.IsOnRubber;
             target.TravelWidthM = fresh.TravelWidthM;
             target.BodyAngle = fresh.BodyAngle;
             target.BoomSections = fresh.BoomSections;
             target.BoomBaseWidth = fresh.BoomBaseWidth;
 
             target.MinReach = fresh.MinReach;
+            target.MaxReach = fresh.MaxReach;
             target.MinBoomLength = fresh.MinBoomLength;
             target.MaxBoomLength = fresh.MaxBoomLength;
             target.BoomLength = fresh.BoomLength;
@@ -117,6 +121,14 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Parameters
         private static double ToMeters(double? value, double fallback)
         {
             return value.HasValue ? ToMeters(value.Value, fallback) : fallback;
+        }
+
+        private static bool IsOnRubber(string? outriggerConfiguration)
+        {
+            return string.Equals(
+                outriggerConfiguration?.Trim(),
+                "On Rubber",
+                StringComparison.OrdinalIgnoreCase);
         }
     }
 }

@@ -6,11 +6,31 @@ namespace CraneOptimizer.Domain.Schemas
 {
     public class PrecastElement
     {
+        public PrecastElement CreateCopy()
+        {
+            var copy = (PrecastElement)MemberwiseClone();
+            copy.ElementCOG = new DomainPoint3D(ElementCOG.X, ElementCOG.Y, ElementCOG.Z);
+            copy.COG_M = new DomainPoint3D(COG_M.X, COG_M.Y, COG_M.Z);
+            copy.BoundingBox_M = new DomainPoint3D(BoundingBox_M.X, BoundingBox_M.Y, BoundingBox_M.Z);
+            copy.ChildGlobalIds = new List<string>(ChildGlobalIds);
+            copy.VisibleGeometryOwnerGlobalIds = new List<string>(VisibleGeometryOwnerGlobalIds);
+            copy.HiddenInternalGeometryOwnerGlobalIds = new List<string>(HiddenInternalGeometryOwnerGlobalIds);
+            copy.ExtractionWarnings = new List<string>(ExtractionWarnings);
+            copy.ValidationWarnings = new List<string>(ValidationWarnings);
+            return copy;
+        }
+
         public string ElementID { get; set; }
 
         public string? ElementRevitId { get; set; }
 
         public string? ElementMark { get; set; }
+
+        public string? ElementName { get; set; }
+
+        public bool ExplicitAssemblyMarkFound { get; set; }
+
+        public string? ResolvedDisplayMark { get; set; }
 
         public string ElementType { get; set; }
 
@@ -48,8 +68,40 @@ namespace CraneOptimizer.Domain.Schemas
         public double? VolumeM3 { get; set; }
         public DomainPoint3D COG_M { get; set; } = new();
         public DomainPoint3D BoundingBox_M { get; set; } = new();
+        public double? DensityKgPerM3 { get; set; }
+
+        public bool IsFromRevitAssemblyWrapper { get; set; }
+        public bool MaterialInheritedFromParent { get; set; }
+        public bool DensityInheritedFromParent { get; set; }
+
+        public string? ParentAssemblyName { get; set; }
         public List<string> ExtractionWarnings { get; set; } = new();
         public string NormalizationDecisionReason { get; set; } = string.Empty;
+
+        // Canonical Assembly Data Schema (Phase 2)
+        public string? AssemblyMark { get; set; }
+        public string? AssemblyMarkSource { get; set; }
+        public AssemblyMarkConfidence AssemblyMarkConfidence { get; set; } = AssemblyMarkConfidence.None;
+        public bool AssemblyMarkIsExplicit { get; set; }
+
+        // Non-authoritative mirrors of active engineering fields
+        public double? AssemblyWeightTons => WeightTons;
+        public string? AssemblyWeightSource => WeightSource;
+        public IfcWeightTrustLevel AssemblyWeightTrustLevel => WeightTrustLevel;
+        public double? AssemblyVolumeM3 => VolumeM3;
+        public string? AssemblyMaterial => ElementMaterial;
+        public DomainPoint3D AssemblyCenterOfGravity => COG_M;
+        public double? AssemblyLength => ElementLength;
+        public double? AssemblyWidth => ElementWidth;
+        public double? AssemblyHeight => ElementHeight;
+
+        public SourceSystem SourceSystem { get; set; } = SourceSystem.IFC;
+        public IfcExporterProfile ExporterProfile { get; set; } = IfcExporterProfile.Generic;
+        public string? SourceGlobalId => ElementID;
+        public string? ParentAssemblyGlobalId => ParentGlobalId;
+
+        public ValidationStatus ValidationStatus { get; set; } = ValidationStatus.Valid;
+        public List<string> ValidationWarnings { get; set; } = new();
     }
 }
 

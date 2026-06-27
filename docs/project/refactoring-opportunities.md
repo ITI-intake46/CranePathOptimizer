@@ -229,24 +229,12 @@ Reading high-volume architectural models requires highly optimized parsing pipel
 
 Lifting optimization requires evaluating massive search spaces under tight computational budgets.
 
-### Finding 7.1: Sequential Population Fitness Evaluation Loop
+### Finding 7.1: Sequential Population Fitness Evaluation Loop (Resolved / Implemented in Phase 3A)
 * **Title:** Single-Threaded Sequential Chromosome Evaluation Bottleneck
-* **Current Implementation:**
-  Inside [GAEngine.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/GeneticOptimization/GAEngine.cs#L78-L96), the GA engine evaluates solution fitness and lifting capacity sequentially in a standard loop:
-  ```csharp
-  foreach (var solution in population.Individuals)
-  {
-      var evaluation = _assignmentService.EvaluateAssignment(solution, ...);
-      var fitness = _fitnessEvaluator.EvaluateFitness(solution, evaluation, ...);
-      solution.Fitness = fitness.FitnessScore;
-  }
-  ```
-  Lifting capacity evaluations (checking load chart steps, boom length safety, and slew radii) are highly compute-intensive. Running them sequentially on a single thread leaves multi-core host processors severely underutilized.
-* **Recommended Implementation:**
-  Parallelize the fitness evaluation loop utilizing `Parallel.ForEach` or PLINQ (e.g. `Parallel.ForEach(population.Individuals, ...)`). Since evaluating one chromosome's fitness is independent of others, this is a highly parallelizable use case. Ensure `_assignmentService` and `_fitnessEvaluator` are completely thread-safe or instantiated per-thread via a DI factory.
-* **Impact:** Boosts GA optimization execution speed by 4x-8x on modern multi-core systems, decreasing optimization times from minutes to seconds.
-* **Priority:** Critical
-* **Estimated Refactoring Effort:** Medium (4 hours)
+* **Status:** Resolved / Implemented in Phase 3A
+* **Implementation Details:**
+  Both candidate evaluation loops (initial population and child evaluation loops) inside [GAEngine.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/GeneticOptimization/GAEngine.cs) have been parallelized using `Parallel.ForEach` with `ParallelOptions` and a `CancellationToken`. Evaluations write only to the private fields of the candidate instance being evaluated and read from thread-safe pre-indexed structures (`LoadChartIndex` and `ElementStaticCache`), which is safe for the audited candidate evaluation loops. No differences were detected in fixed-seed validation trials.
+* **Impact:** Boosts GA optimization execution speed by **56.4% total run reduction** and **54.0% generation loop reduction** (a 2.17x speedup) in Hungarian mode.
 
 ---
 

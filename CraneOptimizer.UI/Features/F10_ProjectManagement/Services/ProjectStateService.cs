@@ -19,6 +19,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
     {
         private const string IfcFolder = "Models/IFC";
         private const string DxfFolder = "Models/DXF";
+        private const string IfcNormalizationCacheVersionKey = "ifcNormalizationCacheVersion";
+        private const string IfcNormalizationCacheVersion = "ifc-identity-grid-ssot-v3";
         private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
         private readonly IProjectCoordinateTransformService _transformService;
@@ -42,7 +44,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             if (state == null)
                 throw new ArgumentNullException(nameof(state));
 
-            // Save coordinate reference to JSON
+            // Save coordinate reference to JSON (as fallback)
             var refFilePath = Path.Combine(session.ProjectFolderPath, "coordinate_reference.json");
             try
             {
@@ -52,7 +54,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Failed to save coordinate reference: {ex}");
+                Debug.WriteLine($"Failed to save coordinate reference to JSON fallback: {ex}");
             }
 
             await using var context = CreatedProjectDbContextFactory.Create(session.ProjectFolderPath);
@@ -69,6 +71,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 .ConfigureAwait(false);
             await SaveViewportAsync(context, projectInfo.Id, state.Viewport, cancellationToken)
                 .ConfigureAwait(false);
+            await SaveCoordinateReferenceAsync(context, projectInfo.Id, cancellationToken)
+                .ConfigureAwait(false);
 
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -80,32 +84,11 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             if (session == null)
                 throw new ArgumentNullException(nameof(session));
 
-            // Load coordinate reference from JSON
-            var refFilePath = Path.Combine(session.ProjectFolderPath, "coordinate_reference.json");
-            if (File.Exists(refFilePath))
-            {
-                try
-                {
-                    var json = await File.ReadAllTextAsync(refFilePath, cancellationToken).ConfigureAwait(false);
-                    var refData = JsonSerializer.Deserialize<ProjectCoordinateReference>(json, JsonOptions);
-                    if (refData != null)
-                    {
-                        _transformService.ApplyReference(refData, out _);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Failed to load coordinate reference: {ex}");
-                    _transformService.ResetReference();
-                }
-            }
-            else
-            {
-                _transformService.ResetReference();
-            }
-
             await using var context = CreatedProjectDbContextFactory.Create(session.ProjectFolderPath);
             var projectInfo = await GetProjectInfoAsync(context, session.ProjectInfoId, cancellationToken)
+                .ConfigureAwait(false);
+
+            await LoadCoordinateReferenceAsync(context, session.ProjectFolderPath, projectInfo.Id, cancellationToken)
                 .ConfigureAwait(false);
 
             var ifc = await context.IfcFiles
@@ -143,6 +126,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 .ConfigureAwait(false);
 
             List<PrecastElement> restoredElements = new();
+            bool requiresIfcCacheRefresh = false;
             if (ifc != null)
             {
                 if (ValidateIfcCache(session.ProjectFolderPath, ifc, out var validationReason))
@@ -163,6 +147,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 else
                 {
                     Debug.WriteLine($"[ProjectState] DB Restore Fallback: Cache is invalid/missing. Reason: {validationReason}");
+                    requiresIfcCacheRefresh = true;
                 }
             }
 
@@ -170,6 +155,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             {
                 IfcFile = ToIfcState(session.ProjectFolderPath, ifc),
                 IfcElements = restoredElements,
+                RequiresIfcCacheRefresh = requiresIfcCacheRefresh,
                 DxfFile = ToModelFileState(session.ProjectFolderPath, dxf),
                 Zones = zones.Select(ToZoneState).ToList(),
                 Cranes = cranes.Select(ToCraneState).ToList(),
@@ -197,6 +183,12 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             if (entity.ElementCount <= 0)
             {
                 validationReason = "Persisted element count in database is zero or negative.";
+                return false;
+            }
+
+            if (!HasCurrentIfcNormalizationCacheVersion(entity.MetadataJson))
+            {
+                validationReason = "IFC normalization cache version is missing or outdated; elements must be rebuilt with current identity and grid rules.";
                 return false;
             }
 
@@ -292,7 +284,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             if (existingFile != null
                 && string.Equals(existingFile.RelativePath, asset.RelativePath, StringComparison.OrdinalIgnoreCase)
                 && existingFile.FileSizeBytes == metadata.SizeBytes
-                && existingFile.IsCacheValid)
+                && existingFile.IsCacheValid
+                && HasCurrentIfcNormalizationCacheVersion(existingFile.MetadataJson))
             {
                 if (existingFile.LastWriteUtc.HasValue && metadata.LastWriteUtc.HasValue)
                 {
@@ -308,19 +301,27 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
             if (canReuseCache && existingFile != null)
             {
-                var dbElementCount = await context.IfcElements
-                    .CountAsync(x => x.IfcFileId == existingFile.Id, cancellationToken)
+                var persistedIdentities = await context.IfcElements
+                    .AsNoTracking()
+                    .Where(x => x.IfcFileId == existingFile.Id)
+                    .Select(x => new { x.GlobalId, x.DisplayName })
+                    .ToListAsync(cancellationToken)
                     .ConfigureAwait(false);
-                if (dbElementCount == 0)
-                {
-                    canReuseCache = false;
-                }
+                var runtimeNames = elements
+                    .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
+                    .GroupBy(element => element.ElementID, StringComparer.Ordinal)
+                    .ToDictionary(group => group.Key, group => group.First().ElementName, StringComparer.Ordinal);
+
+                canReuseCache = persistedIdentities.Count > 0
+                    && persistedIdentities.Count == runtimeNames.Count
+                    && persistedIdentities.All(row => runtimeNames.TryGetValue(row.GlobalId, out var runtimeName)
+                        && string.Equals(row.DisplayName, runtimeName, StringComparison.Ordinal));
             }
 
             if (canReuseCache && existingFile != null)
             {
                 existingFile.TransformJson = JsonSerializer.Serialize(transform, JsonOptions);
-                existingFile.MetadataJson = ifc.MetadataJson;
+                existingFile.MetadataJson = StampIfcNormalizationCacheVersion(ifc.MetadataJson);
                 context.IfcFiles.Update(existingFile);
                 Debug.WriteLine("[SaveProject] Fast Save: Reused existing IFC element cache. Only updated transform.");
                 return;
@@ -349,7 +350,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 FileSizeBytes = metadata.SizeBytes,
                 LastWriteUtc = metadata.LastWriteUtc,
                 TransformJson = JsonSerializer.Serialize(transform, JsonOptions),
-                MetadataJson = ifc.MetadataJson,
+                MetadataJson = StampIfcNormalizationCacheVersion(ifc.MetadataJson),
                 IsActive = true,
                 IsCacheValid = true,
                 ImportedAtUtc = DateTime.UtcNow,
@@ -533,6 +534,53 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             };
         }
 
+        private static bool HasCurrentIfcNormalizationCacheVersion(string? metadataJson)
+        {
+            if (string.IsNullOrWhiteSpace(metadataJson))
+                return false;
+
+            try
+            {
+                using var document = JsonDocument.Parse(metadataJson);
+                if (document.RootElement.ValueKind != JsonValueKind.Object)
+                    return false;
+
+                return document.RootElement.TryGetProperty(IfcNormalizationCacheVersionKey, out var version)
+                    && string.Equals(version.GetString(), IfcNormalizationCacheVersion, StringComparison.Ordinal);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string StampIfcNormalizationCacheVersion(string? metadataJson)
+        {
+            var metadata = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+            if (!string.IsNullOrWhiteSpace(metadataJson))
+            {
+                try
+                {
+                    var existing = JsonSerializer.Deserialize<Dictionary<string, object?>>(metadataJson, JsonOptions);
+                    if (existing != null)
+                    {
+                        foreach (var pair in existing)
+                        {
+                            metadata[pair.Key] = pair.Value;
+                        }
+                    }
+                }
+                catch
+                {
+                    metadata["rawMetadata"] = metadataJson;
+                }
+            }
+
+            metadata[IfcNormalizationCacheVersionKey] = IfcNormalizationCacheVersion;
+            return JsonSerializer.Serialize(metadata, JsonOptions);
+        }
+
         private static ProjectModelFileState? ToModelFileState(string projectFolderPath, ProjectModelFileEntity? entity)
         {
             if (entity == null)
@@ -644,6 +692,131 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 Path.GetRelativePath(normalizedProjectFolder, destinationPath).Replace(Path.DirectorySeparatorChar, '/'),
                 destinationPath,
                 fileName);
+        }
+
+        private async Task SaveCoordinateReferenceAsync(
+            CreatedProjectDbContext context,
+            int projectInfoId,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                var refData = _transformService.CurrentReference;
+
+                var dbRef = await context.CoordinateReferences
+                    .FirstOrDefaultAsync(x => x.ProjectInfoId == projectInfoId, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (dbRef == null)
+                {
+                    dbRef = new ProjectCoordinateReferenceEntity
+                    {
+                        ProjectInfoId = projectInfoId,
+                        CreatedAtUtc = DateTime.UtcNow
+                    };
+                    await context.CoordinateReferences.AddAsync(dbRef, cancellationToken).ConfigureAwait(false);
+                }
+
+                dbRef.IsEnabled = refData.IsEnabled;
+                dbRef.Name = refData.Name ?? "Coordinate Reference";
+                dbRef.CoordinateSystemName = refData.CoordinateSystemName;
+                dbRef.EPSGCode = refData.EPSGCode;
+                dbRef.LocalReferenceX = refData.LocalReferenceX;
+                dbRef.LocalReferenceY = refData.LocalReferenceY;
+                dbRef.LocalReferenceZ = refData.LocalReferenceZ;
+                dbRef.SurveyEasting = refData.SurveyEasting;
+                dbRef.SurveyNorthing = refData.SurveyNorthing;
+                dbRef.SurveyElevation = refData.SurveyElevation;
+                dbRef.RotationToNorthDegrees = refData.RotationToNorthDegrees;
+                dbRef.Scale = refData.Scale;
+                dbRef.Source = refData.Source ?? "ManualSinglePoint";
+                dbRef.Latitude = refData.Latitude;
+                dbRef.Longitude = refData.Longitude;
+                dbRef.Description = refData.Description;
+                dbRef.UpdatedAtUtc = DateTime.UtcNow;
+
+                context.CoordinateReferences.Update(dbRef);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to save coordinate reference to DB: {ex}");
+            }
+        }
+
+        private async Task LoadCoordinateReferenceAsync(
+            CreatedProjectDbContext context,
+            string projectFolderPath,
+            int projectInfoId,
+            CancellationToken cancellationToken)
+        {
+            ProjectCoordinateReferenceEntity? dbRef = null;
+            try
+            {
+                dbRef = await context.CoordinateReferences
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.ProjectInfoId == projectInfoId, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to load coordinate reference from DB: {ex}");
+            }
+
+            if (dbRef != null)
+            {
+                var refData = new ProjectCoordinateReference
+                {
+                    IsEnabled = dbRef.IsEnabled,
+                    Name = dbRef.Name,
+                    CoordinateSystemName = dbRef.CoordinateSystemName,
+                    EPSGCode = dbRef.EPSGCode,
+                    LocalReferenceX = dbRef.LocalReferenceX,
+                    LocalReferenceY = dbRef.LocalReferenceY,
+                    LocalReferenceZ = dbRef.LocalReferenceZ,
+                    SurveyEasting = dbRef.SurveyEasting,
+                    SurveyNorthing = dbRef.SurveyNorthing,
+                    SurveyElevation = dbRef.SurveyElevation,
+                    RotationToNorthDegrees = dbRef.RotationToNorthDegrees,
+                    Scale = dbRef.Scale,
+                    Source = dbRef.Source,
+                    Latitude = dbRef.Latitude,
+                    Longitude = dbRef.Longitude,
+                    Description = dbRef.Description,
+                    CreatedAt = dbRef.CreatedAtUtc,
+                    UpdatedAt = dbRef.UpdatedAtUtc
+                };
+                _transformService.ApplyReference(refData, out _);
+            }
+            else
+            {
+                // Fallback to JSON
+                var refFilePath = Path.Combine(projectFolderPath, "coordinate_reference.json");
+                if (File.Exists(refFilePath))
+                {
+                    try
+                    {
+                        var json = await File.ReadAllTextAsync(refFilePath, cancellationToken).ConfigureAwait(false);
+                        var refData = JsonSerializer.Deserialize<ProjectCoordinateReference>(json, JsonOptions);
+                        if (refData != null)
+                        {
+                            _transformService.ApplyReference(refData, out _);
+                        }
+                        else
+                        {
+                            _transformService.ResetReference();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Failed to load coordinate reference from JSON fallback: {ex}");
+                        _transformService.ResetReference();
+                    }
+                }
+                else
+                {
+                    _transformService.ResetReference();
+                }
+            }
         }
 
         private static string ToAbsolutePath(string projectFolderPath, string relativePath)
