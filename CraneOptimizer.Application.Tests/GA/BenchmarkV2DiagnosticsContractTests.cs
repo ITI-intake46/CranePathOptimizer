@@ -33,8 +33,8 @@ namespace CraneOptimizer.Application.Tests.GA
 
                 service.GenerateDiagnostics(input, result);
 
-                // Files are written into a per-run subfolder: <tempDir>/<ProjectName>/<OptimizationRunId>
-                string runDir = Path.Combine(tempDirectory, "try4", "optimization-1");
+                // Files are written into a per-run subfolder: <tempDir>/<OptimizationRunId>
+                string runDir = Path.Combine(tempDirectory, "optimization-1");
 
                 string[] requiredFiles =
                 {
@@ -141,8 +141,8 @@ namespace CraneOptimizer.Application.Tests.GA
                 secondService.GenerateDiagnostics(secondInput, secondResult);
 
                 // Per-run folder: stage-1 run and stage-2 run share the same OptimizationRunId
-                // Files accumulate in <tempDir>/try4/optimization-1/ since both stages use the same run id
-                string runDir2 = Path.Combine(tempDirectory, "try4", "optimization-1");
+                // Files accumulate in <tempDir>/optimization-1/ since both stages use the same run id
+                string runDir2 = Path.Combine(tempDirectory, "optimization-1");
 
                 List<Dictionary<string, string>> rows = ReadRows(
                     Path.Combine(runDir2, "ga_audit_solution_quality_metrics.csv"));

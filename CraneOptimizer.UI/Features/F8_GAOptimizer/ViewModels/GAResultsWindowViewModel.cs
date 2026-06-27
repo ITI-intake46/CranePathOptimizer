@@ -92,8 +92,19 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
 
         public ElementLiftResult Source => _source;
 
-        /// <summary>Element mark (or "-" when missing).</summary>
-        public string Mark => !string.IsNullOrWhiteSpace(_source.ElementMark) ? _source.ElementMark : "-";
+        /// <summary>
+        /// Best resolved display mark for this element.
+        /// Phase 5: prefers canonical AssemblyMark via CanonicalMark; falls back to raw ElementMark.
+        /// </summary>
+        public string Mark =>
+            !string.IsNullOrWhiteSpace(_source.CanonicalMark) ? _source.CanonicalMark :
+            !string.IsNullOrWhiteSpace(_source.ElementMark) ? _source.ElementMark : "-";
+
+        public string MarkConfidence => !string.IsNullOrWhiteSpace(_source.MarkConfidence) ? _source.MarkConfidence : "None";
+        public string ValidationStatus => !string.IsNullOrWhiteSpace(_source.ValidationStatus) ? _source.ValidationStatus : "Valid";
+        public string WeightTrustLevel => !string.IsNullOrWhiteSpace(_source.WeightTrustLevel) ? _source.WeightTrustLevel : "Missing";
+        public string ValidationWarnings => !string.IsNullOrWhiteSpace(_source.ValidationWarningsJoined) ? _source.ValidationWarningsJoined : "-";
+        public int ValidationWarningCount => _source.ValidationWarningCount;
 
         /// <summary>Horizontal radius in metres.</summary>
         public string RadiusText => _source.Radius.ToString("F2") + " m";
@@ -136,6 +147,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             LiftStatus.NotCharted    => "Not Charted",
             _                        => _source.Status.ToString()
         };
+
+        /// <summary>Type of lift unit (Single vs Grouped Assembly).</summary>
+        public string LiftUnitText => _source.IsAssemblyGroup ? $"Assembly Group ({_source.AssemblyMemberCount})" : "Single";
+
+        /// <summary>Tooltip for the Lift Unit column showing member GUIDs.</summary>
+        public string LiftUnitTooltip => _source.IsAssemblyGroup ? $"Assembly Mark: {Mark}\nMembers:\n- {_source.AssemblyMemberIdsJoined}" : "Single Element";
 
         /// <summary>True when lift is successful, drives row colour in XAML.</summary>
         public bool IsLiftable => _source.Status == LiftStatus.Liftable;

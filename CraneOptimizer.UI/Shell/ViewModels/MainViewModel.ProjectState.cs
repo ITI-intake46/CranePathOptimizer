@@ -128,10 +128,12 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private async Task LoadProjectStateAsync(ProjectSession session)
         {
             _suppressProjectStateSave = true;
+            bool requiresIfcCacheRefresh = false;
             try
             {
                 var state = await _projectStateService.LoadProjectStateAsync(session).ConfigureAwait(true);
                 await RestoreProjectStateAsync(state).ConfigureAwait(true);
+                requiresIfcCacheRefresh = state.RequiresIfcCacheRefresh;
             }
             catch (Exception ex)
             {
@@ -141,6 +143,11 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             finally
             {
                 _suppressProjectStateSave = false;
+            }
+
+            if (requiresIfcCacheRefresh && Scene.GetElements().Count > 0)
+            {
+                await SaveCurrentProjectStateAsync().ConfigureAwait(true);
             }
         }
 

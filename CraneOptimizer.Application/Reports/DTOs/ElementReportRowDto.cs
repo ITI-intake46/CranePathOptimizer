@@ -7,6 +7,13 @@ public sealed class ElementReportRowDto
     public string ElementMark { get; init; } = string.Empty;
     public string ElementName { get; init; } = string.Empty;
     public string ElementType { get; init; } = string.Empty;
+
+    // Phase 5: Canonical Display Identity
+    public string CanonicalMark { get; init; } = string.Empty;
+    public string MarkSource { get; init; } = string.Empty;
+    public string MarkConfidence { get; init; } = "None";
+    public bool IsExplicitMark { get; init; }
+
     public string SourceRevitId { get; init; } = string.Empty;
     public string StoreyLevel { get; init; } = string.Empty;
     public string Material { get; init; } = string.Empty;
@@ -25,4 +32,11 @@ public sealed class ElementReportRowDto
     public string IncludedInCraneOptimization { get; init; } = "No";
     public string ReadyForGa { get; init; } = "No";
     public string MissingReadinessReason { get; init; } = "\u2014";
+
+    // Aligned validation fields
+    public string ValidationStatus { get; init; } = "Valid";
+    public string ValidationWarnings { get; init; } = "\u2014";
+    public string WeightTrustLevel { get; init; } = string.Empty;
+    public string ReadinessStatus { get; init; } = "Ready";
+    public string BlockingReasons { get; init; } = "\u2014";
 }

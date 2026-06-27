@@ -3,12 +3,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:views="clr-namespace:CraneOptimizer.UI.Features.F5_ElementManagement.Views"
+             xmlns:converters="clr-namespace:CraneOptimizer.UI.Core.Converters"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d">
 
     <UserControl.Resources>
-        <views:ElementDisplayNameConverter x:Key="ElementDisplayNameConverter" />
+        <converters:ElementDisplayNameConverter x:Key="ElementDisplayNameConverter" />
         <views:ElementWeightDisplayConverter x:Key="ElementWeightDisplayConverter" />
+        <converters:CanonicalMarkConverter x:Key="CanonicalMarkConverter" />
 
         <Style x:Key="PropertyHeaderText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="{StaticResource FontSizeXS}" />
@@ -124,6 +126,14 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding Converter={StaticResource ElementDisplayNameConverter}}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="1.5*" Header="Lift Mark">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Converter={StaticResource CanonicalMarkConverter}}"
                                                    TextTrimming="CharacterEllipsis" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>

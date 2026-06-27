@@ -161,6 +161,21 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("AssemblyMark")
+                        .HasMaxLength(250)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AssemblyMarkConfidence")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("AssemblyMarkIsExplicit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AssemblyMarkSource")
+                        .HasMaxLength(250)
+                        .HasColumnType("TEXT");
+
                     b.Property<double?>("BBoxMaxX")
                         .HasColumnType("REAL");
 
@@ -204,6 +219,10 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
 
                     b.Property<int?>("EntityLabel")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("ExporterProfile")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ExtractionWarningsJson")
                         .HasColumnType("TEXT");
@@ -271,8 +290,19 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("SourceSystem")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("StoreyName")
                         .HasMaxLength(250)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ValidationStatus")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ValidationWarningsJson")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("VisibleGeometryOwnerGlobalIdsJson")

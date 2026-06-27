@@ -11,6 +11,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Reports.Definitions;
 using CraneOptimizer.Application.Reports.DTOs;
 using CraneOptimizer.Application.Reports.Services;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
@@ -33,7 +34,6 @@ public sealed class ReportBuilderViewModel : ViewModelBase
     private readonly IProjectWorkspaceService _workspace;
     private readonly CranePlacementViewModel _cranePlacement;
     private readonly ElementManagementViewModel _elementManagement;
-    private readonly GASettings _gaSettings;
     private readonly IReportBuilder _reportBuilder;
     private readonly IReportPdfExporter _pdfExporter;
     private readonly IReportExcelExporter _excelExporter;
@@ -41,6 +41,8 @@ public sealed class ReportBuilderViewModel : ViewModelBase
     private readonly IReportFileDialogService _dialogs;
     private readonly IReportPreviewDialogService _previewDialogs;
     private readonly IGADiagnosticsReaderService _gaDiagnosticsReader;
+    private readonly IProjectOutputPathService _outputPathService;
+    private readonly IImportReadinessService _readinessService;
     private readonly List<ReportColumnOptionViewModel> _allowedColumns = new();
     private readonly List<ReportTemplateDto> _userTemplates = new();
     private const string Placeholder = "\u2014";
@@ -89,13 +91,14 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         IReportTemplateStore templateStore,
         IReportFileDialogService dialogs,
         IReportPreviewDialogService previewDialogs,
-        IGADiagnosticsReaderService gaDiagnosticsReader)
+        IGADiagnosticsReaderService gaDiagnosticsReader,
+        IProjectOutputPathService outputPathService,
+        IImportReadinessService readinessService)
     {
         _scene = scene;
         _workspace = workspace;
         _cranePlacement = cranePlacement;
         _elementManagement = elementManagement;
-        _gaSettings = gaSettings;
         _reportBuilder = reportBuilder;
         _pdfExporter = pdfExporter;
         _excelExporter = excelExporter;
@@ -103,6 +106,8 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         _dialogs = dialogs;
         _previewDialogs = previewDialogs;
         _gaDiagnosticsReader = gaDiagnosticsReader;
+        _outputPathService = outputPathService ?? throw new ArgumentNullException(nameof(outputPathService));
+        _readinessService = readinessService;
 
         BrowseLogoCommand = new RelayCommand(BrowseLogo);
         _previewCommand = new AsyncRelayCommand(PreviewAsync, () => !IsBusy && CanBuildReport);
@@ -675,8 +680,9 @@ public sealed class ReportBuilderViewModel : ViewModelBase
                 return;
             }
 
-            var reportsFolder = GetReportsFolder();
-            var path = _dialogs.SavePdf(BuildSuggestedFileName(".pdf", reportsFolder), reportsFolder);
+            // Phase 5E: route PDF exports to <ProjectRoot>/Exports/PDF/
+            var exportsFolder = _outputPathService.GetUserPdfExportsDirectory();
+            var path = _dialogs.SavePdf(BuildSuggestedFileName(".pdf", exportsFolder), exportsFolder);
             if (string.IsNullOrWhiteSpace(path))
                 return;
 
@@ -696,8 +702,9 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             var exportDate = DateTime.Now;
             var report = await BuildCurrentReportAsync(exportDate, updateGeneratedOnLabel: true, CancellationToken.None);
 
-            var reportsFolder = GetReportsFolder();
-            var path = _dialogs.SaveExcel(BuildSuggestedFileName(".xlsx", reportsFolder), reportsFolder);
+            // Phase 5E: route Excel exports to <ProjectRoot>/Exports/Excel/
+            var exportsFolder = _outputPathService.GetUserExcelExportsDirectory();
+            var path = _dialogs.SaveExcel(BuildSuggestedFileName(".xlsx", exportsFolder), exportsFolder);
             if (string.IsNullOrWhiteSpace(path))
                 return;
 
@@ -873,6 +880,17 @@ public sealed class ReportBuilderViewModel : ViewModelBase
 
     private bool ValidateCanBuildReport()
     {
+        // Phase 5E: block report generation if no active project session
+        if (_workspace.CurrentSession == null
+            || string.IsNullOrWhiteSpace(_workspace.CurrentSession.ProjectFolderPath))
+        {
+            const string noProject = "No active project is loaded. Please create or open a project before exporting reports.";
+            BuildReadinessMessage = noProject;
+            StatusMessage = noProject;
+            _dialogs.ShowInfo(noProject, "Report Export Blocked");
+            return false;
+        }
+
         if (!CanBuildReport)
         {
             var message = string.IsNullOrWhiteSpace(SelectedReportName)
@@ -1122,10 +1140,46 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         if (_family != ReportFamily.ElementList)
             return _scene.GetElements();
 
-        if (ItemsIncluded == "Current Filter Result")
-            return _elementManagement.FilteredElements.ToList();
+        var allElements = _scene.GetElements() ?? new List<PrecastElement>();
 
-        return _scene.GetElements();
+        var scoped = ItemsIncluded switch
+        {
+            "Rendered Elements Only" => allElements.Where(element => element.IncludeInRender).ToList(),
+            "Selected Elements Only" => _scene.GetSelectedElements(),
+            "Current Filter Result" => _elementManagement.FilteredElements.ToList(),
+            "GA-Ready Elements" => ResolveGaReadyElements(allElements),
+            "Needs Review Elements" => ResolveNeedsReviewElements(allElements),
+            _ => allElements
+        };
+
+
+        return scoped;
+    }
+
+    private IReadOnlyList<PrecastElement> ResolveGaReadyElements(List<PrecastElement> allElements)
+    {
+        var readyIds = _readinessService.BuildSummary(allElements)
+            .ElementDiagnostics
+            .Where(diagnostic => diagnostic.IsReadyForGa)
+            .Select(diagnostic => diagnostic.ElementId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return allElements
+            .Where(element => !string.IsNullOrWhiteSpace(element.ElementID) && readyIds.Contains(element.ElementID))
+            .ToList();
+    }
+
+    private IReadOnlyList<PrecastElement> ResolveNeedsReviewElements(List<PrecastElement> allElements)
+    {
+        var needsReviewIds = _readinessService.BuildSummary(allElements)
+            .ElementDiagnostics
+            .Where(diagnostic => !diagnostic.IsReadyForGa || diagnostic.WarningMessages.Count > 0)
+            .Select(diagnostic => diagnostic.ElementId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return allElements
+            .Where(element => !string.IsNullOrWhiteSpace(element.ElementID) && needsReviewIds.Contains(element.ElementID))
+            .ToList();
     }
 
     private IReadOnlyList<LiftingResultSourceRowDto> BuildLiftingSourceRows(GaReportContext gaContext)
@@ -1356,6 +1410,10 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             SourceType = "PlacementResult / ElementLiftResult",
             ElementId = lift.ElementId,
             ElementMark = lift.ElementMark,
+            CanonicalMark = lift.CanonicalMark,
+            MarkSource = lift.MarkSource,
+            MarkConfidence = lift.MarkConfidence,
+            IsExplicitMark = lift.IsExplicitMark,
             ElementType = lift.ElementType,
             Timestamp = run?.Timestamp,
             ProjectName = run?.ProjectName,
@@ -1484,6 +1542,10 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             SourceType = "GADiagnosticsReaderService / GAElementDiagnosticDto",
             ElementId = row.ElementId,
             ElementMark = CleanText(row.ElementName, row.ElementId),
+            CanonicalMark = CleanText(row.CanonicalMark),
+            MarkSource = CleanText(row.MarkSource),
+            MarkConfidence = CleanText(row.MarkConfidence),
+            IsExplicitMark = row.IsExplicitMark,
             ElementType = row.ElementType,
             StoreyOrElevation = row.StoreyOrElevation,
             Timestamp = row.Timestamp,
@@ -1736,13 +1798,9 @@ public sealed class ReportBuilderViewModel : ViewModelBase
 
     private string GetReportsFolder()
     {
-        var projectFolder = _workspace.CurrentSession?.ProjectFolderPath;
-        if (string.IsNullOrWhiteSpace(projectFolder))
-            return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-
-        var reports = Path.Combine(projectFolder, "Reports");
-        Directory.CreateDirectory(reports);
-        return reports;
+        // Phase 5E: route reports to <ProjectRoot>/Reports/ via IProjectOutputPathService.
+        // Throws InvalidOperationException if no active project is loaded (no silent fallbacks).
+        return _outputPathService.GetReportsDirectory();
     }
 
     private static int NormalizeTextSizeOption(double value)

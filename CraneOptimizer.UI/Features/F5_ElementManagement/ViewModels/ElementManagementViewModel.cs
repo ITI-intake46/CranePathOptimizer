@@ -326,7 +326,11 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             Elements.Clear();
             FilteredElements.Clear();
 
-            foreach (var e in elements)
+            var treeElements = elements
+                .Where(element => element.IncludeInElementTree)
+                .ToList();
+
+            foreach (var e in treeElements)
             {
                 Elements.Add(e);
                 FilteredElements.Add(e);
@@ -336,13 +340,13 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
             ApplySearchFilter();
 
-            if (elements.Count == 0)
+            if (treeElements.Count == 0)
             {
                 SelectedElement = null;
             }
-            else if (SelectedElement != null && !elements.Contains(SelectedElement))
+            else if (SelectedElement != null && !treeElements.Contains(SelectedElement))
             {
-                SelectedElement = elements.FirstOrDefault();
+                SelectedElement = treeElements.FirstOrDefault();
             }
 
             OnPropertyChanged(nameof(GridSize));
@@ -519,7 +523,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             return new ElementPanelDto(
                 BuildLiftStateDto(liftState),
                 GetElementID(element),
-                GetPrecastDisplayName(element),
+                GetIfcElementName(element),
                 CleanElementType(element.ElementType),
                 string.IsNullOrWhiteSpace(element.ElementMaterial) ? "N/A" : element.ElementMaterial,
                 element.ElementLength,
@@ -543,15 +547,23 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
         private List<PropertyItem> BuildPropertyGroups(ElementPanelDto panel)
         {
+            var identityLabel = "-";
+            if (SelectedElement != null)
+            {
+                var identity = CraneOptimizer.Application.Services.Identity.CanonicalMarkResolver.Resolve(SelectedElement);
+                identityLabel = identity.DisplayLabel;
+            }
+
             var properties = new List<PropertyItem>
             {
                 CreateLiftStateGroup(panel.LiftState),
 
                 CreateGroup("Identity", true,
-                    CreateProperty("ID", GetReadableElementId(SelectedElement, panel.Id), ""),
-                    CreateProperty("Name", panel.Name, ""),
-                    CreateProperty("Type", panel.Type, ""),
-                    CreateProperty("Material", panel.Material, "")),
+                    CreateProperty("IFC GUID", GetIfcGuid(SelectedElement, panel.Id), ""),
+                    CreateProperty("IFC Name", panel.Name, ""),
+                    CreateProperty("IFC Type", panel.Type, ""),
+                    CreateProperty("Material", panel.Material, ""),
+                    CreateDisplayProperty("Display Label / Lift Mark", identityLabel)),
 
                 CreateGroup("Geometry", true,
                     CreateDisplayProperty("Length", FormatLength(panel.Length)),
@@ -584,9 +596,18 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
             properties.Add(CreateGroup("Location", true, locationItems.ToArray()));
 
+            // Technical validation and canonical identity groups removed in Phase 7F simplification
+
             return properties;
         }
 
+        private static string GetIfcGuid(PrecastElement? element, string fallback)
+        {
+            if (!string.IsNullOrWhiteSpace(element?.ElementID) && !IsGenericOrMaterialId(element.ElementID))
+                return element.ElementID;
+
+            return IsGenericOrMaterialId(fallback) ? "Unknown" : (string.IsNullOrWhiteSpace(fallback) ? "Unknown" : fallback);
+        }
         private static string GetReadableElementId(PrecastElement? element, string fallback)
         {
             if (element == null)
@@ -683,6 +704,10 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             return CleanElementName(ElementDisplayNameConverter.GetDisplayName(e));
         }
 
+        private static string GetIfcElementName(PrecastElement e)
+        {
+            return CleanElementName(!string.IsNullOrWhiteSpace(e.ElementName) ? e.ElementName : "-");
+        }
         private static string CleanElementName(string? rawName)
         {
             if (string.IsNullOrWhiteSpace(rawName)) return "-";

@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Linq;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 
@@ -11,6 +13,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
     public class GADiagnosticsReaderService : IGADiagnosticsReaderService
     {
         private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
+        private readonly IProjectOutputPathService? _outputPathService;
+
+        public GADiagnosticsReaderService(IProjectOutputPathService outputPathService)
+        {
+            _outputPathService = outputPathService ?? throw new ArgumentNullException(nameof(outputPathService));
+        }
+
+        [Obsolete("For tests only")]
+        public GADiagnosticsReaderService()
+        {
+            _outputPathService = null;
+        }
 
         public IReadOnlyList<GARunHistoryDto> ReadRunHistory(string? projectFolderPath)
         {
@@ -24,113 +38,121 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             }
             else
             {
-                reportsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Reports", "GA");
+                // No active project — no diagnostics to read.
+                return results;
             }
 
-            // 2. Search for ga_audit_run_history.csv first (new naming convention),
-            //    then fall back to ga_run_history.csv for backward compatibility.
-            //    Both are searched recursively so the per-run subdirectory structure is handled.
-            string historyPath = FindHistoryFile(reportsDir, "ga_audit_run_history.csv")
-                              ?? FindHistoryFile(reportsDir, "ga_run_history.csv")
-                              ?? string.Empty;
-
-            if (string.IsNullOrEmpty(historyPath) || !File.Exists(historyPath))
+            var historyFiles = EnumerateHistoryFiles(reportsDir).ToList();
+            if (historyFiles.Count == 0)
             {
                 return results;
             }
 
-            try
+            var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var historyPath in historyFiles)
             {
-                using (var reader = new StreamReader(historyPath, Encoding.UTF8))
+                try
                 {
-                    string? headerLine = reader.ReadLine();
-                    if (string.IsNullOrWhiteSpace(headerLine))
+                    using (var reader = new StreamReader(historyPath, Encoding.UTF8))
                     {
-                        return results;
-                    }
-
-                    var headers = ParseCsvLine(headerLine);
-
-                    int timestampIdx = GetHeaderIndex(headers, "Timestamp");
-                    int projectNameIdx = GetHeaderIndex(headers, "ProjectName");
-                    int projectFolderPathIdx = GetHeaderIndex(headers, "ProjectFolderPath");
-                    int ifcFileNameIdx = GetHeaderIndex(headers, "IfcFileName");
-                    int craneNameIdx = GetHeaderIndex(headers, "CraneNameOrId");
-                    int totalTargetElementsIdx = GetHeaderIndex(headers, "TotalTargetElements");
-                    int selectedElementsIdx = GetHeaderIndex(headers, "SelectedElements");
-                    int liftedElementsIdx = GetHeaderIndex(headers, "LiftedElements");
-                    int failedElementsIdx = GetHeaderIndex(headers, "FailedElements");
-                    int coverageIdx = GetHeaderIndex(headers, "CoverageRatio");
-                    int healthLabelIdx = GetHeaderIndex(headers, "HealthLabel");
-                    int setupCountIdx = GetHeaderIndex(headers, "FinalCraneSetupCount");
-                    int greedyIterationsIdx = GetHeaderIndex(headers, "GreedyIterations");
-                    int popSizeIdx = GetHeaderIndex(headers, "PopulationSize");
-                    int configGenIdx = GetHeaderIndex(headers, "ConfiguredGenerations");
-                    int actualGenIdx = GetHeaderIndex(headers, "ActualGenerationLoopCount");
-                    int totalGATimeIdx = GetHeaderIndex(headers, "TotalGATimeMs");
-                    int assignmentTimeIdx = GetHeaderIndex(headers, "ElementAssignmentTimeMs");
-                    int capacityLookupCountIdx = GetHeaderIndex(headers, "CraneCapacityLookupCount");
-                    int capacityCacheHitsIdx = GetHeaderIndex(headers, "CraneCapacityCacheHits");
-                    int capacityCacheMissesIdx = GetHeaderIndex(headers, "CraneCapacityCacheMisses");
-                    int capacityCacheHitRatioIdx = GetHeaderIndex(headers, "CraneCapacityCacheHitRatio");
-                    int memoryBeforeIdx = GetHeaderIndex(headers, "MemoryBeforeMB");
-                    int memoryAfterIdx = GetHeaderIndex(headers, "MemoryAfterMB");
-                    int memoryDeltaIdx = GetHeaderIndex(headers, "MemoryDeltaMB");
-                    int gcGen0Idx = GetHeaderIndex(headers, "GCGen0Delta");
-                    int gcGen1Idx = GetHeaderIndex(headers, "GCGen1Delta");
-                    int gcGen2Idx = GetHeaderIndex(headers, "GCGen2Delta");
-                    int profilingLogPathIdx = GetHeaderIndex(headers, "ProfilingLogPath");
-                    int detailedPathIdx = GetHeaderIndex(headers, "DetailedDiagnosticsCsvPath");
-                    int breakdownPathIdx = GetHeaderIndex(headers, "FailureBreakdownCsvPath");
-
-                    string? line;
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        if (string.IsNullOrWhiteSpace(line)) continue;
-
-                        var row = ParseCsvLine(line);
-                        var dto = new GARunHistoryDto
+                        string? headerLine = reader.ReadLine();
+                        if (string.IsNullOrWhiteSpace(headerLine))
                         {
-                            Timestamp = GetValue(row, timestampIdx),
-                            ProjectName = GetValue(row, projectNameIdx, "N/A"),
-                            ProjectFolderPath = GetValue(row, projectFolderPathIdx, "N/A"),
-                            IfcFileName = GetValue(row, ifcFileNameIdx, "N/A"),
-                            CraneNameOrId = GetValue(row, craneNameIdx, "N/A"),
-                            TotalTargetElements = GetValueInt(row, totalTargetElementsIdx),
-                            SelectedElements = GetValueInt(row, selectedElementsIdx),
-                            LiftedElements = GetValueInt(row, liftedElementsIdx),
-                            FailedElements = GetValueInt(row, failedElementsIdx),
-                            CoverageRatio = GetValue(row, coverageIdx, "0.00%"),
-                            HealthLabel = GetValue(row, healthLabelIdx, "Critical"),
-                            FinalCraneSetupCount = GetValueInt(row, setupCountIdx),
-                            GreedyIterations = GetValueInt(row, greedyIterationsIdx),
-                            PopulationSize = GetValueInt(row, popSizeIdx),
-                            ConfiguredGenerations = GetValueInt(row, configGenIdx),
-                            ActualGenerationLoopCount = GetValueInt(row, actualGenIdx),
-                            TotalGATimeMs = GetValue(row, totalGATimeIdx, "N/A"),
-                            ElementAssignmentTimeMs = GetValue(row, assignmentTimeIdx, "N/A"),
-                            CraneCapacityLookupCount = GetValue(row, capacityLookupCountIdx, "N/A"),
-                            CraneCapacityCacheHits = GetValue(row, capacityCacheHitsIdx, "N/A"),
-                            CraneCapacityCacheMisses = GetValue(row, capacityCacheMissesIdx, "N/A"),
-                            CraneCapacityCacheHitRatio = GetValue(row, capacityCacheHitRatioIdx, "0.00%"),
-                            MemoryBeforeMB = GetValue(row, memoryBeforeIdx, "N/A"),
-                            MemoryAfterMB = GetValue(row, memoryAfterIdx, "N/A"),
-                            MemoryDeltaMB = GetValue(row, memoryDeltaIdx, "N/A"),
-                            GCGen0Delta = GetValue(row, gcGen0Idx, "N/A"),
-                            GCGen1Delta = GetValue(row, gcGen1Idx, "N/A"),
-                            GCGen2Delta = GetValue(row, gcGen2Idx, "N/A"),
-                            ProfilingLogPath = GetValue(row, profilingLogPathIdx, "N/A"),
-                            DetailedDiagnosticsCsvPath = GetValue(row, detailedPathIdx, "N/A"),
-                            FailureBreakdownCsvPath = GetValue(row, breakdownPathIdx, "N/A")
-                        };
+                            continue;
+                        }
 
-                        results.Add(dto);
+                        var headers = ParseCsvLine(headerLine);
+
+                        int optimizationRunIdIdx = GetHeaderIndex(headers, "OptimizationRunId");
+                        int stageRunIdIdx = GetHeaderIndex(headers, "StageRunId");
+                        int timestampIdx = GetHeaderIndex(headers, "Timestamp");
+                        int projectNameIdx = GetHeaderIndex(headers, "ProjectName");
+                        int projectFolderPathIdx = GetHeaderIndex(headers, "ProjectFolderPath");
+                        int ifcFileNameIdx = GetHeaderIndex(headers, "IfcFileName");
+                        int craneNameIdx = GetHeaderIndex(headers, "CraneNameOrId");
+                        int totalTargetElementsIdx = GetHeaderIndex(headers, "TotalTargetElements");
+                        int selectedElementsIdx = GetHeaderIndex(headers, "SelectedElements");
+                        int liftedElementsIdx = GetHeaderIndex(headers, "LiftedElements");
+                        int failedElementsIdx = GetHeaderIndex(headers, "FailedElements");
+                        int coverageIdx = GetHeaderIndex(headers, "CoverageRatio");
+                        int healthLabelIdx = GetHeaderIndex(headers, "HealthLabel");
+                        int setupCountIdx = GetHeaderIndex(headers, "FinalCraneSetupCount");
+                        int greedyIterationsIdx = GetHeaderIndex(headers, "GreedyIterations");
+                        int popSizeIdx = GetHeaderIndex(headers, "PopulationSize");
+                        int configGenIdx = GetHeaderIndex(headers, "ConfiguredGenerations");
+                        int actualGenIdx = GetHeaderIndex(headers, "ActualGenerationLoopCount");
+                        int totalGATimeIdx = GetHeaderIndex(headers, "TotalGATimeMs");
+                        int assignmentTimeIdx = GetHeaderIndex(headers, "ElementAssignmentTimeMs");
+                        int capacityLookupCountIdx = GetHeaderIndex(headers, "CraneCapacityLookupCount");
+                        int capacityCacheHitsIdx = GetHeaderIndex(headers, "CraneCapacityCacheHits");
+                        int capacityCacheMissesIdx = GetHeaderIndex(headers, "CraneCapacityCacheMisses");
+                        int capacityCacheHitRatioIdx = GetHeaderIndex(headers, "CraneCapacityCacheHitRatio");
+                        int memoryBeforeIdx = GetHeaderIndex(headers, "MemoryBeforeMB");
+                        int memoryAfterIdx = GetHeaderIndex(headers, "MemoryAfterMB");
+                        int memoryDeltaIdx = GetHeaderIndex(headers, "MemoryDeltaMB");
+                        int gcGen0Idx = GetHeaderIndex(headers, "GCGen0Delta");
+                        int gcGen1Idx = GetHeaderIndex(headers, "GCGen1Delta");
+                        int gcGen2Idx = GetHeaderIndex(headers, "GCGen2Delta");
+                        int profilingLogPathIdx = GetHeaderIndex(headers, "ProfilingLogPath");
+                        int detailedPathIdx = GetHeaderIndex(headers, "DetailedDiagnosticsCsvPath");
+                        int breakdownPathIdx = GetHeaderIndex(headers, "FailureBreakdownCsvPath");
+
+                        string? line;
+                        while ((line = reader.ReadLine()) != null)
+                        {
+                            if (string.IsNullOrWhiteSpace(line)) continue;
+
+                            var row = ParseCsvLine(line);
+                            var dto = new GARunHistoryDto
+                            {
+                                OptimizationRunId = GetValue(row, optimizationRunIdIdx, string.Empty),
+                                StageRunId = GetValue(row, stageRunIdIdx, string.Empty),
+                                Timestamp = GetValue(row, timestampIdx),
+                                ProjectName = GetValue(row, projectNameIdx, "N/A"),
+                                ProjectFolderPath = GetValue(row, projectFolderPathIdx, "N/A"),
+                                IfcFileName = GetValue(row, ifcFileNameIdx, "N/A"),
+                                CraneNameOrId = GetValue(row, craneNameIdx, "N/A"),
+                                TotalTargetElements = GetValueInt(row, totalTargetElementsIdx),
+                                SelectedElements = GetValueInt(row, selectedElementsIdx),
+                                LiftedElements = GetValueInt(row, liftedElementsIdx),
+                                FailedElements = GetValueInt(row, failedElementsIdx),
+                                CoverageRatio = GetValue(row, coverageIdx, "0.00%"),
+                                HealthLabel = GetValue(row, healthLabelIdx, "Critical"),
+                                FinalCraneSetupCount = GetValueInt(row, setupCountIdx),
+                                GreedyIterations = GetValueInt(row, greedyIterationsIdx),
+                                PopulationSize = GetValueInt(row, popSizeIdx),
+                                ConfiguredGenerations = GetValueInt(row, configGenIdx),
+                                ActualGenerationLoopCount = GetValueInt(row, actualGenIdx),
+                                TotalGATimeMs = GetValue(row, totalGATimeIdx, "N/A"),
+                                ElementAssignmentTimeMs = GetValue(row, assignmentTimeIdx, "N/A"),
+                                CraneCapacityLookupCount = GetValue(row, capacityLookupCountIdx, "N/A"),
+                                CraneCapacityCacheHits = GetValue(row, capacityCacheHitsIdx, "N/A"),
+                                CraneCapacityCacheMisses = GetValue(row, capacityCacheMissesIdx, "N/A"),
+                                CraneCapacityCacheHitRatio = GetValue(row, capacityCacheHitRatioIdx, "0.00%"),
+                                MemoryBeforeMB = GetValue(row, memoryBeforeIdx, "N/A"),
+                                MemoryAfterMB = GetValue(row, memoryAfterIdx, "N/A"),
+                                MemoryDeltaMB = GetValue(row, memoryDeltaIdx, "N/A"),
+                                GCGen0Delta = GetValue(row, gcGen0Idx, "N/A"),
+                                GCGen1Delta = GetValue(row, gcGen1Idx, "N/A"),
+                                GCGen2Delta = GetValue(row, gcGen2Idx, "N/A"),
+                                ProfilingLogPath = GetValue(row, profilingLogPathIdx, "N/A"),
+                                DetailedDiagnosticsCsvPath = GetValue(row, detailedPathIdx, "N/A"),
+                                FailureBreakdownCsvPath = GetValue(row, breakdownPathIdx, "N/A")
+                            };
+
+                            string key = $"{dto.Timestamp}_{dto.OptimizationRunId}_{dto.StageRunId}";
+                            if (seenKeys.Add(key))
+                            {
+                                results.Add(dto);
+                            }
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[GADiagnosticsReaderService] Error reading history: {ex.Message}");
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[GADiagnosticsReaderService] Error reading history file {historyPath}: {ex.Message}");
+                }
             }
 
             return results;
@@ -140,6 +162,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         {
             var results = new List<GAElementDiagnosticDto>();
 
+            detailedCsvPath = ResolvePathWithFallback(detailedCsvPath);
             if (string.IsNullOrWhiteSpace(detailedCsvPath) || !File.Exists(detailedCsvPath))
             {
                 return results;
@@ -236,6 +259,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     int bestFailedSafetyMarginIdx = GetHeaderIndex(headers, "BestFailedSafetyMargin");
                     int bestFailedRequiredRadiusIdx = GetHeaderIndex(headers, "BestFailedRequiredRadius");
                     int bestFailedRequiredBoomLengthIdx = GetHeaderIndex(headers, "BestFailedRequiredBoomLength");
+
+                    // Phase 5: Canonical Display Identity (optional columns; backward compatible)
+                    int canonicalMarkIdx = GetHeaderIndex(headers, "CanonicalMark");
+                    int markSourceIdx = GetHeaderIndex(headers, "MarkSource");
+                    int markConfidenceIdx = GetHeaderIndex(headers, "MarkConfidence");
+                    int isExplicitMarkIdx = GetHeaderIndex(headers, "IsExplicitMark");
 
                     string? line;
                     while ((line = reader.ReadLine()) != null)
@@ -337,7 +366,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                             BestFailedChartStatus = GetValue(row, bestFailedChartStatusIdx),
                             BestFailedSafetyMargin = GetValueDouble(row, bestFailedSafetyMarginIdx, 0.0),
                             BestFailedRequiredRadius = GetValueDouble(row, bestFailedRequiredRadiusIdx, 0.0),
-                            BestFailedRequiredBoomLength = GetValueDouble(row, bestFailedRequiredBoomLengthIdx, 0.0)
+                            BestFailedRequiredBoomLength = GetValueDouble(row, bestFailedRequiredBoomLengthIdx, 0.0),
+
+                            // Phase 5: Canonical Display Identity (empty string when reading old CSVs)
+                            CanonicalMark = GetValue(row, canonicalMarkIdx, string.Empty),
+                            MarkSource = GetValue(row, markSourceIdx, string.Empty),
+                            MarkConfidence = GetValue(row, markConfidenceIdx, string.Empty),
+                            IsExplicitMark = GetValueBool(row, isExplicitMarkIdx)
                         };
 
                         results.Add(dto);
@@ -356,6 +391,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
         {
             var results = new List<GAFailureBreakdownDto>();
 
+            breakdownCsvPath = ResolvePathWithFallback(breakdownCsvPath);
             if (string.IsNullOrWhiteSpace(breakdownCsvPath) || !File.Exists(breakdownCsvPath))
             {
                 return results;
@@ -406,26 +442,145 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
         #region Helper Primitives
 
-        /// <summary>
-        /// Searches <paramref name="rootDir"/> and all of its subdirectories for a file
-        /// named <paramref name="fileName"/>, returning the path of the first match found,
-        /// or <c>null</c> if no match exists or the directory does not exist.
-        /// </summary>
-        private static string? FindHistoryFile(string rootDir, string fileName)
+        private static IEnumerable<string> EnumerateHistoryFiles(string rootDir)
         {
             if (!Directory.Exists(rootDir))
-                return null;
+                yield break;
 
-            try
+            var patterns = new[]
             {
-                foreach (string found in Directory.EnumerateFiles(rootDir, fileName, SearchOption.AllDirectories))
+                "debug_ga_run_history_*.csv",
+                "debug_ga_run_history.csv",
+                "ga_audit_run_history.csv",
+                "ga_run_history.csv"
+            };
+
+            var foundFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var pattern in patterns)
+            {
+                IEnumerable<string> files;
+                try
                 {
-                    return found;
+                    files = Directory.EnumerateFiles(rootDir, pattern, SearchOption.AllDirectories);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[GADiagnosticsReaderService] EnumerateHistoryFiles error for pattern {pattern}: {ex.Message}");
+                    continue;
+                }
+
+                foreach (var file in files)
+                {
+                    if (foundFiles.Add(file))
+                    {
+                        yield return file;
+                    }
                 }
             }
-            catch (Exception ex)
+        }
+
+        private string ResolvePathWithFallback(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return path;
+
+            if (File.Exists(path))
+                return path;
+
+            // 1. Try translating filename in the same directory first
+            string? sameFolderTranslated = TryTranslateFilename(path);
+            if (sameFolderTranslated != null && File.Exists(sameFolderTranslated))
+                return sameFolderTranslated;
+
+            // 2. If not found and _outputPathService is available, reconstruct relative to the active project root
+            if (_outputPathService != null)
             {
-                System.Diagnostics.Debug.WriteLine($"[GADiagnosticsReaderService] FindHistoryFile error: {ex.Message}");
+                try
+                {
+                    string activeRoot = _outputPathService.GetProjectRoot();
+                    if (!string.IsNullOrEmpty(activeRoot) && Directory.Exists(activeRoot))
+                    {
+                        // Look for "Reports" directory segment
+                        int reportsIdx = path.IndexOf(Path.DirectorySeparatorChar + "Reports" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+                        if (reportsIdx < 0)
+                        {
+                            reportsIdx = path.IndexOf(Path.AltDirectorySeparatorChar + "Reports" + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+                        }
+
+                        if (reportsIdx >= 0)
+                        {
+                            string relativeSegment = path.Substring(reportsIdx + 1); // e.g. "Reports/GA/run-123/debug_ga_diagnostics_..."
+                            string newPath = Path.Combine(activeRoot, relativeSegment);
+                            if (File.Exists(newPath))
+                                return newPath;
+
+                            string? newFolderTranslated = TryTranslateFilename(newPath);
+                            if (newFolderTranslated != null && File.Exists(newFolderTranslated))
+                                return newFolderTranslated;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore path resolution errors (e.g. if project root throws because no project is active)
+                }
+            }
+
+            return path;
+        }
+
+        private string? TryTranslateFilename(string originalPath)
+        {
+            try
+            {
+                string directory = Path.GetDirectoryName(originalPath) ?? string.Empty;
+                if (!Directory.Exists(directory))
+                    return null;
+
+                string filename = Path.GetFileName(originalPath);
+
+                // Detailed diagnostics translation
+                if (filename.Contains("ga_diagnostics") || filename.Contains("ga_audit_diagnostics"))
+                {
+                    var patterns = new[]
+                    {
+                        "debug_ga_diagnostics_*.csv",
+                        "ga_audit_diagnostics_*.csv",
+                        "debug_ga_diagnostics.csv",
+                        "ga_audit_diagnostics.csv"
+                    };
+                    foreach (var pattern in patterns)
+                    {
+                        foreach (var file in Directory.EnumerateFiles(directory, pattern))
+                        {
+                            return file;
+                        }
+                    }
+                }
+
+                // Failure breakdown translation
+                if (filename.Contains("failure_breakdown") || filename.Contains("ga_audit_failure_breakdown"))
+                {
+                    var patterns = new[]
+                    {
+                        "debug_ga_failure_breakdown_*.csv",
+                        "ga_audit_failure_breakdown_*.csv",
+                        "debug_ga_failure_breakdown.csv",
+                        "ga_audit_failure_breakdown.csv"
+                    };
+                    foreach (var pattern in patterns)
+                    {
+                        foreach (var file in Directory.EnumerateFiles(directory, pattern))
+                        {
+                            return file;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore folder access errors, etc.
             }
 
             return null;

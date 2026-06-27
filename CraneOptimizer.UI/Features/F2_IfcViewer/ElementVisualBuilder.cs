@@ -446,8 +446,29 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                     }
                 }
 
-                // E. Set Diagnostics counters
+                // E. Create transparent hit-test boxes when spatial hit testing is disabled
                 var hitBoxesCount = 0;
+                if (!UseSpatialHitTestingInsteadOfTransparentBoxes)
+                {
+                    foreach (var item in itemsList)
+                    {
+                        if (!item.isSelected)
+                        {
+                            try
+                            {
+                                var hitBox = CreateTransparentHitBox(item.element, origin, placementOffset);
+                                batchVisual.Children.Add(hitBox);
+                                modelVisualsCreated++;
+                                hitBoxesCount++;
+                            }
+                            catch
+                            {
+                            }
+                        }
+                    }
+                }
+
+                // F. Set Diagnostics counters
                 DiagMeshesCreated += meshesCreated;
                 DiagMeshCacheHits += meshesReused;
                 DiagMeshCacheMisses += meshesCreated;

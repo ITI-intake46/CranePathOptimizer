@@ -94,12 +94,18 @@ public static class ReportTemplateCatalog
             [
                 Column("No", "No.", ReportColumnValueKind.Number, 0, "Identity"),
                 Column("ElementMark", "Element Mark", ReportColumnValueKind.Text, 1, "Identity"),
-                Column("WeightTons", "Weight", ReportColumnValueKind.Tons, 2, "Weight and Capacity"),
-                Column("WeightVerified", "Weight Verified", ReportColumnValueKind.YesNo, 3, "Weight and Capacity"),
-                Column("WeightStatus", "Weight Status", ReportColumnValueKind.Status, 4, "Weight and Capacity"),
-                Column("IncludedInCraneOptimization", "Included in GA Input", ReportColumnValueKind.YesNo, 5, "Review / Lift Status"),
-                Column("ReadyForGa", "Ready for GA", ReportColumnValueKind.YesNo, 6, "Review / Lift Status"),
-                Column("MissingReadinessReason", "Missing Readiness Reason", ReportColumnValueKind.Warning, 7, "Review / Lift Status")
+                Column("MarkConfidence", "Mark Confidence", ReportColumnValueKind.Text, 2, "Identity"),
+                Column("ValidationStatus", "Validation Status", ReportColumnValueKind.Status, 3, "Review / Lift Status"),
+                Column("ValidationWarnings", "Validation Warnings", ReportColumnValueKind.Warning, 4, "Review / Lift Status"),
+                Column("WeightTons", "Weight", ReportColumnValueKind.Tons, 5, "Weight and Capacity"),
+                Column("WeightTrustLevel", "Weight Trust Level", ReportColumnValueKind.Text, 6, "Weight and Capacity"),
+                Column("WeightVerified", "Weight Verified", ReportColumnValueKind.YesNo, 7, "Weight and Capacity"),
+                Column("WeightStatus", "Weight Status", ReportColumnValueKind.Status, 8, "Weight and Capacity"),
+                Column("IncludedInCraneOptimization", "Included in GA Input", ReportColumnValueKind.YesNo, 9, "Review / Lift Status"),
+                Column("ReadyForGa", "Ready for GA", ReportColumnValueKind.YesNo, 10, "Review / Lift Status"),
+                Column("ReadinessStatus", "Readiness Status", ReportColumnValueKind.Status, 11, "Review / Lift Status"),
+                Column("MissingReadinessReason", "Missing Readiness Reason", ReportColumnValueKind.Warning, 12, "Review / Lift Status"),
+                Column("BlockingReasons", "Blocking Reasons", ReportColumnValueKind.Warning, 13, "Review / Lift Status")
             ]
         },
         new()
@@ -148,6 +154,12 @@ public static class ReportTemplateCatalog
         Column("IncludedInCraneOptimization", "Included in GA Input", ReportColumnValueKind.YesNo, 60, "Review / Lift Status", isSelected: false),
         Column("ReadyForGa", "Ready for GA", ReportColumnValueKind.YesNo, 61, "Review / Lift Status", isSelected: false),
         Column("MissingReadinessReason", "Missing Readiness Reason", ReportColumnValueKind.Warning, 62, "Review / Lift Status", isSelected: false),
+        Column("MarkConfidence", "Mark Confidence", ReportColumnValueKind.Text, 63, "Identity", isSelected: false),
+        Column("ValidationStatus", "Validation Status", ReportColumnValueKind.Status, 64, "Review / Lift Status", isSelected: false),
+        Column("ValidationWarnings", "Validation Warnings", ReportColumnValueKind.Warning, 65, "Review / Lift Status", isSelected: false),
+        Column("WeightTrustLevel", "Weight Trust Level", ReportColumnValueKind.Text, 66, "Weight and Capacity", isSelected: false),
+        Column("ReadinessStatus", "Readiness Status", ReportColumnValueKind.Status, 67, "Review / Lift Status", isSelected: false),
+        Column("BlockingReasons", "Blocking Reasons", ReportColumnValueKind.Warning, 68, "Review / Lift Status", isSelected: false),
         GaColumn("LiftStatus", "Lift Status", ReportColumnValueKind.Status, "Lift Result", 80, isSelected: false),
         GaColumn("FailureReason", "Failure Reason", ReportColumnValueKind.Warning, "Lift Result", 81, isSelected: false),
         GaColumn("SuggestedAction", "Suggested Action", ReportColumnValueKind.Warning, "Lift Result", 82, isSelected: false),

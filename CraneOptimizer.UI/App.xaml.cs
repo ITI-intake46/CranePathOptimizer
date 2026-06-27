@@ -105,6 +105,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IUnitSettingsService, UnitSettingsService>();
             services.AddSingleton<IIfcDiagnosticAuditService, IfcDiagnosticAuditService>();
             services.AddSingleton<IIfcExporterProfileResolver, IfcExporterProfileResolver>();
+            services.AddSingleton<ICentralIfcPropertyAliasResolver, CentralIfcPropertyAliasResolver>();
             services.AddSingleton<IIfcNormalizationDecisionService, IfcNormalizationDecisionService>();
 
             // =========================
@@ -115,6 +116,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<ISceneGridSizingService, SceneGridSizingService>();
             services.AddSingleton<IElementVisibilityFilterService, ElementVisibilityFilterService>();
             services.AddSingleton<IIfcSceneOperationService, IfcSceneOperationService>();
+            services.AddSingleton<IImportReadinessService, ImportReadinessService>();
 
             // =========================
             // F10 Project Management
@@ -124,6 +126,12 @@ namespace CraneOptimizer.UI
             services.AddTransient<IProjectService, ProjectService>();
             services.AddSingleton<IProjectShellService, ProjectShellService>();
             services.AddSingleton<IProjectNavigationService, ProjectNavigationService>();
+
+            // =========================
+            // Project Output Path Services (Phase 5E)
+            // =========================
+            services.AddSingleton<IActiveProjectPathProvider, UiActiveProjectPathProvider>();
+            services.AddSingleton<IProjectOutputPathService, ProjectOutputPathService>();
 
             services.AddTransient<SplashScreenViewModel>();
             services.AddTransient<ProjectManagementViewModel>();
@@ -165,10 +173,12 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IReportValidator, ReportValidator>();
             services.AddSingleton<IReportValueFormatter, ReportValueFormatter>();
             services.AddSingleton<IReportDefinitionProvider, ReportDefinitionProvider>();
+#pragma warning disable CS0618
             services.AddSingleton<IReportExportService, ReportExportService>();
             services.AddSingleton<IReportExporter, CsvReportExporter>();
             services.AddSingleton<IReportExporter, PdfReportExporter>();
             services.AddSingleton<IReportBuilder<OptimizationReportInput>, OptimizationSummaryReportBuilder>();
+#pragma warning restore CS0618
             services.AddSingleton<CraneOptimizer.Application.Reports.Services.IReportBuilder, UserFacingReportBuilder>();
             services.AddSingleton<IReportableElementResolver, ReportableElementResolver>();
             services.AddSingleton<IElementReportDataProvider, ElementReportDataProvider>();

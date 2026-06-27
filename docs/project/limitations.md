@@ -34,15 +34,24 @@ This document lists the assumptions, simplifications, and architectural limitati
 
 ## 3. Data & Material Assumptions
 
-### E. Material Density Fallbacks
+### E. Material Density Fallbacks & GA Safety Gating
 *   **Limitation:** When an IFC element lacks explicit weight or volume metadata, the extraction pipeline falls back to hardcoded density coefficients to estimate weight.
 *   **Code Reference:** Implemented in [IfcReaderRepository.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Infrastructure/Repositories/IfcReaderRepository.cs).
-*   **Assumption:** Concrete fallback weight estimation assumes a density of exactly $2500 \text{ kg/m}^3$. Other heuristic fallbacks include:
+*   **Assumption/Safety Gating:** Concrete fallback weight estimation assumes a density of exactly $2500 \text{ kg/m}^3$. Other heuristic fallbacks include:
     *   Steel: $7850 \text{ kg/m}^3$
     *   Aluminum: $2700 \text{ kg/m}^3$
     *   Glass: $2500 \text{ kg/m}^3$
     *   Timber: $600 \text{ kg/m}^3$
-*   Elements with untrusted weights are marked as `EstimatedFallback_NotAllowedForGA` and excluded from the optimization target set.
+*   **Safety Rule:** Any elements resolved through fallback estimation are marked with `WeightTrustLevel = EstimatedFallback_NotAllowedForGA`. These elements are **strictly blocked** from entering GA layout optimization passes, regardless of their `IncludeInGa` property. There is no user override for this gate in Phase 1.
+
+### E2. Parent-Assembly Child Exclusion (Double-Counting Prevention)
+*   **Limitation:** Parent assemblies and child parts must not both be sent to GA optimization if the parent is the liftable unit.
+*   **Code Reference:** Implemented in [CranePlacementService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Services/CranePlacementService.cs).
+*   **Gating Rule:** If a parent assembly (`Role == LiftAssembly` or `LiftableElement`) is present in the optimization set with a trusted weight, its children components/parts are automatically excluded from the active GA target list to prevent weight/coordinate double-counting.
+
+### E3. Canonical Identity Mapping Limitations
+*   **Limitation:** Relying on IFC property sets for assembly marks can be unreliable because property names, configurations, and structures vary wildly between export tools (Tekla vs. Revit vs. standard IFC) and custom user templates.
+*   **Upcoming Direct JSON Exports:** In future phases, the system will support Tekla/Revit native add-ins exporting canonical JSON business data. In this model, the IFC file will only be responsible for 3D mesh geometry and GlobalId mappings, while the JSON file provides the authoritative, high-confidence canonical business properties, bypassing the heuristic IFC property set mapping chain.
 
 ---
 
@@ -84,3 +93,38 @@ This document lists the assumptions, simplifications, and architectural limitati
 ### L. Excluded Export Reports
 *   **Limitation:** PDF, Excel, and standard UI reports do not output survey coordinates.
 *   **Assumption:** Export integration remains out of scope for the current GIS epic phases.
+
+---
+
+## 6. Model Import Readiness & Diagnostics
+
+### M. Optional Element Checker Diagnostics
+*   **Limitation:** The Import Readiness service performs diagnostic evaluation on the active GA scoped element list when the `Element Checker` toggle is enabled. 
+*   **Code Reference:** Implemented in `ImportReadinessService` and `CraneOptimizerDialogViewModel`.
+*   **Behavior when Disabled:** Turning OFF the `Element Checker` toggle skips all warning breakdowns and returns a neutral `Not Checked` state. It does not alter elements or disable existing GA safety gates or eligibility criteria required by the optimizer.
+*   **GA Blocking Rule:** The optimizer blocks runs and alerts the user only when there are zero valid candidate elements for GA optimization. Other warnings/errors do not block execution.
+
+---
+
+## 7. Reports & Identity Single Source of Truth
+
+### N. Read-Only Canonical Identity & Presentation Alignment
+*   **Limitation:** The canonical identity (`AssemblyMark`, `MarkConfidence`, `DisplayLabel`) and validation fields (`ValidationStatus`, `ValidationWarnings`, `WeightTrustLevel`) are read-only and resolved at presentation or mapping boundaries. They do not feed back into the database entities or mutate source IFC models.
+*   **Single Source of Truth Rules:**
+    *   **Identity Resolution:** Formatted display labels must always be resolved via [CanonicalMarkResolver.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/Identity/CanonicalMarkResolver.cs) using `CanonicalMarkResolver.Resolve()`. No raw fallback expressions (`ElementMark ?? Name ?? GlobalId`) should be implemented in presentation or builders.
+    *   **Weight Verification:** Weight status and warnings are mapped strictly via [ReportWeightMapper.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Reports/Services/ReportWeightMapper.cs).
+    *   **GA Result Display:** GA outputs must rely on [ElementLiftResult](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/DTOs/PlacementResult.cs) values mapped during the placement engine pass, rather than re-running spatial optimization queries.
+
+---
+
+## 8. Output & Storage Governance
+
+### O. File Storage and Path Resolution Fallbacks
+*   **Centralized Path Resolution:** All output path generation is centralized inside [IProjectOutputPathService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Services/IProjectOutputPathService.cs), preventing raw path concatenation and local fallback duplication across the codebase.
+*   **Project Context Gating:**
+    *   **With Active Project:** Generated reports (PDF, Excel) are stored in `Exports/PDF/` and `Exports/Excel/`. GA diagnostics are stored in `Reports/GA/<RunId>/`. IFC audit/normalization preview reports are stored in `Reports/IFC_Audit/`. GA profiling logs are stored in `Logs/GA/`.
+    *   **Fallback Without Project:** Silent local/system folder fallbacks are strictly disabled. The services and UI will throw or block action if no active project session is loaded.
+*   **Database Referencing:** Exported PDF/Excel reports, CSV run matrices, and TXT profiling summaries are external files. They are **not georeferenced or tracked** in the SQLite `.craneopt` database. Deleting or modifying these external files has no effect on the database session state.
+*   **Cleanup and Retention:** The application does not enforce automatic log rotation or size-based retention limits. Exported diagnostics and logs are retained indefinitely.
+
+

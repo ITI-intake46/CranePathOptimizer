@@ -53,43 +53,17 @@ namespace CraneOptimizer.UI.Features.F0_CoordinateSystem
 
         public PrecastElement NormalizeElementToMeters(PrecastElement element)
         {
-            return new PrecastElement
-            {
-                ElementID = element.ElementID,
-                ElementRevitId = element.ElementRevitId,
-                ElementMark = element.ElementMark,
-                ElementType = element.ElementType,
-                ElementLength = NormalizeNullableLength(element.ElementLength),
-                ElementWidth = NormalizeNullableLength(element.ElementWidth),
-                ElementHeight = NormalizeNullableLength(element.ElementHeight),
-                ElementMaterial = element.ElementMaterial,
-                ElementWT = element.ElementWT,
-                ElementVolume = element.ElementVolume,
-                ElementCOG = NormalizePoint(element.ElementCOG),
-                BBoxLength = NormalizeNullableLength(element.BBoxLength),
-                BBoxWidth = NormalizeNullableLength(element.BBoxWidth),
-                BBoxHeight = NormalizeNullableLength(element.BBoxHeight),
-
-                // Copy and preserve all Phase 2A Normalization properties
-                RawIfcType = element.RawIfcType,
-                ResolvedCategory = element.ResolvedCategory,
-                Role = element.Role,
-                ParentGlobalId = element.ParentGlobalId,
-                ChildGlobalIds = new List<string>(element.ChildGlobalIds ?? new()),
-                VisibleGeometryOwnerGlobalIds = new List<string>(element.VisibleGeometryOwnerGlobalIds ?? new()),
-                HiddenInternalGeometryOwnerGlobalIds = new List<string>(element.HiddenInternalGeometryOwnerGlobalIds ?? new()),
-                IncludeInRender = element.IncludeInRender,
-                IncludeInElementTree = element.IncludeInElementTree,
-                IncludeInGa = element.IncludeInGa,
-                WeightTons = element.WeightTons,
-                WeightSource = element.WeightSource,
-                WeightTrustLevel = element.WeightTrustLevel,
-                VolumeM3 = element.VolumeM3,
-                COG_M = NormalizePoint(element.COG_M),
-                BoundingBox_M = NormalizePoint(element.BoundingBox_M),
-                ExtractionWarnings = new List<string>(element.ExtractionWarnings ?? new()),
-                NormalizationDecisionReason = element.NormalizationDecisionReason
-            };
+            var normalized = element.CreateCopy();
+            normalized.ElementLength = NormalizeNullableLength(element.ElementLength);
+            normalized.ElementWidth = NormalizeNullableLength(element.ElementWidth);
+            normalized.ElementHeight = NormalizeNullableLength(element.ElementHeight);
+            normalized.ElementCOG = NormalizePoint(element.ElementCOG);
+            normalized.BBoxLength = NormalizeNullableLength(element.BBoxLength);
+            normalized.BBoxWidth = NormalizeNullableLength(element.BBoxWidth);
+            normalized.BBoxHeight = NormalizeNullableLength(element.BBoxHeight);
+            normalized.COG_M = NormalizePoint(element.COG_M);
+            normalized.BoundingBox_M = NormalizePoint(element.BoundingBox_M);
+            return normalized;
         }
 
         public GreenAreaZone NormalizeZoneToMeters(GreenAreaZone zone)

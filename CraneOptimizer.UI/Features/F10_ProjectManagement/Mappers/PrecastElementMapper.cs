@@ -30,7 +30,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers
                 IfcFileId = ifcFileId,
                 GlobalId = domain.ElementID,
                 Name = domain.ElementRevitId,
-                DisplayName = domain.ElementName ?? domain.ElementMark,
+                DisplayName = domain.ElementName,
                 Mark = domain.ElementMark,
                 ElementType = domain.ElementType,
                 Material = domain.ElementMaterial,
@@ -66,6 +66,16 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers
                 ExtractionWarningsJson = SerializeList(domain.ExtractionWarnings),
                 NormalizationDecisionReason = domain.NormalizationDecisionReason,
 
+                // Canonical Assembly Persistence (Phase 2)
+                AssemblyMark = domain.AssemblyMark,
+                AssemblyMarkSource = domain.AssemblyMarkSource,
+                AssemblyMarkConfidence = domain.AssemblyMarkConfidence.ToString(),
+                AssemblyMarkIsExplicit = domain.AssemblyMarkIsExplicit,
+                SourceSystem = domain.SourceSystem.ToString(),
+                ExporterProfile = domain.ExporterProfile.ToString(),
+                ValidationStatus = domain.ValidationStatus.ToString(),
+                ValidationWarningsJson = SerializeList(domain.ValidationWarnings),
+
                 CachedAtUtc = DateTime.UtcNow
             };
         }
@@ -90,6 +100,10 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers
 
             _ = Enum.TryParse<IfcElementRole>(entity.Role, out var role);
             _ = Enum.TryParse<IfcWeightTrustLevel>(entity.WeightTrustLevel, out var trustLevel);
+            _ = Enum.TryParse<AssemblyMarkConfidence>(entity.AssemblyMarkConfidence, out var confidence);
+            _ = Enum.TryParse<SourceSystem>(entity.SourceSystem, out var sourceSys);
+            _ = Enum.TryParse<IfcExporterProfile>(entity.ExporterProfile, out var exporterProf);
+            _ = Enum.TryParse<ValidationStatus>(entity.ValidationStatus, out var status);
 
             return new PrecastElement
             {
@@ -127,7 +141,17 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers
                 COG_M = cog,
                 BoundingBox_M = bbox,
                 ExtractionWarnings = DeserializeList(entity.ExtractionWarningsJson),
-                NormalizationDecisionReason = entity.NormalizationDecisionReason ?? string.Empty
+                NormalizationDecisionReason = entity.NormalizationDecisionReason ?? string.Empty,
+
+                // Canonical Assembly Persistence (Phase 2)
+                AssemblyMark = entity.AssemblyMark,
+                AssemblyMarkSource = entity.AssemblyMarkSource,
+                AssemblyMarkConfidence = confidence,
+                AssemblyMarkIsExplicit = entity.AssemblyMarkIsExplicit,
+                SourceSystem = sourceSys,
+                ExporterProfile = exporterProf,
+                ValidationStatus = status,
+                ValidationWarnings = DeserializeList(entity.ValidationWarningsJson)
             };
         }
 

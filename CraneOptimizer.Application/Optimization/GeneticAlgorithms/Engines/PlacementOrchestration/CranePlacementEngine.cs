@@ -12,6 +12,7 @@ using System.Linq;
 using System.Threading;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Services.Identity;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.PlacementOrchestration
 {
@@ -287,7 +288,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                         logDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Logs", "GA");
                     }
                     System.IO.Directory.CreateDirectory(logDir);
-                    string fileName = $"ga_profile_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+                    string fileName = $"log_ga_profile_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
                     string fullPath = System.IO.Path.Combine(logDir, fileName);
 
                     GAProfiler.ProfilingLogPath = fullPath;
@@ -448,10 +449,26 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 ? new Domain.Common.DomainPoint3D()
                 : element.ElementCOG;
 
+            var identity = element != null ? CanonicalMarkResolver.Resolve(element) : null;
+
+            bool isGroup = element?.ChildGlobalIds != null && element.ChildGlobalIds.Count > 0;
+            string? memberIdsJoined = isGroup ? string.Join("\n- ", element!.ChildGlobalIds) : null;
+
             return new ElementLiftResult
             {
                 ElementId = evaluation.ElementId,
+                IsAssemblyGroup = isGroup,
+                AssemblyMemberCount = isGroup ? element!.ChildGlobalIds.Count : 0,
+                AssemblyMemberIdsJoined = memberIdsJoined,
                 ElementMark = element?.ElementMark,
+                CanonicalMark = identity?.DisplayLabel,
+                MarkSource = identity?.MarkSource,
+                MarkConfidence = identity?.MarkConfidence,
+                IsExplicitMark = identity?.IsExplicitMark ?? false,
+                ValidationStatus = identity?.ValidationStatus,
+                WeightTrustLevel = element?.WeightTrustLevel.ToString(),
+                ValidationWarningCount = identity?.ValidationWarnings?.Count ?? 0,
+                ValidationWarningsJoined = identity?.ValidationWarnings != null ? string.Join("; ", identity.ValidationWarnings) : string.Empty,
                 ElementType = element?.ElementType,
                 Weight = element?.ElementWT,
                 CogX = cog.X,
@@ -537,6 +554,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                     {
                         ElementId = er.ElementId,
                         ElementMark = er.ElementMark,
+                        CanonicalMark = er.CanonicalMark,
+                        MarkSource = er.MarkSource,
+                        MarkConfidence = er.MarkConfidence,
+                        IsExplicitMark = er.IsExplicitMark,
                         ElementType = er.ElementType,
                         Weight = er.Weight,
                         CogX = er.CogX,

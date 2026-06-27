@@ -1,4 +1,7 @@
 using CraneOptimizer.Application.Reports.DTOs;
+using CraneOptimizer.Application.Services;
+using CraneOptimizer.Application.Services.Identity;
+using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Reports.Services;
@@ -6,48 +9,61 @@ namespace CraneOptimizer.Application.Reports.Services;
 public sealed class ElementReportDataProvider : IElementReportDataProvider
 {
     private readonly IReportableElementResolver _resolver;
+    private readonly IImportReadinessService _readinessService;
 
-    public ElementReportDataProvider(IReportableElementResolver resolver)
+    public ElementReportDataProvider(
+        IReportableElementResolver resolver,
+        IImportReadinessService readinessService)
     {
         _resolver = resolver;
+        _readinessService = readinessService;
     }
 
     public IReadOnlyList<ElementReportRowDto> BuildRows(
         string templateName,
-        string itemsIncluded,
-        IEnumerable<PrecastElement> sourceElements,
-        IEnumerable<PrecastElement> selectedElements)
+        IEnumerable<PrecastElement> scopedElements)
     {
-        var selectedIds = selectedElements
-            .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
-            .Select(element => element.ElementID)
-            .ToHashSet(StringComparer.Ordinal);
-
-        var scoped = ApplyItemsIncluded(sourceElements, itemsIncluded, selectedIds);
-        var reportable = _resolver.ResolveReportableElements(scoped);
+        var elementsList = scopedElements.ToList();
+        var reportable = _resolver.ResolveReportableElements(elementsList);
         var filtered = ApplyTemplateFilter(reportable, templateName);
         var levelLabels = BuildLevelLabels(filtered);
 
+        var readinessSummary = _readinessService.BuildSummary(filtered, isCheckerEnabled: true);
+        var lookup = BuildElementReadinessLookup(readinessSummary);
+
         return filtered
-            .Select((element, index) => ToRow(element, index + 1, levelLabels))
+            .Select((element, index) => ToRow(element, index + 1, levelLabels, lookup))
             .ToList();
     }
 
-    private static IEnumerable<PrecastElement> ApplyItemsIncluded(
-        IEnumerable<PrecastElement> sourceElements,
-        string itemsIncluded,
-        ISet<string> selectedIds)
+    private sealed class ElementReadinessInfo
     {
-        return itemsIncluded switch
-        {
-            "Rendered Elements Only" => sourceElements.Where(element => element.IncludeInRender),
-            "GA-Ready Elements" => sourceElements.Where(IsGaReady),
-            "Needs Review Elements" => sourceElements.Where(element => ReportWeightMapper.Map(element).WeightStatus != "OK" || !element.IncludeInGa),
-            "Selected Elements Only" => sourceElements.Where(element => !string.IsNullOrWhiteSpace(element.ElementID) && selectedIds.Contains(element.ElementID)),
-            _ => sourceElements
-        };
+        public string ValidationStatus { get; init; } = "Valid";
+        public string ValidationWarnings { get; init; } = "\u2014";
+        public string ReadyForGa { get; init; } = "No";
+        public string MissingReadinessReason { get; init; } = "\u2014";
     }
 
+    private static IReadOnlyDictionary<string, ElementReadinessInfo> BuildElementReadinessLookup(
+        ImportReadinessSummary readinessSummary) =>
+        readinessSummary.ElementDiagnostics
+            .Where(diagnostic => !string.IsNullOrWhiteSpace(diagnostic.ElementId))
+            .GroupBy(diagnostic => diagnostic.ElementId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                {
+                    var diagnostic = group.First();
+                    var blockingReasons = JoinMessages(diagnostic.BlockingReasons);
+                    return new ElementReadinessInfo
+                    {
+                        ValidationStatus = diagnostic.ReadinessStatus,
+                        ValidationWarnings = JoinMessages(diagnostic.WarningMessages),
+                        ReadyForGa = diagnostic.IsReadyForGa ? "Yes" : "No",
+                        MissingReadinessReason = diagnostic.IsReadyForGa ? "\u2014" : blockingReasons
+                    };
+                },
+                StringComparer.OrdinalIgnoreCase);
     private static IReadOnlyList<PrecastElement> ApplyTemplateFilter(
         IReadOnlyList<PrecastElement> elements,
         string templateName)
@@ -68,22 +84,43 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
     private static ElementReportRowDto ToRow(
         PrecastElement element,
         int number,
-        IReadOnlyDictionary<double, string> levelLabels)
+        IReadOnlyDictionary<double, string> levelLabels,
+        IReadOnlyDictionary<string, ElementReadinessInfo> readinessLookup)
     {
         var mapping = ReportWeightMapper.Map(element);
-        var length = FirstPositive(element.ElementLength, element.BBoxLength);
-        var width = FirstPositive(element.ElementWidth, element.BBoxWidth);
-        var height = FirstPositive(element.ElementHeight, element.BBoxHeight);
+        var identity = CanonicalMarkResolver.Resolve(element);
+
+        var length = FirstPositive(element.ElementLength, element.BBoxLength, element.BoundingBox_M?.X);
+        var width = FirstPositive(element.ElementWidth, element.BBoxWidth, element.BoundingBox_M?.Y);
+        var height = FirstPositive(element.ElementHeight, element.BBoxHeight, element.BoundingBox_M?.Z);
+
         var (volume, volumeSource) = ResolveReportVolume(element, length, width, height);
         var (bottomElevation, topElevation) = ResolveElevationRange(element, height);
+
+        string readyForGa = "No";
+        string missingReason = "Element ID is missing.";
+        string valStatus = "Blocked";
+        string valWarnings = "\u2014";
+
+        if (!string.IsNullOrEmpty(element.ElementID) && readinessLookup.TryGetValue(element.ElementID, out var readInfo))
+        {
+            readyForGa = readInfo.ReadyForGa;
+            missingReason = readInfo.MissingReadinessReason;
+            valStatus = readInfo.ValidationStatus;
+            valWarnings = readInfo.ValidationWarnings;
+        }
 
         return new ElementReportRowDto
         {
             No = number,
             ElementId = element.ElementID,
-            ElementMark = ResolveElementMark(element),
+            ElementMark = identity.DisplayLabel,
             ElementName = ResolveElementName(element),
             ElementType = FirstNonEmpty(element.ElementType, "\u2014"),
+            CanonicalMark = identity.DisplayLabel,
+            MarkSource = identity.MarkSource ?? string.Empty,
+            MarkConfidence = identity.MarkConfidence,
+            IsExplicitMark = identity.IsExplicitMark,
             SourceRevitId = FirstNonEmpty(element.ElementRevitId, element.ElementID, "\u2014"),
             StoreyLevel = ResolveStoreyLevel(element, levelLabels),
             Material = string.IsNullOrWhiteSpace(element.ElementMaterial) ? "\u2014" : element.ElementMaterial,
@@ -100,39 +137,24 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
             WeightStatus = mapping.WeightStatus,
             WeightWarning = mapping.WarningMessage,
             IncludedInCraneOptimization = element.IncludeInGa ? "Yes" : "No",
-            ReadyForGa = IsGaReady(element) ? "Yes" : "No",
-            MissingReadinessReason = ResolveReadinessReason(element, mapping)
+            ReadyForGa = readyForGa,
+            MissingReadinessReason = missingReason,
+
+            // New validation properties
+            ValidationStatus = valStatus,
+            ValidationWarnings = valWarnings,
+            WeightTrustLevel = element.WeightTrustLevel.ToString(),
+            ReadinessStatus = valStatus,
+            BlockingReasons = missingReason
         };
     }
 
-    private static string ResolveReadinessReason(PrecastElement element, WeightReportMapping mapping)
-    {
-        if (!element.IncludeInGa)
-            return "Element is not included in crane optimization.";
 
-        if (mapping.WeightStatus != "OK")
-            return mapping.WarningMessage == "-" ? $"Weight status is {mapping.WeightStatus}." : mapping.WarningMessage;
 
-        if (ReportWeightMapper.ResolveWeight(element) is not > 0)
-            return "Weight is missing or invalid.";
-
-        return "\u2014";
-    }
-
-    private static string ResolveElementMark(PrecastElement element)
-    {
-        var mark = element.ElementMark?.Trim();
-        if (!IsPlaceholder(mark)
-            && !EqualsAny(mark!, element.ElementType, element.ElementMaterial, element.ResolvedCategory, element.RawIfcType)
-            && !LooksLikeGenericTypeName(mark!))
-        {
-            return mark!;
-        }
-
-        var name = ResolveElementName(element);
-        return IsPlaceholder(name) ? "\u2014" : name;
-    }
-
+    private static string JoinMessages(IReadOnlyList<string> messages) =>
+        messages.Count == 0
+            ? "\u2014"
+            : string.Join("; ", messages.Where(message => !string.IsNullOrWhiteSpace(message)).Distinct(StringComparer.OrdinalIgnoreCase));
     private static string ResolveElementName(PrecastElement element)
     {
         var name = element.ElementName?.Trim();
@@ -251,13 +273,7 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
         || Math.Abs(point.Y) > double.Epsilon
         || Math.Abs(point.Z) > double.Epsilon;
 
-    private static bool IsGaReady(PrecastElement element)
-    {
-        var mapping = ReportWeightMapper.Map(element);
-        return element.IncludeInGa
-            && mapping.WeightStatus == "OK"
-            && ReportWeightMapper.ResolveWeight(element) is > 0;
-    }
+
 
     private static string FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;

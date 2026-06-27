@@ -20,7 +20,8 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
             {
                 var values = new Dictionary<string, object?>(row.Values, StringComparer.OrdinalIgnoreCase);
                 var rowNumber = index + 1;
-                var elementMark = string.IsNullOrWhiteSpace(row.ElementMark) ? row.ElementId : row.ElementMark!;
+                var elementMark = FirstNonEmpty(row.CanonicalMark, row.ElementMark, row.ElementId);
+                var utilization = CalculateUtilization(row);
                 var liftStatus = MapLiftStatus(row.InternalLiftStatus);
                 var effectiveRadius = FirstPositive(row.Radius, GetDouble(values, "BestFailedRequiredRadius"));
                 var effectiveBoomLength = FirstPositive(row.BoomLength, GetDouble(values, "BestFailedRequiredBoomLength"));
@@ -32,7 +33,7 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
 
                 var rawChartCapacity = FirstPositiveDouble(GetDouble(values, "RawChartCapacity"), GetDouble(values, "ChartCapacity"));
                 var availableCapacity = FirstPositiveDouble(row.AvailableCapacity, GetDouble(values, "AvailableCapacity"), GetDouble(values, "AvailableCapacityTons"));
-                var utilization = availableCapacity is > 0 && requiredCapacity is > 0
+                utilization = availableCapacity is > 0 && requiredCapacity is > 0
                     ? requiredCapacity.Value / availableCapacity.Value * 100.0
                     : (double?)null;
                 var calculatedSafetyMargin = availableCapacity is > 0 && requiredCapacity is > 0
@@ -275,4 +276,6 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
         return double.TryParse(value.ToString(), out var parsed) ? parsed : 0;
     }
 
+    private static string FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? string.Empty;
 }

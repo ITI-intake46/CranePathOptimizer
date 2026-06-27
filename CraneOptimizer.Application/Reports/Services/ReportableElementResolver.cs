@@ -1,3 +1,4 @@
+using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Schemas;
 
 namespace CraneOptimizer.Application.Reports.Services;
@@ -8,7 +9,9 @@ public sealed class ReportableElementResolver : IReportableElementResolver
     {
         ArgumentNullException.ThrowIfNull(sourceElements);
 
-        var elements = sourceElements.Where(element => element != null).ToList();
+        var elements = sourceElements
+            .Where(element => element != null && !IfcReferenceGeometryPolicy.IsGridReference(element))
+            .ToList();
         var byId = elements
             .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
             .GroupBy(element => element.ElementID, StringComparer.Ordinal)

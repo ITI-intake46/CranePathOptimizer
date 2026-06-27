@@ -53,6 +53,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
 
         public string? ElementMark { get; set; }
 
+        // Phase 5: Canonical Display Identity (additive; ElementMark kept for backward compat)
+        public string? CanonicalMark { get; set; }
+        public string? MarkSource { get; set; }
+        public string? MarkConfidence { get; set; }
+        public bool IsExplicitMark { get; set; }
+        public string? ValidationStatus { get; set; }
+        public string? WeightTrustLevel { get; set; }
+        public int ValidationWarningCount { get; set; }
+        public string? ValidationWarningsJoined { get; set; }
+
+        // Phase 7D: Assembly Group Identification
+        public bool IsAssemblyGroup { get; set; }
+        public int AssemblyMemberCount { get; set; }
+        public string? AssemblyMemberIdsJoined { get; set; }
+
         public string? ElementType { get; set; }
 
         public double? Weight { get; set; }

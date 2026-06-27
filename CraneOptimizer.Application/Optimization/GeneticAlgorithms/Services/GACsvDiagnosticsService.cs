@@ -6,6 +6,7 @@ using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Interfaces;
+using CraneOptimizer.Application.Services.Identity;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -87,20 +88,21 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                 }
                 else
                 {
-                    reportsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraneOptimizer", "Reports", "GA");
+                    throw new InvalidOperationException(
+                        "Cannot write GA diagnostics: no project folder path is set. " +
+                        "Ensure a project is loaded and DiagnosticsReportsDirectory is populated before running diagnostics.");
                 }
             }
 
             bool batchMode = input.Settings?.BatchModeEnabled ?? false;
+            string runIdSegment = SanitizePathSegment(input.Settings?.OptimizationRunId);
             if (!batchMode)
             {
-                // Per-run folder policy: <reportsDir>\<ProjectName>\<OptimizationRunId>\
+                // Per-run folder policy: <reportsDir>\<OptimizationRunId>\
                 // Groups all CSVs from one execution into a dedicated subdirectory.
-                string projectNameSegment = SanitizePathSegment(input.ProjectName);
-                string runIdSegment = SanitizePathSegment(input.Settings?.OptimizationRunId);
-                if (!string.IsNullOrEmpty(projectNameSegment) && !string.IsNullOrEmpty(runIdSegment))
+                if (!string.IsNullOrEmpty(runIdSegment))
                 {
-                    reportsDir = Path.Combine(reportsDir, projectNameSegment, runIdSegment);
+                    reportsDir = Path.Combine(reportsDir, runIdSegment);
                 }
             }
 
@@ -109,13 +111,14 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             string timestampStr = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             string timeFormatted = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
-            string detailedFileName = batchMode ? "ga_audit_diagnostics.csv" : $"ga_audit_diagnostics_{timestampStr}.csv";
+            string detailedFileName = batchMode ? "debug_ga_diagnostics.csv" : $"debug_ga_diagnostics_{(string.IsNullOrEmpty(runIdSegment) ? "" : runIdSegment + "_")}{timestampStr}.csv";
             string detailedPath = Path.Combine(reportsDir, detailedFileName);
 
-            string breakdownFileName = batchMode ? "ga_audit_failure_breakdown.csv" : $"ga_audit_failure_breakdown_{timestampStr}.csv";
+            string breakdownFileName = batchMode ? "debug_ga_failure_breakdown.csv" : $"debug_ga_failure_breakdown_{(string.IsNullOrEmpty(runIdSegment) ? "" : runIdSegment + "_")}{timestampStr}.csv";
             string breakdownPath = Path.Combine(reportsDir, breakdownFileName);
 
-            string historyPath = Path.Combine(reportsDir, "ga_audit_run_history.csv");
+            string historyFileName = batchMode ? "debug_ga_run_history.csv" : $"debug_ga_run_history_{(string.IsNullOrEmpty(runIdSegment) ? "" : runIdSegment + "_")}{timestampStr}.csv";
+            string historyPath = Path.Combine(reportsDir, historyFileName);
 
             var allElements = input.Elements ?? new List<PrecastElement>();
 
@@ -183,6 +186,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         suggestedAction = classification.SuggestedAction;
                     }
 
+                    // Phase 5: resolve canonical identity once per element
+                    var identity_temp = CanonicalMarkResolver.Resolve(element);
+
                     detailedRows.Add(new ElementDiagnosticRow
                     {
                         Timestamp = timeFormatted,
@@ -190,7 +196,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         IfcFileName = input.IfcFileName ?? "N/A",
                         CraneNameOrId = input.CraneSpec?.Crane?.Name ?? (input.CraneSpec != null ? $"Spec ID: {input.CraneSpec.Id}" : "N/A"),
                         ElementId = element.ElementID,
-                        ElementName = element.ElementName ?? element.ElementMark ?? "N/A",
+                        ElementName = element.ElementName ?? string.Empty,
+                        CanonicalMark = CanonicalMarkResolver.ResolveDisplayMark(element),
+                        MarkSource = identity_temp.MarkSource ?? string.Empty,
+                        MarkConfidence = identity_temp.MarkConfidence,
+                        IsExplicitMark = identity_temp.IsExplicitMark,
                         ElementType = element.ElementType ?? "N/A",
                         StoreyOrElevation = element.ElementCOG.Z.ToString("0.###", Invariant),
                         Weight = element.ElementWT ?? 0.0,
@@ -321,7 +331,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                         "SlewCenter_SurveyEasting", "SlewCenter_SurveyNorthing", "SlewCenter_SurveyElevation",
                         "BoomHinge_SurveyEasting", "BoomHinge_SurveyNorthing", "BoomHinge_SurveyElevation",
                         "LoadPoint_SurveyEasting", "LoadPoint_SurveyNorthing", "LoadPoint_SurveyElevation",
-                        "SiteReferenceEnabled", "SiteOriginEasting", "SiteOriginNorthing", "SiteOriginElevation", "RotationToNorthDegrees"
+                        "SiteReferenceEnabled", "SiteOriginEasting", "SiteOriginNorthing", "SiteOriginElevation", "RotationToNorthDegrees",
+                        // Phase 5: Canonical Display Identity columns (right-appended, additive)
+                        "CanonicalMark", "MarkSource", "MarkConfidence", "IsExplicitMark"
                     };
                     if (!batchMode || !detailedExists)
                     {
@@ -494,14 +506,18 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                             isEnabled ? _transformService!.CurrentReference.SurveyEasting.ToString("0.###", Invariant) : "N/A",
                             isEnabled ? _transformService!.CurrentReference.SurveyNorthing.ToString("0.###", Invariant) : "N/A",
                             isEnabled ? _transformService!.CurrentReference.SurveyElevation.ToString("0.###", Invariant) : "N/A",
-                            isEnabled ? _transformService!.CurrentReference.RotationToNorthDegrees.ToString("0.###", Invariant) : "N/A"
+                            isEnabled ? _transformService!.CurrentReference.RotationToNorthDegrees.ToString("0.###", Invariant) : "N/A",
+                            Escape(row.CanonicalMark),
+                            Escape(row.MarkSource),
+                            Escape(row.MarkConfidence),
+                            row.IsExplicitMark ? "true" : "false"
                         };
                         writer.WriteLine(string.Join(",", FormatRowWithPrefix(input, true, originalHeader, originalRow, "1.0")));
                     }
                 }
 
-                // 3A. Write ga_assignment_matrix_*.csv (one row per ElementGlobalId per CandidatePointId)
-                string matrixFileName = batchMode ? "ga_audit_assignment_matrix.csv" : $"ga_audit_assignment_matrix_{timestampStr}.csv";
+                // 3A. Write debug_ga_assignment_matrix_*.csv (one row per ElementGlobalId per CandidatePointId)
+                string matrixFileName = batchMode ? "debug_ga_assignment_matrix.csv" : $"debug_ga_assignment_matrix_{(string.IsNullOrEmpty(runIdSegment) ? "" : runIdSegment + "_")}{timestampStr}.csv";
                 string matrixPath = Path.Combine(reportsDir, matrixFileName);
                 bool matrixExists = File.Exists(matrixPath);
 
@@ -580,8 +596,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
                     }
                 }
 
-                // 3B. Write ga_final_assignments_*.csv (one row per ElementGlobalId)
-                string finalAssignmentsFileName = batchMode ? "ga_audit_final_assignments.csv" : $"ga_audit_final_assignments_{timestampStr}.csv";
+                // 3B. Write debug_ga_final_assignments_*.csv (one row per ElementGlobalId)
+                string finalAssignmentsFileName = batchMode ? "debug_ga_final_assignments.csv" : $"debug_ga_final_assignments_{(string.IsNullOrEmpty(runIdSegment) ? "" : runIdSegment + "_")}{timestampStr}.csv";
                 string finalAssignmentsPath = Path.Combine(reportsDir, finalAssignmentsFileName);
                 bool finalExists = File.Exists(finalAssignmentsPath);
 
@@ -1440,6 +1456,12 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
             public double BestFailedSafetyMargin { get; set; }
             public double BestFailedRequiredRadius { get; set; }
             public double BestFailedRequiredBoomLength { get; set; }
+
+            // Phase 5: Canonical Display Identity
+            public string CanonicalMark { get; set; } = "";
+            public string MarkSource { get; set; } = "";
+            public string MarkConfidence { get; set; } = "";
+            public bool IsExplicitMark { get; set; }
         }
     }
 }

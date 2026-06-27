@@ -188,6 +188,16 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         {
             ResetFilters();
 
+            if (options.HideGrids)
+            {
+                foreach (var grid in _allElements.Where(element =>
+                             element.RawIfcType.Equals("IfcGrid", StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (!string.IsNullOrWhiteSpace(grid.ElementID))
+                        _excludedElementIds.Add(grid.ElementID);
+                }
+            }
+
             foreach (var type in ElementTypes)
             {
                 var enabled = true;

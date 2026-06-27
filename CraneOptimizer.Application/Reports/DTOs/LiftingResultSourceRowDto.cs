@@ -6,6 +6,13 @@ public sealed class LiftingResultSourceRowDto
     public string SourceType { get; init; } = string.Empty;
     public string ElementId { get; init; } = string.Empty;
     public string? ElementMark { get; init; }
+
+    // Phase 5: Canonical Display Identity
+    public string? CanonicalMark { get; init; }
+    public string? MarkSource { get; init; }
+    public string? MarkConfidence { get; init; }
+    public bool IsExplicitMark { get; init; }
+
     public string? ElementType { get; init; }
     public string? StoreyOrElevation { get; init; }
     public string? Timestamp { get; init; }

@@ -7,7 +7,5 @@ public interface IElementReportDataProvider
 {
     IReadOnlyList<ElementReportRowDto> BuildRows(
         string templateName,
-        string itemsIncluded,
-        IEnumerable<PrecastElement> sourceElements,
-        IEnumerable<PrecastElement> selectedElements);
+        IEnumerable<PrecastElement> scopedElements);
 }

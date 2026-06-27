@@ -7,6 +7,7 @@ using CraneOptimizer.Application.Reports.Models;
 
 namespace CraneOptimizer.Infrastructure.Reports.Csv;
 
+[System.Obsolete("Unused legacy headless reporting foundation.")]
 public sealed class CsvReportExporter : IReportExporter
 {
     private readonly IReportValueFormatter _formatter;

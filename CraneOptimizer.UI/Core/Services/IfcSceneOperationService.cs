@@ -66,52 +66,16 @@ namespace CraneOptimizer.UI.Core.Services
 
         private static PrecastElement TranslateElement(PrecastElement element, DomainPoint3D offset)
         {
-            return new PrecastElement
-            {
-                ElementID = element.ElementID,
-                ElementRevitId = element.ElementRevitId,
-                ElementMark = element.ElementMark,
-                ElementType = element.ElementType,
-                ElementLength = element.ElementLength,
-                ElementWidth = element.ElementWidth,
-                ElementHeight = element.ElementHeight,
-                ElementMaterial = element.ElementMaterial,
-                ElementWT = element.ElementWT,
-                ElementVolume = element.ElementVolume,
-                ElementCOG = new DomainPoint3D(
-                    element.ElementCOG.X + offset.X,
-                    element.ElementCOG.Y + offset.Y,
-                    element.ElementCOG.Z + offset.Z),
-                BBoxLength = element.BBoxLength,
-                BBoxWidth = element.BBoxWidth,
-                BBoxHeight = element.BBoxHeight,
-
-                // Copy all Phase 2A Normalization properties
-                RawIfcType = element.RawIfcType,
-                ResolvedCategory = element.ResolvedCategory,
-                Role = element.Role,
-                ParentGlobalId = element.ParentGlobalId,
-                ChildGlobalIds = new List<string>(element.ChildGlobalIds ?? new()),
-                VisibleGeometryOwnerGlobalIds = new List<string>(element.VisibleGeometryOwnerGlobalIds ?? new()),
-                HiddenInternalGeometryOwnerGlobalIds = new List<string>(element.HiddenInternalGeometryOwnerGlobalIds ?? new()),
-                IncludeInRender = element.IncludeInRender,
-                IncludeInElementTree = element.IncludeInElementTree,
-                IncludeInGa = element.IncludeInGa,
-                WeightTons = element.WeightTons,
-                WeightSource = element.WeightSource,
-                WeightTrustLevel = element.WeightTrustLevel,
-                VolumeM3 = element.VolumeM3,
-                COG_M = new DomainPoint3D(
-                    element.COG_M.X + offset.X,
-                    element.COG_M.Y + offset.Y,
-                    element.COG_M.Z + offset.Z),
-                BoundingBox_M = new DomainPoint3D(
-                    element.BoundingBox_M.X,
-                    element.BoundingBox_M.Y,
-                    element.BoundingBox_M.Z),
-                ExtractionWarnings = new List<string>(element.ExtractionWarnings ?? new()),
-                NormalizationDecisionReason = element.NormalizationDecisionReason
-            };
+            var translated = element.CreateCopy();
+            translated.ElementCOG = new DomainPoint3D(
+                element.ElementCOG.X + offset.X,
+                element.ElementCOG.Y + offset.Y,
+                element.ElementCOG.Z + offset.Z);
+            translated.COG_M = new DomainPoint3D(
+                element.COG_M.X + offset.X,
+                element.COG_M.Y + offset.Y,
+                element.COG_M.Z + offset.Z);
+            return translated;
         }
     }
 }

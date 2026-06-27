@@ -7,7 +7,10 @@ using CraneOptimizer.Application.Reports.Services;
 using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Infrastructure.Reports.UserFacing;
+using CraneOptimizer.Application.Services;
+using CraneOptimizer.Domain.Common;
 using CraneOptimizer.UI.Features.F12_Reports.Services;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers;
 
 namespace CraneOptimizer.Application.Tests.Reports;
 
@@ -215,6 +218,55 @@ public sealed class UserFacingReportsTests : IDisposable
     }
 
     [Fact]
+    public void ElementReportDataProvider_KeepsGuidAndIfcName_WhenAssemblyMarkSuppliesDisplayLabel()
+    {
+        var element = Element("01jhsjVXzBy81J1pRn_FyV");
+        element.ElementRevitId = null;
+        element.ElementName = "W5102 - Wall";
+        element.ElementMark = "W5102";
+        element.AssemblyMark = "W5102";
+        element.AssemblyMarkSource = "Pset_Tekla_Common.ASSEMBLY_POS";
+        element.AssemblyMarkIsExplicit = true;
+        element.AssemblyMarkConfidence = AssemblyMarkConfidence.High;
+
+        var rows = new ElementReportDataProvider(
+                new ReportableElementResolver(),
+                new ImportReadinessService())
+            .BuildRows(ReportTemplateCatalog.BasicElementList, [element]);
+
+        var row = Assert.Single(rows);
+        Assert.Equal("01jhsjVXzBy81J1pRn_FyV", row.ElementId);
+        Assert.Equal("W5102 - Wall", row.ElementName);
+        Assert.Equal("W5102", row.ElementMark);
+        Assert.Equal("W5102", row.CanonicalMark);
+        Assert.Equal("01jhsjVXzBy81J1pRn_FyV", row.SourceRevitId);
+    }
+
+    [Fact]
+    public void PrecastElementMapper_RoundTripsIfcNameWithoutFallingBackToAssemblyMark()
+    {
+        var element = Element("01jhsjVXzBy81J1pRn_FyV");
+        element.ElementRevitId = null;
+        element.ElementName = "W5102 - Wall";
+        element.ElementMark = "W5102";
+        element.AssemblyMark = "W5102";
+        element.AssemblyMarkSource = "Pset_Tekla_Common.ASSEMBLY_POS";
+        element.SourceSystem = SourceSystem.Tekla;
+        element.ExporterProfile = IfcExporterProfile.Tekla;
+
+        var entity = PrecastElementMapper.ToEntity(element, projectInfoId: 10, ifcFileId: 20);
+        var roundTripped = PrecastElementMapper.ToDomain(entity);
+
+        Assert.Equal("01jhsjVXzBy81J1pRn_FyV", entity.GlobalId);
+        Assert.Null(entity.Name);
+        Assert.Equal("W5102 - Wall", entity.DisplayName);
+        Assert.Equal("W5102", entity.Mark);
+        Assert.Equal("01jhsjVXzBy81J1pRn_FyV", roundTripped.ElementID);
+        Assert.Equal("W5102 - Wall", roundTripped.ElementName);
+        Assert.Equal("W5102", roundTripped.ElementMark);
+        Assert.Equal("W5102", roundTripped.AssemblyMark);
+    }
+    [Fact]
     public async Task ReportBuilder_UsesTemplateNameAsReportName()
     {
         var builder = CreateBuilder();
@@ -304,12 +356,18 @@ public sealed class UserFacingReportsTests : IDisposable
             [
                 "No",
                 "ElementMark",
+                "MarkConfidence",
+                "ValidationStatus",
+                "ValidationWarnings",
                 "WeightTons",
+                "WeightTrustLevel",
                 "WeightVerified",
                 "WeightStatus",
                 "IncludedInCraneOptimization",
                 "ReadyForGa",
-                "MissingReadinessReason"
+                "ReadinessStatus",
+                "MissingReadinessReason",
+                "BlockingReasons"
             ],
             selectedKeys);
 
@@ -440,7 +498,7 @@ public sealed class UserFacingReportsTests : IDisposable
     }
 
     [Fact]
-    public async Task ReportBuilder_GaReadinessReadyOnlyEmpty_FallsBackToAllElementsForExport()
+    public async Task ReportBuilder_GaReadiness_DoesNotSilentlyChangeScope()
     {
         var builder = CreateBuilder();
         var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.GaReadiness);
@@ -463,11 +521,106 @@ public sealed class UserFacingReportsTests : IDisposable
 
         var document = await builder.BuildAsync(request);
 
-        Assert.Equal("All Elements", document.Metadata.ItemsIncluded);
+        Assert.Equal("GA-Ready Elements", document.Metadata.ItemsIncluded);
         Assert.Single(document.Rows);
         Assert.Equal("Missing", document.Rows[0].Values["WeightStatus"]);
     }
 
+    [Fact]
+    public async Task ReportBuilder_GaReadiness_BlocksMissingCogElement()
+    {
+        var builder = CreateBuilder();
+        var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.GaReadiness);
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = template.Name,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project", ReportDate = new DateTime(2026, 6, 23) },
+            SelectedColumns = template.Columns,
+            SourceElements = [Element("missing-cog", hasCog: false)]
+        };
+
+        var document = await builder.BuildAsync(request);
+
+        var values = Assert.Single(document.Rows).Values;
+        Assert.Equal("No", values["ReadyForGa"]);
+        Assert.Equal("Blocked", values["ReadinessStatus"]);
+        Assert.Contains("COG", Assert.IsType<string>(values["MissingReadinessReason"]));
+        Assert.Contains("COG", Assert.IsType<string>(values["BlockingReasons"]));
+    }
+
+    [Fact]
+    public async Task ReportBuilder_GaReadiness_BlocksElementsExcludedFromGa()
+    {
+        var builder = CreateBuilder();
+        var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.GaReadiness);
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = template.Name,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project", ReportDate = new DateTime(2026, 6, 23) },
+            SelectedColumns = template.Columns,
+            SourceElements = [Element("excluded", includeInGa: false)]
+        };
+
+        var document = await builder.BuildAsync(request);
+
+        var values = Assert.Single(document.Rows).Values;
+        Assert.Equal("No", values["IncludedInCraneOptimization"]);
+        Assert.Equal("No", values["ReadyForGa"]);
+        Assert.Equal("Blocked", values["ValidationStatus"]);
+        Assert.Contains("not included in crane optimization", Assert.IsType<string>(values["BlockingReasons"]));
+    }
+
+    [Fact]
+    public async Task ReportBuilder_GaReadiness_IncludesIdentityAndWeightReadinessWarnings()
+    {
+        var builder = CreateBuilder();
+        var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.GaReadiness);
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = template.Name,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project", ReportDate = new DateTime(2026, 6, 23) },
+            SelectedColumns = template.Columns,
+            SourceElements = [Element("low-confidence", markConfidence: AssemblyMarkConfidence.Low, assemblyMarkIsExplicit: false)]
+        };
+
+        var document = await builder.BuildAsync(request);
+
+        var values = Assert.Single(document.Rows).Values;
+        Assert.Equal("Yes", values["ReadyForGa"]);
+        Assert.Equal("Warning", values["ReadinessStatus"]);
+        Assert.Equal("Low", values["MarkConfidence"]);
+        Assert.Equal(IfcWeightTrustLevel.ExplicitQuantity.ToString(), values["WeightTrustLevel"]);
+        Assert.Contains("assembly", Assert.IsType<string>(values["ValidationWarnings"]), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ReportBuilder_GaReadiness_IncludesNonWeightBlockingReasons()
+    {
+        var builder = CreateBuilder();
+        var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, ReportTemplateCatalog.GaReadiness);
+        var request = new ReportBuildRequestDto
+        {
+            Family = ReportFamily.ElementList,
+            TemplateName = template.Name,
+            ItemsIncluded = "All Elements",
+            Metadata = new ReportMetadataDto { ProjectName = "Test Project", ReportDate = new DateTime(2026, 6, 23) },
+            SelectedColumns = template.Columns,
+            SourceElements = [Element("grouping", role: IfcElementRole.GroupingOnly)]
+        };
+
+        var document = await builder.BuildAsync(request);
+
+        var values = Assert.Single(document.Rows).Values;
+        Assert.Equal("No", values["ReadyForGa"]);
+        Assert.Equal("Blocked", values["ReadinessStatus"]);
+        Assert.Contains("Invalid element role", Assert.IsType<string>(values["BlockingReasons"]));
+    }
     [Fact]
     public async Task ReportBuilder_ElementReports_DeriveStoreyLevelFromElevation()
     {
@@ -557,7 +710,7 @@ public sealed class UserFacingReportsTests : IDisposable
         var document = await builder.BuildAsync(request);
         var row = Assert.Single(document.Rows).Values;
 
-        Assert.Equal("\u2014", row["ElementMark"]);
+        Assert.Equal("e1", row["ElementMark"]);
         Assert.Equal("Footing", row["ElementType"]);
         Assert.Equal("C30", row["Material"]);
     }
@@ -1058,13 +1211,26 @@ public sealed class UserFacingReportsTests : IDisposable
     {
         var resolver = new ReportableElementResolver();
         return new UserFacingReportBuilder(
-            new ElementReportDataProvider(resolver),
+            new ElementReportDataProvider(resolver, new ImportReadinessService()),
             new LiftingResultReportDataProvider());
     }
 
     private static ReportBuildRequestDto ElementRequest(string templateName, string itemsIncluded, string? generalNotes)
     {
         var template = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.ElementList, templateName);
+
+        var allElements = new List<PrecastElement>
+        {
+            Element("e1", 10.0, IfcWeightTrustLevel.ExplicitQuantity),
+            Element("e2", null, IfcWeightTrustLevel.Missing)
+        };
+
+        var scopedElements = itemsIncluded switch
+        {
+            "GA-Ready Elements" => allElements.Where(e => e.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity).ToList(),
+            "Needs Review Elements" => allElements.Where(e => e.WeightTrustLevel != IfcWeightTrustLevel.ExplicitQuantity).ToList(),
+            _ => allElements
+        };
 
         return new ReportBuildRequestDto
         {
@@ -1078,11 +1244,7 @@ public sealed class UserFacingReportsTests : IDisposable
                 GeneralNotes = generalNotes
             },
             SelectedColumns = template.Columns,
-            SourceElements =
-            [
-                Element("e1", 10.0, IfcWeightTrustLevel.ExplicitQuantity),
-                Element("e2", null, IfcWeightTrustLevel.Missing)
-            ]
+            SourceElements = scopedElements
         };
     }
 
@@ -1090,8 +1252,15 @@ public sealed class UserFacingReportsTests : IDisposable
         string id,
         double? weight = 10.0,
         IfcWeightTrustLevel trustLevel = IfcWeightTrustLevel.ExplicitQuantity,
-        string? parentId = null)
+        string? parentId = null,
+        bool? includeInGa = null,
+        bool hasCog = true,
+        AssemblyMarkConfidence markConfidence = AssemblyMarkConfidence.High,
+        bool assemblyMarkIsExplicit = true,
+        IfcElementRole role = IfcElementRole.LiftableElement)
     {
+        var hasTrustedWeight = trustLevel is IfcWeightTrustLevel.ExplicitQuantity or IfcWeightTrustLevel.ExplicitProperty;
+
         return new PrecastElement
         {
             ElementID = id,
@@ -1100,13 +1269,19 @@ public sealed class UserFacingReportsTests : IDisposable
             ElementType = "IfcWall",
             ElementMaterial = "Concrete",
             ParentGlobalId = parentId,
+            Role = role,
             WeightTons = weight,
             ElementWT = weight,
             WeightTrustLevel = trustLevel,
             WeightSource = trustLevel.ToString(),
             VolumeM3 = 4.0,
-            IncludeInGa = trustLevel == IfcWeightTrustLevel.ExplicitQuantity && weight is > 0,
-            IncludeInRender = true
+            ElementCOG = hasCog ? new DomainPoint3D(1, 2, 3) : new DomainPoint3D(),
+            COG_M = hasCog ? new DomainPoint3D(1, 2, 3) : new DomainPoint3D(),
+            IncludeInGa = includeInGa ?? (hasTrustedWeight && weight is > 0),
+            IncludeInRender = true,
+            AssemblyMark = $"M-{id}",
+            AssemblyMarkIsExplicit = assemblyMarkIsExplicit,
+            AssemblyMarkConfidence = markConfidence
         };
     }
 

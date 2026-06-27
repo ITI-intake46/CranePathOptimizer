@@ -6,6 +6,7 @@ using CraneOptimizer.Application.Reports.Models;
 
 namespace CraneOptimizer.Application.Reports.Builders;
 
+[System.Obsolete("Unused legacy headless reporting foundation. UI uses UserFacingReportBuilder instead.")]
 public sealed class OptimizationSummaryReportBuilder
     : IReportBuilder<OptimizationReportInput>
 {
@@ -259,7 +260,7 @@ public sealed class OptimizationSummaryReportBuilder
                     {
                         ["SetupIndex"] = setupIndex + 1,
                         ["ElementId"] = element.ElementId,
-                        ["ElementMark"] = element.ElementMark ?? string.Empty,
+                        ["ElementMark"] = !string.IsNullOrWhiteSpace(element.CanonicalMark) ? element.CanonicalMark : (element.ElementMark ?? string.Empty),
                         ["ElementType"] = element.ElementType ?? string.Empty,
                         ["Weight"] = element.Weight,
                         ["CogX"] = element.CogX,

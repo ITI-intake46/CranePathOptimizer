@@ -161,7 +161,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     Status = $"Reading IFC... {p:F0}%";
                 });
 
-                var readingOptions = await GetCurrentIfcReadingOptionsAsync();
+                var readingOptions = await GetCurrentIfcReadingOptionsAsync(filter.HideGrids);
                 var all = await Task.Run(() =>
                     _ifcReader.ReadElements(path, progress, readingOptions));
 
@@ -184,7 +184,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 {
                     try
                     {
-                        var auditOptions = await GetCurrentIfcReadingOptionsAsync();
+                        var auditOptions = await GetCurrentIfcReadingOptionsAsync(filter.HideGrids);
                         var auditResult = await _auditService.RunAuditAsync(auditPath, auditOptions);
                         var projectFolder = _workspaceService?.CurrentSession?.ProjectFolderPath;
                         await _auditService.GenerateReportsAsync(auditResult, projectFolder);
@@ -587,17 +587,17 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             Status = "Merge IFC is available in the ribbon for multi-building workflow, but shared multi-model geometry loading is not implemented yet.";
         }
 
-        private async Task<IfcReadingOptions> GetCurrentIfcReadingOptionsAsync()
+        private async Task<IfcReadingOptions> GetCurrentIfcReadingOptionsAsync(bool hideGrids = false)
         {
             var session = _workspaceService?.CurrentSession;
             if (session == null || _materialSettingsService == null)
-                return new IfcReadingOptions(ProjectMaterialSettingsService.DefaultConcreteDensityKgPerM3);
+                return new IfcReadingOptions(ProjectMaterialSettingsService.DefaultConcreteDensityKgPerM3, hideGrids);
 
             var density = await _materialSettingsService
                 .GetConcreteDensityKgPerM3Async(session.ProjectId)
                 .ConfigureAwait(false);
 
-            return new IfcReadingOptions(density);
+            return new IfcReadingOptions(density, hideGrids);
         }
 
         private bool CanEditPlacedIfc() => !IsLoading && !IsPlacementMode && _ifcSceneOperations.HasIfcModel;

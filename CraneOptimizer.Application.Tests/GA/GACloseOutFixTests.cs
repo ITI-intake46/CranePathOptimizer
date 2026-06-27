@@ -357,7 +357,7 @@ namespace CraneOptimizer.Application.Tests.GA
                 // Assert
                 Assert.True(Directory.Exists(tempDir), "Diagnostics directory should exist");
 
-                var csvFiles = Directory.GetFiles(tempDir, "*.csv");
+                var csvFiles = Directory.GetFiles(tempDir, "*.csv", SearchOption.AllDirectories);
                 Assert.True(csvFiles.Length >= 7, $"At least the 7 core diagnostic CSV files should be generated. Found: {csvFiles.Length}");
 
                 foreach (var csvFile in csvFiles)
