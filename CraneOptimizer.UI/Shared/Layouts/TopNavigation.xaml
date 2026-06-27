@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="CraneOptimizer.UI.Shared.Layouts.TopNavigation"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -11,7 +11,8 @@
     xmlns:F18Views="clr-namespace:CraneOptimizer.UI.Features.F18_CoordinateReference.Views"
     xmlns:project="clr-namespace:CraneOptimizer.UI.F10_ProjectManagement.Views"
     xmlns:ReportViews="clr-namespace:CraneOptimizer.UI.Features.F12_Reports.Views"
-    xmlns:config="clr-namespace:CraneOptimizer.UI.Core.Configuration">
+    xmlns:config="clr-namespace:CraneOptimizer.UI.Core.Configuration"
+    xmlns:AiAdvisorViews="clr-namespace:CraneOptimizer.UI.Features.F13_AiAdvisor.Views">
 
     <Border
         Background="{DynamicResource SurfaceBrush}"
@@ -25,7 +26,7 @@
                 <!--  Tab content area  -->
             </Grid.RowDefinitions>
 
-            <!--  ── ROW 0: Tab selector strip ────────────────────────────────  -->
+            <!--  â”€â”€ ROW 0: Tab selector strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
             <Border
                 Grid.Row="0"
                 Background="{DynamicResource SurfaceElevatedBrush}"
@@ -82,6 +83,12 @@
                         Content="REPORTS"
                         GroupName="RibbonTabs"
                         Style="{StaticResource RibbonTabBtn}" />
+                    <RadioButton
+                        x:Name="TabAiCopilot"
+                        Checked="Tab_Checked"
+                        Content="AI COPILOT"
+                        GroupName="RibbonTabs"
+                        Style="{StaticResource RibbonTabBtn}" />
 
                     <!-- Temporarily hidden by product decision. Keep logic intact for future re-enable. -->
                     <RadioButton
@@ -104,34 +111,37 @@
                 </StackPanel>
             </Border>
 
-            <!--  ── ROW 1: Tab content ────────────────────────────────────────  -->
+            <!--  â”€â”€ ROW 1: Tab content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
             <Grid Grid.Row="1">
 
-                <!--  ── HOME tab ───────────────────────────────────────────────  -->
+                <!--  â”€â”€ HOME tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
                 <project:HomeTabView x:Name="PanelHome" Visibility="Visible" />
 
-                <!--  ── IFC MODEL tab ───────────────────────────────────────────  -->
+                <!--  â”€â”€ IFC MODEL tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
                 <IfcViews:IfcTabView x:Name="PanelIFC" Visibility="Collapsed" />
 
-                <!--  ── DXF tab ─────────────────────────────────────────────────  -->
+                <!--  â”€â”€ DXF tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
                 <DxfViews:DXFTabView x:Name="PanelDXF" Visibility="Collapsed" />
 
-                <!--  ── CRANES tab ──────────────────────────────────────────────  -->
+                <!--  â”€â”€ CRANES tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
                 <CraneViews:CranesTabView x:Name="PanelCranes" DataContext="{Binding}" Visibility="Collapsed" />
 
-                <!--  ── ZONES tab ───────────────────────────────────────────────  -->
+                <!--  â”€â”€ ZONES tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
                 <ZonesViews:ZonesTabView x:Name="PanelZones" Visibility="Collapsed" />
 
-                <!--  ── ANALYZE tab ─────────────────────────────────────────────  -->
+                <!--  â”€â”€ ANALYZE tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
                 <AnalyzeViews:AnalyzeTabView
                     x:Name="PanelAnalyze"
                     DataContext="{Binding CranePlacement}"
                     Visibility="Collapsed" />
 
-                <!--  ── REPORTS tab ────────────────────────────────────────────────  -->
+                <!--  â”€â”€ REPORTS tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
                 <ReportViews:ReportsTabView
                     x:Name="PanelReports"
                     DataContext="{Binding CranePlacement}"
+                    Visibility="Collapsed" />
+                <AiAdvisorViews:AiAdvisorTabView
+                    x:Name="PanelAiCopilot"
                     Visibility="Collapsed" />
 
                 <!-- Temporarily hidden by product decision. Keep logic intact for future re-enable. -->
@@ -144,3 +154,5 @@
         </Grid>
     </Border>
 </UserControl>
+
+
