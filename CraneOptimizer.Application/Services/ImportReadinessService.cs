@@ -17,7 +17,9 @@ namespace CraneOptimizer.Application.Services
                 return summary;
             }
 
-            var elementList = elements.ToList();
+            var elementList = elements
+                .Where(element => !IsGridReference(element))
+                .ToList();
             summary.TotalElements = elementList.Count;
             summary.RenderableElements = elementList.Count(e => e.IncludeInRender);
 
@@ -335,6 +337,10 @@ namespace CraneOptimizer.Application.Services
 
             return summary;
         }
+
+        private static bool IsGridReference(PrecastElement element) =>
+            element.RawIfcType.Equals("IfcGrid", StringComparison.OrdinalIgnoreCase)
+            || element.RawIfcType.Equals("IfcGridAxis", StringComparison.OrdinalIgnoreCase);
 
         private sealed class ElementReadinessEvaluation
         {

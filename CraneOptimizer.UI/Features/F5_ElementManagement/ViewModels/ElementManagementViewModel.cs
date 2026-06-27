@@ -326,7 +326,11 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             Elements.Clear();
             FilteredElements.Clear();
 
-            foreach (var e in elements)
+            var treeElements = elements
+                .Where(element => element.IncludeInElementTree)
+                .ToList();
+
+            foreach (var e in treeElements)
             {
                 Elements.Add(e);
                 FilteredElements.Add(e);
@@ -336,13 +340,13 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
 
             ApplySearchFilter();
 
-            if (elements.Count == 0)
+            if (treeElements.Count == 0)
             {
                 SelectedElement = null;
             }
-            else if (SelectedElement != null && !elements.Contains(SelectedElement))
+            else if (SelectedElement != null && !treeElements.Contains(SelectedElement))
             {
-                SelectedElement = elements.FirstOrDefault();
+                SelectedElement = treeElements.FirstOrDefault();
             }
 
             OnPropertyChanged(nameof(GridSize));

@@ -25,7 +25,9 @@ namespace CraneOptimizer.UI.Core.Converters
             var type = CleanIfcType(element.ElementType);
             var rawName = string.Empty;
 
-            if (!string.IsNullOrWhiteSpace(element.ElementMark))
+            if (!string.IsNullOrWhiteSpace(element.ElementName))
+                rawName = element.ElementName;
+            else if (!string.IsNullOrWhiteSpace(element.ElementMark))
                 rawName = $"{element.ElementMark} - {type}";
             else if (!string.IsNullOrWhiteSpace(element.ElementRevitId))
                 rawName = string.IsNullOrWhiteSpace(type) ? element.ElementRevitId : $"{type}-{element.ElementRevitId}";

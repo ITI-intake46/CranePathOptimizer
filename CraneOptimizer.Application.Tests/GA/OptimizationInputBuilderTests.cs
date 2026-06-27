@@ -30,6 +30,27 @@ namespace CraneOptimizer.Application.Tests
         }
 
         [Fact]
+        public void Build_ExcludesGridReferencesEvenWhenIncludeInGaIsIncorrectlyTrue()
+        {
+            var builder = new OptimizationInputBuilder();
+            var grid = CreateElement("GRID-1", includeInGa: true);
+            grid.RawIfcType = "IfcGrid";
+
+            var input = builder.Build(
+                new GASettings(),
+                CreateCrane(),
+                new List<PrecastElement>
+                {
+                    CreateElement("GA-1", includeInGa: true),
+                    grid
+                },
+                new List<GreenAreaZone> { CreateAllowedZone() });
+
+            var element = Assert.Single(input.Elements);
+            Assert.Equal("GA-1", element.ElementID);
+        }
+
+        [Fact]
         public void Build_ThrowsWhenAllElementsAreBlockedFromGa()
         {
             var builder = new OptimizationInputBuilder();

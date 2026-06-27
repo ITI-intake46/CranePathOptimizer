@@ -1238,13 +1238,21 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     .Where(IsEngineeringProduct)
                     .ToList();
 
+                var selectedProducts = physicalProducts
+                    .Concat(_model.Instances
+                        .OfType<IIfcProduct>()
+                        .Where(product => product is IIfcGrid && !string.IsNullOrWhiteSpace(product.GlobalId)))
+                    .GroupBy(product => product.EntityLabel)
+                    .Select(group => group.First())
+                    .ToList();
+
                 if (physicalProducts.Count > 0)
                 {
                     CacheSourceProducts(physicalProducts, progress, cancellationToken);
                 }
 
                 // Create a fast lookup by GlobalId for IIfcProduct
-                var productByGlobalId = physicalProducts
+                var productByGlobalId = selectedProducts
     .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
     .GroupBy(p => (string)p.GlobalId, StringComparer.Ordinal)
     .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);

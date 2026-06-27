@@ -1,5 +1,7 @@
+using CraneOptimizer.Application.Services.Identity;
 using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
+using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Infrastructure.Ifc;
 using System;
 using System.Collections.Generic;
@@ -84,7 +86,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     if (_lastAuditResult != null
                         && _lastAuditSessionId == session.SessionId
                         && string.Equals(_lastAuditFileIdentity, session.FileIdentity, StringComparison.Ordinal)
-                        && Math.Abs(_lastAuditConcreteDensityKgPerM3 - concreteDensityKgPerM3) < 0.000001)
+                        && Math.Abs(_lastAuditConcreteDensityKgPerM3 - concreteDensityKgPerM3) < 0.000001
+                        && _lastAuditResult.Options?.HideGrids == options?.HideGrids)
                     {
                         Debug.WriteLine($"[IfcDiagnosticAudit] Reusing cached audit for session {session.SessionId}.");
                         progress?.Report(100.0);
@@ -108,10 +111,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     $"[IfcDiagnosticAudit] Session audit completed. SessionId={session.SessionId}, " +
                     $"Duration={sessionAuditTimer.ElapsedMilliseconds} ms, ReopenedIfc=False, CreatedContext=False");
 
+                result.Options = options;
                 return result;
             }
 
-            return RunAuditCore(ifcPath, concreteDensityKgPerM3, progress, cancellationToken);
+            var fallbackResult = RunAuditCore(ifcPath, concreteDensityKgPerM3, progress, cancellationToken);
+            fallbackResult.Options = options;
+            return fallbackResult;
         }
 
         private IfcAuditResult RunAuditCore(
@@ -213,24 +219,33 @@ namespace CraneOptimizer.Infrastructure.Repositories
             result.Metadata = ExtractMetadata(model, ifcPath);
             cancellationToken.ThrowIfCancellationRequested();
 
-            var allPhysicalProducts = model.Instances
+            var allAuditableProducts = model.Instances
                 .OfType<IIfcProduct>()
-                .Where(IsPhysicalProduct)
+                .Where(IsAuditableProduct)
                 .ToList();
 
             progress?.Report(40.0);
-            result.RawTypes = BuildRawTypeSummary(allPhysicalProducts, geometryContext);
+            result.RawTypes = BuildRawTypeSummary(allAuditableProducts, geometryContext);
+            AddGridAxisRawTypeSummary(model, result.RawTypes);
             cancellationToken.ThrowIfCancellationRequested();
 
             progress?.Report(60.0);
-            result.Assemblies = BuildAssemblyDecompositionAudit(model, allPhysicalProducts, geometryContext, cancellationToken);
+            result.Assemblies = BuildAssemblyDecompositionAudit(model, allAuditableProducts, geometryContext, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
 
             progress?.Report(80.0);
-            ProcessPhysicalElements(allPhysicalProducts, geometryContext, result, result.Metadata.LengthConversionFactor, result.Metadata.VolumeConversionFactor, concreteDensityKgPerM3);
+            ProcessPhysicalElements(allAuditableProducts, model, geometryContext, result, result.Metadata.LengthConversionFactor, result.Metadata.VolumeConversionFactor, concreteDensityKgPerM3);
             cancellationToken.ThrowIfCancellationRequested();
 
             progress?.Report(100.0);
+        }
+
+        private static bool IsAuditableProduct(IIfcProduct product)
+        {
+            if (product is IIfcGrid)
+                return !string.IsNullOrWhiteSpace(product.GlobalId);
+
+            return IsPhysicalProduct(product);
         }
 
         private static bool IsPhysicalProduct(IIfcProduct product)
@@ -345,10 +360,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
             var prefix = siUnit.Prefix?.ToString() ?? string.Empty;
 
             // KILOGRAM to kilograms must be 1, not 1000
-            if (name.Equals("GRAM", StringComparison.OrdinalIgnoreCase) || 
+            if (name.Equals("GRAM", StringComparison.OrdinalIgnoreCase) ||
                 name.Equals("KILOGRAM", StringComparison.OrdinalIgnoreCase))
             {
-                if (prefix.Contains("KILO", StringComparison.OrdinalIgnoreCase) || 
+                if (prefix.Contains("KILO", StringComparison.OrdinalIgnoreCase) ||
                     name.Equals("KILOGRAM", StringComparison.OrdinalIgnoreCase))
                 {
                     return 1.0;
@@ -378,26 +393,26 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             if (name.Contains("MILLIMET", StringComparison.OrdinalIgnoreCase)) return 0.001;
             if (name.Contains("CENTIMET", StringComparison.OrdinalIgnoreCase)) return 0.01;
-            
+
             // Check composite foot dimensions before standard foot to avoid partial matching
-            if (name.Contains("SQUARE FOOT", StringComparison.OrdinalIgnoreCase) || 
-                name.Contains("SQUARE FEET", StringComparison.OrdinalIgnoreCase) || 
-                name.Contains("SQ FT", StringComparison.OrdinalIgnoreCase)) 
+            if (name.Contains("SQUARE FOOT", StringComparison.OrdinalIgnoreCase) ||
+                name.Contains("SQUARE FEET", StringComparison.OrdinalIgnoreCase) ||
+                name.Contains("SQ FT", StringComparison.OrdinalIgnoreCase))
                 return 0.3048 * 0.3048;
 
-            if (name.Contains("CUBIC FOOT", StringComparison.OrdinalIgnoreCase) || 
-                name.Contains("CUBIC FEET", StringComparison.OrdinalIgnoreCase) || 
-                name.Contains("CU FT", StringComparison.OrdinalIgnoreCase)) 
+            if (name.Contains("CUBIC FOOT", StringComparison.OrdinalIgnoreCase) ||
+                name.Contains("CUBIC FEET", StringComparison.OrdinalIgnoreCase) ||
+                name.Contains("CU FT", StringComparison.OrdinalIgnoreCase))
                 return 0.3048 * 0.3048 * 0.3048;
 
-            if (name.Contains("FOOT", StringComparison.OrdinalIgnoreCase) || 
-                name.Contains("FEET", StringComparison.OrdinalIgnoreCase)) 
+            if (name.Contains("FOOT", StringComparison.OrdinalIgnoreCase) ||
+                name.Contains("FEET", StringComparison.OrdinalIgnoreCase))
                 return 0.3048;
 
             if (name.Contains("INCH", StringComparison.OrdinalIgnoreCase)) return 0.0254;
 
-            if (name.Contains("TON", StringComparison.OrdinalIgnoreCase) || 
-                name.Contains("TONNE", StringComparison.OrdinalIgnoreCase)) 
+            if (name.Contains("TON", StringComparison.OrdinalIgnoreCase) ||
+                name.Contains("TONNE", StringComparison.OrdinalIgnoreCase))
                 return TonToKgFactor;
 
             var valComp = conversionUnit.ConversionFactor?.ValueComponent?.ToString();
@@ -428,7 +443,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         CountWithGlobalId = items.Count(p => !string.IsNullOrEmpty(p.GlobalId)),
                         CountWithName = items.Count(p => !string.IsNullOrEmpty(p.Name?.ToString())),
                         CountWithObjectPlacement = items.Count(p => p.ObjectPlacement != null),
-                        CountWithShapeInstances = items.Count(p => {
+                        CountWithShapeInstances = items.Count(p =>
+                        {
                             try { return geometryContext.ShapeInstancesOf(p).Any(); } catch { return false; }
                         }),
                         CountWithQuantitySets = items.Count(p => p.IsDefinedBy.Any(r => r.RelatingPropertyDefinition is IIfcElementQuantity)),
@@ -440,6 +456,20 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 .ToList();
 
             return grouped;
+        }
+
+        private static void AddGridAxisRawTypeSummary(IfcStore model, ICollection<RawIfcTypeSummary> summaries)
+        {
+            var axes = model.Instances.OfType<IIfcGridAxis>().ToList();
+            if (axes.Count == 0)
+                return;
+
+            summaries.Add(new RawIfcTypeSummary
+            {
+                RawIfcClass = "IfcGridAxis",
+                TotalCount = axes.Count,
+                CountWithName = axes.Count(axis => !string.IsNullOrWhiteSpace(axis.AxisTag))
+            });
         }
 
         private static AssemblyDecompositionAudit BuildAssemblyDecompositionAudit(
@@ -534,7 +564,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     }
 
                     // A child has swallowed risk because under current pipeline it gets ignored as an individual liftable item
-                    bool swallowed = true; 
+                    bool swallowed = true;
 
                     // Double counting risk exists if the child has geometry but is also contained in a parent assembly that has geometry
                     bool doubleCounting = detail.ParentHasGeometry && HasDirectGeometry(child, geometryContext);
@@ -618,6 +648,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         private void ProcessPhysicalElements(
             List<IIfcProduct> physicalProducts,
+            IfcStore model,
             Xbim3DModelContext geometryContext,
             IfcAuditResult auditResult,
             double lengthFactor,
@@ -673,6 +704,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 auditResult.Geometries.Add(geomDetail);
             }
 
+            auditResult.RawNameDiagnostics = BuildRawNameDiagnostics(physicalProducts, model);
             auditResult.AssemblyMarkDiagnostics = BuildAssemblyMarkDiagnostics(
                 physicalProducts,
                 geometryContext,
@@ -1035,6 +1067,86 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return detail;
         }
 
+        private static string CleanElementName(string rawName)
+        {
+            if (string.IsNullOrWhiteSpace(rawName)) return "-";
+
+            return rawName.Replace("- Assembly", "")
+                         .Replace(" Assembly", "")
+                         .Trim();
+        }
+
+        private List<RawNameDiagnosticDetail> BuildRawNameDiagnostics(List<IIfcProduct> physicalProducts, IfcStore model)
+        {
+            var profileResolver = new IfcExporterProfileResolver();
+            var exporterProfile = profileResolver.ResolveProfile(model.Header?.FileName?.OriginatingSystem ?? string.Empty);
+
+            var list = new List<RawNameDiagnosticDetail>();
+            foreach (var product in physicalProducts)
+            {
+                var rawIfcName = product?.Name?.ToString()?.Trim();
+                var rawIfcLongName = string.Empty;
+                var rawObjectType = string.Empty;
+                var rawTag = string.Empty;
+
+                if (product is Xbim.Ifc4.ProductExtension.IfcElement element)
+                {
+                    rawTag = element.Tag?.ToString()?.Trim() ?? string.Empty;
+                }
+
+                if (product is Xbim.Ifc4.Kernel.IfcObject obj)
+                {
+                    rawObjectType = obj.ObjectType?.ToString()?.Trim() ?? string.Empty;
+                }
+
+                var longNameProp = product?.GetType().GetProperty("LongName");
+                if (longNameProp != null)
+                {
+                    rawIfcLongName = longNameProp.GetValue(product)?.ToString()?.Trim() ?? string.Empty;
+                }
+
+                var aliasResult = _aliasResolver.ResolveCanonicalAssemblyIdentity(product!, rawIfcName ?? string.Empty, exporterProfile);
+                var rawAssemblyPos = _aliasResolver.ResolveProperty(product!, "ASSEMBLY_POS", exporterProfile)?.Value ?? string.Empty;
+                var rawCastUnitPos = _aliasResolver.ResolveProperty(product!, "CAST_UNIT_POS", exporterProfile)?.Value ?? string.Empty;
+
+                var extractedElementName = !string.IsNullOrWhiteSpace(rawIfcName) ? rawIfcName : string.Empty;
+                var elementMark = CleanElementName(aliasResult.AssemblyMark ?? string.Empty);
+                var f5NameResolved = !string.IsNullOrWhiteSpace(extractedElementName) ? extractedElementName : "-";
+
+                var diagnosticElement = new PrecastElement
+                {
+                    ElementID = product?.GlobalId.ToString() ?? string.Empty,
+                    ElementName = extractedElementName,
+                    ElementMark = elementMark,
+                    AssemblyMark = aliasResult.AssemblyMark,
+                    AssemblyMarkIsExplicit = aliasResult.IsExplicitAssemblyMark
+                };
+                var canonicalIdentity = CanonicalMarkResolver.Resolve(diagnosticElement);
+
+                var detail = new RawNameDiagnosticDetail
+                {
+                    GlobalId = product?.GlobalId.ToString() ?? string.Empty,
+                    IfcEntity = product?.ExpressType?.Name ?? string.Empty,
+                    RawProductName = rawIfcName ?? string.Empty,
+                    RawProductLongName = rawIfcLongName,
+                    RawObjectType = rawObjectType,
+                    RawTag = rawTag,
+                    RawAssemblyPos = rawAssemblyPos,
+                    RawCastUnitPos = rawCastUnitPos,
+                    ExtractedElementName = extractedElementName,
+                    ElementID = product?.GlobalId.ToString() ?? string.Empty,
+                    ElementMark = elementMark,
+                    AssemblyMark = aliasResult.AssemblyMark ?? string.Empty,
+                    ResolvedDisplayMark = canonicalIdentity.DisplayLabel,
+                    CanonicalDisplayLabel = canonicalIdentity.DisplayLabel,
+                    PersistedDisplayName = extractedElementName,
+                    F5IfcNameResolved = f5NameResolved
+                };
+                list.Add(detail);
+            }
+            return list;
+        }
+
         private List<AssemblyMarkAuditDetail> BuildAssemblyMarkDiagnostics(
             List<IIfcProduct> physicalProducts,
             Xbim3DModelContext geometryContext,
@@ -1307,6 +1419,36 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     valid.Average(member => member.MemberCogZ!.Value));
         }
 
+        private static void GenerateRawNameCsvReport(IfcAuditResult auditResult, string csvPath)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("GlobalId,IfcEntity,RawProductName,RawProductLongName,RawObjectType,RawTag,RawAssemblyPos,RawCastUnitPos,ExtractedElementName,ElementID,ElementMark,AssemblyMark,ResolvedDisplayMark,CanonicalDisplayLabel,PersistedDisplayName,F5IfcNameResolved");
+
+            foreach (var detail in auditResult.RawNameDiagnostics)
+            {
+                sb.AppendLine(string.Join(",", new[]
+                {
+                    Csv(detail.GlobalId),
+                    Csv(detail.IfcEntity),
+                    Csv(detail.RawProductName),
+                    Csv(detail.RawProductLongName),
+                    Csv(detail.RawObjectType),
+                    Csv(detail.RawTag),
+                    Csv(detail.RawAssemblyPos),
+                    Csv(detail.RawCastUnitPos),
+                    Csv(detail.ExtractedElementName),
+                    Csv(detail.ElementID),
+                    Csv(detail.ElementMark),
+                    Csv(detail.AssemblyMark),
+                    Csv(detail.ResolvedDisplayMark),
+                    Csv(detail.CanonicalDisplayLabel),
+                    Csv(detail.PersistedDisplayName),
+                    Csv(detail.F5IfcNameResolved)
+                }));
+            }
+            File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
+        }
+
         private static void GenerateAssemblyMarkCsvReport(IfcAuditResult auditResult, string csvPath)
         {
             var sb = new StringBuilder();
@@ -1379,6 +1521,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             var jsonPath = Path.Combine(outputDirectory, $"debug_ifc_details_{timestamp}.json");
             var csvPath = Path.Combine(outputDirectory, $"debug_ifc_elements_{timestamp}.csv");
             var assemblyMarkCsvPath = Path.Combine(outputDirectory, $"debug_ifc_check_assembly_mark_{timestamp}.csv");
+            var rawNameCsvPath = Path.Combine(outputDirectory, $"debug_ifc_raw_name_check_{timestamp}.csv");
 
             cancellationToken.ThrowIfCancellationRequested();
             // 1. Generate JSON
@@ -1396,6 +1539,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             cancellationToken.ThrowIfCancellationRequested();
             GenerateAssemblyMarkCsvReport(auditResult, assemblyMarkCsvPath);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            GenerateRawNameCsvReport(auditResult, rawNameCsvPath);
 
             Debug.WriteLine($"[IfcDiagnosticAudit] JSON and CSV Reports generated successfully at: {outputDirectory}");
             return outputDirectory;

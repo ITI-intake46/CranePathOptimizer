@@ -4,6 +4,7 @@ namespace CraneOptimizer.Domain.Diagnostics
 {
     public sealed class IfcAuditResult
     {
+        public IfcReadingOptions? Options { get; set; }
         public IfcAuditMetadata Metadata { get; set; } = new();
         public List<RawIfcTypeSummary> RawTypes { get; set; } = new();
         public AssemblyDecompositionAudit Assemblies { get; set; } = new();
@@ -12,6 +13,7 @@ namespace CraneOptimizer.Domain.Diagnostics
         public List<ElementVolumeMaterialAuditDetail> VolumesMaterials { get; set; } = new();
         public List<ElementGeometryOwnershipAuditDetail> Geometries { get; set; } = new();
         public List<AssemblyMarkAuditDetail> AssemblyMarkDiagnostics { get; set; } = new();
+        public List<RawNameDiagnosticDetail> RawNameDiagnostics { get; set; } = new();
     }
 
     public sealed class IfcAuditMetadata

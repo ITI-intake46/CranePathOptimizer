@@ -1,10 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Application.Services;
+using CraneOptimizer.Infrastructure.Ifc;
+using CraneOptimizer.Infrastructure.Repositories;
+using Xbim.Common.XbimExtensions;
+using Xbim.Ifc;
 using Xunit;
 
 namespace CraneOptimizer.Application.Tests.Diagnostics
@@ -36,6 +42,97 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
             Assert.Equal(2, summary.RenderableElements);
             Assert.Equal(2, summary.GaCandidateElements);
             Assert.Equal(0, summary.GaBlockedElements);
+        }
+
+        [Fact]
+        public async Task ImportReadiness_GridReferenceToggleIsReachableAndExcludedFromLiftCounts()
+        {
+            var tempPath = Path.Combine(Path.GetTempPath(), $"GridReference_{Guid.NewGuid():N}.ifc");
+            var gridId = Guid.NewGuid().ToString();
+
+            using (var model = IfcStore.Create(
+                       Xbim.Common.Step21.XbimSchemaVersion.Ifc4,
+                       Xbim.IO.XbimStoreType.InMemoryModel))
+            {
+                using (var transaction = model.BeginTransaction("Create grid reference"))
+                {
+                    var project = model.Instances.New<Xbim.Ifc4.Kernel.IfcProject>();
+                    project.Name = "Grid Reference Test";
+
+                    var grid = model.Instances.New<Xbim.Ifc4.ProductExtension.IfcGrid>();
+                    grid.GlobalId = gridId;
+                    grid.Name = "Reference Grid";
+
+                    var start = model.Instances.New<Xbim.Ifc4.GeometryResource.IfcCartesianPoint>();
+                    start.SetXYZ(0, 0, 0);
+                    var end = model.Instances.New<Xbim.Ifc4.GeometryResource.IfcCartesianPoint>();
+                    end.SetXYZ(10, 0, 0);
+                    var curve = model.Instances.New<Xbim.Ifc4.GeometryResource.IfcPolyline>();
+                    curve.Points.Add(start);
+                    curve.Points.Add(end);
+
+                    var axis = model.Instances.New<Xbim.Ifc4.GeometricConstraintResource.IfcGridAxis>();
+                    axis.AxisTag = "A";
+                    axis.AxisCurve = curve;
+                    axis.SameSense = true;
+                    grid.UAxes.Add(axis);
+
+                    transaction.Commit();
+                }
+
+                model.SaveAs(tempPath);
+            }
+
+            try
+            {
+                using var sessionService = new IfcModelSessionService();
+                var auditService = new IfcDiagnosticAuditService(sessionService);
+                var normalizationService = new IfcNormalizationDecisionService(new IfcExporterProfileResolver());
+                using var reader = new IfcReaderRepository(auditService, normalizationService, sessionService);
+
+                var shownElements = reader.ReadElements(tempPath, new IfcReadingOptions(HideGrids: false));
+                var shownGrid = Assert.Single(shownElements, element => element.RawIfcType == "IfcGrid");
+                Assert.Equal(IfcElementRole.InternalAuxiliary, shownGrid.Role);
+                Assert.True(shownGrid.IncludeInRender);
+                Assert.True(shownGrid.IncludeInElementTree);
+                Assert.False(shownGrid.IncludeInGa);
+
+                var shownAudit = await auditService.RunAuditAsync(
+                    tempPath,
+                    new IfcReadingOptions(HideGrids: false));
+                Assert.Contains(shownAudit.Classifications, item => item.RawIfcType == "IfcGrid");
+                Assert.Contains(shownAudit.RawTypes, item => item.RawIfcClass == "IfcGridAxis" && item.TotalCount == 1);
+
+                var hiddenElements = reader.ReadElements(tempPath, new IfcReadingOptions(HideGrids: true));
+                var hiddenGrid = Assert.Single(hiddenElements, element => element.RawIfcType == "IfcGrid");
+                Assert.False(hiddenGrid.IncludeInRender);
+                Assert.False(hiddenGrid.IncludeInElementTree);
+                Assert.False(hiddenGrid.IncludeInGa);
+
+                var liftElement = new PrecastElement
+                {
+                    ElementID = "LIFT-1",
+                    ElementType = "Beam",
+                    RawIfcType = "IfcBeam",
+                    IncludeInGa = true,
+                    IncludeInRender = true,
+                    WeightTons = 5,
+                    WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
+                    ElementCOG = new DomainPoint3D(1, 2, 3)
+                };
+                var summary = _readinessService.BuildSummary(new[] { liftElement, shownGrid });
+
+                Assert.Equal(1, summary.TotalElements);
+                Assert.Equal(1, summary.RenderableElements);
+                Assert.Equal(1, summary.GaCandidateElements);
+                Assert.Equal(0, summary.GaBlockedElements);
+                Assert.DoesNotContain(summary.ElementDiagnostics, item => item.ElementId == gridId);
+            }
+            finally
+            {
+                if (File.Exists(tempPath))
+                    File.Delete(tempPath);
+            }
         }
 
         [Fact]
