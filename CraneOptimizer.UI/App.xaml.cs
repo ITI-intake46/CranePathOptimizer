@@ -9,6 +9,9 @@ using CraneOptimizer.Application.Reports.Interfaces;
 using CraneOptimizer.Application.Reports.Services;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Application.Services;
+using CraneOptimizer.Application.AI.Interfaces;
+using CraneOptimizer.Application.AI.Services;
+using CraneOptimizer.Infrastructure.AI;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.Ifc;
@@ -35,6 +38,11 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 using CraneOptimizer.UI.Features.F12_Reports.Services;
 using CraneOptimizer.UI.Features.F12_Reports.ViewModels;
+using CraneOptimizer.UI.Features.F13_AiAdvisor.Services;
+using CraneOptimizer.UI.Features.F13_AiAdvisor.ViewModels;
+using CraneOptimizer.UI.Features.F13_AiAdvisor.Configuration;
+using CraneOptimizer.UI.Features.F13_AiAdvisor.Workflow;
+using CraneOptimizer.UI.Features.F13_AiAdvisor.Knowledge;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
 using CraneOptimizer.UI.F10_ProjectManagement.Views;
@@ -158,6 +166,24 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IGAResultsWindowService, GAResultsWindowService>();
             services.AddSingleton<CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces.IGADiagnosticsReaderService, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GADiagnosticsReaderService>();
             services.AddSingleton<CraneOptimizer.UI.Features.F8_GAOptimizer.Services.IGADiagnosticsWindowService, CraneOptimizer.UI.Features.F8_GAOptimizer.Services.GADiagnosticsWindowService>();
+
+            // =========================
+            // AI Advisor / Local Ollama Copilot
+            // =========================
+            services.AddSingleton<IAiOptimizationAdvisorService, AiOptimizationAdvisorService>();
+            services.AddSingleton<IAiSoftwareContextService, StaticAiSoftwareContextService>();
+            services.AddSingleton<IAiChatService, OllamaChatService>();
+            services.AddSingleton<IAiStreamingChatService>(sp => (OllamaChatService)sp.GetRequiredService<IAiChatService>());
+            services.AddSingleton<IAiModelManagementService, OllamaModelManagementService>();
+            services.AddSingleton<IAiCopilotSettingsService, JsonAiCopilotSettingsService>();
+            services.AddSingleton<IAiLocalDocumentSearchService, AiLocalDocumentSearchService>();
+            services.AddSingleton<IAiSoftwareInventoryService, AiSoftwareInventoryService>();
+            services.AddSingleton<IAiPromptTemplateService, AiPromptTemplateService>();
+            services.AddSingleton<IAiReportAppendixService, AiReportAppendixService>();
+            services.AddSingleton<IWorkflowReadinessService, WorkflowReadinessService>();
+            services.AddSingleton<IUiInteractionContextService, UiInteractionContextService>();
+            services.AddSingleton<AiAdvisorViewModel>();
+            services.AddSingleton<IAiAdvisorWindowService, AiAdvisorWindowService>();
 
             // =========================
             // User-facing Reports
