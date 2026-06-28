@@ -467,6 +467,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             set { if (_enableConcurrentOptimization != value) { _enableConcurrentOptimization = value; OnPropertyChanged(); OnManualFieldEdit(); } }
         }
 
+        private bool _enableGroupedLifts = false;
+        public bool EnableGroupedLifts
+        {
+            get => _enableGroupedLifts;
+            set { if (_enableGroupedLifts != value) { _enableGroupedLifts = value; OnPropertyChanged(); OnManualFieldEdit(); } }
+        }
+
         /// <summary>
         /// Description text for the currently selected preset, shown below the ComboBox.
         /// </summary>
@@ -862,6 +869,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public ParameterViewModel ParamMinMutationSigma { get; } = new("Min Mutation Sigma (m)");
         public ParameterViewModel ParamSamplingAttempts { get; } = new("Sampling Attempts");
         public ParameterViewModel ParamConcurrentOpt { get; } = new("Concurrent Opt");
+        public ParameterViewModel ParamEnableGroupedLifts { get; } = new("Enable Grouped Lifts");
 
         public ParameterViewModel ParamSlewOffsetX { get; } = new("Offset X (m) slew");
         public ParameterViewModel ParamSlewOffsetY { get; } = new("Offset Y (m) slew");
@@ -911,7 +919,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
                 ParamRandomSeed, ParamCrossoverRate, ParamMutationExploreMult, ParamEnableAdaptiveSigma,
                 ParamSigmaCoolingExponent, ParamMinMutationSigma, ParamSamplingAttempts, ParamConcurrentOpt,
                 ParamEnableMultiStageDiscovery, ParamMultiStageCoverageTarget, ParamAdaptiveRelocationScaleFactor,
-                ParamUseHungarianAssignment
+                ParamUseHungarianAssignment, ParamEnableGroupedLifts
             });
 
             SectionDiagnostics = new SectionViewModel("6. Diagnostics", new List<ParameterViewModel>

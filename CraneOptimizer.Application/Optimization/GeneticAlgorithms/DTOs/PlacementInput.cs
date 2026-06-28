@@ -24,6 +24,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public int RequestedMaxCranePositions { get; set; }
         public List<PrecastElement> FeatureScopeElements { get; set; } = new();
         public int TotalElementsCount { get; set; }
+        public int RawGaEligibleElementCount { get; set; }
+        public int GroupedAssemblyCount { get; set; }
+        public int UngroupedElementCount { get; set; }
         public string? DiagnosticsReportsDirectory { get; set; }
     }
 }

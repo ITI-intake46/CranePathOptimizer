@@ -117,7 +117,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 AdaptiveRelocationScaleFactor = ParseDouble(options.AdaptiveRelocationScaleFactorText, 0.40),
                 UseHungarianAssignment = ParseBool(options.UseHungarianAssignmentText, false),
                 LoadChartNumberOfLinesConstraint = options.LoadChartNumberOfLinesConstraint,
-                LoadChartOperatingConditionConstraint = NullIfWhiteSpace(options.LoadChartOperatingConditionConstraint)
+                LoadChartOperatingConditionConstraint = NullIfWhiteSpace(options.LoadChartOperatingConditionConstraint),
+                EnableGroupedLifts = ParseBool(options.EnableGroupedLiftsText, false)
             };
         }
 
@@ -223,7 +224,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
         /// GA Mode Preset to apply after building settings from UI text boxes.
         /// When <see cref="GAModePreset.None"/>, no preset is applied.
         /// </summary>
-        GAModePreset SelectedPreset = GAModePreset.None);
+        GAModePreset SelectedPreset = GAModePreset.None,
+        string? EnableGroupedLiftsText = null);
 
     public sealed class CraneOptimizerPointListItem
     {

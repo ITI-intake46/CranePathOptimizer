@@ -56,6 +56,7 @@ namespace CraneOptimizer.Domain.Schemas
         public string ResolvedCategory { get; set; } = string.Empty;
         public IfcElementRole Role { get; set; } = IfcElementRole.LiftableElement;
         public string? ParentGlobalId { get; set; }
+        public string? ParentGlobalIdSource { get; set; }
         public List<string> ChildGlobalIds { get; set; } = new();
         public List<string> VisibleGeometryOwnerGlobalIds { get; set; } = new();
         public List<string> HiddenInternalGeometryOwnerGlobalIds { get; set; } = new();

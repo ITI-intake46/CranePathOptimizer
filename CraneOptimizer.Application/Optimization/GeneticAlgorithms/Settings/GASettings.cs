@@ -379,6 +379,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         }
 
         /// <summary>
+        /// Enables grouped lifting mode.
+        /// If true, elements sharing the same ParentAssemblyGlobalId are grouped.
+        /// If false (default), elements are optimized individually by their RawGlobalId.
+        /// </summary>
+        public bool EnableGroupedLifts { get; set; } = false;
+
+        /// <summary>
         /// Performs a shallow copy of the settings.
         /// </summary>
         public GASettings Clone()

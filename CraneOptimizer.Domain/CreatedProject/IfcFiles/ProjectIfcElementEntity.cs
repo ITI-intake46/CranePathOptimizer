@@ -76,6 +76,7 @@ namespace CraneOptimizer.Domain.CreatedProject.IfcFiles
         public string? ResolvedCategory { get; set; }
         public string? Role { get; set; }
         public string? ParentGlobalId { get; set; }
+        public string? ParentGlobalIdSource { get; set; }
         public string? ChildGlobalIdsJson { get; set; }
         public string? VisibleGeometryOwnerGlobalIdsJson { get; set; }
         public string? HiddenInternalGeometryOwnerGlobalIdsJson { get; set; }

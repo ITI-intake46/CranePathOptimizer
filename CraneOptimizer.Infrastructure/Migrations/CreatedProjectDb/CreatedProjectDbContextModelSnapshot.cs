@@ -275,6 +275,10 @@ namespace CraneOptimizer.Infrastructure.Migrations.CreatedProjectDb
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ParentGlobalIdSource")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("ProjectInfoId")
                         .HasColumnType("INTEGER");
 

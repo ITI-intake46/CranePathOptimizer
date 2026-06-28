@@ -49,6 +49,7 @@ namespace CraneOptimizer.Domain.Diagnostics
         public string RawIfcType { get; set; } = string.Empty;
         public string CandidateCategory { get; set; } = string.Empty;
         public string? ParentGlobalId { get; set; }
+        public string? ParentGlobalIdSource { get; set; }
         public List<string> ChildGlobalIds { get; set; } = new();
         public List<string> VisibleGeometryOwnerGlobalIds { get; set; } = new();
         public List<string> HiddenInternalGeometryOwnerGlobalIds { get; set; } = new();

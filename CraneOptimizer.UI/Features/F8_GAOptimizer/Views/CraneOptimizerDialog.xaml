@@ -1293,6 +1293,18 @@
                                     <CheckBox x:Name="ChkEnableConcurrentOptimization" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding EnableConcurrentOptimization, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 </Grid>
 
+                                <Grid Margin="{StaticResource Space1}" Visibility="{Binding ParamEnableGroupedLifts.Visibility}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="120" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock FontSize="{StaticResource FontSizeSM}" Foreground="{DynamicResource TextSecondaryBrush}" Text="Grouped Lifts" VerticalAlignment="Center" />
+                                        <controls:ParameterHelpIcon ParameterKey="EnableGroupedLifts" Margin="4,0,0,0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkEnableGroupedLifts" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding EnableGroupedLifts, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                </Grid>
+
                                 <!-- Multi-Stage Discovery Sub-section -->
                                 <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Margin="0,8,0,8" Padding="0,8,0,0">
                                     <StackPanel>
