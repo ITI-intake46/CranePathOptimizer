@@ -1340,6 +1340,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     pe.ResolvedCategory = preview.CandidateCategory;
                     pe.Role = preview.Role;
                     pe.ParentGlobalId = preview.ParentGlobalId;
+                    pe.ParentGlobalIdSource = preview.ParentGlobalIdSource;
                     pe.ChildGlobalIds = new List<string>(preview.ChildGlobalIds);
                     pe.VisibleGeometryOwnerGlobalIds = new List<string>(preview.VisibleGeometryOwnerGlobalIds);
                     pe.HiddenInternalGeometryOwnerGlobalIds = new List<string>(preview.HiddenInternalGeometryOwnerGlobalIds);

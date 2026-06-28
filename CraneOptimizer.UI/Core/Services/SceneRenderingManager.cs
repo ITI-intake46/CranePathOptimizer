@@ -262,47 +262,69 @@ namespace CraneOptimizer.UI.Core.Services
 
             var viewMode = _context.GetGAViewMode?.Invoke() ?? GAViewMode.FinalAssignment;
 
-            var statusMap = liftResults
-                ?.Where(result => !string.IsNullOrWhiteSpace(result.ElementId))
-                .GroupBy(result => result.ElementId, StringComparer.Ordinal)
-                .ToDictionary(
-                    group => group.Key,
-                    group =>
-                    {
-                        var itemForSelected = group.FirstOrDefault(r => r.CandidatePointId == selectedPointId);
-                        var item = itemForSelected
-                                   ?? group.FirstOrDefault(r => r.IsFinalAssignedToPoint)
-                                   ?? group.Last();
+            var statusMap = new Dictionary<string, LiftStatus?>(StringComparer.Ordinal);
+            if (liftResults != null)
+            {
+                var groupedResults = liftResults
+                    .Where(result => !string.IsNullOrWhiteSpace(result.ElementId))
+                    .GroupBy(result => result.ElementId, StringComparer.Ordinal);
 
-                        if (viewMode == GAViewMode.SelectedPointFeasibility)
+                foreach (var group in groupedResults)
+                {
+                    var itemForSelected = group.FirstOrDefault(r => r.CandidatePointId == selectedPointId);
+                    var item = itemForSelected
+                               ?? group.FirstOrDefault(r => r.IsFinalAssignedToPoint)
+                               ?? group.Last();
+
+                    LiftStatus? resolvedStatus;
+                    if (viewMode == GAViewMode.SelectedPointFeasibility)
+                    {
+                        resolvedStatus = (LiftStatus?)(itemForSelected?.Status ?? item.Status);
+                    }
+                    else // FinalAssignment or AllFeasibleDebug
+                    {
+                        if (hasFinalAssignments)
                         {
-                            return (LiftStatus?)(itemForSelected?.Status ?? item.Status);
-                        }
-                        else // FinalAssignment or AllFeasibleDebug
-                        {
-                            if (hasFinalAssignments)
+                            if (item.IsFinalAssignedToPoint || (!string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId == selectedPointId))
                             {
-                                if (item.IsFinalAssignedToPoint || (!string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId == selectedPointId))
+                                resolvedStatus = (LiftStatus?)item.Status;
+                            }
+                            else if (item.IsFinalAssigned && !string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId != selectedPointId)
+                            {
+                                resolvedStatus = null; // Dimmed/Blueprint Gray
+                            }
+                            else if (!item.IsFinalAssigned)
+                            {
+                                resolvedStatus = (LiftStatus?)item.BestFailedLiftStatus;
+                            }
+                            else
+                            {
+                                resolvedStatus = null; // Safe neutral fallback
+                            }
+                        }
+                        else
+                        {
+                            resolvedStatus = (LiftStatus?)item.Status;
+                        }
+                    }
+
+                    statusMap[group.Key] = resolvedStatus;
+
+                    foreach (var res in group)
+                    {
+                        if (res.IsAssemblyGroup && res.AssemblyMemberIds != null)
+                        {
+                            foreach (var memberId in res.AssemblyMemberIds)
+                            {
+                                if (!string.IsNullOrWhiteSpace(memberId))
                                 {
-                                    return (LiftStatus?)item.Status;
-                                }
-                                else if (item.IsFinalAssigned && !string.IsNullOrEmpty(item.AssignedPointId) && item.AssignedPointId != selectedPointId)
-                                {
-                                    return null; // Dimmed/Blueprint Gray
-                                }
-                                else if (!item.IsFinalAssigned)
-                                {
-                                    return (LiftStatus?)item.BestFailedLiftStatus;
-                                }
-                                else
-                                {
-                                    return null; // Safe neutral fallback
+                                    statusMap[memberId] = resolvedStatus;
                                 }
                             }
-                            return (LiftStatus?)item.Status;
                         }
-                    },
-                    StringComparer.Ordinal);
+                    }
+                }
+            }
 
             var selectedIds = new HashSet<string>(StringComparer.Ordinal);
             if (_context.GetSelectedElementIds != null)

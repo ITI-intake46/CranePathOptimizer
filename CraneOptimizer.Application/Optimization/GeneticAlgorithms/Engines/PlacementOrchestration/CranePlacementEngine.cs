@@ -309,6 +309,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                     Console.WriteLine(summary);
                 }
 
+                finalResult.RawGaEligibleElementCount = input.RawGaEligibleElementCount;
+                finalResult.GroupedAssemblyCount = input.GroupedAssemblyCount;
+                finalResult.UngroupedElementCount = input.UngroupedElementCount;
+
                 // Populate final Statistics
                 if (input.Settings.EnableConcurrentOptimization && concurrentStats != null)
                 {
@@ -460,6 +464,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 IsAssemblyGroup = isGroup,
                 AssemblyMemberCount = isGroup ? element!.ChildGlobalIds.Count : 0,
                 AssemblyMemberIdsJoined = memberIdsJoined,
+                AssemblyMemberIds = element?.ChildGlobalIds != null ? new List<string>(element.ChildGlobalIds) : new List<string>(),
                 ElementMark = element?.ElementMark,
                 CanonicalMark = identity?.DisplayLabel,
                 MarkSource = identity?.MarkSource,
@@ -535,6 +540,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 CoverageRatio = src.CoverageRatio,
                 LiftedElementCount = src.LiftedElementCount,
                 TotalElementCount = src.TotalElementCount,
+                RawGaEligibleElementCount = src.RawGaEligibleElementCount,
+                GroupedAssemblyCount = src.GroupedAssemblyCount,
+                UngroupedElementCount = src.UngroupedElementCount,
                 Statistics = new LiftStatistics
                 {
                     Liftable = src.Statistics.Liftable,

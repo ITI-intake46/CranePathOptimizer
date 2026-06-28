@@ -101,6 +101,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     if (previews.TryGetValue(child.ChildGlobalId, out var childPreview))
                     {
                         childPreview.ParentGlobalId = assembly.AssemblyGlobalId;
+                        childPreview.ParentGlobalIdSource = "IfcDecomposition";
                     }
                     if (parentPreview != null && !parentPreview.ChildGlobalIds.Contains(child.ChildGlobalId))
                     {
@@ -223,6 +224,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         {
                             childPreview.Role = IfcElementRole.LiftableElement;
                             childPreview.ParentGlobalId = preview.GlobalId;
+                            childPreview.ParentGlobalIdSource = "IfcDecomposition";
                             childPreview.IncludeInGaPreview = HasGaApprovedExplicitWeight(childPreview);
                             childPreview.VisibleGeometryOwnerGlobalIds = new List<string> { childId };
                             childPreview.DecisionReason = childPreview.IncludeInGaPreview
@@ -250,6 +252,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                 {
                                     childPreview.Role = IfcElementRole.LiftableElement;
                                     childPreview.ParentGlobalId = preview.GlobalId;
+                                    childPreview.ParentGlobalIdSource = "IfcDecomposition";
                                     childPreview.IncludeInGaPreview = HasGaApprovedExplicitWeight(childPreview);
                                     childPreview.VisibleGeometryOwnerGlobalIds = new List<string> { childId };
                                     childPreview.DecisionReason = childPreview.IncludeInGaPreview
@@ -276,6 +279,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                 {
                                     childPreview.Role = IfcElementRole.LiftableElement;
                                     childPreview.ParentGlobalId = preview.GlobalId;
+                                    childPreview.ParentGlobalIdSource = "IfcDecomposition";
                                     childPreview.IncludeInGaPreview = HasGaApprovedExplicitWeight(childPreview);
                                     childPreview.VisibleGeometryOwnerGlobalIds = new List<string> { childId };
                                     childPreview.DecisionReason = childPreview.IncludeInGaPreview

@@ -361,6 +361,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 CoverageRatio = appResult.CoverageRatio,
                 LiftedElementCount = appResult.LiftedElementCount,
                 TotalElementCount = appResult.TotalElementCount,
+                RawGaEligibleElementCount = appResult.RawGaEligibleElementCount,
+                GroupedAssemblyCount = appResult.GroupedAssemblyCount,
+                UngroupedElementCount = appResult.UngroupedElementCount,
                 ReachabilityDiagnostics = appResult.ReachabilityDiagnostics,
                 Statistics = new DTOs.LiftStatistics
                 {
@@ -428,6 +431,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                             WeightTrustLevel = appElem.WeightTrustLevel,
                             ValidationWarningCount = appElem.ValidationWarningCount,
                             ValidationWarningsJoined = appElem.ValidationWarningsJoined,
+                            IsAssemblyGroup = appElem.IsAssemblyGroup,
+                            AssemblyMemberCount = appElem.AssemblyMemberCount,
+                            AssemblyMemberIdsJoined = appElem.AssemblyMemberIdsJoined,
+                            AssemblyMemberIds = appElem.AssemblyMemberIds != null ? new List<string>(appElem.AssemblyMemberIds) : new List<string>(),
                             ElementType = appElem.ElementType,
                             Weight = appElem.Weight,
                             CogX = sceneCog.X,
