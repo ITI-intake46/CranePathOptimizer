@@ -33,6 +33,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         /// </summary>
         public int TotalElementCount { get; set; }
 
+        public int RawGaEligibleElementCount { get; set; }
+        public int GroupedAssemblyCount { get; set; }
+        public int UngroupedElementCount { get; set; }
+
         /// <summary>
         /// Aggregated statistics of lift results.
         /// </summary>
@@ -160,6 +164,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         public bool IsAssemblyGroup { get; set; }
         public int AssemblyMemberCount { get; set; }
         public string? AssemblyMemberIdsJoined { get; set; }
+        public List<string> AssemblyMemberIds { get; set; } = new();
 
         /// <summary>
         /// Element type from the source model.

@@ -19,6 +19,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public int LiftedElementCount { get; set; }
 
         public int TotalElementCount { get; set; }
+        public int RawGaEligibleElementCount { get; set; }
+        public int GroupedAssemblyCount { get; set; }
+        public int UngroupedElementCount { get; set; }
 
         public LiftStatistics Statistics { get; set; } = new();
         public string? DiagnosticsReportPath { get; set; }
@@ -67,6 +70,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public bool IsAssemblyGroup { get; set; }
         public int AssemblyMemberCount { get; set; }
         public string? AssemblyMemberIdsJoined { get; set; }
+        public List<string> AssemblyMemberIds { get; set; } = new();
 
         public string? ElementType { get; set; }
 

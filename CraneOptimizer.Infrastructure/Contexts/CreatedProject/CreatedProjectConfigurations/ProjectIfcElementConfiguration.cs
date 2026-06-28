@@ -46,6 +46,9 @@ namespace CraneOptimizer.Infrastructure.Contexts.CreatedProject.CreatedProjectCo
             entity.Property(x => x.ParentGlobalId)
                 .HasMaxLength(128);
 
+            entity.Property(x => x.ParentGlobalIdSource)
+                .HasMaxLength(128);
+
             entity.Property(x => x.WeightSource)
                 .HasMaxLength(100);
 

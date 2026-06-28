@@ -427,7 +427,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 vm.UseHungarianAssignment ? "true" : "false",
                 vm.SelectedLoadChartOperatingSetupOption.NumberOfLinesConstraint,
                 vm.SelectedLoadChartOperatingSetupOption.OperatingConditionConstraint,
-                vm.SelectedGaModePresetOption.Mode);
+                vm.SelectedGaModePresetOption.Mode,
+                ChkEnableGroupedLifts.IsChecked == true ? "true" : "false");
         }
 
         private void RefreshSceneCache()

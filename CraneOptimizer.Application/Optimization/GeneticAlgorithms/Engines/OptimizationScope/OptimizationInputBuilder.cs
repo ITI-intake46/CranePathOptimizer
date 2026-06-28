@@ -46,7 +46,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
             if (candidateElements.Count == 0)
                 throw new InvalidOperationException("No scene elements match the selected GA target element types.");
 
-            var gaLiftUnits = BuildAssemblyLiftUnits(candidateElements);
+            var gaLiftUnits = BuildAssemblyLiftUnits(settings, candidateElements);
 
             var allowedZones = new List<GreenAreaZone>();
             var forbiddenZones = new List<GreenAreaZone>();
@@ -103,40 +103,90 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
                 Assignment = new Dictionary<int, List<string>>(),
                 CraneSpec = craneSpec,
                 Settings = settings,
-                RequestedMaxCranePositions = settings.MaxCranePositions
+                RequestedMaxCranePositions = settings.MaxCranePositions,
+                RawGaEligibleElementCount = candidateElements.Count,
+                GroupedAssemblyCount = gaLiftUnits.Count(u => u.Role == IfcElementRole.LiftAssembly),
+                UngroupedElementCount = gaLiftUnits.Count(u => u.Role != IfcElementRole.LiftAssembly)
             };
         }
 
 
-        private static List<PrecastElement> BuildAssemblyLiftUnits(IReadOnlyList<PrecastElement> candidateElements)
+        private static List<PrecastElement> BuildAssemblyLiftUnits(GASettings settings, IReadOnlyList<PrecastElement> candidateElements)
         {
             var result = new List<PrecastElement>();
             var groupedMemberIds = new HashSet<string>(StringComparer.Ordinal);
 
-            foreach (var group in candidateElements
-                .Where(IsAssemblyGroupCandidate)
-                .GroupBy(element => element.AssemblyMark!.Trim(), StringComparer.OrdinalIgnoreCase))
+            if (settings.EnableGroupedLifts)
             {
-                var members = group
-                    .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
-                    .OrderBy(element => element.ElementID, StringComparer.Ordinal)
-                    .ToList();
+                var groupCandidates = candidateElements
+                    .Where(e => !string.IsNullOrWhiteSpace(e.ParentGlobalId) &&
+                                !string.IsNullOrWhiteSpace(e.ElementID) &&
+                                (string.Equals(e.ParentGlobalIdSource, "IfcDecomposition", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(e.ParentGlobalIdSource, "TeklaCastUnit", StringComparison.OrdinalIgnoreCase)))
+                    .GroupBy(e => e.ParentGlobalId!.Trim(), StringComparer.OrdinalIgnoreCase);
 
-                if (members.Count <= 1)
-                    continue;
-
-                var liftUnit = CreateAssemblyLiftUnit(group.Key, members);
-                result.Add(liftUnit);
-
-                foreach (var member in members)
+                foreach (var group in groupCandidates)
                 {
-                    groupedMemberIds.Add(member.ElementID);
+                    var parentId = group.Key;
+                    var children = group.ToList();
+
+                    var parent = candidateElements.FirstOrDefault(e => string.Equals(e.ElementID, parentId, StringComparison.Ordinal));
+
+                    var members = children.ToList();
+                    if (parent != null && !members.Any(m => string.Equals(m.ElementID, parent.ElementID, StringComparison.Ordinal)))
+                    {
+                        members.Add(parent);
+                    }
+
+                    var uniqueMembers = members
+                        .Where(m => !string.IsNullOrWhiteSpace(m.ElementID))
+                        .OrderBy(m => m.ElementID, StringComparer.Ordinal)
+                        .ToList();
+
+                    if (uniqueMembers.Count <= 1)
+                        continue;
+
+                    var assemblyMark = parent?.AssemblyMark ?? uniqueMembers.FirstOrDefault(m => !string.IsNullOrWhiteSpace(m.AssemblyMark))?.AssemblyMark ?? "Group";
+
+                    var liftUnit = CreateAssemblyLiftUnit(parentId, assemblyMark, uniqueMembers);
+                    result.Add(liftUnit);
+
+                    foreach (var member in uniqueMembers)
+                    {
+                        groupedMemberIds.Add(member.ElementID);
+                    }
                 }
             }
 
-            result.AddRange(candidateElements.Where(element =>
-                string.IsNullOrWhiteSpace(element.ElementID) ||
-                !groupedMemberIds.Contains(element.ElementID)));
+            foreach (var element in candidateElements)
+            {
+                if (groupedMemberIds.Contains(element.ElementID))
+                    continue;
+
+                bool hasAssemblyMark = !string.IsNullOrWhiteSpace(element.AssemblyMark);
+                bool hasTrustedParent = !string.IsNullOrWhiteSpace(element.ParentGlobalId) &&
+                                       (string.Equals(element.ParentGlobalIdSource, "IfcDecomposition", StringComparison.OrdinalIgnoreCase) ||
+                                        string.Equals(element.ParentGlobalIdSource, "TeklaCastUnit", StringComparison.OrdinalIgnoreCase));
+
+                bool logAmbiguous = hasAssemblyMark && (!settings.EnableGroupedLifts || !hasTrustedParent);
+
+                if (logAmbiguous)
+                {
+                    if (element.ValidationWarnings == null) element.ValidationWarnings = new List<string>();
+                    if (!element.ValidationWarnings.Contains("AmbiguousAssemblyMarkOnly"))
+                    {
+                        element.ValidationWarnings.Add("AmbiguousAssemblyMarkOnly");
+                    }
+
+                    if (element.ExtractionWarnings == null) element.ExtractionWarnings = new List<string>();
+                    if (!element.ExtractionWarnings.Contains("AmbiguousAssemblyMarkOnly"))
+                    {
+                        element.ExtractionWarnings.Add("AmbiguousAssemblyMarkOnly");
+                    }
+                }
+
+                result.Add(element);
+            }
 
             return result;
         }
@@ -161,19 +211,19 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
             return normalized is "WALL" or "BEAM" or "COLUMN" or "SLAB" or "ASSEMBLY" or "ELEMENT" or "UNKNOWN" or "-";
         }
 
-        private static PrecastElement CreateAssemblyLiftUnit(string assemblyMark, IReadOnlyList<PrecastElement> members)
+        private static PrecastElement CreateAssemblyLiftUnit(string assemblyId, string assemblyMark, IReadOnlyList<PrecastElement> members)
         {
             var totalWeight = members.Sum(member => member.WeightTons ?? member.ElementWT ?? 0);
             var cog = ComputeWeightedCog(members, totalWeight) ?? ComputeAverageCog(members);
             var memberIds = members.Select(member => member.ElementID).ToList();
             var warnings = new List<string>
             {
-                $"Assembly lift unit grouped from explicit AssemblyMark '{assemblyMark}'. Members={memberIds.Count}."
+                $"Assembly lift unit grouped from explicit ParentGlobalId '{assemblyId}' with AssemblyMark '{assemblyMark}'. Members={memberIds.Count}."
             };
 
             return new PrecastElement
             {
-                ElementID = $"ASM:{SanitizeAssemblyId(assemblyMark)}",
+                ElementID = $"ASM:{SanitizeAssemblyId(assemblyId)}",
                 ElementMark = assemblyMark,
                 ElementName = null,
                 ResolvedDisplayMark = assemblyMark,
@@ -221,7 +271,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
                 ValidationStatus = ValidationStatus.Valid,
                 ValidationWarnings = warnings,
                 ExtractionWarnings = warnings,
-                NormalizationDecisionReason = "Grouped explicit assembly mark members into one GA lift unit."
+                NormalizationDecisionReason = "Grouped explicit parent assembly members into one GA lift unit."
             };
         }
 

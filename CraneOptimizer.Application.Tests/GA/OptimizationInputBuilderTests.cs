@@ -66,22 +66,42 @@ namespace CraneOptimizer.Application.Tests
 
 
         [Fact]
-        public void Build_GroupsExplicitAssemblyMarkMembersIntoSingleLiftUnit()
+        public void Build_DoesNotGroupByDefaultEvenWithAssemblyMark()
         {
             var builder = new OptimizationInputBuilder();
             var input = builder.Build(
-                new GASettings(),
+                new GASettings { EnableGroupedLifts = false },
                 CreateCrane(),
                 new List<PrecastElement>
                 {
                     CreateElement("W1-A", includeInGa: true, assemblyMark: "W1", weightTons: 2, cogX: 0),
-                    CreateElement("W1-B", includeInGa: true, assemblyMark: "W1", weightTons: 4, cogX: 9),
+                    CreateElement("W1-B", includeInGa: true, assemblyMark: "W1", weightTons: 4, cogX: 9)
+                },
+                new List<GreenAreaZone> { CreateAllowedZone() });
+
+            Assert.Equal(2, input.Elements.Count);
+            Assert.Contains(input.Elements, element => element.ElementID == "W1-A");
+            Assert.Contains(input.Elements, element => element.ElementID == "W1-B");
+            Assert.DoesNotContain(input.Elements, element => element.ElementID.StartsWith("ASM:", StringComparison.Ordinal));
+        }
+
+        [Fact]
+        public void Build_GroupsByParentWhenEnabledAndTrusted()
+        {
+            var builder = new OptimizationInputBuilder();
+            var input = builder.Build(
+                new GASettings { EnableGroupedLifts = true },
+                CreateCrane(),
+                new List<PrecastElement>
+                {
+                    CreateElement("W1-A", includeInGa: true, assemblyMark: "W1", weightTons: 2, cogX: 0, parentGlobalId: "PARENT-1", parentGlobalIdSource: "IfcDecomposition"),
+                    CreateElement("W1-B", includeInGa: true, assemblyMark: "W1", weightTons: 4, cogX: 9, parentGlobalId: "PARENT-1", parentGlobalIdSource: "IfcDecomposition"),
                     CreateElement("W2-A", includeInGa: true, assemblyMark: "W2", weightTons: 3, cogX: 20)
                 },
                 new List<GreenAreaZone> { CreateAllowedZone() });
 
             Assert.Equal(2, input.Elements.Count);
-            var group = Assert.Single(input.Elements.Where(element => element.ElementID == "ASM:W1"));
+            var group = Assert.Single(input.Elements.Where(element => element.ElementID == "ASM:PARENT-1"));
             Assert.Equal("W1", group.AssemblyMark);
             Assert.Null(group.ElementName);
             Assert.Equal(6, group.WeightTons);
@@ -94,23 +114,41 @@ namespace CraneOptimizer.Application.Tests
         }
 
         [Fact]
-        public void Build_DoesNotGroupWeakFallbackAssemblyMarks()
+        public void Build_DoesNotGroupWhenParentSourceIsUntrusted()
         {
             var builder = new OptimizationInputBuilder();
             var input = builder.Build(
-                new GASettings(),
+                new GASettings { EnableGroupedLifts = true },
                 CreateCrane(),
                 new List<PrecastElement>
                 {
-                    CreateElement("WALL-1", includeInGa: true, assemblyMark: "WALL", isExplicitAssemblyMark: false, confidence: AssemblyMarkConfidence.Low),
-                    CreateElement("WALL-2", includeInGa: true, assemblyMark: "WALL", isExplicitAssemblyMark: false, confidence: AssemblyMarkConfidence.Low)
+                    CreateElement("W1-A", includeInGa: true, assemblyMark: "W1", weightTons: 2, cogX: 0, parentGlobalId: "PARENT-1", parentGlobalIdSource: "InferredFromMark"),
+                    CreateElement("W1-B", includeInGa: true, assemblyMark: "W1", weightTons: 4, cogX: 9, parentGlobalId: "PARENT-1", parentGlobalIdSource: "InferredFromMark")
                 },
                 new List<GreenAreaZone> { CreateAllowedZone() });
 
             Assert.Equal(2, input.Elements.Count);
-            Assert.Contains(input.Elements, element => element.ElementID == "WALL-1");
-            Assert.Contains(input.Elements, element => element.ElementID == "WALL-2");
-            Assert.DoesNotContain(input.Elements, element => element.ElementID.StartsWith("ASM:", StringComparison.Ordinal));
+            Assert.Contains(input.Elements, element => element.ElementID == "W1-A");
+            Assert.Contains(input.Elements, element => element.ElementID == "W1-B");
+        }
+
+        [Fact]
+        public void Build_AddsWarningForAmbiguousAssemblyMarkOnly()
+        {
+            var builder = new OptimizationInputBuilder();
+            var input = builder.Build(
+                new GASettings { EnableGroupedLifts = true },
+                CreateCrane(),
+                new List<PrecastElement>
+                {
+                    CreateElement("W1-A", includeInGa: true, assemblyMark: "W1", weightTons: 2, cogX: 0)
+                },
+                new List<GreenAreaZone> { CreateAllowedZone() });
+
+            Assert.Single(input.Elements);
+            var element = input.Elements[0];
+            Assert.Contains("AmbiguousAssemblyMarkOnly", element.ValidationWarnings);
+            Assert.Contains("AmbiguousAssemblyMarkOnly", element.ExtractionWarnings);
         }
         private static Crane CreateCrane()
         {
@@ -157,7 +195,9 @@ namespace CraneOptimizer.Application.Tests
             bool isExplicitAssemblyMark = true,
             AssemblyMarkConfidence confidence = AssemblyMarkConfidence.High,
             double weightTons = 5,
-            double cogX = 0)
+            double cogX = 0,
+            string? parentGlobalId = null,
+            string? parentGlobalIdSource = null)
         {
             return new PrecastElement
             {
@@ -172,6 +212,8 @@ namespace CraneOptimizer.Application.Tests
                 AssemblyMark = assemblyMark,
                 AssemblyMarkIsExplicit = isExplicitAssemblyMark,
                 AssemblyMarkConfidence = confidence,
+                ParentGlobalId = parentGlobalId,
+                ParentGlobalIdSource = parentGlobalIdSource,
                 SourceSystem = SourceSystem.Tekla,
                 ExporterProfile = IfcExporterProfile.Tekla
             };

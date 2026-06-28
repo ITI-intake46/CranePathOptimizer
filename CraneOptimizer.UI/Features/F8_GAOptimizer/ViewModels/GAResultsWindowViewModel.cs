@@ -241,6 +241,18 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public double CoverageRatio => _result.CoverageRatio;
         public string TotalLiftedText => $"Total Lifted: {_result.LiftedElementCount} / {_result.TotalElementCount}";
 
+        public string GroupingBreakdownText
+        {
+            get
+            {
+                if (_result.GroupedAssemblyCount > 0)
+                {
+                    return $"[Grouped Mode] Raw Eligible Elements: {_result.RawGaEligibleElementCount} | Lift Units: {_result.TotalElementCount} ({_result.GroupedAssemblyCount} assemblies, {_result.UngroupedElementCount} ungrouped elements)";
+                }
+                return $"[Individual Mode] Raw Eligible Elements: {_result.RawGaEligibleElementCount} | Lift Units: {_result.TotalElementCount}";
+            }
+        }
+
         // ── Crane run metadata (static for the lifetime of this window) ──────
         public string CraneNameDisplay => !string.IsNullOrWhiteSpace(_result.CraneName) ? _result.CraneName : "-";
         public string WireLengthDisplay => _result.WireLength.ToString("F2") + " m";
