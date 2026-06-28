@@ -2,6 +2,7 @@ using CraneOptimizer.Application.Services.Identity;
 using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Ifc;
 using System;
 using System.Collections.Generic;
@@ -234,7 +235,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             cancellationToken.ThrowIfCancellationRequested();
 
             progress?.Report(80.0);
-            ProcessPhysicalElements(allAuditableProducts, model, geometryContext, result, result.Metadata.LengthConversionFactor, result.Metadata.VolumeConversionFactor, concreteDensityKgPerM3);
+            ProcessPhysicalElements(allAuditableProducts, model, geometryContext, result, result.Metadata.LengthConversionFactor, result.Metadata.VolumeConversionFactor, result.Metadata.MassConversionFactor, concreteDensityKgPerM3);
             cancellationToken.ThrowIfCancellationRequested();
 
             progress?.Report(100.0);
@@ -653,6 +654,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             IfcAuditResult auditResult,
             double lengthFactor,
             double volumeFactor,
+            double? massFactor,
             double concreteDensityKgPerM3)
         {
             var swallowedGlobalIds = new HashSet<string>(StringComparer.Ordinal);
@@ -692,7 +694,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 auditResult.Classifications.Add(classification);
 
                 // 2. Weight Audit
-                var weightDetail = AuditWeight(product, resolvedCategory, swallowedGlobalIds.Contains(globalId), concreteDensityKgPerM3, profile);
+                var weightDetail = AuditWeight(product, resolvedCategory, swallowedGlobalIds.Contains(globalId), concreteDensityKgPerM3, profile, massFactor);
                 auditResult.Weights.Add(weightDetail);
 
                 // 3. Volume and Material Audit
@@ -766,7 +768,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
             string resolvedType,
             bool isSwallowed,
             double concreteDensityKgPerM3,
-            IfcExporterProfile profile)
+            IfcExporterProfile profile,
+            double? massConversionFactor)
         {
             var detail = new ElementWeightAuditDetail
             {
@@ -790,7 +793,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     {
                         detail.WeightSource = "IfcQuantityWeight.Instance";
                         detail.WeightUnitDetected = "kg";
-                        detail.WeightStandardValueTons = parsedVal / 1000.0;
+                        detail.WeightStandardValueTons = UnitSystem.ToTons(parsedVal, MassUnit.Kilogram);
                     }
                     else
                     {
@@ -820,11 +823,11 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         var unitInfo = $"{qRes.SourcePropertyName} {detail.WeightUnitDetected}".ToLowerInvariant();
                         if (unitInfo.ContainsAny("kg", "kilo"))
                         {
-                            detail.WeightStandardValueTons = parsedVal / 1000.0;
+                            detail.WeightStandardValueTons = UnitSystem.ToTons(parsedVal, MassUnit.Kilogram);
                         }
                         else if (unitInfo.ContainsAny("ton", "tonne"))
                         {
-                            detail.WeightStandardValueTons = parsedVal;
+                            detail.WeightStandardValueTons = UnitSystem.ToTons(parsedVal, MassUnit.Ton);
                         }
                         else if (unitInfo.ContainsAny("lb", "pound"))
                         {
@@ -832,11 +835,18 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         }
                         else
                         {
-                            detail.WeightStandardValueTons = parsedVal > 100.0 ? parsedVal / 1000.0 : parsedVal;
-                            if (parsedVal > 100.0)
+                            if (massConversionFactor.HasValue)
                             {
-                                detail.WeightSource = $"{detail.WeightSource} (Heuristically Scaled)";
-                                detail.Warning = "Weight property value exceeded 100. Assumed kilograms and converted to metric tons.";
+                                detail.WeightStandardValueTons = UnitSystem.ToTons(parsedVal * massConversionFactor.Value, MassUnit.Kilogram);
+                            }
+                            else
+                            {
+                                detail.WeightStandardValueTons = parsedVal > 100.0 ? UnitSystem.ToTons(parsedVal, MassUnit.Kilogram) : parsedVal;
+                                if (parsedVal > 100.0)
+                                {
+                                    detail.WeightSource = $"{detail.WeightSource} (Heuristically Scaled)";
+                                    detail.Warning = "Weight property value exceeded 100. Assumed kilograms and converted to metric tons.";
+                                }
                             }
                         }
                     }

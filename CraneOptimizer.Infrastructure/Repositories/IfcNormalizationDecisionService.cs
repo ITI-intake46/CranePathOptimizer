@@ -71,6 +71,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     WeightSource = weightDetail?.WeightSource ?? "Missing",
                     WeightRawValue = weightDetail?.WeightRawValue,
                     WeightStandardValueTons = weightDetail?.WeightStandardValueTons,
+                    VolumeStandardValueM3 = volMatDetail?.VolumeStandardValueM3,
                     WeightTrustLevel = MapWeightTrustLevel(weightDetail)
                 };
 
@@ -82,6 +83,41 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 if (weightDetail?.Warning != null && !string.IsNullOrWhiteSpace(weightDetail.Warning))
                 {
                     preview.Warnings.Add(weightDetail.Warning);
+                }
+
+                // Add detailed Weight Diagnostics
+                if (weightDetail != null)
+                {
+                    var unitStr = string.IsNullOrWhiteSpace(weightDetail.WeightUnitDetected) ? "Unspecified" : weightDetail.WeightUnitDetected;
+                    if (weightDetail.WeightStatus == "ExplicitPositive" || weightDetail.WeightStatus == "SuspiciousExtreme")
+                    {
+                        preview.Warnings.Add($"Weight: raw={weightDetail.WeightRawValue}, unit={unitStr}, normalized={weightDetail.WeightStandardValueTons:F4} tons, source={weightDetail.QuantitySetNameOrPropertySetName}.{weightDetail.WeightPropertyName}, trust={preview.WeightTrustLevel}");
+                    }
+                    else if (weightDetail.WeightStatus == "EstimatedByFallback")
+                    {
+                        preview.Warnings.Add($"Weight: raw={weightDetail.WeightRawValue}, normalized={weightDetail.WeightStandardValueTons:F4} tons, source=Fallback, trust={preview.WeightTrustLevel}, fallbackReason=No explicit weight found; estimated from volume and concrete density");
+                    }
+                    else if (weightDetail.WeightStatus == "ExplicitZeroFromIFC")
+                    {
+                        preview.Warnings.Add($"Weight: raw=0, normalized=0 tons, source={weightDetail.QuantitySetNameOrPropertySetName}.{weightDetail.WeightPropertyName}, trust={preview.WeightTrustLevel}, fallbackReason={weightDetail.Warning}");
+                    }
+                    else
+                    {
+                        preview.Warnings.Add($"Weight: raw=null, normalized=null, source=Missing, trust={preview.WeightTrustLevel}, fallbackReason={weightDetail.Warning}");
+                    }
+                }
+
+                // Add detailed Volume Diagnostics
+                if (volMatDetail != null)
+                {
+                    if (volMatDetail.VolumeRawValue.HasValue)
+                    {
+                        preview.Warnings.Add($"Volume: raw={volMatDetail.VolumeRawValue.Value}, unit={auditResult.Metadata.VolumeUnit}, normalized={volMatDetail.VolumeStandardValueM3:F4} m³, source={volMatDetail.VolumeSource}");
+                    }
+                    else
+                    {
+                        preview.Warnings.Add($"Volume: raw=null, normalized=null, source=Missing");
+                    }
                 }
 
                 previews[elem.GlobalId] = preview;

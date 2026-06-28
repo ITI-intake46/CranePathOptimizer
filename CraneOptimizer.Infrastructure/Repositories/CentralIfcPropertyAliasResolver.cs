@@ -267,11 +267,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 {
                     foreach (var quantity in qSet.Quantities.OfType<IIfcQuantityWeight>())
                     {
-                        if (ContainsAny(quantity.Name.ToString(), profile.WeightAliases))
+                        var qname = quantity.Name.ToString();
+                        if (ContainsAny(qname, profile.WeightAliases) && IsTotalWeightProperty(qname))
                         {
                             result.Value = ((double)quantity.WeightValue).ToString(CultureInfo.InvariantCulture);
                             result.SourcePropertySet = qSet.Name.ToString();
-                            result.SourcePropertyName = quantity.Name.ToString();
+                            result.SourcePropertyName = qname;
                             result.Confidence = AssemblyMarkConfidence.High.ToString();
                             return result;
                         }
@@ -288,7 +289,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     foreach (var prop in pSet.HasProperties.OfType<IIfcPropertySingleValue>())
                     {
                         var name = prop.Name.ToString();
-                        if (ContainsAny(name, profile.WeightAliases))
+                        if (ContainsAny(name, profile.WeightAliases) && IsTotalWeightProperty(name))
                         {
                             if (TryReadNumericPropertyValue(prop, out var parsedVal))
                             {
@@ -688,6 +689,22 @@ namespace CraneOptimizer.Infrastructure.Repositories
             var numericMatch = System.Text.RegularExpressions.Regex.Match(valueText ?? string.Empty, @"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?");
             return numericMatch.Success &&
                    double.TryParse(numericMatch.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out value);
+        }
+
+        private static readonly string[] ExcludedWeightKeywords = new[]
+        {
+            "rebar", "reinforcement", "mesh", "steel", "paint", "grout", "strand", "weld", "bolt", "connection", "markup"
+        };
+
+        private static bool IsTotalWeightProperty(string propertyName)
+        {
+            if (string.IsNullOrWhiteSpace(propertyName)) return false;
+            foreach (var kw in ExcludedWeightKeywords)
+            {
+                if (propertyName.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+            return true;
         }
     }
 }

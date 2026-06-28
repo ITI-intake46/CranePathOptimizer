@@ -60,6 +60,7 @@ namespace CraneOptimizer.Domain.Diagnostics
         public string WeightSource { get; set; } = "Missing";
         public double? WeightRawValue { get; set; }
         public double? WeightStandardValueTons { get; set; }
+        public double? VolumeStandardValueM3 { get; set; }
         public IfcWeightTrustLevel WeightTrustLevel { get; set; } = IfcWeightTrustLevel.Missing;
         public string DecisionReason { get; set; } = string.Empty;
         public List<string> Warnings { get; set; } = new();
