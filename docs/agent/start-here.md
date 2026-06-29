@@ -13,7 +13,7 @@ The application processes building models from IFC files in a decoupled, two-sta
       │
       ▼
 [1. IfcDiagnosticAuditService] ────→ Generates diagnostic CSV/JSON reports
-      │                              (e.g., assembly_graph_classification_audit.csv)
+      │                              (e.g., debug_ifc_assembly_graph_classification_audit.csv)
       ▼
 [2. IfcNormalizationDecisionService] ──→ Normalizes elements and assigns roles
       │
@@ -65,7 +65,7 @@ The system detects the `MainPart` of an assembly using:
 
 ### Assembly Graph Classification Audit Report
 Every IFC import generates a detailed report at:
-`Reports/IFC_Audit/assembly_graph_classification_audit.csv`
+`Reports/IFC_Audit/debug_ifc_assembly_graph_classification_audit.csv`
 
 Columns:
 - `ParentGlobalId`
@@ -81,4 +81,34 @@ Columns:
 - `Warnings` (e.g., `MultipleMainPartsDetected`, `NoMainPartInferred`, `MixedCategoryButValidAssembly`)
 
 ### Unit Tests
-The unit and integration test suite in [IfcUnitNormalizationTests.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application.Tests/IFC/Audit/IfcUnitNormalizationTests.cs) covers unit scaling, georeferenced coordinate translation, and assembly graph classification.
+The unit and integration test suite in [IfcUnitNormalizationTests.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application.Tests/IFC/Audit/IfcUnitNormalizationTests.cs) and [AssemblyRollupTests.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application.Tests/IFC/Audit/AssemblyRollupTests.cs) covers unit scaling, georeferenced coordinate translation, assembly graph classification, load-time reconstruction, and GA lift unit rollup calculations.
+
+---
+
+## 4. Assembly Lift Unit Rollup (Phase 4)
+
+To support precast element assembly lifting in Genetic Algorithms (GA) optimization runs, the system rolls up child components into a single representative lift unit:
+
+### GA Lift Unit Identity (Option E)
+- The representative lift unit's `LiftUnitId` (or `ElementId` in the GA solver) is mapped to the physical **`MainPartGlobalId`** of the assembly (e.g. the main precast concrete wall panel).
+- The `ParentAssemblyGlobalId` and child member list `AssemblyMemberIds` are stored on the representative lift unit.
+- Siblings and parent container nodes are excluded from independent GA lift targets.
+- WPF viewport highlights propagate GA status maps from the main part `LiftUnitId` to all member child element IDs.
+
+### Weight Rollup Calculations
+- Uses the trusted parent assembly explicit weight if available.
+- If missing or zero, falls back to the sum of all eligible children (structural parts, accessory parts, reinforcing parts).
+- Generates warnings (`WeightMismatchWarning` or `SevereWeightMismatch`) if parent explicit weight differs from the sum of children by more than 1% or 5% respectively.
+
+### COG Rollup (Weighted Centroid)
+- Evaluates only children with physical geometries and weights.
+- Reinforcing or accessory parts lacking direct geometries will fall back to the Main Part COG if their weight represents $\le$ 2% of the total assembly weight.
+- If any major structural/secondary child lacks a physical COG, an `UnsafeCogRollup` warning is flagged.
+
+### Load-Time Classification Reconstruction (Option C)
+- Classifications are rebuilt in memory at runtime after project load (`ReadElements`) using persisted child-parent relationship fields, avoiding SQLite database schema migrations.
+
+### Assembly Lift Unit Rollup Audit Report
+Generated at import-time under:
+`Reports/IFC_Audit/debug_ifc_assembly_lift_unit_rollup_audit.csv`
+Includes columns for LiftUnitId, parent details, member GUIDs, contributor counts, weight sources/values, weighted COG, sources, and safety/mismatch warnings.

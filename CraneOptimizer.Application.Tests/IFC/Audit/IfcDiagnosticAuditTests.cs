@@ -282,10 +282,13 @@ namespace CraneOptimizer.Application.Tests
                 Assert.True(Directory.Exists(outputDir));
 
                 var files = Directory.GetFiles(outputDir);
-                Assert.Equal(5, files.Length);
+                Assert.Equal(6, files.Length);
 
-                var assemblyGraphFile = files.FirstOrDefault(f => f.EndsWith("assembly_graph_classification_audit.csv"));
+                var assemblyGraphFile = files.FirstOrDefault(f => f.EndsWith("debug_ifc_assembly_graph_classification_audit.csv"));
                 Assert.NotNull(assemblyGraphFile);
+
+                var assemblyRollupFile = files.FirstOrDefault(f => f.EndsWith("debug_ifc_assembly_lift_unit_rollup_audit.csv"));
+                Assert.NotNull(assemblyRollupFile);
 
                 var jsonFile = files.FirstOrDefault(f => f.EndsWith(".json"));
                 var csvFile = files.FirstOrDefault(f => f.Contains("debug_ifc_elements_") && f.EndsWith(".csv"));

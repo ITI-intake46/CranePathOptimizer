@@ -285,8 +285,8 @@ namespace CraneOptimizer.Application.Tests.IFC.Audit
             try
             {
                 await auditService.GenerateReportsAsync(auditResult, tempFolder);
-                var csvPath = Path.Combine(tempFolder, "Reports", "IFC_Audit", "assembly_graph_classification_audit.csv");
-                Assert.True(File.Exists(csvPath), "CSV assembly_graph_classification_audit.csv should be generated");
+                var csvPath = Path.Combine(tempFolder, "Reports", "IFC_Audit", "debug_ifc_assembly_graph_classification_audit.csv");
+                Assert.True(File.Exists(csvPath), "CSV debug_ifc_assembly_graph_classification_audit.csv should be generated");
                 var lines = File.ReadAllLines(csvPath);
                 Assert.True(lines.Length > 1, "CSV should contain headers and rows");
                 Assert.Contains("2KFTYALGT0ghARgUhfEqjI", lines[1]);

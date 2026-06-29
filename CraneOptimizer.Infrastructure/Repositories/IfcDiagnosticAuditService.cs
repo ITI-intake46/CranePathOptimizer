@@ -237,7 +237,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             ProcessPhysicalElements(allAuditableProducts, model, geometryContext, result, result.Metadata.LengthConversionFactor, result.Metadata.VolumeConversionFactor, result.Metadata.MassConversionFactor, concreteDensityKgPerM3);
             cancellationToken.ThrowIfCancellationRequested();
 
-            result.AssemblyRelations = BuildAssemblyRelations(model, result);
+            result.AssemblyRelations = BuildAssemblyRelations(model, result, geometryContext);
 
             progress?.Report(100.0);
         }
@@ -748,7 +748,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return audit;
         }
 
-        private static List<AssemblyRelationshipInfo> BuildAssemblyRelations(IfcStore model, IfcAuditResult auditResult)
+        private static List<AssemblyRelationshipInfo> BuildAssemblyRelations(IfcStore model, IfcAuditResult auditResult, Xbim3DModelContext geometryContext)
         {
             var relations = new List<AssemblyRelationshipInfo>();
 
@@ -949,6 +949,147 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         rel.Warnings.Add("MixedCategoryButValidAssembly");
                     }
                 }
+
+                // Phase 4 Rollup calculation
+                double totalWeight = 0.0;
+                string weightSource = "";
+                string weightWarning = "";
+
+                double parentWeight = 0.0;
+                bool hasParentExplicitWeight = false;
+
+                if (weightMap.TryGetValue(assemblyDetail.AssemblyGlobalId, out var parentWeightInfo))
+                {
+                    parentWeight = parentWeightInfo.WeightStandardValueTons ?? 0.0;
+                    hasParentExplicitWeight = parentWeightInfo.WeightStatus == "ExplicitPositive" || 
+                                              parentWeightInfo.WeightSource.Contains("Explicit");
+                }
+
+                // Sum of eligible children: MainPart, VisibleSecondaryPart, HiddenWeightContributor, AccessoryWeightContributor
+                var eligibleContributors = rel.Children
+                    .Where(c => c.ChildClassification != AssemblyChildClassification.IgnoredReference)
+                    .ToList();
+
+                double childWeightSum = eligibleContributors.Sum(c => c.ChildWeightTons ?? 0.0);
+
+                if (hasParentExplicitWeight && parentWeight > 0.0)
+                {
+                    totalWeight = parentWeight;
+                    weightSource = "ParentExplicitWeight";
+
+                    if (childWeightSum > 0.0)
+                    {
+                        double diff = Math.Abs(parentWeight - childWeightSum);
+                        double max1Pct = Math.Max(0.1, parentWeight * 0.01);
+                        double max5Pct = Math.Max(0.5, parentWeight * 0.05);
+
+                        if (diff > max5Pct)
+                        {
+                            weightWarning = $"SevereWeightMismatch: Parent explicit weight ({parentWeight:F4}t) differs from child sum ({childWeightSum:F4}t) by {diff:F4}t (>5%).";
+                            rel.Warnings.Add("SevereWeightMismatch");
+                        }
+                        else if (diff > max1Pct)
+                        {
+                            weightWarning = $"WeightMismatchWarning: Parent explicit weight ({parentWeight:F4}t) differs from child sum ({childWeightSum:F4}t) by {diff:F4}t (>1%).";
+                            rel.Warnings.Add("WeightMismatchWarning");
+                        }
+                    }
+                }
+                else
+                {
+                    totalWeight = childWeightSum;
+                    weightSource = "ChildSumRollup";
+                }
+
+                rel.ParentExplicitWeight = hasParentExplicitWeight && parentWeight > 0.0 ? parentWeight : (double?)null;
+                rel.ChildWeightSum = childWeightSum > 0.0 ? childWeightSum : (double?)null;
+                rel.AssemblyLiftWeight = totalWeight > 0.0 ? totalWeight : (double?)null;
+                rel.WeightSourceUsed = weightSource;
+                rel.WeightMismatchWarning = weightWarning;
+
+                // COG Rollup Calculation (using physical child COGs)
+                double weightedSumX = 0.0;
+                double weightedSumY = 0.0;
+                double weightedSumZ = 0.0;
+                double totalCogWeight = 0.0;
+                string cogSource = "";
+                string cogWarning = "";
+
+                var mainNodeObj = rel.Children.FirstOrDefault(c => string.Equals(c.ChildGlobalId, rel.MainPartGlobalId, StringComparison.Ordinal));
+                (double X, double Y, double Z)? mainPartCog = null;
+
+                if (mainNodeObj != null && productMap.TryGetValue(mainNodeObj.ChildGlobalId, out var mainProduct))
+                {
+                    var center = TryGetGeometryCenter(mainProduct, geometryContext, auditResult.Metadata.LengthConversionFactor);
+                    if (center.X.HasValue && center.Y.HasValue && center.Z.HasValue)
+                    {
+                        mainPartCog = (center.X.Value, center.Y.Value, center.Z.Value);
+                    }
+                }
+
+                foreach (var childNode in eligibleContributors)
+                {
+                    double w = childNode.ChildWeightTons ?? 0.0;
+                    if (w <= 0.0) continue;
+
+                    if (productMap.TryGetValue(childNode.ChildGlobalId, out var childProduct))
+                    {
+                        var center = TryGetGeometryCenter(childProduct, geometryContext, auditResult.Metadata.LengthConversionFactor);
+                        if (center.X.HasValue && center.Y.HasValue && center.Z.HasValue)
+                        {
+                            weightedSumX += center.X.Value * w;
+                            weightedSumY += center.Y.Value * w;
+                            weightedSumZ += center.Z.Value * w;
+                            totalCogWeight += w;
+                        }
+                        else
+                        {
+                            // Missing COG fallback rules
+                            bool isHiddenOrAccessory = childNode.ChildClassification == AssemblyChildClassification.HiddenWeightContributor ||
+                                                       childNode.ChildClassification == AssemblyChildClassification.AccessoryWeightContributor;
+                            double pct = w / totalWeight;
+
+                            if (isHiddenOrAccessory && pct <= 0.02 && mainPartCog != null)
+                            {
+                                weightedSumX += mainPartCog.Value.X * w;
+                                weightedSumY += mainPartCog.Value.Y * w;
+                                weightedSumZ += mainPartCog.Value.Z * w;
+                                totalCogWeight += w;
+                                cogWarning += $"HiddenAccessoryMissingCogFallback: Child '{childNode.ChildGlobalId}' lacks physical COG but is minor ({pct:P2}). Fell back to main part COG. ";
+                            }
+                            else
+                            {
+                                cogWarning += $"UnsafeCogRollup: Child '{childNode.ChildGlobalId}' has missing COG (weight={w:F4}t, {pct:P2}) and exceeds 2% threshold. ";
+                                rel.Warnings.Add("UnsafeCogRollup");
+                            }
+                        }
+                    }
+                }
+
+                if (totalCogWeight > 0.0)
+                {
+                    rel.AssemblyLiftCOG_X = weightedSumX / totalCogWeight;
+                    rel.AssemblyLiftCOG_Y = weightedSumY / totalCogWeight;
+                    rel.AssemblyLiftCOG_Z = weightedSumZ / totalCogWeight;
+                    cogSource = "ChildWeightedSum";
+                }
+                else if (mainPartCog != null)
+                {
+                    rel.AssemblyLiftCOG_X = mainPartCog.Value.X;
+                    rel.AssemblyLiftCOG_Y = mainPartCog.Value.Y;
+                    rel.AssemblyLiftCOG_Z = mainPartCog.Value.Z;
+                    cogSource = "MainPartFallback";
+                    cogWarning += "NoPhysicalChildrenWithCog: Fallback to main part COG.";
+                }
+                else
+                {
+                    cogSource = "None";
+                    cogWarning += "NoCogAvailable: Assembly lacks any coordinate references.";
+                    rel.Warnings.Add("MissingAssemblyCOG");
+                }
+
+                rel.COGSource = cogSource;
+                rel.COGWarnings = cogWarning.Trim();
 
                 relations.Add(rel);
             }
@@ -1942,7 +2083,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
             var csvPath = Path.Combine(outputDirectory, $"debug_ifc_elements_{timestamp}.csv");
             var assemblyMarkCsvPath = Path.Combine(outputDirectory, $"debug_ifc_check_assembly_mark_{timestamp}.csv");
             var rawNameCsvPath = Path.Combine(outputDirectory, $"debug_ifc_raw_name_check_{timestamp}.csv");
-            var assemblyGraphCsvPath = Path.Combine(outputDirectory, "assembly_graph_classification_audit.csv");
+            var assemblyGraphCsvPath = Path.Combine(outputDirectory, "debug_ifc_assembly_graph_classification_audit.csv");
+            var assemblyRollupCsvPath = Path.Combine(outputDirectory, "debug_ifc_assembly_lift_unit_rollup_audit.csv");
 
             cancellationToken.ThrowIfCancellationRequested();
             // 1. Generate JSON
@@ -1966,6 +2108,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             cancellationToken.ThrowIfCancellationRequested();
             GenerateAssemblyGraphCsvReport(auditResult, assemblyGraphCsvPath);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            GenerateAssemblyLiftUnitRollupCsvReport(auditResult, assemblyRollupCsvPath);
 
             Debug.WriteLine($"[IfcDiagnosticAudit] JSON and CSV Reports generated successfully at: {outputDirectory}");
             return outputDirectory;
@@ -2211,6 +2356,46 @@ namespace CraneOptimizer.Infrastructure.Repositories
             sb.AppendLine();
 
             File.WriteAllText(mdPath, sb.ToString(), Encoding.UTF8);
+        }
+
+        private static void GenerateAssemblyLiftUnitRollupCsvReport(IfcAuditResult auditResult, string csvPath)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("LiftUnitId,ParentAssemblyGlobalId,AssemblyMark,MainPartGlobalId,AssemblyMemberIds,ChildCount,VisibleSecondaryPartCount,HiddenWeightContributorCount,AccessoryWeightContributorCount,IgnoredReferenceCount,ParentExplicitWeight,ChildWeightSum,AssemblyLiftWeight,WeightSourceUsed,WeightMismatchWarning,AssemblyLiftCOG_X,AssemblyLiftCOG_Y,AssemblyLiftCOG_Z,COGSource,COGWarnings,HasSecondaryParts,HasHiddenContributors");
+
+            foreach (var rel in auditResult.AssemblyRelations)
+            {
+                var liftUnitId = rel.MainPartGlobalId ?? rel.ParentGlobalId;
+                var memberIds = string.Join(";", rel.Children.Select(c => c.ChildGlobalId));
+
+                sb.AppendLine(string.Join(",", new[]
+                {
+                    Csv(liftUnitId),
+                    Csv(rel.ParentGlobalId),
+                    Csv(rel.AssemblyMark),
+                    Csv(rel.MainPartGlobalId ?? string.Empty),
+                    Csv(memberIds),
+                    rel.ChildCount.ToString(CultureInfo.InvariantCulture),
+                    rel.VisibleSecondaryPartCount.ToString(CultureInfo.InvariantCulture),
+                    rel.HiddenWeightContributorCount.ToString(CultureInfo.InvariantCulture),
+                    rel.AccessoryWeightContributorCount.ToString(CultureInfo.InvariantCulture),
+                    rel.IgnoredReferenceCount.ToString(CultureInfo.InvariantCulture),
+                    rel.ParentExplicitWeight?.ToString("F4", CultureInfo.InvariantCulture) ?? string.Empty,
+                    rel.ChildWeightSum?.ToString("F4", CultureInfo.InvariantCulture) ?? string.Empty,
+                    rel.AssemblyLiftWeight?.ToString("F4", CultureInfo.InvariantCulture) ?? string.Empty,
+                    Csv(rel.WeightSourceUsed),
+                    Csv(rel.WeightMismatchWarning),
+                    rel.AssemblyLiftCOG_X?.ToString("F4", CultureInfo.InvariantCulture) ?? string.Empty,
+                    rel.AssemblyLiftCOG_Y?.ToString("F4", CultureInfo.InvariantCulture) ?? string.Empty,
+                    rel.AssemblyLiftCOG_Z?.ToString("F4", CultureInfo.InvariantCulture) ?? string.Empty,
+                    Csv(rel.COGSource),
+                    Csv(rel.COGWarnings),
+                    rel.HasSecondaryParts.ToString(CultureInfo.InvariantCulture),
+                    rel.HasHiddenContributors.ToString(CultureInfo.InvariantCulture)
+                }));
+            }
+
+            File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
         }
     }
 }

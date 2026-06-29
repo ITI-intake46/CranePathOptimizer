@@ -57,5 +57,18 @@ namespace CraneOptimizer.Domain.Diagnostics
 
         public List<string> Warnings { get; set; } = new();
         public List<AssemblyGraphNode> Children { get; set; } = new();
+
+        // Phase 4 Rollup Properties
+        public double? ParentExplicitWeight { get; set; }
+        public double? ChildWeightSum { get; set; }
+        public double? AssemblyLiftWeight { get; set; }
+        public string WeightSourceUsed { get; set; } = string.Empty;
+        public string WeightMismatchWarning { get; set; } = string.Empty;
+
+        public double? AssemblyLiftCOG_X { get; set; }
+        public double? AssemblyLiftCOG_Y { get; set; }
+        public double? AssemblyLiftCOG_Z { get; set; }
+        public string COGSource { get; set; } = string.Empty;
+        public string COGWarnings { get; set; } = string.Empty;
     }
 }

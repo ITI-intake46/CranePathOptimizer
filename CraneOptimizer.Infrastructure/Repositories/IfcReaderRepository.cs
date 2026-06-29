@@ -189,6 +189,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     $"MemoryBeforeLoad={FormatBytes(loadMemoryBefore)}, " +
                     $"MemoryAfterLoad={FormatBytes(GetPrivateMemoryBytes())}");
 
+                CraneOptimizer.Domain.Services.AssemblyRollupService.ReconstructAssemblyClassifications(elements);
                 return elements;
             }
             catch (OperationCanceledException)
