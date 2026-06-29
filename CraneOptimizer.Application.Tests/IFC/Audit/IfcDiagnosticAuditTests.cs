@@ -686,7 +686,7 @@ namespace CraneOptimizer.Application.Tests
             // Roll-up verification
             Assert.Equal(0.45, host.ReinforcementWeightContributionTons);
             Assert.Equal(IfcWeightTrustLevel.RequiresUserApproval, host.WeightTrustLevel);
-            Assert.Contains("positive reinforcement steel weight is available", host.Warnings[0]);
+            Assert.Contains(host.Warnings, w => w.Contains("positive reinforcement steel weight is available"));
         }
 
         [Fact]

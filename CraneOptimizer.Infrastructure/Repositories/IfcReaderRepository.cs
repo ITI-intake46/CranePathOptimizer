@@ -1428,6 +1428,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     }
 
                     // Geometry / COG / Volume / BoundingBox setup
+                    // Geometry / COG / Volume / BoundingBox setup
                     if (preview.Role == IfcElementRole.LiftAssembly)
                     {
                         // Consolidated assembly: we should resolve aggregate geometry/COG/bounds
@@ -1454,6 +1455,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                 }
                                 pe.ElementCOG = aggregate.CenterOfGravity;
                                 pe.COG_M = aggregate.CenterOfGravity; // standardized unit is meters
+                                pe.PhysicalCOGAvailable = sourceSnapshot?.Geometry != null;
                             }
                         }
                     }
@@ -1476,6 +1478,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                     Y = sourceSnapshot.Geometry.Width,
                                     Z = sourceSnapshot.Geometry.Height
                                 };
+                                pe.PhysicalCOGAvailable = true;
                             }
                             else
                             {
@@ -1488,11 +1491,17 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                     Y = sourceSnapshot.ElementWidth ?? 0,
                                     Z = sourceSnapshot.ElementHeight ?? 0
                                 };
+                                pe.PhysicalCOGAvailable = false;
                             }
 
                             pe.ElementCOG = sourceSnapshot.CenterOfGravity;
                             pe.COG_M = sourceSnapshot.CenterOfGravity;
                         }
+                    }
+
+                    if (!pe.PhysicalCOGAvailable && preview.RawIfcType == "IfcElementAssembly")
+                    {
+                        pe.ExtractionWarnings.Add("ContainerOnlyAssembly: Physical COG is unavailable because the assembly has no direct geometry shape representation.");
                     }
                     // Last-resort geometry volume fallback from bounding box.
                     // This is approximate, but better than zero for GA pre-screening.
@@ -1794,6 +1803,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     AssemblyMarkSource = "Snapshot",
                     AssemblyMarkConfidence = AssemblyMarkConfidence.High,
                     AssemblyMarkIsExplicit = true,
+                    PhysicalCOGAvailable = snapshot.Geometry != null,
                     SourceSystem = SourceSystem.IFC,
                     ExporterProfile = IfcExporterProfile.Generic,
                     ValidationStatus = ValidationStatus.Valid

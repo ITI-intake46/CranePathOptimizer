@@ -84,6 +84,7 @@ namespace CraneOptimizer.Domain.Schemas
         public string? AssemblyMarkSource { get; set; }
         public AssemblyMarkConfidence AssemblyMarkConfidence { get; set; } = AssemblyMarkConfidence.None;
         public bool AssemblyMarkIsExplicit { get; set; }
+        public bool PhysicalCOGAvailable { get; set; } = true;
 
         // Non-authoritative mirrors of active engineering fields
         public double? AssemblyWeightTons => WeightTons;
