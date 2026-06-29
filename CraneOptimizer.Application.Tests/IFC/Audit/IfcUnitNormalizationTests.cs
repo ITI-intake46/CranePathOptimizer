@@ -1,6 +1,7 @@
 using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Repositories;
+using CraneOptimizer.Infrastructure.Ifc;
 using System;
 using System.IO;
 using System.Linq;
@@ -244,6 +245,86 @@ namespace CraneOptimizer.Application.Tests.IFC.Audit
             Assert.True(Math.Abs(rollupX - 90.4492) < 0.002, $"Expected rollupX to be approx 90.4492, but got {rollupX}");
             Assert.True(Math.Abs(rollupY - 109.0853) < 0.002, $"Expected rollupY to be approx 109.0853, but got {rollupY}");
             Assert.True(Math.Abs(rollupZ - 1.9401) < 0.002, $"Expected rollupZ to be approx 1.9401, but got {rollupZ}");
+        }
+
+        [Fact]
+        public async Task TestAssemblyGraphClassification_Project2()
+        {
+            const string ifcPath = @"F:\06-ITI\00-Project\tryProjects\Project2\Models\IFC\testBuilding2x3withMarks.ifc";
+            if (!File.Exists(ifcPath)) return;
+
+            var auditService = new IfcDiagnosticAuditService();
+            var auditResult = await auditService.RunAuditAsync(ifcPath);
+
+            Assert.NotNull(auditResult);
+            Assert.NotEmpty(auditResult.AssemblyRelations);
+
+            // Locate parent assembly relation
+            var rel = auditResult.AssemblyRelations.FirstOrDefault(r => r.ParentGlobalId == "2KFTYALGT0ghARgUhfEqjI");
+            Assert.NotNull(rel);
+            Assert.Equal("IfcRelAggregates", rel.ParentGlobalIdSource);
+            Assert.Equal("2K1eRGMijEj9PRqHskPwYb", rel.MainPartGlobalId);
+            Assert.Equal(AssemblyMainPartDecision.InferredHighConfidence, rel.MainPartDetectionMethod);
+            Assert.Equal(3, rel.ChildCount);
+            Assert.Equal(2, rel.VisibleSecondaryPartCount);
+            Assert.True(rel.HasSecondaryParts);
+            Assert.Contains("MixedCategoryButValidAssembly", rel.Warnings);
+
+            // Verify child classifications
+            var mainPartNode = rel.Children.FirstOrDefault(c => c.ChildGlobalId == "2K1eRGMijEj9PRqHskPwYb");
+            Assert.NotNull(mainPartNode);
+            Assert.Equal(AssemblyChildClassification.MainPart, mainPartNode.ChildClassification);
+
+            var beamNode = rel.Children.FirstOrDefault(c => c.ChildGlobalId == "0LQDWLQ954Q9QwwTtOHEV0");
+            Assert.NotNull(beamNode);
+            Assert.Equal(AssemblyChildClassification.VisibleSecondaryPart, beamNode.ChildClassification);
+
+            // Verify CSV report generation
+            string tempFolder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            Directory.CreateDirectory(tempFolder);
+            try
+            {
+                await auditService.GenerateReportsAsync(auditResult, tempFolder);
+                var csvPath = Path.Combine(tempFolder, "Reports", "IFC_Audit", "assembly_graph_classification_audit.csv");
+                Assert.True(File.Exists(csvPath), "CSV assembly_graph_classification_audit.csv should be generated");
+                var lines = File.ReadAllLines(csvPath);
+                Assert.True(lines.Length > 1, "CSV should contain headers and rows");
+                Assert.Contains("2KFTYALGT0ghARgUhfEqjI", lines[1]);
+            }
+            finally
+            {
+                try { Directory.Delete(tempFolder, true); } catch { }
+            }
+        }
+
+        [Fact]
+        public void TestPrecastElementMapping_AssemblyClassification()
+        {
+            const string ifcPath = @"F:\06-ITI\00-Project\tryProjects\Project2\Models\IFC\testBuilding2x3withMarks.ifc";
+            if (!File.Exists(ifcPath)) return;
+
+            var sessionService = new IfcModelSessionService();
+            var aliasResolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+            var auditService = new IfcDiagnosticAuditService(sessionService, aliasResolver);
+            var normalizationService = new IfcNormalizationDecisionService(new IfcExporterProfileResolver());
+            var georefExtractor = new CraneOptimizer.Infrastructure.Ifc.IfcGeoreferencingExtractor();
+            var reader = new IfcReaderRepository(
+                auditService,
+                normalizationService,
+                sessionService,
+                georefExtractor,
+                aliasResolver);
+
+            var elements = reader.ReadElements(ifcPath);
+
+            var parent = elements.FirstOrDefault(e => e.ElementID == "2KFTYALGT0ghARgUhfEqjI");
+            Assert.NotNull(parent);
+            Assert.Equal("2K1eRGMijEj9PRqHskPwYb", parent.MainPartGlobalId);
+            Assert.Equal("InferredHighConfidence", parent.MainPartDetectionMethod);
+            Assert.Equal(3, parent.ChildCount);
+            Assert.Equal(2, parent.VisibleSecondaryPartCount);
+            Assert.True(parent.HasSecondaryParts);
+            Assert.Contains("MixedCategoryButValidAssembly", parent.ExtractionWarnings);
         }
     }
 }

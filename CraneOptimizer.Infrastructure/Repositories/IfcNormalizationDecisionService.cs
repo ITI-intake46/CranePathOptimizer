@@ -137,11 +137,41 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     if (previews.TryGetValue(child.ChildGlobalId, out var childPreview))
                     {
                         childPreview.ParentGlobalId = assembly.AssemblyGlobalId;
-                        childPreview.ParentGlobalIdSource = "IfcDecomposition";
+                        childPreview.ParentGlobalIdSource = child.RelationshipSource;
                     }
                     if (parentPreview != null && !parentPreview.ChildGlobalIds.Contains(child.ChildGlobalId))
                     {
                         parentPreview.ChildGlobalIds.Add(child.ChildGlobalId);
+                    }
+                }
+            }
+
+            // Map assembly classification summary fields from relations to previews
+            foreach (var rel in auditResult.AssemblyRelations)
+            {
+                if (previews.TryGetValue(rel.ParentGlobalId, out var parentPreview))
+                {
+                    parentPreview.MainPartGlobalId = rel.MainPartGlobalId;
+                    parentPreview.MainPartName = rel.MainPartName;
+                    parentPreview.MainPartCategory = rel.MainPartCategory;
+                    parentPreview.MainPartDetectionMethod = rel.MainPartDetectionMethod.ToString();
+                    parentPreview.ChildCount = rel.ChildCount;
+                    parentPreview.VisibleSecondaryPartCount = rel.VisibleSecondaryPartCount;
+                    parentPreview.HiddenWeightContributorCount = rel.HiddenWeightContributorCount;
+                    parentPreview.AccessoryWeightContributorCount = rel.AccessoryWeightContributorCount;
+                    parentPreview.IgnoredReferenceCount = rel.IgnoredReferenceCount;
+                    parentPreview.HasSecondaryParts = rel.HasSecondaryParts;
+                    parentPreview.HasHiddenContributors = rel.HasHiddenContributors;
+
+                    if (rel.Warnings != null)
+                    {
+                        foreach (var warning in rel.Warnings)
+                        {
+                            if (!parentPreview.Warnings.Contains(warning))
+                            {
+                                parentPreview.Warnings.Add(warning);
+                            }
+                        }
                     }
                 }
             }

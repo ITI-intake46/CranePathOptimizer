@@ -1357,6 +1357,19 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     pe.Role = preview.Role;
                     pe.ParentGlobalId = preview.ParentGlobalId;
                     pe.ParentGlobalIdSource = preview.ParentGlobalIdSource;
+
+                    // Phase 3 Assembly Classification fields
+                    pe.MainPartGlobalId = preview.MainPartGlobalId;
+                    pe.MainPartName = preview.MainPartName;
+                    pe.MainPartCategory = preview.MainPartCategory;
+                    pe.MainPartDetectionMethod = preview.MainPartDetectionMethod;
+                    pe.ChildCount = preview.ChildCount;
+                    pe.VisibleSecondaryPartCount = preview.VisibleSecondaryPartCount;
+                    pe.HiddenWeightContributorCount = preview.HiddenWeightContributorCount;
+                    pe.AccessoryWeightContributorCount = preview.AccessoryWeightContributorCount;
+                    pe.IgnoredReferenceCount = preview.IgnoredReferenceCount;
+                    pe.HasSecondaryParts = preview.HasSecondaryParts;
+                    pe.HasHiddenContributors = preview.HasHiddenContributors;
                     pe.ChildGlobalIds = new List<string>(preview.ChildGlobalIds);
                     pe.VisibleGeometryOwnerGlobalIds = new List<string>(preview.VisibleGeometryOwnerGlobalIds);
                     pe.HiddenInternalGeometryOwnerGlobalIds = new List<string>(preview.HiddenInternalGeometryOwnerGlobalIds);

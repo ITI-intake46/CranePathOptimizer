@@ -86,6 +86,19 @@ namespace CraneOptimizer.Domain.Schemas
         public bool AssemblyMarkIsExplicit { get; set; }
         public bool PhysicalCOGAvailable { get; set; } = true;
 
+        // Phase 3 Assembly Classification fields
+        public string? MainPartGlobalId { get; set; }
+        public string? MainPartName { get; set; }
+        public string? MainPartCategory { get; set; }
+        public string? MainPartDetectionMethod { get; set; }
+        public int ChildCount { get; set; }
+        public int VisibleSecondaryPartCount { get; set; }
+        public int HiddenWeightContributorCount { get; set; }
+        public int AccessoryWeightContributorCount { get; set; }
+        public int IgnoredReferenceCount { get; set; }
+        public bool HasSecondaryParts { get; set; }
+        public bool HasHiddenContributors { get; set; }
+
         // Non-authoritative mirrors of active engineering fields
         public double? AssemblyWeightTons => WeightTons;
         public string? AssemblyWeightSource => WeightSource;

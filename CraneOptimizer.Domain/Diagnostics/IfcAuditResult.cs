@@ -8,6 +8,7 @@ namespace CraneOptimizer.Domain.Diagnostics
         public IfcAuditMetadata Metadata { get; set; } = new();
         public List<RawIfcTypeSummary> RawTypes { get; set; } = new();
         public AssemblyDecompositionAudit Assemblies { get; set; } = new();
+        public List<AssemblyRelationshipInfo> AssemblyRelations { get; set; } = new();
         public List<ElementClassificationAuditDetail> Classifications { get; set; } = new();
         public List<ElementWeightAuditDetail> Weights { get; set; } = new();
         public List<ElementVolumeMaterialAuditDetail> VolumesMaterials { get; set; } = new();
@@ -82,6 +83,7 @@ namespace CraneOptimizer.Domain.Diagnostics
         public bool HasGeometry { get; set; }
         public bool DoubleCountingRisk { get; set; }
         public bool SwallowedRisk { get; set; }
+        public string RelationshipSource { get; set; } = "IfcDecomposition";
     }
 
     public sealed class ElementClassificationAuditDetail
