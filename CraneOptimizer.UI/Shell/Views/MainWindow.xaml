@@ -5,7 +5,7 @@
     xmlns:f5="clr-namespace:CraneOptimizer.UI.Features.F5_ElementManagement.Views"
     xmlns:f1="clr-namespace:CraneOptimizer.UI.Features.F1_IfcViewerControl.Views"
     xmlns:f3="clr-namespace:CraneOptimizer.UI.Features.F3_CraneSetup.Views"
-    xmlns:aiCompanion="clr-namespace:CraneOptimizer.UI.Features.F13_AiAdvisor.Companion.Views"
+    xmlns:aiCompanion="clr-namespace:CraneOptimizer.AI.Companion.Views;assembly=CraneOptimizer.AI"
     xmlns:nav="clr-namespace:CraneOptimizer.UI.Shared.Layouts"
     Title="IFC Building Analyzer — Crane Planner Edition"
     Width="1600"
@@ -451,14 +451,63 @@
                     BorderThickness="0"
                     SelectedIndex="0">
                     <TabControl.Resources>
-                        <Style TargetType="TabItem">
+                        <Style TargetType="{x:Type TabItem}">
                             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
                             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
                             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
                             <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
                             <Setter Property="FontSize" Value="{StaticResource FontSizeXS}" />
                             <Setter Property="FontWeight" Value="SemiBold" />
-                            <Setter Property="Padding" Value="10,6" />
+                            <Setter Property="Padding" Value="12,7" />
+                            <Setter Property="MinHeight" Value="32" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="{x:Type TabItem}">
+                                        <Grid Margin="0,0,2,0" SnapsToDevicePixels="True">
+                                            <Border
+                                                x:Name="TabChrome"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="1,1,1,0">
+                                                <Grid>
+                                                    <Border
+                                                        x:Name="SelectedAccent"
+                                                        Height="2"
+                                                        VerticalAlignment="Top"
+                                                        Background="{StaticResource PrimaryBrush}"
+                                                        Opacity="0" />
+
+                                                    <ContentPresenter
+                                                        x:Name="ContentSite"
+                                                        Margin="{TemplateBinding Padding}"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        ContentSource="Header"
+                                                        RecognizesAccessKey="True" />
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="TabChrome" Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                            </Trigger>
+
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="TabChrome" Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+                                                <Setter TargetName="TabChrome" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                                                <Setter TargetName="SelectedAccent" Property="Opacity" Value="1" />
+                                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                            </Trigger>
+
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
                         </Style>
                     </TabControl.Resources>
 

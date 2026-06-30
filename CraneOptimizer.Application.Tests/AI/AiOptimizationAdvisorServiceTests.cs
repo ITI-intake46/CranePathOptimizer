@@ -1,5 +1,5 @@
-using CraneOptimizer.Application.AI.DTOs;
-using CraneOptimizer.Application.AI.Services;
+using CraneOptimizer.AI.DTOs;
+using CraneOptimizer.AI.Services;
 using Xunit;
 
 namespace CraneOptimizer.Application.Tests.AI

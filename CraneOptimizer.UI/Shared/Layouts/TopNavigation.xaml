@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
     x:Class="CraneOptimizer.UI.Shared.Layouts.TopNavigation"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -12,7 +12,7 @@
     xmlns:project="clr-namespace:CraneOptimizer.UI.F10_ProjectManagement.Views"
     xmlns:ReportViews="clr-namespace:CraneOptimizer.UI.Features.F12_Reports.Views"
     xmlns:config="clr-namespace:CraneOptimizer.UI.Core.Configuration"
-    xmlns:AiAdvisorViews="clr-namespace:CraneOptimizer.UI.Features.F13_AiAdvisor.Views">
+    xmlns:AiAdvisorViews="clr-namespace:CraneOptimizer.AI.Views;assembly=CraneOptimizer.AI">
 
     <Border
         Background="{DynamicResource SurfaceBrush}"

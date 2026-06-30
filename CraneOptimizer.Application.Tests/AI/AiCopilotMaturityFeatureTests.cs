@@ -1,6 +1,6 @@
-using CraneOptimizer.Application.AI.DTOs;
-using CraneOptimizer.UI.Features.F13_AiAdvisor.Knowledge;
-using CraneOptimizer.UI.Features.F13_AiAdvisor.Services;
+using CraneOptimizer.AI.DTOs;
+using CraneOptimizer.AI.Knowledge;
+using CraneOptimizer.AI.Services;
 using Xunit;
 
 namespace CraneOptimizer.Application.Tests.AI
@@ -58,8 +58,8 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.NotNull(root);
 
             var mainWindowXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.UI", "Shell", "Views", "MainWindow.xaml"));
-            var assistantXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.UI", "Features", "F13_AiAdvisor", "Companion", "Views", "AiCompanionPanel.xaml"));
-            var fullWindowXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.UI", "Features", "F13_AiAdvisor", "Views", "AiAdvisorWindow.xaml"));
+            var assistantXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "Views", "AiCompanionPanel.xaml"));
+            var fullWindowXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Views", "AiAdvisorWindow.xaml"));
 
             Assert.Contains("AI ASSIST", mainWindowXaml);
             Assert.Contains("Confirmable action proposals", assistantXaml);

@@ -6,7 +6,7 @@
 **Canonical AI documentation status:** Current, final-state engineering dossier for the AI Copilot branch  
 **Prepared for:** senior maintainers, reviewers, research collaborators, safety reviewers, future contributors  
 **Prepared on:** 2026-06-27  
-**Primary implementation area:** `CraneOptimizer.UI/Features/F13_AiAdvisor`, `CraneOptimizer.Application/AI`, `CraneOptimizer.Infrastructure/AI`  
+**Primary implementation area:** `CraneOptimizer.AI` plus thin host adapters in `CraneOptimizer.UI/AIIntegration`  
 **Latest branch snapshot represented by this document:** AI Assist professional chat polish + full Copilot sleek composer/spacing refinements  
 
 ---
@@ -115,7 +115,7 @@ The objective is not only to say **what** changed, but to capture **why** it cha
 | Improve user workflow guidance | Added readiness scoring, next action, safe navigation proposals, exact tab/button references, and AI Assist. |
 | Maintain auditability | Added evidence lists, context JSON, raw Markdown, context cards, local docs, prompt templates, benchmarks, and report appendix disclaimers. |
 | Make the UX professional | Iteratively refined the UI into a sleek full Copilot window and compact right-side live chat panel with resizable composers and stateful Send/Stop buttons. |
-| Preserve maintainability | Segregated AI code into `Application/AI`, `Infrastructure/AI`, and `UI/Features/F13_AiAdvisor`. |
+| Preserve maintainability | Consolidated AI code into the isolated `CraneOptimizer.AI` project, with UI host adapters kept under `CraneOptimizer.UI/AIIntegration`. |
 | Add regression coverage | Added AI tests for deterministic advisor, software context, prompt template selection, UI contract strings, and confirmable navigation actions. |
 
 ### 3.2 Non-Goals
@@ -270,7 +270,7 @@ AI code owns AI settings/history JSON, prompt composition, AI UI state, advisory
 
 **What changed:** A rule-based advisor was added to classify current optimization state and recommend next steps.
 
-**Where:** `CraneOptimizer.Application/AI/Services/AiOptimizationAdvisorService.cs`.
+**Where:** `CraneOptimizer.CraneOptimizer.AI/Services/AiOptimizationAdvisorService.cs`.
 
 **Why:** Users need explanations even when Ollama is unavailable. Engineering-grade recommendations must be testable and auditable.
 
@@ -282,7 +282,7 @@ AI code owns AI settings/history JSON, prompt composition, AI UI state, advisory
 
 **What changed:** Infrastructure adapters call local Ollama for optional natural-language answers.
 
-**Where:** `CraneOptimizer.Infrastructure/AI/OllamaChatService.cs` and `OllamaModelManagementService.cs`.
+**Where:** `CraneOptimizer.CraneOptimizer.AI/Providers/Ollama/OllamaChatService.cs` and `OllamaModelManagementService.cs`.
 
 **Why:** Users already have local Ollama models and requested a local-first AI feature.
 
@@ -455,59 +455,59 @@ No installer, publish profile, NuGet package, or project-file dependency change 
 
 | File | Category | What changed / responsibility | Downstream impact |
 |---|---|---|---|
-| `CraneOptimizer.Application/AI/DTOs/AiOptimizationContextDto.cs` | Application DTO | Captures optimizer result, crane metadata, coverage, failure counts, and reachability metrics for deterministic and LLM-facing analysis. | Read-only projection of existing optimizer state; does not alter GA output. |
-| `CraneOptimizer.Application/AI/DTOs/AiAdvisorResponseDto.cs` | Application DTO | Carries deterministic advisor health, summary, recommendations, and evidence. | Forms the auditable base for UI cards, prompts, and report appendices. |
-| `CraneOptimizer.Application/AI/DTOs/AiRecommendationDto.cs` | Application DTO | Represents one advisor finding with severity, title, detail, and suggested action. | Allows UI and tests to reason over discrete recommendations. |
-| `CraneOptimizer.Application/AI/DTOs/AiRecommendationSeverity.cs` | Application DTO | Defines Info, Success, Warning, and Critical advisor severity levels. | Keeps severity values explicit and stable for UI mapping. |
-| `CraneOptimizer.Application/AI/DTOs/AiChatRequestDto.cs` | Application DTO | Defines model, system prompt, visible user prompt, context JSON, temperature, timeout, and streaming preference. | Separates visible question from private context and enables local model configuration. |
-| `CraneOptimizer.Application/AI/DTOs/AiChatResponseDto.cs` | Application DTO | Represents success/error response from any AI chat provider. | Keeps Infrastructure errors isolated from UI logic. |
-| `CraneOptimizer.Application/AI/DTOs/AiStreamingUpdateDto.cs` | Application DTO | Represents token/fragment updates from streaming providers. | Enables live preview in the full Copilot and side AI Assist. |
-| `CraneOptimizer.Application/AI/DTOs/AiModelStatusDto.cs` | Application DTO | Captures Ollama availability, endpoint, version, installed models, and error message. | Supports model diagnostics without coupling UI to HTTP schema. |
-| `CraneOptimizer.Application/AI/DTOs/AiSoftwareContextDto.cs` | Application DTO | Defines framework, tab/action inventory, workflows, and safety guardrails. | Supplies stable software context for local AI reasoning and audit displays. |
-| `CraneOptimizer.Application/AI/Interfaces/IAiOptimizationAdvisorService.cs` | Application interface | Contract for deterministic optimization analysis. | Maintains clean Application-layer boundary. |
-| `CraneOptimizer.Application/AI/Interfaces/IAiChatService.cs` | Application interface | Base chat provider abstraction. | Allows local Ollama implementation to remain replaceable. |
-| `CraneOptimizer.Application/AI/Interfaces/IAiStreamingChatService.cs` | Application interface | Optional extension for providers that support streaming updates. | Allows live streaming without forcing all chat providers to stream. |
-| `CraneOptimizer.Application/AI/Interfaces/IAiModelManagementService.cs` | Application interface | Contract for status and model-pull operations. | Isolates Ollama model management from UI. |
-| `CraneOptimizer.Application/AI/Interfaces/IAiSoftwareContextService.cs` | Application interface | Contract for software-aware context generation. | Keeps tab/workflow inventory available to AI without hard-coding it in views. |
-| `CraneOptimizer.Application/AI/Services/AiOptimizationAdvisorService.cs` | Application service | Rule-based advisor for no-result, low coverage, dominant failure modes, load-chart issues, reachability, and safety input review. | Authoritative deterministic explanation layer; no LLM required. |
-| `CraneOptimizer.Application/AI/Services/StaticAiSoftwareContextService.cs` | Application service | Static software map for framework, feature tabs, actions, workflows, and guardrails. | Improves workflow-aware AI answers and reduces model hallucination risk. |
-| `CraneOptimizer.Infrastructure/AI/OllamaChatService.cs` | Infrastructure adapter | Calls local Ollama `/api/chat`; supports streaming and buffered modes, timeout, cancellation, and error reporting. | Optional local LLM explanation layer; no cloud dependency. |
-| `CraneOptimizer.Infrastructure/AI/OllamaModelManagementService.cs` | Infrastructure adapter | Calls Ollama `/api/version`, `/api/tags`, and `/api/pull`. | Enables local model status, selection, and explicit pull workflow. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/ViewModels/AiAdvisorViewModel.cs` | UI ViewModel | Coordinates context building, deterministic advisor, Ollama calls, streaming updates, history, export, benchmark, prompt templates, and audit surfaces. | Primary orchestration point for the full Copilot window. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Views/AiAdvisorWindow.xaml` | UI view | Sleek full Copilot window with compact header, left rail, answer surface, audit disclosure, resizable bottom composer, and single Send/Stop action. | Professional desktop AI command center while preserving advanced audit features. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Views/AiAdvisorWindow.xaml.cs` | UI code-behind | Handles composer keyboard behavior and window sizing/lifecycle support. | Allows Enter-to-send, Shift+Enter newline, and native window behavior. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Views/AiAdvisorTabView.xaml` | UI tab | Ribbon-hosted AI Copilot entry surface. | Provides feature discovery inside the existing WPF navigation model. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Views/AiAdvisorTabView.xaml.cs` | UI code-behind | Bridges tab UI events to the advisor window service. | Keeps full window launch separate from shell navigation. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Companion/ViewModels/AiCompanionViewModel.cs` | UI ViewModel | Right-side AI Assist orchestration: workflow readiness, live chat, stateful Send/Stop, resizable prompt, actions, evidence, context copy, and full Copilot launch. | Makes AI guidance available in context without blocking the 3D workspace. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Companion/Views/AiCompanionPanel.xaml` | UI view | Right-docked AI Assist panel with live chat, scrollable body, compact composer, micro-actions, readiness, next action, and expanders. | Final side-panel UX surface after multiple usability refinements. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Companion/Views/AiCompanionPanel.xaml.cs` | UI code-behind | Handles panel-specific UI events, close signaling, and keyboard/scroll support. | Keeps AI Assist dock interactive without overloading the ViewModel. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Companion/Views/AiCompanionStatusStrip.xaml` | UI view | Bottom companion/status strip that exposes lightweight AI status and re-open controls. | Non-intrusive entry point for AI Assist. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Companion/Views/AiCompanionStatusStrip.xaml.cs` | UI code-behind | Raises status strip actions such as open assist and hide. | Integrates AI companion into the main shell footer. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Configuration/AiCopilotSettings.cs` | UI configuration | Defines persisted model, dock visibility, history, project-specific preferences, model capability records, streaming, and timeout settings. | Local user/project preference state without database schema changes. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Configuration/JsonAiCopilotSettingsService.cs` | UI configuration | Best-effort JSON settings persistence under LocalAppData. | Persistence failure cannot block crane planning workflows. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Configuration/IAiCopilotSettingsService.cs` | UI configuration | Settings-service contract. | Allows persistence strategy replacement. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Workflow/WorkflowReadinessService.cs` | UI workflow service | Converts live shell state into an auditable readiness checklist and structured recommendation cards. | Provides deterministic workflow guidance independent of LLM output. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Workflow/WorkflowReadinessItem.cs` | UI workflow model | Represents one readiness criterion with evidence, recommendation, next click, severity, and criticality. | Supports explainable workflow status in side and full AI UI. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Workflow/WorkflowReadinessSnapshot.cs` | UI workflow model | Aggregate readiness state: active screen, stage, completion ratio, missing critical count, and items. | Feeds AI Assist chips, status, and prompts. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Workflow/StructuredRecommendationCard.cs` | UI workflow model | Structured card for status/finding/evidence/recommendation/next click/risk/confidence. | Supports audit-ready recommendation display and copyable evidence. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/AiPromptTemplateService.cs` | UI knowledge service | Selects result-specific templates for no-result, low-coverage, out-of-radius, overweight, not-charted, and healthy runs. | Prioritizes explicit failure diagnostics over broad coverage symptoms. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/AiPromptTemplate.cs` | UI knowledge model | Prompt template key/title/applicability/instruction model. | Makes prompt-selection auditable. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/AiLocalDocumentSearchService.cs` | UI knowledge service | Searches committed local docs and agent guidance for relevant snippets. | Adds optional documentation context without cloud search. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/AiDocumentSearchResult.cs` | UI knowledge model | Represents a local documentation search hit. | Supports audit display of attached local docs. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/AiSoftwareInventoryService.cs` | UI knowledge service | Derives a XAML/file-based inventory for AI/software context inspection. | Improves maintainability and exposes UI metadata to audit details. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/AiReportAppendixService.cs` | UI knowledge/export service | Builds Markdown report appendix with question, AI note, disclaimer, and context snapshot. | Adds report-ready AI notes without changing QuestPDF report engine. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Rendering/MarkdownPreviewControl.xaml` | UI control | Reusable Markdown preview host. | Provides a consistent response rendering surface. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Rendering/MarkdownPreviewControl.xaml.cs` | UI control code | Binds Markdown text to WPF FlowDocument and scroll behavior. | Fixes raw Markdown and nested scroll usability issues. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Rendering/MarkdownToFlowDocumentConverter.cs` | UI renderer | Converts a controlled Markdown subset into WPF FlowDocument content. | Keeps Markdown rendering dependency-free. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Services/AiAdvisorWindowService.cs` | UI service | Creates and shows the full Copilot window. | Centralizes window lifecycle and owner relationship. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Services/IUiInteractionContextService.cs` | UI service contract | Tracks active screen and exposes confirmable UI action requests. | Makes safe navigation actions possible without project mutation. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Services/UiInteractionContextService.cs` | UI service | Implements active-tab tracking and navigation-action event dispatch. | Connects AI proposals to shell navigation. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/ViewModels/AiActionProposalViewModel.cs` | UI ViewModel | Represents safe, confirmable action proposals. | Allows navigation actions to be explicit and user-confirmed. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/ViewModels/AiContextCardViewModel.cs` | UI ViewModel | Displays context cards describing what the AI sees. | Improves transparency. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/ViewModels/AiModelBenchmarkResultViewModel.cs` | UI ViewModel | Represents model benchmark/capability data. | Supports local model recommendation and diagnostics. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/ViewModels/AiRecommendationItemViewModel.cs` | UI ViewModel | Wraps deterministic advisor recommendation for display. | Decouples Application DTOs from WPF bindings. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/ViewModels/AiResponseHistoryItemViewModel.cs` | UI ViewModel | Represents persisted/recent answer items. | Enables restore and clear workflows. |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/ViewModels/AsyncRelayCommand.cs` | UI utility | Async command helper for WPF MVVM operations. | Keeps long-running Ollama/model commands responsive. |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiOptimizationContextDto.cs` | Application DTO | Captures optimizer result, crane metadata, coverage, failure counts, and reachability metrics for deterministic and LLM-facing analysis. | Read-only projection of existing optimizer state; does not alter GA output. |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiAdvisorResponseDto.cs` | Application DTO | Carries deterministic advisor health, summary, recommendations, and evidence. | Forms the auditable base for UI cards, prompts, and report appendices. |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiRecommendationDto.cs` | Application DTO | Represents one advisor finding with severity, title, detail, and suggested action. | Allows UI and tests to reason over discrete recommendations. |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiRecommendationSeverity.cs` | Application DTO | Defines Info, Success, Warning, and Critical advisor severity levels. | Keeps severity values explicit and stable for UI mapping. |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiChatRequestDto.cs` | Application DTO | Defines model, system prompt, visible user prompt, context JSON, temperature, timeout, and streaming preference. | Separates visible question from private context and enables local model configuration. |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiChatResponseDto.cs` | Application DTO | Represents success/error response from any AI chat provider. | Keeps Infrastructure errors isolated from UI logic. |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiStreamingUpdateDto.cs` | Application DTO | Represents token/fragment updates from streaming providers. | Enables live preview in the full Copilot and side AI Assist. |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiModelStatusDto.cs` | Application DTO | Captures Ollama availability, endpoint, version, installed models, and error message. | Supports model diagnostics without coupling UI to HTTP schema. |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiSoftwareContextDto.cs` | Application DTO | Defines framework, tab/action inventory, workflows, and safety guardrails. | Supplies stable software context for local AI reasoning and audit displays. |
+| `CraneOptimizer.CraneOptimizer.AI/Interfaces/IAiOptimizationAdvisorService.cs` | Application interface | Contract for deterministic optimization analysis. | Maintains clean Application-layer boundary. |
+| `CraneOptimizer.CraneOptimizer.AI/Interfaces/IAiChatService.cs` | Application interface | Base chat provider abstraction. | Allows local Ollama implementation to remain replaceable. |
+| `CraneOptimizer.CraneOptimizer.AI/Interfaces/IAiStreamingChatService.cs` | Application interface | Optional extension for providers that support streaming updates. | Allows live streaming without forcing all chat providers to stream. |
+| `CraneOptimizer.CraneOptimizer.AI/Interfaces/IAiModelManagementService.cs` | Application interface | Contract for status and model-pull operations. | Isolates Ollama model management from UI. |
+| `CraneOptimizer.CraneOptimizer.AI/Interfaces/IAiSoftwareContextService.cs` | Application interface | Contract for software-aware context generation. | Keeps tab/workflow inventory available to AI without hard-coding it in views. |
+| `CraneOptimizer.CraneOptimizer.AI/Services/AiOptimizationAdvisorService.cs` | Application service | Rule-based advisor for no-result, low coverage, dominant failure modes, load-chart issues, reachability, and safety input review. | Authoritative deterministic explanation layer; no LLM required. |
+| `CraneOptimizer.CraneOptimizer.AI/Services/StaticAiSoftwareContextService.cs` | Application service | Static software map for framework, feature tabs, actions, workflows, and guardrails. | Improves workflow-aware AI answers and reduces model hallucination risk. |
+| `CraneOptimizer.CraneOptimizer.AI/Providers/Ollama/OllamaChatService.cs` | Infrastructure adapter | Calls local Ollama `/api/chat`; supports streaming and buffered modes, timeout, cancellation, and error reporting. | Optional local LLM explanation layer; no cloud dependency. |
+| `CraneOptimizer.CraneOptimizer.AI/Providers/Ollama/OllamaModelManagementService.cs` | Infrastructure adapter | Calls Ollama `/api/version`, `/api/tags`, and `/api/pull`. | Enables local model status, selection, and explicit pull workflow. |
+| `CraneOptimizer.AI/ViewModels/AiAdvisorViewModel.cs` | UI ViewModel | Coordinates context building, deterministic advisor, Ollama calls, streaming updates, history, export, benchmark, prompt templates, and audit surfaces. | Primary orchestration point for the full Copilot window. |
+| `CraneOptimizer.AI/Views/AiAdvisorWindow.xaml` | UI view | Sleek full Copilot window with compact header, left rail, answer surface, audit disclosure, resizable bottom composer, and single Send/Stop action. | Professional desktop AI command center while preserving advanced audit features. |
+| `CraneOptimizer.AI/Views/AiAdvisorWindow.xaml.cs` | UI code-behind | Handles composer keyboard behavior and window sizing/lifecycle support. | Allows Enter-to-send, Shift+Enter newline, and native window behavior. |
+| `CraneOptimizer.AI/Views/AiAdvisorTabView.xaml` | UI tab | Ribbon-hosted AI Copilot entry surface. | Provides feature discovery inside the existing WPF navigation model. |
+| `CraneOptimizer.AI/Views/AiAdvisorTabView.xaml.cs` | UI code-behind | Bridges tab UI events to the advisor window service. | Keeps full window launch separate from shell navigation. |
+| `CraneOptimizer.AI/Companion/ViewModels/AiCompanionViewModel.cs` | UI ViewModel | Right-side AI Assist orchestration: workflow readiness, live chat, stateful Send/Stop, resizable prompt, actions, evidence, context copy, and full Copilot launch. | Makes AI guidance available in context without blocking the 3D workspace. |
+| `CraneOptimizer.AI/Companion/Views/AiCompanionPanel.xaml` | UI view | Right-docked AI Assist panel with live chat, scrollable body, compact composer, micro-actions, readiness, next action, and expanders. | Final side-panel UX surface after multiple usability refinements. |
+| `CraneOptimizer.AI/Companion/Views/AiCompanionPanel.xaml.cs` | UI code-behind | Handles panel-specific UI events, close signaling, and keyboard/scroll support. | Keeps AI Assist dock interactive without overloading the ViewModel. |
+| `CraneOptimizer.AI/Companion/Views/AiCompanionStatusStrip.xaml` | UI view | Bottom companion/status strip that exposes lightweight AI status and re-open controls. | Non-intrusive entry point for AI Assist. |
+| `CraneOptimizer.AI/Companion/Views/AiCompanionStatusStrip.xaml.cs` | UI code-behind | Raises status strip actions such as open assist and hide. | Integrates AI companion into the main shell footer. |
+| `CraneOptimizer.AI/Configuration/AiCopilotSettings.cs` | UI configuration | Defines persisted model, dock visibility, history, project-specific preferences, model capability records, streaming, and timeout settings. | Local user/project preference state without database schema changes. |
+| `CraneOptimizer.AI/Configuration/JsonAiCopilotSettingsService.cs` | UI configuration | Best-effort JSON settings persistence under LocalAppData. | Persistence failure cannot block crane planning workflows. |
+| `CraneOptimizer.AI/Configuration/IAiCopilotSettingsService.cs` | UI configuration | Settings-service contract. | Allows persistence strategy replacement. |
+| `CraneOptimizer.AI/Workflow/WorkflowReadinessService.cs` | UI workflow service | Converts live shell state into an auditable readiness checklist and structured recommendation cards. | Provides deterministic workflow guidance independent of LLM output. |
+| `CraneOptimizer.AI/Workflow/WorkflowReadinessItem.cs` | UI workflow model | Represents one readiness criterion with evidence, recommendation, next click, severity, and criticality. | Supports explainable workflow status in side and full AI UI. |
+| `CraneOptimizer.AI/Workflow/WorkflowReadinessSnapshot.cs` | UI workflow model | Aggregate readiness state: active screen, stage, completion ratio, missing critical count, and items. | Feeds AI Assist chips, status, and prompts. |
+| `CraneOptimizer.AI/Workflow/StructuredRecommendationCard.cs` | UI workflow model | Structured card for status/finding/evidence/recommendation/next click/risk/confidence. | Supports audit-ready recommendation display and copyable evidence. |
+| `CraneOptimizer.AI/Knowledge/AiPromptTemplateService.cs` | UI knowledge service | Selects result-specific templates for no-result, low-coverage, out-of-radius, overweight, not-charted, and healthy runs. | Prioritizes explicit failure diagnostics over broad coverage symptoms. |
+| `CraneOptimizer.AI/Knowledge/AiPromptTemplate.cs` | UI knowledge model | Prompt template key/title/applicability/instruction model. | Makes prompt-selection auditable. |
+| `CraneOptimizer.AI/Knowledge/AiLocalDocumentSearchService.cs` | UI knowledge service | Searches committed local docs and agent guidance for relevant snippets. | Adds optional documentation context without cloud search. |
+| `CraneOptimizer.AI/Knowledge/AiDocumentSearchResult.cs` | UI knowledge model | Represents a local documentation search hit. | Supports audit display of attached local docs. |
+| `CraneOptimizer.AI/Knowledge/AiSoftwareInventoryService.cs` | UI knowledge service | Derives a XAML/file-based inventory for AI/software context inspection. | Improves maintainability and exposes UI metadata to audit details. |
+| `CraneOptimizer.AI/Knowledge/AiReportAppendixService.cs` | UI knowledge/export service | Builds Markdown report appendix with question, AI note, disclaimer, and context snapshot. | Adds report-ready AI notes without changing QuestPDF report engine. |
+| `CraneOptimizer.AI/Rendering/MarkdownPreviewControl.xaml` | UI control | Reusable Markdown preview host. | Provides a consistent response rendering surface. |
+| `CraneOptimizer.AI/Rendering/MarkdownPreviewControl.xaml.cs` | UI control code | Binds Markdown text to WPF FlowDocument and scroll behavior. | Fixes raw Markdown and nested scroll usability issues. |
+| `CraneOptimizer.AI/Rendering/MarkdownToFlowDocumentConverter.cs` | UI renderer | Converts a controlled Markdown subset into WPF FlowDocument content. | Keeps Markdown rendering dependency-free. |
+| `CraneOptimizer.AI/Services/AiAdvisorWindowService.cs` | UI service | Creates and shows the full Copilot window. | Centralizes window lifecycle and owner relationship. |
+| `CraneOptimizer.AI/Services/IUiInteractionContextService.cs` | UI service contract | Tracks active screen and exposes confirmable UI action requests. | Makes safe navigation actions possible without project mutation. |
+| `CraneOptimizer.AI/Services/UiInteractionContextService.cs` | UI service | Implements active-tab tracking and navigation-action event dispatch. | Connects AI proposals to shell navigation. |
+| `CraneOptimizer.AI/ViewModels/AiActionProposalViewModel.cs` | UI ViewModel | Represents safe, confirmable action proposals. | Allows navigation actions to be explicit and user-confirmed. |
+| `CraneOptimizer.AI/ViewModels/AiContextCardViewModel.cs` | UI ViewModel | Displays context cards describing what the AI sees. | Improves transparency. |
+| `CraneOptimizer.AI/ViewModels/AiModelBenchmarkResultViewModel.cs` | UI ViewModel | Represents model benchmark/capability data. | Supports local model recommendation and diagnostics. |
+| `CraneOptimizer.AI/ViewModels/AiRecommendationItemViewModel.cs` | UI ViewModel | Wraps deterministic advisor recommendation for display. | Decouples Application DTOs from WPF bindings. |
+| `CraneOptimizer.AI/ViewModels/AiResponseHistoryItemViewModel.cs` | UI ViewModel | Represents persisted/recent answer items. | Enables restore and clear workflows. |
+| `CraneOptimizer.AI/ViewModels/AsyncRelayCommand.cs` | UI utility | Async command helper for WPF MVVM operations. | Keeps long-running Ollama/model commands responsive. |
 | `CraneOptimizer.UI/App.xaml.cs` | Composition root | Registers AI Application, Infrastructure, settings, knowledge, workflow, and ViewModel services. | Adds AI subsystem without new NuGet package dependencies. |
 | `CraneOptimizer.UI/Shell/Views/MainWindow.xaml` | Shell integration | Adds right-dock AI Assist tab and bottom AI companion strip. | Integrates AI inside the main workspace without floating overlays. |
 | `CraneOptimizer.UI/Shell/Views/MainWindow.xaml.cs` | Shell code-behind | Handles AI Assist open/close events and dock tab state. | Keeps panel dismissible and reopenable. |
@@ -797,7 +797,7 @@ New AI features should follow this order:
 1. Determine whether the feature needs deterministic logic.
 2. Add or extend Application DTOs or services first when logic is testable.
 3. Keep Infrastructure adapters behind interfaces.
-4. Keep WPF UI state in `Features/F13_AiAdvisor` unless it is shell integration.
+4. Keep WPF UI state in `CraneOptimizer.AI` unless it is shell integration.
 5. Add tests for deterministic behavior and UI contracts.
 6. Update this dossier or its successor.
 
@@ -870,65 +870,65 @@ Preserve answer-first layout, bottom composer with resizable prompt area, single
 | `CraneOptimizer.Application.Tests/AI/AiCopilotMaturityFeatureTests.cs` |
 | `CraneOptimizer.Application.Tests/AI/AiOptimizationAdvisorServiceTests.cs` |
 | `CraneOptimizer.Application.Tests/AI/StaticAiSoftwareContextServiceTests.cs` |
-| `CraneOptimizer.Application/AI/DTOs/AiAdvisorResponseDto.cs` |
-| `CraneOptimizer.Application/AI/DTOs/AiChatRequestDto.cs` |
-| `CraneOptimizer.Application/AI/DTOs/AiChatResponseDto.cs` |
-| `CraneOptimizer.Application/AI/DTOs/AiModelStatusDto.cs` |
-| `CraneOptimizer.Application/AI/DTOs/AiOptimizationContextDto.cs` |
-| `CraneOptimizer.Application/AI/DTOs/AiRecommendationDto.cs` |
-| `CraneOptimizer.Application/AI/DTOs/AiRecommendationSeverity.cs` |
-| `CraneOptimizer.Application/AI/DTOs/AiSoftwareContextDto.cs` |
-| `CraneOptimizer.Application/AI/DTOs/AiStreamingUpdateDto.cs` |
-| `CraneOptimizer.Application/AI/Interfaces/IAiChatService.cs` |
-| `CraneOptimizer.Application/AI/Interfaces/IAiModelManagementService.cs` |
-| `CraneOptimizer.Application/AI/Interfaces/IAiOptimizationAdvisorService.cs` |
-| `CraneOptimizer.Application/AI/Interfaces/IAiSoftwareContextService.cs` |
-| `CraneOptimizer.Application/AI/Interfaces/IAiStreamingChatService.cs` |
-| `CraneOptimizer.Application/AI/Services/AiOptimizationAdvisorService.cs` |
-| `CraneOptimizer.Application/AI/Services/StaticAiSoftwareContextService.cs` |
-| `CraneOptimizer.Infrastructure/AI/OllamaChatService.cs` |
-| `CraneOptimizer.Infrastructure/AI/OllamaModelManagementService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Companion/ViewModels/AiCompanionViewModel.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Companion/Views/AiCompanionPanel.xaml` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Companion/Views/AiCompanionPanel.xaml.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Companion/Views/AiCompanionStatusStrip.xaml` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Companion/Views/AiCompanionStatusStrip.xaml.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Configuration/AiCopilotSettings.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Configuration/IAiCopilotSettingsService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Configuration/JsonAiCopilotSettingsService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/AiDocumentSearchResult.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/AiLocalDocumentSearchService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/AiPromptTemplate.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/AiPromptTemplateService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/AiReportAppendixService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/AiSoftwareInventoryService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/IAiLocalDocumentSearchService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/IAiPromptTemplateService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/IAiReportAppendixService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Knowledge/IAiSoftwareInventoryService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Rendering/MarkdownPreviewControl.xaml` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Rendering/MarkdownPreviewControl.xaml.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Rendering/MarkdownToFlowDocumentConverter.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Services/AiAdvisorWindowService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Services/IAiAdvisorWindowService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Services/IUiInteractionContextService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Services/UiInteractionContextService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/ViewModels/AiActionProposalViewModel.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/ViewModels/AiAdvisorViewModel.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/ViewModels/AiContextCardViewModel.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/ViewModels/AiModelBenchmarkResultViewModel.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/ViewModels/AiRecommendationItemViewModel.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/ViewModels/AiResponseHistoryItemViewModel.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/ViewModels/AsyncRelayCommand.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Views/AiAdvisorTabView.xaml` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Views/AiAdvisorTabView.xaml.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Views/AiAdvisorWindow.xaml` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Views/AiAdvisorWindow.xaml.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Workflow/IWorkflowReadinessService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Workflow/StructuredRecommendationCard.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Workflow/WorkflowReadinessItem.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Workflow/WorkflowReadinessService.cs` |
-| `CraneOptimizer.UI/Features/F13_AiAdvisor/Workflow/WorkflowReadinessSnapshot.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiAdvisorResponseDto.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiChatRequestDto.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiChatResponseDto.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiModelStatusDto.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiOptimizationContextDto.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiRecommendationDto.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiRecommendationSeverity.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiSoftwareContextDto.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiStreamingUpdateDto.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/Interfaces/IAiChatService.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/Interfaces/IAiModelManagementService.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/Interfaces/IAiOptimizationAdvisorService.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/Interfaces/IAiSoftwareContextService.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/Interfaces/IAiStreamingChatService.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/Services/AiOptimizationAdvisorService.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/Services/StaticAiSoftwareContextService.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/Providers/Ollama/OllamaChatService.cs` |
+| `CraneOptimizer.CraneOptimizer.AI/Providers/Ollama/OllamaModelManagementService.cs` |
+| `CraneOptimizer.AI/Companion/ViewModels/AiCompanionViewModel.cs` |
+| `CraneOptimizer.AI/Companion/Views/AiCompanionPanel.xaml` |
+| `CraneOptimizer.AI/Companion/Views/AiCompanionPanel.xaml.cs` |
+| `CraneOptimizer.AI/Companion/Views/AiCompanionStatusStrip.xaml` |
+| `CraneOptimizer.AI/Companion/Views/AiCompanionStatusStrip.xaml.cs` |
+| `CraneOptimizer.AI/Configuration/AiCopilotSettings.cs` |
+| `CraneOptimizer.AI/Configuration/IAiCopilotSettingsService.cs` |
+| `CraneOptimizer.AI/Configuration/JsonAiCopilotSettingsService.cs` |
+| `CraneOptimizer.AI/Knowledge/AiDocumentSearchResult.cs` |
+| `CraneOptimizer.AI/Knowledge/AiLocalDocumentSearchService.cs` |
+| `CraneOptimizer.AI/Knowledge/AiPromptTemplate.cs` |
+| `CraneOptimizer.AI/Knowledge/AiPromptTemplateService.cs` |
+| `CraneOptimizer.AI/Knowledge/AiReportAppendixService.cs` |
+| `CraneOptimizer.AI/Knowledge/AiSoftwareInventoryService.cs` |
+| `CraneOptimizer.AI/Knowledge/IAiLocalDocumentSearchService.cs` |
+| `CraneOptimizer.AI/Knowledge/IAiPromptTemplateService.cs` |
+| `CraneOptimizer.AI/Knowledge/IAiReportAppendixService.cs` |
+| `CraneOptimizer.AI/Knowledge/IAiSoftwareInventoryService.cs` |
+| `CraneOptimizer.AI/Rendering/MarkdownPreviewControl.xaml` |
+| `CraneOptimizer.AI/Rendering/MarkdownPreviewControl.xaml.cs` |
+| `CraneOptimizer.AI/Rendering/MarkdownToFlowDocumentConverter.cs` |
+| `CraneOptimizer.AI/Services/AiAdvisorWindowService.cs` |
+| `CraneOptimizer.AI/Services/IAiAdvisorWindowService.cs` |
+| `CraneOptimizer.AI/Services/IUiInteractionContextService.cs` |
+| `CraneOptimizer.AI/Services/UiInteractionContextService.cs` |
+| `CraneOptimizer.AI/ViewModels/AiActionProposalViewModel.cs` |
+| `CraneOptimizer.AI/ViewModels/AiAdvisorViewModel.cs` |
+| `CraneOptimizer.AI/ViewModels/AiContextCardViewModel.cs` |
+| `CraneOptimizer.AI/ViewModels/AiModelBenchmarkResultViewModel.cs` |
+| `CraneOptimizer.AI/ViewModels/AiRecommendationItemViewModel.cs` |
+| `CraneOptimizer.AI/ViewModels/AiResponseHistoryItemViewModel.cs` |
+| `CraneOptimizer.AI/ViewModels/AsyncRelayCommand.cs` |
+| `CraneOptimizer.AI/Views/AiAdvisorTabView.xaml` |
+| `CraneOptimizer.AI/Views/AiAdvisorTabView.xaml.cs` |
+| `CraneOptimizer.AI/Views/AiAdvisorWindow.xaml` |
+| `CraneOptimizer.AI/Views/AiAdvisorWindow.xaml.cs` |
+| `CraneOptimizer.AI/Workflow/IWorkflowReadinessService.cs` |
+| `CraneOptimizer.AI/Workflow/StructuredRecommendationCard.cs` |
+| `CraneOptimizer.AI/Workflow/WorkflowReadinessItem.cs` |
+| `CraneOptimizer.AI/Workflow/WorkflowReadinessService.cs` |
+| `CraneOptimizer.AI/Workflow/WorkflowReadinessSnapshot.cs` |
 
 ### Appendix B — Validation Commands
 

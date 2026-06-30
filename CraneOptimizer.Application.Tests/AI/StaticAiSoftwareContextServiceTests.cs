@@ -1,4 +1,4 @@
-using CraneOptimizer.Application.AI.Services;
+using CraneOptimizer.AI.Services;
 using Xunit;
 
 namespace CraneOptimizer.Application.Tests.AI

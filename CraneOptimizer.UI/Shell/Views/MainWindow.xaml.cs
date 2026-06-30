@@ -1,4 +1,5 @@
-﻿using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
+using CraneOptimizer.UI.AIIntegration;
+using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.Shell.ViewModels;
 using System.Windows;
 using System.Windows.Input;
@@ -9,11 +10,12 @@ namespace CraneOptimizer.UI.Shell.Views
     {
         private readonly IProjectNavigationService _nav;
 
-        public MainWindow(MainViewModel vm, IProjectNavigationService nav)
+        public MainWindow(MainViewModel vm, IProjectNavigationService nav, AiHostContextBridge aiContextBridge)
         {
             InitializeComponent();
             DataContext = vm;
             _nav = nav;
+            aiContextBridge.Attach(vm);
         }
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => DragMove();
