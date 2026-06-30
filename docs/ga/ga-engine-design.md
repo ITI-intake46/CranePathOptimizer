@@ -523,6 +523,24 @@ Implemented in [GAEngine.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOp
 * **Complexity:** Low.
 * **Risk Level:** Low.
 
+## 8. Assembly Lift Consolidation & Rollup (Grouped Lifts)
+
+When optimization is executed, the pipeline handles parent assemblies and their child elements depending on the `EnableGroupedLifts` configuration:
+
+### Grouped Lifts Mode (EnableGroupedLifts = true)
+1. **Container Exclusion:** The parent assembly container (which lacks direct physical geometry/mesh) is excluded from entering the GA solver as a physical lift target.
+2. **Child Swallowing:** Sibling components (structural, accessory, and reinforcement members) belonging to a valid assembly are consolidated. They are marked as `Role = Excluded` and `IncludeInGa = false` with the reason `"Swallowed as child component of valid Lift Assembly."`.
+3. **Representative Lift Unit (Option E):** The solver constructs a single representative `PrecastElement` lift unit:
+   * **Identity:** Its `LiftUnitId` (passed as `ElementID` to the GA solver) is mapped to the physical **`MainPartGlobalId`** of the assembly.
+   * **Weight Rollup:** The weight is mapped to `AssemblyLiftWeight`. This uses the parent assembly's explicit weight if trusted, or falls back to the sum of all eligible children.
+   * **COG Rollup:** The center of gravity is mapped to `AssemblyLiftCOG`. This is computed as the child-weighted centroid COG from children with physical geometry. Minor reinforcing/accessory parts lacking direct geometries fall back to the main part COG if their weight is $\le 2\%$ of the assembly total.
+   * **Metadata:** The `ParentAssemblyGlobalId` and child member list `AssemblyMemberIds` are stored on the representative lift unit.
+   * **Gating Promotion:** Valid mixed assemblies (containing structural main parts combined with secondary components of different classes) are promoted naturally to `Role = LiftAssembly` and `IncludeInGa = true` if they have a trusted parent-child hierarchy, a valid main part, a trusted weight, and a safe rollup COG.
+
+### Ungrouped Lifts Mode (EnableGroupedLifts = false)
+1. **Container Exclusion:** The parent assembly container is still excluded from entering the GA solver because it does not represent a physical individual lift target.
+2. **Child Unrolling:** Sibling components are unrolled and enter the GA solver independently as individual physical lift units (e.g., the concrete wall and the secondary steel beams are lifted separately with their raw individual properties).
+
 ---
 
 ## Comparative Assessment & Improvement Roadmap

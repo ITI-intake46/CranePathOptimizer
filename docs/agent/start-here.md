@@ -25,9 +25,20 @@ The application processes building models from IFC files in a decoupled, two-sta
 1. **Diagnostic Ingestion & Audit (`IfcDiagnosticAuditService`):**
    Opens the IFC model session, extracts georeferencing metadata/units, maps decomposition hierarchies, and runs validation diagnostics on weights, volumes, and placements.
 2. **Normalization & Role Decision (`IfcNormalizationDecisionService`):**
-   Assigns element roles (`LiftableElement`, `GroupingOnly`, `LiftAssembly`, etc.) and determines candidate categories (Wall, Beam, Column, Slab) using rules.
+   Assigns element roles (`LiftableElement`, `GroupingOnly`, `LiftAssembly`, `Excluded`, `InternalAuxiliary`, `NeedsReview`) and determines candidate categories (Wall, Beam, Column, Slab) using rules.
 3. **Domain Mapping & Extraction (`IfcReaderRepository`):**
    Translates normalized previews into `PrecastElement` domain objects, resolving georeferenced coordinates and canonical assembly identity.
+
+### Unit Ingestion & Normalization (`UnitSystem`)
+*   **Canonical Storage & Runtime Units:** All values in the domain logic, database storage, and GA optimizer calculations are stored in canonical metric units: **meters** for length, **square meters** for area, **cubic meters** for volume, and **metric tons** for mass.
+*   **Unit Conversions:** The static helper class `UnitSystem` handles conversions from arbitrary raw IFC project units (e.g. millimeters, centimeters, inches, feet, kilograms, pounds) to canonical units.
+*   **Trusted Explicit Weight:** Import logic prefers explicit weight/mass properties declared in IFC quantities or property sets (`ExplicitQuantity` / `ExplicitProperty`). These are considered trusted.
+*   **Weight Fallback Rules:** If explicit weight properties are missing but a direct IFC volume exists, the system calculates weight using a concrete fallback density of $2500 \text{ kg/m}^3$ (multiplying volume by $2.5$ tons/m$^3$). If both are missing, UI preview grids or filters apply heuristic bounding-box volume approximations with material-specific densities, raising warnings to mark the weight as estimated or missing.
+
+### Coordinate & Geometry Safety
+*   **Global Cartesian Translation:** Center of gravity (COG) positions are extracted as global coordinates and normalized to local Cartesian meters relative to the project origin, accounting for map conversions.
+*   **Container-Only Assemblies:** Parent assembly elements (e.g. `IfcElementAssembly` or `IfcCastUnit`) represent structural group containers and have no direct 3D physical geometry or bounding boxes in the IFC model.
+*   **NULL Parent COG/BBox Handling:** Since container-only parent assemblies lack direct geometries, their local `ElementCOG` and BBox fields are initially `null`. During runtime reconstruction or rollup, if grouped lifts mode is active, the parent's COG/BBox is resolved dynamically using the physical main part's geometry or the children's weighted centroid COG. If grouped lifts are inactive, parent containers are excluded from GA input, preventing null-coordinate failures in the solver.
 
 ---
 
@@ -63,6 +74,22 @@ The system detects the `MainPart` of an assembly using:
 
 ## 3. Diagnostic Reports & Verification
 
+### Debug Report Naming Convention
+All generated internal diagnostic/debug CSV reports must follow this standard naming pattern:
+
+`debug_<domain>_<target>_<purpose>.csv`
+
+Where:
+*   `debug` indicates that the file is diagnostic/internal and not a final user-facing report.
+*   `<domain>` identifies the pipeline area, such as `ifc`, `ga`, `reports`, or `viewport`.
+*   `<target>` identifies the inspected object or workflow, such as `assembly_lift_unit`, `normalization`, or `optimization_history`.
+*   `<purpose>` describes the report purpose, such as `rollup_audit`, `classification_audit`, or `input_trace`.
+
+Examples:
+*   `debug_ifc_assembly_graph_classification_audit.csv`
+*   `debug_ifc_assembly_lift_unit_rollup_audit.csv`
+*   `debug_reports_lifting_result_input_trace.csv`
+
 ### Assembly Graph Classification Audit Report
 Every IFC import generates a detailed report at:
 `Reports/IFC_Audit/debug_ifc_assembly_graph_classification_audit.csv`
@@ -80,8 +107,26 @@ Columns:
 - `HasHiddenContributors` (true/false)
 - `Warnings` (e.g., `MultipleMainPartsDetected`, `NoMainPartInferred`, `MixedCategoryButValidAssembly`)
 
-### Unit Tests
+### Unit Tests and Verification Commands
 The unit and integration test suite in [IfcUnitNormalizationTests.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application.Tests/IFC/Audit/IfcUnitNormalizationTests.cs) and [AssemblyRollupTests.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application.Tests/IFC/Audit/AssemblyRollupTests.cs) covers unit scaling, georeferenced coordinate translation, assembly graph classification, load-time reconstruction, and GA lift unit rollup calculations.
+
+You can verify the codebase using the following test commands:
+*   **Run all tests in the solution:**
+    ```powershell
+    dotnet test F:\06-ITI\00-Project\Main%20Project\CraneOptimizer\CraneOptimizer.sln
+    ```
+*   **Run specific tests related to IFC import & normalization:**
+    ```powershell
+    dotnet test F:\06-ITI\00-Project\Main%20Project\CraneOptimizer\CraneOptimizer.Application.Tests --filter "IfcUnitNormalizationTests"
+    ```
+*   **Run specific tests related to assembly rollup:**
+    ```powershell
+    dotnet test F:\06-ITI\00-Project\Main%20Project\CraneOptimizer\CraneOptimizer.Application.Tests --filter "AssemblyRollupTests"
+    ```
+*   **Run specific tests related to GA entry gating & double counting:**
+    ```powershell
+    dotnet test F:\06-ITI\00-Project\Main%20Project\CraneOptimizer\CraneOptimizer.Application.Tests --filter "IfcSessionStabilizationTests"
+    ```
 
 ---
 
