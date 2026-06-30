@@ -55,6 +55,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\CraneOptimizer.AI\CraneOptimizer.AI.csproj" />
     <ProjectReference Include="..\CraneOptimizer.Application\CraneOptimizer.Application.csproj" />
     <ProjectReference Include="..\CraneOptimizer.Infrastructure\CraneOptimizer.Infrastructure.csproj" />
   </ItemGroup>

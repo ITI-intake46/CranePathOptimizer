@@ -9,6 +9,10 @@ using CraneOptimizer.Application.Reports.Interfaces;
 using CraneOptimizer.Application.Reports.Services;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Application.Services;
+using CraneOptimizer.AI.DependencyInjection;
+using CraneOptimizer.AI.Host;
+using CraneOptimizer.AI.Interfaces;
+using CraneOptimizer.UI.AIIntegration;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.Ifc;
@@ -168,6 +172,14 @@ namespace CraneOptimizer.UI
             services.AddSingleton<CraneOptimizer.UI.Features.F8_GAOptimizer.Services.IGADiagnosticsWindowService, CraneOptimizer.UI.Features.F8_GAOptimizer.Services.GADiagnosticsWindowService>();
 
             // =========================
+            // AI Advisor / Local Ollama Copilot
+            // =========================
+            services.AddCraneOptimizerAi();
+            services.AddSingleton<AiHostContextBridge>();
+            services.AddSingleton<IAiOptimizationContextProvider>(sp => sp.GetRequiredService<AiHostContextBridge>());
+            services.AddSingleton<IAiWorkflowContextProvider>(sp => sp.GetRequiredService<AiHostContextBridge>());
+
+            // =========================
             // User-facing Reports
             // =========================
             services.AddSingleton<IReportValidator, ReportValidator>();
@@ -241,6 +253,7 @@ namespace CraneOptimizer.UI
             services.AddScoped<CraneSeedService>();
 
             ServiceProvider = services.BuildServiceProvider();
+            AiServiceLocator.ServiceProvider = ServiceProvider;
 
             base.OnStartup(e);
 

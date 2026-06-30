@@ -5,6 +5,7 @@
     xmlns:f5="clr-namespace:CraneOptimizer.UI.Features.F5_ElementManagement.Views"
     xmlns:f1="clr-namespace:CraneOptimizer.UI.Features.F1_IfcViewerControl.Views"
     xmlns:f3="clr-namespace:CraneOptimizer.UI.Features.F3_CraneSetup.Views"
+    xmlns:aiCompanion="clr-namespace:CraneOptimizer.AI.Companion.Views;assembly=CraneOptimizer.AI"
     xmlns:nav="clr-namespace:CraneOptimizer.UI.Shared.Layouts"
     Title="IFC Building Analyzer — Crane Planner Edition"
     Width="1600"
@@ -406,8 +407,8 @@
                 <!--  Col 2: 3D Viewport  -->
                 <ColumnDefinition Width="4" />
                 <!--  Col 3: Splitter  -->
-                <ColumnDefinition Width="280" MinWidth="220" />
-                <!--  Col 4: Crane + Zones  -->
+                <ColumnDefinition Width="400" MinWidth="360" MaxWidth="560" />
+                <!--  Col 4: Crane + Zones / AI assist dock  -->
             </Grid.ColumnDefinitions>
 
             <!--  ── Col 0: Elements list + Properties (F5 module) ───────────  -->
@@ -434,13 +435,107 @@
                 Cursor="SizeWE"
                 ShowsPreview="True" />
 
-            <!--  ── Col 4: Crane Properties Panel ─────────────────────────  -->
+            <!--
+                ── Col 4: Right dock workspace ─────────────────────────────
+                Professional shell layout: AI assistance is docked as a tab beside
+                the existing properties panel instead of floating over crane controls.
+            -->
             <Border
                 Grid.Column="4"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1,0,0,0">
-                <f3:CraneManagerView DataContext="{Binding CraneManager}" />
+                <TabControl
+                    x:Name="RightWorkspaceTabs"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderThickness="0"
+                    SelectedIndex="0">
+                    <TabControl.Resources>
+                        <Style TargetType="{x:Type TabItem}">
+                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                            <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
+                            <Setter Property="FontSize" Value="{StaticResource FontSizeXS}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                            <Setter Property="Padding" Value="12,7" />
+                            <Setter Property="MinHeight" Value="32" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="{x:Type TabItem}">
+                                        <Grid Margin="0,0,2,0" SnapsToDevicePixels="True">
+                                            <Border
+                                                x:Name="TabChrome"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="1,1,1,0">
+                                                <Grid>
+                                                    <Border
+                                                        x:Name="SelectedAccent"
+                                                        Height="2"
+                                                        VerticalAlignment="Top"
+                                                        Background="{StaticResource PrimaryBrush}"
+                                                        Opacity="0" />
+
+                                                    <ContentPresenter
+                                                        x:Name="ContentSite"
+                                                        Margin="{TemplateBinding Padding}"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        ContentSource="Header"
+                                                        RecognizesAccessKey="True" />
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="TabChrome" Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                            </Trigger>
+
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="TabChrome" Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+                                                <Setter TargetName="TabChrome" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                                                <Setter TargetName="SelectedAccent" Property="Opacity" Value="1" />
+                                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                            </Trigger>
+
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </TabControl.Resources>
+
+                    <TabItem Header="PROPERTIES">
+                        <f3:CraneManagerView DataContext="{Binding CraneManager}" />
+                    </TabItem>
+
+                    <TabItem x:Name="AiAssistTab" Visibility="Collapsed">
+                        <TabItem.Header>
+                            <DockPanel LastChildFill="False">
+                                <TextBlock VerticalAlignment="Center" Text="AI ASSIST" />
+                                <Button
+                                    Width="16"
+                                    Height="16"
+                                    Margin="8,0,0,0"
+                                    Padding="0"
+                                    VerticalAlignment="Center"
+                                    Click="CloseAiAssistTab_Click"
+                                    Content="×"
+                                    FontSize="11"
+                                    FontWeight="Bold"
+                                    Style="{StaticResource ToolbarButton}"
+                                    ToolTip="Close AI Assist tab" />
+                            </DockPanel>
+                        </TabItem.Header>
+                        <aiCompanion:AiCompanionPanel CloseRequested="AiCompanionPanel_CloseRequested" />
+                    </TabItem>
+                </TabControl>
             </Border>
 
         </Grid>
@@ -559,6 +654,32 @@
                     Margin="8,0"
                     Fill="{DynamicResource BorderBrush}"
                     Visibility="{Binding Selection.HasSelection, Converter={StaticResource BoolToVisibilityConverter}}" />
+
+                <!--  Col 3: AI companion status strip. Sits inside the shell instead of overlaying the workspace.  -->
+                <aiCompanion:AiCompanionStatusStrip
+                    x:Name="AiCompanionStrip"
+                    Grid.Column="3"
+                    Margin="12,0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    AssistRequested="AiCompanionStatusStrip_AssistRequested"
+                    HideRequested="AiCompanionStatusStrip_HideRequested" />
+
+                <Button
+                    x:Name="ShowAiCompanionButton"
+                    Grid.Column="3"
+                    MinWidth="70"
+                    Height="18"
+                    Margin="12,0"
+                    Padding="7,0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Click="ShowAiCompanionButton_Click"
+                    Content="AI Assist"
+                    FontSize="{StaticResource FontSizeXS}"
+                    Style="{StaticResource ToolbarButton}"
+                    ToolTip="Show AI Companion in the status bar"
+                    Visibility="Collapsed" />
 
                 <StackPanel
                     Grid.Column="8"

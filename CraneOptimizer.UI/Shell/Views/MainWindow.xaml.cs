@@ -1,3 +1,4 @@
+using CraneOptimizer.UI.AIIntegration;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.Shell.ViewModels;
 using System.Windows;
@@ -9,11 +10,12 @@ namespace CraneOptimizer.UI.Shell.Views
     {
         private readonly IProjectNavigationService _nav;
 
-        public MainWindow(MainViewModel vm, IProjectNavigationService nav)
+        public MainWindow(MainViewModel vm, IProjectNavigationService nav, AiHostContextBridge aiContextBridge)
         {
             InitializeComponent();
             DataContext = vm;
             _nav = nav;
+            aiContextBridge.Attach(vm);
         }
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => DragMove();
@@ -26,7 +28,7 @@ namespace CraneOptimizer.UI.Shell.Views
 
         private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
 
-        // ── Back to startup ─────────────────────────────────────────────
+        // â”€â”€ Back to startup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private void BackToWelcome_Click(object sender, RoutedEventArgs e)
         {
@@ -39,8 +41,8 @@ namespace CraneOptimizer.UI.Shell.Views
                 var result = MessageBox.Show(
                     $"You are currently working on \"{session.ProjectName}\".\n\n" +
                     "Would you like to leave and go back to the home screen?\n\n" +
-                    "• Yes — go back (your project stays open in the background)\n" +
-                    "• No  — stay in the project",
+                    "â€¢ Yes â€” go back (your project stays open in the background)\n" +
+                    "â€¢ No  â€” stay in the project",
                     "Return to Home",
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Question);
@@ -48,14 +50,14 @@ namespace CraneOptimizer.UI.Shell.Views
                 if (result != MessageBoxResult.Yes) return;
             }
 
-            // Hide this window (don't close — the session is still in memory)
+            // Hide this window (don't close â€” the session is still in memory)
             Hide();
 
             // Show the startup screen; pass the active session so it can show a "Return" button
             _nav.NavigateToStartup(session);
         }
 
-        // ── Stub handlers (wired in XAML) ───────────────────────────────
+        // â”€â”€ Stub handlers (wired in XAML) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private void SaveProject_Click(object sender, RoutedEventArgs e) { }
         private void UndoBtn_Click(object sender, RoutedEventArgs e) { }
@@ -64,5 +66,39 @@ namespace CraneOptimizer.UI.Shell.Views
         private void BtnDimensionTool_Click(object sender, RoutedEventArgs e) { }
         private void ShowCommandPanel_Click(object sender, RoutedEventArgs e) { }
         private void ShowLogsPanel_Click(object sender, RoutedEventArgs e) { }
+        private void OpenAiAssistTab()
+        {
+            AiAssistTab.Visibility = Visibility.Visible;
+            RightWorkspaceTabs.SelectedItem = AiAssistTab;
+            ShowAiCompanionButton.Visibility = Visibility.Collapsed;
+        }
+
+        private void CloseAiAssistTab_Click(object sender, RoutedEventArgs e)
+        {
+            AiAssistTab.Visibility = Visibility.Collapsed;
+            RightWorkspaceTabs.SelectedIndex = 0;
+        }
+
+        private void AiCompanionPanel_CloseRequested(object sender, RoutedEventArgs e)
+        {
+            CloseAiAssistTab_Click(sender, e);
+        }
+
+        private void AiCompanionStatusStrip_AssistRequested(object sender, RoutedEventArgs e)
+        {
+            OpenAiAssistTab();
+        }
+
+        private void AiCompanionStatusStrip_HideRequested(object sender, RoutedEventArgs e)
+        {
+            AiCompanionStrip.Visibility = Visibility.Collapsed;
+            ShowAiCompanionButton.Visibility = Visibility.Visible;
+        }
+
+        private void ShowAiCompanionButton_Click(object sender, RoutedEventArgs e)
+        {
+            AiCompanionStrip.Visibility = Visibility.Visible;
+            OpenAiAssistTab();
+        }
     }
 }
