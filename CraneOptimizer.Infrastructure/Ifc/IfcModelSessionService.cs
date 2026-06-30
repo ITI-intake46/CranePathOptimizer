@@ -1,3 +1,6 @@
+using CraneOptimizer.Domain.Diagnostics;
+using System;
+
 namespace CraneOptimizer.Infrastructure.Ifc
 {
     public sealed class IfcModelSessionService : IIfcModelSessionService
@@ -16,12 +19,12 @@ namespace CraneOptimizer.Infrastructure.Ifc
             }
         }
 
-        public IIfcModelSession OpenSession(string ifcPath, CancellationToken cancellationToken = default)
+        public IIfcModelSession OpenSession(string ifcPath, IProgress<IfcLoadingProgressUpdate>? progress = null, CancellationToken cancellationToken = default)
         {
             lock (_gate)
             {
                 ClearCore();
-                _current = IfcModelSession.Open(ifcPath, cancellationToken);
+                _current = IfcModelSession.Open(ifcPath, progress, cancellationToken);
                 return _current;
             }
         }

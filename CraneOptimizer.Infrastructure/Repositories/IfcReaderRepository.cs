@@ -4,6 +4,7 @@ using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Units;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.Infrastructure.Ifc;
 using System;
 using System.Collections.Generic;
@@ -35,6 +36,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private readonly IIfcModelSessionService _sessionService;
         private readonly IIfcGeoreferencingExtractor _georeferencingExtractor;
         private readonly ICentralIfcPropertyAliasResolver _aliasResolver;
+        private readonly IActiveProjectPathProvider? _activeProjectPathProvider;
 
         public IfcReaderRepository(
             IIfcDiagnosticAuditService auditService,
@@ -65,6 +67,18 @@ namespace CraneOptimizer.Infrastructure.Repositories
             _sessionService = sessionService;
             _georeferencingExtractor = georeferencingExtractor;
             _aliasResolver = aliasResolver;
+        }
+
+        public IfcReaderRepository(
+            IIfcDiagnosticAuditService auditService,
+            IIfcNormalizationDecisionService normalizationService,
+            IIfcModelSessionService sessionService,
+            IIfcGeoreferencingExtractor georeferencingExtractor,
+            ICentralIfcPropertyAliasResolver aliasResolver,
+            IActiveProjectPathProvider activeProjectPathProvider)
+            : this(auditService, normalizationService, sessionService, georeferencingExtractor, aliasResolver)
+        {
+            _activeProjectPathProvider = activeProjectPathProvider;
         }
 
         public IfcStore? CurrentModel => _sessionService.Current?.Model;
@@ -112,6 +126,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
         }
 
+        private sealed class DoubleProgressAdapter : IProgress<IfcLoadingProgressUpdate>
+        {
+            private readonly IProgress<double> _progress;
+            public DoubleProgressAdapter(IProgress<double> progress) => _progress = progress;
+            public void Report(IfcLoadingProgressUpdate value) => _progress.Report(value.Progress);
+        }
+
         public List<PrecastElement> ReadElements(string ifcPath)
         {
             return ReadElementsCore(ifcPath, null, null, CancellationToken.None);
@@ -124,7 +145,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         public List<PrecastElement> ReadElements(string path, IProgress<double> progress)
         {
-            return ReadElementsCore(path, progress, null, CancellationToken.None);
+            return ReadElementsCore(path, new DoubleProgressAdapter(progress), null, CancellationToken.None);
         }
 
         public List<PrecastElement> ReadElements(
@@ -133,39 +154,90 @@ namespace CraneOptimizer.Infrastructure.Repositories
             IfcReadingOptions? options,
             CancellationToken cancellationToken = default)
         {
-            return ReadElementsCore(path, progress, options, cancellationToken);
+            return ReadElementsCore(path, new DoubleProgressAdapter(progress), options, cancellationToken);
         }
 
         public List<PrecastElement> ReadElements(string path, IProgress<double> progress, CancellationToken cancellationToken)
         {
-            return ReadElementsCore(path, progress, null, cancellationToken);
+            return ReadElementsCore(path, new DoubleProgressAdapter(progress), null, cancellationToken);
+        }
+
+        public List<PrecastElement> ReadElements(
+            string path,
+            IProgress<IfcLoadingProgressUpdate> progress,
+            IfcReadingOptions? options,
+            CancellationToken cancellationToken = default)
+        {
+            return ReadElementsCore(path, progress, options, cancellationToken);
         }
 
         public Task InitializeSessionForRenderingAsync(string ifcPath, CancellationToken cancellationToken = default)
         {
             return Task.Run(() =>
             {
-                _sessionService.OpenSession(ifcPath, cancellationToken);
+                _sessionService.OpenSession(ifcPath, null, cancellationToken);
             }, cancellationToken);
         }
 
         private List<PrecastElement> ReadElementsCore(
             string ifcPath,
-            IProgress<double>? progress,
+            IProgress<IfcLoadingProgressUpdate>? progress,
             IfcReadingOptions? options,
             CancellationToken cancellationToken)
         {
+            if (_activeProjectPathProvider != null)
+            {
+                IfcImportProfiler.Start(ifcPath, _activeProjectPathProvider.GetActiveProjectPath());
+            }
+
+            var totalTimerStart = DateTime.UtcNow;
+            var totalTimer = Stopwatch.StartNew();
             try
             {
                 var concreteDensityKgPerM3 = ResolveConcreteDensity(options);
                 var loadMemoryBefore = GetPrivateMemoryBytes();
-                var session = _sessionService.OpenSession(ifcPath, cancellationToken);
+                var session = _sessionService.OpenSession(ifcPath, progress, cancellationToken);
 
-                // Run synchronous diagnostics audit and normalization decision preview (Task 3 & 4)
+                progress?.Report(new IfcLoadingProgressUpdate(20.0, "Running diagnostics audit...", "Running diagnostics audit"));
+                var startAudit = DateTime.UtcNow;
                 var auditTimer = Stopwatch.StartNew();
-                var auditResult = _auditService.RunAuditAsync(ifcPath, options, null, cancellationToken).GetAwaiter().GetResult();
+                var doubleProgress = progress != null
+                    ? new Progress<double>(p => progress.Report(new IfcLoadingProgressUpdate(20.0 + p * 0.1, "Running diagnostics audit...", "Running diagnostics audit")))
+                    : null;
+                var auditResult = _auditService.RunAuditAsync(ifcPath, options, doubleProgress, cancellationToken).GetAwaiter().GetResult();
                 auditTimer.Stop();
+                var endAudit = DateTime.UtcNow;
+                Debug.WriteLine($"[IFC-PERF] Diagnostic audit duration: {auditTimer.ElapsedMilliseconds} ms");
+
+                IfcImportProfiler.Record(
+                    "RunningDiagnosticsAudit",
+                    "",
+                    "Running diagnostics audit...",
+                    startAudit,
+                    endAudit,
+                    auditTimer.ElapsedMilliseconds,
+                    "WarningsCount",
+                    auditResult.Metadata.Warnings.Count,
+                    true);
+
+                progress?.Report(new IfcLoadingProgressUpdate(35.0, "Enumerating products...", "Enumerating products"));
+                var startNorm = DateTime.UtcNow;
+                var normTimer = Stopwatch.StartNew();
                 var previewResult = _normalizationService.GenerateNormalizationPreviewAsync(auditResult, cancellationToken).GetAwaiter().GetResult();
+                normTimer.Stop();
+                var endNorm = DateTime.UtcNow;
+                Debug.WriteLine($"[IFC-PERF] Normalization decision stage duration: {normTimer.ElapsedMilliseconds} ms");
+
+                IfcImportProfiler.Record(
+                    "NormalizationDecision",
+                    "",
+                    "Generating normalization decision...",
+                    startNorm,
+                    endNorm,
+                    normTimer.ElapsedMilliseconds,
+                    "NormalizedElementsCount",
+                    previewResult.Elements.Count,
+                    true);
 
                 var extractor = new IfcEngineeringExtractor(
                     session.Model,
@@ -179,6 +251,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var elements = extractor.ExtractNormalized(previewResult, auditResult, progress, cancellationToken);
                 extractionTimer.Stop();
 
+                totalTimer.Stop();
+                Debug.WriteLine($"[IFC-PERF] Total Read IFC duration: {totalTimer.ElapsedMilliseconds} ms");
+
                 Debug.WriteLine(
                     $"[IfcReaderRepository] Load complete. SessionId={session.SessionId}, " +
                     $"Open={session.OpenDuration.TotalMilliseconds:F0} ms, " +
@@ -189,16 +264,55 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     $"MemoryBeforeLoad={FormatBytes(loadMemoryBefore)}, " +
                     $"MemoryAfterLoad={FormatBytes(GetPrivateMemoryBytes())}");
 
+                IfcImportProfiler.Record(
+                    "Completed",
+                    "",
+                    "IFC read completed successfully",
+                    totalTimerStart,
+                    DateTime.UtcNow,
+                    totalTimer.ElapsedMilliseconds,
+                    "ElementsCount",
+                    elements.Count,
+                    true);
+
                 CraneOptimizer.Domain.Services.AssemblyRollupService.ReconstructAssemblyClassifications(elements);
                 return elements;
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException ex)
             {
+                totalTimer.Stop();
+                progress?.Report(new IfcLoadingProgressUpdate(100.0, "Failed", "Failed"));
+                IfcImportProfiler.Record(
+                    "Failed",
+                    "",
+                    "Operation cancelled",
+                    totalTimerStart,
+                    DateTime.UtcNow,
+                    totalTimer.ElapsedMilliseconds,
+                    "Count",
+                    0,
+                    false,
+                    ex.GetType().Name,
+                    ex.Message);
                 throw;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error loading IFC file: {ex.Message}");
+                totalTimer.Stop();
+                progress?.Report(new IfcLoadingProgressUpdate(100.0, "Failed", "Failed"));
+                Debug.WriteLine($"[IFC-PERF] Error loading IFC file: {ex.Message}");
+                IfcImportProfiler.Record(
+                    "Failed",
+                    "",
+                    "Operation failed with exception",
+                    totalTimerStart,
+                    DateTime.UtcNow,
+                    totalTimer.ElapsedMilliseconds,
+                    "Count",
+                    0,
+                    false,
+                    ex.GetType().Name,
+                    ex.Message);
                 throw;
             }
         }
@@ -380,15 +494,49 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             public List<PrecastElement> Extract(IProgress<double>? progress, CancellationToken cancellationToken)
             {
-                var physicalProducts = _model.Instances
+                progress?.Report(35.0);
+
+                var enumTimer = Stopwatch.StartNew();
+                var allProducts = _model.Instances
                     .OfType<IIfcProduct>()
+                    .ToList();
+                enumTimer.Stop();
+                Debug.WriteLine($"[IFC-PERF] Product enumeration: count = {allProducts.Count}, duration = {enumTimer.ElapsedMilliseconds} ms");
+                DateTime enumCompletedUtc = DateTime.UtcNow;
+                IfcImportProfiler.Record(
+                    "EnumeratingProducts",
+                    "",
+                    "Completed",
+                    enumCompletedUtc - enumTimer.Elapsed,
+                    enumCompletedUtc,
+                    enumTimer.ElapsedMilliseconds,
+                    "ProductsCount",
+                    allProducts.Count,
+                    true);
+
+                var filterTimer = Stopwatch.StartNew();
+                var physicalProducts = allProducts
                     .Where(IsEngineeringProduct)
                     .ToList();
+                filterTimer.Stop();
+                Debug.WriteLine($"[IFC-PERF] IIfcElement filtering: count = {physicalProducts.Count}, duration = {filterTimer.ElapsedMilliseconds} ms");
+                DateTime filterCompletedUtc = DateTime.UtcNow;
+                IfcImportProfiler.Record(
+                    "FilteringElements",
+                    "",
+                    "Completed",
+                    filterCompletedUtc - filterTimer.Elapsed,
+                    filterCompletedUtc,
+                    filterTimer.ElapsedMilliseconds,
+                    "PhysicalProductsCount",
+                    physicalProducts.Count,
+                    true);
 
                 if (physicalProducts.Count == 0)
                     return [];
 
-                CacheSourceProducts(physicalProducts, progress, cancellationToken);
+                var progressUpdate = progress != null ? new DoubleProgressAdapter(progress) : null;
+                CacheSourceProducts(physicalProducts, progressUpdate, cancellationToken);
 
                 var rootAssemblies = physicalProducts
                     .OfType<IIfcElementAssembly>()
@@ -438,24 +586,71 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             private void CacheSourceProducts(
                 List<IIfcProduct> products,
-                IProgress<double>? progress,
+                IProgress<IfcLoadingProgressUpdate>? progress,
                 CancellationToken cancellationToken)
             {
+                var geomTimer = new Stopwatch();
+                var propTimer = new Stopwatch();
+                long totalGeomMs = 0;
+                long totalPropMs = 0;
+
+                double lastReportedPercentage = 40.0;
+
                 for (int i = 0; i < products.Count; i++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var product = products[i];
-                    _sourceCache[product.EntityLabel] = BuildSourceSnapshot(product);
 
-                    progress?.Report(((double)(i + 1) / products.Count) * 70d);
+                    geomTimer.Restart();
+                    var geometry = GetGeometrySnapshot(product);
+                    geomTimer.Stop();
+                    totalGeomMs += geomTimer.ElapsedMilliseconds;
+
+                    propTimer.Restart();
+                    var snapshot = BuildSourceSnapshot(product, geometry);
+                    _sourceCache[product.EntityLabel] = snapshot;
+                    propTimer.Stop();
+                    totalPropMs += propTimer.ElapsedMilliseconds;
+
+                    double currentPercentage = 40.0 + ((double)(i + 1) / products.Count) * 45d;
+                    if (currentPercentage - lastReportedPercentage >= 1.0 || i == products.Count - 1)
+                    {
+                        progress?.Report(new IfcLoadingProgressUpdate(
+                            currentPercentage,
+                            $"Extracting element geometry ({i + 1} of {products.Count})...",
+                            "Extracting element geometry"));
+                        lastReportedPercentage = currentPercentage;
+                    }
                 }
+
+                Debug.WriteLine($"[IFC-PERF] COG/BBox/geometry bounds extraction cumulative duration: {totalGeomMs} ms");
+                Debug.WriteLine($"[IFC-PERF] Quantity/property/weight extraction cumulative duration: {totalPropMs} ms");
+                DateTime extractionCompletedUtc = DateTime.UtcNow;
+                IfcImportProfiler.Record(
+                    "ExtractingGeometryBounds",
+                    "",
+                    "Completed",
+                    extractionCompletedUtc - TimeSpan.FromMilliseconds(totalGeomMs),
+                    extractionCompletedUtc,
+                    totalGeomMs,
+                    "PhysicalProductsCount",
+                    products.Count,
+                    true);
+                IfcImportProfiler.Record(
+                    "ExtractingQuantitiesWeights",
+                    "",
+                    "Completed",
+                    extractionCompletedUtc - TimeSpan.FromMilliseconds(totalPropMs),
+                    extractionCompletedUtc,
+                    totalPropMs,
+                    "PhysicalProductsCount",
+                    products.Count,
+                    true);
             }
 
-            private SourceElementSnapshot BuildSourceSnapshot(IIfcProduct product)
+            private SourceElementSnapshot BuildSourceSnapshot(IIfcProduct product, GeometrySnapshot? geometry)
             {
-                var geometry = GetGeometrySnapshot(product);
-
                 var bboxLength = geometry?.Length;
                 var bboxWidth = geometry?.Width;
                 var bboxHeight = geometry?.Height;
@@ -902,7 +1097,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
 
             private CanonicalAssemblyIdentityResult ResolveCanonicalAssemblyIdentity(
-                IIfcProduct? product, 
+                IIfcProduct? product,
                 IfcNormalizedElementPreview preview,
                 IfcExporterProfile exporterProfile)
             {
@@ -999,7 +1194,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             private static string CleanElementName(string rawName)
             {
                 if (string.IsNullOrWhiteSpace(rawName)) return "-";
-                
+
                 return rawName.Replace("- Assembly", "")
                              .Replace(" Assembly", "")
                              .Replace(" : ", " - ")
@@ -1251,11 +1446,54 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 IProgress<double>? progress,
                 CancellationToken cancellationToken)
             {
+                var progressUpdate = progress != null ? new DoubleProgressAdapter(progress) : null;
+                return ExtractNormalized(previewSummary, auditResult, progressUpdate, cancellationToken);
+            }
+
+            public List<PrecastElement> ExtractNormalized(
+                IfcNormalizationPreviewSummary previewSummary,
+                IfcAuditResult auditResult,
+                IProgress<IfcLoadingProgressUpdate>? progress,
+                CancellationToken cancellationToken)
+            {
                 // 1. Get all engineering products to build the _sourceCache
-                var physicalProducts = _model.Instances
+                progress?.Report(new IfcLoadingProgressUpdate(38.0, "Filtering elements...", "Filtering elements"));
+
+                var enumTimer = Stopwatch.StartNew();
+                var allProducts = _model.Instances
                     .OfType<IIfcProduct>()
+                    .ToList();
+                enumTimer.Stop();
+                Debug.WriteLine($"[IFC-PERF] Product enumeration: count = {allProducts.Count}, duration = {enumTimer.ElapsedMilliseconds} ms");
+                DateTime enumCompletedUtc = DateTime.UtcNow;
+                IfcImportProfiler.Record(
+                    "EnumeratingProducts",
+                    "",
+                    "Completed",
+                    enumCompletedUtc - enumTimer.Elapsed,
+                    enumCompletedUtc,
+                    enumTimer.ElapsedMilliseconds,
+                    "ProductsCount",
+                    allProducts.Count,
+                    true);
+
+                var filterTimer = Stopwatch.StartNew();
+                var physicalProducts = allProducts
                     .Where(IsEngineeringProduct)
                     .ToList();
+                filterTimer.Stop();
+                Debug.WriteLine($"[IFC-PERF] IIfcElement filtering: count = {physicalProducts.Count}, duration = {filterTimer.ElapsedMilliseconds} ms");
+                DateTime filterCompletedUtc = DateTime.UtcNow;
+                IfcImportProfiler.Record(
+                    "FilteringElements",
+                    "",
+                    "Completed",
+                    filterCompletedUtc - filterTimer.Elapsed,
+                    filterCompletedUtc,
+                    filterTimer.ElapsedMilliseconds,
+                    "PhysicalProductsCount",
+                    physicalProducts.Count,
+                    true);
 
                 var selectedProducts = physicalProducts
                     .Concat(_model.Instances
@@ -1289,6 +1527,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 int unresolvedAssemblyMarkCount = 0;
 
                 // 2. Loop through elements from the previewSummary
+                double lastReportedExtractPercentage = 85.0;
+                int previewCount = previewSummary.Elements.Count;
+                int idx = 0;
                 foreach (var preview in previewSummary.Elements)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -1305,6 +1546,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     if (product is IIfcGrid
                         && !retainedGridGlobalIds.Contains(preview.GlobalId))
                     {
+                        idx++;
                         continue;
                     }
 
@@ -1336,17 +1578,17 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     var pe = new PrecastElement();
                     pe.ElementID = preview.GlobalId;
                     pe.ElementRevitId = sourceSnapshot?.RevitId ?? (product != null ? GetRevitId(product) : null);
-                    pe.ElementMark = product != null 
-                        ? CleanElementName(GetBestMarkCandidate(product) ?? string.Empty) 
+                    pe.ElementMark = product != null
+                        ? CleanElementName(GetBestMarkCandidate(product) ?? string.Empty)
                         : (preview.Name ?? string.Empty);
                     var rawIfcName = product?.Name?.ToString()?.Trim();
                     pe.ElementName = !string.IsNullOrWhiteSpace(rawIfcName)
                         ? rawIfcName
                         : (preview.Name ?? string.Empty);
-                    
+
                     // Traceability to parent assembly
-                    pe.ParentAssemblyName = parentProduct != null 
-                        ? CleanElementName(GetBestMarkCandidate(parentProduct) ?? parentProduct.Name?.ToString() ?? string.Empty) 
+                    pe.ParentAssemblyName = parentProduct != null
+                        ? CleanElementName(GetBestMarkCandidate(parentProduct) ?? parentProduct.Name?.ToString() ?? string.Empty)
                         : (parentPreview?.Name ?? string.Empty);
 
                     // Set ElementType = preview.CandidateCategory to fix UI filter labels (Requirement)
@@ -1384,8 +1626,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                     pe.AssemblyMark = canonicalIdentity.AssemblyMark;
                     pe.ResolvedDisplayMark = canonicalIdentity.AssemblyMark ?? pe.ElementMark ?? pe.ElementName;
-                    pe.AssemblyMarkSource = canonicalIdentity.SourcePropertyName != null 
-                        ? $"{canonicalIdentity.SourcePropertySet}.{canonicalIdentity.SourcePropertyName}" 
+                    pe.AssemblyMarkSource = canonicalIdentity.SourcePropertyName != null
+                        ? $"{canonicalIdentity.SourcePropertySet}.{canonicalIdentity.SourcePropertyName}"
                         : "Fallback";
                     _ = Enum.TryParse<AssemblyMarkConfidence>(canonicalIdentity.Confidence, out var confidence);
                     pe.AssemblyMarkConfidence = confidence;
@@ -1538,7 +1780,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                 $"Volume estimated from bounding box because IFC/mesh volume was missing. BBoxVolumeM3={bboxVolume:F3}");
                         }
                     }
-                    
+
                     // Visible geometry owner fallback.
                     // Some normalized Revit/Proxy elements have the logical preview.GlobalId,
                     // but their actual geometry/volume lives on VisibleGeometryOwnerGlobalIds.
@@ -1718,6 +1960,17 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             $"IncludeInGa={pe.IncludeInGa}, Source='{pe.WeightSource}', Reason='{pe.NormalizationDecisionReason}'");
                     }
                     result.Add(pe);
+
+                    idx++;
+                    double currentPercentage = 85.0 + ((double)idx / previewCount) * 10d;
+                    if (currentPercentage - lastReportedExtractPercentage >= 1.0 || idx == previewCount - 1)
+                    {
+                        progress?.Report(new IfcLoadingProgressUpdate(
+                            currentPercentage,
+                            $"Extracting quantities/weights ({idx} of {previewCount})...",
+                            "Extracting quantities/weights"));
+                        lastReportedExtractPercentage = currentPercentage;
+                    }
                 }
 
                 // Propagate materials for concrete elements of the same family/type
@@ -1774,7 +2027,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }
                 Debug.WriteLine("=============================================================");
 
-                progress?.Report(100d);
+                progress?.Report(new IfcLoadingProgressUpdate(100.0, "Completed", "Completed"));
                 return result;
             }
 
