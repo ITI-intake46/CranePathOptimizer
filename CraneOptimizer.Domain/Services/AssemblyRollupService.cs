@@ -319,6 +319,7 @@ namespace CraneOptimizer.Domain.Services
                 ElementID = mainPart.ElementID, // GA LiftUnitId = MainPartGlobalId
                 ElementRevitId = mainPart.ElementRevitId,
                 ElementMark = parent.ElementMark ?? mainPart.ElementMark,
+                AssemblyMark = parent.AssemblyMark ?? mainPart.AssemblyMark,
                 ElementName = mainPart.ElementName,
                 ResolvedDisplayMark = parent.ElementMark ?? mainPart.ElementMark ?? mainPart.ElementName,
                 ElementType = mainPart.ElementType,

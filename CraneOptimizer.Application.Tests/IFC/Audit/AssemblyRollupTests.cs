@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Diagnostics;
@@ -9,6 +10,9 @@ using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.Domain.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.OptimizationScope;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+using CraneOptimizer.Infrastructure.Repositories;
+using CraneOptimizer.Infrastructure.Ifc;
 using Xunit;
 
 namespace CraneOptimizer.Application.Tests.IFC.Audit
@@ -337,10 +341,9 @@ namespace CraneOptimizer.Application.Tests.IFC.Audit
             Assert.NotNull(result);
             var liftUnits = result.Elements;
 
-            // When disabled, individual elements are not grouped and are kept unchanged.
-            // parent assembly (PARENT_1) and main part (MAIN_1) should both be treated independently
-            Assert.Equal(2, liftUnits.Count);
-            Assert.Contains(liftUnits, u => u.ElementID == "PARENT_1");
+            // When disabled, individual elements are not grouped, but parent assembly container must still NOT enter GA.
+            Assert.Single(liftUnits);
+            Assert.DoesNotContain(liftUnits, u => u.ElementID == "PARENT_1");
             Assert.Contains(liftUnits, u => u.ElementID == "MAIN_1");
         }
 
@@ -401,15 +404,17 @@ namespace CraneOptimizer.Application.Tests.IFC.Audit
         {
             return new Crane
             {
+                Name = "TestCrane",
                 Specifications = new List<CraneSpecification>
                 {
                     new()
                     {
-                        MaxRadius = 40,
-                        MaxBoomLength = 50,
+                        MaxRadius = 150,
+                        MaxBoomLength = 150,
                         LoadChart = new List<TargetPoint>
                         {
-                            new() { Radius = 10, BoomLength = 20, Capacity = 50 }
+                            new() { Radius = 10, BoomLength = 20, Capacity = 50 },
+                            new() { Radius = 150, BoomLength = 150, Capacity = 5 }
                         }
                     }
                 }
@@ -424,12 +429,109 @@ namespace CraneOptimizer.Application.Tests.IFC.Audit
                 Type = ZoneType.Allowed,
                 Vertices = new List<DomainPoint3D>
                 {
-                    new(-10, -10, 0),
-                    new(10, -10, 0),
-                    new(10, 10, 0),
-                    new(-10, 10, 0)
+                    new(-1000, -1000, 0),
+                    new(1000, -1000, 0),
+                    new(1000, 1000, 0),
+                    new(-1000, 1000, 0)
                 }
             };
+        }
+
+        [Fact]
+        public void TestFullGatingAndRollupPipeline_Project2()
+        {
+            const string ifcPath = @"F:\06-ITI\00-Project\tryProjects\Project2\Models\IFC\ifc4_withAssemblyMark_2.ifc";
+            if (!File.Exists(ifcPath)) return;
+
+            var sessionService = new IfcModelSessionService();
+            var aliasResolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+            var auditService = new IfcDiagnosticAuditService(sessionService, aliasResolver);
+            var normalizationService = new IfcNormalizationDecisionService(new IfcExporterProfileResolver());
+            var georefExtractor = new CraneOptimizer.Infrastructure.Ifc.IfcGeoreferencingExtractor();
+            var reader = new IfcReaderRepository(
+                auditService,
+                normalizationService,
+                sessionService,
+                georefExtractor,
+                aliasResolver);
+
+            // 1. Read elements (normalizes them and reconstructs classifications)
+            var elements = reader.ReadElements(ifcPath);
+
+            // Verify gating flags (Phase 4.5)
+            var parent = elements.FirstOrDefault(e => e.ElementID == "2KFTYALGT0ghARgUhfEqjI");
+            Assert.NotNull(parent);
+            Assert.Equal(IfcElementRole.LiftAssembly, parent.Role);
+            Assert.True(parent.IncludeInGa);
+
+            var childWall = elements.FirstOrDefault(e => e.ElementID == "2K1eRGMijEj9PRqHskPwYb");
+            Assert.NotNull(childWall);
+            Assert.Equal(IfcElementRole.Excluded, childWall.Role);
+            Assert.False(childWall.IncludeInGa);
+            Assert.Equal("Swallowed as child component of valid Lift Assembly.", childWall.NormalizationDecisionReason);
+
+            // 2. Build Optimization Inputs: Case A - Grouped ON
+            var settingsGroupedOn = new GASettings
+            {
+                EnableGroupedLifts = true,
+                TargetElementTypes = new List<string>()
+            };
+
+            var crane = CreateTestCrane();
+            var zones = new List<GreenAreaZone> { CreateAllowedZone() };
+
+            var builder = new OptimizationInputBuilder();
+            var scopeOn = builder.Build(settingsGroupedOn, crane, elements, zones);
+            Assert.NotNull(scopeOn);
+            Assert.NotEmpty(scopeOn.Elements);
+
+            // Assert rolled up Lift Unit exists
+            var rollupUnit = scopeOn.Elements.FirstOrDefault(e => e.ElementID == "2K1eRGMijEj9PRqHskPwYb");
+            Assert.NotNull(rollupUnit);
+            Assert.Equal(IfcElementRole.LiftAssembly, rollupUnit.Role);
+            Assert.True(rollupUnit.IncludeInGa);
+            Assert.Equal(9.2802, rollupUnit.WeightTons ?? 0.0, 3);
+
+            // Centroid COG verification
+            Assert.NotNull(rollupUnit.COG_M);
+            Assert.Equal(89.5304, rollupUnit.COG_M.X, 3);
+            Assert.Equal(109.1101, rollupUnit.COG_M.Y, 3);
+            Assert.Equal(1.9401, rollupUnit.COG_M.Z, 3);
+
+            // Verify members
+            Assert.NotNull(rollupUnit.ChildGlobalIds);
+            Assert.Contains("2K1eRGMijEj9PRqHskPwYb", rollupUnit.ChildGlobalIds);
+            Assert.Contains("0LQDWLQ954Q9QwwTtOHEV0", rollupUnit.ChildGlobalIds);
+            Assert.Contains("1hiQd8Xon3rRRv$q2e7P3T", rollupUnit.ChildGlobalIds);
+
+            // Verify parent container does not enter GA independently
+            Assert.DoesNotContain(scopeOn.Elements, e => e.ElementID == "2KFTYALGT0ghARgUhfEqjI");
+
+            // Verify children do not enter GA independently
+            Assert.DoesNotContain(scopeOn.Elements, e => e.ElementID == "0LQDWLQ954Q9QwwTtOHEV0");
+            Assert.DoesNotContain(scopeOn.Elements, e => e.ElementID == "1hiQd8Xon3rRRv$q2e7P3T");
+
+            // 3. Build Optimization Inputs: Case B - Grouped OFF
+            var settingsGroupedOff = new GASettings
+            {
+                EnableGroupedLifts = false,
+                TargetElementTypes = new List<string>()
+            };
+
+            var scopeOff = builder.Build(settingsGroupedOff, crane, elements, zones);
+            Assert.NotNull(scopeOff);
+
+            // Parent container must NOT enter GA
+            Assert.DoesNotContain(scopeOff.Elements, e => e.ElementID == "2KFTYALGT0ghARgUhfEqjI");
+
+            // Child components must enter individually
+            var unrolledWall = scopeOff.Elements.FirstOrDefault(e => e.ElementID == "2K1eRGMijEj9PRqHskPwYb");
+            Assert.NotNull(unrolledWall);
+            Assert.Equal(5.87, unrolledWall.WeightTons ?? 0.0, 2);
+
+            var unrolledBeam1 = scopeOff.Elements.FirstOrDefault(e => e.ElementID == "0LQDWLQ954Q9QwwTtOHEV0");
+            Assert.NotNull(unrolledBeam1);
+            Assert.Equal(1.70, unrolledBeam1.WeightTons ?? 0.0, 2);
         }
     }
 }

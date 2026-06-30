@@ -112,3 +112,27 @@ To support precast element assembly lifting in Genetic Algorithms (GA) optimizat
 Generated at import-time under:
 `Reports/IFC_Audit/debug_ifc_assembly_lift_unit_rollup_audit.csv`
 Includes columns for LiftUnitId, parent details, member GUIDs, contributor counts, weight sources/values, weighted COG, sources, and safety/mismatch warnings.
+
+---
+
+## 5. GA Entry Gating & Unrolling (Phase 4.5)
+
+To ensure that precast assembly elements are gated and promoted correctly under both grouped and ungrouped modes, the system applies the following normalization and routing rules:
+
+### Mixed Assembly Gating Promotion
+- Generic mixed assemblies (containing structural main parts combined with secondary components of different classes) are promoted to `IfcElementRole.LiftAssembly` and `IncludeInGa = true` during IFC import/normalization if they possess:
+  - Trusted parent-child hierarchy (e.g. `IfcRelAggregates` or `IfcRelNests`).
+  - A valid structural main part (`MainPartGlobalId`).
+  - A trusted explicit weight.
+  - A safe rolled-up COG (no `UnsafeCogRollup` warning).
+- This replaces the rigid single-category check, allowing valid assemblies to enter the GA solver naturally without manual patches.
+
+### Sibling Exclusions (Grouped ON)
+- When `EnableGroupedLifts` is `ON`, the parent assembly container is excluded from independent lifting.
+- All sibling components are marked as `Role = Excluded` and `IncludeInGa = false` with the reason `"Swallowed as child component of valid Lift Assembly."`.
+- Only the representative GA lift unit (with `LiftUnitId = MainPartGlobalId` carrying rolled-up weight and child-weighted centroid COG) enters the GA solver inputs.
+
+### Container Exclusions & Unrolling (Grouped OFF)
+- When `EnableGroupedLifts` is `OFF`, the parent assembly container (which lacks direct geometry) is explicitly excluded from GA candidate lists.
+- Child components are unrolled and enter the GA solver independently as individual physical lift units (e.g., the concrete wall and secondary steel beams are lifted separately with their raw individual properties).
+

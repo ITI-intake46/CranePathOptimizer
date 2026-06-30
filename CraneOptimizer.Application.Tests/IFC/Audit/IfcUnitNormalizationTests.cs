@@ -324,7 +324,49 @@ namespace CraneOptimizer.Application.Tests.IFC.Audit
             Assert.Equal(3, parent.ChildCount);
             Assert.Equal(2, parent.VisibleSecondaryPartCount);
             Assert.True(parent.HasSecondaryParts);
-            Assert.Contains("MixedCategoryButValidAssembly", parent.ExtractionWarnings);
+            Assert.Contains("MixedCategoryButValidAssembly", parent.ExtractionWarnings);            // Gating regression checks (Phase 4.5)
+            Assert.Equal(IfcElementRole.LiftAssembly, parent.Role);
+            Assert.True(parent.IncludeInGa);
+
+            // Child components must be Excluded, not blocked as NeedsReview
+            var mainPartChild = elements.FirstOrDefault(e => e.ElementID == "2K1eRGMijEj9PRqHskPwYb");
+            Assert.NotNull(mainPartChild);
+            Assert.Equal(IfcElementRole.Excluded, mainPartChild.Role);
+            Assert.False(mainPartChild.IncludeInGa);
+            Assert.Equal("Aggregated component of Tekla Precast Cast-Unit. Excluded from independent lifting to avoid double-counting.", mainPartChild.NormalizationDecisionReason);
+
+            var beamChild1 = elements.FirstOrDefault(e => e.ElementID == "0LQDWLQ954Q9QwwTtOHEV0");
+            Assert.NotNull(beamChild1);
+            Assert.Equal(IfcElementRole.Excluded, beamChild1.Role);
+            Assert.False(beamChild1.IncludeInGa);
+            Assert.Equal("Aggregated component of Tekla Precast Cast-Unit. Excluded from independent lifting to avoid double-counting.", beamChild1.NormalizationDecisionReason);
+        }
+
+        [Fact]
+        public async Task TestNormalizationDecision_PromotesValidMixedAssembly()
+        {
+            const string ifcPath = @"F:\06-ITI\00-Project\tryProjects\Project2\Models\IFC\ifc4_withAssemblyMark_2.ifc";
+            if (!File.Exists(ifcPath)) return;
+
+            var sessionService = new IfcModelSessionService();
+            var aliasResolver = new CentralIfcPropertyAliasResolver(new IfcExporterProfileResolver());
+            var auditService = new IfcDiagnosticAuditService(sessionService, aliasResolver);
+            var normalizationService = new IfcNormalizationDecisionService(new IfcExporterProfileResolver());
+
+            var auditResult = await auditService.RunAuditAsync(ifcPath);
+            var previewSummary = await normalizationService.GenerateNormalizationPreviewAsync(auditResult);
+
+            var parentPreview = previewSummary.Elements.FirstOrDefault(e => e.GlobalId == "2KFTYALGT0ghARgUhfEqjI");
+            Assert.NotNull(parentPreview);
+            Assert.Equal(IfcElementRole.LiftAssembly, parentPreview.Role);
+            Assert.True(parentPreview.IncludeInGaPreview);
+            Assert.Equal("Approved assembly lift unit: trusted hierarchy, weight, main part, and safe COG verified.", parentPreview.DecisionReason);
+
+            var mainPartPreview = previewSummary.Elements.FirstOrDefault(e => e.GlobalId == "2K1eRGMijEj9PRqHskPwYb");
+            Assert.NotNull(mainPartPreview);
+            Assert.Equal(IfcElementRole.Excluded, mainPartPreview.Role);
+            Assert.False(mainPartPreview.IncludeInGaPreview);
+            Assert.Equal("Swallowed as child component of valid Lift Assembly.", mainPartPreview.DecisionReason);
         }
     }
 }

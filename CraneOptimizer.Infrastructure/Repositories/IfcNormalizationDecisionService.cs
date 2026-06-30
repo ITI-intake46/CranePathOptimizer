@@ -400,10 +400,49 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         }
 
                         // Generic grouping fallback
-                        preview.Role = IfcElementRole.NeedsReview;
-                        preview.AssemblyDecision = IfcAssemblyDecision.UnknownNeedsReview;
-                        preview.IncludeInGaPreview = false;
-                        preview.DecisionReason = "Ambiguous assembly container with multiple children. Engineer verification required.";
+                        // Check if this generic assembly is verified as a valid mixed assembly with trusted relationships, main part, weight, and safe COG
+                        var rel = auditResult.AssemblyRelations.FirstOrDefault(r => string.Equals(r.ParentGlobalId, preview.GlobalId, StringComparison.Ordinal));
+                        if (rel != null &&
+                            !string.IsNullOrEmpty(rel.ParentGlobalIdSource) &&
+                            rel.MainPartGlobalId != null &&
+                            rel.AssemblyLiftWeight.HasValue && rel.AssemblyLiftWeight.Value > 0.0 &&
+                            rel.AssemblyLiftCOG_X.HasValue && rel.AssemblyLiftCOG_Y.HasValue && rel.AssemblyLiftCOG_Z.HasValue &&
+                            !rel.Warnings.Contains("UnsafeCogRollup"))
+                        {
+                            preview.Role = IfcElementRole.LiftAssembly;
+                            preview.AssemblyDecision = IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly; // Treat as a valid aggregate lift unit
+                            preview.IncludeInGaPreview = true;
+                            preview.DecisionReason = "Approved assembly lift unit: trusted hierarchy, weight, main part, and safe COG verified.";
+
+                            if (assemblyDetail.GeometryOwnershipPattern == "ChildrenOnly")
+                            {
+                                preview.VisibleGeometryOwnerGlobalIds = nonInternalChildrenIds.ToList();
+                            }
+                            else
+                            {
+                                preview.VisibleGeometryOwnerGlobalIds = new List<string> { preview.GlobalId };
+                            }
+
+                            // Explicitly set child components as Excluded to avoid processing order issues (Phase 4.5)
+                            foreach (var childId in nonInternalChildrenIds)
+                            {
+                                if (previews.TryGetValue(childId, out var childPreview))
+                                {
+                                    childPreview.Role = IfcElementRole.Excluded;
+                                    childPreview.ParentGlobalId = preview.GlobalId;
+                                    childPreview.ParentGlobalIdSource = "IfcDecomposition";
+                                    childPreview.IncludeInGaPreview = false;
+                                    childPreview.DecisionReason = "Swallowed as child component of valid Lift Assembly.";
+                                }
+                            }
+                        }
+                        else
+                        {
+                            preview.Role = IfcElementRole.NeedsReview;
+                            preview.AssemblyDecision = IfcAssemblyDecision.UnknownNeedsReview;
+                            preview.IncludeInGaPreview = false;
+                            preview.DecisionReason = "Ambiguous assembly container with multiple children. Engineer verification required.";
+                        }
                         continue;
                     }
                 }
@@ -422,12 +461,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             continue;
                         }
 
-                        // If parent assembly is a Tekla precast lift assembly, child elements are components of the assembly, not independent lift items
-                        if (parentCP.AssemblyDecision == IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly)
+                        // If parent assembly is a valid LiftAssembly, child elements are components of the assembly, not independent lift items
+                        if (parentCP.Role == IfcElementRole.LiftAssembly)
                         {
                             preview.Role = IfcElementRole.Excluded;
                             preview.IncludeInGaPreview = false;
-                            preview.DecisionReason = "Swallowed as child component of Tekla Lift Assembly.";
+                            preview.DecisionReason = "Swallowed as child component of valid Lift Assembly.";
                             continue;
                         }
                     }

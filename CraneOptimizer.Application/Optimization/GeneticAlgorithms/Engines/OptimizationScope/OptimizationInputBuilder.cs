@@ -170,6 +170,38 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
                     result.Add(liftUnit);
                 }
             }
+            else
+            {
+                // Grouped lifts is OFF.
+                // We must unroll children of valid assemblies so they can be lifted individually,
+                // while ensuring the parent container itself never enters the GA as a physical individual target.
+                var parentAssemblies = allElements
+                    .Where(e => e.Role == IfcElementRole.LiftAssembly && e.IncludeInGa)
+                    .ToList();
+
+                var parentIds = new HashSet<string>(parentAssemblies.Select(p => p.ElementID), StringComparer.Ordinal);
+
+                // Exclude parent assemblies from candidateElements so they don't enter GA
+                groupedMemberIds.UnionWith(parentIds);
+
+                // Add child elements of valid parent assemblies to the GA target list
+                foreach (var parent in parentAssemblies)
+                {
+                    var children = allElements
+                        .Where(e => string.Equals(e.ParentGlobalId, parent.ElementID, StringComparison.Ordinal) &&
+                                    e.Role != IfcElementRole.InternalAuxiliary)
+                        .ToList();
+
+                    foreach (var child in children)
+                    {
+                        if (!groupedMemberIds.Contains(child.ElementID))
+                        {
+                            result.Add(child);
+                            groupedMemberIds.Add(child.ElementID);
+                        }
+                    }
+                }
+            }
 
             // Add remaining candidate elements not belonging to any assembly rollup group
             foreach (var element in candidateElements)
