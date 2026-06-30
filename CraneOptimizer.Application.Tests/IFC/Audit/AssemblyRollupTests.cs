@@ -364,7 +364,9 @@ namespace CraneOptimizer.Application.Tests.IFC.Audit
                 ElementName = "Wall Panel Main",
                 ResolvedCategory = "Wall",
                 ParentGlobalId = "PARENT_1",
-                WeightTons = 5.87
+                WeightTons = 5.0,
+                PhysicalCOGAvailable = true,
+                ElementCOG = new DomainPoint3D(10, 20, 30)
             };
 
             var secondary = new PrecastElement
@@ -373,7 +375,9 @@ namespace CraneOptimizer.Application.Tests.IFC.Audit
                 ElementName = "Accessory Bracket",
                 ResolvedCategory = "Bracket",
                 ParentGlobalId = "PARENT_1",
-                WeightTons = 1.70
+                WeightTons = 5.0,
+                PhysicalCOGAvailable = true,
+                ElementCOG = new DomainPoint3D(20, 30, 40)
             };
 
             var rebar = new PrecastElement
@@ -381,7 +385,9 @@ namespace CraneOptimizer.Application.Tests.IFC.Audit
                 ElementID = "REBAR_1",
                 RawIfcType = "IfcReinforcingBar",
                 ParentGlobalId = "PARENT_1",
-                WeightTons = 0.1
+                WeightTons = 2.0,
+                PhysicalCOGAvailable = true,
+                ElementCOG = new DomainPoint3D(30, 40, 50)
             };
 
             var elements = new List<PrecastElement> { parent, mainPart, secondary, rebar };
@@ -398,6 +404,16 @@ namespace CraneOptimizer.Application.Tests.IFC.Audit
             Assert.Equal(1, parent.HiddenWeightContributorCount); // REBAR_1
             Assert.True(parent.HasSecondaryParts);
             Assert.True(parent.HasHiddenContributors);
+
+            // Rollup Assertions
+            Assert.NotNull(parent.AssemblyLiftWeight);
+            Assert.Equal(12.0, parent.AssemblyLiftWeight.Value, precision: 4);
+            Assert.NotNull(parent.AssemblyLiftCOG);
+            Assert.Equal(17.5, parent.AssemblyLiftCOG.X, precision: 4);
+            Assert.Equal(27.5, parent.AssemblyLiftCOG.Y, precision: 4);
+            Assert.Equal(37.5, parent.AssemblyLiftCOG.Z, precision: 4);
+            Assert.NotNull(parent.AssemblyMemberIds);
+            Assert.Equal(3, parent.AssemblyMemberIds.Count);
         }
 
         private static Crane CreateTestCrane()

@@ -12,6 +12,7 @@ using CraneOptimizer.Application.Reports.Services;
 using CraneOptimizer.Application.Services;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.CreatedProject;
+using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
@@ -170,7 +171,7 @@ public sealed class ReportBuilderViewModelFlowTests
         Assert.Contains("SelectedTemplateName=Basic Lifting Result", debugLine);
         Assert.Contains("ReportFamily=LiftingResult", debugLine);
         Assert.Contains("UsesGaData=True", debugLine);
-        Assert.Contains("SelectedColumnKeys=No,ElementMark,Weight,HookRiggingWeight,RequiredCapacity,RawChartCapacity,AvailableCapacity,AssignedGaPoint,LiftStatus,BestRadius,RequiredBoomLength,CapacityUtilizationPercent,SafetyMargin,FailureReason,SuggestedAction", debugLine);
+        Assert.Contains("SelectedColumnKeys=No,ElementMark,Weight,HookRiggingWeight,RequiredCapacity,RawChartCapacity,AvailableCapacity,AssignedGaPoint,LiftStatus,BestRadius,RequiredBoomLength,CapacityUtilizationPercent,SafetyMargin,FailureReason,ParentAssemblyGlobalId,AssemblyLiftWeight,AssemblyLiftCOG,AssemblyMemberIds,SuggestedAction", debugLine);
         Assert.Contains("CurrentPlacementResultPresent=True", debugLine);
         Assert.Contains("CurrentPlacementResultPositionsCount=1", debugLine);
         Assert.Contains("CurrentPlacementResultElementRowsCount=1", debugLine);
@@ -404,7 +405,7 @@ public sealed class ReportBuilderViewModelFlowTests
 
     private sealed class TestUnitSettingsService : IUnitSettingsService
     {
-        public UnitSettings Current { get; } = UnitSettings.Default;
+        public UnitSettings Current { get; } = UnitSettings.Default.Clone();
         public event EventHandler<UnitSettings>? SettingsChanged;
         public Task LoadProjectSettingsAsync(Guid projectId, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task SaveProjectSettingsAsync(Guid projectId, UnitSettings settings, CancellationToken cancellationToken = default) => Task.CompletedTask;
@@ -497,6 +498,83 @@ public sealed class ReportBuilderViewModelFlowTests
         public bool TryGetPlacementPoint(HelixViewport3D viewport, Point screenPt, out Point3D worldPoint) { worldPoint = new Point3D(); return false; }
         public bool TryGetHitCrane(HelixViewport3D viewport, Point screenPt, out SceneCrane crane) { crane = null!; return false; }
         public object? GetHitObject(HelixViewport3D viewport, Point screenPt) => null;
+    }
+
+    [Fact]
+    public void ElementManagementViewModel_BuildPropertyGroups_PopulatesAssemblySummary()
+    {
+        var scene = new TestSceneService();
+        var liftState = new TestElementLiftStateService();
+
+        var parent = new PrecastElement
+        {
+            ElementID = "parent-id",
+            Role = IfcElementRole.LiftAssembly,
+            AssemblyMark = "W1",
+            MainPartGlobalId = "child-id",
+            MainPartCategory = "WALL",
+            HasSecondaryParts = true,
+            HasHiddenContributors = true,
+            AssemblyLiftWeight = 9.28,
+            AssemblyLiftCOG = new DomainPoint3D(89.5, 109.1, 1.9),
+            AssemblyMemberIds = new List<string> { "child-id", "child-sec" }
+        };
+
+        var child = new PrecastElement
+        {
+            ElementID = "child-id",
+            ParentGlobalId = "parent-id",
+            ElementType = "IfcWall",
+            ElementWidth = 0.20,
+            ElementLength = 4.0
+        };
+
+        scene.SetElements(new List<PrecastElement> { parent, child });
+
+        var unitService = new TestUnitSettingsService();
+        unitService.Current.DisplayLengthUnit = LengthUnit.Millimeter;
+
+        var vm = new ElementManagementViewModel(
+            scene,
+            liftState,
+            new TestSceneGridSizingService(),
+            new TestElementVisibilityFilterService(),
+            unitService,
+            new TestProjectCoordinateTransformService(),
+            new TestCoordinateReadoutFormatter(),
+            new TestProjectMaterialSettingsService(),
+            new TestProjectWorkspaceService());
+
+        vm.SelectedElement = child;
+
+        var assemblyGroup = vm.ElementProperties.FirstOrDefault(g => g.Name == "Assembly Summary");
+        Assert.NotNull(assemblyGroup);
+
+        var assemblyMarkProp = assemblyGroup.Children.FirstOrDefault(p => p.Name == "Assembly");
+        Assert.NotNull(assemblyMarkProp);
+        Assert.Equal("W1", assemblyMarkProp.Value);
+
+        var mainPartProp = assemblyGroup.Children.FirstOrDefault(p => p.Name == "Main Part");
+        Assert.NotNull(mainPartProp);
+        Assert.Equal("WALL", mainPartProp.Value);
+
+        var secProp = assemblyGroup.Children.FirstOrDefault(p => p.Name == "Has Secondary Parts");
+        Assert.NotNull(secProp);
+        Assert.Equal("Yes", secProp.Value);
+
+        var hiddenProp = assemblyGroup.Children.FirstOrDefault(p => p.Name == "Included Hidden Contributors");
+        Assert.NotNull(hiddenProp);
+        Assert.Equal("Rebar weight included", hiddenProp.Value);
+
+        var weightProp = assemblyGroup.Children.FirstOrDefault(p => p.Name == "Total Lift Weight");
+        Assert.NotNull(weightProp);
+        Assert.Equal("9.28t", weightProp.Value);
+
+        var profileProp = assemblyGroup.Children.FirstOrDefault(p => p.Name == "Profile");
+        Assert.NotNull(profileProp);
+        Assert.Equal("200*4000", profileProp.Value);
+
+        vm.Dispose();
     }
 
     private sealed class FakeProjectOutputPathService : IProjectOutputPathService

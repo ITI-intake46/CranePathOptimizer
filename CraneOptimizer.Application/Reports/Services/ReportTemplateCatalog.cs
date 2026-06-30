@@ -198,7 +198,11 @@ public static class ReportTemplateCatalog
                 GaColumn("CapacityUtilizationPercent", "Capacity Utilization %", ReportColumnValueKind.Percentage, "Radius / Boom / Capacity", 11),
                 GaColumn("SafetyMargin", "Safety Margin", ReportColumnValueKind.Tons, "Lift Result", 12),
                 GaColumn("FailureReason", "Failure Reason", ReportColumnValueKind.Warning, "Lift Result", 13),
-                GaColumn("SuggestedAction", "Suggested Action", ReportColumnValueKind.Warning, "Lift Result", 14)
+                GaColumn("ParentAssemblyGlobalId", "Parent Assembly ID", ReportColumnValueKind.Text, "Assembly Rollup", 14),
+                GaColumn("AssemblyLiftWeight", "Assembly Lift Weight (t)", ReportColumnValueKind.Tons, "Assembly Rollup", 15),
+                GaColumn("AssemblyLiftCOG", "Assembly Lift COG", ReportColumnValueKind.Text, "Assembly Rollup", 16),
+                GaColumn("AssemblyMemberIds", "Assembly Member IDs", ReportColumnValueKind.Text, "Assembly Rollup", 17),
+                GaColumn("SuggestedAction", "Suggested Action", ReportColumnValueKind.Warning, "Lift Result", 18)
             ]
         },
         new()
@@ -372,7 +376,11 @@ public static class ReportTemplateCatalog
         GaColumn("SelectedOperatingConditionLabel", "Selected Operating Condition Label", ReportColumnValueKind.Text, "Load Chart Diagnostics", 195),
         GaColumn("ConservativeDuplicateFallback", "Conservative Duplicate Fallback", ReportColumnValueKind.YesNo, "Load Chart Diagnostics", 196),
         GaColumn("DuplicateAlternativeCount", "Duplicate Alternative Count", ReportColumnValueKind.Number, "Load Chart Diagnostics", 197),
-        GaColumn("DuplicateAlternativeSummary", "Duplicate Alternative Summary", ReportColumnValueKind.Text, "Load Chart Diagnostics", 198)
+        GaColumn("DuplicateAlternativeSummary", "Duplicate Alternative Summary", ReportColumnValueKind.Text, "Load Chart Diagnostics", 198),
+        GaColumn("ParentAssemblyGlobalId", "Parent Assembly ID", ReportColumnValueKind.Text, "Assembly Rollup", 199, isSelected: false),
+        GaColumn("AssemblyLiftWeight", "Assembly Lift Weight (t)", ReportColumnValueKind.Tons, "Assembly Rollup", 200, isSelected: false),
+        GaColumn("AssemblyLiftCOG", "Assembly Lift COG", ReportColumnValueKind.Text, "Assembly Rollup", 201, isSelected: false),
+        GaColumn("AssemblyMemberIds", "Assembly Member IDs", ReportColumnValueKind.Text, "Assembly Rollup", 202, isSelected: false)
     ];
 
     private static ReportColumnDefinition Column(

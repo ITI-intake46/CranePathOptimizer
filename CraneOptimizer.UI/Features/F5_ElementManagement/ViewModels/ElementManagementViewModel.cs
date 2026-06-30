@@ -1,6 +1,7 @@
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Application.Services;
 using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
@@ -595,6 +596,57 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             // }
 
             properties.Add(CreateGroup("Location", true, locationItems.ToArray()));
+
+            // Phase 5: Assembly Summary Group
+            PrecastElement? assemblyParent = null;
+            if (SelectedElement != null)
+            {
+                if (SelectedElement.Role == IfcElementRole.LiftAssembly)
+                {
+                    assemblyParent = SelectedElement;
+                }
+                else if (!string.IsNullOrEmpty(SelectedElement.ParentGlobalId))
+                {
+                    var parent = _scene.GetElements()?.FirstOrDefault(e => string.Equals(e.ElementID, SelectedElement.ParentGlobalId, StringComparison.Ordinal));
+                    if (parent != null && parent.Role == IfcElementRole.LiftAssembly)
+                    {
+                        assemblyParent = parent;
+                    }
+                }
+            }
+
+            if (assemblyParent != null)
+            {
+                var mainPartId = assemblyParent.MainPartGlobalId;
+                var mainPart = _scene.GetElements()?.FirstOrDefault(e => e.ElementID == mainPartId) ?? SelectedElement;
+
+                string mainPartCategory = assemblyParent.MainPartCategory?.ToUpperInvariant() 
+                                          ?? mainPart?.ElementType?.ToUpperInvariant() 
+                                          ?? "-";
+
+                string profileStr = "-";
+                if (mainPart != null)
+                {
+                    var unitSettings = _unitSettingsService.Current;
+                    var widthVal = UnitSystem.FromMeters(mainPart.ElementWidth, unitSettings.DisplayLengthUnit);
+                    var lengthVal = UnitSystem.FromMeters(mainPart.ElementLength, unitSettings.DisplayLengthUnit);
+                    if (widthVal.HasValue && lengthVal.HasValue)
+                    {
+                        profileStr = $"{Math.Round(widthVal.Value):0}*{Math.Round(lengthVal.Value):0}";
+                    }
+                }
+
+                properties.Add(CreateGroup("Assembly Summary", true,
+                    CreateDisplayProperty("Assembly", assemblyParent.AssemblyMark ?? assemblyParent.ElementMark ?? "-"),
+                    CreateDisplayProperty("Main Part", mainPartCategory),
+                    CreateDisplayProperty("Has Secondary Parts", assemblyParent.HasSecondaryParts ? "Yes" : "No"),
+                    CreateDisplayProperty("Included Hidden Contributors", assemblyParent.HasHiddenContributors ? "Rebar weight included" : "None"),
+                    CreateDisplayProperty("Total Lift Weight", assemblyParent.AssemblyLiftWeight.HasValue 
+                        ? $"{assemblyParent.AssemblyLiftWeight.Value.ToString("F2", CultureInfo.InvariantCulture)}t" 
+                        : "-"),
+                    CreateDisplayProperty("Profile", profileStr)
+                ));
+            }
 
             // Technical validation and canonical identity groups removed in Phase 7F simplification
 

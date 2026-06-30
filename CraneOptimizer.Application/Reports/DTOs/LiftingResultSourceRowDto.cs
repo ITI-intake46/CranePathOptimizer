@@ -27,4 +27,10 @@ public sealed class LiftingResultSourceRowDto
     public string InternalLiftStatus { get; init; } = string.Empty;
     public bool IsFinalAssignedToPoint { get; init; }
     public bool IsFinalAssigned { get; init; }
+
+    // Phase 5 Assembly Rollup fields
+    public string? ParentAssemblyGlobalId { get; init; }
+    public double? AssemblyLiftWeight { get; init; }
+    public Domain.Common.DomainPoint3D? AssemblyLiftCOG { get; init; }
+    public IReadOnlyList<string>? AssemblyMemberIds { get; init; }
 }

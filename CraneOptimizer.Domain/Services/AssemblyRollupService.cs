@@ -17,6 +17,36 @@ namespace CraneOptimizer.Domain.Services
         {
             if (elements == null || elements.Count == 0) return;
 
+            // 0. Classify all elements initially
+            foreach (var element in elements)
+            {
+                var childClass = element.RawIfcType?.ToUpperInvariant() ?? string.Empty;
+                var childName = element.ElementRevitId?.ToUpperInvariant() ?? element.ElementName?.ToUpperInvariant() ?? string.Empty;
+
+                if (childClass == "IFCGRID" || childClass == "IFCANNOTATION" || childClass == "IFCOPENINGELEMENT" || childClass == "IFCVIRTUALELEMENT" || childClass == "IFCSPACE" ||
+                    childName.Contains("OPENING") || childName.Contains("VOID") || childName.Contains("GRID") || childName.Contains("LINE"))
+                {
+                    element.ChildClassification = AssemblyChildClassification.IgnoredReference;
+                }
+                else if (childClass.Contains("REINFORCING") || childClass.Contains("TENDON") || childClass.Contains("TENDONANCHOR") ||
+                         childName.Contains("REBAR") || childName.Contains("REINFORCING") || childName.Contains("STIRRUP") || childName.Contains("TIE-WIRE"))
+                {
+                    element.ChildClassification = AssemblyChildClassification.HiddenWeightContributor;
+                }
+                else if (childClass.Contains("PLATE") || childClass.Contains("FASTENER") || childClass.Contains("MECHANICALFASTENER") ||
+                         childClass.Contains("ANCHOR") || childClass.Contains("BOLT") || childClass.Contains("NUT") || childClass.Contains("WASHERS") ||
+                         childClass.Contains("WELD") ||
+                         childName.Contains("PLATE") || childName.Contains("ANCHOR") || childName.Contains("EMBED") || childName.Contains("INSERT") ||
+                         childName.Contains("BOLT") || childName.Contains("CONNECTION") || childName.Contains("PAINT") || childName.Contains("GROUT"))
+                {
+                    element.ChildClassification = AssemblyChildClassification.AccessoryWeightContributor;
+                }
+                else
+                {
+                    element.ChildClassification = AssemblyChildClassification.VisibleSecondaryPart;
+                }
+            }
+
             // 1. Locate all parent assembly elements
             var parents = elements
                 .Where(e => e.Role == IfcElementRole.LiftAssembly || e.Role == IfcElementRole.GroupingOnly || (e.ChildGlobalIds != null && e.ChildGlobalIds.Count > 0))
@@ -50,7 +80,7 @@ namespace CraneOptimizer.Domain.Services
                 // Sync the parent's ChildGlobalIds list
                 parent.ChildGlobalIds = children.Select(c => c.ElementID).Distinct().ToList();
 
-                // Classify child elements
+                // Classify child elements counts
                 int visibleSecCount = 0;
                 int hiddenCount = 0;
                 int accessoryCount = 0;
@@ -59,24 +89,15 @@ namespace CraneOptimizer.Domain.Services
 
                 foreach (var child in children)
                 {
-                    var childClass = child.RawIfcType?.ToUpperInvariant() ?? string.Empty;
-                    var childName = child.ElementRevitId?.ToUpperInvariant() ?? child.ElementName?.ToUpperInvariant() ?? string.Empty;
-
-                    if (childClass == "IFCGRID" || childClass == "IFCANNOTATION" || childClass == "IFCOPENINGELEMENT" || childClass == "IFCVIRTUALELEMENT" || childClass == "IFCSPACE" ||
-                        childName.Contains("OPENING") || childName.Contains("VOID") || childName.Contains("GRID") || childName.Contains("LINE"))
+                    if (child.ChildClassification == AssemblyChildClassification.IgnoredReference)
                     {
                         ignoredCount++;
                     }
-                    else if (childClass.Contains("REINFORCING") || childClass.Contains("TENDON") || childClass.Contains("TENDONANCHOR") ||
-                             childName.Contains("REBAR") || childName.Contains("REINFORCING") || childName.Contains("STIRRUP") || childName.Contains("TIE-WIRE"))
+                    else if (child.ChildClassification == AssemblyChildClassification.HiddenWeightContributor)
                     {
                         hiddenCount++;
                     }
-                    else if (childClass.Contains("PLATE") || childClass.Contains("FASTENER") || childClass.Contains("MECHANICALFASTENER") ||
-                             childClass.Contains("ANCHOR") || childClass.Contains("BOLT") || childClass.Contains("NUT") || childClass.Contains("WASHERS") ||
-                             childClass.Contains("WELD") ||
-                             childName.Contains("PLATE") || childName.Contains("ANCHOR") || childName.Contains("EMBED") || childName.Contains("INSERT") ||
-                             childName.Contains("BOLT") || childName.Contains("CONNECTION") || childName.Contains("PAINT") || childName.Contains("GROUT"))
+                    else if (child.ChildClassification == AssemblyChildClassification.AccessoryWeightContributor)
                     {
                         accessoryCount++;
                     }
@@ -130,6 +151,11 @@ namespace CraneOptimizer.Domain.Services
                     }
                 }
 
+                if (mainPart != null)
+                {
+                    mainPart.ChildClassification = AssemblyChildClassification.MainPart;
+                }
+
                 visibleSecCount = structuralCandidates.Count(c => c != mainPart);
 
                 // Set parent classification fields
@@ -156,6 +182,85 @@ namespace CraneOptimizer.Domain.Services
                 {
                     parent.ExtractionWarnings.Add("MixedCategoryButValidAssembly");
                 }
+
+                // Compute rollup values for the parent
+                double totalWeight = 0.0;
+                double parentWeight = parent.WeightTons ?? parent.ElementWT ?? 0.0;
+                bool hasParentExplicitWeight = parent.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
+                                               parent.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+
+                var eligibleContributors = children.Where(c => c.ChildClassification != AssemblyChildClassification.IgnoredReference).ToList();
+                double childWeightSum = eligibleContributors.Sum(c => c.WeightTons ?? c.ElementWT ?? 0.0);
+
+                if (hasParentExplicitWeight && parentWeight > 0.0)
+                {
+                    totalWeight = parentWeight;
+                }
+                else
+                {
+                    totalWeight = childWeightSum;
+                }
+
+                parent.AssemblyLiftWeight = totalWeight > 0.0 ? totalWeight : (double?)null;
+
+                // COG Rollup Calculation (Weighted Centroid)
+                DomainPoint3D rollupCog = null;
+                var cogContributors = eligibleContributors
+                    .Where(c => c.PhysicalCOGAvailable && (c.WeightTons ?? c.ElementWT ?? 0.0) > 0.0 && c.ElementCOG != null)
+                    .ToList();
+
+                if (cogContributors.Count > 0)
+                {
+                    double weightedSumX = 0.0;
+                    double weightedSumY = 0.0;
+                    double weightedSumZ = 0.0;
+                    double totalCogWeight = 0.0;
+
+                    foreach (var c in eligibleContributors)
+                    {
+                        double w = c.WeightTons ?? c.ElementWT ?? 0.0;
+                        if (w <= 0.0) continue;
+
+                        if (c.PhysicalCOGAvailable && c.ElementCOG != null)
+                        {
+                            weightedSumX += c.ElementCOG.X * w;
+                            weightedSumY += c.ElementCOG.Y * w;
+                            weightedSumZ += c.ElementCOG.Z * w;
+                            totalCogWeight += w;
+                        }
+                        else
+                        {
+                            bool isHiddenOrAccessory = c.ChildClassification == AssemblyChildClassification.HiddenWeightContributor ||
+                                                       c.ChildClassification == AssemblyChildClassification.AccessoryWeightContributor;
+
+                            double pct = w / totalWeight;
+                            if (isHiddenOrAccessory && pct <= 0.02 && mainPart != null)
+                            {
+                                weightedSumX += mainPart.ElementCOG.X * w;
+                                weightedSumY += mainPart.ElementCOG.Y * w;
+                                weightedSumZ += mainPart.ElementCOG.Z * w;
+                                totalCogWeight += w;
+                            }
+                        }
+                    }
+
+                    if (totalCogWeight > 0.0)
+                    {
+                        rollupCog = new DomainPoint3D(
+                            weightedSumX / totalCogWeight,
+                            weightedSumY / totalCogWeight,
+                            weightedSumZ / totalCogWeight
+                        );
+                    }
+                }
+
+                if (rollupCog == null && mainPart != null)
+                {
+                    rollupCog = mainPart.ElementCOG;
+                }
+
+                parent.AssemblyLiftCOG = rollupCog;
+                parent.AssemblyMemberIds = children.Select(c => c.ElementID).ToList();
             }
         }
 
@@ -169,9 +274,34 @@ namespace CraneOptimizer.Domain.Services
             out List<string> warnings)
         {
             if (parent == null) throw new ArgumentNullException(nameof(parent));
-            if (children == null || children.Count == 0) throw new ArgumentException("Assembly must contain child elements.", nameof(children));
 
             warnings = new List<string>();
+
+            if (children == null || children.Count == 0)
+            {
+                var fallbackLiftUnit = new PrecastElement
+                {
+                    ElementID = parent.MainPartGlobalId ?? parent.ElementID,
+                    ElementRevitId = parent.ElementRevitId,
+                    ElementMark = parent.ElementMark,
+                    AssemblyMark = parent.AssemblyMark,
+                    ElementName = parent.MainPartName ?? parent.ElementName,
+                    ResolvedDisplayMark = parent.ElementMark ?? parent.ElementName,
+                    ElementType = parent.MainPartCategory ?? "Wall",
+                    WeightTons = parent.AssemblyLiftWeight ?? parent.WeightTons ?? 0.0,
+                    ElementWT = parent.AssemblyLiftWeight ?? parent.ElementWT ?? 0.0,
+                    ElementCOG = parent.AssemblyLiftCOG ?? parent.ElementCOG ?? new DomainPoint3D(0, 0, 0),
+                    ParentGlobalId = parent.ElementID,
+                    Role = IfcElementRole.LiftAssembly,
+                    IncludeInGa = true,
+                    WeightTrustLevel = parent.WeightTrustLevel,
+                    WeightSource = parent.WeightSource ?? "ParentExplicitWeight",
+                    AssemblyLiftWeight = parent.AssemblyLiftWeight,
+                    AssemblyLiftCOG = parent.AssemblyLiftCOG,
+                    AssemblyMemberIds = parent.AssemblyMemberIds ?? new List<string> { parent.MainPartGlobalId ?? parent.ElementID }
+                };
+                return fallbackLiftUnit;
+            }
 
             // 1. Resolve Main Part
             var mainPart = children.FirstOrDefault(c => string.Equals(c.ElementID, parent.MainPartGlobalId, StringComparison.Ordinal));

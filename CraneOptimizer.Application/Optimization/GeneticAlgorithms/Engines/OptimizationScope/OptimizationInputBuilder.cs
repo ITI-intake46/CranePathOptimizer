@@ -148,14 +148,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
                         }
                     }
 
-                    if (children.Count == 0)
+                    if (children.Count == 0 && !parent.AssemblyLiftWeight.HasValue)
                     {
                         // Exclude empty parent assemblies
                         continue;
                     }
 
-                    // Reconstruct classifications just in case they were lost
-                    CraneOptimizer.Domain.Services.AssemblyRollupService.ReconstructAssemblyClassifications(children);
+                    if (children.Count > 0)
+                    {
+                        // Reconstruct classifications just in case they were lost
+                        CraneOptimizer.Domain.Services.AssemblyRollupService.ReconstructAssemblyClassifications(children);
+                    }
 
                     List<string> warnings;
                     var liftUnit = CraneOptimizer.Domain.Services.AssemblyRollupService.BuildAssemblyLiftUnit(parent, children, out warnings);

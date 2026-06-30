@@ -110,6 +110,12 @@ namespace CraneOptimizer.Domain.Schemas
         public double? AssemblyWidth => ElementWidth;
         public double? AssemblyHeight => ElementHeight;
 
+        // Phase 5 In-memory Assembly Rollup properties
+        public double? AssemblyLiftWeight { get; set; }
+        public DomainPoint3D? AssemblyLiftCOG { get; set; }
+        public List<string> AssemblyMemberIds { get; set; } = new();
+        public Diagnostics.AssemblyChildClassification ChildClassification { get; set; } = Diagnostics.AssemblyChildClassification.UnknownNeedsReview;
+
         public SourceSystem SourceSystem { get; set; } = SourceSystem.IFC;
         public IfcExporterProfile ExporterProfile { get; set; } = IfcExporterProfile.Generic;
         public string? SourceGlobalId => ElementID;

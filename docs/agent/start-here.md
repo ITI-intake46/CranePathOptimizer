@@ -136,3 +136,30 @@ To ensure that precast assembly elements are gated and promoted correctly under 
 - When `EnableGroupedLifts` is `OFF`, the parent assembly container (which lacks direct geometry) is explicitly excluded from GA candidate lists.
 - Child components are unrolled and enter the GA solver independently as individual physical lift units (e.g., the concrete wall and secondary steel beams are lifted separately with their raw individual properties).
 
+---
+
+## 6. Reports & F5 Panel Integration (Phase 5)
+
+To present rolled-up assembly properties to users in reports and user interface views, the system provides integrated fields and filters:
+
+### F5 Panel Assembly Summary
+- When selecting the parent container, the main part, or any child component of a valid assembly in the Element Management pane, an **"Assembly Summary"** group is displayed in the properties list.
+- The summary shows:
+  - **Assembly**: The parent assembly mark (e.g. `W1`).
+  - **Main Part**: The category name of the main part in uppercase (e.g. `WALL`).
+  - **Has Secondary Parts**: `"Yes"` or `"No"`.
+  - **Included Hidden Contributors**: `"Rebar weight included"` (if reinforcing/accessory parts are present) or `"None"`.
+  - **Total Lift Weight**: The aggregate rolled-up weight (e.g. `9.28t`) formatted dynamically in unit settings format with a `t` suffix.
+  - **Profile**: The profile dimension of the main part formatted as `Width*Length` in settings unit (e.g., `200*4000`), derived using `UnitSystem` display formatting.
+
+### F8 / GA Reports Integration
+- The default **Basic Lifting Result** report template and available columns list include four new columns mapping rolled-up metadata:
+  - `ParentAssemblyGlobalId`: The ID of the parent container assembly.
+  - `AssemblyLiftWeight`: The aggregate rolled-up lift weight of the assembly.
+  - `AssemblyLiftCOG`: The aggregate weighted COG coordinate values.
+  - `AssemblyMemberIds`: The list of all member element IDs included in the assembly.
+- The solver maps the `MainPartGlobalId` as the `ElementId` (per Option E) along with the rolled-up weight/COG.
+
+### Reportable Element Filtering
+- Auxiliary elements classified as `HiddenWeightContributor` (reinforcement bars/meshes) or `AccessoryWeightContributor` (inserts/plates) are excluded from user-facing reports (such as normal element lists and lifting reports) to keep user-facing views clean, while their weights are preserved in rolled-up assembly totals.
+
