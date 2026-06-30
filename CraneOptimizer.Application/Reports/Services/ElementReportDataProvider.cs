@@ -26,13 +26,13 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
         var elementsList = scopedElements.ToList();
         var reportable = _resolver.ResolveReportableElements(elementsList);
         var filtered = ApplyTemplateFilter(reportable, templateName);
-        var levelLabels = BuildLevelLabels(filtered);
+        var levelLabels = BuildLevelLabels(filtered, elementsList);
 
         var readinessSummary = _readinessService.BuildSummary(filtered, isCheckerEnabled: true);
         var lookup = BuildElementReadinessLookup(readinessSummary);
 
         return filtered
-            .Select((element, index) => ToRow(element, index + 1, levelLabels, lookup))
+            .Select((element, index) => ToRow(element, index + 1, levelLabels, lookup, elementsList))
             .ToList();
     }
 
@@ -85,17 +85,19 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
         PrecastElement element,
         int number,
         IReadOnlyDictionary<double, string> levelLabels,
-        IReadOnlyDictionary<string, ElementReadinessInfo> readinessLookup)
+        IReadOnlyDictionary<string, ElementReadinessInfo> readinessLookup,
+        IReadOnlyList<PrecastElement> allElements)
     {
         var mapping = ReportWeightMapper.Map(element);
         var identity = CanonicalMarkResolver.Resolve(element);
 
-        var length = FirstPositive(element.ElementLength, element.BBoxLength, element.BoundingBox_M?.X);
-        var width = FirstPositive(element.ElementWidth, element.BBoxWidth, element.BoundingBox_M?.Y);
-        var height = FirstPositive(element.ElementHeight, element.BBoxHeight, element.BoundingBox_M?.Z);
+        var geometry = ElementBindingResolver.ResolveGeometry(element, allElements, preferAssemblyMainPart: true);
+        var length = geometry.LengthM;
+        var width = geometry.WidthM;
+        var height = geometry.HeightM;
 
         var (volume, volumeSource) = ResolveReportVolume(element, length, width, height);
-        var (bottomElevation, topElevation) = ResolveElevationRange(element, height);
+        var (bottomElevation, topElevation) = ResolveElevationRange(geometry);
 
         string readyForGa = "No";
         string missingReason = "Element ID is missing.";
@@ -122,7 +124,7 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
             MarkConfidence = identity.MarkConfidence,
             IsExplicitMark = identity.IsExplicitMark,
             SourceRevitId = FirstNonEmpty(element.ElementRevitId, element.ElementID, "\u2014"),
-            StoreyLevel = ResolveStoreyLevel(element, levelLabels),
+            StoreyLevel = ResolveStoreyLevel(element, levelLabels, allElements),
             Material = string.IsNullOrWhiteSpace(element.ElementMaterial) ? "\u2014" : element.ElementMaterial,
             Length = length,
             Width = width,
@@ -191,10 +193,12 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
             || normalized.Contains("PILE", StringComparison.Ordinal);
     }
 
-    private static IReadOnlyDictionary<double, string> BuildLevelLabels(IReadOnlyList<PrecastElement> elements)
+    private static IReadOnlyDictionary<double, string> BuildLevelLabels(
+        IReadOnlyList<PrecastElement> elements,
+        IReadOnlyList<PrecastElement> allElements)
     {
         return elements
-            .Select(GetBaseElevationMeters)
+            .Select(element => GetBaseElevationMeters(element, allElements))
             .Where(elevation => elevation.HasValue)
             .Select(elevation => elevation!.Value)
             .Distinct()
@@ -209,26 +213,25 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
 
     private static string ResolveStoreyLevel(
         PrecastElement element,
-        IReadOnlyDictionary<double, string> levelLabels)
+        IReadOnlyDictionary<double, string> levelLabels,
+        IReadOnlyList<PrecastElement> allElements)
     {
-        var baseElevation = GetBaseElevationMeters(element);
+        var baseElevation = GetBaseElevationMeters(element, allElements);
         if (baseElevation.HasValue && levelLabels.TryGetValue(baseElevation.Value, out var label))
             return label;
 
         return "\u2014";
     }
 
-    private static double? GetBaseElevationMeters(PrecastElement element)
+    private static double? GetBaseElevationMeters(
+        PrecastElement element,
+        IReadOnlyList<PrecastElement> allElements)
     {
-        var height = FirstPositive(element.ElementHeight, element.BBoxHeight, element.BoundingBox_M?.Z);
-        if (height is not > 0)
+        ElementGeometryBinding geometry = ElementBindingResolver.ResolveGeometry(element, allElements, preferAssemblyMainPart: true);
+        if (geometry.HeightM is not > 0 || geometry.CenterOfGravityM == null)
             return null;
 
-        var z = ResolveCogZ(element);
-        if (!z.HasValue)
-            return null;
-
-        return Math.Round(z.Value - height.Value / 2d, 0);
+        return Math.Round(geometry.CenterOfGravityM.Z - geometry.HeightM.Value / 2d, 0);
     }
 
     private static (double? Volume, string Source) ResolveReportVolume(
@@ -247,31 +250,14 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
         return (null, "Missing");
     }
 
-    private static (string Bottom, string Top) ResolveElevationRange(PrecastElement element, double? height)
+    private static (string Bottom, string Top) ResolveElevationRange(ElementGeometryBinding geometry)
     {
-        var z = ResolveCogZ(element);
-        if (!z.HasValue || height is not > 0)
+        if (geometry.CenterOfGravityM == null || geometry.HeightM is not > 0)
             return ("\u2014", "\u2014");
 
-        var halfHeight = height.Value / 2d;
-        return ($"{z.Value - halfHeight:0.00} m", $"{z.Value + halfHeight:0.00} m");
+        var halfHeight = geometry.HeightM.Value / 2d;
+        return ($"{geometry.CenterOfGravityM.Z - halfHeight:0.00} m", $"{geometry.CenterOfGravityM.Z + halfHeight:0.00} m");
     }
-
-    private static double? ResolveCogZ(PrecastElement element)
-    {
-        if (element.COG_M != null && HasNonZeroPoint(element.COG_M))
-            return element.COG_M.Z;
-
-        if (element.ElementCOG != null && HasNonZeroPoint(element.ElementCOG))
-            return element.ElementCOG.Z;
-
-        return null;
-    }
-
-    private static bool HasNonZeroPoint(CraneOptimizer.Domain.Common.DomainPoint3D point) =>
-        Math.Abs(point.X) > double.Epsilon
-        || Math.Abs(point.Y) > double.Epsilon
-        || Math.Abs(point.Z) > double.Epsilon;
 
 
 

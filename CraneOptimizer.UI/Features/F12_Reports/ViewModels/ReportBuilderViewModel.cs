@@ -1311,7 +1311,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         GARunHistoryDto? run)
     {
         var allElements = _scene.GetElements() ?? new List<PrecastElement>();
-        PopulateAssemblyRollupFields(lift.ElementId, allElements, out var parentAssemblyId, out var assemblyWeight, out var assemblyCog, out var memberIds);
+        PopulateAssemblyRollupFields(lift.ElementId, allElements, out var mainPartId, out var parentAssemblyId, out var assemblyWeight, out var assemblyCog, out var memberIds);
 
         var values = CreateRunSummaryValues(run, result);
         var assignedSetup = setupIndex + 1;
@@ -1411,6 +1411,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         values["BestFailedRequiredBoomLength"] = lift.HasBestFailedCandidate ? PositiveOrPlaceholder(lift.BestFailedRequiredBoomLength) : Placeholder;
 
         values["ParentAssemblyGlobalId"] = parentAssemblyId;
+        values["MainPartGlobalId"] = mainPartId;
         values["AssemblyLiftWeight"] = assemblyWeight;
         values["AssemblyLiftCOG"] = assemblyCog != null ? $"({assemblyCog.X.ToString("F3", CultureInfo.InvariantCulture)}; {assemblyCog.Y.ToString("F3", CultureInfo.InvariantCulture)}; {assemblyCog.Z.ToString("F3", CultureInfo.InvariantCulture)})" : null;
         values["AssemblyMemberIds"] = memberIds != null ? string.Join(", ", memberIds) : null;
@@ -1439,6 +1440,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             IsFinalAssignedToPoint = lift.IsFinalAssignedToPoint,
             IsFinalAssigned = lift.IsFinalAssigned,
             ParentAssemblyGlobalId = parentAssemblyId,
+            MainPartGlobalId = mainPartId,
             AssemblyLiftWeight = assemblyWeight,
             AssemblyLiftCOG = assemblyCog,
             AssemblyMemberIds = memberIds
@@ -1447,7 +1449,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
 
     private static LiftingResultSourceRowDto ToLiftingSourceRow(GAElementDiagnosticDto row, GARunHistoryDto? run, IReadOnlyList<PrecastElement> allElements)
     {
-        PopulateAssemblyRollupFields(row.ElementId, allElements, out var parentAssemblyId, out var assemblyWeight, out var assemblyCog, out var memberIds);
+        PopulateAssemblyRollupFields(row.ElementId, allElements, out var mainPartId, out var parentAssemblyId, out var assemblyWeight, out var assemblyCog, out var memberIds);
 
         var values = CreateRunSummaryValues(run, null);
         var utilization = row.AvailableCapacity > 0 && row.RequiredCapacity > 0
@@ -1554,6 +1556,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         values["DuplicateAlternativeSummary"] = CleanText(row.DuplicateAlternativeSummary);
 
         values["ParentAssemblyGlobalId"] = parentAssemblyId;
+        values["MainPartGlobalId"] = mainPartId;
         values["AssemblyLiftWeight"] = assemblyWeight;
         values["AssemblyLiftCOG"] = assemblyCog != null ? $"({assemblyCog.X.ToString("F3", CultureInfo.InvariantCulture)}; {assemblyCog.Y.ToString("F3", CultureInfo.InvariantCulture)}; {assemblyCog.Z.ToString("F3", CultureInfo.InvariantCulture)})" : null;
         values["AssemblyMemberIds"] = memberIds != null ? string.Join(", ", memberIds) : null;
@@ -1583,6 +1586,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             IsFinalAssignedToPoint = row.IsFinalAssignedToPoint,
             IsFinalAssigned = row.IsFinalAssigned,
             ParentAssemblyGlobalId = parentAssemblyId,
+            MainPartGlobalId = mainPartId,
             AssemblyLiftWeight = assemblyWeight,
             AssemblyLiftCOG = assemblyCog,
             AssemblyMemberIds = memberIds
@@ -1592,12 +1596,14 @@ public sealed class ReportBuilderViewModel : ViewModelBase
     private static void PopulateAssemblyRollupFields(
         string elementId,
         IReadOnlyList<PrecastElement>? allElements,
+        out string? mainPartId,
         out string? parentAssemblyId,
         out double? assemblyWeight,
         out DomainPoint3D? assemblyCog,
         out List<string>? memberIds)
     {
         parentAssemblyId = null;
+        mainPartId = null;
         assemblyWeight = null;
         assemblyCog = null;
         memberIds = null;
@@ -1609,20 +1615,13 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         if (element == null)
             return;
 
-        PrecastElement? parent = null;
-        if (element.Role == IfcElementRole.LiftAssembly)
-        {
-            parent = element;
-        }
-        else if (!string.IsNullOrEmpty(element.ParentGlobalId))
-        {
-            parent = allElements.FirstOrDefault(e => string.Equals(e.ElementID, element.ParentGlobalId, StringComparison.Ordinal) && e.Role == IfcElementRole.LiftAssembly);
-        }
+        PrecastElement? parent = ElementBindingResolver.ResolveAssemblyParent(element, allElements);
 
         if (parent != null)
         {
             parentAssemblyId = parent.ElementID;
             assemblyWeight = parent.AssemblyLiftWeight;
+            mainPartId = parent.MainPartGlobalId ?? ElementBindingResolver.ResolveMainPartOrSelf(parent, allElements).ElementID;
             assemblyCog = parent.AssemblyLiftCOG;
             memberIds = parent.AssemblyMemberIds;
         }
@@ -1715,7 +1714,12 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             or "AssignedPointId"
             or "FinalOwnerPointId"
             or "BestFailedPointId"
-            or "BestFailureReason";
+            or "BestFailureReason"
+            or "MainPartGlobalId"
+            or "ParentAssemblyGlobalId"
+            or "AssemblyLiftWeight"
+            or "AssemblyLiftCOG"
+            or "AssemblyMemberIds";
 
     private static string ResolveAssignedGaPoint(
         string? finalOwnerPointId,

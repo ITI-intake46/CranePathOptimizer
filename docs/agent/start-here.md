@@ -163,3 +163,21 @@ To present rolled-up assembly properties to users in reports and user interface 
 ### Reportable Element Filtering
 - Auxiliary elements classified as `HiddenWeightContributor` (reinforcement bars/meshes) or `AccessoryWeightContributor` (inserts/plates) are excluded from user-facing reports (such as normal element lists and lifting reports) to keep user-facing views clean, while their weights are preserved in rolled-up assembly totals.
 
+
+## 7. Phase 5.1 UI and Report Binding Resolution
+
+- UI/report assembly detection uses the reconstructed assembly graph (`MainPartGlobalId`, `ChildGlobalIds`, rollup metadata), not only the persisted `Role`. Persisted roles can reflect import-time gating while the runtime graph still contains valid presentation metadata.
+- `ElementBindingResolver` is the shared presentation resolver. It does not change IFC extraction, persistence, rollup calculations, or GA gating.
+- Physical element dimensions resolve in this order: explicit `ElementLength` / `ElementWidth` / `ElementHeight`, persisted `BBoxLength` / `BBoxWidth` / `BBoxHeight`, then `BoundingBox_M` axes.
+
+### Basic Element List and F5
+
+- Grouped assembly rows retain the parent identity, explicit volume, and rollup weight while dimensions/elevations resolve from the physical main part.
+- F5 shows each physical member's own geometry; selecting the assembly parent uses main-part geometry. Assembly Profile is main-part `Width*Length`, converted and labelled with the active `UnitSystem` length unit. Total Lift Weight uses the active mass unit.
+
+### F8 / GA Reports
+
+- Basic Lifting Result and available GA columns expose `MainPartGlobalId`, `ParentAssemblyGlobalId`, `AssemblyLiftWeight`, `AssemblyLiftCOG`, and `AssemblyMemberIds`.
+- The mapping works for grouped main-part lift units and individual secondary-member lift rows. Hidden/accessory contributors remain excluded as normal user rows but remain represented in the parent rollup total and technical member metadata.
+
+These rules are presentation bindings only. Do not backfill null explicit IFC dimension columns when valid persisted geometry bounds already exist.

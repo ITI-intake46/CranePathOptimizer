@@ -30,6 +30,7 @@ public sealed class LiftingResultSourceRowDto
 
     // Phase 5 Assembly Rollup fields
     public string? ParentAssemblyGlobalId { get; init; }
+    public string? MainPartGlobalId { get; init; }
     public double? AssemblyLiftWeight { get; init; }
     public Domain.Common.DomainPoint3D? AssemblyLiftCOG { get; init; }
     public IReadOnlyList<string>? AssemblyMemberIds { get; init; }

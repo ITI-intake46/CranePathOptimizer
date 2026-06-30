@@ -495,6 +495,11 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
         private ElementPanelDto BuildElementPanelDto(PrecastElement element)
         {
             var liftState = _liftStateService.GetState(element.ElementID);
+            var allElements = _scene.GetElements();
+            PrecastElement? selectedAssembly = ElementBindingResolver.ResolveAssemblyParent(element, allElements);
+            bool useMainPartGeometry = selectedAssembly != null && string.Equals(selectedAssembly.ElementID, element.ElementID, StringComparison.Ordinal);
+            var geometry = ElementBindingResolver.ResolveGeometry(element, allElements, useMainPartGeometry);
+            var center = geometry.CenterOfGravityM ?? element.ElementCOG;
 
             var displayVolumeM3 =
     element.VolumeM3 is > 0d
@@ -527,14 +532,14 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 GetIfcElementName(element),
                 CleanElementType(element.ElementType),
                 string.IsNullOrWhiteSpace(element.ElementMaterial) ? "N/A" : element.ElementMaterial,
-                element.ElementLength,
-                element.ElementWidth,
-                element.ElementHeight,
+                geometry.LengthM,
+                geometry.WidthM,
+                geometry.HeightM,
                 displayWeight,
                 displayVolumeM3,
-                element.ElementCOG.X,
-                element.ElementCOG.Y,
-                element.ElementCOG.Z);
+                center.X,
+                center.Y,
+                center.Z);
         }
 
         private ElementPanelLiftStateDto BuildLiftStateDto(ElementLiftStateDto? liftState)
@@ -598,43 +603,19 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
             properties.Add(CreateGroup("Location", true, locationItems.ToArray()));
 
             // Phase 5: Assembly Summary Group
-            PrecastElement? assemblyParent = null;
-            if (SelectedElement != null)
-            {
-                if (SelectedElement.Role == IfcElementRole.LiftAssembly)
-                {
-                    assemblyParent = SelectedElement;
-                }
-                else if (!string.IsNullOrEmpty(SelectedElement.ParentGlobalId))
-                {
-                    var parent = _scene.GetElements()?.FirstOrDefault(e => string.Equals(e.ElementID, SelectedElement.ParentGlobalId, StringComparison.Ordinal));
-                    if (parent != null && parent.Role == IfcElementRole.LiftAssembly)
-                    {
-                        assemblyParent = parent;
-                    }
-                }
-            }
+            var sceneElements = _scene.GetElements();
+            PrecastElement? assemblyParent = ElementBindingResolver.ResolveAssemblyParent(SelectedElement, sceneElements);
 
             if (assemblyParent != null)
             {
-                var mainPartId = assemblyParent.MainPartGlobalId;
-                var mainPart = _scene.GetElements()?.FirstOrDefault(e => e.ElementID == mainPartId) ?? SelectedElement;
+                var mainPart = ElementBindingResolver.ResolveMainPartOrSelf(assemblyParent, sceneElements);
 
                 string mainPartCategory = assemblyParent.MainPartCategory?.ToUpperInvariant() 
                                           ?? mainPart?.ElementType?.ToUpperInvariant() 
                                           ?? "-";
 
-                string profileStr = "-";
-                if (mainPart != null)
-                {
-                    var unitSettings = _unitSettingsService.Current;
-                    var widthVal = UnitSystem.FromMeters(mainPart.ElementWidth, unitSettings.DisplayLengthUnit);
-                    var lengthVal = UnitSystem.FromMeters(mainPart.ElementLength, unitSettings.DisplayLengthUnit);
-                    if (widthVal.HasValue && lengthVal.HasValue)
-                    {
-                        profileStr = $"{Math.Round(widthVal.Value):0}*{Math.Round(lengthVal.Value):0}";
-                    }
-                }
+                ElementGeometryBinding mainPartGeometry = ElementBindingResolver.ResolveGeometry(mainPart, sceneElements);
+                string profileStr = FormatProfile(mainPartGeometry.WidthM, mainPartGeometry.LengthM);
 
                 properties.Add(CreateGroup("Assembly Summary", true,
                     CreateDisplayProperty("Assembly", assemblyParent.AssemblyMark ?? assemblyParent.ElementMark ?? "-"),
@@ -642,7 +623,7 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                     CreateDisplayProperty("Has Secondary Parts", assemblyParent.HasSecondaryParts ? "Yes" : "No"),
                     CreateDisplayProperty("Included Hidden Contributors", assemblyParent.HasHiddenContributors ? "Rebar weight included" : "None"),
                     CreateDisplayProperty("Total Lift Weight", assemblyParent.AssemblyLiftWeight.HasValue 
-                        ? $"{assemblyParent.AssemblyLiftWeight.Value.ToString("F2", CultureInfo.InvariantCulture)}t" 
+                        ? UnitSystem.FormatMass(assemblyParent.AssemblyLiftWeight.Value, _unitSettingsService.Current, CultureInfo.CurrentCulture)
                         : "-"),
                     CreateDisplayProperty("Profile", profileStr)
                 ));
@@ -887,6 +868,22 @@ namespace CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels
                 : string.Empty;
         }
 
+        private string FormatProfile(double? widthMeters, double? lengthMeters)
+        {
+            if (widthMeters is not > 0 || lengthMeters is not > 0)
+                return "-";
+
+            var settings = _unitSettingsService.Current;
+            double width = UnitSystem.FromMeters(widthMeters.Value, settings.DisplayLengthUnit);
+            double length = UnitSystem.FromMeters(lengthMeters.Value, settings.DisplayLengthUnit);
+            int decimalPlaces = settings.DisplayLengthUnit == LengthUnit.Millimeter
+                ? 0
+                : Math.Clamp(settings.DecimalPlaces, 0, 6);
+            string format = $"F{decimalPlaces}";
+            string symbol = UnitSystem.LengthSymbol(settings.DisplayLengthUnit);
+
+            return $"{width.ToString(format, CultureInfo.CurrentCulture)}*{length.ToString(format, CultureInfo.CurrentCulture)} {symbol}";
+        }
         private string FormatVolume(double? value)
         {
             return value.HasValue
