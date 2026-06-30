@@ -2,6 +2,7 @@ using CraneOptimizer.Application.Services.Identity;
 using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Ifc;
 using System;
 using System.Collections.Generic;
@@ -233,9 +234,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
             result.Assemblies = BuildAssemblyDecompositionAudit(model, allAuditableProducts, geometryContext, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
 
-            progress?.Report(80.0);
-            ProcessPhysicalElements(allAuditableProducts, model, geometryContext, result, result.Metadata.LengthConversionFactor, result.Metadata.VolumeConversionFactor, concreteDensityKgPerM3);
+            ProcessPhysicalElements(allAuditableProducts, model, geometryContext, result, result.Metadata.LengthConversionFactor, result.Metadata.VolumeConversionFactor, result.Metadata.MassConversionFactor, concreteDensityKgPerM3);
             cancellationToken.ThrowIfCancellationRequested();
+
+            result.AssemblyRelations = BuildAssemblyRelations(model, result, geometryContext);
 
             progress?.Report(100.0);
         }
@@ -254,6 +256,65 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return false;
 
             return product is IIfcElement;
+        }
+
+        private static string NormaliseGuid(string guid)
+        {
+            if (string.IsNullOrWhiteSpace(guid)) return string.Empty;
+            guid = guid.Trim().Trim('\'', '"');
+            if (guid.Length == 22)
+            {
+                try
+                {
+                    var converterType = typeof(XbimPoint3D).Assembly.GetType("Xbim.Common.GuidConverter");
+                    if (converterType != null)
+                    {
+                        var toGuidMethod = converterType.GetMethod("ToGuid", new[] { typeof(string) });
+                        if (toGuidMethod != null)
+                        {
+                            var res = toGuidMethod.Invoke(null, new object[] { guid });
+                            if (res is Guid g)
+                            {
+                                return g.ToString("D");
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    return guid.ToLowerInvariant();
+                }
+            }
+            if (Guid.TryParse(guid, out var parsed))
+            {
+                return parsed.ToString("D");
+            }
+            return guid.ToLowerInvariant();
+        }
+
+        private static string? GetPropertyString(IIfcProduct product, params string[] keywords)
+        {
+            var propertySets = product.IsDefinedBy
+                .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
+                .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition);
+
+            foreach (var propertySet in propertySets)
+            {
+                foreach (var property in propertySet.HasProperties.OfType<IIfcPropertySingleValue>())
+                {
+                    var name = property.Name.ToString();
+                    if (keywords.Any(k => name.Contains(k, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var val = property.NominalValue?.Value?.ToString();
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            return val;
+                        }
+                    }
+                }
+            }
+
+            return null;
         }
 
         private static IfcAuditMetadata ExtractMetadata(IfcStore model, string ifcPath)
@@ -482,12 +543,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
             var assemblies = model.Instances.OfType<IIfcElementAssembly>().ToList();
             audit.TotalAssemblyCount = assemblies.Count;
 
-            var parentLabels = new HashSet<int>();
-            var consumedLabels = new HashSet<int>();
+            var detailsMap = new Dictionary<string, AssemblyDecompositionDetail>();
+            var assemblyMap = new Dictionary<string, IIfcElementAssembly>();
 
             foreach (var assembly in assemblies)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                var normalisedParent = NormaliseGuid(assembly.GlobalId.ToString());
+                assemblyMap[normalisedParent] = assembly;
 
                 var detail = new AssemblyDecompositionDetail
                 {
@@ -495,22 +557,121 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     AssemblyName = assembly.Name?.ToString() ?? "-",
                     NestingRelationshipType = "IfcRelAggregates"
                 };
+                detailsMap[normalisedParent] = detail;
+                audit.Details.Add(detail);
+            }
+
+            var childToSourceMap = new Dictionary<string, (string ParentGuid, string Source)>();
+
+            foreach (var assembly in assemblies)
+            {
+                var normalisedParent = NormaliseGuid(assembly.GlobalId.ToString());
 
                 // Find aggregated children
-                var childProducts = assembly.IsDecomposedBy?
+                var aggChildren = assembly.IsDecomposedBy?
                     .SelectMany(rel => rel.RelatedObjects)
                     .OfType<IIfcProduct>()
                     .Where(IsPhysicalProduct)
                     .ToList() ?? new List<IIfcProduct>();
 
+                foreach (var child in aggChildren)
+                {
+                    var childGuid = child.GlobalId.ToString();
+                    var normChild = NormaliseGuid(childGuid);
+                    if (!childToSourceMap.ContainsKey(normChild))
+                    {
+                        childToSourceMap[normChild] = (normalisedParent, "IfcDecomposition");
+                    }
+                }
+
+                // Find nested children
+                var nestChildren = (assembly as IIfcElement)?.IsNestedBy?
+                    .SelectMany(rel => rel.RelatedObjects)
+                    .OfType<IIfcProduct>()
+                    .Where(IsPhysicalProduct)
+                    .ToList() ?? new List<IIfcProduct>();
+
+                foreach (var child in nestChildren)
+                {
+                    var childGuid = child.GlobalId.ToString();
+                    var normChild = NormaliseGuid(childGuid);
+                    if (!childToSourceMap.ContainsKey(normChild))
+                    {
+                        childToSourceMap[normChild] = (normalisedParent, "IfcRelNests");
+                    }
+                }
+            }
+
+            var parentGuidKeywords = new[] { "Assembly GUID", "Parent Assembly GUID", "Cast Unit GUID", "AssemblyGlobalId", "Parent GUID", "AssemblyGUID", "CastUnitGUID", "ParentAssemblyGUID" };
+
+            foreach (var product in physicalProducts)
+            {
+                if (product is IIfcElementAssembly) continue;
+
+                var childGuid = product.GlobalId.ToString();
+                var normChild = NormaliseGuid(childGuid);
+
+                // If not already parented, check Tekla custom parent property
+                if (!childToSourceMap.ContainsKey(normChild))
+                {
+                    var parentGuidVal = GetPropertyString(product, parentGuidKeywords);
+                    if (!string.IsNullOrWhiteSpace(parentGuidVal))
+                    {
+                        var normParent = NormaliseGuid(parentGuidVal);
+                        if (detailsMap.ContainsKey(normParent))
+                        {
+                            childToSourceMap[normChild] = (normParent, "TeklaCastUnit");
+                        }
+                    }
+                }
+            }
+
+            foreach (var assembly in assemblies)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var normalisedParent = NormaliseGuid(assembly.GlobalId.ToString());
+                var detail = detailsMap[normalisedParent];
+
+                // Gather all children for this assembly from the map
+                var childProducts = physicalProducts
+                    .Where(p => !(p is IIfcElementAssembly) && childToSourceMap.TryGetValue(NormaliseGuid(p.GlobalId.ToString()), out var mapping) && mapping.ParentGuid == normalisedParent)
+                    .ToList();
+
                 detail.DirectChildCount = childProducts.Count;
+
+                var relSources = childProducts
+                    .Select(p => childToSourceMap[NormaliseGuid(p.GlobalId.ToString())].Source)
+                    .Distinct()
+                    .ToList();
+
+                if (relSources.Count == 1)
+                {
+                    detail.NestingRelationshipType = relSources[0] == "IfcDecomposition" ? "IfcRelAggregates" : relSources[0];
+                }
+                else if (relSources.Count > 1)
+                {
+                    detail.NestingRelationshipType = "Mixed";
+                }
+                else
+                {
+                    detail.NestingRelationshipType = "None";
+                }
 
                 var recursiveChildren = new List<IIfcProduct>();
                 string relType = "IfcRelAggregates";
                 int maxDepth = GetMaxNestingDepth(assembly, 1, recursiveChildren, ref relType);
-                detail.NestingRelationshipType = relType;
+
+                // Ensure all our resolved child products are in recursiveChildren
+                foreach (var child in childProducts)
+                {
+                    if (!recursiveChildren.Any(rc => rc.GlobalId == child.GlobalId))
+                    {
+                        recursiveChildren.Add(child);
+                    }
+                }
+
                 detail.RecursiveChildCount = recursiveChildren.Count;
-                detail.NestingDepth = maxDepth - 1;
+                detail.NestingDepth = Math.Max(detail.NestingDepth, maxDepth - 1);
 
                 if (detail.DirectChildCount > 0)
                 {
@@ -563,11 +724,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         detail.ChildTypes.Add(childRawType);
                     }
 
-                    // A child has swallowed risk because under current pipeline it gets ignored as an individual liftable item
                     bool swallowed = true;
-
-                    // Double counting risk exists if the child has geometry but is also contained in a parent assembly that has geometry
                     bool doubleCounting = detail.ParentHasGeometry && HasDirectGeometry(child, geometryContext);
+
+                    var relationshipSource = childToSourceMap[NormaliseGuid(child.GlobalId.ToString())].Source;
 
                     detail.ChildDetails.Add(new AssemblyChildDetail
                     {
@@ -576,17 +736,378 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         ChildName = child.Name?.ToString() ?? "-",
                         HasGeometry = HasDirectGeometry(child, geometryContext),
                         DoubleCountingRisk = doubleCounting,
-                        SwallowedRisk = swallowed
+                        SwallowedRisk = swallowed,
+                        RelationshipSource = relationshipSource
                     });
 
                     if (doubleCounting) audit.DoubleCountingRisksCount++;
                     if (swallowed) audit.ChildrenSwallowedCount++;
                 }
-
-                audit.Details.Add(detail);
             }
 
             return audit;
+        }
+
+        private static List<AssemblyRelationshipInfo> BuildAssemblyRelations(IfcStore model, IfcAuditResult auditResult, Xbim3DModelContext geometryContext)
+        {
+            var relations = new List<AssemblyRelationshipInfo>();
+
+            var classificationMap = auditResult.Classifications.ToDictionary(c => c.GlobalId, c => c);
+            var weightMap = auditResult.Weights.ToDictionary(w => w.GlobalId, w => w);
+            var mainPartKeywords = new[] { "IsMainPart", "MainPart", "Main Part", "IsMain", "CastUnitMainPart" };
+            var productMap = model.Instances.OfType<IIfcProduct>().ToDictionary(p => p.GlobalId.ToString(), p => p);
+
+            foreach (var assemblyDetail in auditResult.Assemblies.Details)
+            {
+                var rel = new AssemblyRelationshipInfo
+                {
+                    ParentGlobalId = assemblyDetail.AssemblyGlobalId,
+                    ParentName = assemblyDetail.AssemblyName,
+                    ParentGlobalIdSource = assemblyDetail.NestingRelationshipType
+                };
+
+                if (classificationMap.TryGetValue(assemblyDetail.AssemblyGlobalId, out var parentClassInfo))
+                {
+                    var markDiag = auditResult.AssemblyMarkDiagnostics.FirstOrDefault(m => m.GlobalId == assemblyDetail.AssemblyGlobalId);
+                    rel.AssemblyMark = markDiag?.ResolvedAssemblyMark ?? parentClassInfo.Name ?? "-";
+                }
+
+                var candidateMainParts = new List<AssemblyGraphNode>();
+                var explicitMainParts = new List<AssemblyGraphNode>();
+
+                foreach (var childDetail in assemblyDetail.ChildDetails)
+                {
+                    var childNode = new AssemblyGraphNode
+                    {
+                        ChildGlobalId = childDetail.ChildGlobalId,
+                        ChildName = childDetail.ChildName,
+                        ChildIfcClass = childDetail.ChildRawIfcType
+                    };
+
+                    if (classificationMap.TryGetValue(childDetail.ChildGlobalId, out var classInfo))
+                    {
+                        childNode.ChildCategory = classInfo.CandidateResolvedCategory;
+                    }
+                    if (weightMap.TryGetValue(childDetail.ChildGlobalId, out var weightInfo))
+                    {
+                        childNode.ChildWeightTons = weightInfo.WeightStandardValueTons;
+                    }
+
+                    var ifcClass = childNode.ChildIfcClass.ToUpperInvariant();
+                    var name = childNode.ChildName.ToUpperInvariant();
+                    var category = childNode.ChildCategory.ToUpperInvariant();
+
+                    if (ifcClass == "IFCGRID" || ifcClass == "IFCANNOTATION" || ifcClass == "IFCOPENINGELEMENT" || ifcClass == "IFCVIRTUALELEMENT" || ifcClass == "IFCSPACE" ||
+                        name.Contains("GRID") || name.Contains("OPENING") || name.Contains("VIRTUAL") || name.Contains("ANNOTATION") || name.Contains("SPACE") ||
+                        category.Contains("GRID") || category.Contains("OPENING") || category.Contains("VIRTUAL") || category.Contains("ANNOTATION") || category.Contains("SPACE"))
+                    {
+                        childNode.ChildClassification = AssemblyChildClassification.IgnoredReference;
+                        childNode.Reason = "IFC class or name hint matched IgnoredReference";
+                        rel.IgnoredReferenceCount++;
+                    }
+                    else if (ifcClass == "IFCREINFORCINGBAR" || ifcClass == "IFCREINFORCINGMESH" || ifcClass == "IFCREINFORCINGELEMENT" || ifcClass == "IFCTENDON" || ifcClass == "IFCTENDONANCHOR" ||
+                             name.Contains("REBAR") || name.Contains("REINFORCEMENT") || name.Contains("MESH") || name.Contains("TENDON") || name.Contains("STRAND") || name.Contains("REINFORCING") ||
+                             category.Contains("REBAR") || category.Contains("REINFORCEMENT") || category.Contains("MESH") || category.Contains("TENDON") || category.Contains("STRAND") || category.Contains("REINFORCING"))
+                    {
+                        childNode.ChildClassification = AssemblyChildClassification.HiddenWeightContributor;
+                        childNode.Reason = "IFC class or name hint matched HiddenWeightContributor";
+                        rel.HiddenWeightContributorCount++;
+                    }
+                    else if (ifcClass == "IFCMECHANICALFASTENER" || ifcClass == "IFCDISCRETEACCESSORY" ||
+                             name.Contains("PLATE") || name.Contains("INSERT") || name.Contains("ANCHOR") || name.Contains("BOLT") || name.Contains("WELD") || name.Contains("CONNECTION") || name.Contains("GROUT") || name.Contains("PAINT") || name.Contains("FASTENER") || name.Contains("ACCESSORY") ||
+                             category.Contains("PLATE") || category.Contains("INSERT") || category.Contains("ANCHOR") || category.Contains("BOLT") || category.Contains("WELD") || category.Contains("CONNECTION") || category.Contains("GROUT") || category.Contains("PAINT") || category.Contains("FASTENER") || category.Contains("ACCESSORY"))
+                    {
+                        childNode.ChildClassification = AssemblyChildClassification.AccessoryWeightContributor;
+                        childNode.Reason = "IFC class or name hint matched AccessoryWeightContributor";
+                        rel.AccessoryWeightContributorCount++;
+                    }
+                    else
+                    {
+                        childNode.ChildClassification = AssemblyChildClassification.VisibleSecondaryPart;
+                        childNode.Reason = "Structural element (candidate for MainPart)";
+                        rel.VisibleSecondaryPartCount++;
+                        candidateMainParts.Add(childNode);
+                    }
+
+                    if (productMap.TryGetValue(childDetail.ChildGlobalId, out var childProduct))
+                    {
+                        var explicitProp = GetPropertyString(childProduct, mainPartKeywords);
+                        if (!string.IsNullOrWhiteSpace(explicitProp) && 
+                            (explicitProp.Equals("true", StringComparison.OrdinalIgnoreCase) || 
+                             explicitProp.Equals("1", StringComparison.OrdinalIgnoreCase) || 
+                             explicitProp.Equals("yes", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            explicitMainParts.Add(childNode);
+                        }
+                    }
+
+                    rel.Children.Add(childNode);
+                }
+
+                rel.ChildCount = rel.Children.Count;
+
+                if (explicitMainParts.Count == 1)
+                {
+                    var mainNode = explicitMainParts[0];
+                    mainNode.ChildClassification = AssemblyChildClassification.MainPart;
+                    mainNode.Reason = "Explicitly defined as MainPart in IFC properties";
+                    
+                    rel.MainPartGlobalId = mainNode.ChildGlobalId;
+                    rel.MainPartName = mainNode.ChildName;
+                    rel.MainPartCategory = mainNode.ChildCategory;
+                    rel.MainPartDetectionMethod = AssemblyMainPartDecision.ExplicitMainPart;
+                    
+                    rel.VisibleSecondaryPartCount = Math.Max(0, rel.VisibleSecondaryPartCount - 1);
+                }
+                else if (explicitMainParts.Count > 1)
+                {
+                    rel.Warnings.Add("MultipleMainPartsDetected");
+                    foreach (var mainNode in explicitMainParts)
+                    {
+                        mainNode.ChildClassification = AssemblyChildClassification.MainPart;
+                        mainNode.Reason = "Conflict: Multiple explicit MainParts defined";
+                    }
+                    
+                    var mainNodeSelect = explicitMainParts[0];
+                    rel.MainPartGlobalId = mainNodeSelect.ChildGlobalId;
+                    rel.MainPartName = mainNodeSelect.ChildName;
+                    rel.MainPartCategory = mainNodeSelect.ChildCategory;
+                    rel.MainPartDetectionMethod = AssemblyMainPartDecision.ExplicitMainPart;
+
+                    rel.VisibleSecondaryPartCount = Math.Max(0, rel.VisibleSecondaryPartCount - explicitMainParts.Count);
+                }
+                else
+                {
+                    if (candidateMainParts.Count == 1)
+                    {
+                        var mainNode = candidateMainParts[0];
+                        mainNode.ChildClassification = AssemblyChildClassification.MainPart;
+                        mainNode.Reason = "Inferred as MainPart (single structural candidate)";
+
+                        rel.MainPartGlobalId = mainNode.ChildGlobalId;
+                        rel.MainPartName = mainNode.ChildName;
+                        rel.MainPartCategory = mainNode.ChildCategory;
+                        rel.MainPartDetectionMethod = AssemblyMainPartDecision.InferredHighConfidence;
+
+                        rel.VisibleSecondaryPartCount = 0;
+                    }
+                    else if (candidateMainParts.Count > 1)
+                    {
+                        var sortedCandidates = candidateMainParts
+                            .OrderByDescending(c => c.ChildWeightTons ?? 0)
+                            .ToList();
+
+                        var heaviest = sortedCandidates[0];
+                        var runnerUp = sortedCandidates[1];
+
+                        double heaviestW = heaviest.ChildWeightTons ?? 0;
+                        double runnerUpW = runnerUp.ChildWeightTons ?? 0;
+
+                        bool clearlyHeaviest = heaviestW >= 1.5 * runnerUpW && heaviestW > 0;
+                        bool aligns = CategoryAligns(heaviest.ChildCategory, rel.ParentName) || CategoryAligns(heaviest.ChildCategory, rel.AssemblyMark);
+                        bool competingSimilar = Math.Abs(heaviestW - runnerUpW) < 0.01 && heaviest.ChildCategory.Equals(runnerUp.ChildCategory, StringComparison.OrdinalIgnoreCase);
+
+                        if (clearlyHeaviest && aligns && !competingSimilar)
+                        {
+                            heaviest.ChildClassification = AssemblyChildClassification.MainPart;
+                            heaviest.Reason = $"Inferred as MainPart (clearly heaviest: {heaviestW:F3}t vs runner-up: {runnerUpW:F3}t, category aligns)";
+
+                            rel.MainPartGlobalId = heaviest.ChildGlobalId;
+                            rel.MainPartName = heaviest.ChildName;
+                            rel.MainPartCategory = heaviest.ChildCategory;
+                            rel.MainPartDetectionMethod = AssemblyMainPartDecision.InferredHighConfidence;
+
+                            rel.VisibleSecondaryPartCount = Math.Max(0, rel.VisibleSecondaryPartCount - 1);
+                        }
+                        else
+                        {
+                            rel.MainPartDetectionMethod = AssemblyMainPartDecision.InferredLowConfidence;
+                            rel.Warnings.Add("NoMainPartInferred");
+
+                            heaviest.ChildClassification = AssemblyChildClassification.MainPart;
+                            heaviest.Reason = $"Inferred as MainPart with low confidence (heaviest: {heaviestW:F3}t, runner-up: {runnerUpW:F3}t)";
+
+                            rel.MainPartGlobalId = heaviest.ChildGlobalId;
+                            rel.MainPartName = heaviest.ChildName;
+                            rel.MainPartCategory = heaviest.ChildCategory;
+
+                            rel.VisibleSecondaryPartCount = Math.Max(0, rel.VisibleSecondaryPartCount - 1);
+                        }
+                    }
+                    else
+                    {
+                        rel.MainPartDetectionMethod = AssemblyMainPartDecision.NotDetectable;
+                    }
+                }
+
+                if (rel.MainPartGlobalId != null && rel.Children.Any(c => c.ChildClassification == AssemblyChildClassification.VisibleSecondaryPart))
+                {
+                    var mainNode = rel.Children.First(c => c.ChildGlobalId == rel.MainPartGlobalId);
+                    bool hasDifferentCategory = rel.Children.Any(c => c.ChildClassification == AssemblyChildClassification.VisibleSecondaryPart && !c.ChildCategory.Equals(mainNode.ChildCategory, StringComparison.OrdinalIgnoreCase));
+                    if (hasDifferentCategory)
+                    {
+                        rel.Warnings.Add("MixedCategoryButValidAssembly");
+                    }
+                }
+
+                // Phase 4 Rollup calculation
+                double totalWeight = 0.0;
+                string weightSource = "";
+                string weightWarning = "";
+
+                double parentWeight = 0.0;
+                bool hasParentExplicitWeight = false;
+
+                if (weightMap.TryGetValue(assemblyDetail.AssemblyGlobalId, out var parentWeightInfo))
+                {
+                    parentWeight = parentWeightInfo.WeightStandardValueTons ?? 0.0;
+                    hasParentExplicitWeight = parentWeightInfo.WeightStatus == "ExplicitPositive" || 
+                                              parentWeightInfo.WeightSource.Contains("Explicit");
+                }
+
+                // Sum of eligible children: MainPart, VisibleSecondaryPart, HiddenWeightContributor, AccessoryWeightContributor
+                var eligibleContributors = rel.Children
+                    .Where(c => c.ChildClassification != AssemblyChildClassification.IgnoredReference)
+                    .ToList();
+
+                double childWeightSum = eligibleContributors.Sum(c => c.ChildWeightTons ?? 0.0);
+
+                if (hasParentExplicitWeight && parentWeight > 0.0)
+                {
+                    totalWeight = parentWeight;
+                    weightSource = "ParentExplicitWeight";
+
+                    if (childWeightSum > 0.0)
+                    {
+                        double diff = Math.Abs(parentWeight - childWeightSum);
+                        double max1Pct = Math.Max(0.1, parentWeight * 0.01);
+                        double max5Pct = Math.Max(0.5, parentWeight * 0.05);
+
+                        if (diff > max5Pct)
+                        {
+                            weightWarning = $"SevereWeightMismatch: Parent explicit weight ({parentWeight:F4}t) differs from child sum ({childWeightSum:F4}t) by {diff:F4}t (>5%).";
+                            rel.Warnings.Add("SevereWeightMismatch");
+                        }
+                        else if (diff > max1Pct)
+                        {
+                            weightWarning = $"WeightMismatchWarning: Parent explicit weight ({parentWeight:F4}t) differs from child sum ({childWeightSum:F4}t) by {diff:F4}t (>1%).";
+                            rel.Warnings.Add("WeightMismatchWarning");
+                        }
+                    }
+                }
+                else
+                {
+                    totalWeight = childWeightSum;
+                    weightSource = "ChildSumRollup";
+                }
+
+                rel.ParentExplicitWeight = hasParentExplicitWeight && parentWeight > 0.0 ? parentWeight : (double?)null;
+                rel.ChildWeightSum = childWeightSum > 0.0 ? childWeightSum : (double?)null;
+                rel.AssemblyLiftWeight = totalWeight > 0.0 ? totalWeight : (double?)null;
+                rel.WeightSourceUsed = weightSource;
+                rel.WeightMismatchWarning = weightWarning;
+
+                // COG Rollup Calculation (using physical child COGs)
+                double weightedSumX = 0.0;
+                double weightedSumY = 0.0;
+                double weightedSumZ = 0.0;
+                double totalCogWeight = 0.0;
+                string cogSource = "";
+                string cogWarning = "";
+
+                var mainNodeObj = rel.Children.FirstOrDefault(c => string.Equals(c.ChildGlobalId, rel.MainPartGlobalId, StringComparison.Ordinal));
+                (double X, double Y, double Z)? mainPartCog = null;
+
+                if (mainNodeObj != null && productMap.TryGetValue(mainNodeObj.ChildGlobalId, out var mainProduct))
+                {
+                    var center = TryGetGeometryCenter(mainProduct, geometryContext, auditResult.Metadata.LengthConversionFactor);
+                    if (center.X.HasValue && center.Y.HasValue && center.Z.HasValue)
+                    {
+                        mainPartCog = (center.X.Value, center.Y.Value, center.Z.Value);
+                    }
+                }
+
+                foreach (var childNode in eligibleContributors)
+                {
+                    double w = childNode.ChildWeightTons ?? 0.0;
+                    if (w <= 0.0) continue;
+
+                    if (productMap.TryGetValue(childNode.ChildGlobalId, out var childProduct))
+                    {
+                        var center = TryGetGeometryCenter(childProduct, geometryContext, auditResult.Metadata.LengthConversionFactor);
+                        if (center.X.HasValue && center.Y.HasValue && center.Z.HasValue)
+                        {
+                            weightedSumX += center.X.Value * w;
+                            weightedSumY += center.Y.Value * w;
+                            weightedSumZ += center.Z.Value * w;
+                            totalCogWeight += w;
+                        }
+                        else
+                        {
+                            // Missing COG fallback rules
+                            bool isHiddenOrAccessory = childNode.ChildClassification == AssemblyChildClassification.HiddenWeightContributor ||
+                                                       childNode.ChildClassification == AssemblyChildClassification.AccessoryWeightContributor;
+                            double pct = w / totalWeight;
+
+                            if (isHiddenOrAccessory && pct <= 0.02 && mainPartCog != null)
+                            {
+                                weightedSumX += mainPartCog.Value.X * w;
+                                weightedSumY += mainPartCog.Value.Y * w;
+                                weightedSumZ += mainPartCog.Value.Z * w;
+                                totalCogWeight += w;
+                                cogWarning += $"HiddenAccessoryMissingCogFallback: Child '{childNode.ChildGlobalId}' lacks physical COG but is minor ({pct:P2}). Fell back to main part COG. ";
+                            }
+                            else
+                            {
+                                cogWarning += $"UnsafeCogRollup: Child '{childNode.ChildGlobalId}' has missing COG (weight={w:F4}t, {pct:P2}) and exceeds 2% threshold. ";
+                                rel.Warnings.Add("UnsafeCogRollup");
+                            }
+                        }
+                    }
+                }
+
+                if (totalCogWeight > 0.0)
+                {
+                    rel.AssemblyLiftCOG_X = weightedSumX / totalCogWeight;
+                    rel.AssemblyLiftCOG_Y = weightedSumY / totalCogWeight;
+                    rel.AssemblyLiftCOG_Z = weightedSumZ / totalCogWeight;
+                    cogSource = "ChildWeightedSum";
+                }
+                else if (mainPartCog != null)
+                {
+                    rel.AssemblyLiftCOG_X = mainPartCog.Value.X;
+                    rel.AssemblyLiftCOG_Y = mainPartCog.Value.Y;
+                    rel.AssemblyLiftCOG_Z = mainPartCog.Value.Z;
+                    cogSource = "MainPartFallback";
+                    cogWarning += "NoPhysicalChildrenWithCog: Fallback to main part COG.";
+                }
+                else
+                {
+                    cogSource = "None";
+                    cogWarning += "NoCogAvailable: Assembly lacks any coordinate references.";
+                    rel.Warnings.Add("MissingAssemblyCOG");
+                }
+
+                rel.COGSource = cogSource;
+                rel.COGWarnings = cogWarning.Trim();
+
+                relations.Add(rel);
+            }
+
+            return relations;
+        }
+
+        private static bool CategoryAligns(string childCategory, string parentName)
+        {
+            if (string.IsNullOrWhiteSpace(parentName) || string.IsNullOrWhiteSpace(childCategory)) return false;
+            parentName = parentName.ToUpperInvariant();
+            childCategory = childCategory.ToUpperInvariant();
+            if (childCategory.Contains("WALL") && (parentName.Contains("WALL") || parentName.Contains("W-"))) return true;
+            if (childCategory.Contains("BEAM") && (parentName.Contains("BEAM") || parentName.Contains("B-"))) return true;
+            if (childCategory.Contains("COLUMN") && (parentName.Contains("COLUMN") || parentName.Contains("C-"))) return true;
+            if (childCategory.Contains("SLAB") && (parentName.Contains("SLAB") || parentName.Contains("S-"))) return true;
+            if (childCategory.Contains("FOOTING") && (parentName.Contains("FOOTING") || parentName.Contains("F-"))) return true;
+            return false;
         }
 
         private static int GetMaxNestingDepth(IIfcObjectDefinition obj, int currentDepth, List<IIfcProduct> collectedProducts, ref string relType)
@@ -653,6 +1174,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             IfcAuditResult auditResult,
             double lengthFactor,
             double volumeFactor,
+            double? massFactor,
             double concreteDensityKgPerM3)
         {
             var swallowedGlobalIds = new HashSet<string>(StringComparer.Ordinal);
@@ -692,7 +1214,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 auditResult.Classifications.Add(classification);
 
                 // 2. Weight Audit
-                var weightDetail = AuditWeight(product, resolvedCategory, swallowedGlobalIds.Contains(globalId), concreteDensityKgPerM3, profile);
+                var weightDetail = AuditWeight(product, resolvedCategory, swallowedGlobalIds.Contains(globalId), concreteDensityKgPerM3, profile, massFactor);
                 auditResult.Weights.Add(weightDetail);
 
                 // 3. Volume and Material Audit
@@ -766,7 +1288,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
             string resolvedType,
             bool isSwallowed,
             double concreteDensityKgPerM3,
-            IfcExporterProfile profile)
+            IfcExporterProfile profile,
+            double? massConversionFactor)
         {
             var detail = new ElementWeightAuditDetail
             {
@@ -790,7 +1313,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     {
                         detail.WeightSource = "IfcQuantityWeight.Instance";
                         detail.WeightUnitDetected = "kg";
-                        detail.WeightStandardValueTons = parsedVal / 1000.0;
+                        detail.WeightStandardValueTons = UnitSystem.ToTons(parsedVal, MassUnit.Kilogram);
                     }
                     else
                     {
@@ -820,11 +1343,11 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         var unitInfo = $"{qRes.SourcePropertyName} {detail.WeightUnitDetected}".ToLowerInvariant();
                         if (unitInfo.ContainsAny("kg", "kilo"))
                         {
-                            detail.WeightStandardValueTons = parsedVal / 1000.0;
+                            detail.WeightStandardValueTons = UnitSystem.ToTons(parsedVal, MassUnit.Kilogram);
                         }
                         else if (unitInfo.ContainsAny("ton", "tonne"))
                         {
-                            detail.WeightStandardValueTons = parsedVal;
+                            detail.WeightStandardValueTons = UnitSystem.ToTons(parsedVal, MassUnit.Ton);
                         }
                         else if (unitInfo.ContainsAny("lb", "pound"))
                         {
@@ -832,11 +1355,18 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         }
                         else
                         {
-                            detail.WeightStandardValueTons = parsedVal > 100.0 ? parsedVal / 1000.0 : parsedVal;
-                            if (parsedVal > 100.0)
+                            if (massConversionFactor.HasValue)
                             {
-                                detail.WeightSource = $"{detail.WeightSource} (Heuristically Scaled)";
-                                detail.Warning = "Weight property value exceeded 100. Assumed kilograms and converted to metric tons.";
+                                detail.WeightStandardValueTons = UnitSystem.ToTons(parsedVal * massConversionFactor.Value, MassUnit.Kilogram);
+                            }
+                            else
+                            {
+                                detail.WeightStandardValueTons = parsedVal > 100.0 ? UnitSystem.ToTons(parsedVal, MassUnit.Kilogram) : parsedVal;
+                                if (parsedVal > 100.0)
+                                {
+                                    detail.WeightSource = $"{detail.WeightSource} (Heuristically Scaled)";
+                                    detail.Warning = "Weight property value exceeded 100. Assumed kilograms and converted to metric tons.";
+                                }
                             }
                         }
                     }
@@ -1449,6 +1979,37 @@ namespace CraneOptimizer.Infrastructure.Repositories
             File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
         }
 
+        private static void GenerateAssemblyGraphCsvReport(IfcAuditResult auditResult, string csvPath)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("ParentGlobalId,ParentGlobalIdSource,AssemblyMark,MainPartGlobalId,MainPartName,MainPartCategory,MainPartDetectionMethod,ChildCount,VisibleSecondaryPartCount,HiddenWeightContributorCount,AccessoryWeightContributorCount,IgnoredReferenceCount,HasSecondaryParts,HasHiddenContributors,Warnings");
+
+            foreach (var rel in auditResult.AssemblyRelations)
+            {
+                var warningsStr = rel.Warnings != null && rel.Warnings.Count > 0 ? string.Join("|", rel.Warnings) : string.Empty;
+                sb.AppendLine(string.Join(",", new[]
+                {
+                    Csv(rel.ParentGlobalId),
+                    Csv(rel.ParentGlobalIdSource),
+                    Csv(rel.AssemblyMark),
+                    Csv(rel.MainPartGlobalId),
+                    Csv(rel.MainPartName),
+                    Csv(rel.MainPartCategory),
+                    Csv(rel.MainPartDetectionMethod.ToString()),
+                    rel.ChildCount.ToString(CultureInfo.InvariantCulture),
+                    rel.VisibleSecondaryPartCount.ToString(CultureInfo.InvariantCulture),
+                    rel.HiddenWeightContributorCount.ToString(CultureInfo.InvariantCulture),
+                    rel.AccessoryWeightContributorCount.ToString(CultureInfo.InvariantCulture),
+                    rel.IgnoredReferenceCount.ToString(CultureInfo.InvariantCulture),
+                    rel.HasSecondaryParts.ToString().ToLowerInvariant(),
+                    rel.HasHiddenContributors.ToString().ToLowerInvariant(),
+                    Csv(warningsStr)
+                }));
+            }
+
+            File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
+        }
+
         private static void GenerateAssemblyMarkCsvReport(IfcAuditResult auditResult, string csvPath)
         {
             var sb = new StringBuilder();
@@ -1522,6 +2083,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
             var csvPath = Path.Combine(outputDirectory, $"debug_ifc_elements_{timestamp}.csv");
             var assemblyMarkCsvPath = Path.Combine(outputDirectory, $"debug_ifc_check_assembly_mark_{timestamp}.csv");
             var rawNameCsvPath = Path.Combine(outputDirectory, $"debug_ifc_raw_name_check_{timestamp}.csv");
+            var assemblyGraphCsvPath = Path.Combine(outputDirectory, "debug_ifc_assembly_graph_classification_audit.csv");
+            var assemblyRollupCsvPath = Path.Combine(outputDirectory, "debug_ifc_assembly_lift_unit_rollup_audit.csv");
 
             cancellationToken.ThrowIfCancellationRequested();
             // 1. Generate JSON
@@ -1542,6 +2105,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             cancellationToken.ThrowIfCancellationRequested();
             GenerateRawNameCsvReport(auditResult, rawNameCsvPath);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            GenerateAssemblyGraphCsvReport(auditResult, assemblyGraphCsvPath);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            GenerateAssemblyLiftUnitRollupCsvReport(auditResult, assemblyRollupCsvPath);
 
             Debug.WriteLine($"[IfcDiagnosticAudit] JSON and CSV Reports generated successfully at: {outputDirectory}");
             return outputDirectory;
@@ -1787,6 +2356,46 @@ namespace CraneOptimizer.Infrastructure.Repositories
             sb.AppendLine();
 
             File.WriteAllText(mdPath, sb.ToString(), Encoding.UTF8);
+        }
+
+        private static void GenerateAssemblyLiftUnitRollupCsvReport(IfcAuditResult auditResult, string csvPath)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("LiftUnitId,ParentAssemblyGlobalId,AssemblyMark,MainPartGlobalId,AssemblyMemberIds,ChildCount,VisibleSecondaryPartCount,HiddenWeightContributorCount,AccessoryWeightContributorCount,IgnoredReferenceCount,ParentExplicitWeight,ChildWeightSum,AssemblyLiftWeight,WeightSourceUsed,WeightMismatchWarning,AssemblyLiftCOG_X,AssemblyLiftCOG_Y,AssemblyLiftCOG_Z,COGSource,COGWarnings,HasSecondaryParts,HasHiddenContributors");
+
+            foreach (var rel in auditResult.AssemblyRelations)
+            {
+                var liftUnitId = rel.MainPartGlobalId ?? rel.ParentGlobalId;
+                var memberIds = string.Join(";", rel.Children.Select(c => c.ChildGlobalId));
+
+                sb.AppendLine(string.Join(",", new[]
+                {
+                    Csv(liftUnitId),
+                    Csv(rel.ParentGlobalId),
+                    Csv(rel.AssemblyMark),
+                    Csv(rel.MainPartGlobalId ?? string.Empty),
+                    Csv(memberIds),
+                    rel.ChildCount.ToString(CultureInfo.InvariantCulture),
+                    rel.VisibleSecondaryPartCount.ToString(CultureInfo.InvariantCulture),
+                    rel.HiddenWeightContributorCount.ToString(CultureInfo.InvariantCulture),
+                    rel.AccessoryWeightContributorCount.ToString(CultureInfo.InvariantCulture),
+                    rel.IgnoredReferenceCount.ToString(CultureInfo.InvariantCulture),
+                    rel.ParentExplicitWeight?.ToString("F4", CultureInfo.InvariantCulture) ?? string.Empty,
+                    rel.ChildWeightSum?.ToString("F4", CultureInfo.InvariantCulture) ?? string.Empty,
+                    rel.AssemblyLiftWeight?.ToString("F4", CultureInfo.InvariantCulture) ?? string.Empty,
+                    Csv(rel.WeightSourceUsed),
+                    Csv(rel.WeightMismatchWarning),
+                    rel.AssemblyLiftCOG_X?.ToString("F4", CultureInfo.InvariantCulture) ?? string.Empty,
+                    rel.AssemblyLiftCOG_Y?.ToString("F4", CultureInfo.InvariantCulture) ?? string.Empty,
+                    rel.AssemblyLiftCOG_Z?.ToString("F4", CultureInfo.InvariantCulture) ?? string.Empty,
+                    Csv(rel.COGSource),
+                    Csv(rel.COGWarnings),
+                    rel.HasSecondaryParts.ToString(CultureInfo.InvariantCulture),
+                    rel.HasHiddenContributors.ToString(CultureInfo.InvariantCulture)
+                }));
+            }
+
+            File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
         }
     }
 }

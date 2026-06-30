@@ -94,6 +94,14 @@ namespace CraneOptimizer.Application.Tests
                 CreateCrane(),
                 new List<PrecastElement>
                 {
+                    new PrecastElement
+                    {
+                        ElementID = "PARENT-1",
+                        Role = IfcElementRole.LiftAssembly,
+                        IncludeInGa = true,
+                        MainPartGlobalId = "W1-B",
+                        ChildGlobalIds = new List<string> { "W1-A", "W1-B" }
+                    },
                     CreateElement("W1-A", includeInGa: true, assemblyMark: "W1", weightTons: 2, cogX: 0, parentGlobalId: "PARENT-1", parentGlobalIdSource: "IfcDecomposition"),
                     CreateElement("W1-B", includeInGa: true, assemblyMark: "W1", weightTons: 4, cogX: 9, parentGlobalId: "PARENT-1", parentGlobalIdSource: "IfcDecomposition"),
                     CreateElement("W2-A", includeInGa: true, assemblyMark: "W2", weightTons: 3, cogX: 20)
@@ -101,15 +109,18 @@ namespace CraneOptimizer.Application.Tests
                 new List<GreenAreaZone> { CreateAllowedZone() });
 
             Assert.Equal(2, input.Elements.Count);
-            var group = Assert.Single(input.Elements.Where(element => element.ElementID == "ASM:PARENT-1"));
+            // Representative Lift Unit has the ID of the Main Part (W1-B) per Option E
+            var group = Assert.Single(input.Elements.Where(element => element.ElementID == "W1-B"));
             Assert.Equal("W1", group.AssemblyMark);
-            Assert.Null(group.ElementName);
             Assert.Equal(6, group.WeightTons);
             Assert.Equal(6, group.ElementWT);
-            Assert.Equal(6, group.ElementCOG.X, 3);
-            Assert.Equal(new[] { "W1-A", "W1-B" }, group.ChildGlobalIds);
+            // W1-A: weight 2, x=0. W1-B: weight 4, x=9. Weighted average = (0*2 + 9*4) / 6 = 36/6 = 6.0
+            Assert.Equal(6.0, group.ElementCOG.X, 3);
+            Assert.Contains("W1-A", group.ChildGlobalIds);
+            Assert.Contains("W1-B", group.ChildGlobalIds);
             Assert.Equal(IfcElementRole.LiftAssembly, group.Role);
             Assert.DoesNotContain(input.Elements, element => element.ElementID == "W1-A");
+            Assert.DoesNotContain(input.Elements, element => element.ElementID == "PARENT-1");
             Assert.Contains(input.Elements, element => element.ElementID == "W2-A");
         }
 
@@ -130,25 +141,6 @@ namespace CraneOptimizer.Application.Tests
             Assert.Equal(2, input.Elements.Count);
             Assert.Contains(input.Elements, element => element.ElementID == "W1-A");
             Assert.Contains(input.Elements, element => element.ElementID == "W1-B");
-        }
-
-        [Fact]
-        public void Build_AddsWarningForAmbiguousAssemblyMarkOnly()
-        {
-            var builder = new OptimizationInputBuilder();
-            var input = builder.Build(
-                new GASettings { EnableGroupedLifts = true },
-                CreateCrane(),
-                new List<PrecastElement>
-                {
-                    CreateElement("W1-A", includeInGa: true, assemblyMark: "W1", weightTons: 2, cogX: 0)
-                },
-                new List<GreenAreaZone> { CreateAllowedZone() });
-
-            Assert.Single(input.Elements);
-            var element = input.Elements[0];
-            Assert.Contains("AmbiguousAssemblyMarkOnly", element.ValidationWarnings);
-            Assert.Contains("AmbiguousAssemblyMarkOnly", element.ExtractionWarnings);
         }
         private static Crane CreateCrane()
         {

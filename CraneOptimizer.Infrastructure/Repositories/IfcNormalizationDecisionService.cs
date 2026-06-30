@@ -71,6 +71,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     WeightSource = weightDetail?.WeightSource ?? "Missing",
                     WeightRawValue = weightDetail?.WeightRawValue,
                     WeightStandardValueTons = weightDetail?.WeightStandardValueTons,
+                    VolumeStandardValueM3 = volMatDetail?.VolumeStandardValueM3,
                     WeightTrustLevel = MapWeightTrustLevel(weightDetail)
                 };
 
@@ -82,6 +83,41 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 if (weightDetail?.Warning != null && !string.IsNullOrWhiteSpace(weightDetail.Warning))
                 {
                     preview.Warnings.Add(weightDetail.Warning);
+                }
+
+                // Add detailed Weight Diagnostics
+                if (weightDetail != null)
+                {
+                    var unitStr = string.IsNullOrWhiteSpace(weightDetail.WeightUnitDetected) ? "Unspecified" : weightDetail.WeightUnitDetected;
+                    if (weightDetail.WeightStatus == "ExplicitPositive" || weightDetail.WeightStatus == "SuspiciousExtreme")
+                    {
+                        preview.Warnings.Add($"Weight: raw={weightDetail.WeightRawValue}, unit={unitStr}, normalized={weightDetail.WeightStandardValueTons:F4} tons, source={weightDetail.QuantitySetNameOrPropertySetName}.{weightDetail.WeightPropertyName}, trust={preview.WeightTrustLevel}");
+                    }
+                    else if (weightDetail.WeightStatus == "EstimatedByFallback")
+                    {
+                        preview.Warnings.Add($"Weight: raw={weightDetail.WeightRawValue}, normalized={weightDetail.WeightStandardValueTons:F4} tons, source=Fallback, trust={preview.WeightTrustLevel}, fallbackReason=No explicit weight found; estimated from volume and concrete density");
+                    }
+                    else if (weightDetail.WeightStatus == "ExplicitZeroFromIFC")
+                    {
+                        preview.Warnings.Add($"Weight: raw=0, normalized=0 tons, source={weightDetail.QuantitySetNameOrPropertySetName}.{weightDetail.WeightPropertyName}, trust={preview.WeightTrustLevel}, fallbackReason={weightDetail.Warning}");
+                    }
+                    else
+                    {
+                        preview.Warnings.Add($"Weight: raw=null, normalized=null, source=Missing, trust={preview.WeightTrustLevel}, fallbackReason={weightDetail.Warning}");
+                    }
+                }
+
+                // Add detailed Volume Diagnostics
+                if (volMatDetail != null)
+                {
+                    if (volMatDetail.VolumeRawValue.HasValue)
+                    {
+                        preview.Warnings.Add($"Volume: raw={volMatDetail.VolumeRawValue.Value}, unit={auditResult.Metadata.VolumeUnit}, normalized={volMatDetail.VolumeStandardValueM3:F4} m³, source={volMatDetail.VolumeSource}");
+                    }
+                    else
+                    {
+                        preview.Warnings.Add($"Volume: raw=null, normalized=null, source=Missing");
+                    }
                 }
 
                 previews[elem.GlobalId] = preview;
@@ -101,11 +137,41 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     if (previews.TryGetValue(child.ChildGlobalId, out var childPreview))
                     {
                         childPreview.ParentGlobalId = assembly.AssemblyGlobalId;
-                        childPreview.ParentGlobalIdSource = "IfcDecomposition";
+                        childPreview.ParentGlobalIdSource = child.RelationshipSource;
                     }
                     if (parentPreview != null && !parentPreview.ChildGlobalIds.Contains(child.ChildGlobalId))
                     {
                         parentPreview.ChildGlobalIds.Add(child.ChildGlobalId);
+                    }
+                }
+            }
+
+            // Map assembly classification summary fields from relations to previews
+            foreach (var rel in auditResult.AssemblyRelations)
+            {
+                if (previews.TryGetValue(rel.ParentGlobalId, out var parentPreview))
+                {
+                    parentPreview.MainPartGlobalId = rel.MainPartGlobalId;
+                    parentPreview.MainPartName = rel.MainPartName;
+                    parentPreview.MainPartCategory = rel.MainPartCategory;
+                    parentPreview.MainPartDetectionMethod = rel.MainPartDetectionMethod.ToString();
+                    parentPreview.ChildCount = rel.ChildCount;
+                    parentPreview.VisibleSecondaryPartCount = rel.VisibleSecondaryPartCount;
+                    parentPreview.HiddenWeightContributorCount = rel.HiddenWeightContributorCount;
+                    parentPreview.AccessoryWeightContributorCount = rel.AccessoryWeightContributorCount;
+                    parentPreview.IgnoredReferenceCount = rel.IgnoredReferenceCount;
+                    parentPreview.HasSecondaryParts = rel.HasSecondaryParts;
+                    parentPreview.HasHiddenContributors = rel.HasHiddenContributors;
+
+                    if (rel.Warnings != null)
+                    {
+                        foreach (var warning in rel.Warnings)
+                        {
+                            if (!parentPreview.Warnings.Contains(warning))
+                            {
+                                parentPreview.Warnings.Add(warning);
+                            }
+                        }
                     }
                 }
             }
@@ -334,10 +400,49 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         }
 
                         // Generic grouping fallback
-                        preview.Role = IfcElementRole.NeedsReview;
-                        preview.AssemblyDecision = IfcAssemblyDecision.UnknownNeedsReview;
-                        preview.IncludeInGaPreview = false;
-                        preview.DecisionReason = "Ambiguous assembly container with multiple children. Engineer verification required.";
+                        // Check if this generic assembly is verified as a valid mixed assembly with trusted relationships, main part, weight, and safe COG
+                        var rel = auditResult.AssemblyRelations.FirstOrDefault(r => string.Equals(r.ParentGlobalId, preview.GlobalId, StringComparison.Ordinal));
+                        if (rel != null &&
+                            !string.IsNullOrEmpty(rel.ParentGlobalIdSource) &&
+                            rel.MainPartGlobalId != null &&
+                            rel.AssemblyLiftWeight.HasValue && rel.AssemblyLiftWeight.Value > 0.0 &&
+                            rel.AssemblyLiftCOG_X.HasValue && rel.AssemblyLiftCOG_Y.HasValue && rel.AssemblyLiftCOG_Z.HasValue &&
+                            !rel.Warnings.Contains("UnsafeCogRollup"))
+                        {
+                            preview.Role = IfcElementRole.LiftAssembly;
+                            preview.AssemblyDecision = IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly; // Treat as a valid aggregate lift unit
+                            preview.IncludeInGaPreview = true;
+                            preview.DecisionReason = "Approved assembly lift unit: trusted hierarchy, weight, main part, and safe COG verified.";
+
+                            if (assemblyDetail.GeometryOwnershipPattern == "ChildrenOnly")
+                            {
+                                preview.VisibleGeometryOwnerGlobalIds = nonInternalChildrenIds.ToList();
+                            }
+                            else
+                            {
+                                preview.VisibleGeometryOwnerGlobalIds = new List<string> { preview.GlobalId };
+                            }
+
+                            // Explicitly set child components as Excluded to avoid processing order issues (Phase 4.5)
+                            foreach (var childId in nonInternalChildrenIds)
+                            {
+                                if (previews.TryGetValue(childId, out var childPreview))
+                                {
+                                    childPreview.Role = IfcElementRole.Excluded;
+                                    childPreview.ParentGlobalId = preview.GlobalId;
+                                    childPreview.ParentGlobalIdSource = "IfcDecomposition";
+                                    childPreview.IncludeInGaPreview = false;
+                                    childPreview.DecisionReason = "Swallowed as child component of valid Lift Assembly.";
+                                }
+                            }
+                        }
+                        else
+                        {
+                            preview.Role = IfcElementRole.NeedsReview;
+                            preview.AssemblyDecision = IfcAssemblyDecision.UnknownNeedsReview;
+                            preview.IncludeInGaPreview = false;
+                            preview.DecisionReason = "Ambiguous assembly container with multiple children. Engineer verification required.";
+                        }
                         continue;
                     }
                 }
@@ -356,12 +461,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             continue;
                         }
 
-                        // If parent assembly is a Tekla precast lift assembly, child elements are components of the assembly, not independent lift items
-                        if (parentCP.AssemblyDecision == IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly)
+                        // If parent assembly is a valid LiftAssembly, child elements are components of the assembly, not independent lift items
+                        if (parentCP.Role == IfcElementRole.LiftAssembly)
                         {
                             preview.Role = IfcElementRole.Excluded;
                             preview.IncludeInGaPreview = false;
-                            preview.DecisionReason = "Swallowed as child component of Tekla Lift Assembly.";
+                            preview.DecisionReason = "Swallowed as child component of valid Lift Assembly.";
                             continue;
                         }
                     }

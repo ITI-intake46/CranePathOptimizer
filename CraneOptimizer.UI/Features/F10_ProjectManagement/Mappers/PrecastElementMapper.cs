@@ -16,9 +16,9 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers
         {
             if (domain == null) throw new ArgumentNullException(nameof(domain));
 
-            double cogX = domain.COG_M?.X ?? domain.ElementCOG?.X ?? 0;
-            double cogY = domain.COG_M?.Y ?? domain.ElementCOG?.Y ?? 0;
-            double cogZ = domain.COG_M?.Z ?? domain.ElementCOG?.Z ?? 0;
+            double? cogX = domain.PhysicalCOGAvailable ? (domain.COG_M?.X ?? domain.ElementCOG?.X ?? 0) : (double?)null;
+            double? cogY = domain.PhysicalCOGAvailable ? (domain.COG_M?.Y ?? domain.ElementCOG?.Y ?? 0) : (double?)null;
+            double? cogZ = domain.PhysicalCOGAvailable ? (domain.COG_M?.Z ?? domain.ElementCOG?.Z ?? 0) : (double?)null;
 
             double bboxX = domain.BoundingBox_M?.X ?? domain.BBoxLength ?? 0;
             double bboxY = domain.BoundingBox_M?.Y ?? domain.BBoxWidth ?? 0;
@@ -42,12 +42,12 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers
                 COG_X = cogX,
                 COG_Y = cogY,
                 COG_Z = cogZ,
-                BBoxMinX = cogX - (bboxX / 2),
-                BBoxMinY = cogY - (bboxY / 2),
-                BBoxMinZ = cogZ - (bboxZ / 2),
-                BBoxMaxX = cogX + (bboxX / 2),
-                BBoxMaxY = cogY + (bboxY / 2),
-                BBoxMaxZ = cogZ + (bboxZ / 2),
+                BBoxMinX = domain.PhysicalCOGAvailable ? cogX.Value - (bboxX / 2) : (double?)null,
+                BBoxMinY = domain.PhysicalCOGAvailable ? cogY.Value - (bboxY / 2) : (double?)null,
+                BBoxMinZ = domain.PhysicalCOGAvailable ? cogZ.Value - (bboxZ / 2) : (double?)null,
+                BBoxMaxX = domain.PhysicalCOGAvailable ? cogX.Value + (bboxX / 2) : (double?)null,
+                BBoxMaxY = domain.PhysicalCOGAvailable ? cogY.Value + (bboxY / 2) : (double?)null,
+                BBoxMaxZ = domain.PhysicalCOGAvailable ? cogZ.Value + (bboxZ / 2) : (double?)null,
                 IsLiftable = domain.Role == IfcElementRole.LiftableElement,
 
                 // Phase 2A Normalization fields
@@ -150,6 +150,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers
                 AssemblyMarkSource = entity.AssemblyMarkSource,
                 AssemblyMarkConfidence = confidence,
                 AssemblyMarkIsExplicit = entity.AssemblyMarkIsExplicit,
+                PhysicalCOGAvailable = entity.COG_X.HasValue,
                 SourceSystem = sourceSys,
                 ExporterProfile = exporterProf,
                 ValidationStatus = status,

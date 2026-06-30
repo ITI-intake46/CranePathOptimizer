@@ -71,6 +71,12 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
                 SetIfMissing(values, "LiftStatus", liftStatus);
                 SetIfMissing(values, "SafetyMargin", effectiveSafetyMargin);
 
+                SetIfMissing(values, "ParentAssemblyGlobalId", row.ParentAssemblyGlobalId);
+                SetIfMissing(values, "MainPartGlobalId", row.MainPartGlobalId);
+                SetIfMissing(values, "AssemblyLiftWeight", row.AssemblyLiftWeight);
+                SetIfMissing(values, "AssemblyLiftCOG", row.AssemblyLiftCOG != null ? $"({row.AssemblyLiftCOG.X.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}; {row.AssemblyLiftCOG.Y.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}; {row.AssemblyLiftCOG.Z.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)})" : null);
+                SetIfMissing(values, "AssemblyMemberIds", row.AssemblyMemberIds != null ? string.Join(", ", row.AssemblyMemberIds) : null);
+
                 return new LiftingResultReportRowDto
                 {
                     Values = values,

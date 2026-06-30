@@ -296,6 +296,12 @@ Below is the trace for every property defined in [GASettings.cs](file:///f:/06-I
 *   **Behavioral Impact:** Restricts crane load-chart search to columns matching the specified operating condition label (e.g. "360 degrees", "over rear", "outriggers 50%").
 *   **Recommendation:** Keep. Exposed programmatically for advanced filtering.
 
+### 47. `EnableGroupedLifts`
+*   **Classification:** Actively Used (Defaults to `false`)
+*   **Where Read:** [OptimizationInputBuilder.cs:L122](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.Application/Optimization/GeneticAlgorithms/Engines/OptimizationScope/OptimizationInputBuilder.cs#L122), [CranePlacementService.cs](file:///f:/06-ITI/00-Project/Main%20Project/CraneOptimizer/CraneOptimizer.UI/Features/F8_GAOptimizer/Services/CranePlacementService.cs)
+*   **Behavioral Impact:** Enables assembly rollup lifting optimization. When `true`, sibling components within an assembly are consolidated/swallowed, and lifted as a single representative unit using the physical `MainPartGlobalId` as `LiftUnitId` carrying rolled-up weight and child-weighted centroid COG. When `false`, parent assembly containers are excluded, and children are unrolled to enter the GA independently.
+*   **Recommendation:** Keep. Configurable in the GA Optimization parameters.
+
 ---
 
 ## 2. Categorization & Functional Grouping
@@ -318,6 +324,7 @@ These are mandatory core inputs that influence candidate evolution and mechanica
 *   `RandomSeed`
 *   `LoadChartNumberOfLinesConstraint` (Optional Filter)
 *   `LoadChartOperatingConditionConstraint` (Optional Filter)
+*   `EnableGroupedLifts` (Assembly Consolidation Mode)
 
 ### Settings Affecting Only Diagnostics / Debugging
 *   `ProfilingLogDirectory`

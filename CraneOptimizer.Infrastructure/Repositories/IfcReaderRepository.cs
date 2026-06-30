@@ -161,18 +161,19 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var loadMemoryBefore = GetPrivateMemoryBytes();
                 var session = _sessionService.OpenSession(ifcPath, cancellationToken);
 
-                var extractor = new IfcEngineeringExtractor(
-                    session.Model,
-                    session.GeometryContext,
-                    session.ModelLengthFactor,
-                    concreteDensityKgPerM3,
-                    _aliasResolver);
-
                 // Run synchronous diagnostics audit and normalization decision preview (Task 3 & 4)
                 var auditTimer = Stopwatch.StartNew();
                 var auditResult = _auditService.RunAuditAsync(ifcPath, options, null, cancellationToken).GetAwaiter().GetResult();
                 auditTimer.Stop();
                 var previewResult = _normalizationService.GenerateNormalizationPreviewAsync(auditResult, cancellationToken).GetAwaiter().GetResult();
+
+                var extractor = new IfcEngineeringExtractor(
+                    session.Model,
+                    session.GeometryContext,
+                    session.ModelLengthFactor,
+                    concreteDensityKgPerM3,
+                    _aliasResolver,
+                    auditResult.Metadata);
 
                 var extractionTimer = Stopwatch.StartNew();
                 var elements = extractor.ExtractNormalized(previewResult, auditResult, progress, cancellationToken);
@@ -188,6 +189,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     $"MemoryBeforeLoad={FormatBytes(loadMemoryBefore)}, " +
                     $"MemoryAfterLoad={FormatBytes(GetPrivateMemoryBytes())}");
 
+                CraneOptimizer.Domain.Services.AssemblyRollupService.ReconstructAssemblyClassifications(elements);
                 return elements;
             }
             catch (OperationCanceledException)
@@ -351,6 +353,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             private readonly double _concreteDensityKgPerCubicMeter;
             private readonly ICentralIfcPropertyAliasResolver _aliasResolver;
             private readonly IfcExporterProfile _exporterProfile;
+            private readonly IfcAuditMetadata _auditMetadata;
 
             private readonly Dictionary<int, SourceElementSnapshot> _sourceCache = new();
             private readonly Dictionary<int, AggregateSnapshot> _aggregateCache = new();
@@ -360,7 +363,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 Xbim3DModelContext geometryContext,
                 double lengthToMetersFactor,
                 double concreteDensityKgPerCubicMeter,
-                ICentralIfcPropertyAliasResolver aliasResolver)
+                ICentralIfcPropertyAliasResolver aliasResolver,
+                IfcAuditMetadata auditMetadata)
             {
                 _model = model;
                 _geometryContext = geometryContext;
@@ -368,6 +372,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 _volumeToCubicMetersFactor = Math.Pow(lengthToMetersFactor, 3);
                 _concreteDensityKgPerCubicMeter = concreteDensityKgPerCubicMeter;
                 _aliasResolver = aliasResolver;
+                _auditMetadata = auditMetadata;
 
                 var profileResolver = new IfcExporterProfileResolver();
                 _exporterProfile = profileResolver.ResolveProfile(model.Header?.FileName?.OriginatingSystem ?? string.Empty);
@@ -1066,7 +1071,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
 
 
-            private static double ConvertWeightPropertyToTons(double value, string propertyName, string? unitName)
+            private double ConvertWeightPropertyToTons(double value, string propertyName, string? unitName)
             {
                 var source = $"{propertyName} {unitName}".Trim();
 
@@ -1080,6 +1085,18 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     source.Contains("tonne", StringComparison.OrdinalIgnoreCase))
                 {
                     return value;
+                }
+
+                if (source.Contains("lb", StringComparison.OrdinalIgnoreCase) ||
+                    source.Contains("pound", StringComparison.OrdinalIgnoreCase))
+                {
+                    return value * 0.00045359237; // lb to ton
+                }
+
+                // Fallback to project MassConversionFactor
+                if (_auditMetadata.MassConversionFactor.HasValue)
+                {
+                    return UnitSystem.ToTons(value * _auditMetadata.MassConversionFactor.Value, MassUnit.Kilogram);
                 }
 
                 // Tekla often writes plain numeric "Weight" properties in kilograms.
@@ -1162,7 +1179,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 rawLength.HasValue ? ConvertLength(rawLength.Value) : null;
 
             private double? ConvertVolume(double? rawVolume) =>
-                rawVolume.HasValue ? rawVolume.Value * _volumeToCubicMetersFactor : null;
+                rawVolume.HasValue ? rawVolume.Value * _auditMetadata.VolumeConversionFactor : null;
 
             // -------------------------------------------------------------------------
             // Static helpers
@@ -1341,6 +1358,19 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     pe.Role = preview.Role;
                     pe.ParentGlobalId = preview.ParentGlobalId;
                     pe.ParentGlobalIdSource = preview.ParentGlobalIdSource;
+
+                    // Phase 3 Assembly Classification fields
+                    pe.MainPartGlobalId = preview.MainPartGlobalId;
+                    pe.MainPartName = preview.MainPartName;
+                    pe.MainPartCategory = preview.MainPartCategory;
+                    pe.MainPartDetectionMethod = preview.MainPartDetectionMethod;
+                    pe.ChildCount = preview.ChildCount;
+                    pe.VisibleSecondaryPartCount = preview.VisibleSecondaryPartCount;
+                    pe.HiddenWeightContributorCount = preview.HiddenWeightContributorCount;
+                    pe.AccessoryWeightContributorCount = preview.AccessoryWeightContributorCount;
+                    pe.IgnoredReferenceCount = preview.IgnoredReferenceCount;
+                    pe.HasSecondaryParts = preview.HasSecondaryParts;
+                    pe.HasHiddenContributors = preview.HasHiddenContributors;
                     pe.ChildGlobalIds = new List<string>(preview.ChildGlobalIds);
                     pe.VisibleGeometryOwnerGlobalIds = new List<string>(preview.VisibleGeometryOwnerGlobalIds);
                     pe.HiddenInternalGeometryOwnerGlobalIds = new List<string>(preview.HiddenInternalGeometryOwnerGlobalIds);
@@ -1412,6 +1442,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     }
 
                     // Geometry / COG / Volume / BoundingBox setup
+                    // Geometry / COG / Volume / BoundingBox setup
                     if (preview.Role == IfcElementRole.LiftAssembly)
                     {
                         // Consolidated assembly: we should resolve aggregate geometry/COG/bounds
@@ -1438,6 +1469,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                 }
                                 pe.ElementCOG = aggregate.CenterOfGravity;
                                 pe.COG_M = aggregate.CenterOfGravity; // standardized unit is meters
+                                pe.PhysicalCOGAvailable = sourceSnapshot?.Geometry != null;
                             }
                         }
                     }
@@ -1446,8 +1478,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         // Single / standard element
                         if (sourceSnapshot != null)
                         {
-                            pe.ElementVolume = sourceSnapshot.Volume;
-                            pe.VolumeM3 = sourceSnapshot.Volume;
+                            pe.ElementVolume = preview.VolumeStandardValueM3 ?? sourceSnapshot.Volume;
+                            pe.VolumeM3 = preview.VolumeStandardValueM3 ?? sourceSnapshot.Volume;
 
                             if (sourceSnapshot.Geometry != null)
                             {
@@ -1460,6 +1492,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                     Y = sourceSnapshot.Geometry.Width,
                                     Z = sourceSnapshot.Geometry.Height
                                 };
+                                pe.PhysicalCOGAvailable = true;
                             }
                             else
                             {
@@ -1472,11 +1505,17 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                     Y = sourceSnapshot.ElementWidth ?? 0,
                                     Z = sourceSnapshot.ElementHeight ?? 0
                                 };
+                                pe.PhysicalCOGAvailable = false;
                             }
 
                             pe.ElementCOG = sourceSnapshot.CenterOfGravity;
                             pe.COG_M = sourceSnapshot.CenterOfGravity;
                         }
+                    }
+
+                    if (!pe.PhysicalCOGAvailable && preview.RawIfcType == "IfcElementAssembly")
+                    {
+                        pe.ExtractionWarnings.Add("ContainerOnlyAssembly: Physical COG is unavailable because the assembly has no direct geometry shape representation.");
                     }
                     // Last-resort geometry volume fallback from bounding box.
                     // This is approximate, but better than zero for GA pre-screening.
@@ -1778,6 +1817,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     AssemblyMarkSource = "Snapshot",
                     AssemblyMarkConfidence = AssemblyMarkConfidence.High,
                     AssemblyMarkIsExplicit = true,
+                    PhysicalCOGAvailable = snapshot.Geometry != null,
                     SourceSystem = SourceSystem.IFC,
                     ExporterProfile = IfcExporterProfile.Generic,
                     ValidationStatus = ValidationStatus.Valid

@@ -282,7 +282,13 @@ namespace CraneOptimizer.Application.Tests
                 Assert.True(Directory.Exists(outputDir));
 
                 var files = Directory.GetFiles(outputDir);
-                Assert.Equal(4, files.Length);
+                Assert.Equal(6, files.Length);
+
+                var assemblyGraphFile = files.FirstOrDefault(f => f.EndsWith("debug_ifc_assembly_graph_classification_audit.csv"));
+                Assert.NotNull(assemblyGraphFile);
+
+                var assemblyRollupFile = files.FirstOrDefault(f => f.EndsWith("debug_ifc_assembly_lift_unit_rollup_audit.csv"));
+                Assert.NotNull(assemblyRollupFile);
 
                 var jsonFile = files.FirstOrDefault(f => f.EndsWith(".json"));
                 var csvFile = files.FirstOrDefault(f => f.Contains("debug_ifc_elements_") && f.EndsWith(".csv"));
@@ -686,7 +692,7 @@ namespace CraneOptimizer.Application.Tests
             // Roll-up verification
             Assert.Equal(0.45, host.ReinforcementWeightContributionTons);
             Assert.Equal(IfcWeightTrustLevel.RequiresUserApproval, host.WeightTrustLevel);
-            Assert.Contains("positive reinforcement steel weight is available", host.Warnings[0]);
+            Assert.Contains(host.Warnings, w => w.Contains("positive reinforcement steel weight is available"));
         }
 
         [Fact]

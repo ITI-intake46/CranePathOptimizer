@@ -3,6 +3,7 @@ using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Schemas.Enums;
+using CraneOptimizer.Domain.Services;
 using CraneOptimizer.Domain.CreatedProject.IfcFiles;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Mappers;
 using CraneOptimizer.Infrastructure.Ifc;
@@ -684,7 +685,9 @@ namespace CraneOptimizer.Application.Tests
                 WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
                 WeightTons = 10.0,
                 ElementWT = 10.0,
-                ElementCOG = new DomainPoint3D(10, 10, 2)
+                ElementCOG = new DomainPoint3D(10, 10, 2),
+                MainPartGlobalId = "ChildPart",
+                ChildGlobalIds = new List<string> { "ChildPart" }
             };
 
             // Child element is also included
@@ -700,6 +703,9 @@ namespace CraneOptimizer.Application.Tests
                 ElementWT = 5.0,
                 ElementCOG = new DomainPoint3D(10, 10, 2)
             };
+
+            // Reconstruct classifications
+            AssemblyRollupService.ReconstructAssemblyClassifications(new List<PrecastElement> { parent, child });
 
             var placementEngine = new MockPlacementEngine();
             var service = CreatePlacementService(new List<PrecastElement> { parent, child }, placementEngine);
@@ -719,15 +725,16 @@ namespace CraneOptimizer.Application.Tests
             };
 
             // Act
-            await service.RunOptimizationAsync(new GASettings { EnableMultiStageDiscovery = false }, crane);
+            await service.RunOptimizationAsync(new GASettings { EnableMultiStageDiscovery = false, EnableGroupedLifts = true }, crane);
 
             // Assert
             Assert.NotNull(placementEngine.LastInput);
             var gaElements = placementEngine.LastInput.Elements;
             
-            // Should contain parent but exclude child part to prevent double-counting
-            Assert.Contains(gaElements, e => e.ElementID == "ParentAssembly");
-            Assert.DoesNotContain(gaElements, e => e.ElementID == "ChildPart");
+            // Should contain representative main part carrying parent rollup weight, and exclude container parent
+            var liftUnit = Assert.Single(gaElements);
+            Assert.Equal("ChildPart", liftUnit.ElementID);
+            Assert.Equal(10.0, liftUnit.WeightTons);
         }
 
         [Fact]
