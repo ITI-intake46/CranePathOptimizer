@@ -738,36 +738,111 @@ namespace CraneOptimizer.Infrastructure.Repositories
             IfcAuditResult result,
             GeometryQueryCounters counters)
         {
-            var grouped = physicalProducts
-                .GroupBy(p => p.ExpressType?.Name ?? p.GetType().Name)
-                .Select(g =>
+            var stageStartedUtc = DateTime.UtcNow;
+            var stageTimer = Stopwatch.StartNew();
+
+            // Phase 4G: single-pass raw type summary.
+            // Avoids repeated grouped list materialization and shape list allocation.
+            // Output remains the same RawIfcTypeSummary contract.
+            var summariesByType = new Dictionary<string, RawIfcTypeSummary>(StringComparer.Ordinal);
+
+            foreach (var product in physicalProducts)
+            {
+                var rawType = product.ExpressType?.Name ?? product.GetType().Name;
+                if (!summariesByType.TryGetValue(rawType, out var summary))
                 {
-                    var items = g.ToList();
-                    return new RawIfcTypeSummary
+                    summary = new RawIfcTypeSummary
                     {
-                        RawIfcClass = g.Key,
-                        TotalCount = items.Count,
-                        CountWithGlobalId = items.Count(p => !string.IsNullOrEmpty(p.GlobalId)),
-                        CountWithName = items.Count(p => !string.IsNullOrEmpty(p.Name?.ToString())),
-                        CountWithObjectPlacement = items.Count(p => p.ObjectPlacement != null),
-                        CountWithShapeInstances = items.Count(p =>
-                        {
-                            return GetProductShapeInstances(
-                                p,
-                                geometryContext,
-                                shapeInstancesLookup,
-                                result,
-                                counters).Any();
-                        }),
-                        CountWithQuantitySets = items.Count(p => p.IsDefinedBy.Any(r => r.RelatingPropertyDefinition is IIfcElementQuantity)),
-                        CountWithPropertySets = items.Count(p => p.IsDefinedBy.Any(r => r.RelatingPropertyDefinition is IIfcPropertySet)),
-                        CountWithMaterialAssociation = items.Count(p => p.HasAssociations.OfType<IIfcRelAssociatesMaterial>().Any())
+                        RawIfcClass = rawType
                     };
-                })
+                    summariesByType[rawType] = summary;
+                }
+
+                summary.TotalCount++;
+
+                if (!string.IsNullOrEmpty(product.GlobalId))
+                    summary.CountWithGlobalId++;
+
+                if (!string.IsNullOrEmpty(product.Name?.ToString()))
+                    summary.CountWithName++;
+
+                if (product.ObjectPlacement != null)
+                    summary.CountWithObjectPlacement++;
+
+                if (HasProductShapeInstanceFast(product, geometryContext, shapeInstancesLookup, result, counters))
+                    summary.CountWithShapeInstances++;
+
+                bool hasQuantitySet = false;
+                bool hasPropertySet = false;
+
+                foreach (var relation in product.IsDefinedBy)
+                {
+                    if (!hasQuantitySet && relation.RelatingPropertyDefinition is IIfcElementQuantity)
+                    {
+                        hasQuantitySet = true;
+                    }
+                    else if (!hasPropertySet && relation.RelatingPropertyDefinition is IIfcPropertySet)
+                    {
+                        hasPropertySet = true;
+                    }
+
+                    if (hasQuantitySet && hasPropertySet)
+                        break;
+                }
+
+                if (hasQuantitySet)
+                    summary.CountWithQuantitySets++;
+
+                if (hasPropertySet)
+                    summary.CountWithPropertySets++;
+
+                if (product.HasAssociations.OfType<IIfcRelAssociatesMaterial>().Any())
+                    summary.CountWithMaterialAssociation++;
+            }
+
+            var grouped = summariesByType.Values
                 .OrderByDescending(s => s.TotalCount)
                 .ToList();
 
+            stageTimer.Stop();
+            var stageCompletedUtc = DateTime.UtcNow;
+            IfcImportProfiler.Record(
+                "RunningDiagnosticsAudit",
+                "Audit_BuildRawTypeSummary_SinglePass",
+                "Completed",
+                stageStartedUtc,
+                stageCompletedUtc,
+                stageTimer.ElapsedMilliseconds,
+                "RawTypesCount",
+                grouped.Count,
+                true,
+                currentIndex: physicalProducts.Count,
+                totalCount: physicalProducts.Count);
+
             return grouped;
+        }
+
+        private static bool HasProductShapeInstanceFast(
+            IIfcProduct product,
+            Xbim3DModelContext? geometryContext,
+            ILookup<int, XbimShapeInstance>? shapeInstancesLookup,
+            IfcAuditResult result,
+            GeometryQueryCounters counters)
+        {
+            if (geometryContext == null)
+                return false;
+
+            if (shapeInstancesLookup != null)
+            {
+                return shapeInstancesLookup.Contains(product.EntityLabel) && shapeInstancesLookup[product.EntityLabel].Any();
+            }
+
+            return GetProductShapeInstances(
+                product,
+                geometryContext,
+                shapeInstancesLookup,
+                result,
+                counters).Any();
         }
 
         private static void AddGridAxisRawTypeSummary(IfcStore model, ICollection<RawIfcTypeSummary> summaries)
@@ -793,12 +868,43 @@ namespace CraneOptimizer.Infrastructure.Repositories
             GeometryQueryCounters counters,
             CancellationToken cancellationToken)
         {
+            var totalStartedUtc = DateTime.UtcNow;
+            var totalTimer = Stopwatch.StartNew();
             var audit = new AssemblyDecompositionAudit();
+            var geometryPresenceCache = new Dictionary<int, bool>();
+
+            bool HasDirectGeometryCached(IIfcProduct product)
+            {
+                if (geometryPresenceCache.TryGetValue(product.EntityLabel, out var cached))
+                    return cached;
+
+                var hasGeometry = HasDirectGeometry(product, geometryContext, shapeInstancesLookup, result, counters);
+                geometryPresenceCache[product.EntityLabel] = hasGeometry;
+                return hasGeometry;
+            }
+
+            void RecordSubStage(string subStage, DateTime startedUtc, Stopwatch timer, string countName, long countValue)
+            {
+                timer.Stop();
+                IfcImportProfiler.Record(
+                    "RunningDiagnosticsAudit",
+                    subStage,
+                    "Completed",
+                    startedUtc,
+                    DateTime.UtcNow,
+                    timer.ElapsedMilliseconds,
+                    countName,
+                    countValue,
+                    true);
+            }
+
+            var mapStartedUtc = DateTime.UtcNow;
+            var mapTimer = Stopwatch.StartNew();
             var assemblies = model.Instances.OfType<IIfcElementAssembly>().ToList();
             audit.TotalAssemblyCount = assemblies.Count;
 
-            var detailsMap = new Dictionary<string, AssemblyDecompositionDetail>();
-            var assemblyMap = new Dictionary<string, IIfcElementAssembly>();
+            var detailsMap = new Dictionary<string, AssemblyDecompositionDetail>(StringComparer.Ordinal);
+            var assemblyMap = new Dictionary<string, IIfcElementAssembly>(StringComparer.Ordinal);
 
             foreach (var assembly in assemblies)
             {
@@ -814,97 +920,144 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 detailsMap[normalisedParent] = detail;
                 audit.Details.Add(detail);
             }
+            RecordSubStage("Audit_BuildAssemblyDecomposition_BuildAssemblyMaps", mapStartedUtc, mapTimer, "AssemblyCount", assemblies.Count);
 
-            var childToSourceMap = new Dictionary<string, (string ParentGuid, string Source)>();
+            var childToSourceMap = new Dictionary<string, (string ParentGuid, string Source)>(StringComparer.Ordinal);
 
+            var relationStartedUtc = DateTime.UtcNow;
+            var relationTimer = Stopwatch.StartNew();
             foreach (var assembly in assemblies)
             {
                 var normalisedParent = NormaliseGuid(assembly.GlobalId.ToString());
 
-                // Find aggregated children
-                var aggChildren = assembly.IsDecomposedBy?
-                    .SelectMany(rel => rel.RelatedObjects)
-                    .OfType<IIfcProduct>()
-                    .Where(IsPhysicalProduct)
-                    .ToList() ?? new List<IIfcProduct>();
+                var aggChildren = assembly.IsDecomposedBy == null
+                    ? Enumerable.Empty<IIfcProduct>()
+                    : assembly.IsDecomposedBy
+                        .SelectMany(rel => rel.RelatedObjects)
+                        .OfType<IIfcProduct>()
+                        .Where(IsPhysicalProduct);
 
                 foreach (var child in aggChildren)
                 {
-                    var childGuid = child.GlobalId.ToString();
-                    var normChild = NormaliseGuid(childGuid);
+                    var normChild = NormaliseGuid(child.GlobalId.ToString());
                     if (!childToSourceMap.ContainsKey(normChild))
                     {
                         childToSourceMap[normChild] = (normalisedParent, "IfcDecomposition");
                     }
                 }
 
-                // Find nested children
-                var nestChildren = (assembly as IIfcElement)?.IsNestedBy?
-                    .SelectMany(rel => rel.RelatedObjects)
-                    .OfType<IIfcProduct>()
-                    .Where(IsPhysicalProduct)
-                    .ToList() ?? new List<IIfcProduct>();
+                var nestChildren = (assembly as IIfcElement)?.IsNestedBy == null
+                    ? Enumerable.Empty<IIfcProduct>()
+                    : ((IIfcElement)assembly).IsNestedBy
+                        .SelectMany(rel => rel.RelatedObjects)
+                        .OfType<IIfcProduct>()
+                        .Where(IsPhysicalProduct);
 
                 foreach (var child in nestChildren)
                 {
-                    var childGuid = child.GlobalId.ToString();
-                    var normChild = NormaliseGuid(childGuid);
+                    var normChild = NormaliseGuid(child.GlobalId.ToString());
                     if (!childToSourceMap.ContainsKey(normChild))
                     {
                         childToSourceMap[normChild] = (normalisedParent, "IfcRelNests");
                     }
                 }
             }
+            RecordSubStage("Audit_BuildAssemblyDecomposition_ResolveIfcRelations", relationStartedUtc, relationTimer, "ChildRelationCount", childToSourceMap.Count);
 
+            var teklaStartedUtc = DateTime.UtcNow;
+            var teklaTimer = Stopwatch.StartNew();
             var parentGuidKeywords = new[] { "Assembly GUID", "Parent Assembly GUID", "Cast Unit GUID", "AssemblyGlobalId", "Parent GUID", "AssemblyGUID", "CastUnitGUID", "ParentAssemblyGUID" };
 
             foreach (var product in physicalProducts)
             {
-                if (product is IIfcElementAssembly) continue;
+                cancellationToken.ThrowIfCancellationRequested();
 
-                var childGuid = product.GlobalId.ToString();
-                var normChild = NormaliseGuid(childGuid);
+                if (product is IIfcElementAssembly)
+                    continue;
 
-                // If not already parented, check Tekla custom parent property
-                if (!childToSourceMap.ContainsKey(normChild))
+                var normChild = NormaliseGuid(product.GlobalId.ToString());
+                if (childToSourceMap.ContainsKey(normChild))
+                    continue;
+
+                var parentGuidVal = GetPropertyString(product, parentGuidKeywords);
+                if (string.IsNullOrWhiteSpace(parentGuidVal))
+                    continue;
+
+                var normParent = NormaliseGuid(parentGuidVal);
+                if (detailsMap.ContainsKey(normParent))
                 {
-                    var parentGuidVal = GetPropertyString(product, parentGuidKeywords);
-                    if (!string.IsNullOrWhiteSpace(parentGuidVal))
-                    {
-                        var normParent = NormaliseGuid(parentGuidVal);
-                        if (detailsMap.ContainsKey(normParent))
-                        {
-                            childToSourceMap[normChild] = (normParent, "TeklaCastUnit");
-                        }
-                    }
+                    childToSourceMap[normChild] = (normParent, "TeklaCastUnit");
                 }
             }
+            RecordSubStage("Audit_BuildAssemblyDecomposition_ResolveTeklaParentGuidProperties", teklaStartedUtc, teklaTimer, "ChildRelationCount", childToSourceMap.Count);
+
+            var indexStartedUtc = DateTime.UtcNow;
+            var indexTimer = Stopwatch.StartNew();
+            var parentToChildrenMap = new Dictionary<string, List<IIfcProduct>>(StringComparer.Ordinal);
+            var parentToRelationshipSources = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+
+            // Preserve previous behavior: children are ordered by physicalProducts order.
+            foreach (var product in physicalProducts)
+            {
+                if (product is IIfcElementAssembly)
+                    continue;
+
+                var normChild = NormaliseGuid(product.GlobalId.ToString());
+                if (!childToSourceMap.TryGetValue(normChild, out var mapping))
+                    continue;
+
+                if (!detailsMap.ContainsKey(mapping.ParentGuid))
+                    continue;
+
+                if (!parentToChildrenMap.TryGetValue(mapping.ParentGuid, out var children))
+                {
+                    children = new List<IIfcProduct>();
+                    parentToChildrenMap[mapping.ParentGuid] = children;
+                }
+                children.Add(product);
+
+                if (!parentToRelationshipSources.TryGetValue(mapping.ParentGuid, out var sources))
+                {
+                    sources = new HashSet<string>(StringComparer.Ordinal);
+                    parentToRelationshipSources[mapping.ParentGuid] = sources;
+                }
+                sources.Add(mapping.Source);
+            }
+            RecordSubStage("Audit_BuildAssemblyDecomposition_BuildParentChildIndex", indexStartedUtc, indexTimer, "ParentWithChildrenCount", parentToChildrenMap.Count);
+
+            var detailsStartedUtc = DateTime.UtcNow;
+            var detailsTimer = Stopwatch.StartNew();
+            var auditChildRawTypeSet = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (var assembly in assemblies)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+
                 var normalisedParent = NormaliseGuid(assembly.GlobalId.ToString());
                 var detail = detailsMap[normalisedParent];
 
-                // Gather all children for this assembly from the map
-                var childProducts = physicalProducts
-                    .Where(p => !(p is IIfcElementAssembly) && childToSourceMap.TryGetValue(NormaliseGuid(p.GlobalId.ToString()), out var mapping) && mapping.ParentGuid == normalisedParent)
-                    .ToList();
+                if (!parentToChildrenMap.TryGetValue(normalisedParent, out var childProducts))
+                {
+                    childProducts = new List<IIfcProduct>();
+                }
 
                 detail.DirectChildCount = childProducts.Count;
 
-                var relSources = childProducts
-                    .Select(p => childToSourceMap[NormaliseGuid(p.GlobalId.ToString())].Source)
-                    .Distinct()
-                    .ToList();
-
-                if (relSources.Count == 1)
+                if (parentToRelationshipSources.TryGetValue(normalisedParent, out var relSourceSet))
                 {
-                    detail.NestingRelationshipType = relSources[0] == "IfcDecomposition" ? "IfcRelAggregates" : relSources[0];
-                }
-                else if (relSources.Count > 1)
-                {
-                    detail.NestingRelationshipType = "Mixed";
+                    var relSources = relSourceSet.ToList();
+                    if (relSources.Count == 1)
+                    {
+                        detail.NestingRelationshipType = relSources[0] == "IfcDecomposition" ? "IfcRelAggregates" : relSources[0];
+                    }
+                    else if (relSources.Count > 1)
+                    {
+                        detail.NestingRelationshipType = "Mixed";
+                    }
+                    else
+                    {
+                        detail.NestingRelationshipType = "None";
+                    }
                 }
                 else
                 {
@@ -915,10 +1068,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 string relType = "IfcRelAggregates";
                 int maxDepth = GetMaxNestingDepth(assembly, 1, recursiveChildren, ref relType);
 
-                // Ensure all our resolved child products are in recursiveChildren
+                var recursiveChildLabels = new HashSet<int>(recursiveChildren.Select(child => child.EntityLabel));
                 foreach (var child in childProducts)
                 {
-                    if (!recursiveChildren.Any(rc => rc.GlobalId == child.GlobalId))
+                    if (recursiveChildLabels.Add(child.EntityLabel))
                     {
                         recursiveChildren.Add(child);
                     }
@@ -943,9 +1096,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     audit.MaxDecompositionDepth = detail.NestingDepth;
                 }
 
-                // Check geometry ownership pattern
-                detail.ParentHasGeometry = HasDirectGeometry(assembly, geometryContext, shapeInstancesLookup, result, counters);
-                detail.ChildrenHaveGeometry = recursiveChildren.Any(c => HasDirectGeometry(c, geometryContext, shapeInstancesLookup, result, counters));
+                detail.ParentHasGeometry = HasDirectGeometryCached(assembly);
+                detail.ChildrenHaveGeometry = recursiveChildren.Any(HasDirectGeometryCached);
 
                 if (detail.ParentHasGeometry && detail.ChildrenHaveGeometry)
                 {
@@ -964,23 +1116,24 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     detail.GeometryOwnershipPattern = "None";
                 }
 
-                // Details for child elements
+                var detailChildTypeSet = new HashSet<string>(detail.ChildTypes, StringComparer.Ordinal);
+
                 foreach (var child in childProducts)
                 {
                     var childRawType = child.ExpressType?.Name ?? child.GetType().Name;
-                    if (!audit.ChildRawIfcTypes.Contains(childRawType))
+                    if (auditChildRawTypeSet.Add(childRawType))
                     {
                         audit.ChildRawIfcTypes.Add(childRawType);
                     }
 
-                    if (!detail.ChildTypes.Contains(childRawType))
+                    if (detailChildTypeSet.Add(childRawType))
                     {
                         detail.ChildTypes.Add(childRawType);
                     }
 
                     bool swallowed = true;
-                    bool doubleCounting = detail.ParentHasGeometry && HasDirectGeometry(child, geometryContext, shapeInstancesLookup, result, counters);
-
+                    bool childHasGeometry = HasDirectGeometryCached(child);
+                    bool doubleCounting = detail.ParentHasGeometry && childHasGeometry;
                     var relationshipSource = childToSourceMap[NormaliseGuid(child.GlobalId.ToString())].Source;
 
                     detail.ChildDetails.Add(new AssemblyChildDetail
@@ -988,7 +1141,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         ChildGlobalId = child.GlobalId.ToString(),
                         ChildRawIfcType = childRawType,
                         ChildName = child.Name?.ToString() ?? "-",
-                        HasGeometry = HasDirectGeometry(child, geometryContext, shapeInstancesLookup, result, counters),
+                        HasGeometry = childHasGeometry,
                         DoubleCountingRisk = doubleCounting,
                         SwallowedRisk = swallowed,
                         RelationshipSource = relationshipSource
@@ -998,6 +1151,19 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     if (swallowed) audit.ChildrenSwallowedCount++;
                 }
             }
+            RecordSubStage("Audit_BuildAssemblyDecomposition_BuildDetails", detailsStartedUtc, detailsTimer, "AssemblyCount", audit.Details.Count);
+
+            totalTimer.Stop();
+            IfcImportProfiler.Record(
+                "RunningDiagnosticsAudit",
+                "Audit_BuildAssemblyDecomposition_OptimizedTotal",
+                "Completed",
+                totalStartedUtc,
+                DateTime.UtcNow,
+                totalTimer.ElapsedMilliseconds,
+                "AssemblyCount",
+                audit.Details.Count,
+                true);
 
             return audit;
         }
