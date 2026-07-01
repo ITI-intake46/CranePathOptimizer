@@ -472,9 +472,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
             private readonly Dictionary<int, SourceElementSnapshot> _sourceCache = new();
             private readonly Dictionary<int, AggregateSnapshot> _aggregateCache = new();
             private readonly Dictionary<int, CanonicalAssemblyIdentityResult> _canonicalIdentityCache = new();
+            private readonly Dictionary<int, SourceProductPropertySnapshot> _propertySnapshotCache = new();
+            private readonly IIfcExporterProfile _exporterProfileDefinition;
 
             // Phase 4A: import extraction sub-profiler.
             // Per-extractor instance only; no static/session-crossing state.
+            private long _sourceSnapshotPropertySnapshotMs;
             private long _sourceSnapshotDimensionMs;
             private long _sourceSnapshotVolumeMs;
             private long _sourceSnapshotMaterialMs;
@@ -501,6 +504,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 var profileResolver = new IfcExporterProfileResolver();
                 _exporterProfile = profileResolver.ResolveProfile(model.Header?.FileName?.OriginatingSystem ?? string.Empty);
+                _exporterProfileDefinition = _exporterProfile switch
+                {
+                    IfcExporterProfile.Tekla => new TeklaIfcExporterProfile(),
+                    IfcExporterProfile.Revit => new RevitIfcExporterProfile(),
+                    _ => new GenericIfcExporterProfile()
+                };
             }
 
             public List<PrecastElement> Extract(IProgress<double>? progress, CancellationToken cancellationToken)
@@ -681,6 +690,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     products.Count,
                     true);
 
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_PropertySnapshot", _sourceSnapshotPropertySnapshotMs, products.Count, extractionCompletedUtc);
                 RecordSourceSnapshotSubStage("BuildSourceSnapshot_Dimensions", _sourceSnapshotDimensionMs, products.Count, extractionCompletedUtc);
                 RecordSourceSnapshotSubStage("BuildSourceSnapshot_VolumeAlias", _sourceSnapshotVolumeMs, products.Count, extractionCompletedUtc);
                 RecordSourceSnapshotSubStage("BuildSourceSnapshot_MaterialAlias", _sourceSnapshotMaterialMs, products.Count, extractionCompletedUtc);
@@ -711,27 +721,30 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var bboxHeight = geometry?.Height;
                 var phase4SectionTimer = Stopwatch.StartNew();
 
+                // Phase 4C: scan IFC property/quantity/type/material relations once per product.
+                // This remains per-extractor/import only and does not change IFC identity,
+                // names, grids, persistence, or GA behavior.
+                var propertySnapshot = GetProductPropertySnapshot(product);
+                phase4SectionTimer.Stop();
+                _sourceSnapshotPropertySnapshotMs += phase4SectionTimer.ElapsedMilliseconds;
+
+                phase4SectionTimer.Restart();
                 var elementLength = ConvertLength(
-                    GetQuantity(product, "length") ??
-                    GetPropertyDouble(product, "length")) ?? bboxLength;
+                    GetQuantity(propertySnapshot, "length") ??
+                    GetPropertyDouble(propertySnapshot, "length")) ?? bboxLength;
 
                 var elementWidth = ConvertLength(
-                    GetQuantity(product, "width") ??
-                    GetPropertyDouble(product, "width")) ?? bboxWidth;
+                    GetQuantity(propertySnapshot, "width") ??
+                    GetPropertyDouble(propertySnapshot, "width")) ?? bboxWidth;
 
                 var elementHeight = ConvertLength(
-                    GetQuantity(product, "height") ??
-                    GetPropertyDouble(product, "height")) ?? bboxHeight;
+                    GetQuantity(propertySnapshot, "height") ??
+                    GetPropertyDouble(propertySnapshot, "height")) ?? bboxHeight;
                 phase4SectionTimer.Stop();
                 _sourceSnapshotDimensionMs += phase4SectionTimer.ElapsedMilliseconds;
 
                 phase4SectionTimer.Restart();
-                var resolvedVolume = _aliasResolver.ResolveProperty(product, "Volume", _exporterProfile);
-                double? rawVolume = null;
-                if (resolvedVolume != null && double.TryParse(resolvedVolume.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedVol))
-                {
-                    rawVolume = parsedVol;
-                }
+                var rawVolume = GetVolumeRaw(propertySnapshot);
                 var volume = ConvertVolume(rawVolume);
                 if (!(volume is > 0) && geometry?.MeshVolumeM3 is > 0)
                 {
@@ -741,19 +754,19 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 _sourceSnapshotVolumeMs += phase4SectionTimer.ElapsedMilliseconds;
 
                 phase4SectionTimer.Restart();
-                var material = NormalizeMaterial(GetMaterial(product));
+                var material = NormalizeMaterial(GetMaterial(propertySnapshot));
                 phase4SectionTimer.Stop();
                 _sourceSnapshotMaterialMs += phase4SectionTimer.ElapsedMilliseconds;
 
                 phase4SectionTimer.Restart();
-                var weight = GetWeight(product);
+                var weight = GetWeight(propertySnapshot);
                 phase4SectionTimer.Stop();
                 _sourceSnapshotWeightMs += phase4SectionTimer.ElapsedMilliseconds;
 
                 // Fallback: If Weight is 0 or missing, use direct volume and the project concrete density.
                 phase4SectionTimer.Restart();
-                var revitId = GetRevitId(product);
-                var productName = product.Name?.ToString()?.Trim();
+                var revitId = GetRevitId(propertySnapshot);
+                var productName = propertySnapshot.ProductName;
                 phase4SectionTimer.Stop();
                 _sourceSnapshotIdentityMs += phase4SectionTimer.ElapsedMilliseconds;
 
@@ -786,9 +799,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     elementWidth,
                     elementHeight,
                     revitId,
-                    cleanedName, productName);
+                    cleanedName,
+                    productName);
             }
-
             private AggregateSnapshot? BuildAggregateSnapshot(
                 IIfcElementAssembly assembly,
                 HashSet<int> consumedByAssemblies)
@@ -812,10 +825,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var geometry = ResolveAggregateGeometry(parentSnapshot, childSnapshots, totalWeight);
                 var material = ResolveAggregateMaterial(parentSnapshot, childSnapshots);
 
-                var revitId = GetRevitId(assembly);
-                var productName = assembly.Name?.ToString()?.Trim();
-                var rawName = GetMark(assembly);
-                var cleanedName = CleanElementName(rawName ?? string.Empty);
+                var revitId = parentSnapshot.RevitId;
+                var productName = parentSnapshot.Name ?? assembly.Name?.ToString()?.Trim();
+                var cleanedName = parentSnapshot.Mark ?? CleanElementName(GetMark(assembly) ?? string.Empty);
 
                 var aggregate = new AggregateSnapshot(
                     assembly.EntityLabel,
@@ -1101,6 +1113,393 @@ namespace CraneOptimizer.Infrastructure.Repositories
             // -------------------------------------------------------------------------
             // Property / Quantity readers
             // -------------------------------------------------------------------------
+
+            private SourceProductPropertySnapshot GetProductPropertySnapshot(IIfcProduct product)
+            {
+                if (_propertySnapshotCache.TryGetValue(product.EntityLabel, out var cached))
+                    return cached;
+
+                var snapshot = BuildProductPropertySnapshot(product);
+                _propertySnapshotCache[product.EntityLabel] = snapshot;
+                return snapshot;
+            }
+
+            private SourceProductPropertySnapshot BuildProductPropertySnapshot(IIfcProduct product)
+            {
+                var quantities = new List<SourceProductQuantity>();
+                var properties = new List<SourceProductProperty>();
+                var typeProperties = new List<SourceProductProperty>();
+                string? directMaterialName = null;
+                string? typeMaterialName = null;
+
+                var definitions = product.IsDefinedBy.ToList();
+
+                foreach (var relation in definitions)
+                {
+                    if (relation.RelatingPropertyDefinition is IIfcElementQuantity quantitySet)
+                    {
+                        foreach (var quantity in quantitySet.Quantities)
+                        {
+                            if (TryReadQuantityValue(quantity, out var quantityValue, out var quantityKind))
+                            {
+                                quantities.Add(new SourceProductQuantity(
+                                    quantity.Name.ToString(),
+                                    quantitySet.Name.ToString(),
+                                    quantityKind,
+                                    quantityValue));
+                            }
+                        }
+                    }
+                    else if (relation.RelatingPropertyDefinition is IIfcPropertySet propertySet)
+                    {
+                        AddPropertySetValues(propertySet, properties);
+                    }
+                }
+
+                var materialRelation = product.HasAssociations?
+                    .OfType<IIfcRelAssociatesMaterial>()
+                    .FirstOrDefault();
+                if (materialRelation != null)
+                {
+                    directMaterialName = ResolveIfcMaterialName(materialRelation.RelatingMaterial);
+                }
+
+                foreach (var typeRelation in definitions.OfType<IIfcRelDefinesByType>())
+                {
+                    var typeObject = typeRelation.RelatingType;
+
+                    if (string.IsNullOrWhiteSpace(typeMaterialName))
+                    {
+                        var typeMaterialRelation = typeObject.HasAssociations?
+                            .OfType<IIfcRelAssociatesMaterial>()
+                            .FirstOrDefault();
+
+                        if (typeMaterialRelation != null)
+                        {
+                            typeMaterialName = ResolveIfcMaterialName(typeMaterialRelation.RelatingMaterial);
+                        }
+                    }
+
+                    foreach (var typePropertySet in typeObject.HasPropertySets.OfType<IIfcPropertySet>())
+                    {
+                        AddPropertySetValues(typePropertySet, typeProperties);
+                    }
+                }
+
+                return new SourceProductPropertySnapshot(
+                    product.EntityLabel,
+                    product.GlobalId.ToString(),
+                    product.Name?.ToString()?.Trim(),
+                    (product as IIfcElement)?.Tag?.ToString()?.Trim(),
+                    directMaterialName,
+                    typeMaterialName,
+                    quantities,
+                    properties,
+                    typeProperties);
+            }
+
+            private static void AddPropertySetValues(
+                IIfcPropertySet propertySet,
+                List<SourceProductProperty> target)
+            {
+                var propertySetName = propertySet.Name.ToString();
+
+                foreach (var property in propertySet.HasProperties.OfType<IIfcPropertySingleValue>())
+                {
+                    var propertyName = property.Name.ToString();
+                    var valueText = property.NominalValue?.ToString()?.Trim();
+
+                    target.Add(new SourceProductProperty(
+                        propertyName,
+                        propertySetName,
+                        valueText,
+                        property.Unit?.ToString(),
+                        TryReadNumericPropertyValue(property, out var numericValue) ? numericValue : null));
+                }
+            }
+
+            private static bool TryReadQuantityValue(
+                IIfcPhysicalQuantity quantity,
+                out double value,
+                out SourceQuantityKind kind)
+            {
+                value = 0d;
+                kind = SourceQuantityKind.Other;
+
+                switch (quantity)
+                {
+                    case IIfcQuantityLength qLength:
+                        value = qLength.LengthValue;
+                        kind = SourceQuantityKind.Length;
+                        return true;
+
+                    case IIfcQuantityArea qArea:
+                        value = qArea.AreaValue;
+                        kind = SourceQuantityKind.Area;
+                        return true;
+
+                    case IIfcQuantityVolume qVolume:
+                        value = qVolume.VolumeValue;
+                        kind = SourceQuantityKind.Volume;
+                        return true;
+
+                    case IIfcQuantityWeight qWeight:
+                        value = qWeight.WeightValue;
+                        kind = SourceQuantityKind.Weight;
+                        return true;
+
+                    default:
+                        return false;
+                }
+            }
+
+            private static double? GetQuantity(SourceProductPropertySnapshot snapshot, params string[] keywords)
+            {
+                foreach (var quantity in snapshot.Quantities)
+                {
+                    if (ContainsAny(quantity.Name, keywords))
+                        return quantity.Value;
+                }
+
+                return null;
+            }
+
+            private static double? GetPropertyDouble(SourceProductPropertySnapshot snapshot, params string[] keywords)
+            {
+                foreach (var property in snapshot.Properties)
+                {
+                    if (!ContainsAny(property.Name, keywords))
+                        continue;
+
+                    if (property.NumericValue.HasValue)
+                        return property.NumericValue.Value;
+                }
+
+                return null;
+            }
+
+            private double? GetVolumeRaw(SourceProductPropertySnapshot snapshot)
+            {
+                foreach (var quantity in snapshot.Quantities)
+                {
+                    if (quantity.Kind == SourceQuantityKind.Volume &&
+                        ContainsAnyAlias(quantity.Name, _exporterProfileDefinition.VolumeAliases))
+                    {
+                        return quantity.Value;
+                    }
+                }
+
+                foreach (var property in snapshot.Properties)
+                {
+                    if (ContainsAnyAlias(property.Name, _exporterProfileDefinition.VolumeAliases) &&
+                        property.NumericValue.HasValue)
+                    {
+                        return property.NumericValue.Value;
+                    }
+                }
+
+                return null;
+            }
+
+            private double? GetWeight(SourceProductPropertySnapshot snapshot)
+            {
+                foreach (var quantity in snapshot.Quantities)
+                {
+                    if (quantity.Kind == SourceQuantityKind.Weight &&
+                        ContainsAnyAlias(quantity.Name, _exporterProfileDefinition.WeightAliases) &&
+                        IsTotalWeightProperty(quantity.Name))
+                    {
+                        return UnitSystem.ToTons(quantity.Value, MassUnit.Kilogram);
+                    }
+                }
+
+                foreach (var property in snapshot.Properties)
+                {
+                    if (!ContainsAnyAlias(property.Name, _exporterProfileDefinition.WeightAliases) ||
+                        !IsTotalWeightProperty(property.Name) ||
+                        !property.NumericValue.HasValue)
+                    {
+                        continue;
+                    }
+
+                    return ConvertWeightPropertyToTons(
+                        property.NumericValue.Value,
+                        property.Name,
+                        property.UnitName);
+                }
+
+                return null;
+            }
+
+            private string? GetMaterial(SourceProductPropertySnapshot snapshot)
+            {
+                if (!string.IsNullOrWhiteSpace(snapshot.DirectMaterialName))
+                    return snapshot.DirectMaterialName;
+
+                if (!string.IsNullOrWhiteSpace(snapshot.TypeMaterialName))
+                    return snapshot.TypeMaterialName;
+
+                foreach (var property in snapshot.TypeProperties)
+                {
+                    if (ContainsAnyAlias(property.Name, _exporterProfileDefinition.MaterialAliases) &&
+                        !string.IsNullOrWhiteSpace(property.Value))
+                    {
+                        return property.Value;
+                    }
+                }
+
+                foreach (var property in snapshot.Properties)
+                {
+                    if (ContainsAnyAlias(property.Name, _exporterProfileDefinition.MaterialAliases) &&
+                        !string.IsNullOrWhiteSpace(property.Value))
+                    {
+                        return property.Value;
+                    }
+                }
+
+                return null;
+            }
+
+            private static string? GetRevitId(SourceProductPropertySnapshot snapshot)
+            {
+                if (!string.IsNullOrWhiteSpace(snapshot.Tag))
+                    return snapshot.Tag;
+
+                foreach (var property in snapshot.Properties)
+                {
+                    if (!property.PropertySetName.Contains("Revit_Identity", StringComparison.OrdinalIgnoreCase) &&
+                        !property.PropertySetName.Equals("Pset_Revit_Identity Data", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    if (property.Name.Equals("Id", StringComparison.OrdinalIgnoreCase) ||
+                        property.Name.Equals("ElementId", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (!string.IsNullOrWhiteSpace(property.Value))
+                            return property.Value;
+                    }
+                }
+
+                return null;
+            }
+
+            private static bool ContainsAnyAlias(string source, IEnumerable<string> keywords)
+            {
+                if (string.IsNullOrWhiteSpace(source))
+                    return false;
+
+                foreach (var keyword in keywords)
+                {
+                    if (source.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+
+                return false;
+            }
+
+            private static bool TryReadNumericPropertyValue(IIfcPropertySingleValue property, out double value)
+            {
+                value = 0d;
+
+                var nominal = property.NominalValue;
+                if (nominal == null)
+                    return false;
+
+                object? rawValue = nominal;
+                var valueProperty = nominal.GetType().GetProperty("Value");
+                if (valueProperty != null)
+                {
+                    rawValue = valueProperty.GetValue(nominal);
+                }
+
+                if (rawValue is double doubleValue)
+                {
+                    value = doubleValue;
+                    return true;
+                }
+
+                if (rawValue is float floatValue)
+                {
+                    value = floatValue;
+                    return true;
+                }
+
+                if (rawValue is decimal decimalValue)
+                {
+                    value = (double)decimalValue;
+                    return true;
+                }
+
+                if (rawValue is int intValue)
+                {
+                    value = intValue;
+                    return true;
+                }
+
+                if (rawValue is long longValue)
+                {
+                    value = longValue;
+                    return true;
+                }
+
+                var valueText = Convert.ToString(rawValue, CultureInfo.InvariantCulture);
+                if (double.TryParse(valueText, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
+                    return true;
+
+                valueText = Convert.ToString(nominal, CultureInfo.InvariantCulture);
+                if (double.TryParse(valueText, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
+                    return true;
+
+                var numericMatch = System.Text.RegularExpressions.Regex.Match(
+                    valueText ?? string.Empty,
+                    @"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?");
+
+                return numericMatch.Success &&
+                       double.TryParse(numericMatch.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out value);
+            }
+
+            private static string? ResolveIfcMaterialName(object? materialObject)
+            {
+                return materialObject switch
+                {
+                    IIfcMaterial singleMaterial =>
+                        singleMaterial.Name.ToString(),
+
+                    IIfcMaterialLayer layer =>
+                        layer.Material?.Name.ToString(),
+
+                    IIfcMaterialLayerSet layerSet =>
+                        JoinDistinctMaterials(layerSet.MaterialLayers.Select(l => l.Material?.Name.ToString())),
+
+                    IIfcMaterialLayerSetUsage layerSetUsage =>
+                        JoinDistinctMaterials(layerSetUsage.ForLayerSet.MaterialLayers.Select(l => l.Material?.Name.ToString())),
+
+                    IIfcMaterialList materialList =>
+                        JoinDistinctMaterials(materialList.Materials.Select(m => m.Name.ToString())),
+
+                    _ => null
+                };
+            }
+
+            private static readonly string[] ExcludedWeightKeywords =
+            [
+                "rebar", "reinforcement", "mesh", "steel", "paint", "grout", "strand", "weld", "bolt", "connection", "markup"
+            ];
+
+            private static bool IsTotalWeightProperty(string propertyName)
+            {
+                if (string.IsNullOrWhiteSpace(propertyName))
+                    return false;
+
+                foreach (var keyword in ExcludedWeightKeywords)
+                {
+                    if (propertyName.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                        return false;
+                }
+
+                return true;
+            }
 
             /// <summary>
             /// Reads weight/mass from IFC quantity sets or property sets.
@@ -2413,6 +2812,39 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return true;
             }
         }
+
+        private enum SourceQuantityKind
+        {
+            Other,
+            Length,
+            Area,
+            Volume,
+            Weight
+        }
+
+        private sealed record SourceProductQuantity(
+            string Name,
+            string QuantitySetName,
+            SourceQuantityKind Kind,
+            double Value);
+
+        private sealed record SourceProductProperty(
+            string Name,
+            string PropertySetName,
+            string? Value,
+            string? UnitName,
+            double? NumericValue);
+
+        private sealed record SourceProductPropertySnapshot(
+            int EntityLabel,
+            string GlobalId,
+            string? ProductName,
+            string? Tag,
+            string? DirectMaterialName,
+            string? TypeMaterialName,
+            IReadOnlyList<SourceProductQuantity> Quantities,
+            IReadOnlyList<SourceProductProperty> Properties,
+            IReadOnlyList<SourceProductProperty> TypeProperties);
 
         // -------------------------------------------------------------------------
         // Snapshot types
