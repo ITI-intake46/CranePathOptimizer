@@ -471,6 +471,17 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             private readonly Dictionary<int, SourceElementSnapshot> _sourceCache = new();
             private readonly Dictionary<int, AggregateSnapshot> _aggregateCache = new();
+            private readonly Dictionary<int, CanonicalAssemblyIdentityResult> _canonicalIdentityCache = new();
+
+            // Phase 4A: import extraction sub-profiler.
+            // Per-extractor instance only; no static/session-crossing state.
+            private long _sourceSnapshotDimensionMs;
+            private long _sourceSnapshotVolumeMs;
+            private long _sourceSnapshotMaterialMs;
+            private long _sourceSnapshotWeightMs;
+            private long _sourceSnapshotIdentityMs;
+            private long _sourceSnapshotMarkMs;
+            private long _sourceSnapshotFallbackMs;
 
             public IfcEngineeringExtractor(
                 IfcStore model,
@@ -595,6 +606,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 long totalPropMs = 0;
 
                 double lastReportedPercentage = 40.0;
+                DateTime lastExtractionHeartbeatUtc = DateTime.UtcNow;
 
                 for (int i = 0; i < products.Count; i++)
                 {
@@ -622,6 +634,27 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             "Extracting element geometry"));
                         lastReportedPercentage = currentPercentage;
                     }
+
+                    var heartbeatUtc = DateTime.UtcNow;
+                    if ((heartbeatUtc - lastExtractionHeartbeatUtc).TotalSeconds >= 10 || i == products.Count - 1)
+                    {
+                        IfcImportProfiler.Record(
+                            "ExtractingQuantitiesWeights",
+                            "BuildSourceSnapshot_Heartbeat",
+                            "Heartbeat",
+                            heartbeatUtc,
+                            heartbeatUtc,
+                            totalPropMs,
+                            "ProcessedProducts",
+                            i + 1,
+                            false,
+                            currentIndex: i + 1,
+                            totalCount: products.Count,
+                            productGlobalId: product.GlobalId.ToString(),
+                            entityLabel: product.EntityLabel,
+                            expressType: product.ExpressType?.Name ?? product.GetType().Name);
+                        lastExtractionHeartbeatUtc = heartbeatUtc;
+                    }
                 }
 
                 Debug.WriteLine($"[IFC-PERF] COG/BBox/geometry bounds extraction cumulative duration: {totalGeomMs} ms");
@@ -647,6 +680,28 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     "PhysicalProductsCount",
                     products.Count,
                     true);
+
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_Dimensions", _sourceSnapshotDimensionMs, products.Count, extractionCompletedUtc);
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_VolumeAlias", _sourceSnapshotVolumeMs, products.Count, extractionCompletedUtc);
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_MaterialAlias", _sourceSnapshotMaterialMs, products.Count, extractionCompletedUtc);
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_WeightAlias", _sourceSnapshotWeightMs, products.Count, extractionCompletedUtc);
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_RevitId", _sourceSnapshotIdentityMs, products.Count, extractionCompletedUtc);
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_MarkCanonical", _sourceSnapshotMarkMs, products.Count, extractionCompletedUtc);
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_FallbackEstimate", _sourceSnapshotFallbackMs, products.Count, extractionCompletedUtc);
+            }
+
+            private static void RecordSourceSnapshotSubStage(string subStage, long elapsedMs, int productsCount, DateTime completedUtc)
+            {
+                IfcImportProfiler.Record(
+                    "ExtractingQuantitiesWeights",
+                    subStage,
+                    "Completed",
+                    completedUtc - TimeSpan.FromMilliseconds(elapsedMs),
+                    completedUtc,
+                    elapsedMs,
+                    "PhysicalProductsCount",
+                    productsCount,
+                    true);
             }
 
             private SourceElementSnapshot BuildSourceSnapshot(IIfcProduct product, GeometrySnapshot? geometry)
@@ -654,6 +709,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var bboxLength = geometry?.Length;
                 var bboxWidth = geometry?.Width;
                 var bboxHeight = geometry?.Height;
+                var phase4SectionTimer = Stopwatch.StartNew();
 
                 var elementLength = ConvertLength(
                     GetQuantity(product, "length") ??
@@ -666,7 +722,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var elementHeight = ConvertLength(
                     GetQuantity(product, "height") ??
                     GetPropertyDouble(product, "height")) ?? bboxHeight;
+                phase4SectionTimer.Stop();
+                _sourceSnapshotDimensionMs += phase4SectionTimer.ElapsedMilliseconds;
 
+                phase4SectionTimer.Restart();
                 var resolvedVolume = _aliasResolver.ResolveProperty(product, "Volume", _exporterProfile);
                 double? rawVolume = null;
                 if (resolvedVolume != null && double.TryParse(resolvedVolume.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedVol))
@@ -678,16 +737,33 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 {
                     volume = geometry.MeshVolumeM3;
                 }
+                phase4SectionTimer.Stop();
+                _sourceSnapshotVolumeMs += phase4SectionTimer.ElapsedMilliseconds;
 
+                phase4SectionTimer.Restart();
                 var material = NormalizeMaterial(GetMaterial(product));
+                phase4SectionTimer.Stop();
+                _sourceSnapshotMaterialMs += phase4SectionTimer.ElapsedMilliseconds;
+
+                phase4SectionTimer.Restart();
                 var weight = GetWeight(product);
+                phase4SectionTimer.Stop();
+                _sourceSnapshotWeightMs += phase4SectionTimer.ElapsedMilliseconds;
 
                 // Fallback: If Weight is 0 or missing, use direct volume and the project concrete density.
+                phase4SectionTimer.Restart();
                 var revitId = GetRevitId(product);
                 var productName = product.Name?.ToString()?.Trim();
+                phase4SectionTimer.Stop();
+                _sourceSnapshotIdentityMs += phase4SectionTimer.ElapsedMilliseconds;
+
+                phase4SectionTimer.Restart();
                 var rawName = GetMark(product);
                 var cleanedName = CleanElementName(rawName ?? string.Empty);
+                phase4SectionTimer.Stop();
+                _sourceSnapshotMarkMs += phase4SectionTimer.ElapsedMilliseconds;
 
+                phase4SectionTimer.Restart();
                 if ((weight ?? 0) <= 0
                     && volume.HasValue
                     && volume.Value > 0
@@ -695,6 +771,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 {
                     weight = EstimateWeightFromMaterial(material, volume.Value);
                 }
+                phase4SectionTimer.Stop();
+                _sourceSnapshotFallbackMs += phase4SectionTimer.ElapsedMilliseconds;
 
                 return new SourceElementSnapshot(
                     product.EntityLabel,
@@ -1101,7 +1179,25 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 IfcNormalizedElementPreview preview,
                 IfcExporterProfile exporterProfile)
             {
-                return _aliasResolver.ResolveCanonicalAssemblyIdentity(product, preview.Name, exporterProfile);
+                if (product == null)
+                {
+                    return _aliasResolver.ResolveCanonicalAssemblyIdentity(null, preview.Name, exporterProfile);
+                }
+
+                return GetCachedCanonicalAssemblyIdentity(product, preview.Name, exporterProfile);
+            }
+
+            private CanonicalAssemblyIdentityResult GetCachedCanonicalAssemblyIdentity(
+                IIfcProduct product,
+                string previewName,
+                IfcExporterProfile exporterProfile)
+            {
+                if (_canonicalIdentityCache.TryGetValue(product.EntityLabel, out var cached))
+                    return cached;
+
+                var resolved = _aliasResolver.ResolveCanonicalAssemblyIdentity(product, previewName, exporterProfile);
+                _canonicalIdentityCache[product.EntityLabel] = resolved;
+                return resolved;
             }
 
             private static void ValidateCanonicalAssembly(PrecastElement pe)
@@ -1184,7 +1280,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
             private string? GetBestMarkCandidate(IIfcProduct product)
             {
                 if (product == null) return null;
-                var res = _aliasResolver.ResolveCanonicalAssemblyIdentity(product, product.Name?.ToString() ?? string.Empty, _exporterProfile);
+                var res = GetCachedCanonicalAssemblyIdentity(
+                    product,
+                    product.Name?.ToString() ?? string.Empty,
+                    _exporterProfile);
                 return res.AssemblyMark;
             }
 
@@ -1527,6 +1626,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 int unresolvedAssemblyMarkCount = 0;
 
                 // 2. Loop through elements from the previewSummary
+                var mappingLoopStartedUtc = DateTime.UtcNow;
+                var mappingLoopTimer = Stopwatch.StartNew();
+                DateTime lastMappingHeartbeatUtc = DateTime.UtcNow;
                 double lastReportedExtractPercentage = 85.0;
                 int previewCount = previewSummary.Elements.Count;
                 int idx = 0;
@@ -1971,7 +2073,41 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             "Extracting quantities/weights"));
                         lastReportedExtractPercentage = currentPercentage;
                     }
+
+                    var mappingHeartbeatUtc = DateTime.UtcNow;
+                    if ((mappingHeartbeatUtc - lastMappingHeartbeatUtc).TotalSeconds >= 10 || idx == previewCount)
+                    {
+                        IfcImportProfiler.Record(
+                            "ExtractingQuantitiesWeights",
+                            "ExtractNormalized_MappingLoop",
+                            "Heartbeat",
+                            mappingLoopStartedUtc,
+                            mappingHeartbeatUtc,
+                            mappingLoopTimer.ElapsedMilliseconds,
+                            "MappedPreviewElements",
+                            idx,
+                            false,
+                            currentIndex: idx,
+                            totalCount: previewCount,
+                            productGlobalId: preview.GlobalId,
+                            expressType: preview.RawIfcType);
+                        lastMappingHeartbeatUtc = mappingHeartbeatUtc;
+                    }
                 }
+
+                mappingLoopTimer.Stop();
+                IfcImportProfiler.Record(
+                    "ExtractingQuantitiesWeights",
+                    "ExtractNormalized_MappingLoop",
+                    "Completed",
+                    mappingLoopStartedUtc,
+                    DateTime.UtcNow,
+                    mappingLoopTimer.ElapsedMilliseconds,
+                    "MappedPreviewElements",
+                    result.Count,
+                    true,
+                    currentIndex: result.Count,
+                    totalCount: previewCount);
 
                 // Propagate materials for concrete elements of the same family/type
                 PropagateConcreteMaterials(result);
