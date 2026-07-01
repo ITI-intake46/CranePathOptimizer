@@ -1438,18 +1438,28 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private sealed class AuditProcessingContext
         {
             public readonly Dictionary<(int EntityLabel, string LogicalField, IfcExporterProfile Profile), SourcePropertyResolutionResult> PropertyResolutionCache = new();
+            public readonly Dictionary<int, AuditProductPropertySnapshot> ProductPropertySnapshotCache = new();
             public readonly Dictionary<(int EntityLabel, string QuantitySetName), bool> QuantitySetCache = new();
             public readonly Dictionary<(int EntityLabel, string PropertySetName, string PropertyName), string?> PropertyUnitCache = new();
             public readonly Dictionary<string, AssemblyDecompositionDetail> ParentAssemblyByChildGlobalId = new(StringComparer.Ordinal);
             public readonly Dictionary<string, AssemblyDecompositionDetail> AssemblyByGlobalId = new(StringComparer.Ordinal);
+            public readonly IIfcExporterProfile ExporterProfileDefinition;
 
             public long ClassificationMs;
             public long WeightMs;
             public long VolumeMaterialMs;
             public long GeometryOwnershipMs;
+            public long PropertySnapshotMs;
 
-            public AuditProcessingContext(AssemblyDecompositionAudit assemblies)
+            public AuditProcessingContext(AssemblyDecompositionAudit assemblies, IfcExporterProfile profile)
             {
+                ExporterProfileDefinition = profile switch
+                {
+                    IfcExporterProfile.Tekla => new TeklaIfcExporterProfile(),
+                    IfcExporterProfile.Revit => new RevitIfcExporterProfile(),
+                    _ => new GenericIfcExporterProfile()
+                };
+
                 foreach (var assemblyDetail in assemblies.Details)
                 {
                     if (!string.IsNullOrWhiteSpace(assemblyDetail.AssemblyGlobalId))
@@ -1466,6 +1476,38 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     }
                 }
             }
+        }
+
+        // Phase 4E: per-product audit property snapshot cache.
+        // This mirrors the import extractor's single-scan approach, but remains scoped
+        // to one diagnostic audit call and preserves full production-critical audit output.
+        private sealed record AuditProductPropertySnapshot(
+            int EntityLabel,
+            List<AuditProductQuantity> Quantities,
+            List<AuditProductProperty> Properties,
+            string? DirectMaterialName,
+            string? DirectMaterialAssociationType);
+
+        private sealed record AuditProductQuantity(
+            string Name,
+            string QuantitySetName,
+            AuditQuantityKind Kind,
+            double Value);
+
+        private sealed record AuditProductProperty(
+            string Name,
+            string PropertySetName,
+            string? Value,
+            string? UnitName,
+            double? NumericValue);
+
+        private enum AuditQuantityKind
+        {
+            Other,
+            Length,
+            Area,
+            Volume,
+            Weight
         }
 
         private static bool IsReinforcementDiagnosticType(IIfcProduct product)
@@ -1626,7 +1668,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             var profileResolver = new IfcExporterProfileResolver();
             var profile = profileResolver.ResolveProfile(auditResult.Metadata.ExporterApplication);
-            var auditContext = new AuditProcessingContext(auditResult.Assemblies);
+            var auditContext = new AuditProcessingContext(auditResult.Assemblies, profile);
 
             if (largeModelSummaryMode)
             {
@@ -1801,6 +1843,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 currentIndex: physicalProducts.Count,
                 totalCount: physicalProducts.Count);
 
+            RecordProcessPhysicalElementsSubStage("Audit_ProcessPhysicalElements_PropertySnapshot", auditContext.PropertySnapshotMs, physicalProducts.Count, endLoop);
             RecordProcessPhysicalElementsSubStage("Audit_ProcessPhysicalElements_Classification", auditContext.ClassificationMs, physicalProducts.Count, endLoop);
             RecordProcessPhysicalElementsSubStage("Audit_ProcessPhysicalElements_Weight", auditContext.WeightMs, physicalProducts.Count, endLoop);
             RecordProcessPhysicalElementsSubStage("Audit_ProcessPhysicalElements_VolumeMaterial", auditContext.VolumeMaterialMs, physicalProducts.Count, endLoop);
@@ -2093,46 +2136,19 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }
             }
 
-            // Material
+            // Material: preserve existing direct instance association semantics, but
+            // read them from the per-product audit snapshot instead of rescanning.
             try
             {
-                var relation = product.HasAssociations
-                    .OfType<IIfcRelAssociatesMaterial>()
-                    .FirstOrDefault();
-
-                if (relation != null)
+                var snapshot = GetProductAuditPropertySnapshot(context, product);
+                if (!string.IsNullOrWhiteSpace(snapshot.DirectMaterialName))
                 {
                     detail.IsMaterialFromInstance = true;
                     detail.MaterialSource = "HasAssociations.RelatingMaterial";
-
-                    var relMat = relation.RelatingMaterial;
-                    if (relMat is IIfcMaterial mat)
-                    {
-                        detail.MaterialName = mat.Name.ToString();
-                        detail.MaterialAssociationType = "Simple";
-                    }
-                    else if (relMat is IIfcMaterialLayer layer)
-                    {
-                        detail.MaterialName = layer.Material?.Name.ToString() ?? "-";
-                        detail.MaterialAssociationType = "LayerSet";
-                    }
-                    else if (relMat is IIfcMaterialLayerSet layerSet)
-                    {
-                        var mats = layerSet.MaterialLayers.Select(l => l.Material?.Name.ToString()).Distinct().ToList();
-                        detail.MaterialName = string.Join(", ", mats);
-                        detail.MaterialAssociationType = "LayerSet";
-                    }
-                    else if (relMat is IIfcMaterialList list)
-                    {
-                        var mats = list.Materials.Select(m => m.Name.ToString()).Distinct().ToList();
-                        detail.MaterialName = string.Join(", ", mats);
-                        detail.MaterialAssociationType = "ConstituentSet";
-                    }
-                    else
-                    {
-                        detail.MaterialName = relMat?.GetType().Name ?? "Unknown";
-                        detail.MaterialAssociationType = "Unknown";
-                    }
+                    detail.MaterialName = snapshot.DirectMaterialName;
+                    detail.MaterialAssociationType = string.IsNullOrWhiteSpace(snapshot.DirectMaterialAssociationType)
+                        ? "Unknown"
+                        : snapshot.DirectMaterialAssociationType;
                 }
             }
             catch (Exception ex)
@@ -2163,9 +2179,361 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return cached;
             }
 
-            var resolved = _aliasResolver.ResolveProperty(product, safeField, profile);
+            SourcePropertyResolutionResult resolved;
+            if (safeField.Equals("Weight", StringComparison.OrdinalIgnoreCase) ||
+                safeField.Equals("AssemblyWeight", StringComparison.OrdinalIgnoreCase) ||
+                safeField.Equals("ElementWeight", StringComparison.OrdinalIgnoreCase))
+            {
+                resolved = ResolveAuditWeightProperty(context, product, safeField, profile);
+            }
+            else if (safeField.Equals("Volume", StringComparison.OrdinalIgnoreCase))
+            {
+                resolved = ResolveAuditVolumeProperty(context, product, safeField, profile);
+            }
+            else
+            {
+                // Keep the central resolver as the canonical fallback for logical
+                // fields not optimized in this audit phase.
+                resolved = _aliasResolver.ResolveProperty(product, safeField, profile);
+            }
+
             context.PropertyResolutionCache[key] = resolved;
             return resolved;
+        }
+
+        private static SourcePropertyResolutionResult CreateAuditPropertyResult(string logicalField, IfcExporterProfile profile)
+        {
+            return new SourcePropertyResolutionResult
+            {
+                LogicalField = logicalField,
+                SourceSystem = profile == IfcExporterProfile.Tekla
+                    ? SourceSystem.Tekla.ToString()
+                    : profile == IfcExporterProfile.Revit
+                        ? SourceSystem.Revit.ToString()
+                        : SourceSystem.IFC.ToString(),
+                ExporterProfile = profile.ToString(),
+                Confidence = AssemblyMarkConfidence.None.ToString()
+            };
+        }
+
+        private static SourcePropertyResolutionResult ResolveAuditWeightProperty(
+            AuditProcessingContext context,
+            IIfcProduct product,
+            string logicalField,
+            IfcExporterProfile profile)
+        {
+            var result = CreateAuditPropertyResult(logicalField, profile);
+            var snapshot = GetProductAuditPropertySnapshot(context, product);
+
+            foreach (var quantity in snapshot.Quantities)
+            {
+                if (quantity.Kind == AuditQuantityKind.Weight &&
+                    ContainsAnyAuditAlias(quantity.Name, context.ExporterProfileDefinition.WeightAliases) &&
+                    IsTotalAuditWeightProperty(quantity.Name))
+                {
+                    result.Value = quantity.Value.ToString(CultureInfo.InvariantCulture);
+                    result.SourcePropertySet = quantity.QuantitySetName;
+                    result.SourcePropertyName = quantity.Name;
+                    result.Confidence = AssemblyMarkConfidence.High.ToString();
+                    return result;
+                }
+            }
+
+            foreach (var property in snapshot.Properties)
+            {
+                if (ContainsAnyAuditAlias(property.Name, context.ExporterProfileDefinition.WeightAliases) &&
+                    IsTotalAuditWeightProperty(property.Name) &&
+                    property.NumericValue.HasValue)
+                {
+                    result.Value = property.NumericValue.Value.ToString(CultureInfo.InvariantCulture);
+                    result.SourcePropertySet = property.PropertySetName;
+                    result.SourcePropertyName = property.Name;
+                    result.Confidence = AssemblyMarkConfidence.High.ToString();
+                    return result;
+                }
+            }
+
+            return result;
+        }
+
+        private static SourcePropertyResolutionResult ResolveAuditVolumeProperty(
+            AuditProcessingContext context,
+            IIfcProduct product,
+            string logicalField,
+            IfcExporterProfile profile)
+        {
+            var result = CreateAuditPropertyResult(logicalField, profile);
+            var snapshot = GetProductAuditPropertySnapshot(context, product);
+
+            foreach (var quantity in snapshot.Quantities)
+            {
+                if (quantity.Kind == AuditQuantityKind.Volume &&
+                    ContainsAnyAuditAlias(quantity.Name, context.ExporterProfileDefinition.VolumeAliases))
+                {
+                    result.Value = quantity.Value.ToString(CultureInfo.InvariantCulture);
+                    result.SourcePropertySet = quantity.QuantitySetName;
+                    result.SourcePropertyName = quantity.Name;
+                    result.Confidence = AssemblyMarkConfidence.High.ToString();
+                    return result;
+                }
+            }
+
+            foreach (var property in snapshot.Properties)
+            {
+                if (ContainsAnyAuditAlias(property.Name, context.ExporterProfileDefinition.VolumeAliases) &&
+                    property.NumericValue.HasValue)
+                {
+                    result.Value = property.NumericValue.Value.ToString(CultureInfo.InvariantCulture);
+                    result.SourcePropertySet = property.PropertySetName;
+                    result.SourcePropertyName = property.Name;
+                    result.Confidence = AssemblyMarkConfidence.High.ToString();
+                    return result;
+                }
+            }
+
+            return result;
+        }
+
+        private static AuditProductPropertySnapshot GetProductAuditPropertySnapshot(
+            AuditProcessingContext context,
+            IIfcProduct product)
+        {
+            if (context.ProductPropertySnapshotCache.TryGetValue(product.EntityLabel, out var cached))
+            {
+                return cached;
+            }
+
+            var timer = Stopwatch.StartNew();
+            var snapshot = BuildAuditProductPropertySnapshot(product);
+            timer.Stop();
+            context.PropertySnapshotMs += timer.ElapsedMilliseconds;
+            context.ProductPropertySnapshotCache[product.EntityLabel] = snapshot;
+            return snapshot;
+        }
+
+        private static AuditProductPropertySnapshot BuildAuditProductPropertySnapshot(IIfcProduct product)
+        {
+            var quantities = new List<AuditProductQuantity>();
+            var properties = new List<AuditProductProperty>();
+            string? directMaterialName = null;
+            string? directMaterialAssociationType = null;
+
+            var definitions = product.IsDefinedBy.ToList();
+
+            foreach (var relation in definitions)
+            {
+                if (relation.RelatingPropertyDefinition is IIfcElementQuantity quantitySet)
+                {
+                    foreach (var quantity in quantitySet.Quantities)
+                    {
+                        if (TryReadAuditQuantityValue(quantity, out var quantityValue, out var quantityKind))
+                        {
+                            quantities.Add(new AuditProductQuantity(
+                                quantity.Name.ToString(),
+                                quantitySet.Name.ToString(),
+                                quantityKind,
+                                quantityValue));
+                        }
+                    }
+                }
+                else if (relation.RelatingPropertyDefinition is IIfcPropertySet propertySet)
+                {
+                    AddAuditPropertySetValues(propertySet, properties);
+                }
+            }
+
+            var materialRelation = product.HasAssociations?
+                .OfType<IIfcRelAssociatesMaterial>()
+                .FirstOrDefault();
+
+            if (materialRelation != null)
+            {
+                (directMaterialName, directMaterialAssociationType) = ResolveAuditMaterial(materialRelation.RelatingMaterial);
+            }
+
+            return new AuditProductPropertySnapshot(
+                product.EntityLabel,
+                quantities,
+                properties,
+                directMaterialName,
+                directMaterialAssociationType);
+        }
+
+        private static void AddAuditPropertySetValues(
+            IIfcPropertySet propertySet,
+            List<AuditProductProperty> target)
+        {
+            var propertySetName = propertySet.Name.ToString();
+
+            foreach (var property in propertySet.HasProperties.OfType<IIfcPropertySingleValue>())
+            {
+                var propertyName = property.Name.ToString();
+                var valueText = property.NominalValue?.ToString()?.Trim();
+
+                target.Add(new AuditProductProperty(
+                    propertyName,
+                    propertySetName,
+                    valueText,
+                    property.Unit?.ToString(),
+                    TryReadAuditNumericPropertyValue(property, out var numericValue) ? numericValue : null));
+            }
+        }
+
+        private static bool TryReadAuditQuantityValue(
+            IIfcPhysicalQuantity quantity,
+            out double value,
+            out AuditQuantityKind kind)
+        {
+            value = 0;
+            kind = AuditQuantityKind.Other;
+
+            switch (quantity)
+            {
+                case IIfcQuantityLength qLength:
+                    value = qLength.LengthValue;
+                    kind = AuditQuantityKind.Length;
+                    return true;
+
+                case IIfcQuantityArea qArea:
+                    value = qArea.AreaValue;
+                    kind = AuditQuantityKind.Area;
+                    return true;
+
+                case IIfcQuantityVolume qVolume:
+                    value = qVolume.VolumeValue;
+                    kind = AuditQuantityKind.Volume;
+                    return true;
+
+                case IIfcQuantityWeight qWeight:
+                    value = qWeight.WeightValue;
+                    kind = AuditQuantityKind.Weight;
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
+
+        private static bool TryReadAuditNumericPropertyValue(IIfcPropertySingleValue property, out double value)
+        {
+            value = 0;
+
+            var nominal = property.NominalValue;
+            if (nominal == null)
+                return false;
+
+            object? rawValue = nominal;
+            var valueProperty = nominal.GetType().GetProperty("Value");
+            if (valueProperty != null)
+            {
+                rawValue = valueProperty.GetValue(nominal);
+            }
+
+            if (rawValue is double doubleValue)
+            {
+                value = doubleValue;
+                return true;
+            }
+
+            if (rawValue is float floatValue)
+            {
+                value = floatValue;
+                return true;
+            }
+
+            if (rawValue is decimal decimalValue)
+            {
+                value = (double)decimalValue;
+                return true;
+            }
+
+            if (rawValue is int intValue)
+            {
+                value = intValue;
+                return true;
+            }
+
+            if (rawValue is long longValue)
+            {
+                value = longValue;
+                return true;
+            }
+
+            var valueText = Convert.ToString(rawValue, CultureInfo.InvariantCulture);
+            if (double.TryParse(valueText, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
+                return true;
+
+            valueText = Convert.ToString(nominal, CultureInfo.InvariantCulture);
+            if (double.TryParse(valueText, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
+                return true;
+
+            var numericMatch = Regex.Match(valueText ?? string.Empty, @"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?");
+            return numericMatch.Success &&
+                   double.TryParse(numericMatch.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out value);
+        }
+
+        private static (string? Name, string? AssociationType) ResolveAuditMaterial(object? materialObject)
+        {
+            return materialObject switch
+            {
+                IIfcMaterial mat =>
+                    (mat.Name.ToString(), "Simple"),
+
+                IIfcMaterialLayer layer =>
+                    (layer.Material?.Name.ToString() ?? "-", "LayerSet"),
+
+                IIfcMaterialLayerSet layerSet =>
+                    (JoinDistinctAuditMaterials(layerSet.MaterialLayers.Select(l => l.Material?.Name.ToString())), "LayerSet"),
+
+                IIfcMaterialList list =>
+                    (JoinDistinctAuditMaterials(list.Materials.Select(m => m.Name.ToString())), "ConstituentSet"),
+
+                _ =>
+                    (materialObject?.GetType().Name ?? "Unknown", "Unknown")
+            };
+        }
+
+        private static string? JoinDistinctAuditMaterials(IEnumerable<string?> materials)
+        {
+            var distinct = materials
+                .Where(m => !string.IsNullOrWhiteSpace(m))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return distinct.Count > 0 ? string.Join(", ", distinct) : null;
+        }
+
+        private static bool ContainsAnyAuditAlias(string source, IEnumerable<string> keywords)
+        {
+            if (string.IsNullOrWhiteSpace(source))
+                return false;
+
+            foreach (var keyword in keywords)
+            {
+                if (source.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static readonly string[] ExcludedAuditWeightKeywords =
+        [
+            "rebar", "reinforcement", "mesh", "steel", "paint", "grout", "strand", "weld", "bolt", "connection", "markup"
+        ];
+
+        private static bool IsTotalAuditWeightProperty(string propertyName)
+        {
+            if (string.IsNullOrWhiteSpace(propertyName))
+                return false;
+
+            foreach (var keyword in ExcludedAuditWeightKeywords)
+            {
+                if (propertyName.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+
+            return true;
         }
 
         private static bool IsQuantitySet(AuditProcessingContext context, IIfcProduct product, string psetName)
@@ -2179,8 +2547,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return cached;
             }
 
-            var result = product.IsDefinedBy
-                .Any(r => r.RelatingPropertyDefinition is IIfcElementQuantity eq && eq.Name.ToString().Equals(psetName, StringComparison.OrdinalIgnoreCase));
+            var snapshot = GetProductAuditPropertySnapshot(context, product);
+            var result = snapshot.Quantities.Any(q => q.QuantitySetName.Equals(psetName, StringComparison.OrdinalIgnoreCase));
             context.QuantitySetCache[key] = result;
             return result;
         }
@@ -2200,25 +2568,17 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return cached;
             }
 
-            string? unitName = null;
-            var propertySets = product.IsDefinedBy
-                .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
-                .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition);
-
-            foreach (var pset in propertySets)
-            {
-                if (!pset.Name.ToString().Equals(propertySetName, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                var prop = pset.HasProperties.OfType<IIfcPropertySingleValue>()
-                    .FirstOrDefault(p => p.Name.ToString().Equals(propertyName, StringComparison.OrdinalIgnoreCase));
-                unitName = prop?.Unit?.ToString();
-                break;
-            }
+            var snapshot = GetProductAuditPropertySnapshot(context, product);
+            var unitName = snapshot.Properties
+                .FirstOrDefault(p =>
+                    p.PropertySetName.Equals(propertySetName, StringComparison.OrdinalIgnoreCase) &&
+                    p.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
+                ?.UnitName;
 
             context.PropertyUnitCache[key] = unitName;
             return unitName;
         }
+
         private static ElementGeometryOwnershipAuditDetail AuditGeometryOwnership(
             IIfcProduct product,
             Xbim3DModelContext? geometryContext,
