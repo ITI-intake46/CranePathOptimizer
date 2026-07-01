@@ -29,6 +29,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private const double DefaultLengthToMetersFactor = 1.0;
         private const double ConcreteDensityKgPerCubicMeter = 2500.0;
         private const double TonToKgFactor = 1000.0;
+        private const int LargeModelSummaryThreshold = 3000;
+        private const int LargeModelDetailedSampleLimit = 1000;
+        private const int LargeModelMarkDiagnosticSampleLimit = 250;
         private readonly IIfcModelSessionService? _sessionService;
         private readonly ICentralIfcPropertyAliasResolver _aliasResolver;
         private readonly object _auditCacheGate = new();
@@ -244,6 +247,22 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 filterTimer.Stop();
                 Debug.WriteLine($"[IFC-PERF] Standalone Audit IIfcElement filtering: count = {allAuditableProducts.Count}, duration = {filterTimer.ElapsedMilliseconds} ms");
 
+                var largeModelSummaryMode = allAuditableProducts.Count > LargeModelSummaryThreshold;
+                if (largeModelSummaryMode)
+                {
+                    result.Metadata.Warnings.Add("[IFC-AUDIT] Large model summary mode enabled; expensive per-product diagnostic loops are bounded. Import data is unchanged.");
+                    IfcImportProfiler.Record(
+                        "RunningDiagnosticsAudit",
+                        "Audit_LargeModelSummaryMode",
+                        "Enabled",
+                        DateTime.UtcNow,
+                        DateTime.UtcNow,
+                        0,
+                        "PhysicalProductsCount",
+                        allAuditableProducts.Count,
+                        true);
+                }
+
                 ILookup<int, XbimShapeInstance>? shapeInstancesLookup = null;
                 long shapeLookupBuildMs = 0;
                 int shapeLookupCount = 0;
@@ -348,6 +367,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     result.Metadata.VolumeConversionFactor,
                     result.Metadata.MassConversionFactor,
                     concreteDensityKgPerM3,
+                    largeModelSummaryMode,
                     shapeInstancesLookup,
                     counters,
                     progress,
@@ -371,14 +391,15 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 IfcImportProfiler.Record(
                     "RunningDiagnosticsAudit",
                     "Audit_BuildAssemblyRelations",
-                    "Building assembly relations...",
+                    largeModelSummaryMode
+                        ? "Building assembly relations fully because normalization/import depends on relationship rollups..."
+                        : "Building assembly relations...",
                     startRelations,
                     endRelations,
                     relationsTimer.ElapsedMilliseconds,
                     "AssemblyRelationsCount",
                     result.AssemblyRelations?.Count ?? 0,
                     true);
-
                 productTimer.Stop();
                 totalTimer.Stop();
 
@@ -1413,6 +1434,56 @@ namespace CraneOptimizer.Infrastructure.Repositories
             public long HasDirectGeometryTotalMs;
         }
 
+        private static bool IsReinforcementDiagnosticType(IIfcProduct product)
+        {
+            var rawType = product.ExpressType?.Name ?? product.GetType().Name;
+            var name = product.Name?.ToString() ?? string.Empty;
+            var objectType = product.ObjectType?.ToString() ?? string.Empty;
+            var combined = $"{rawType} {name} {objectType}".ToUpperInvariant();
+
+            return rawType.Equals("IfcReinforcingBar", StringComparison.OrdinalIgnoreCase)
+                || rawType.Equals("IfcReinforcingMesh", StringComparison.OrdinalIgnoreCase)
+                || rawType.Equals("IfcReinforcingElement", StringComparison.OrdinalIgnoreCase)
+                || rawType.Equals("IfcTendon", StringComparison.OrdinalIgnoreCase)
+                || rawType.Equals("IfcTendonAnchor", StringComparison.OrdinalIgnoreCase)
+                || combined.Contains("REBAR")
+                || combined.Contains("REINFORCEMENT")
+                || combined.Contains("REINFORCING")
+                || combined.Contains("MESH")
+                || combined.Contains("TENDON")
+                || combined.Contains("STRAND");
+        }
+
+        private static List<IIfcProduct> SelectLargeModelDiagnosticProducts(
+            List<IIfcProduct> physicalProducts,
+            bool largeModelSummaryMode,
+            int sampleLimit)
+        {
+            if (!largeModelSummaryMode)
+                return physicalProducts;
+
+            return physicalProducts
+                .Where(product => !IsReinforcementDiagnosticType(product))
+                .Take(Math.Max(1, sampleLimit))
+                .ToList();
+        }
+
+        private static void AddLargeModelTypeSummaryWarning(
+            IfcAuditResult auditResult,
+            string diagnosticName,
+            IReadOnlyList<IIfcProduct> allProducts,
+            IReadOnlyList<IIfcProduct> detailedProducts)
+        {
+            var skippedCount = Math.Max(0, allProducts.Count - detailedProducts.Count);
+            var topTypes = allProducts
+                .GroupBy(product => product.ExpressType?.Name ?? product.GetType().Name)
+                .OrderByDescending(group => group.Count())
+                .Take(10)
+                .Select(group => $"{group.Key}:{group.Count()}");
+
+            auditResult.Metadata.Warnings.Add(
+                $"[IFC-AUDIT] {diagnosticName} summary mode: DetailedSamples={detailedProducts.Count}; SkippedOrAggregated={skippedCount}; TopTypes={string.Join(" | ", topTypes)}");
+        }
         private static List<XbimShapeInstance> GetProductShapeInstances(
             IIfcProduct product,
             Xbim3DModelContext? geometryContext,
@@ -1503,6 +1574,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             double volumeFactor,
             double? massFactor,
             double concreteDensityKgPerM3,
+            bool largeModelSummaryMode,
             ILookup<int, XbimShapeInstance>? shapeInstancesLookup,
             GeometryQueryCounters counters,
             IProgress<double>? progress,
@@ -1520,6 +1592,24 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             var profileResolver = new IfcExporterProfileResolver();
             var profile = profileResolver.ResolveProfile(auditResult.Metadata.ExporterApplication);
+
+            if (largeModelSummaryMode)
+            {
+                auditResult.Metadata.Warnings.Add(
+                    "[IFC-AUDIT] Large model summary mode keeps full classification/weight/volume/geometry audit because normalization/import depends on these collections. Only report-only name/mark diagnostics are bounded.");
+                IfcImportProfiler.Record(
+                    "RunningDiagnosticsAudit",
+                    "Audit_ProcessPhysicalElements_SummaryMode",
+                    "Full production-critical audit retained; import data unchanged",
+                    DateTime.UtcNow,
+                    DateTime.UtcNow,
+                    0,
+                    "PhysicalProductsCount",
+                    physicalProducts.Count,
+                    true,
+                    currentIndex: 0,
+                    totalCount: physicalProducts.Count);
+            }
 
             var startLoop = DateTime.UtcNow;
             var loopTimer = Stopwatch.StartNew();
@@ -1553,7 +1643,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 try
                 {
-                    // 1. Classification Audit
+                    // 1. Classification Audit - production-critical for normalization/import.
                     var resolvedCategory = ResolveCandidateCategory(rawTypeName, productName, product.ObjectType?.ToString());
                     var classification = new ElementClassificationAuditDetail
                     {
@@ -1570,15 +1660,15 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     };
                     auditResult.Classifications.Add(classification);
 
-                    // 2. Weight Audit
+                    // 2. Weight Audit - production-critical for normalization/import.
                     var weightDetail = AuditWeight(product, resolvedCategory, swallowedGlobalIds.Contains(globalId), concreteDensityKgPerM3, profile, massFactor);
                     auditResult.Weights.Add(weightDetail);
 
-                    // 3. Volume and Material Audit
+                    // 3. Volume and Material Audit - production-critical for normalization/import.
                     var volMat = AuditVolumeMaterial(product, volumeFactor, profile);
                     auditResult.VolumesMaterials.Add(volMat);
 
-                    // 4. Geometry Ownership Audit
+                    // 4. Geometry Ownership Audit - production-critical for visible geometry owner mapping.
                     var geomDetail = AuditGeometryOwnership(
                         product,
                         geometryContext,
@@ -1613,7 +1703,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }
 
                 DateTime heartbeatUtc = DateTime.UtcNow;
-                int heartbeatPercentage = (int)Math.Floor(((i + 1d) / physicalProducts.Count) * 100d);
+                int heartbeatPercentage = (int)Math.Floor(((i + 1d) / Math.Max(1, physicalProducts.Count)) * 100d);
                 if (heartbeatPercentage > lastHeartbeatPercentage ||
                     heartbeatUtc - lastHeartbeatUtc >= TimeSpan.FromSeconds(10))
                 {
@@ -1638,7 +1728,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 if (i % throttleInterval == 0 || i == physicalProducts.Count - 1)
                 {
-                    double currentPercentage = startPct + ((double)(i + 1) / physicalProducts.Count) * (endPct - startPct);
+                    double currentPercentage = startPct + ((double)(i + 1) / Math.Max(1, physicalProducts.Count)) * (endPct - startPct);
                     progress?.Report(currentPercentage);
                 }
             }
@@ -1654,7 +1744,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 loopTimer.ElapsedMilliseconds,
                 "PhysicalProductsCount",
                 physicalProducts.Count,
-                true);
+                true,
+                currentIndex: physicalProducts.Count,
+                totalCount: physicalProducts.Count);
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -1664,11 +1756,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
             auditResult.RawNameDiagnostics = BuildRawNameDiagnostics(
                 physicalProducts,
                 model,
+                largeModelSummaryMode,
                 startMark,
                 markTimer,
                 cancellationToken);
             auditResult.AssemblyMarkDiagnostics = BuildAssemblyMarkDiagnostics(
                 physicalProducts,
+                largeModelSummaryMode,
                 geometryContext,
                 shapeInstancesLookup,
                 auditResult,
@@ -1684,15 +1778,16 @@ namespace CraneOptimizer.Infrastructure.Repositories
             IfcImportProfiler.Record(
                 "RunningDiagnosticsAudit",
                 "Audit_BuildAssemblyMarkDiagnostics",
-                "Building assembly mark diagnostics...",
+                largeModelSummaryMode ? "Building bounded assembly mark diagnostics summary..." : "Building assembly mark diagnostics...",
                 startMark,
                 endMark,
                 markTimer.ElapsedMilliseconds,
-                "AssemblyMarkDiagnosticsCount",
+                largeModelSummaryMode ? "AssemblyMarkDiagnosticsSampleCount" : "AssemblyMarkDiagnosticsCount",
                 auditResult.AssemblyMarkDiagnostics.Count,
-                true);
+                true,
+                currentIndex: auditResult.AssemblyMarkDiagnostics.Count,
+                totalCount: largeModelSummaryMode ? physicalProducts.Count : auditResult.AssemblyMarkDiagnostics.Count);
         }
-
         private static string ResolveCandidateCategory(string rawTypeName, string name, string? objectType)
         {
             var combined = $"{rawTypeName} {name} {objectType ?? string.Empty}".ToUpperInvariant();
@@ -2070,20 +2165,22 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private List<RawNameDiagnosticDetail> BuildRawNameDiagnostics(
             List<IIfcProduct> physicalProducts,
             IfcStore model,
+            bool largeModelSummaryMode,
             DateTime stageStartedUtc,
             Stopwatch stageTimer,
             CancellationToken cancellationToken)
         {
             var profileResolver = new IfcExporterProfileResolver();
             var exporterProfile = profileResolver.ResolveProfile(model.Header?.FileName?.OriginatingSystem ?? string.Empty);
+            var diagnosticProducts = SelectLargeModelDiagnosticProducts(physicalProducts, largeModelSummaryMode, LargeModelMarkDiagnosticSampleLimit);
 
-            var list = new List<RawNameDiagnosticDetail>();
+            var list = new List<RawNameDiagnosticDetail>(diagnosticProducts.Count);
             DateTime lastHeartbeatUtc = stageStartedUtc;
             int lastHeartbeatPercentage = -1;
-            for (int i = 0; i < physicalProducts.Count; i++)
+            for (int i = 0; i < diagnosticProducts.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                IIfcProduct product = physicalProducts[i];
+                IIfcProduct product = diagnosticProducts[i];
                 var rawIfcName = product?.Name?.ToString()?.Trim();
                 var rawIfcLongName = string.Empty;
                 var rawObjectType = string.Empty;
@@ -2144,23 +2241,23 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 };
                 list.Add(detail);
                 DateTime heartbeatUtc = DateTime.UtcNow;
-                int heartbeatPercentage = (int)Math.Floor(((i + 1d) / physicalProducts.Count) * 100d);
+                int heartbeatPercentage = (int)Math.Floor(((i + 1d) / Math.Max(1, diagnosticProducts.Count)) * 100d);
                 if (heartbeatPercentage > lastHeartbeatPercentage ||
                     heartbeatUtc - lastHeartbeatUtc >= TimeSpan.FromSeconds(10))
                 {
                     IfcImportProfiler.Record(
                         "RunningDiagnosticsAudit",
                         "Audit_BuildAssemblyMarkDiagnostics",
-                        "Heartbeat",
+                        largeModelSummaryMode ? "HeartbeatRawNameSummarySample" : "Heartbeat",
                         stageStartedUtc,
                         heartbeatUtc,
                         stageTimer.ElapsedMilliseconds,
-                        "RawNameDiagnosticsCount",
-                        physicalProducts.Count,
+                        largeModelSummaryMode ? "RawNameDiagnosticsSampleCount" : "RawNameDiagnosticsCount",
+                        diagnosticProducts.Count,
                         false,
                         currentIndex: i + 1,
-                        totalCount: physicalProducts.Count,
-                        productGlobalId: product.GlobalId.ToString(),
+                        totalCount: largeModelSummaryMode ? physicalProducts.Count : diagnosticProducts.Count,
+                        productGlobalId: product!.GlobalId.ToString(),
                         entityLabel: product.EntityLabel,
                         expressType: product.ExpressType?.Name ?? product.GetType().Name);
                     lastHeartbeatUtc = heartbeatUtc;
@@ -2169,9 +2266,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
             return list;
         }
-
         private List<AssemblyMarkAuditDetail> BuildAssemblyMarkDiagnostics(
             List<IIfcProduct> physicalProducts,
+            bool largeModelSummaryMode,
             Xbim3DModelContext? geometryContext,
             ILookup<int, XbimShapeInstance>? shapeInstancesLookup,
             IfcAuditResult auditResult,
@@ -2182,10 +2279,29 @@ namespace CraneOptimizer.Infrastructure.Repositories
             Stopwatch stageTimer,
             CancellationToken cancellationToken)
         {
+            var diagnosticProducts = SelectLargeModelDiagnosticProducts(physicalProducts, largeModelSummaryMode, LargeModelMarkDiagnosticSampleLimit);
+
+            if (largeModelSummaryMode)
+            {
+                AddLargeModelTypeSummaryWarning(auditResult, "Audit_BuildAssemblyMarkDiagnostics", physicalProducts, diagnosticProducts);
+                IfcImportProfiler.Record(
+                    "RunningDiagnosticsAudit",
+                    "Audit_BuildAssemblyMarkDiagnostics_SummaryMode",
+                    "Detailed assembly mark diagnostics are bounded for large model",
+                    DateTime.UtcNow,
+                    DateTime.UtcNow,
+                    0,
+                    "DetailedSampleCount",
+                    diagnosticProducts.Count,
+                    true,
+                    currentIndex: diagnosticProducts.Count,
+                    totalCount: physicalProducts.Count);
+            }
+
             var weightsById = auditResult.Weights.ToDictionary(w => w.GlobalId, StringComparer.Ordinal);
             var materialById = auditResult.VolumesMaterials.ToDictionary(v => v.GlobalId, StringComparer.Ordinal);
             var classById = auditResult.Classifications.ToDictionary(c => c.GlobalId, StringComparer.Ordinal);
-            var details = new List<AssemblyMarkAuditDetail>(physicalProducts.Count);
+            var details = new List<AssemblyMarkAuditDetail>(diagnosticProducts.Count);
             var sourceSystem = profile == IfcExporterProfile.Tekla
                 ? SourceSystem.Tekla.ToString()
                 : profile == IfcExporterProfile.Revit
@@ -2194,10 +2310,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             DateTime lastHeartbeatUtc = stageStartedUtc;
             int lastHeartbeatPercentage = -1;
-            for (int i = 0; i < physicalProducts.Count; i++)
+            for (int i = 0; i < diagnosticProducts.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                IIfcProduct product = physicalProducts[i];
+                IIfcProduct product = diagnosticProducts[i];
                 var globalId = product.GlobalId.ToString();
                 var rawName = product.Name?.ToString() ?? string.Empty;
                 var rawTag = (product as IIfcElement)?.Tag?.ToString() ?? string.Empty;
@@ -2227,13 +2343,15 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     warnings.Add("MissingTrustedWeight: no positive audit weight was resolved for this element.");
                 }
 
-                var cog = TryGetGeometryCenter(
-                    product,
-                    geometryContext,
-                    shapeInstancesLookup,
-                    auditResult,
-                    lengthFactor,
-                    counters);
+                (double? X, double? Y, double? Z) cog = largeModelSummaryMode
+                    ? (null, null, null)
+                    : TryGetGeometryCenter(
+                        product,
+                        geometryContext,
+                        shapeInstancesLookup,
+                        auditResult,
+                        lengthFactor,
+                        counters);
                 var groupKey = IsExplicitAssemblyGroupCandidate(identity)
                     ? identity.AssemblyMark?.Trim() ?? string.Empty
                     : string.Empty;
@@ -2279,22 +2397,22 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     Action = identity.IsExplicitAssemblyMark ? "UseElementAsLiftUnit" : "ReviewFallbackMark"
                 });
                 DateTime heartbeatUtc = DateTime.UtcNow;
-                int heartbeatPercentage = (int)Math.Floor(((i + 1d) / physicalProducts.Count) * 100d);
+                int heartbeatPercentage = (int)Math.Floor(((i + 1d) / Math.Max(1, diagnosticProducts.Count)) * 100d);
                 if (heartbeatPercentage > lastHeartbeatPercentage ||
                     heartbeatUtc - lastHeartbeatUtc >= TimeSpan.FromSeconds(10))
                 {
                     IfcImportProfiler.Record(
                         "RunningDiagnosticsAudit",
                         "Audit_BuildAssemblyMarkDiagnostics",
-                        "Heartbeat",
+                        largeModelSummaryMode ? "HeartbeatAssemblyMarkSummarySample" : "Heartbeat",
                         stageStartedUtc,
                         heartbeatUtc,
                         stageTimer.ElapsedMilliseconds,
-                        "PhysicalProductsCount",
-                        physicalProducts.Count,
+                        largeModelSummaryMode ? "AssemblyMarkDiagnosticsSampleCount" : "PhysicalProductsCount",
+                        diagnosticProducts.Count,
                         false,
                         currentIndex: i + 1,
-                        totalCount: physicalProducts.Count,
+                        totalCount: largeModelSummaryMode ? physicalProducts.Count : diagnosticProducts.Count,
                         productGlobalId: globalId,
                         entityLabel: product.EntityLabel,
                         expressType: product.ExpressType?.Name ?? product.GetType().Name);
@@ -2311,8 +2429,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var memberIds = members.Select(m => m.GlobalId).OrderBy(id => id, StringComparer.Ordinal).ToList();
                 var totalWeightTons = SumPositive(members.Select(m => m.ElementWeightTons));
                 var totalWeightKg = totalWeightTons.HasValue ? totalWeightTons.Value * 1000.0 : (double?)null;
-                var weightedCog = ComputeWeightedCog(members, totalWeightTons);
-                var fallbackCog = ComputeAverageCog(members);
+                var weightedCog = largeModelSummaryMode ? null : ComputeWeightedCog(members, totalWeightTons);
+                var fallbackCog = largeModelSummaryMode ? null : ComputeAverageCog(members);
                 var groupCog = weightedCog ?? fallbackCog;
                 var action = members.Count > 1 ? "GroupForGALiftUnit" : "UseElementAsLiftUnit";
 
@@ -2331,7 +2449,6 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             return details;
         }
-
         private static bool IsExplicitAssemblyGroupCandidate(CanonicalAssemblyIdentityResult identity)
         {
             if (!identity.IsExplicitAssemblyMark || string.IsNullOrWhiteSpace(identity.AssemblyMark))
