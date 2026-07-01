@@ -2000,28 +2000,98 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     .GroupBy(product => product.EntityLabel)
                     .Select(group => group.First())
                     .ToList();
+
                 var retainedGridGlobalIds = new IfcGridReferenceDeduplicator(
                         _geometryContext,
                         _lengthToMetersFactor)
-                    .SelectBottomGridGlobalIds(selectedProducts.OfType<IIfcGrid>());
+                    .SelectBottomGridGlobalIds(selectedProducts.OfType<IIfcGrid>())
+                    .ToHashSet(StringComparer.Ordinal);
 
                 if (physicalProducts.Count > 0)
                 {
                     CacheSourceProducts(physicalProducts, progress, cancellationToken);
                 }
 
-                // Create a fast lookup by GlobalId for IIfcProduct
+                // Phase 4H: build mapping indexes once after source cache creation.
+                var mappingIndexStartedUtc = DateTime.UtcNow;
+                var mappingIndexTimer = Stopwatch.StartNew();
+
                 var productByGlobalId = selectedProducts
-    .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
-    .GroupBy(p => (string)p.GlobalId, StringComparer.Ordinal)
-    .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+                    .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
+                    .GroupBy(p => p.GlobalId.ToString(), StringComparer.Ordinal)
+                    .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
                 var previewByGlobalId = previewSummary.Elements
-    .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
-    .GroupBy(p => p.GlobalId, StringComparer.Ordinal)
-    .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+                    .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
+                    .GroupBy(p => p.GlobalId, StringComparer.Ordinal)
+                    .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
-                var result = new List<PrecastElement>();
+                var sourceSnapshotByGlobalId = new Dictionary<string, SourceElementSnapshot>(StringComparer.Ordinal);
+                foreach (var indexedProduct in selectedProducts)
+                {
+                    if (string.IsNullOrWhiteSpace(indexedProduct.GlobalId))
+                        continue;
+
+                    if (_sourceCache.TryGetValue(indexedProduct.EntityLabel, out var indexedSnapshot) &&
+                        !sourceSnapshotByGlobalId.ContainsKey(indexedProduct.GlobalId.ToString()))
+                    {
+                        sourceSnapshotByGlobalId[indexedProduct.GlobalId.ToString()] = indexedSnapshot;
+                    }
+                }
+
+                var cachedBestMarkByEntityLabel = new Dictionary<int, string?>();
+
+                string? GetCachedBestMarkCandidate(IIfcProduct? cachedProduct)
+                {
+                    if (cachedProduct == null)
+                        return null;
+
+                    if (cachedBestMarkByEntityLabel.TryGetValue(cachedProduct.EntityLabel, out var cachedMark))
+                        return cachedMark;
+
+                    var resolvedMark = GetBestMarkCandidate(cachedProduct);
+                    cachedBestMarkByEntityLabel[cachedProduct.EntityLabel] = resolvedMark;
+                    return resolvedMark;
+                }
+
+                string? GetFastRevitId(IIfcProduct? cachedProduct, SourceElementSnapshot? cachedSnapshot)
+                {
+                    if (!string.IsNullOrWhiteSpace(cachedSnapshot?.RevitId))
+                        return cachedSnapshot.RevitId;
+
+                    if (cachedProduct == null)
+                        return null;
+
+                    return GetRevitId(GetProductPropertySnapshot(cachedProduct));
+                }
+
+                string? GetFastMaterial(IIfcProduct? cachedProduct, SourceElementSnapshot? cachedSnapshot)
+                {
+                    if (IsValidMaterialName(cachedSnapshot?.Material))
+                        return cachedSnapshot!.Material;
+
+                    if (cachedProduct == null)
+                        return null;
+
+                    return GetMaterial(GetProductPropertySnapshot(cachedProduct));
+                }
+
+                mappingIndexTimer.Stop();
+                var mappingIndexCompletedUtc = DateTime.UtcNow;
+                IfcImportProfiler.Record(
+                    "ExtractingQuantitiesWeights",
+                    "ExtractNormalized_BuildLookupIndexes",
+                    "Completed",
+                    mappingIndexStartedUtc,
+                    mappingIndexCompletedUtc,
+                    mappingIndexTimer.ElapsedMilliseconds,
+                    "SelectedProductsCount",
+                    selectedProducts.Count,
+                    true,
+                    currentIndex: selectedProducts.Count,
+                    totalCount: previewSummary.Elements.Count);
+
+                var result = new List<PrecastElement>(previewSummary.Elements.Count);
                 int unresolvedAssemblyMarkCount = 0;
 
                 // 2. Loop through elements from the previewSummary
@@ -2041,7 +2111,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                     if (productByGlobalId.TryGetValue(preview.GlobalId, out product))
                     {
-                        _sourceCache.TryGetValue(product.EntityLabel, out sourceSnapshot);
+                        sourceSnapshotByGlobalId.TryGetValue(preview.GlobalId, out sourceSnapshot);
                     }
 
                     if (product is IIfcGrid
@@ -2061,7 +2131,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                         if (productByGlobalId.TryGetValue(preview.ParentGlobalId, out parentProduct))
                         {
-                            _sourceCache.TryGetValue(parentProduct.EntityLabel, out parentSnapshot);
+                            sourceSnapshotByGlobalId.TryGetValue(preview.ParentGlobalId, out parentSnapshot);
                         }
                     }
 
@@ -2078,9 +2148,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     // Map all values to a new PrecastElement
                     var pe = new PrecastElement();
                     pe.ElementID = preview.GlobalId;
-                    pe.ElementRevitId = sourceSnapshot?.RevitId ?? (product != null ? GetRevitId(product) : null);
+                    pe.ElementRevitId = GetFastRevitId(product, sourceSnapshot);
                     pe.ElementMark = product != null
-                        ? CleanElementName(GetBestMarkCandidate(product) ?? string.Empty)
+                        ? CleanElementName(GetCachedBestMarkCandidate(product) ?? string.Empty)
                         : (preview.Name ?? string.Empty);
                     var rawIfcName = product?.Name?.ToString()?.Trim();
                     pe.ElementName = !string.IsNullOrWhiteSpace(rawIfcName)
@@ -2089,7 +2159,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                     // Traceability to parent assembly
                     pe.ParentAssemblyName = parentProduct != null
-                        ? CleanElementName(GetBestMarkCandidate(parentProduct) ?? parentProduct.Name?.ToString() ?? string.Empty)
+                        ? CleanElementName(GetCachedBestMarkCandidate(parentProduct) ?? parentProduct.Name?.ToString() ?? string.Empty)
                         : (parentPreview?.Name ?? string.Empty);
 
                     // Set ElementType = preview.CandidateCategory to fix UI filter labels (Requirement)
@@ -2163,9 +2233,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     pe.ExtractionWarnings = new List<string>(preview.Warnings);
 
                     // Material, with Revit parent assembly inheritance
-                    var ownMaterial = NormalizeMaterial(
-                        sourceSnapshot?.Material ??
-                        (product != null ? GetMaterial(product) : null));
+                    var ownMaterial = NormalizeMaterial(GetFastMaterial(product, sourceSnapshot));
 
                     var parentMaterial = NormalizeMaterial(parentSnapshot?.Material);
 
@@ -2294,10 +2362,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             if (string.IsNullOrWhiteSpace(ownerId))
                                 continue;
 
-                            if (!productByGlobalId.TryGetValue(ownerId, out var ownerProduct))
-                                continue;
-
-                            if (_sourceCache.TryGetValue(ownerProduct.EntityLabel, out var ownerSnapshot))
+                            if (sourceSnapshotByGlobalId.TryGetValue(ownerId, out var ownerSnapshot))
                                 ownerSnapshots.Add(ownerSnapshot);
                         }
 

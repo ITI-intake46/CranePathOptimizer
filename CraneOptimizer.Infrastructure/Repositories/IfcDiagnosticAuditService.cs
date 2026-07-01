@@ -1168,6 +1168,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return audit;
         }
 
+
         private static List<AssemblyRelationshipInfo> BuildAssemblyRelations(
             IfcStore model,
             IfcAuditResult auditResult,
@@ -1175,15 +1176,85 @@ namespace CraneOptimizer.Infrastructure.Repositories
             ILookup<int, XbimShapeInstance>? shapeInstancesLookup,
             GeometryQueryCounters counters)
         {
-            var relations = new List<AssemblyRelationshipInfo>();
+            var totalStartedUtc = DateTime.UtcNow;
+            var totalTimer = Stopwatch.StartNew();
 
-            var classificationMap = auditResult.Classifications.ToDictionary(c => c.GlobalId, c => c);
-            var weightMap = auditResult.Weights.ToDictionary(w => w.GlobalId, w => w);
+            var indexTimer = Stopwatch.StartNew();
+            var classificationMap = auditResult.Classifications
+                .Where(c => !string.IsNullOrWhiteSpace(c.GlobalId))
+                .GroupBy(c => c.GlobalId, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
+            var weightMap = auditResult.Weights
+                .Where(w => !string.IsNullOrWhiteSpace(w.GlobalId))
+                .GroupBy(w => w.GlobalId, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
+            var markDiagnosticsMap = auditResult.AssemblyMarkDiagnostics
+                .Where(m => !string.IsNullOrWhiteSpace(m.GlobalId))
+                .GroupBy(m => m.GlobalId, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
+            var productMap = model.Instances
+                .OfType<IIfcProduct>()
+                .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
+                .GroupBy(p => p.GlobalId.ToString(), StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
             var mainPartKeywords = new[] { "IsMainPart", "MainPart", "Main Part", "IsMain", "CastUnitMainPart" };
-            var productMap = model.Instances.OfType<IIfcProduct>().ToDictionary(p => p.GlobalId.ToString(), p => p);
+            var explicitMainPartCache = new Dictionary<int, bool>();
+            var cogCache = new Dictionary<int, (double? X, double? Y, double? Z)>();
+            indexTimer.Stop();
+            long buildIndexesMs = indexTimer.ElapsedMilliseconds;
+            long buildNodesMs = 0;
+            long weightRollupMs = 0;
+            long cogRollupMs = 0;
+
+            bool IsExplicitMainPart(string globalId)
+            {
+                if (string.IsNullOrWhiteSpace(globalId))
+                    return false;
+
+                if (!productMap.TryGetValue(globalId, out var childProduct))
+                    return false;
+
+                if (explicitMainPartCache.TryGetValue(childProduct.EntityLabel, out var cached))
+                    return cached;
+
+                var explicitProp = GetPropertyString(childProduct, mainPartKeywords);
+                var isExplicit = !string.IsNullOrWhiteSpace(explicitProp) &&
+                    (explicitProp.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+                     explicitProp.Equals("1", StringComparison.OrdinalIgnoreCase) ||
+                     explicitProp.Equals("yes", StringComparison.OrdinalIgnoreCase));
+
+                explicitMainPartCache[childProduct.EntityLabel] = isExplicit;
+                return isExplicit;
+            }
+
+            (double? X, double? Y, double? Z) GetCachedCog(IIfcProduct product)
+            {
+                if (cogCache.TryGetValue(product.EntityLabel, out var cached))
+                    return cached;
+
+                var center = TryGetGeometryCenter(
+                    product,
+                    geometryContext,
+                    shapeInstancesLookup,
+                    auditResult,
+                    auditResult.Metadata.LengthConversionFactor,
+                    counters);
+
+                cogCache[product.EntityLabel] = center;
+                return center;
+            }
+
+            var relations = new List<AssemblyRelationshipInfo>(auditResult.Assemblies.Details.Count);
+            var sectionTimer = new Stopwatch();
 
             foreach (var assemblyDetail in auditResult.Assemblies.Details)
             {
+                sectionTimer.Restart();
+
                 var rel = new AssemblyRelationshipInfo
                 {
                     ParentGlobalId = assemblyDetail.AssemblyGlobalId,
@@ -1193,7 +1264,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 if (classificationMap.TryGetValue(assemblyDetail.AssemblyGlobalId, out var parentClassInfo))
                 {
-                    var markDiag = auditResult.AssemblyMarkDiagnostics.FirstOrDefault(m => m.GlobalId == assemblyDetail.AssemblyGlobalId);
+                    markDiagnosticsMap.TryGetValue(assemblyDetail.AssemblyGlobalId, out var markDiag);
                     rel.AssemblyMark = markDiag?.ResolvedAssemblyMark ?? parentClassInfo.Name ?? "-";
                 }
 
@@ -1213,6 +1284,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     {
                         childNode.ChildCategory = classInfo.CandidateResolvedCategory;
                     }
+
                     if (weightMap.TryGetValue(childDetail.ChildGlobalId, out var weightInfo))
                     {
                         childNode.ChildWeightTons = weightInfo.WeightStandardValueTons;
@@ -1254,16 +1326,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         candidateMainParts.Add(childNode);
                     }
 
-                    if (productMap.TryGetValue(childDetail.ChildGlobalId, out var childProduct))
+                    if (IsExplicitMainPart(childDetail.ChildGlobalId))
                     {
-                        var explicitProp = GetPropertyString(childProduct, mainPartKeywords);
-                        if (!string.IsNullOrWhiteSpace(explicitProp) &&
-                            (explicitProp.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-                             explicitProp.Equals("1", StringComparison.OrdinalIgnoreCase) ||
-                             explicitProp.Equals("yes", StringComparison.OrdinalIgnoreCase)))
-                        {
-                            explicitMainParts.Add(childNode);
-                        }
+                        explicitMainParts.Add(childNode);
                     }
 
                     rel.Children.Add(childNode);
@@ -1318,12 +1383,28 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     }
                     else if (candidateMainParts.Count > 1)
                     {
-                        var sortedCandidates = candidateMainParts
-                            .OrderByDescending(c => c.ChildWeightTons ?? 0)
-                            .ToList();
+                        AssemblyGraphNode? heaviest = null;
+                        AssemblyGraphNode? runnerUp = null;
 
-                        var heaviest = sortedCandidates[0];
-                        var runnerUp = sortedCandidates[1];
+                        foreach (var candidate in candidateMainParts)
+                        {
+                            var candidateWeight = candidate.ChildWeightTons ?? 0;
+                            var heaviestWeight = heaviest?.ChildWeightTons ?? double.MinValue;
+                            var runnerUpWeight = runnerUp?.ChildWeightTons ?? double.MinValue;
+
+                            if (heaviest == null || candidateWeight > heaviestWeight)
+                            {
+                                runnerUp = heaviest;
+                                heaviest = candidate;
+                            }
+                            else if (runnerUp == null || candidateWeight > runnerUpWeight)
+                            {
+                                runnerUp = candidate;
+                            }
+                        }
+
+                        heaviest ??= candidateMainParts[0];
+                        runnerUp ??= candidateMainParts.Count > 1 ? candidateMainParts[1] : heaviest;
 
                         double heaviestW = heaviest.ChildWeightTons ?? 0;
                         double runnerUpW = runnerUp.ChildWeightTons ?? 0;
@@ -1375,7 +1456,11 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     }
                 }
 
-                // Phase 4 Rollup calculation
+                sectionTimer.Stop();
+                buildNodesMs += sectionTimer.ElapsedMilliseconds;
+
+                sectionTimer.Restart();
+
                 double totalWeight = 0.0;
                 string weightSource = "";
                 string weightWarning = "";
@@ -1390,7 +1475,6 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                               parentWeightInfo.WeightSource.Contains("Explicit");
                 }
 
-                // Sum of eligible children: MainPart, VisibleSecondaryPart, HiddenWeightContributor, AccessoryWeightContributor
                 var eligibleContributors = rel.Children
                     .Where(c => c.ChildClassification != AssemblyChildClassification.IgnoredReference)
                     .ToList();
@@ -1432,7 +1516,11 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 rel.WeightSourceUsed = weightSource;
                 rel.WeightMismatchWarning = weightWarning;
 
-                // COG Rollup Calculation (using physical child COGs)
+                sectionTimer.Stop();
+                weightRollupMs += sectionTimer.ElapsedMilliseconds;
+
+                sectionTimer.Restart();
+
                 double weightedSumX = 0.0;
                 double weightedSumY = 0.0;
                 double weightedSumZ = 0.0;
@@ -1445,13 +1533,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 if (mainNodeObj != null && productMap.TryGetValue(mainNodeObj.ChildGlobalId, out var mainProduct))
                 {
-                    var center = TryGetGeometryCenter(
-                        mainProduct,
-                        geometryContext,
-                        shapeInstancesLookup,
-                        auditResult,
-                        auditResult.Metadata.LengthConversionFactor,
-                        counters);
+                    var center = GetCachedCog(mainProduct);
                     if (center.X.HasValue && center.Y.HasValue && center.Z.HasValue)
                     {
                         mainPartCog = (center.X.Value, center.Y.Value, center.Z.Value);
@@ -1465,13 +1547,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                     if (productMap.TryGetValue(childNode.ChildGlobalId, out var childProduct))
                     {
-                        var center = TryGetGeometryCenter(
-                            childProduct,
-                            geometryContext,
-                            shapeInstancesLookup,
-                            auditResult,
-                            auditResult.Metadata.LengthConversionFactor,
-                            counters);
+                        var center = GetCachedCog(childProduct);
                         if (center.X.HasValue && center.Y.HasValue && center.Z.HasValue)
                         {
                             weightedSumX += center.X.Value * w;
@@ -1481,10 +1557,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         }
                         else
                         {
-                            // Missing COG fallback rules
                             bool isHiddenOrAccessory = childNode.ChildClassification == AssemblyChildClassification.HiddenWeightContributor ||
                                                        childNode.ChildClassification == AssemblyChildClassification.AccessoryWeightContributor;
-                            double pct = w / totalWeight;
+                            double pct = totalWeight > 0.0 ? w / totalWeight : 1.0;
 
                             if (isHiddenOrAccessory && pct <= 0.02 && mainPartCog != null)
                             {
@@ -1528,10 +1603,49 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 rel.COGSource = cogSource;
                 rel.COGWarnings = cogWarning.Trim();
 
+                sectionTimer.Stop();
+                cogRollupMs += sectionTimer.ElapsedMilliseconds;
+
                 relations.Add(rel);
             }
 
+            totalTimer.Stop();
+            var completedUtc = DateTime.UtcNow;
+
+            RecordAssemblyRelationsSubStage("Audit_BuildAssemblyRelations_BuildIndexes", buildIndexesMs, relations.Count, completedUtc);
+            RecordAssemblyRelationsSubStage("Audit_BuildAssemblyRelations_BuildNodesAndMainPart", buildNodesMs, relations.Count, completedUtc);
+            RecordAssemblyRelationsSubStage("Audit_BuildAssemblyRelations_WeightRollup", weightRollupMs, relations.Count, completedUtc);
+            RecordAssemblyRelationsSubStage("Audit_BuildAssemblyRelations_CogRollup", cogRollupMs, relations.Count, completedUtc);
+            IfcImportProfiler.Record(
+                "RunningDiagnosticsAudit",
+                "Audit_BuildAssemblyRelations_OptimizedTotal",
+                "Completed",
+                totalStartedUtc,
+                completedUtc,
+                totalTimer.ElapsedMilliseconds,
+                "AssemblyRelationsCount",
+                relations.Count,
+                true,
+                currentIndex: relations.Count,
+                totalCount: auditResult.Assemblies.Details.Count);
+
             return relations;
+        }
+
+        private static void RecordAssemblyRelationsSubStage(string subStage, long elapsedMs, int relationCount, DateTime completedUtc)
+        {
+            IfcImportProfiler.Record(
+                "RunningDiagnosticsAudit",
+                subStage,
+                "Completed",
+                completedUtc - TimeSpan.FromMilliseconds(elapsedMs),
+                completedUtc,
+                elapsedMs,
+                "AssemblyRelationsCount",
+                relationCount,
+                true,
+                currentIndex: relationCount,
+                totalCount: relationCount);
         }
 
         private static bool CategoryAligns(string childCategory, string parentName)
