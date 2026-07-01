@@ -473,6 +473,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             private readonly Dictionary<int, AggregateSnapshot> _aggregateCache = new();
             private readonly Dictionary<int, CanonicalAssemblyIdentityResult> _canonicalIdentityCache = new();
             private readonly Dictionary<int, SourceProductPropertySnapshot> _propertySnapshotCache = new();
+            private readonly Dictionary<int, SourceTypePropertySnapshot> _typePropertySnapshotCache = new();
             private readonly IIfcExporterProfile _exporterProfileDefinition;
 
             // Phase 4A: import extraction sub-profiler.
@@ -771,7 +772,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 _sourceSnapshotIdentityMs += phase4SectionTimer.ElapsedMilliseconds;
 
                 phase4SectionTimer.Restart();
-                var rawName = GetMark(product);
+                var rawName = GetMark(product, propertySnapshot);
                 var cleanedName = CleanElementName(rawName ?? string.Empty);
                 phase4SectionTimer.Stop();
                 _sourceSnapshotMarkMs += phase4SectionTimer.ElapsedMilliseconds;
@@ -827,7 +828,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 var revitId = parentSnapshot.RevitId;
                 var productName = parentSnapshot.Name ?? assembly.Name?.ToString()?.Trim();
-                var cleanedName = parentSnapshot.Mark ?? CleanElementName(GetMark(assembly) ?? string.Empty);
+                var cleanedName = parentSnapshot.Mark ?? CleanElementName(GetMark(assembly, GetProductPropertySnapshot(assembly)) ?? string.Empty);
 
                 var aggregate = new AggregateSnapshot(
                     assembly.EntityLabel,
@@ -1124,6 +1125,33 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return snapshot;
             }
 
+            private SourceTypePropertySnapshot GetTypePropertySnapshot(IIfcTypeObject typeObject)
+            {
+                if (_typePropertySnapshotCache.TryGetValue(typeObject.EntityLabel, out var cached))
+                    return cached;
+
+                string? typeMaterialName = null;
+                var typeProperties = new List<SourceProductProperty>();
+
+                var typeMaterialRelation = typeObject.HasAssociations?
+                    .OfType<IIfcRelAssociatesMaterial>()
+                    .FirstOrDefault();
+
+                if (typeMaterialRelation != null)
+                {
+                    typeMaterialName = ResolveIfcMaterialName(typeMaterialRelation.RelatingMaterial);
+                }
+
+                foreach (var typePropertySet in typeObject.HasPropertySets.OfType<IIfcPropertySet>())
+                {
+                    AddPropertySetValues(typePropertySet, typeProperties);
+                }
+
+                var snapshot = new SourceTypePropertySnapshot(typeMaterialName, typeProperties);
+                _typePropertySnapshotCache[typeObject.EntityLabel] = snapshot;
+                return snapshot;
+            }
+
             private SourceProductPropertySnapshot BuildProductPropertySnapshot(IIfcProduct product)
             {
                 var quantities = new List<SourceProductQuantity>();
@@ -1166,23 +1194,16 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 foreach (var typeRelation in definitions.OfType<IIfcRelDefinesByType>())
                 {
-                    var typeObject = typeRelation.RelatingType;
+                    var typeSnapshot = GetTypePropertySnapshot(typeRelation.RelatingType);
 
                     if (string.IsNullOrWhiteSpace(typeMaterialName))
                     {
-                        var typeMaterialRelation = typeObject.HasAssociations?
-                            .OfType<IIfcRelAssociatesMaterial>()
-                            .FirstOrDefault();
-
-                        if (typeMaterialRelation != null)
-                        {
-                            typeMaterialName = ResolveIfcMaterialName(typeMaterialRelation.RelatingMaterial);
-                        }
+                        typeMaterialName = typeSnapshot.TypeMaterialName;
                     }
 
-                    foreach (var typePropertySet in typeObject.HasPropertySets.OfType<IIfcPropertySet>())
+                    if (typeSnapshot.TypeProperties.Count > 0)
                     {
-                        AddPropertySetValues(typePropertySet, typeProperties);
+                        typeProperties.AddRange(typeSnapshot.TypeProperties);
                     }
                 }
 
@@ -1591,12 +1612,273 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 string previewName,
                 IfcExporterProfile exporterProfile)
             {
+                var snapshot = GetProductPropertySnapshot(product);
+                return GetCachedCanonicalAssemblyIdentity(product, snapshot, previewName, exporterProfile);
+            }
+
+            private CanonicalAssemblyIdentityResult GetCachedCanonicalAssemblyIdentity(
+                IIfcProduct product,
+                SourceProductPropertySnapshot snapshot,
+                string previewName,
+                IfcExporterProfile exporterProfile)
+            {
                 if (_canonicalIdentityCache.TryGetValue(product.EntityLabel, out var cached))
                     return cached;
 
-                var resolved = _aliasResolver.ResolveCanonicalAssemblyIdentity(product, previewName, exporterProfile);
+                var resolved = ResolveCanonicalAssemblyIdentityFromSnapshot(product, snapshot, previewName, exporterProfile);
                 _canonicalIdentityCache[product.EntityLabel] = resolved;
                 return resolved;
+            }
+
+            private static IIfcExporterProfile GetExporterProfileDefinition(IfcExporterProfile profile)
+            {
+                return profile switch
+                {
+                    IfcExporterProfile.Tekla => new TeklaIfcExporterProfile(),
+                    IfcExporterProfile.Revit => new RevitIfcExporterProfile(),
+                    _ => new GenericIfcExporterProfile()
+                };
+            }
+
+            private static CanonicalAssemblyIdentityResult ResolveCanonicalAssemblyIdentityFromSnapshot(
+                IIfcProduct product,
+                SourceProductPropertySnapshot snapshot,
+                string previewName,
+                IfcExporterProfile profileEnum)
+            {
+                // Phase 4I: cached type property snapshots and canonical identity from source snapshot.
+                // This preserves the CentralIfcPropertyAliasResolver decision order while avoiding
+                // a second xBIM property-set traversal during BuildSourceSnapshot mark resolution.
+                var profile = GetExporterProfileDefinition(profileEnum);
+                var result = new CanonicalAssemblyIdentityResult
+                {
+                    SourceSystem = profileEnum == IfcExporterProfile.Tekla ? SourceSystem.Tekla.ToString() :
+                                   profileEnum == IfcExporterProfile.Revit ? SourceSystem.Revit.ToString() :
+                                   SourceSystem.IFC.ToString(),
+                    Confidence = AssemblyMarkConfidence.None.ToString(),
+                    IsExplicitAssemblyMark = false,
+                    UsedFallback = false
+                };
+
+                var psetNames = new[] { "Pset_Revit_Identity Data", "Pset_ConcreteElementGeneral" };
+
+                foreach (var targetPset in psetNames)
+                {
+                    foreach (var propName in profile.AssemblyIdentityAliases)
+                    {
+                        var val = GetSnapshotPropertyString(snapshot, targetPset, propName);
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            result.AssemblyMark = val;
+                            result.SourcePropertySet = targetPset;
+                            result.SourcePropertyName = propName;
+                            result.Confidence = AssemblyMarkConfidence.High.ToString();
+                            result.IsExplicitAssemblyMark = true;
+                            return result;
+                        }
+                    }
+                }
+
+                foreach (var propName in profile.AssemblyIdentityAliases)
+                {
+                    var (val, pset) = GetSnapshotPropertyStringAnySet(snapshot, propName);
+                    if (!string.IsNullOrWhiteSpace(val))
+                    {
+                        result.AssemblyMark = val;
+                        result.SourcePropertySet = pset ?? "AnySet";
+                        result.SourcePropertyName = propName;
+                        result.Confidence = AssemblyMarkConfidence.High.ToString();
+                        result.IsExplicitAssemblyMark = true;
+                        return result;
+                    }
+                }
+
+                var isAssembly = product is IIfcElementAssembly ||
+                    (product.ExpressType?.Name?.Equals("IfcElementAssembly", StringComparison.OrdinalIgnoreCase) ?? false);
+
+                if (isAssembly)
+                {
+                    foreach (var targetPset in psetNames)
+                    {
+                        var val = GetSnapshotPropertyString(snapshot, targetPset, "Mark");
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            result.AssemblyMark = val;
+                            result.SourcePropertySet = targetPset;
+                            result.SourcePropertyName = "Mark";
+                            result.Confidence = AssemblyMarkConfidence.Medium.ToString();
+                            result.IsExplicitAssemblyMark = true;
+                            return result;
+                        }
+                    }
+
+                    foreach (var propName in profile.AssemblyIdentityAliases)
+                    {
+                        var (val, pset) = GetSnapshotPropertyStringAnySet(snapshot, propName);
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            result.AssemblyMark = val;
+                            result.SourcePropertySet = pset ?? "AnySet";
+                            result.SourcePropertyName = propName;
+                            result.Confidence = AssemblyMarkConfidence.Medium.ToString();
+                            result.IsExplicitAssemblyMark = true;
+                            return result;
+                        }
+                    }
+                }
+
+                foreach (var targetPset in psetNames)
+                {
+                    foreach (var propName in profile.ElementIdentityAliases)
+                    {
+                        if (IsPartPositionAlias(propName))
+                            continue;
+
+                        var val = GetSnapshotPropertyString(snapshot, targetPset, propName);
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            result.AssemblyMark = val;
+                            result.SourcePropertySet = targetPset;
+                            result.SourcePropertyName = propName;
+                            result.Confidence = AssemblyMarkConfidence.Medium.ToString();
+                            result.IsExplicitAssemblyMark = false;
+                            return result;
+                        }
+                    }
+                }
+
+                foreach (var propName in profile.ElementIdentityAliases)
+                {
+                    if (IsPartPositionAlias(propName))
+                        continue;
+
+                    var (val, pset) = GetSnapshotPropertyStringAnySet(snapshot, propName);
+                    if (!string.IsNullOrWhiteSpace(val))
+                    {
+                        result.AssemblyMark = val;
+                        result.SourcePropertySet = pset ?? "AnySet";
+                        result.SourcePropertyName = propName;
+                        result.Confidence = AssemblyMarkConfidence.Medium.ToString();
+                        result.IsExplicitAssemblyMark = false;
+                        return result;
+                    }
+                }
+
+                foreach (var targetPset in psetNames)
+                {
+                    foreach (var propName in profile.TypeReferenceAliases)
+                    {
+                        if (propName.Equals("ObjectType", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        var val = GetSnapshotPropertyString(snapshot, targetPset, propName);
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            result.AssemblyMark = val;
+                            result.SourcePropertySet = targetPset;
+                            result.SourcePropertyName = propName;
+                            result.Confidence = AssemblyMarkConfidence.Low.ToString();
+                            result.IsExplicitAssemblyMark = false;
+                            return result;
+                        }
+                    }
+                }
+
+                foreach (var propName in profile.TypeReferenceAliases)
+                {
+                    if (propName.Equals("ObjectType", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var (val, pset) = GetSnapshotPropertyStringAnySet(snapshot, propName);
+                    if (!string.IsNullOrWhiteSpace(val))
+                    {
+                        result.AssemblyMark = val;
+                        result.SourcePropertySet = pset ?? "AnySet";
+                        result.SourcePropertyName = propName;
+                        result.Confidence = AssemblyMarkConfidence.Low.ToString();
+                        result.IsExplicitAssemblyMark = false;
+                        return result;
+                    }
+                }
+
+                var objType = product.ObjectType?.ToString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(objType))
+                {
+                    result.AssemblyMark = objType;
+                    result.SourcePropertySet = "ObjectType";
+                    result.SourcePropertyName = "ObjectType";
+                    result.Confidence = AssemblyMarkConfidence.Low.ToString();
+                    result.IsExplicitAssemblyMark = false;
+                    return result;
+                }
+
+                var productName = snapshot.ProductName ?? product.Name?.ToString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(productName))
+                {
+                    result.AssemblyMark = productName;
+                    result.SourcePropertySet = "Product";
+                    result.SourcePropertyName = "Name";
+                    result.Confidence = AssemblyMarkConfidence.Low.ToString();
+                    result.IsExplicitAssemblyMark = false;
+                    result.UsedFallback = true;
+                    result.Warnings.Add("Fell back to product Name; no explicit assembly or element mark was found.");
+                }
+                else
+                {
+                    result.AssemblyMark = previewName;
+                    result.SourcePropertySet = "Preview";
+                    result.SourcePropertyName = "Name";
+                    result.Confidence = AssemblyMarkConfidence.None.ToString();
+                    result.IsExplicitAssemblyMark = false;
+                    result.UsedFallback = true;
+                    result.Warnings.Add("No name or mark properties found; fell back to preview name.");
+                }
+
+                return result;
+            }
+
+            private static bool IsPartPositionAlias(string propName)
+            {
+                return propName.Equals("Part Mark", StringComparison.OrdinalIgnoreCase) ||
+                       propName.Equals("PartMark", StringComparison.OrdinalIgnoreCase) ||
+                       propName.Equals("Part Position", StringComparison.OrdinalIgnoreCase) ||
+                       propName.Equals("PartPosition", StringComparison.OrdinalIgnoreCase);
+            }
+
+            private static string? GetSnapshotPropertyString(
+                SourceProductPropertySnapshot snapshot,
+                string propertySetName,
+                string propertyName)
+            {
+                foreach (var property in snapshot.Properties)
+                {
+                    if (!property.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (!property.PropertySetName.Contains(propertySetName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (!string.IsNullOrWhiteSpace(property.Value))
+                        return property.Value;
+                }
+
+                return null;
+            }
+
+            private static (string? Value, string? PropertySetName) GetSnapshotPropertyStringAnySet(
+                SourceProductPropertySnapshot snapshot,
+                string propertyName)
+            {
+                foreach (var property in snapshot.Properties)
+                {
+                    if (!property.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (!string.IsNullOrWhiteSpace(property.Value))
+                        return (property.Value, property.PropertySetName);
+                }
+
+                return (null, null);
             }
 
             private static void ValidateCanonicalAssembly(PrecastElement pe)
@@ -1679,14 +1961,22 @@ namespace CraneOptimizer.Infrastructure.Repositories
             private string? GetBestMarkCandidate(IIfcProduct product)
             {
                 if (product == null) return null;
+                return GetBestMarkCandidate(product, GetProductPropertySnapshot(product));
+            }
+
+            private string? GetBestMarkCandidate(IIfcProduct product, SourceProductPropertySnapshot snapshot)
+            {
                 var res = GetCachedCanonicalAssemblyIdentity(
                     product,
-                    product.Name?.ToString() ?? string.Empty,
+                    snapshot,
+                    snapshot.ProductName ?? product.Name?.ToString() ?? string.Empty,
                     _exporterProfile);
                 return res.AssemblyMark;
             }
 
             private string? GetMark(IIfcProduct product) => GetBestMarkCandidate(product);
+
+            private string? GetMark(IIfcProduct product, SourceProductPropertySnapshot snapshot) => GetBestMarkCandidate(product, snapshot);
 
 
             private static string CleanElementName(string rawName)
@@ -2899,6 +3189,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
             string? Value,
             string? UnitName,
             double? NumericValue);
+
+        private sealed record SourceTypePropertySnapshot(
+            string? TypeMaterialName,
+            IReadOnlyList<SourceProductProperty> TypeProperties);
 
         private sealed record SourceProductPropertySnapshot(
             int EntityLabel,
