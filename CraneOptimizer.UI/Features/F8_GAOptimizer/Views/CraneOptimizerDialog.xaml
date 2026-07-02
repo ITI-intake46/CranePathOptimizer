@@ -999,7 +999,7 @@
 
                                 <StackPanel Visibility="{Binding ParamTargetElementsAllowList.Visibility}">
                                     <StackPanel Orientation="Horizontal" Margin="0,8,0,4">
-                                        <TextBlock FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Text="TARGET ELEMENTS ALLOW-LIST" VerticalAlignment="Center" />
+                                        <TextBlock FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Text="TARGET ASSEMBLY TYPES" VerticalAlignment="Center" />
                                         <controls:ParameterHelpIcon ParameterKey="TargetElementTypes" Margin="4,0,0,0" VerticalAlignment="Center" />
                                     </StackPanel>
 

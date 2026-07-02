@@ -80,9 +80,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             return elements
                 .Where(parent => parent.Role == IfcElementRole.LiftAssembly)
                 .Where(parent => !IsReinforcementAssembly(parent, elements, byId))
-                .Where(parent => targetTypes == null || ResolveChildren(parent, elements, byId)
-                    .Append(parent)
-                    .Any(member => targetTypes.Contains(NormalizeElementType(member.ElementType))))
+                .Where(parent => targetTypes == null || (
+                    !string.IsNullOrWhiteSpace(parent.ElementType)
+                    && targetTypes.Contains(parent.ElementType.Trim())))
                 .Select(parent => parent.ElementID)
                 .ToHashSet(StringComparer.Ordinal);
         }
@@ -289,8 +289,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             && double.IsFinite(point.Y)
             && double.IsFinite(point.Z);
 
-        private static string NormalizeElementType(string? elementType) =>
-            string.IsNullOrWhiteSpace(elementType) ? "Unknown" : elementType.Trim();
     }
 
     internal readonly record struct GaLiftUnitCounts(

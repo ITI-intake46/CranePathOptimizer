@@ -446,13 +446,19 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
             bool hadPreviousTypes = _targetElementTypes.Count > 0;
 
-            _targetElementTypes = _cachedElements
-                .GroupBy(element => NormalizeElementType(element.ElementType), StringComparer.OrdinalIgnoreCase)
-                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(group => new ElementTypeFilterOption(
-                    group.Key,
-                    group.Count(),
-                    !hadPreviousTypes || previousSelection.Contains(group.Key)))
+            var assemblyCounts = _cachedElements
+                .Where(e => e.Role == IfcElementRole.LiftAssembly && e.IncludeInGa
+                            && !string.IsNullOrWhiteSpace(e.ElementType))
+                .GroupBy(e => e.ElementType.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => (TypeName: g.Key, Count: g.Count()))
+                .OrderBy(x => x.TypeName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            _targetElementTypes = assemblyCounts
+                .Select(ac => new ElementTypeFilterOption(
+                    ac.TypeName,
+                    ac.Count,
+                    !hadPreviousTypes || previousSelection.Contains(ac.TypeName)))
                 .ToList();
 
             TargetElementTypesList.ItemsSource = _targetElementTypes;
@@ -467,13 +473,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 .ToList();
         }
 
-        private static string NormalizeElementType(string? elementType)
-        {
-            return string.IsNullOrWhiteSpace(elementType)
-                ? "Unknown"
-                : elementType.Trim();
-        }
-
         private void SetAllTargetElementTypes(bool isSelected)
         {
             foreach (var option in _targetElementTypes)
@@ -486,14 +485,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private void UpdateTargetElementSummary()
         {
             int selectedTypeCount = _targetElementTypes.Count(option => option.IsSelected);
-            int selectedElementCount = _targetElementTypes
+            int selectedAssemblyCount = _targetElementTypes
                 .Where(option => option.IsSelected)
                 .Sum(option => option.Count);
-            int totalElementCount = _targetElementTypes.Sum(option => option.Count);
+            int totalAssemblyCount = _targetElementTypes.Sum(option => option.Count);
 
             TxtTargetElementSummary.Text = _targetElementTypes.Count == 0
-                ? "No element types found"
-                : $"{selectedTypeCount}/{_targetElementTypes.Count} types, {selectedElementCount}/{totalElementCount} elements";
+                ? "No assembly types found"
+                : $"{selectedTypeCount}/{_targetElementTypes.Count} types, {selectedAssemblyCount}/{totalAssemblyCount} assemblies";
         }
 
         private void BtnAdvancedToggle_Click(object sender, RoutedEventArgs e)
@@ -612,12 +611,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 sceneElements = sceneElements.Where(e => selectedIds.Contains(e.ElementID)).ToList();
             }
 
-            // 2. Filter by target types
+            // 2. Filter by target element types
             var selectedTypes = GetSelectedTargetElementTypes();
             if (selectedTypes != null && selectedTypes.Count > 0)
             {
-                var typeSet = selectedTypes.Select(t => t.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                sceneElements = sceneElements.Where(e => typeSet.Contains(NormalizeElementType(e.ElementType))).ToList();
+                var typeSet = selectedTypes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                sceneElements = sceneElements
+                    .Where(e => !string.IsNullOrWhiteSpace(e.ElementType)
+                                && typeSet.Contains(e.ElementType.Trim()))
+                    .ToList();
             }
             else
             {
