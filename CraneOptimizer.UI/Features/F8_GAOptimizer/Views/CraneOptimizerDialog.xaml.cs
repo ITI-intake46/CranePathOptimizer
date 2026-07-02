@@ -1,4 +1,5 @@
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
@@ -13,7 +14,6 @@ using System.Windows;
 using System.Windows.Controls;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 using CraneOptimizer.Application.Services;
-using CraneOptimizer.Domain.Diagnostics;
 using System.ComponentModel;
 using System.Text;
 using System.Threading;
@@ -129,33 +129,32 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 // Refresh readiness summary to evaluate the latest selected target types/selection
                 RefreshReadinessSummary();
                 var vm = DataContext as CraneOptimizerDialogViewModel;
-                if (vm != null && vm.IsElementCheckerEnabled && vm.ReadinessSummary != null)
+
+                // The only allowed run guard: no lift units at all.
+                // Element Checker toggle, NeedsReview roles, and raw child diagnostics
+                // do NOT block the GA run — feasibility is decided inside GA evaluation.
+                if (vm?.ReadinessSummary != null && vm.ReadinessSummary.GaCandidateElements == 0)
                 {
-                    if (vm.ReadinessSummary.GaCandidateElements == 0)
+                    TxtStatus.Text = "No valid GA lift units found.";
+                    ProgBar.IsIndeterminate = false;
+                    ProgBar.Value = 0;
+
+                    var explanation = new StringBuilder();
+                    explanation.AppendLine("Optimization blocked: Zero valid grouped assembly lift units.");
+                    explanation.AppendLine();
+                    explanation.AppendLine("Details:");
+                    foreach (var msg in vm.ReadinessSummary.Messages)
                     {
-                        TxtStatus.Text = "No valid GA candidates.";
-                        ProgBar.IsIndeterminate = false;
-                        ProgBar.Value = 0;
-
-                        var explanation = new StringBuilder();
-                        explanation.AppendLine("Optimization blocked: Zero valid GA candidate elements.");
-                        explanation.AppendLine();
-                        explanation.AppendLine("Details:");
-                        foreach (var msg in vm.ReadinessSummary.Messages)
+                        if (msg.Severity == "Error")
                         {
-                            if (msg.Severity == "Error" || msg.Severity == "Warning")
-                            {
-                                explanation.AppendLine($"- [{msg.Code}] {msg.Message}");
-                                if (!string.IsNullOrEmpty(msg.RecommendedAction))
-                                {
-                                    explanation.AppendLine($"  Recommended: {msg.RecommendedAction}");
-                                }
-                            }
+                            explanation.AppendLine($"- [{msg.Code}] {msg.Message}");
+                            if (!string.IsNullOrEmpty(msg.RecommendedAction))
+                                explanation.AppendLine($"  Recommended: {msg.RecommendedAction}");
                         }
-
-                        _dialogService.ShowMessage(explanation.ToString());
-                        return;
                     }
+
+                    _dialogService.ShowMessage(explanation.ToString());
+                    return;
                 }
 
                 if (options.TargetElementTypes.Count == 0)
@@ -595,8 +594,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(CraneOptimizerDialogViewModel.IsElementCheckerEnabled)
-                || e.PropertyName == nameof(CraneOptimizerDialogViewModel.EnableGroupedLifts))
+            if (e.PropertyName == nameof(CraneOptimizerDialogViewModel.EnableGroupedLifts))
             {
                 RefreshReadinessSummary();
             }
@@ -634,32 +632,38 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             var vm = DataContext as CraneOptimizerDialogViewModel;
             if (vm == null) return;
 
+            var allElements = _cachedElements;
             var scopedElements = GetScopedElements();
-            var summary = _readinessService.BuildSummary(scopedElements, vm.IsElementCheckerEnabled);
+
+            // Always use the original single-arg BuildSummary — no service overload needed.
+            var summary = _readinessService.BuildSummary(scopedElements);
+
             if (vm.EnableGroupedLifts)
             {
-                GaLiftUnitCounts counts = GaLiftUnitInputPreparation.CountLiftUnits(
-                    _cachedElements,
-                    scopedElements,
-                    GetSelectedTargetElementTypes());
-                summary.GaCandidateElements = counts.FinalCandidateCount;
-                if (summary.GaCandidateElements > 0)
+                // In grouped-lifts mode, patch GaCandidateElements with the actual lift-unit
+                // count.  This is a pure UI-layer patch — the service is not changed.
+                var expandedScope = GaLiftUnitInputPreparation.ExpandAssemblyScope(allElements, scopedElements);
+                var eligibleParentIds = GaLiftUnitInputPreparation.GetEligibleAssemblyParentIds(
+                    expandedScope, GetSelectedTargetElementTypes());
+
+                int liftUnitCount = 0;
+                foreach (var parent in expandedScope
+                    .Where(e => e.Role == IfcElementRole.LiftAssembly && eligibleParentIds.Contains(e.ElementID)))
                 {
-                    summary.Messages = summary.Messages
-                        .Where(message => !message.Code.Equals("NoGaCandidates", StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-                    summary.OverallStatus = summary.Messages.Any(message => message.Severity.Equals("Error", StringComparison.OrdinalIgnoreCase))
-                        ? ValidationStatus.Error
-                        : summary.Messages.Any(message => message.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase))
-                            ? ValidationStatus.Warning
-                            : ValidationStatus.Valid;
+                    if (GaLiftUnitInputPreparation.TryPrepareAssemblyParent(
+                            parent, expandedScope, out _, out _))
+                        liftUnitCount++;
                 }
 
+                // Overwrite with the assembly-level count so the badge and run guard
+                // both see the correct grouped lift-unit number.
+                summary.GaCandidateElements = liftUnitCount;
+
                 System.Diagnostics.Debug.WriteLine(
-                    $"[GA_READINESS_LIFT_UNITS] Grouped={counts.GroupedAssemblyCount}, " +
-                    $"Standalone={counts.StandaloneCount}, RebarExcluded={counts.RebarExcludedCount}, " +
-                    $"FinalCandidates={counts.FinalCandidateCount}");
+                    $"[GA_READINESS] GroupedLifts=true, LiftUnits={liftUnitCount}, " +
+                    $"GaCandidateElements={summary.GaCandidateElements}");
             }
+
             vm.ReadinessSummary = summary;
         }
 
