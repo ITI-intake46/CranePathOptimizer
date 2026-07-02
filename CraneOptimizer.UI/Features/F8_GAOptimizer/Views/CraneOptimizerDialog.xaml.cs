@@ -595,7 +595,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(CraneOptimizerDialogViewModel.IsElementCheckerEnabled))
+            if (e.PropertyName == nameof(CraneOptimizerDialogViewModel.IsElementCheckerEnabled)
+                || e.PropertyName == nameof(CraneOptimizerDialogViewModel.EnableGroupedLifts))
             {
                 RefreshReadinessSummary();
             }
@@ -635,6 +636,30 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
             var scopedElements = GetScopedElements();
             var summary = _readinessService.BuildSummary(scopedElements, vm.IsElementCheckerEnabled);
+            if (vm.EnableGroupedLifts)
+            {
+                GaLiftUnitCounts counts = GaLiftUnitInputPreparation.CountLiftUnits(
+                    _cachedElements,
+                    scopedElements,
+                    GetSelectedTargetElementTypes());
+                summary.GaCandidateElements = counts.FinalCandidateCount;
+                if (summary.GaCandidateElements > 0)
+                {
+                    summary.Messages = summary.Messages
+                        .Where(message => !message.Code.Equals("NoGaCandidates", StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    summary.OverallStatus = summary.Messages.Any(message => message.Severity.Equals("Error", StringComparison.OrdinalIgnoreCase))
+                        ? ValidationStatus.Error
+                        : summary.Messages.Any(message => message.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase))
+                            ? ValidationStatus.Warning
+                            : ValidationStatus.Valid;
+                }
+
+                System.Diagnostics.Debug.WriteLine(
+                    $"[GA_READINESS_LIFT_UNITS] Grouped={counts.GroupedAssemblyCount}, " +
+                    $"Standalone={counts.StandaloneCount}, RebarExcluded={counts.RebarExcludedCount}, " +
+                    $"FinalCandidates={counts.FinalCandidateCount}");
+            }
             vm.ReadinessSummary = summary;
         }
 

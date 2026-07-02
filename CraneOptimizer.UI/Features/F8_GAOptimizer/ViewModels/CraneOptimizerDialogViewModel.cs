@@ -467,7 +467,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             set { if (_enableConcurrentOptimization != value) { _enableConcurrentOptimization = value; OnPropertyChanged(); OnManualFieldEdit(); } }
         }
 
-        private bool _enableGroupedLifts = false;
+        private bool _enableGroupedLifts = true;
         public bool EnableGroupedLifts
         {
             get => _enableGroupedLifts;

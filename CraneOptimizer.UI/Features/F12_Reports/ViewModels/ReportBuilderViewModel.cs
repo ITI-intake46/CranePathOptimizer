@@ -27,6 +27,7 @@ using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using UiCranePlacementResult = CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs.CranePlacementResult;
 using UiElementLiftResult = CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs.ElementLiftResult;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 
 namespace CraneOptimizer.UI.Features.F12_Reports.ViewModels;
 
@@ -1312,6 +1313,22 @@ public sealed class ReportBuilderViewModel : ViewModelBase
     {
         var allElements = _scene.GetElements() ?? new List<PrecastElement>();
         PopulateAssemblyRollupFields(lift.ElementId, allElements, out var mainPartId, out var parentAssemblyId, out var assemblyWeight, out var assemblyCog, out var memberIds);
+        if (lift.IsAssemblyGroup)
+        {
+            var allElementsMap = allElements
+                .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
+                .GroupBy(element => element.ElementID, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+            parentAssemblyId = lift.ParentAssemblyGlobalId ?? parentAssemblyId;
+            mainPartId = lift.MainPartGlobalId ?? lift.ElementId;
+            assemblyWeight = lift.Weight is > 0 ? lift.Weight : assemblyWeight;
+            assemblyCog = new DomainPoint3D(lift.CogX, lift.CogY, lift.CogZ);
+            memberIds = lift.AssemblyMemberIds
+                .Where(memberId => allElementsMap.TryGetValue(memberId, out PrecastElement? member)
+                    && GaLiftUnitInputPreparation.IsVisibleMember(member))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+        }
 
         var values = CreateRunSummaryValues(run, result);
         var assignedSetup = setupIndex + 1;
@@ -1415,6 +1432,8 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         values["AssemblyLiftWeight"] = assemblyWeight;
         values["AssemblyLiftCOG"] = assemblyCog != null ? $"({assemblyCog.X.ToString("F3", CultureInfo.InvariantCulture)}; {assemblyCog.Y.ToString("F3", CultureInfo.InvariantCulture)}; {assemblyCog.Z.ToString("F3", CultureInfo.InvariantCulture)})" : null;
         values["AssemblyMemberIds"] = memberIds != null ? string.Join(", ", memberIds) : null;
+        values["IsAssemblyGroup"] = BoolText(lift.IsAssemblyGroup);
+        values["AssemblyMemberCount"] = memberIds?.Count ?? 0;
 
         return new LiftingResultSourceRowDto
         {
@@ -1623,7 +1642,12 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             assemblyWeight = parent.AssemblyLiftWeight;
             mainPartId = parent.MainPartGlobalId ?? ElementBindingResolver.ResolveMainPartOrSelf(parent, allElements).ElementID;
             assemblyCog = parent.AssemblyLiftCOG;
-            memberIds = parent.AssemblyMemberIds;
+            memberIds = parent.AssemblyMemberIds
+                .Where(memberId => allElements.Any(element =>
+                    string.Equals(element.ElementID, memberId, StringComparison.Ordinal)
+                    && GaLiftUnitInputPreparation.IsVisibleMember(element)))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
         }
     }
 

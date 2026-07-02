@@ -1370,4 +1370,42 @@ public sealed class UserFacingReportsTests : IDisposable
         Assert.Equal("(89.500; 109.100; 1.900)", reportRow.Values["AssemblyLiftCOG"]);
         Assert.Equal("main, sec1, sec2", reportRow.Values["AssemblyMemberIds"]);
     }
+
+    [Fact]
+    public void BuildRows_DeduplicatesAssemblyRowsByParentIdentity()
+    {
+        var provider = new LiftingResultReportDataProvider();
+        var rows = new[]
+        {
+            new LiftingResultSourceRowDto
+            {
+                ElementId = "main-a",
+                InternalLiftStatus = "Liftable",
+                Values = new Dictionary<string, object?>
+                {
+                    ["IsAssemblyGroup"] = "Yes",
+                    ["ParentAssemblyGlobalId"] = "assembly-1",
+                    ["MainPartGlobalId"] = "main-a"
+                }
+            },
+            new LiftingResultSourceRowDto
+            {
+                ElementId = "child-b",
+                InternalLiftStatus = "Liftable",
+                Values = new Dictionary<string, object?>
+                {
+                    ["IsAssemblyGroup"] = "Yes",
+                    ["ParentAssemblyGlobalId"] = "assembly-1",
+                    ["MainPartGlobalId"] = "main-a"
+                }
+            }
+        };
+
+        IReadOnlyList<LiftingResultReportRowDto> reportRows = provider.BuildRows(
+            ReportTemplateCatalog.BasicLiftingResult,
+            "Optimization Result",
+            rows);
+
+        Assert.Single(reportRows);
+    }
 }

@@ -118,7 +118,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 UseHungarianAssignment = ParseBool(options.UseHungarianAssignmentText, false),
                 LoadChartNumberOfLinesConstraint = options.LoadChartNumberOfLinesConstraint,
                 LoadChartOperatingConditionConstraint = NullIfWhiteSpace(options.LoadChartOperatingConditionConstraint),
-                EnableGroupedLifts = ParseBool(options.EnableGroupedLiftsText, false)
+                EnableGroupedLifts = ParseBool(options.EnableGroupedLiftsText, true)
             };
         }
 
