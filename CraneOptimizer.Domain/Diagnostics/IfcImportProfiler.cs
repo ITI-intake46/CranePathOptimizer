@@ -23,6 +23,14 @@ namespace CraneOptimizer.Domain.Diagnostics
                     "Canonical fallback, if explicitly approved, would be the application base directory logs folder.");
             }
 
+            if (!DebugOutputGate.EnableProjectPerformanceCapture)
+            {
+                _writer?.Dispose();
+                _writer = null;
+                CurrentLogFilePath = null;
+                return string.Empty;
+            }
+
             string projectFolder = Path.GetFullPath(currentProjectFolder);
             string logsFolder = Path.Combine(projectFolder, "logs");
             Directory.CreateDirectory(logsFolder);
@@ -37,8 +45,8 @@ namespace CraneOptimizer.Domain.Diagnostics
                 {
                     AutoFlush = true
                 };
-                _writer.WriteLine(CsvHeader);
-                _writer.Flush();
+                _writer?.WriteLine(CsvHeader);
+                _writer?.Flush();
 
                 CurrentIfcPath = ifcPath;
                 CurrentModelRole = GetModelRole(ifcPath);
@@ -97,7 +105,16 @@ namespace CraneOptimizer.Domain.Diagnostics
                     Environment.CurrentManagedThreadId.ToString(CultureInfo.InvariantCulture)
                 ];
 
+                if (!DebugOutputGate.EnableProjectPerformanceCapture || _writer == null)
+
+
+                    return;
+
+
+
                 _writer.WriteLine(string.Join(",", Array.ConvertAll(fields, EscapeCsv)));
+
+
                 _writer.Flush();
             }
         }

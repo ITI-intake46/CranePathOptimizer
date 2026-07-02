@@ -5,7 +5,8 @@ using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using System.Threading;
-
+
+using CraneOptimizer.UI.Core.Configuration;
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
 {
     public sealed class CraneOptimizerDialogWorkflow
@@ -94,7 +95,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 ConvergenceThresholdPercent = ParseDouble(options.DevConvergenceText, 0.0),
                 PopulationSize = ParseInt(options.PopulationSizeText, 30),
                 MaxGenerations = ParseInt(options.MaxGenerationsText, 30),
-                TargetElementTypes = options.TargetElementTypes,
+                TargetElementTypes = options.TargetElementTypes,                EnableProfiling = AppFeatureFlags.EnableProjectPerformanceCapture,
+                DiagnosticsLevel = AppFeatureFlags.EnableProjectPerformanceCapture
+                    ? DiagnosticsLevel.Research
+                    : DiagnosticsLevel.Off,
+
 
                 // New dynamic and diagnostic options mapped to GASettings
                 EnableAdaptiveSigma = ParseBool(options.EnableAdaptiveSigmaText, false),
@@ -108,7 +113,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Workflows
                 BoomHingeOffsetY = ParseDouble(options.BoomHingeOffsetYText, 0.0),
                 BoomHingeOffsetZ = ParseDouble(options.BoomHingeOffsetZText, 0.0),
                 CraneFootprintRadius = ParseDouble(options.CraneFootprintRadiusText, 0.0),
-                EnableProfiling = ParseBool(options.EnableProfilingText, true),
                 ProfilingLogDirectory = options.ProfilingLogDirectoryText,
                 // Phase 7: EnableMultiStageDiscovery is always true for normal UI optimization runs.
                 // Developer/experiment paths can override GASettings directly after construction.

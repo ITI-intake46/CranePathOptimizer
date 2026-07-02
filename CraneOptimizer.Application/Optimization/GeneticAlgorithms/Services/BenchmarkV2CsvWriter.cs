@@ -1247,6 +1247,11 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
         private static void Append(string path, IReadOnlyList<string> header, IReadOnlyList<string> row)
         {
+            if (!DebugOutputGate.EnableProjectPerformanceCapture)
+            {
+                return;
+            }
+
             if (header.Count != row.Count)
             {
                 throw new InvalidOperationException(

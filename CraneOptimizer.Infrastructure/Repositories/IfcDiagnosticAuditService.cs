@@ -3411,7 +3411,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     Csv(detail.F5IfcNameResolved)
                 }));
             }
-            File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
+            if (DebugOutputGate.EnableProjectPerformanceCapture) File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
         }
 
         private static void GenerateAssemblyGraphCsvReport(IfcAuditResult auditResult, string csvPath)
@@ -3442,7 +3442,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }));
             }
 
-            File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
+            if (DebugOutputGate.EnableProjectPerformanceCapture) File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
         }
 
         private static void GenerateAssemblyMarkCsvReport(IfcAuditResult auditResult, string csvPath)
@@ -3491,7 +3491,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }));
             }
 
-            File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
+            if (DebugOutputGate.EnableProjectPerformanceCapture) File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
         }
 
         private static string FormatNullable(double? value) =>
@@ -3511,8 +3511,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
 
             string outputDirectory = Path.Combine(projectFolderPath, "Reports", "IFC_Audit");
-            Directory.CreateDirectory(outputDirectory);
-
+            if (DebugOutputGate.EnableProjectPerformanceCapture) Directory.CreateDirectory(outputDirectory);
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
             var jsonPath = Path.Combine(outputDirectory, $"debug_ifc_details_{timestamp}.json");
             var csvPath = Path.Combine(outputDirectory, $"debug_ifc_elements_{timestamp}.csv");
@@ -3529,8 +3528,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             };
             var jsonContent = JsonSerializer.Serialize(auditResult, jsonOptions);
-            File.WriteAllText(jsonPath, jsonContent, Encoding.UTF8);
-
+            if (DebugOutputGate.EnableProjectPerformanceCapture) File.WriteAllText(jsonPath, jsonContent, Encoding.UTF8);
             cancellationToken.ThrowIfCancellationRequested();
             // 2. Generate CSV (Metadata included at top per user request)
             GenerateCsvReport(auditResult, csvPath);
@@ -3596,7 +3594,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 ));
             }
 
-            File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
+            if (DebugOutputGate.EnableProjectPerformanceCapture) File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
         }
 
         private static string EscapeCsv(string value)
@@ -3790,7 +3788,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             sb.AppendLine("> 3. **Implement Explicit User-Driven Weight Estimations:** Avoid silent assumptions for concrete density fallback. Prompt the user inside the UI to verify density, steel grades, and allow/disallow estimations in crane load charts.");
             sb.AppendLine();
 
-            File.WriteAllText(mdPath, sb.ToString(), Encoding.UTF8);
+            if (DebugOutputGate.EnableProjectPerformanceCapture) File.WriteAllText(mdPath, sb.ToString(), Encoding.UTF8);
         }
 
         private static void GenerateAssemblyLiftUnitRollupCsvReport(IfcAuditResult auditResult, string csvPath)
@@ -3830,7 +3828,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }));
             }
 
-            File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
+            if (DebugOutputGate.EnableProjectPerformanceCapture) File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
         }
     }
 }

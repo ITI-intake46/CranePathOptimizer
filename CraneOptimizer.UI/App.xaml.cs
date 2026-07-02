@@ -243,6 +243,8 @@ namespace CraneOptimizer.UI
             ServiceProvider = services.BuildServiceProvider();
 
             base.OnStartup(e);
+            CraneOptimizer.Domain.Diagnostics.DebugOutputGate.EnableProjectPerformanceCapture =
+                CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.EnableProjectPerformanceCapture;
 
             // Start pipeline safely on UI thread
             _ = Dispatcher.InvokeAsync(async () => await StartupPipelineAsync());

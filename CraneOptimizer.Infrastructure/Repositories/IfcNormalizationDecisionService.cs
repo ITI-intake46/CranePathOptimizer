@@ -781,8 +781,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
 
             string outputDirectory = Path.Combine(projectFolderPath, "Reports", "IFC_Audit");
-            Directory.CreateDirectory(outputDirectory);
-
+            if (DebugOutputGate.EnableProjectPerformanceCapture) Directory.CreateDirectory(outputDirectory);
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
             var jsonPath = Path.Combine(outputDirectory, $"debug_ifc_normalization_preview_details_{timestamp}.json");
             var csvPath = Path.Combine(outputDirectory, $"debug_ifc_normalization_preview_elements_{timestamp}.csv");
@@ -795,8 +794,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             };
             var jsonContent = JsonSerializer.Serialize(preview, jsonOptions);
-            File.WriteAllText(jsonPath, jsonContent, Encoding.UTF8);
-
+            if (DebugOutputGate.EnableProjectPerformanceCapture) File.WriteAllText(jsonPath, jsonContent, Encoding.UTF8);
             cancellationToken.ThrowIfCancellationRequested();
             // 2. CSV Elements Matrix (Metadata included at top per user request)
             GeneratePreviewCsv(preview, csvPath);
@@ -849,7 +847,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 ));
             }
 
-            File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
+            if (DebugOutputGate.EnableProjectPerformanceCapture) File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
         }
 
         private static void GeneratePreviewMarkdown(IfcNormalizationPreviewSummary preview, string mdPath)
@@ -978,7 +976,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             sb.AppendLine("> 3. **User-Approved Rule Editor:** Add a simple rule dialog for `NeedsReview` and `MissingWeight` elements to let users define density fallbacks or material properties before activating GA path planning.");
             sb.AppendLine();
 
-            File.WriteAllText(mdPath, sb.ToString(), Encoding.UTF8);
+            if (DebugOutputGate.EnableProjectPerformanceCapture) File.WriteAllText(mdPath, sb.ToString(), Encoding.UTF8);
         }
 
         private static string EscapeCsv(string value)
