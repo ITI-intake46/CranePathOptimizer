@@ -268,7 +268,23 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
 
             var hit = _hitTest.GetHitObject(viewport, pos);
             if (hit != null)
+            {
+                // [SelectionHandler] Single-click spatial-hit fallback.
+                // Large/medium batched rendering may not produce a native Helix ray hit,
+                // but the spatial hit-test registry can still identify the clicked element.
+                // Treat that element as a click target instead of swallowing the click.
+                if (TryGetElementFromHitObject(hit, out var spatialElement) &&
+                    _filterService.IsElementIncluded(spatialElement))
+                {
+                    _clickArmed = true;
+                    _dragStart = pos;
+                    _dragCurrent = pos;
+                    _hoverCache.SetCandidates(pos, new[] { spatialElement });
+                    return;
+                }
+
                 return;
+            }
 
             _dragArmed = true;
             _isDragging = false;
@@ -294,7 +310,21 @@ namespace CraneOptimizer.UI.Features.F17_Selection.Interaction
                 return;
             }
 
-            if (_hitTest.GetHitObject(viewport, pos) == null)
+            var spatialHit = _hitTest.GetHitObject(viewport, pos);
+            if (TryGetElementFromHitObject(spatialHit, out var spatialElement) &&
+                _filterService.IsElementIncluded(spatialElement))
+            {
+                _hoverCache.SetCandidates(pos, new[] { spatialElement });
+
+                if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+                    _selection.ToggleElement(spatialElement);
+                else
+                    _selection.SetElements(new[] { spatialElement });
+
+                return;
+            }
+
+            if (spatialHit == null)
             {
                 _selection.Clear();
                 _hoverCache.Invalidate();

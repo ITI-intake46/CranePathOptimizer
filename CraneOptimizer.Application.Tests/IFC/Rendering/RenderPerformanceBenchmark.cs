@@ -21,6 +21,11 @@ using System.Windows;
 using System.Windows.Media.Media3D;
 using HelixToolkit.Wpf;
 using Xunit;
+using Xbim.Ifc;
+using Xbim.Ifc4.Interfaces;
+using Xbim.ModelGeometry.Scene;
+using Xbim.Common;
+using Xbim.Common.Geometry;
 
 namespace CraneOptimizer.Application.Tests
 {
@@ -361,7 +366,7 @@ namespace CraneOptimizer.Application.Tests
                         ElementVisualBuilder.CurrentQuality = q;
                         ElementVisualBuilder.ClearMeshCache("benchmark-hittest-rebuild");
 
-                        var builder = new ElementVisualBuilder(readerRepository, new DomainPoint3D(0,0,0), new DomainPoint3D(0,0,0));
+                        var builder = new ElementVisualBuilder(readerRepository, new DomainPoint3D(0, 0, 0), new DomainPoint3D(0, 0, 0));
                         builder.ResetCounters();
                         var visual = builder.BuildBatch(elements.Select(e => (e, (LiftStatus?)null, false)));
 
@@ -386,7 +391,7 @@ namespace CraneOptimizer.Application.Tests
                         // ─── Mode A: Spatial hit testing = false (Legacy) ───
                         ElementVisualBuilder.UseSpatialHitTestingInsteadOfTransparentBoxes = false;
                         ViewportHitTestService.ResetDiagnostics();
-                        
+
                         int nativePicks = 0;
                         var nativeSw = Stopwatch.StartNew();
                         foreach (var pt in hitPoints)
@@ -395,7 +400,7 @@ namespace CraneOptimizer.Application.Tests
                             if (hit != null) nativePicks++;
                         }
                         nativeSw.Stop();
-                        
+
                         double nativeAvg = ViewportHitTestService.TotalHitTestCount > 0 ? ViewportHitTestService.TotalHitTestDurationMs / ViewportHitTestService.TotalHitTestCount : 0;
                         double nativeMax = ViewportHitTestService.MaxHitTestDurationMs;
 
@@ -439,7 +444,7 @@ namespace CraneOptimizer.Application.Tests
                             $"| {nativePicks} " +
                             $"| {hitPoints.Count - nativePicks} (Headless) " +
                             $"| None |");
-                        
+
                         abList.Add(
                             $"| {name} " +
                             $"| {q} " +
@@ -531,13 +536,13 @@ namespace CraneOptimizer.Application.Tests
                         OsnapService.UseLegacyKeyComparison = true;
                         OsnapService.ResetSnapDiagnostics();
                         baseCamera.Position = new Point3D(center.X, center.Y, center.Z + distance);
-                        
+
                         for (int step = 0; step < 20; step++)
                         {
                             baseCamera.Position = new Point3D(baseCamera.Position.X + offset, baseCamera.Position.Y, baseCamera.Position.Z);
                             osnap.Snap(new Point(400, 300), snapViewport);
                         }
-                        
+
                         int countBefore = OsnapService.SnapRebuildCount;
                         double avgBefore = countBefore > 0 ? OsnapService.SnapRebuildTotalMs / countBefore : 0;
                         double maxBefore = OsnapService.SnapRebuildMaxMs;
@@ -546,7 +551,7 @@ namespace CraneOptimizer.Application.Tests
                         OsnapService.UseLegacyKeyComparison = false;
                         OsnapService.ResetSnapDiagnostics();
                         baseCamera.Position = new Point3D(center.X, center.Y, center.Z + distance);
-                        
+
                         for (int step = 0; step < 20; step++)
                         {
                             baseCamera.Position = new Point3D(baseCamera.Position.X + offset, baseCamera.Position.Y, baseCamera.Position.Z);
@@ -591,6 +596,270 @@ namespace CraneOptimizer.Application.Tests
                 Console.WriteLine("=== PHASE 2A BENCHMARK COMPLETED ===");
                 Console.WriteLine(sb.ToString());
             });
+        }
+
+        [Fact]
+        public void ProfileIfcImportsForPhase2()
+        {
+            if (!string.Equals(
+                    Environment.GetEnvironmentVariable("RUN_IFC_PHASE2_PROFILER"),
+                    "1",
+                    StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            const string projectFolder = @"F:\06-ITI\00-Project\tryProjects\Project2";
+            const string smallIfcPath = @"F:\06-ITI\00-Project\tryProjects\Project2\Models\IFC\testBuilding4withMarks.ifc";
+            const string largeIfcPath = @"F:\06-ITI\00-Project\Tekla_IFC\final_rev01\fianl_jizan_4.ifc";
+
+            RunProfiledImport(smallIfcPath, projectFolder, CancellationToken.None);
+
+            using var largeCancellation = new CancellationTokenSource(TimeSpan.FromMinutes(4));
+            try
+            {
+                RunProfiledImport(largeIfcPath, projectFolder, largeCancellation.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when the large-model audit exceeds the profiling window.
+            }
+        }
+
+        private static void RunProfiledImport(
+            string ifcPath,
+            string projectFolder,
+            CancellationToken cancellationToken)
+        {
+            IfcImportProfiler.Start(ifcPath, projectFolder);
+
+            var sessionService = new IfcModelSessionService();
+            var auditService = new IfcDiagnosticAuditService(sessionService);
+            var exporterProfileResolver = new IfcExporterProfileResolver();
+            var normalizationService = new IfcNormalizationDecisionService(exporterProfileResolver);
+            var aliasResolver = new CentralIfcPropertyAliasResolver(exporterProfileResolver);
+
+            using var reader = new IfcReaderRepository(
+                auditService,
+                normalizationService,
+                sessionService,
+                new IfcGeoreferencingExtractor(),
+                aliasResolver);
+
+            var progress = new Progress<IfcLoadingProgressUpdate>(update =>
+                Debug.WriteLine(
+                    $"[IFC-PERF] {Path.GetFileName(ifcPath)}: {update.Status} {update.Progress:F0}%"));
+
+            reader.ReadElements(ifcPath, progress, null, cancellationToken);
+        }
+
+        [Fact(Skip = "Exempt from standard test runs; use ProfileIfcImportsForPhase2 with RUN_IFC_PHASE2_PROFILER=1.")]
+        public void InvestigateIfcImportFreeze()
+        {
+            RunOnSta(() =>
+            {
+                var logPath = @"F:\06-ITI\00-Project\Main Project\CraneOptimizer\docs\agent\temp_test_progress.log";
+                if (File.Exists(logPath)) File.Delete(logPath);
+
+                var log = new Action<string>((msg) =>
+                {
+                    var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {msg}\n";
+                    File.AppendAllText(logPath, line);
+                    Debug.WriteLine(line);
+                });
+
+                log("=== IFC IMPORT FREEZE INVESTIGATION STARTED ===");
+
+                var smallPath = @"F:\06-ITI\00-Project\tryProjects\Project2\Models\IFC\testBuilding4withMarks.ifc";
+                var largePath = @"F:\06-ITI\00-Project\Tekla_IFC\final_rev01\fianl_jizan_4.ifc";
+
+                log("--- Processing Small IFC Baseline ---");
+                try
+                {
+                    RunInstrumentation(smallPath, "Small IFC", log);
+                }
+                catch (Exception ex)
+                {
+                    log($"[ERROR] Small IFC failed: {ex.GetType().Name} - {ex.Message}");
+                    log(ex.StackTrace ?? "");
+                }
+
+                log("--- Processing Large IFC Repro ---");
+                try
+                {
+                    RunInstrumentation(largePath, "Large IFC", log);
+                }
+                catch (Exception ex)
+                {
+                    log($"[ERROR] Large IFC failed: {ex.GetType().Name} - {ex.Message}");
+                    log(ex.StackTrace ?? "");
+                }
+
+                log("=== IFC IMPORT FREEZE INVESTIGATION FINISHED ===");
+            });
+        }
+
+        private void RunInstrumentation(string ifcPath, string label, Action<string> log)
+        {
+            var sw = Stopwatch.StartNew();
+
+            // 1. IfcStore.Open
+            log($"[{label}] Starting IfcStore.Open...");
+            var openTimer = Stopwatch.StartNew();
+            using var model = IfcStore.Open(ifcPath);
+            openTimer.Stop();
+            log($"[{label}] IfcStore.Open completed in: {openTimer.ElapsedMilliseconds} ms");
+
+            // 2. Geometry Context Creation
+            log($"[{label}] Starting Geometry Context Creation...");
+            var contextTimer = Stopwatch.StartNew();
+            _ = new Xbim.Geometry.Engine.Interop.XbimGeometryEngine();
+            var context = new Xbim3DModelContext(model);
+            context.CreateContext();
+            contextTimer.Stop();
+            log($"[{label}] Geometry Context Creation completed in: {contextTimer.ElapsedMilliseconds} ms");
+
+            // 3. Product Enumeration
+            log($"[{label}] Starting Product Enumeration...");
+            var enumTimer = Stopwatch.StartNew();
+            var allProducts = model.Instances.OfType<IIfcProduct>().ToList();
+            enumTimer.Stop();
+            log($"[{label}] Product Enumeration completed in: {enumTimer.ElapsedMilliseconds} ms (Count: {allProducts.Count})");
+
+            // 4. Element Filtering
+            log($"[{label}] Starting Element Filtering...");
+            var filterTimer = Stopwatch.StartNew();
+            var physicalProducts = allProducts.Where(p => IsEngineeringProductStub(p)).ToList();
+            filterTimer.Stop();
+            log($"[{label}] Element Filtering completed in: {filterTimer.ElapsedMilliseconds} ms (Filtered Count: {physicalProducts.Count})");
+
+            // 5. Normalization Preview (IfcNormalizationDecisionService & IfcDiagnosticAuditService)
+            log($"[{label}] Starting Normalization Preview...");
+            var normTimer = Stopwatch.StartNew();
+            var sessionService = new IfcModelSessionService();
+            var auditService = new IfcDiagnosticAuditService(sessionService);
+            var exporterProfileResolver = new IfcExporterProfileResolver();
+            var normalizationService = new IfcNormalizationDecisionService(exporterProfileResolver);
+            var readerRepository = new IfcReaderRepository(auditService, normalizationService, sessionService);
+
+            // Open session on reader
+            readerRepository.InitializeSessionForRenderingAsync(ifcPath).GetAwaiter().GetResult();
+            var auditResult = auditService.RunAuditAsync(ifcPath, null, null, CancellationToken.None).GetAwaiter().GetResult();
+            var previewResult = normalizationService.GenerateNormalizationPreviewAsync(auditResult, CancellationToken.None).GetAwaiter().GetResult();
+            normTimer.Stop();
+            log($"[{label}] Normalization Preview completed in: {normTimer.ElapsedMilliseconds} ms");
+
+            // 6. Geometry Ownership Audit
+            log($"[{label}] Starting Geometry Ownership Audit...");
+            var auditTimer = Stopwatch.StartNew();
+            var assemblyAudit = BuildAssemblyDecompositionAuditStub(model, allProducts, context);
+            auditTimer.Stop();
+            log($"[{label}] Geometry Ownership Audit completed in: {auditTimer.ElapsedMilliseconds} ms");
+
+            // 7. ShapeInstancesOf(product) test
+            log($"[{label}] Starting ShapeInstancesOf(product) loop...");
+            var shapesTimer = Stopwatch.StartNew();
+            int successCount = 0;
+            int failCount = 0;
+            for (int i = 0; i < physicalProducts.Count; i++)
+            {
+                var product = physicalProducts[i];
+                if (i % 100 == 0 || i == physicalProducts.Count - 1)
+                {
+                    log($"[{label}]   - ShapeInstancesOf progress: {i}/{physicalProducts.Count}");
+                }
+
+                try
+                {
+                    var shapes = context.ShapeInstancesOf(product).ToList();
+                    successCount++;
+                }
+                catch (Exception ex)
+                {
+                    failCount++;
+                    log($"\n[FAIL] ShapeInstancesOf failed for Product {product.GlobalId} (Label: {product.EntityLabel}, Type: {product.ExpressType?.Name}):");
+                    log($"  - Name: {product.Name?.ToString() ?? "NULL"}");
+                    log($"  - HasRepresentation: {product.Representation != null}");
+                    log($"  - Exception: {ex.GetType().Name} - {ex.Message}");
+
+                    // Assembly/Parent Info
+                    var parentAgg = product.Decomposes?.FirstOrDefault()?.RelatingObject as IIfcProduct;
+                    if (parentAgg != null)
+                    {
+                        log($"  - Parent Assembly (Decomposes): ID={parentAgg.GlobalId}, Label={parentAgg.EntityLabel}, Type={parentAgg.ExpressType?.Name}, Name={parentAgg.Name}");
+                    }
+                    else
+                    {
+                        log($"  - Parent Assembly: None");
+                    }
+
+                    throw; // Rethrow to make sure we don't swallow exceptions silently
+                }
+            }
+            shapesTimer.Stop();
+            log($"[{label}] ShapeInstancesOf(product) loop completed in: {shapesTimer.ElapsedMilliseconds} ms (Success: {successCount}, Fail: {failCount})");
+
+            // 8. Visual Building
+            log($"[{label}] Starting Visual Building...");
+            var visualTimer = Stopwatch.StartNew();
+            var elements = readerRepository.ReadElements(ifcPath);
+            var builder = new ElementVisualBuilder(readerRepository, new DomainPoint3D(0, 0, 0), new DomainPoint3D(0, 0, 0));
+            builder.ResetCounters();
+            var visual = builder.BuildBatch(elements.Select(e => (e, (LiftStatus?)null, false)));
+            visualTimer.Stop();
+            log($"[{label}] Visual Building completed in: {visualTimer.ElapsedMilliseconds} ms");
+
+            // 9. Viewport Attach
+            log($"[{label}] Starting Viewport Attach...");
+            var viewportTimer = Stopwatch.StartNew();
+            var viewport = new HelixViewport3D { Width = 800, Height = 600 };
+            viewport.Viewport.Width = 800;
+            viewport.Viewport.Height = 600;
+            viewport.Children.Add(visual);
+            viewportTimer.Stop();
+            log($"[{label}] Viewport Attach completed in: {viewportTimer.ElapsedMilliseconds} ms");
+
+            // 10. Loading close/finally
+            log($"[{label}] Starting Loading Close/Finally...");
+            var closeTimer = Stopwatch.StartNew();
+            readerRepository.ClearData();
+            closeTimer.Stop();
+            log($"[{label}] Loading Close/Finally completed in: {closeTimer.ElapsedMilliseconds} ms");
+
+            sw.Stop();
+            log($"[{label}] TOTAL PROCESS completed in: {sw.ElapsedMilliseconds} ms");
+        }
+
+        private static bool IsEngineeringProductStub(IIfcProduct product)
+        {
+            if (product is IIfcOpeningElement or IIfcSpace or IIfcVirtualElement)
+                return false;
+            return product is IIfcElement;
+        }
+
+        private static object BuildAssemblyDecompositionAuditStub(IfcStore model, List<IIfcProduct> physicalProducts, Xbim3DModelContext context)
+        {
+            // Just simulate decomposition audit logic quickly
+            var assemblies = model.Instances.OfType<IIfcElementAssembly>().ToList();
+            int count = 0;
+            foreach (var assembly in assemblies)
+            {
+                var hasGeom = HasDirectGeometryStub(assembly, context);
+                count++;
+            }
+            return count;
+        }
+
+        private static bool HasDirectGeometryStub(IIfcProduct product, Xbim3DModelContext context)
+        {
+            try
+            {
+                return context.ShapeInstancesOf(product).Any();
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

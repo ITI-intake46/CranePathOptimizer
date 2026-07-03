@@ -55,12 +55,58 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             var previews = new Dictionary<string, IfcNormalizedElementPreview>(StringComparer.Ordinal);
 
+            // Phase 4F: build O(1) lookup indexes for normalization joins.
+            // The service is registered as a singleton, so all caches remain method-local
+            // and scoped to this single normalization decision run.
+            var normalizationStartedUtc = DateTime.UtcNow;
+            var totalNormalizationTimer = Stopwatch.StartNew();
+
+            var lookupTimerStartedUtc = DateTime.UtcNow;
+            var lookupTimer = Stopwatch.StartNew();
+            var weightByGlobalId = auditResult.Weights
+                .Where(w => !string.IsNullOrWhiteSpace(w.GlobalId))
+                .GroupBy(w => w.GlobalId, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
+            var volumeMaterialByGlobalId = auditResult.VolumesMaterials
+                .Where(v => !string.IsNullOrWhiteSpace(v.GlobalId))
+                .GroupBy(v => v.GlobalId, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
+            var geometryByGlobalId = auditResult.Geometries
+                .Where(g => !string.IsNullOrWhiteSpace(g.LogicalGlobalId))
+                .GroupBy(g => g.LogicalGlobalId, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
+            var assemblyByGlobalId = auditResult.Assemblies.Details
+                .Where(a => !string.IsNullOrWhiteSpace(a.AssemblyGlobalId))
+                .GroupBy(a => a.AssemblyGlobalId, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
+            var relationByParentGlobalId = auditResult.AssemblyRelations
+                .Where(r => !string.IsNullOrWhiteSpace(r.ParentGlobalId))
+                .GroupBy(r => r.ParentGlobalId, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+            lookupTimer.Stop();
+
+            RecordNormalizationSubStage(
+                "Normalization_BuildLookupIndexes",
+                "Completed",
+                lookupTimerStartedUtc,
+                lookupTimer.ElapsedMilliseconds,
+                "IndexedRecordsCount",
+                weightByGlobalId.Count + volumeMaterialByGlobalId.Count + geometryByGlobalId.Count + assemblyByGlobalId.Count + relationByParentGlobalId.Count,
+                true);
+
+            var buildPreviewsStartedUtc = DateTime.UtcNow;
+            var buildPreviewsTimer = Stopwatch.StartNew();
+
             // First pass: Initialize previews for all elements
             foreach (var elem in auditResult.Classifications)
             {
-                var weightDetail = auditResult.Weights.FirstOrDefault(w => w.GlobalId == elem.GlobalId);
-                var volMatDetail = auditResult.VolumesMaterials.FirstOrDefault(v => v.GlobalId == elem.GlobalId);
-                var geomDetail = auditResult.Geometries.FirstOrDefault(g => g.LogicalGlobalId == elem.GlobalId);
+                weightByGlobalId.TryGetValue(elem.GlobalId, out var weightDetail);
+                volumeMaterialByGlobalId.TryGetValue(elem.GlobalId, out var volMatDetail);
+                geometryByGlobalId.TryGetValue(elem.GlobalId, out var geomDetail);
 
                 var preview = new IfcNormalizedElementPreview
                 {
@@ -122,6 +168,19 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 previews[elem.GlobalId] = preview;
             }
+            buildPreviewsTimer.Stop();
+
+            RecordNormalizationSubStage(
+                "Normalization_BuildPreviews",
+                "Completed",
+                buildPreviewsStartedUtc,
+                buildPreviewsTimer.ElapsedMilliseconds,
+                "ClassificationsCount",
+                auditResult.Classifications.Count,
+                true);
+
+            var parentChildStartedUtc = DateTime.UtcNow;
+            var parentChildTimer = Stopwatch.StartNew();
 
             // Map Parent-Child lists and Geometry relationships from assembly audit
             foreach (var assembly in auditResult.Assemblies.Details)
@@ -145,6 +204,19 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     }
                 }
             }
+            parentChildTimer.Stop();
+
+            RecordNormalizationSubStage(
+                "Normalization_MapParentChild",
+                "Completed",
+                parentChildStartedUtc,
+                parentChildTimer.ElapsedMilliseconds,
+                "AssemblyDetailsCount",
+                auditResult.Assemblies.Details.Count,
+                true);
+
+            var relationMappingStartedUtc = DateTime.UtcNow;
+            var relationMappingTimer = Stopwatch.StartNew();
 
             // Map assembly classification summary fields from relations to previews
             foreach (var rel in auditResult.AssemblyRelations)
@@ -175,6 +247,19 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     }
                 }
             }
+            relationMappingTimer.Stop();
+
+            RecordNormalizationSubStage(
+                "Normalization_MapAssemblyRelations",
+                "Completed",
+                relationMappingStartedUtc,
+                relationMappingTimer.ElapsedMilliseconds,
+                "AssemblyRelationsCount",
+                auditResult.AssemblyRelations.Count,
+                true);
+
+            var decisionRulesStartedUtc = DateTime.UtcNow;
+            var decisionRulesTimer = Stopwatch.StartNew();
 
             // Apply specific rules
             foreach (var preview in previews.Values)
@@ -261,7 +346,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 // Rule 2: Assembly Rules
                 if (rawType.Equals("IfcElementAssembly", StringComparison.OrdinalIgnoreCase))
                 {
-                    var assemblyDetail = auditResult.Assemblies.Details.FirstOrDefault(a => a.AssemblyGlobalId == preview.GlobalId);
+                    assemblyByGlobalId.TryGetValue(preview.GlobalId, out var assemblyDetail);
                     if (assemblyDetail == null)
                     {
                         preview.Role = IfcElementRole.GroupingOnly;
@@ -363,6 +448,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             preview.Role = IfcElementRole.LiftAssembly;
                             preview.AssemblyDecision = IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly;
 
+                            // Refine generic "Assembly" category to the real physical type using the
+                            // Tekla assembly mark prefix (e.g. LWP/PP → Wall, DT → Slab, PAD → Roof).
+                            // rel is not yet in scope here, so look it up now.
+                            relationByParentGlobalId.TryGetValue(preview.GlobalId, out var teklaRel);
+                            RefineAssemblyCategoryFromMark(preview, teklaRel);
+
                             // Check geometry owners: parent has no geometry in ChildrenOnly pattern, so visible owners are children
                             if (assemblyDetail.GeometryOwnershipPattern == "ChildrenOnly")
                             {
@@ -401,7 +492,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                         // Generic grouping fallback
                         // Check if this generic assembly is verified as a valid mixed assembly with trusted relationships, main part, weight, and safe COG
-                        var rel = auditResult.AssemblyRelations.FirstOrDefault(r => string.Equals(r.ParentGlobalId, preview.GlobalId, StringComparison.Ordinal));
+                        relationByParentGlobalId.TryGetValue(preview.GlobalId, out var rel);
                         if (rel != null &&
                             !string.IsNullOrEmpty(rel.ParentGlobalIdSource) &&
                             rel.MainPartGlobalId != null &&
@@ -413,6 +504,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             preview.AssemblyDecision = IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly; // Treat as a valid aggregate lift unit
                             preview.IncludeInGaPreview = true;
                             preview.DecisionReason = "Approved assembly lift unit: trusted hierarchy, weight, main part, and safe COG verified.";
+
+                            // Refine generic "Assembly" category to the real physical type using the
+                            // assembly mark prefix and (if available) the main part's category.
+                            RefineAssemblyCategoryFromMark(preview, rel);
 
                             if (assemblyDetail.GeometryOwnershipPattern == "ChildrenOnly")
                             {
@@ -483,6 +578,20 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }
             }
 
+            decisionRulesTimer.Stop();
+
+            RecordNormalizationSubStage(
+                "Normalization_ApplyDecisionRules",
+                "Completed",
+                decisionRulesStartedUtc,
+                decisionRulesTimer.ElapsedMilliseconds,
+                "PreviewElementsCount",
+                previews.Count,
+                true);
+
+            var countAggregationStartedUtc = DateTime.UtcNow;
+            var countAggregationTimer = Stopwatch.StartNew();
+
             // Populate overall counts
             summary.Elements = previews.Values.ToList();
 
@@ -533,8 +642,49 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     }
                 }
             }
+            countAggregationTimer.Stop();
+            totalNormalizationTimer.Stop();
+
+            RecordNormalizationSubStage(
+                "Normalization_AggregateCounts",
+                "Completed",
+                countAggregationStartedUtc,
+                countAggregationTimer.ElapsedMilliseconds,
+                "PreviewElementsCount",
+                summary.Elements.Count,
+                true);
+
+            RecordNormalizationSubStage(
+                "Normalization_Completed",
+                "Completed",
+                normalizationStartedUtc,
+                totalNormalizationTimer.ElapsedMilliseconds,
+                "PreviewElementsCount",
+                summary.Elements.Count,
+                true);
 
             return summary;
+        }
+
+        private static void RecordNormalizationSubStage(
+            string subStage,
+            string status,
+            DateTime startedUtc,
+            long elapsedMs,
+            string countName,
+            long countValue,
+            bool isCompleted)
+        {
+            IfcImportProfiler.Record(
+                "NormalizationDecision",
+                subStage,
+                status,
+                startedUtc,
+                startedUtc.AddMilliseconds(elapsedMs),
+                elapsedMs,
+                countName,
+                countValue,
+                isCompleted);
         }
 
         private static IfcWeightTrustLevel MapWeightTrustLevel(ElementWeightAuditDetail? weightDetail)
@@ -641,8 +791,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
 
             string outputDirectory = Path.Combine(projectFolderPath, "Reports", "IFC_Audit");
-            Directory.CreateDirectory(outputDirectory);
-
+            if (DebugOutputGate.EnableProjectPerformanceCapture) Directory.CreateDirectory(outputDirectory);
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
             var jsonPath = Path.Combine(outputDirectory, $"debug_ifc_normalization_preview_details_{timestamp}.json");
             var csvPath = Path.Combine(outputDirectory, $"debug_ifc_normalization_preview_elements_{timestamp}.csv");
@@ -655,8 +804,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             };
             var jsonContent = JsonSerializer.Serialize(preview, jsonOptions);
-            File.WriteAllText(jsonPath, jsonContent, Encoding.UTF8);
-
+            if (DebugOutputGate.EnableProjectPerformanceCapture) File.WriteAllText(jsonPath, jsonContent, Encoding.UTF8);
             cancellationToken.ThrowIfCancellationRequested();
             // 2. CSV Elements Matrix (Metadata included at top per user request)
             GeneratePreviewCsv(preview, csvPath);
@@ -709,7 +857,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 ));
             }
 
-            File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
+            if (DebugOutputGate.EnableProjectPerformanceCapture) File.WriteAllText(csvPath, sb.ToString(), Encoding.UTF8);
         }
 
         private static void GeneratePreviewMarkdown(IfcNormalizationPreviewSummary preview, string mdPath)
@@ -838,12 +986,82 @@ namespace CraneOptimizer.Infrastructure.Repositories
             sb.AppendLine("> 3. **User-Approved Rule Editor:** Add a simple rule dialog for `NeedsReview` and `MissingWeight` elements to let users define density fallbacks or material properties before activating GA path planning.");
             sb.AppendLine();
 
-            File.WriteAllText(mdPath, sb.ToString(), Encoding.UTF8);
+            if (DebugOutputGate.EnableProjectPerformanceCapture) File.WriteAllText(mdPath, sb.ToString(), Encoding.UTF8);
         }
 
         private static string EscapeCsv(string value)
         {
             return value.Replace("\"", "\"\"");
+        }
+
+        // ─── Assembly category refinement helpers ────────────────────────────────────
+
+        /// <summary>
+        /// Returns true when <paramref name="category"/> is a generic, non-informative
+        /// placeholder ("Assembly", "Unknown", null, or empty).
+        /// </summary>
+        private static bool IsGenericCategory(string? category)
+            => string.IsNullOrWhiteSpace(category)
+               || string.Equals(category, "Assembly", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(category, "Unknown", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Extracts the physical type from a Tekla assembly mark by inspecting each
+        /// dash-separated segment after stripping any leading digit characters.
+        /// Example: "SGS-1LWP-53" → segments ["SGS", "1LWP", "53"] → stripped ["SGS", "LWP", ""] → "LWP" → "Wall".
+        /// Returns an empty string when no known prefix is found.
+        /// </summary>
+        private static string InferCategoryFromAssemblyMark(string mark)
+        {
+            if (string.IsNullOrWhiteSpace(mark)) return string.Empty;
+
+            var upper = mark.ToUpperInvariant();
+            var segments = upper.Split('-');
+
+            foreach (var seg in segments)
+            {
+                // Strip any leading digits so "1LWP" → "LWP"
+                var prefix = seg.TrimStart('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
+                if (string.IsNullOrEmpty(prefix)) continue;
+
+                // Wall Panels: Load-Bearing Wall Panel (LWP), Partition Panel (PP)
+                if (prefix == "LWP" || prefix == "PP") return "Wall";
+                // Precast Columns
+                if (prefix == "PC") return "Column";
+                // Beams: Ring Beam (RB), L-Ring Beam (LRB), U-Ring Beam (URB), variants
+                if (prefix == "RB" || prefix == "LRB" || prefix == "URB" || prefix == "LRBA") return "Beam";
+                // Slabs: Double-T (DT) and related precast slab types
+                if (prefix == "DT") return "Slab";
+                // Roof / pad elements
+                if (prefix == "PAD") return "Roof";
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Refines <see cref="IfcNormalizedElementPreview.CandidateCategory"/> in-place
+        /// when the current value is generic ("Assembly", "Unknown", or empty) by
+        /// inferring the physical type from the assembly mark stored in <paramref name="rel"/>.
+        /// A good existing category (e.g. "Column", "Beam") is never overwritten.
+        /// </summary>
+        private static void RefineAssemblyCategoryFromMark(
+            IfcNormalizedElementPreview preview,
+            AssemblyRelationshipInfo? rel)
+        {
+            // Guard: only act when the current category is generic
+            if (!IsGenericCategory(preview.CandidateCategory)) return;
+
+            var mark = rel?.AssemblyMark;
+            if (string.IsNullOrWhiteSpace(mark)) return;
+
+            var refined = InferCategoryFromAssemblyMark(mark);
+
+            // Only apply a concrete physical type, never promote back to a generic placeholder
+            if (!string.IsNullOrEmpty(refined) && !IsGenericCategory(refined))
+            {
+                preview.CandidateCategory = refined;
+            }
         }
     }
 

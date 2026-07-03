@@ -13,7 +13,8 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
-
+
+using CraneOptimizer.Domain.Diagnostics;
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 {
     public class GACsvDiagnosticsService : IGACsvDiagnosticsService
@@ -73,6 +74,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
         public string GenerateDiagnostics(PlacementInput input, PlacementResult finalResult)
         {
+            if (!DebugOutputGate.EnableProjectPerformanceCapture)
+            {
+                return string.Empty;
+            }
             var diagLevel = input.Settings?.DiagnosticsLevel ?? DiagnosticsLevel.Summary;
             if (diagLevel == DiagnosticsLevel.Off)
                 return string.Empty;

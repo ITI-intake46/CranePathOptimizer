@@ -509,36 +509,22 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="10" />
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="10" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="6" />
-                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <!-- Header: Title, CheckBox Toggle, and Badge -->
+                            <!-- Header: Title + Status Badge -->
                             <Grid Grid.Row="0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="12" />
-                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                
+
                                 <TextBlock
                                     Style="{StaticResource PanelSectionHeader}"
                                     Text="CURRENT RUN READINESS"
                                     VerticalAlignment="Center" />
 
-                                <CheckBox
-                                    Grid.Column="1"
-                                    Content="Element Checker"
-                                    IsChecked="{Binding IsElementCheckerEnabled, Mode=TwoWay}"
-                                    VerticalAlignment="Center"
-                                    FontSize="{StaticResource FontSizeXS}"
-                                    Foreground="{DynamicResource TextSecondaryBrush}" />
-
                                 <Border
-                                    Grid.Column="3"
+                                    Grid.Column="1"
                                     Padding="8,3"
                                     CornerRadius="4"
                                     Background="{Binding ReadinessStatusBrush}"
@@ -555,79 +541,31 @@
 
                             <Separator Grid.Row="1" Background="{DynamicResource BorderBrush}" Height="1" />
 
-                            <!-- Active Counts Grid -->
-                            <UniformGrid Grid.Row="2" Columns="3">
-                                <StackPanel HorizontalAlignment="Center" Background="Transparent" ToolTipService.InitialShowDelay="100">
-                                    <StackPanel.ToolTip>
-                                        <ToolTip>
-                                            <TextBlock Text="{Binding ReadinessSummary.TotalElements, StringFormat='Total Scoped Elements: \{0\}', FallbackValue=0}" />
-                                        </ToolTip>
-                                    </StackPanel.ToolTip>
-                                    <TextBlock
-                                        Text="{Binding ReadinessSummary.GaCandidateElements, FallbackValue=0}"
-                                        FontSize="{StaticResource FontSizeLG}"
-                                        FontWeight="Bold"
-                                        Foreground="{DynamicResource SuccessBrush}"
-                                        HorizontalAlignment="Center" />
-                                    <TextBlock
-                                        Text="GA Lift Units"
-                                        FontSize="{StaticResource FontSizeXS}"
-                                        Foreground="{DynamicResource TextSecondaryBrush}"
-                                        HorizontalAlignment="Center" />
-                                </StackPanel>
-
-                                <StackPanel HorizontalAlignment="Center" Background="Transparent" ToolTipService.InitialShowDelay="100">
-                                    <StackPanel.ToolTip>
-                                        <ToolTip>
-                                            <StackPanel>
-                                                <TextBlock Text="{Binding ReadinessSummary.MissingAssemblyMarkCount, StringFormat='Missing Marks: \{0\}', FallbackValue=0}" />
-                                                <TextBlock Text="{Binding ReadinessSummary.LowConfidenceMappingCount, StringFormat='Low Confidence: \{0\}', FallbackValue=0}" Margin="0,2,0,0" />
-                                                <TextBlock Text="Check diagnostics CSV for detailed validation warnings." Margin="0,4,0,0" FontStyle="Italic" Foreground="{DynamicResource TextSecondaryBrush}" />
-                                            </StackPanel>
-                                        </ToolTip>
-                                    </StackPanel.ToolTip>
-                                    <TextBlock
-                                        Text="{Binding ReadinessSummary.NeedsReviewCount, FallbackValue=0}"
-                                        FontSize="{StaticResource FontSizeLG}"
-                                        FontWeight="Bold"
-                                        Foreground="{DynamicResource WarningBrush}"
-                                        HorizontalAlignment="Center" />
-                                    <TextBlock
-                                        Text="Need Review"
-                                        FontSize="{StaticResource FontSizeXS}"
-                                        Foreground="{DynamicResource TextSecondaryBrush}"
-                                        HorizontalAlignment="Center" />
-                                </StackPanel>
-
-                                <StackPanel HorizontalAlignment="Center" Background="Transparent" ToolTipService.InitialShowDelay="100">
-                                    <StackPanel.ToolTip>
-                                        <ToolTip>
-                                            <TextBlock Text="{Binding ReadinessSummary.EstimatedWeightBlockedCount, StringFormat='Blocked Weights: \{0\}', FallbackValue=0}" />
-                                        </ToolTip>
-                                    </StackPanel.ToolTip>
-                                    <TextBlock
-                                        Text="{Binding ReadinessSummary.GaBlockedElements, FallbackValue=0}"
-                                        FontSize="{StaticResource FontSizeLG}"
-                                        FontWeight="Bold"
-                                        Foreground="{DynamicResource DestructiveBrush}"
-                                        HorizontalAlignment="Center" />
-                                    <TextBlock
-                                        Text="Blocked"
-                                        FontSize="{StaticResource FontSizeXS}"
-                                        Foreground="{DynamicResource TextSecondaryBrush}"
-                                        HorizontalAlignment="Center" />
-                                </StackPanel>
-                            </UniformGrid>
-
-                            <!-- Disabled/Neutral message row -->
-                            <TextBlock
-                                Grid.Row="6"
-                                Text="Element Checker is disabled. Readiness diagnostics were not evaluated."
-                                FontSize="{StaticResource FontSizeXS}"
-                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                FontStyle="Italic"
+                            <!-- GA Lift Units count — the only counter shown -->
+                            <StackPanel
+                                Grid.Row="2"
                                 HorizontalAlignment="Center"
-                                Visibility="{Binding IsElementCheckerDisabled, Converter={StaticResource BoolToVis}}" />
+                                Background="Transparent"
+                                ToolTipService.InitialShowDelay="100">
+                                <StackPanel.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock
+                                            Text="Number of grouped assembly lift units that will enter the GA run. Lift feasibility (radius, load chart, overweight) is evaluated inside GA — not here."
+                                            MaxWidth="280" TextWrapping="Wrap" />
+                                    </ToolTip>
+                                </StackPanel.ToolTip>
+                                <TextBlock
+                                    Text="{Binding ReadinessSummary.GaCandidateElements, FallbackValue=0}"
+                                    FontSize="{StaticResource FontSizeLG}"
+                                    FontWeight="Bold"
+                                    Foreground="{DynamicResource SuccessBrush}"
+                                    HorizontalAlignment="Center" />
+                                <TextBlock
+                                    Text="GA Lift Units"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    HorizontalAlignment="Center" />
+                            </StackPanel>
                         </Grid>
                     </Border>
 
@@ -1061,7 +999,7 @@
 
                                 <StackPanel Visibility="{Binding ParamTargetElementsAllowList.Visibility}">
                                     <StackPanel Orientation="Horizontal" Margin="0,8,0,4">
-                                        <TextBlock FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Text="TARGET ELEMENTS ALLOW-LIST" VerticalAlignment="Center" />
+                                        <TextBlock FontSize="{StaticResource FontSizeXS}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" Text="TARGET ASSEMBLY TYPES" VerticalAlignment="Center" />
                                         <controls:ParameterHelpIcon ParameterKey="TargetElementTypes" Margin="4,0,0,0" VerticalAlignment="Center" />
                                     </StackPanel>
 

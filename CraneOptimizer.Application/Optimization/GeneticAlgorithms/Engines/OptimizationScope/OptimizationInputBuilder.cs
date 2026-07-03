@@ -36,15 +36,15 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
             if (gaEnabledElements.Count == 0)
                 throw new InvalidOperationException("No GA-enabled elements found in the scene.");
 
-            var selectedElementTypes = CreateElementTypeSet(settings.TargetElementTypes);
-            var candidateElements = selectedElementTypes == null
+            var selectedAssemblyTypes = CreateElementTypeSet(settings.TargetElementTypes);
+            var candidateElements = selectedAssemblyTypes == null
                 ? gaEnabledElements
                 : gaEnabledElements
-                    .Where(element => selectedElementTypes.Contains(NormalizeElementType(element.ElementType)))
+                    .Where(element => selectedAssemblyTypes.Contains(NormalizeElementType(element.ElementType)))
                     .ToList();
 
             if (candidateElements.Count == 0)
-                throw new InvalidOperationException("No scene elements match the selected GA target element types.");
+                throw new InvalidOperationException("No scene elements match the selected target element types.");
 
             var gaLiftUnits = BuildAssemblyLiftUnits(settings, candidateElements, elements);
 

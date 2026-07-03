@@ -1,5 +1,6 @@
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Diagnostics;
+using System;
 using System.Collections.Generic;
 
 namespace CraneOptimizer.Domain.Schemas

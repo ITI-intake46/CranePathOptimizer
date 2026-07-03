@@ -22,6 +22,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
     public class ElementVisualBuilder : IVisualBuilder<(PrecastElement element, LiftStatus? status, bool isSelected)>
     {
         private const double MinimumBoxSize = 1d;
+        private const int LargeModelInteractiveThreshold = 7000;
 
         /// <summary>
         /// Registry mapping Element ID to the rendered GeometryModel3D instances.
@@ -92,7 +93,18 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
         public static MeshQuality CurrentQuality { get; set; } = MeshQuality.Medium;
         public static bool UseBatchedRealMeshRendering { get; set; } = true;
-        public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } = true;
+                private static bool IsReinforcementIfcProduct(IIfcProduct? product)
+        {
+            if (product == null)
+                return false;
+
+            var rawType = product.ExpressType?.Name ?? product.GetType().Name;
+            var name = product.Name?.ToString() ?? string.Empty;
+            var tag = (product as IIfcElement)?.Tag?.ToString() ?? string.Empty;
+
+            return ContainsReinforcementRenderToken($"{rawType} {name} {tag}");
+        }
+public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } = true;
 
         public sealed class SpatialHitTestElement
         {
@@ -258,7 +270,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         {
             DiagTotalElements++;
             var container = new ModelVisual3D();
-            if (!item.element.IncludeInRender)
+            if (!ShouldRenderElement(item.element))
             {
                 DiagIncludeInRenderSkipped++;
                 return container;
@@ -275,10 +287,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             var elementMeshes = new Dictionary<string, List<(MediaMeshGeometry3D Mesh, Matrix3D Transform)>>(StringComparer.Ordinal);
             var allItems = items.ToList();
             DiagTotalElements += allItems.Count;
-            var skipped = allItems.Count(i => !i.element.IncludeInRender);
+            var skipped = allItems.Count(i => !ShouldRenderElement(i.element));
             DiagIncludeInRenderSkipped += skipped;
 
-            var itemsList = allItems.Where(item => item.element.IncludeInRender).ToList();
+            var itemsList = allItems.Where(item => ShouldRenderElement(item.element)).ToList();
             DiagVisibleElements += itemsList.Count;
             
             // DEBUG: Verify status distribution
@@ -334,6 +346,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 var labelToGid = new Dictionary<int, string>();
                 foreach (var p in model.Instances.OfType<IIfcProduct>())
                 {
+                    if (IsReinforcementIfcProduct(p))
+                        continue;
+
                     var gid = p.GlobalId.ToString();
                     var revitId = (p as IIfcElement)?.Tag?.ToString();
 
@@ -357,6 +372,16 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
 
                 var elementVisualMap = new Dictionary<string, ModelVisual3D>(StringComparer.Ordinal);
                 var batchVisual = new ModelVisual3D();
+                var useSingleVisualForLargeMediumModel = CurrentQuality == MeshQuality.Medium && itemsList.Count > LargeModelInteractiveThreshold;
+                var singleVisualGroup = useSingleVisualForLargeMediumModel ? new Model3DGroup() : null;
+                if (singleVisualGroup != null)
+                {
+                    // Phase R1: for large models, keep Medium visual quality but avoid creating
+                    // one ModelVisual3D per element. Spatial picking and ElementModelRegistry
+                    // remain the source for selection/material updates.
+                    batchVisual.Content = singleVisualGroup;
+                    modelVisualsCreated = 1;
+                }
 
                 foreach (var si in allInstances)
                 {
@@ -411,15 +436,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                         var material = ElementMaterialProvider.GetMaterial(visualStatus, CurrentQuality);
                         DiagMaterialCreated++;
 
-                        if (!elementVisualMap.TryGetValue(gid, out var elementVisual))
-                        {
-                            elementVisual = new ModelVisual3D { Content = new Model3DGroup() };
-                            elementVisual.SetValue(System.Windows.FrameworkElement.TagProperty, el);
-                            elementVisualMap[gid] = elementVisual;
-                            batchVisual.Children.Add(elementVisual);
-                            modelVisualsCreated++;
-                        }
-
                         var geoModel = new GeometryModel3D
                         {
                             Geometry = mesh,
@@ -430,7 +446,24 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                                 : CreateInstanceTransform(si.Transformation, oneMeter, origin, placementOffset)
                         };
 
-                        ((Model3DGroup)elementVisual.Content!).Children.Add(geoModel);
+                        if (useSingleVisualForLargeMediumModel && singleVisualGroup != null)
+                        {
+                            singleVisualGroup.Children.Add(geoModel);
+                        }
+                        else
+                        {
+                            if (!elementVisualMap.TryGetValue(gid, out var elementVisual))
+                            {
+                                elementVisual = new ModelVisual3D { Content = new Model3DGroup() };
+                                elementVisual.SetValue(System.Windows.FrameworkElement.TagProperty, el);
+                                elementVisualMap[gid] = elementVisual;
+                                batchVisual.Children.Add(elementVisual);
+                                modelVisualsCreated++;
+                            }
+
+                            ((Model3DGroup)elementVisual.Content!).Children.Add(geoModel);
+                        }
+
                         geometryModelsCreated++;
 
                         // Populate registry for dynamic coloring
@@ -486,6 +519,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                     $"[ElementVisualBuilder] IFC batched mesh render complete. SessionId={sessionId}, " +
                     $"Elements={itemsList.Count}, ShapeInstances={allInstances.Count}, " +
                     $"RenderGeometryModels={geometryModelsCreated}, HitBoxes={hitBoxesCount}, MeshesCreated={meshesCreated}, " +
+                    $"LargeMediumSingleVisual={useSingleVisualForLargeMediumModel}, " +
                     $"CachedMeshesReused={meshesReused}, CacheSize={MeshCacheCount}, " +
                     $"TotalModelVisuals={modelVisualsCreated}, MemoryAfterRender={FormatBytes(GetPrivateMemoryBytes())}");
 
@@ -651,6 +685,63 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             return result;
         }
 
+
+        private static bool ContainsReinforcementRenderToken(params string?[] values)
+        {
+            foreach (var value in values)
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                    continue;
+
+                var text = value.Trim().ToUpperInvariant();
+
+                if (text.Contains("IFCREINFORCINGBAR") ||
+                    text.Contains("IFCREINFORCINGMESH") ||
+                    text.Contains("IFCREINFORCINGELEMENT") ||
+                    text.Contains("IFCTENDONANCHOR") ||
+                    text.Contains("IFCTENDON") ||
+                    text.Contains("REBAR") ||
+                    text.Contains("REINFORCING") ||
+                    text.Contains("REINFORCEMENT") ||
+                    text.Contains("STIRRUP") ||
+                    text.Contains("STRAND") ||
+                    text.Contains("TENDON"))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+
+        private static bool ShouldRenderElement(PrecastElement? element)
+        {
+            if (element == null || !element.IncludeInRender)
+                return false;
+
+            return !ContainsReinforcementRenderToken(
+                element.ElementID,
+                element.ElementName,
+                element.ElementType,
+                element.ElementMark,
+                element.AssemblyMark);
+        }
+
+
+        private static bool ShouldRenderIfcProduct(IIfcProduct? product)
+        {
+            if (product == null)
+                return false;
+
+            return !ContainsReinforcementRenderToken(
+                product.ExpressType?.Name,
+                product.GetType().Name,
+                product.Name?.ToString(),
+                product.ObjectType?.ToString(),
+                (product as IIfcElement)?.Tag?.ToString());
+        }
+
         private static double GetBoxDimension(double? value)
         {
             if (!value.HasValue || double.IsNaN(value.Value) || double.IsInfinity(value.Value) || value.Value <= 0)
@@ -671,6 +762,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
             var children = product.IsDecomposedBy?.SelectMany(rel => rel.RelatedObjects).OfType<IIfcProduct>() ?? Enumerable.Empty<IIfcProduct>();
             foreach (var child in children)
             {
+                if (IsReinforcementIfcProduct(child))
+                    continue;
+
                 if (!labelToGid.ContainsKey(child.EntityLabel)) labelToGid[child.EntityLabel] = owningGlobalId;
                 AddChildProductLabels(child, owningGlobalId, labelToGid, visited);
             }
@@ -1228,6 +1322,9 @@ var ev = new ModelVisual3D { Content = group };
             var labelToGid = new Dictionary<int, string>();
             foreach (var p in model.Instances.OfType<IIfcProduct>())
             {
+                if (IsReinforcementIfcProduct(p))
+                    continue;
+
                 var gid = p.GlobalId.ToString();
                 var revitId = (p as IIfcElement)?.Tag?.ToString();
 
@@ -1310,6 +1407,11 @@ var ev = new ModelVisual3D { Content = group };
             foreach (var item in allItems)
             {
                 var el = item.element;
+
+                if (!ShouldRenderElement(el))
+                {
+                    continue;
+                }
 
                 // Always compute the COG-based AABB for diagnostics comparison
                 var cogX = el.ElementCOG.X - origin.X;
@@ -1440,7 +1542,7 @@ var ev = new ModelVisual3D { Content = group };
                     Element = el,
                     Min = min,
                     Max = max,
-                    IsVisible = el.IncludeInRender && finalBoundsValid, // Exclude invalid bounds from picking
+                    IsVisible = ShouldRenderElement(el) && finalBoundsValid, // Exclude invalid bounds and reinforcement from picking
                     UsedMeshDerivedBounds = usedMeshDerived,
                     CogBasedMin = cogMin,
                     CogBasedMax = cogMax

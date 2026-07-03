@@ -49,6 +49,11 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return result;
             }
 
+            // Phase 4B: build a property snapshot once per canonical identity resolution.
+            // The canonical resolver remains the SSOT; this only avoids repeated IFC
+            // property-set traversal for every alias candidate.
+            var propertyLookup = BuildProductPropertyLookup(product);
+
             var psetNames = new[] { "Pset_Revit_Identity Data", "Pset_ConcreteElementGeneral" };
 
             // 1. Explicit assembly-level properties
@@ -56,7 +61,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             {
                 foreach (var propName in profile.AssemblyIdentityAliases)
                 {
-                    var val = GetPropertyString(product, targetPset, propName);
+                    var val = GetPropertyString(propertyLookup, targetPset, propName);
                     if (!string.IsNullOrWhiteSpace(val))
                     {
                         result.AssemblyMark = val;
@@ -71,7 +76,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             foreach (var propName in profile.AssemblyIdentityAliases)
             {
-                var (val, pset) = GetPropertyStringAnySet(product, propName);
+                var (val, pset) = GetPropertyStringAnySet(propertyLookup, propName);
                 if (!string.IsNullOrWhiteSpace(val))
                 {
                     result.AssemblyMark = val;
@@ -89,7 +94,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
             {
                 foreach (var targetPset in psetNames)
                 {
-                    var val = GetPropertyString(product, targetPset, "Mark");
+                    var val = GetPropertyString(propertyLookup, targetPset, "Mark");
                     if (!string.IsNullOrWhiteSpace(val))
                     {
                         result.AssemblyMark = val;
@@ -103,7 +108,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 foreach (var propName in profile.AssemblyIdentityAliases)
                 {
-                    var (val, pset) = GetPropertyStringAnySet(product, propName);
+                    var (val, pset) = GetPropertyStringAnySet(propertyLookup, propName);
                     if (!string.IsNullOrWhiteSpace(val))
                     {
                         result.AssemblyMark = val;
@@ -130,7 +135,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         continue;
                     }
 
-                    var val = GetPropertyString(product, targetPset, propName);
+                    var val = GetPropertyString(propertyLookup, targetPset, propName);
                     if (!string.IsNullOrWhiteSpace(val))
                     {
                         result.AssemblyMark = val;
@@ -153,7 +158,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     continue;
                 }
 
-                var (val, pset) = GetPropertyStringAnySet(product, propName);
+                var (val, pset) = GetPropertyStringAnySet(propertyLookup, propName);
                 if (!string.IsNullOrWhiteSpace(val))
                 {
                     result.AssemblyMark = val;
@@ -173,7 +178,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     if (propName.Equals("ObjectType", StringComparison.OrdinalIgnoreCase))
                         continue;
 
-                    var val = GetPropertyString(product, targetPset, propName);
+                    var val = GetPropertyString(propertyLookup, targetPset, propName);
                     if (!string.IsNullOrWhiteSpace(val))
                     {
                         result.AssemblyMark = val;
@@ -191,7 +196,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 if (propName.Equals("ObjectType", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                var (val, pset) = GetPropertyStringAnySet(product, propName);
+                var (val, pset) = GetPropertyStringAnySet(propertyLookup, propName);
                 if (!string.IsNullOrWhiteSpace(val))
                 {
                     result.AssemblyMark = val;
@@ -252,6 +257,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 ExporterProfile = profileEnum.ToString(),
                 Confidence = AssemblyMarkConfidence.None.ToString()
             };
+
+            // Phase 4B: one cheap snapshot for string alias lookups in this call.
+            var propertyLookup = BuildProductPropertyLookup(product);
 
             if (logicalField.Equals("Weight", StringComparison.OrdinalIgnoreCase) ||
                 logicalField.Equals("AssemblyWeight", StringComparison.OrdinalIgnoreCase) ||
@@ -445,7 +453,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 {
                     foreach (var propName in profile.LevelAliases)
                     {
-                        var val = GetPropertyString(product, targetPset, propName);
+                        var val = GetPropertyString(propertyLookup, targetPset, propName);
                         if (!string.IsNullOrWhiteSpace(val))
                         {
                             result.Value = val;
@@ -459,7 +467,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 foreach (var propName in profile.LevelAliases)
                 {
-                    var (val, pset) = GetPropertyStringAnySet(product, propName);
+                    var (val, pset) = GetPropertyStringAnySet(propertyLookup, propName);
                     if (!string.IsNullOrWhiteSpace(val))
                     {
                         result.Value = val;
@@ -479,7 +487,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 {
                     foreach (var propName in profile.ElementIdentityAliases)
                     {
-                        var val = GetPropertyString(product, targetPset, propName);
+                        var val = GetPropertyString(propertyLookup, targetPset, propName);
                         if (!string.IsNullOrWhiteSpace(val))
                         {
                             result.Value = val;
@@ -493,7 +501,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 foreach (var propName in profile.ElementIdentityAliases)
                 {
-                    var (val, pset) = GetPropertyStringAnySet(product, propName);
+                    var (val, pset) = GetPropertyStringAnySet(propertyLookup, propName);
                     if (!string.IsNullOrWhiteSpace(val))
                     {
                         result.Value = val;
@@ -513,7 +521,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 {
                     foreach (var propName in profile.TypeReferenceAliases)
                     {
-                        var val = GetPropertyString(product, targetPset, propName);
+                        var val = GetPropertyString(propertyLookup, targetPset, propName);
                         if (!string.IsNullOrWhiteSpace(val))
                         {
                             result.Value = val;
@@ -527,7 +535,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                 foreach (var propName in profile.TypeReferenceAliases)
                 {
-                    var (val, pset) = GetPropertyStringAnySet(product, propName);
+                    var (val, pset) = GetPropertyStringAnySet(propertyLookup, propName);
                     if (!string.IsNullOrWhiteSpace(val))
                     {
                         result.Value = val;
@@ -551,6 +559,68 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     return true;
             }
             return false;
+        }
+
+        private sealed record ProductPropertyValue(string Value, string PropertySetName);
+
+        private static Dictionary<string, List<ProductPropertyValue>> BuildProductPropertyLookup(IIfcProduct product)
+        {
+            var lookup = new Dictionary<string, List<ProductPropertyValue>>(StringComparer.OrdinalIgnoreCase);
+
+            var propertySets = product.IsDefinedBy
+                .Where(r => r.RelatingPropertyDefinition is IIfcPropertySet)
+                .Select(r => (IIfcPropertySet)r.RelatingPropertyDefinition);
+
+            foreach (var pset in propertySets)
+            {
+                var psetName = pset.Name.ToString();
+
+                foreach (var prop in pset.HasProperties.OfType<IIfcPropertySingleValue>())
+                {
+                    var propName = prop.Name.ToString();
+                    var val = prop.NominalValue?.ToString()?.Trim();
+                    if (string.IsNullOrWhiteSpace(propName) || string.IsNullOrWhiteSpace(val))
+                        continue;
+
+                    if (!lookup.TryGetValue(propName, out var values))
+                    {
+                        values = new List<ProductPropertyValue>();
+                        lookup[propName] = values;
+                    }
+
+                    values.Add(new ProductPropertyValue(val, psetName));
+                }
+            }
+
+            return lookup;
+        }
+
+        private static string? GetPropertyString(
+            IReadOnlyDictionary<string, List<ProductPropertyValue>> propertyLookup,
+            string psetName,
+            string propName)
+        {
+            if (!propertyLookup.TryGetValue(propName, out var values))
+                return null;
+
+            foreach (var value in values)
+            {
+                if (value.PropertySetName.Contains(psetName, StringComparison.OrdinalIgnoreCase))
+                    return value.Value;
+            }
+
+            return null;
+        }
+
+        private static (string? val, string? psetName) GetPropertyStringAnySet(
+            IReadOnlyDictionary<string, List<ProductPropertyValue>> propertyLookup,
+            string propName)
+        {
+            if (!propertyLookup.TryGetValue(propName, out var values) || values.Count == 0)
+                return (null, null);
+
+            var value = values[0];
+            return (value.Value, value.PropertySetName);
         }
 
         private static string? GetPropertyString(IIfcProduct product, string psetName, string propName)

@@ -98,7 +98,7 @@ namespace CraneOptimizer.Application.Tests
         {
             public IIfcModelSession? Current { get; set; }
 
-            public IIfcModelSession OpenSession(string ifcPath, CancellationToken cancellationToken = default)
+            public IIfcModelSession OpenSession(string ifcPath, IProgress<IfcLoadingProgressUpdate>? progress = null, CancellationToken cancellationToken = default)
             {
                 Current?.Dispose();
                 Current = new FakeIfcModelSession

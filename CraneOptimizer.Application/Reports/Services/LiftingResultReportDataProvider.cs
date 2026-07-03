@@ -154,6 +154,17 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
 
     private static string GetElementGroupKey(LiftingResultSourceRowDto row)
     {
+        if (GetText(row.Values, "IsAssemblyGroup").Equals("Yes", StringComparison.OrdinalIgnoreCase))
+        {
+            string parentAssemblyId = GetText(row.Values, "ParentAssemblyGlobalId");
+            if (!IsPlaceholder(parentAssemblyId))
+                return $"assembly:{parentAssemblyId}";
+
+            string mainPartId = GetText(row.Values, "MainPartGlobalId");
+            if (!IsPlaceholder(mainPartId))
+                return $"assembly-main:{mainPartId}";
+        }
+
         if (!string.IsNullOrWhiteSpace(row.ElementId))
             return row.ElementId;
 

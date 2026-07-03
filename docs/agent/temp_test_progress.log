@@ -1,0 +1,197 @@
+[2026-06-30 20:58:22] === IFC IMPORT FREEZE INVESTIGATION STARTED ===
+[2026-06-30 20:58:22] --- Processing Small IFC Baseline ---
+[2026-06-30 20:58:22] [Small IFC] Starting IfcStore.Open...
+[2026-06-30 20:58:22] [Small IFC] IfcStore.Open completed in: 39 ms
+[2026-06-30 20:58:22] [Small IFC] Starting Geometry Context Creation...
+[2026-06-30 20:58:22] [Small IFC] Geometry Context Creation completed in: 445 ms
+[2026-06-30 20:58:22] [Small IFC] Starting Product Enumeration...
+[2026-06-30 20:58:22] [Small IFC] Product Enumeration completed in: 0 ms (Count: 400)
+[2026-06-30 20:58:22] [Small IFC] Starting Element Filtering...
+[2026-06-30 20:58:22] [Small IFC] Element Filtering completed in: 0 ms (Filtered Count: 394)
+[2026-06-30 20:58:22] [Small IFC] Starting Normalization Preview...
+[2026-06-30 20:58:25] [Small IFC] Normalization Preview completed in: 2418 ms
+[2026-06-30 20:58:25] [Small IFC] Starting Geometry Ownership Audit...
+[2026-06-30 20:58:25] [Small IFC] Geometry Ownership Audit completed in: 0 ms
+[2026-06-30 20:58:25] [Small IFC] Starting ShapeInstancesOf(product) loop...
+[2026-06-30 20:58:25] [Small IFC]   - ShapeInstancesOf progress: 0/394
+[2026-06-30 20:58:25] [Small IFC]   - ShapeInstancesOf progress: 100/394
+[2026-06-30 20:58:25] [Small IFC]   - ShapeInstancesOf progress: 200/394
+[2026-06-30 20:58:25] [Small IFC]   - ShapeInstancesOf progress: 300/394
+[2026-06-30 20:58:25] [Small IFC]   - ShapeInstancesOf progress: 393/394
+[2026-06-30 20:58:25] [Small IFC] ShapeInstancesOf(product) loop completed in: 3 ms (Success: 394, Fail: 0)
+[2026-06-30 20:58:25] [Small IFC] Starting Visual Building...
+[2026-06-30 20:58:30] [Small IFC] Visual Building completed in: 5352 ms
+[2026-06-30 20:58:30] [Small IFC] Starting Viewport Attach...
+[2026-06-30 20:58:30] [Small IFC] Viewport Attach completed in: 0 ms
+[2026-06-30 20:58:30] [Small IFC] Starting Loading Close/Finally...
+[2026-06-30 20:58:30] [Small IFC] Loading Close/Finally completed in: 8 ms
+[2026-06-30 20:58:30] [Small IFC] TOTAL PROCESS completed in: 8280 ms
+[2026-06-30 20:58:30] --- Processing Large IFC Repro ---
+[2026-06-30 20:58:30] [Large IFC] Starting IfcStore.Open...
+[2026-06-30 20:58:32] [Large IFC] IfcStore.Open completed in: 1633 ms
+[2026-06-30 20:58:32] [Large IFC] Starting Geometry Context Creation...
+[2026-06-30 20:58:57] [Large IFC] Geometry Context Creation completed in: 25461 ms
+[2026-06-30 20:58:57] [Large IFC] Starting Product Enumeration...
+[2026-06-30 20:58:57] [Large IFC] Product Enumeration completed in: 2 ms (Count: 15138)
+[2026-06-30 20:58:57] [Large IFC] Starting Element Filtering...
+[2026-06-30 20:58:57] [Large IFC] Element Filtering completed in: 4 ms (Filtered Count: 15112)
+[2026-06-30 20:58:57] [Large IFC] Starting Normalization Preview...
+[2026-06-30 22:34:22] [Large IFC] Normalization Preview completed in: 5724718 ms
+[2026-06-30 22:34:22] [Large IFC] Starting Geometry Ownership Audit...
+[2026-06-30 22:34:22] [Large IFC] Geometry Ownership Audit completed in: 2 ms
+[2026-06-30 22:34:22] [Large IFC] Starting ShapeInstancesOf(product) loop...
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 0/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 1000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 1100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 1200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 1300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 1400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 1500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 1600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 1700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 1800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 1900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 2000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 2100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 2200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 2300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 2400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 2500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 2600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 2700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 2800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 2900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 3000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 3100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 3200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 3300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 3400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 3500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 3600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 3700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 3800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 3900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 4000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 4100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 4200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 4300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 4400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 4500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 4600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 4700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 4800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 4900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 5000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 5100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 5200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 5300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 5400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 5500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 5600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 5700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 5800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 5900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 6000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 6100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 6200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 6300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 6400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 6500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 6600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 6700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 6800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 6900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 7000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 7100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 7200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 7300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 7400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 7500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 7600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 7700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 7800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 7900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 8000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 8100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 8200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 8300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 8400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 8500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 8600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 8700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 8800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 8900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 9000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 9100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 9200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 9300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 9400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 9500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 9600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 9700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 9800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 9900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 10000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 10100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 10200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 10300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 10400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 10500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 10600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 10700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 10800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 10900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 11000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 11100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 11200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 11300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 11400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 11500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 11600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 11700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 11800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 11900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 12000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 12100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 12200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 12300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 12400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 12500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 12600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 12700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 12800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 12900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 13000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 13100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 13200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 13300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 13400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 13500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 13600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 13700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 13800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 13900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 14000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 14100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 14200/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 14300/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 14400/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 14500/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 14600/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 14700/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 14800/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 14900/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 15000/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 15100/15112
+[2026-06-30 22:34:22] [Large IFC]   - ShapeInstancesOf progress: 15111/15112
+[2026-06-30 22:34:22] [Large IFC] ShapeInstancesOf(product) loop completed in: 107 ms (Success: 15112, Fail: 0)
+[2026-06-30 22:34:22] [Large IFC] Starting Visual Building...

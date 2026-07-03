@@ -11,6 +11,10 @@ namespace CraneOptimizer.Application.Tests
 {
     public class OptimizationInputBuilderTests
     {
+        // ====================================================================
+        // Existing tests (preserved with no behavioral change)
+        // ====================================================================
+
         [Fact]
         public void Build_ExcludesElementsBlockedFromGa()
         {
@@ -63,7 +67,6 @@ namespace CraneOptimizer.Application.Tests
 
             Assert.Contains("No GA-enabled elements", exception.Message);
         }
-
 
         [Fact]
         public void Build_DoesNotGroupByDefaultEvenWithAssemblyMark()
@@ -142,6 +145,115 @@ namespace CraneOptimizer.Application.Tests
             Assert.Contains(input.Elements, element => element.ElementID == "W1-A");
             Assert.Contains(input.Elements, element => element.ElementID == "W1-B");
         }
+
+        [Fact]
+        public void Build_FiltersByElementType_WhenTargetElementTypesSpecified()
+        {
+            var builder = new OptimizationInputBuilder();
+            var settings = new GASettings { TargetElementTypes = new List<string> { "Column" } };
+
+            var input = builder.Build(
+                settings,
+                CreateCrane(),
+                new List<PrecastElement>
+                {
+                    CreateElement("ELEM-1", includeInGa: true, elementType: "Column"),
+                    CreateElement("ELEM-2", includeInGa: true, elementType: "Beam"),
+                },
+                new List<GreenAreaZone> { CreateAllowedZone() });
+
+            Assert.Single(input.Elements);
+            Assert.Equal("ELEM-1", input.Elements[0].ElementID);
+        }
+
+        [Fact]
+        public void Build_IncludesAllGaEnabled_WhenNoElementTypesSpecified()
+        {
+            var builder = new OptimizationInputBuilder();
+            var input = builder.Build(
+                new GASettings(),
+                CreateCrane(),
+                new List<PrecastElement>
+                {
+                    CreateElement("ELEM-1", includeInGa: true),
+                    CreateElement("ELEM-2", includeInGa: true),
+                },
+                new List<GreenAreaZone> { CreateAllowedZone() });
+
+            Assert.Equal(2, input.Elements.Count);
+        }
+
+        [Fact]
+        public void Build_ThrowsWhenNoElementsMatchSelectedElementTypes()
+        {
+            var builder = new OptimizationInputBuilder();
+            var settings = new GASettings { TargetElementTypes = new List<string> { "Slab" } };
+
+            var exception = Assert.Throws<InvalidOperationException>(() => builder.Build(
+                settings,
+                CreateCrane(),
+                new List<PrecastElement>
+                {
+                    CreateElement("ELEM-1", includeInGa: true, elementType: "Column"),
+                    CreateElement("ELEM-2", includeInGa: true, elementType: "Beam"),
+                },
+                new List<GreenAreaZone> { CreateAllowedZone() }));
+
+            Assert.Contains("target element types", exception.Message);
+        }
+
+
+        [Fact]
+        public void Build_IncludesChildren_OfMatchingElementTypeParent()
+        {
+            var builder = new OptimizationInputBuilder();
+            var settings = new GASettings { TargetElementTypes = new List<string> { "Beam" } };
+
+            var input = builder.Build(
+                settings,
+                CreateCrane(),
+                new List<PrecastElement>
+                {
+                    new PrecastElement
+                    {
+                        ElementID = "PARENT-1",
+                        ElementType = "Beam",
+                        AssemblyMark = "PC2-1",
+                        Role = IfcElementRole.LiftAssembly,
+                        IncludeInGa = true,
+                        ElementCOG = new DomainPoint3D(0, 0, 1),
+                        COG_M = new DomainPoint3D(0, 0, 1),
+                        WeightTons = 5,
+                        WeightTrustLevel = IfcWeightTrustLevel.ExplicitProperty,
+                    },
+                    new PrecastElement
+                    {
+                        ElementID = "CHILD-1",
+                        ElementType = "Rebar",
+                        AssemblyMark = null,
+                        ParentGlobalId = "PARENT-1",
+                        Role = IfcElementRole.LiftableElement,
+                        IncludeInGa = true,
+                        ElementCOG = new DomainPoint3D(0, 0, 1),
+                        COG_M = new DomainPoint3D(0, 0, 1),
+                        WeightTons = 1.5,
+                        WeightTrustLevel = IfcWeightTrustLevel.ExplicitProperty,
+                    },
+                },
+                new List<GreenAreaZone> { CreateAllowedZone() });
+
+            // In non-grouped mode, parent LiftAssemblies are excluded from the GA target set;
+            // only their children are promoted as individual targets.
+            Assert.Single(input.Elements);
+            Assert.Contains(input.Elements, e => e.ElementID == "CHILD-1");
+            Assert.DoesNotContain(input.Elements, e => e.ElementID == "PARENT-1");
+        }
+
+
+        // ====================================================================
+        // Helpers
+        // ====================================================================
+
         private static Crane CreateCrane()
         {
             return new Crane
@@ -183,6 +295,7 @@ namespace CraneOptimizer.Application.Tests
         private static PrecastElement CreateElement(
             string id,
             bool includeInGa,
+            string? elementType = null,
             string? assemblyMark = null,
             bool isExplicitAssemblyMark = true,
             AssemblyMarkConfidence confidence = AssemblyMarkConfidence.High,
@@ -194,7 +307,7 @@ namespace CraneOptimizer.Application.Tests
             return new PrecastElement
             {
                 ElementID = id,
-                ElementType = "Beam",
+                ElementType = elementType ?? "Beam",
                 IncludeInGa = includeInGa,
                 ElementCOG = new DomainPoint3D(cogX, 0, 1),
                 COG_M = new DomainPoint3D(cogX, 0, 1),

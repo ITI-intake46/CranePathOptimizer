@@ -163,6 +163,18 @@ namespace CraneOptimizer.Domain.Services
                 parent.MainPartName = mainPart?.ElementName;
                 parent.MainPartCategory = mainPart?.ResolvedCategory;
                 parent.MainPartDetectionMethod = detectionMethod.ToString();
+
+                // Secondary safety net: if the parent's persisted ElementType is still generic
+                // ("Assembly", "Unknown", or empty) but the inferred MainPartCategory is a
+                // concrete physical type, promote it. This corrects assemblies whose children
+                // carry proper IFC structural classes (e.g. IfcColumn, IfcBeam) even when the
+                // parent container was classified generically at import time.
+                // Guard: never overwrite a good category; never promote back to a generic one.
+                if (IsGenericElementType(parent.ElementType) &&
+                    !IsGenericElementType(parent.MainPartCategory))
+                {
+                    parent.ElementType = parent.MainPartCategory!;
+                }
                 parent.ChildCount = children.Count;
                 parent.VisibleSecondaryPartCount = visibleSecCount;
                 parent.HiddenWeightContributorCount = hiddenCount;
@@ -492,5 +504,15 @@ namespace CraneOptimizer.Domain.Services
 
             return liftUnit;
         }
+
+        /// <summary>
+        /// Returns true when <paramref name="category"/> is a generic, non-informative
+        /// placeholder ("Assembly", "Unknown", null, or empty).
+        /// Must stay consistent with the same helper in IfcNormalizationDecisionService.
+        /// </summary>
+        private static bool IsGenericElementType(string? category)
+            => string.IsNullOrWhiteSpace(category)
+               || string.Equals(category, "Assembly", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(category, "Unknown", StringComparison.OrdinalIgnoreCase);
     }
 }
