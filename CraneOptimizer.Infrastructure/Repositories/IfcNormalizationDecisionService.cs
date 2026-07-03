@@ -448,6 +448,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             preview.Role = IfcElementRole.LiftAssembly;
                             preview.AssemblyDecision = IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly;
 
+                            // Refine generic "Assembly" category to the real physical type using the
+                            // Tekla assembly mark prefix (e.g. LWP/PP → Wall, DT → Slab, PAD → Roof).
+                            // rel is not yet in scope here, so look it up now.
+                            relationByParentGlobalId.TryGetValue(preview.GlobalId, out var teklaRel);
+                            RefineAssemblyCategoryFromMark(preview, teklaRel);
+
                             // Check geometry owners: parent has no geometry in ChildrenOnly pattern, so visible owners are children
                             if (assemblyDetail.GeometryOwnershipPattern == "ChildrenOnly")
                             {
@@ -498,6 +504,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             preview.AssemblyDecision = IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly; // Treat as a valid aggregate lift unit
                             preview.IncludeInGaPreview = true;
                             preview.DecisionReason = "Approved assembly lift unit: trusted hierarchy, weight, main part, and safe COG verified.";
+
+                            // Refine generic "Assembly" category to the real physical type using the
+                            // assembly mark prefix and (if available) the main part's category.
+                            RefineAssemblyCategoryFromMark(preview, rel);
 
                             if (assemblyDetail.GeometryOwnershipPattern == "ChildrenOnly")
                             {
@@ -982,6 +992,76 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private static string EscapeCsv(string value)
         {
             return value.Replace("\"", "\"\"");
+        }
+
+        // ─── Assembly category refinement helpers ────────────────────────────────────
+
+        /// <summary>
+        /// Returns true when <paramref name="category"/> is a generic, non-informative
+        /// placeholder ("Assembly", "Unknown", null, or empty).
+        /// </summary>
+        private static bool IsGenericCategory(string? category)
+            => string.IsNullOrWhiteSpace(category)
+               || string.Equals(category, "Assembly", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(category, "Unknown", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Extracts the physical type from a Tekla assembly mark by inspecting each
+        /// dash-separated segment after stripping any leading digit characters.
+        /// Example: "SGS-1LWP-53" → segments ["SGS", "1LWP", "53"] → stripped ["SGS", "LWP", ""] → "LWP" → "Wall".
+        /// Returns an empty string when no known prefix is found.
+        /// </summary>
+        private static string InferCategoryFromAssemblyMark(string mark)
+        {
+            if (string.IsNullOrWhiteSpace(mark)) return string.Empty;
+
+            var upper = mark.ToUpperInvariant();
+            var segments = upper.Split('-');
+
+            foreach (var seg in segments)
+            {
+                // Strip any leading digits so "1LWP" → "LWP"
+                var prefix = seg.TrimStart('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
+                if (string.IsNullOrEmpty(prefix)) continue;
+
+                // Wall Panels: Load-Bearing Wall Panel (LWP), Partition Panel (PP)
+                if (prefix == "LWP" || prefix == "PP") return "Wall";
+                // Precast Columns
+                if (prefix == "PC") return "Column";
+                // Beams: Ring Beam (RB), L-Ring Beam (LRB), U-Ring Beam (URB), variants
+                if (prefix == "RB" || prefix == "LRB" || prefix == "URB" || prefix == "LRBA") return "Beam";
+                // Slabs: Double-T (DT) and related precast slab types
+                if (prefix == "DT") return "Slab";
+                // Roof / pad elements
+                if (prefix == "PAD") return "Roof";
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Refines <see cref="IfcNormalizedElementPreview.CandidateCategory"/> in-place
+        /// when the current value is generic ("Assembly", "Unknown", or empty) by
+        /// inferring the physical type from the assembly mark stored in <paramref name="rel"/>.
+        /// A good existing category (e.g. "Column", "Beam") is never overwritten.
+        /// </summary>
+        private static void RefineAssemblyCategoryFromMark(
+            IfcNormalizedElementPreview preview,
+            AssemblyRelationshipInfo? rel)
+        {
+            // Guard: only act when the current category is generic
+            if (!IsGenericCategory(preview.CandidateCategory)) return;
+
+            var mark = rel?.AssemblyMark;
+            if (string.IsNullOrWhiteSpace(mark)) return;
+
+            var refined = InferCategoryFromAssemblyMark(mark);
+
+            // Only apply a concrete physical type, never promote back to a generic placeholder
+            if (!string.IsNullOrEmpty(refined) && !IsGenericCategory(refined))
+            {
+                preview.CandidateCategory = refined;
+            }
         }
     }
 
