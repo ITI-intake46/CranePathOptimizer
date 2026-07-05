@@ -1020,18 +1020,18 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             foreach (var seg in segments)
             {
-                // Strip any leading digits so "1LWP" → "LWP"
-                var prefix = seg.TrimStart('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
+                // Strip all leading and trailing digits (e.g. "1SW" -> "SW", "HC20" -> "HC")
+                var prefix = seg.Trim('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
                 if (string.IsNullOrEmpty(prefix)) continue;
 
-                // Wall Panels: Load-Bearing Wall Panel (LWP), Partition Panel (PP)
-                if (prefix == "LWP" || prefix == "PP") return "Wall";
+                // Wall Panels: Load-Bearing Wall Panel (LWP), Partition Panel (PP), Solid/Shear Wall (SW)
+                if (prefix == "LWP" || prefix == "PP" || prefix == "SW") return "Wall";
                 // Precast Columns
                 if (prefix == "PC") return "Column";
                 // Beams: Ring Beam (RB), L-Ring Beam (LRB), U-Ring Beam (URB), variants
                 if (prefix == "RB" || prefix == "LRB" || prefix == "URB" || prefix == "LRBA") return "Beam";
-                // Slabs: Double-T (DT) and related precast slab types
-                if (prefix == "DT") return "Slab";
+                // Slabs: Double-T (DT), Hollowcore (HC), Balcony Canopy (BCAN)
+                if (prefix == "DT" || prefix == "HC" || prefix == "BCAN") return "Slab";
                 // Roof / pad elements
                 if (prefix == "PAD") return "Roof";
             }
