@@ -504,7 +504,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 _auditMetadata = auditMetadata;
 
                 var profileResolver = new IfcExporterProfileResolver();
-                _exporterProfile = profileResolver.ResolveProfile(model.Header?.FileName?.OriginatingSystem ?? string.Empty);
+                var app = $"{model.Header?.FileName?.OriginatingSystem ?? ""} {model.Header?.FileName?.PreprocessorVersion ?? ""}";
+                _exporterProfile = profileResolver.ResolveProfile(app);
                 _exporterProfileDefinition = _exporterProfile switch
                 {
                     IfcExporterProfile.Tekla => new TeklaIfcExporterProfile(),

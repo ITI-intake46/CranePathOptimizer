@@ -361,6 +361,55 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         .Where(cid => previews.TryGetValue(cid, out var cp) && cp.Role != IfcElementRole.InternalAuxiliary)
                         .ToList();
 
+                    // Tekla Precast Cast-Unit / Welded Lift Assembly Rule
+                    if (profile.Exporter == IfcExporterProfile.Tekla &&
+                        profile.IsPrecastLiftAssembly(preview.Name, preview.RawIfcType))
+                    {
+                        preview.Role = IfcElementRole.LiftAssembly;
+                        preview.AssemblyDecision = IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly;
+
+                        // Refine generic "Assembly" category to the real physical type using the
+                        // Tekla assembly mark prefix (e.g. LWP/PP → Wall, DT → Slab, PAD → Roof).
+                        // rel is not yet in scope here, so look it up now.
+                        relationByParentGlobalId.TryGetValue(preview.GlobalId, out var teklaRel);
+                        RefineAssemblyCategoryFromMark(preview, teklaRel);
+
+                        // Check geometry owners: parent has no geometry in ChildrenOnly pattern, so visible owners are children
+                        if (assemblyDetail.GeometryOwnershipPattern == "ChildrenOnly")
+                        {
+                            preview.VisibleGeometryOwnerGlobalIds = nonInternalChildrenIds.ToList();
+                        }
+                        else
+                        {
+                            preview.VisibleGeometryOwnerGlobalIds = new List<string> { preview.GlobalId };
+                        }
+
+                        if (HasGaApprovedExplicitWeight(preview))
+                        {
+                            preview.IncludeInGaPreview = true;
+                            preview.DecisionReason = "Tekla precast cast-unit/welded aggregate lift item. Parent assembly has trusted total weight; children double-counting excluded.";
+
+                            // Exclude structural children from GA to avoid double-counting weight
+                            foreach (var childId in nonInternalChildrenIds)
+                            {
+                                if (previews.TryGetValue(childId, out var childPreview))
+                                {
+                                    childPreview.Role = IfcElementRole.Excluded;
+                                    childPreview.IncludeInGaPreview = false;
+                                    childPreview.DecisionReason = "Aggregated component of Tekla Precast Cast-Unit. Excluded from independent lifting to avoid double-counting.";
+                                }
+                            }
+                        }
+                        else
+                        {
+                            preview.IncludeInGaPreview = false;
+                            preview.Role = IfcElementRole.NeedsReview;
+                            preview.Warnings.Add("Tekla precast cast-unit total weight is missing or untrusted. Lift calculation blocked until weight is resolved.");
+                            preview.DecisionReason = "Tekla Precast Cast-Unit lacks trusted total weight. Element review required.";
+                        }
+                        continue;
+                    }
+
                     // Case A: Exactly one physical structural child - Single Child Wrapper
                     if (nonInternalChildrenIds.Count == 1)
                     {
@@ -437,55 +486,6 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                         ? "Unrolled structural child from safe Revit grouping assembly."
                                         : $"Unrolled structural child from safe Revit grouping assembly, but blocked from GA because {DescribeWeightBlock(childPreview)}";
                                 }
-                            }
-                            continue;
-                        }
-
-                        // Tekla Precast Cast-Unit / Welded Lift Assembly Rule
-                        if (profile.Exporter == IfcExporterProfile.Tekla &&
-                            profile.IsPrecastLiftAssembly(preview.Name, preview.RawIfcType))
-                        {
-                            preview.Role = IfcElementRole.LiftAssembly;
-                            preview.AssemblyDecision = IfcAssemblyDecision.TeklaCastUnitOrWeldedLiftAssembly;
-
-                            // Refine generic "Assembly" category to the real physical type using the
-                            // Tekla assembly mark prefix (e.g. LWP/PP → Wall, DT → Slab, PAD → Roof).
-                            // rel is not yet in scope here, so look it up now.
-                            relationByParentGlobalId.TryGetValue(preview.GlobalId, out var teklaRel);
-                            RefineAssemblyCategoryFromMark(preview, teklaRel);
-
-                            // Check geometry owners: parent has no geometry in ChildrenOnly pattern, so visible owners are children
-                            if (assemblyDetail.GeometryOwnershipPattern == "ChildrenOnly")
-                            {
-                                preview.VisibleGeometryOwnerGlobalIds = nonInternalChildrenIds.ToList();
-                            }
-                            else
-                            {
-                                preview.VisibleGeometryOwnerGlobalIds = new List<string> { preview.GlobalId };
-                            }
-
-                            if (HasGaApprovedExplicitWeight(preview))
-                            {
-                                preview.IncludeInGaPreview = true;
-                                preview.DecisionReason = "Tekla precast cast-unit/welded aggregate lift item. Parent assembly has trusted total weight; children double-counting excluded.";
-
-                                // Exclude structural children from GA to avoid double-counting weight
-                                foreach (var childId in nonInternalChildrenIds)
-                                {
-                                    if (previews.TryGetValue(childId, out var childPreview))
-                                    {
-                                        childPreview.Role = IfcElementRole.Excluded;
-                                        childPreview.IncludeInGaPreview = false;
-                                        childPreview.DecisionReason = "Aggregated component of Tekla Precast Cast-Unit. Excluded from independent lifting to avoid double-counting.";
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                preview.IncludeInGaPreview = false;
-                                preview.Role = IfcElementRole.NeedsReview;
-                                preview.Warnings.Add("Tekla precast cast-unit total weight is missing or untrusted. Lift calculation blocked until weight is resolved.");
-                                preview.DecisionReason = "Tekla Precast Cast-Unit lacks trusted total weight. Element review required.";
                             }
                             continue;
                         }
@@ -1020,18 +1020,18 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             foreach (var seg in segments)
             {
-                // Strip any leading digits so "1LWP" → "LWP"
-                var prefix = seg.TrimStart('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
+                // Strip all leading and trailing digits (e.g. "1SW" -> "SW", "HC20" -> "HC")
+                var prefix = seg.Trim('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
                 if (string.IsNullOrEmpty(prefix)) continue;
 
-                // Wall Panels: Load-Bearing Wall Panel (LWP), Partition Panel (PP)
-                if (prefix == "LWP" || prefix == "PP") return "Wall";
+                // Wall Panels: Load-Bearing Wall Panel (LWP), Partition Panel (PP), Solid/Shear Wall (SW)
+                if (prefix == "LWP" || prefix == "PP" || prefix == "SW") return "Wall";
                 // Precast Columns
                 if (prefix == "PC") return "Column";
                 // Beams: Ring Beam (RB), L-Ring Beam (LRB), U-Ring Beam (URB), variants
                 if (prefix == "RB" || prefix == "LRB" || prefix == "URB" || prefix == "LRBA") return "Beam";
-                // Slabs: Double-T (DT) and related precast slab types
-                if (prefix == "DT") return "Slab";
+                // Slabs: Double-T (DT), Hollowcore (HC), Balcony Canopy (BCAN)
+                if (prefix == "DT" || prefix == "HC" || prefix == "BCAN") return "Slab";
                 // Roof / pad elements
                 if (prefix == "PAD") return "Roof";
             }

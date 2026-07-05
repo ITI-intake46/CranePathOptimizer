@@ -560,11 +560,12 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         private static IfcAuditMetadata ExtractMetadata(IfcStore model, string ifcPath)
         {
+            var app = $"{model.Header?.FileName?.OriginatingSystem ?? ""} {model.Header?.FileName?.PreprocessorVersion ?? ""}".Trim();
             var meta = new IfcAuditMetadata
             {
                 FileName = Path.GetFileName(ifcPath),
                 SchemaVersion = model.SchemaVersion.ToString(),
-                ExporterApplication = model.Header?.FileName?.OriginatingSystem ?? "Unknown Exporter"
+                ExporterApplication = string.IsNullOrWhiteSpace(app) ? "Unknown Exporter" : app
             };
 
             // Detect Project Units
@@ -2949,7 +2950,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
             CancellationToken cancellationToken)
         {
             var profileResolver = new IfcExporterProfileResolver();
-            var exporterProfile = profileResolver.ResolveProfile(model.Header?.FileName?.OriginatingSystem ?? string.Empty);
+            var app = $"{model.Header?.FileName?.OriginatingSystem ?? ""} {model.Header?.FileName?.PreprocessorVersion ?? ""}";
+            var exporterProfile = profileResolver.ResolveProfile(app);
             var diagnosticProducts = SelectLargeModelDiagnosticProducts(physicalProducts, largeModelSummaryMode, LargeModelMarkDiagnosticSampleLimit);
 
             var list = new List<RawNameDiagnosticDetail>(diagnosticProducts.Count);
