@@ -68,6 +68,13 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
         IReadOnlyList<PrecastElement> elements,
         string templateName)
     {
+        if (templateName.Equals(ReportTemplateCatalog.GaReadiness, StringComparison.OrdinalIgnoreCase))
+        {
+            return elements
+                .Where(element => element.Role == IfcElementRole.LiftAssembly && element.IncludeInGa)
+                .ToList();
+        }
+
         if (!templateName.Equals(ReportTemplateCatalog.MissingEstimatedWeight, StringComparison.OrdinalIgnoreCase))
             return elements;
 
