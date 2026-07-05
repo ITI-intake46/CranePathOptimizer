@@ -33,3 +33,8 @@ The implementation includes:
 - Engineering-grade branch documentation.
 
 The AI feature is advisory only. It does not automatically mutate IFC data, crane data, zones, load charts, optimization results, reports, or project state without explicit user action.
+
+| [AI Command Center UX](./AI_COMMAND_CENTER_UX.md) | Describes the tabbed, pinned-control redesign of the docked AI Assist panel. |
+
+| [AI Assist Sleek Section Navigator](./AI_ASSIST_SLEEK_SECTION_NAVIGATOR.md) | Describes the minimal vertical section navigator that replaces the button-heavy command center layout while preserving all AI features. |
+| [AI Assist Section Rail UX](./AI_ASSIST_SECTION_RAIL_UX.md) | Describes the full-height text-based rail that replaces a visible scrollbar/accordion with focused professional AI sections. |

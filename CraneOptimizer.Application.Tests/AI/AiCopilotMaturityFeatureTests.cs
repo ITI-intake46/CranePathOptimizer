@@ -1,4 +1,5 @@
 using CraneOptimizer.AI.DTOs;
+using CraneOptimizer.AI.Host;
 using CraneOptimizer.AI.Knowledge;
 using CraneOptimizer.AI.Services;
 using Xunit;
