@@ -221,20 +221,26 @@ namespace CraneOptimizer.AI.Services
                     PrimaryViewModel = "AiAdvisorViewModel",
                     Actions = new[]
                     {
-                        Action("AI Companion", "AiCompanionPanel", "Use the collapsed floating companion in the main workspace for contextual next-step help without leaving the current screen.", "Always available in the main project window; collapsed by default and explicitly expanded by the user.", "The companion suggests and explains but never changes crane data automatically."),
+                        Action("AI Assist / Mission Control", "AiCompanionPanel", "Use the docked AI Assist panel for a slim section-rail navigator: Chat, Mission Control, BIM Intelligence, Optimization Readiness, Report & QA, and AI Studio. The scrollbar-sized rail uses rotated labels, top-tab accent styling, and mouse-wheel section switching when the pointer is over the rail. Each focused section exposes only the relevant grounded tools, evidence, recovery plans, what-if advisor, report wording, and contextual next-step chat without leaving the current screen.", "Always available in the main project window; expanded by explicit user action. The panel keeps the state header, primary recommendation, composer, footer, and full-height scrollbar-sized section rail fixed while one focused section is shown at a time.", "The companion explains, copies evidence, and proposes safe text/navigation actions but never changes crane data automatically."),
+                        Action("AI Studio Showcase", "AiShowcaseService / AiCompanionPanel", "Visible AI makeover surface showing agent stack, live capabilities, demo prompt chips, explainable decision trace, and a copyable presentation brief.", "Available in the AI Studio section of the docked AI Assist panel when live workflow context is available.", "Showcase text is generated from deterministic context and remains advisory; it does not mutate project or optimizer state."),
                         Action("Open Copilot", "OpenAdvisor_Click", "Open the full AI Optimization Copilot window.", "Available from AI COPILOT tab and from the companion drawer.", "AI output is advisory only."),
                         Action("Analyze Current Result", "AnalyzeCurrentResultCommand", "Run deterministic advisor rules against the current optimization result.", "Works even without Ollama.", "Deterministic analysis explains app metrics but does not certify crane plans."),
                         Action("Ask Local Ollama", "OpenAdvisor_Click / AskOllamaCommand", "Ask a local Ollama model to explain result context or software usage.", "Requires Ollama server and installed model.", "Ollama receives structured context and must not override calculations."),
                         Action("Check Ollama", "CheckOllamaCommand", "Detect local Ollama server and installed models.", "Available in the Copilot window.", "Does not install anything."),
                         Action("Pull Model", "PullModelCommand", "Ask Ollama to download the model named in the Model field.", "Explicit user action only; may take time and disk space.", "Do not pull very large models unless the machine has enough resources."),
-                        Action("Copy Context", "CopyContextCommand", "Copy structured AI context JSON.", "Available after analysis.", "Context may include project names/paths; share carefully.")
+                        Action("Copy Context", "CopyContextCommand", "Copy structured AI context JSON.", "Available after analysis.", "Context may include project names/paths; share carefully."),
+                        Action("Copy Recovery Plan", "CopyRecoveryPlanCommand", "Copy the AI Mission Control recovery checklist with owner, evidence, verification, and safety boundary.", "Available from the relevant AI Assist rail section.", "Advisory text only; it does not change optimizer gates."),
+                        Action("Copy What-if Advisor", "CopyWhatIfAdvisorCommand", "Copy the AI-ranked next investigation lever: data, zones, crane model, load chart, diagnostics, or reporting.", "Available from the relevant AI Assist rail section.", "Ranks investigation options but does not perform engineering changes."),
+                        Action("Copy Report Text", "CopyReportNarrativeCommand", "Copy AI-assisted report language from deterministic project context.", "Available from the relevant AI Assist rail section.", "Reviewer approval is required before issuing any report language."),
+                        Action("Copy QA Evidence Pack", "CopyQaEvidencePackCommand", "Copy readiness checklist, blocker summary, recovery plan, and what-if advisor together.", "Available from the relevant AI Assist rail section.", "Evidence pack can include project-identifying context; share carefully.")
                     },
                     TypicalQuestions = new[]
                     {
                         "What can this software do?",
                         "Which tab contains load chart import?",
                         "Guide me from IFC import to optimization report.",
-                        "Explain current optimization result."
+                        "Explain current optimization result.",
+                        "Show me the AI Studio capability stack and demo script."
                     }
                 },
                 new AiFeatureTabDto
@@ -327,7 +333,7 @@ namespace CraneOptimizer.AI.Services
                 "The deterministic optimizer, load chart lookup, zone constraints, and domain services remain the source of calculation truth.",
                 "Final crane plans require qualified engineering review against manufacturer data, site rules, project requirements, and applicable safety standards.",
                 "Do not invent hidden buttons, unimplemented features, standards, measurements, or project facts not supplied by the software context.",
-                "Clearly distinguish visible features from controls marked as coming soon or feature-flag hidden."
+                "Clearly distinguish visible features from requested actions that are not currently available in the supplied context."
             }
         };
 

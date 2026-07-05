@@ -1,9 +1,12 @@
+using System;
 using System.Collections.Specialized;
+using System.Linq;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Threading;
 using CraneOptimizer.AI.Companion.ViewModels;
 using CraneOptimizer.AI.Host;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,6 +46,8 @@ namespace CraneOptimizer.AI.Companion.Views
                 return;
 
             _viewModel = serviceProvider.GetRequiredService<AiCompanionViewModel>();
+            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+            _viewModel.ComposerFocusRequested += OnComposerFocusRequested;
             _viewModel.ConversationMessages.CollectionChanged += OnConversationMessagesChanged;
             foreach (var message in _viewModel.ConversationMessages)
                 message.PropertyChanged += OnConversationMessagePropertyChanged;
@@ -65,6 +70,32 @@ namespace CraneOptimizer.AI.Companion.Views
             var offset = scrollViewer.VerticalOffset - (e.Delta / 4.0d);
             scrollViewer.ScrollToVerticalOffset(Math.Max(0d, Math.Min(scrollViewer.ScrollableHeight, offset)));
             e.Handled = true;
+        }
+
+        private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(AiCompanionViewModel.SelectedCommandCenterTab))
+            {
+                if (string.Equals(_viewModel?.SelectedCommandCenterTab, "Chat", StringComparison.OrdinalIgnoreCase))
+                {
+                    ScrollBodyToEnd();
+                    return;
+                }
+
+                ScrollBodyToHome();
+                return;
+            }
+
+            if (e.PropertyName == nameof(AiCompanionViewModel.PinnedReadinessBody)
+                && string.Equals(_viewModel?.SelectedCommandCenterTab, "Chat", StringComparison.OrdinalIgnoreCase))
+            {
+                ScrollBodyToEnd();
+            }
+        }
+
+        private void OnComposerFocusRequested(object? sender, EventArgs e)
+        {
+            FocusComposer();
         }
 
         private void OnConversationMessagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -96,12 +127,77 @@ namespace CraneOptimizer.AI.Companion.Views
 
         private void ScrollBodyToHome()
         {
-            Dispatcher.BeginInvoke(new Action(() => BodyScrollViewer.ScrollToHome()));
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    BodyScrollViewer.UpdateLayout();
+                    BodyScrollViewer.ScrollToHome();
+                }),
+                DispatcherPriority.ContextIdle);
         }
 
         private void ScrollBodyToEnd()
         {
-            Dispatcher.BeginInvoke(new Action(() => BodyScrollViewer.ScrollToEnd()));
+            QueueScrollToEnd(DispatcherPriority.Background);
+            QueueScrollToEnd(DispatcherPriority.ContextIdle);
+            QueueScrollToEnd(DispatcherPriority.ApplicationIdle);
+        }
+
+        private void QueueScrollToEnd(DispatcherPriority priority)
+        {
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    BodyScrollViewer.UpdateLayout();
+                    BodyScrollViewer.ScrollToEnd();
+                }),
+                priority);
+        }
+
+        private void FocusComposer()
+        {
+            QueueFocusComposer(DispatcherPriority.Input);
+            QueueFocusComposer(DispatcherPriority.ContextIdle);
+        }
+
+        private void QueueFocusComposer(DispatcherPriority priority)
+        {
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    if (!IsVisible || QuestionTextBox == null)
+                        return;
+
+                    QuestionTextBox.UpdateLayout();
+                    QuestionTextBox.Focus();
+                    Keyboard.Focus(QuestionTextBox);
+                    QuestionTextBox.CaretIndex = QuestionTextBox.Text?.Length ?? 0;
+                    QuestionTextBox.ScrollToEnd();
+                }),
+                priority);
+        }
+
+
+        private void SectionRail_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (_viewModel == null)
+                return;
+
+            var sections = new[] { "Chat", "Mission", "BIM", "Optimize", "Report", "AI Studio" };
+            var currentIndex = Array.FindIndex(
+                sections,
+                section => string.Equals(section, _viewModel.SelectedCommandCenterTab, StringComparison.OrdinalIgnoreCase));
+
+            if (currentIndex < 0)
+                currentIndex = 0;
+
+            var requestedIndex = currentIndex + (e.Delta < 0 ? 1 : -1);
+            var nextIndex = Math.Max(0, Math.Min(sections.Length - 1, requestedIndex));
+
+            if (nextIndex != currentIndex && _viewModel.SelectCommandCenterTabCommand.CanExecute(sections[nextIndex]))
+                _viewModel.SelectCommandCenterTabCommand.Execute(sections[nextIndex]);
+
+            e.Handled = true;
         }
 
         private void ComposerResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
@@ -127,6 +223,8 @@ namespace CraneOptimizer.AI.Companion.Views
         {
             if (_viewModel != null)
             {
+                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+                _viewModel.ComposerFocusRequested -= OnComposerFocusRequested;
                 _viewModel.ConversationMessages.CollectionChanged -= OnConversationMessagesChanged;
                 foreach (var message in _viewModel.ConversationMessages)
                     message.PropertyChanged -= OnConversationMessagePropertyChanged;

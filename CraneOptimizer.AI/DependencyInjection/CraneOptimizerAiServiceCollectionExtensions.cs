@@ -1,5 +1,6 @@
 using CraneOptimizer.AI.Companion.ViewModels;
 using CraneOptimizer.AI.Configuration;
+using CraneOptimizer.AI.Host;
 using CraneOptimizer.AI.Interfaces;
 using CraneOptimizer.AI.Knowledge;
 using CraneOptimizer.AI.Providers.Ollama;

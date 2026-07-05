@@ -7,10 +7,13 @@ using System.Windows;
 using System.Windows.Input;
 using CraneOptimizer.AI.DTOs;
 using CraneOptimizer.AI.Interfaces;
+using CraneOptimizer.AI.Host;
 using CraneOptimizer.AI.Core.Base;
 using CraneOptimizer.AI.Core.Commands;
 using CraneOptimizer.AI.Configuration;
 using CraneOptimizer.AI.Knowledge;
+using CraneOptimizer.AI.Services;
+using CraneOptimizer.AI.Workflow;
 using Microsoft.Win32;
 
 namespace CraneOptimizer.AI.ViewModels
@@ -32,11 +35,13 @@ namespace CraneOptimizer.AI.ViewModels
         private readonly IAiPromptTemplateService _promptTemplateService;
         private readonly IAiReportAppendixService _reportAppendixService;
         private readonly IAiOptimizationContextProvider _optimizationContextProvider;
+        private readonly IAiWorkflowContextProvider? _workflowContextProvider;
         private readonly AiSoftwareContextDto _softwareContext;
 
         private CancellationTokenSource? _activeRequestCts;
         private string _pendingLiveUiContext = string.Empty;
         private string _pendingDeterministicNextAction = string.Empty;
+        private bool _pendingStrictWorkflowBlockerMode;
         private string _modelName;
         private string _userQuestion = "Explain the current crane optimization result and recommend the next practical action.";
         private string _advisorSummary = "Run an optimization, then click Analyze Current Result.";
@@ -56,6 +61,7 @@ namespace CraneOptimizer.AI.ViewModels
         private string _benchmarkSummary = "Benchmark not run.";
         private bool _isBusy;
         private AiOptimizationContextDto? _lastContext;
+        private AiWorkflowContextSnapshot? _lastWorkflowContext;
         private AiAdvisorResponseDto? _lastAdvisorResponse;
 
         public AiAdvisorViewModel(
@@ -68,7 +74,8 @@ namespace CraneOptimizer.AI.ViewModels
             IAiSoftwareInventoryService softwareInventoryService,
             IAiPromptTemplateService promptTemplateService,
             IAiReportAppendixService reportAppendixService,
-            IAiOptimizationContextProvider optimizationContextProvider)
+            IAiOptimizationContextProvider optimizationContextProvider,
+            IAiWorkflowContextProvider? workflowContextProvider = null)
         {
             _advisorService = advisorService;
             _chatService = chatService;
@@ -80,6 +87,7 @@ namespace CraneOptimizer.AI.ViewModels
             _promptTemplateService = promptTemplateService;
             _reportAppendixService = reportAppendixService;
             _optimizationContextProvider = optimizationContextProvider ?? throw new ArgumentNullException(nameof(optimizationContextProvider));
+            _workflowContextProvider = workflowContextProvider;
             _softwareContext = _softwareContextService.GetSoftwareContext();
             _modelName = _settingsService.Current.DefaultModelName;
 
@@ -364,10 +372,41 @@ namespace CraneOptimizer.AI.ViewModels
         {
             LastError = string.Empty;
             _lastContext = BuildContextFromCurrentResult();
+            _lastWorkflowContext = _workflowContextProvider?.GetSnapshot();
             _lastAdvisorResponse = _advisorService.Analyze(_lastContext);
 
-            HealthLabel = _lastAdvisorResponse.HealthLabel;
-            AdvisorSummary = _lastAdvisorResponse.Summary;
+            var workflowState = _lastWorkflowContext == null ? null : AiWorkflowStateClassifier.Classify(_lastWorkflowContext);
+            if (!_lastContext.HasOptimizationResult && workflowState != null && !workflowState.CanRunOptimizerNow)
+            {
+                _lastAdvisorResponse = new AiAdvisorResponseDto
+                {
+                    HealthLabel = workflowState.Status,
+                    Summary = workflowState.RootCause,
+                    Recommendations = new[]
+                    {
+                        new AiRecommendationDto
+                        {
+                            Severity = workflowState.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked ? AiRecommendationSeverity.Critical : AiRecommendationSeverity.Warning,
+                            Title = workflowState.Title.Replace("AI Diagnosis: ", string.Empty),
+                            Detail = workflowState.RootCause,
+                            SuggestedAction = workflowState.RecommendedAction
+                        }
+                    },
+                    Evidence = new[]
+                    {
+                        workflowState.EvidencePrefix,
+                        $"Inputs: {(_lastWorkflowContext?.ElementCount ?? 0):N0} element(s), {(_lastWorkflowContext?.ZoneCount ?? 0):N0} zone(s), {(_lastWorkflowContext?.CraneCount ?? 0):N0} crane(s)."
+                    }
+                };
+            }
+            HealthLabel = workflowState is { Kind: AiWorkflowStateKind.LiftUnitReadinessBlocked }
+                ? "Blocked before GA"
+                : workflowState is { Kind: AiWorkflowStateKind.NoIfcModel }
+                    ? "Needs IFC"
+                    : _lastAdvisorResponse.HealthLabel;
+            AdvisorSummary = workflowState is { Kind: AiWorkflowStateKind.LiftUnitReadinessBlocked or AiWorkflowStateKind.NoIfcModel or AiWorkflowStateKind.ZonesMissing or AiWorkflowStateKind.CraneMissing or AiWorkflowStateKind.LoadChartMissing }
+                ? workflowState.RootCause + " Next: " + workflowState.RecommendedAction
+                : _lastAdvisorResponse.Summary;
 
             Recommendations.Clear();
             foreach (var recommendation in _lastAdvisorResponse.Recommendations)
@@ -383,10 +422,28 @@ namespace CraneOptimizer.AI.ViewModels
                 : "XAML-derived software inventory not injected for this workflow request.";
             SelectedPromptTemplateSummary = BuildSelectedTemplateSummary(_lastContext, _lastAdvisorResponse);
             RefreshContextCards(_lastContext, _lastAdvisorResponse);
-            ContextPreview = BuildContextJson(_lastContext, _lastAdvisorResponse, _softwareContext, LastDocumentContext + Environment.NewLine + LastXamlInventory, SelectedPromptTemplateSummary);
+            ContextPreview = BuildContextJson(_lastContext, _lastAdvisorResponse, _softwareContext, LastDocumentContext + Environment.NewLine + LastXamlInventory, SelectedPromptTemplateSummary, _lastWorkflowContext);
             StatusText = _lastContext.HasOptimizationResult
-                ? "Analysis complete. AI context includes result metrics, deterministic findings, local docs, and the software feature/tab map."
-                : "No optimizer result found yet. The AI can still answer software-navigation questions using the embedded feature map and local docs.";
+                ? "Analysis complete. AI context includes result metrics and deterministic findings."
+                : workflowState != null && !workflowState.CanRunOptimizerNow
+                    ? "No optimizer result is available because the current workflow state must be resolved first: " + workflowState.RecommendedAction
+                    : "No optimizer result found yet. The AI can still answer workflow, IFC metadata, and software-navigation questions.";
+        }
+
+
+        public void RecordDeterministicCompanionAnswer(string visibleQuestion, string answer, string source)
+        {
+            UserQuestion = string.IsNullOrWhiteSpace(visibleQuestion)
+                ? "What should I do next from this screen?"
+                : visibleQuestion.Trim();
+            AiAnswer = string.IsNullOrWhiteSpace(answer)
+                ? "No deterministic companion answer was generated."
+                : answer.Trim();
+            LastError = string.Empty;
+            StatusText = string.IsNullOrWhiteSpace(source)
+                ? "Deterministic AI companion guidance produced locally."
+                : source.Trim();
+            AddHistory("Deterministic AI", UserQuestion, AiAnswer, "Companion");
         }
 
         private async Task ToggleOllamaAsync()
@@ -407,6 +464,9 @@ namespace CraneOptimizer.AI.ViewModels
             UserQuestion = string.IsNullOrWhiteSpace(visibleQuestion)
                 ? "What should I do next from this screen?"
                 : visibleQuestion.Trim();
+            var currentWorkflow = _workflowContextProvider?.GetSnapshot();
+            _pendingStrictWorkflowBlockerMode = _pendingLiveUiContext.Contains("CURRENT WORKFLOW BLOCKER", StringComparison.OrdinalIgnoreCase)
+                || AiIntentOrchestrator.ShouldUseStrictWorkflowBlockerRouting(currentWorkflow, UserQuestion, "AI COPILOT");
 
             await AskOllamaAsync().ConfigureAwait(true);
         }
@@ -414,6 +474,62 @@ namespace CraneOptimizer.AI.ViewModels
         private async Task AskOllamaAsync()
         {
             LastError = string.Empty;
+            _lastWorkflowContext = _workflowContextProvider?.GetSnapshot() ?? _lastWorkflowContext;
+
+            if (AiIntentOrchestrator.TryBuildDeterministicAnswer(
+                    _lastWorkflowContext,
+                    null,
+                    UserQuestion,
+                    "AI COPILOT",
+                    ModelName,
+                    ModelCapabilitySummary,
+                    BenchmarkSummary,
+                    _pendingDeterministicNextAction,
+                    out var routedAnswer,
+                    out var routedSource,
+                    out _))
+            {
+                RecordDeterministicCompanionAnswer(UserQuestion, routedAnswer, routedSource);
+                return;
+            }
+
+            if (AiBimProjectQuestionService.TryBuildAnswer(_lastWorkflowContext, UserQuestion, "AI COPILOT", out var bimAnswer, out var bimSource))
+            {
+                RecordDeterministicCompanionAnswer(UserQuestion, bimAnswer, bimSource);
+                return;
+            }
+
+            if (_lastWorkflowContext != null && AiWorkflowEvidenceTextBuilder.IsIfcMetadataQuestion(UserQuestion))
+            {
+                var metadataAnswer = AiWorkflowEvidenceTextBuilder.BuildIfcMetadataAssistantAnswer(
+                    _lastWorkflowContext,
+                    UserQuestion,
+                    "AI COPILOT");
+
+                RecordDeterministicCompanionAnswer(
+                    UserQuestion,
+                    metadataAnswer,
+                    "Deterministic IFC metadata guidance produced locally; Ollama/RAG documentation was not required.");
+                return;
+            }
+
+            if (_lastWorkflowContext != null && AiIntentOrchestrator.ShouldUseStrictWorkflowBlockerRouting(_lastWorkflowContext, UserQuestion, "AI COPILOT"))
+            {
+                var nextAction = string.IsNullOrWhiteSpace(_pendingDeterministicNextAction)
+                    ? "Review AI Assist next action."
+                    : _pendingDeterministicNextAction;
+                var deterministicAnswer = AiWorkflowEvidenceTextBuilder.BuildNoGaCandidateAssistantAnswer(
+                    _lastWorkflowContext,
+                    UserQuestion,
+                    nextAction,
+                    "AI COPILOT");
+
+                RecordDeterministicCompanionAnswer(
+                    UserQuestion,
+                    deterministicAnswer,
+                    "Deterministic optimizer-blocker guidance produced locally; Ollama/RAG documentation was not required.");
+                return;
+            }
 
             if (string.IsNullOrWhiteSpace(ModelName))
             {
@@ -437,10 +553,15 @@ namespace CraneOptimizer.AI.ViewModels
 
             try
             {
-                LastDocumentContext = BuildDocumentContext(UserQuestion);
-                LastXamlInventory = ShouldUseSoftwareInventory(UserQuestion) && _settingsService.Current.IncludeXamlDerivedSoftwareInventory
+                _lastWorkflowContext = _workflowContextProvider?.GetSnapshot() ?? _lastWorkflowContext;
+                LastDocumentContext = _pendingStrictWorkflowBlockerMode
+                    ? "Local documentation snippets suppressed because a live deterministic optimizer blocker is active. Prioritize current blocker evidence and next action."
+                    : BuildDocumentContext(UserQuestion);
+                LastXamlInventory = !_pendingStrictWorkflowBlockerMode && ShouldUseSoftwareInventory(UserQuestion) && _settingsService.Current.IncludeXamlDerivedSoftwareInventory
                     ? _softwareInventoryService.BuildXamlInventorySummary()
-                    : "XAML-derived software inventory not injected for this workflow request.";
+                    : _pendingStrictWorkflowBlockerMode
+                        ? "XAML-derived software inventory suppressed because a live deterministic optimizer blocker is active."
+                        : "XAML-derived software inventory not injected for this workflow request.";
                 SelectedPromptTemplateSummary = BuildSelectedTemplateSummary(_lastContext, _lastAdvisorResponse);
 
                 var request = new AiChatRequestDto
@@ -448,7 +569,20 @@ namespace CraneOptimizer.AI.ViewModels
                     Model = ModelName,
                     SystemPrompt = BuildSystemPrompt(),
                     UserPrompt = UserQuestion,
-                    ContextJson = BuildPromptContext(_lastContext, _lastAdvisorResponse, _softwareContext, LastDocumentContext + Environment.NewLine + LastXamlInventory, SelectedPromptTemplateSummary, _pendingLiveUiContext, _pendingDeterministicNextAction),
+                    ContextJson = BuildPromptContext(
+                        _lastContext,
+                        _lastAdvisorResponse,
+                        _softwareContext,
+                        LastDocumentContext + Environment.NewLine + LastXamlInventory,
+                        SelectedPromptTemplateSummary,
+                        _lastWorkflowContext,
+                        _pendingLiveUiContext,
+                        _pendingDeterministicNextAction,
+                        _pendingStrictWorkflowBlockerMode,
+                        UserQuestion,
+                        ModelName,
+                        ModelCapabilitySummary,
+                        BenchmarkSummary),
                     Temperature = _settingsService.Current.Temperature,
                     TimeoutSeconds = _settingsService.Current.RequestTimeoutSeconds,
                     PreferStreaming = _settingsService.Current.UseStreamingResponses
@@ -465,6 +599,54 @@ namespace CraneOptimizer.AI.ViewModels
                 if (response.Success)
                 {
                     var normalizedAnswer = NormalizeAiOutput(response.Content);
+                    var intentDecision = AiIntentOrchestrator.Classify(_lastWorkflowContext, UserQuestion, "AI COPILOT");
+                    var repairReason = string.Empty;
+                    var stillNeedsRepair = !string.IsNullOrWhiteSpace(normalizedAnswer)
+                        && AiIntentOrchestrator.NeedsResponseRepair(intentDecision, normalizedAnswer, out repairReason);
+
+                    if (stillNeedsRepair)
+                    {
+                        StatusText = "Local response violated the intent contract; asking Ollama to repair it...";
+                        var repairResponse = await _chatService.AskAsync(new AiChatRequestDto
+                        {
+                            Model = request.Model,
+                            SystemPrompt = request.SystemPrompt,
+                            UserPrompt = AiIntentOrchestrator.BuildResponseRepairPrompt(UserQuestion, normalizedAnswer, intentDecision, repairReason),
+                            ContextJson = AiIntentOrchestrator.BuildRepairContext(_lastWorkflowContext, UserQuestion, "AI COPILOT", _pendingDeterministicNextAction),
+                            Temperature = Math.Min(request.Temperature ?? 0.2, 0.12),
+                            TimeoutSeconds = request.TimeoutSeconds,
+                            PreferStreaming = false
+                        }, _activeRequestCts.Token).ConfigureAwait(true);
+
+                        if (repairResponse.Success)
+                        {
+                            var repairedAnswer = NormalizeAiOutput(repairResponse.Content);
+                            if (!string.IsNullOrWhiteSpace(repairedAnswer)
+                                && !AiIntentOrchestrator.NeedsResponseRepair(intentDecision, repairedAnswer, out _))
+                            {
+                                normalizedAnswer = repairedAnswer;
+                                stillNeedsRepair = false;
+                            }
+                        }
+                    }
+
+                    if ((string.IsNullOrWhiteSpace(normalizedAnswer) || stillNeedsRepair)
+                        && AiIntentOrchestrator.TryBuildGroundedFallbackAnswer(
+                            _lastWorkflowContext,
+                            null,
+                            UserQuestion,
+                            "AI COPILOT",
+                            ModelName,
+                            ModelCapabilitySummary,
+                            BenchmarkSummary,
+                            _pendingDeterministicNextAction,
+                            out var fallbackAnswer,
+                            out var fallbackSource))
+                    {
+                        normalizedAnswer = fallbackAnswer;
+                        StatusText = fallbackSource;
+                    }
+
                     AiAnswer = string.IsNullOrWhiteSpace(normalizedAnswer)
                         ? "Ollama returned a successful response, but no visible text was included. Try another model or ask a shorter question."
                         : normalizedAnswer;
@@ -903,11 +1085,16 @@ namespace CraneOptimizer.AI.ViewModels
         private void RefreshContextCards(AiOptimizationContextDto context, AiAdvisorResponseDto advisorResponse)
         {
             ContextCards.Clear();
+            var workflowState = _lastWorkflowContext == null ? null : AiWorkflowStateClassifier.Classify(_lastWorkflowContext);
             ContextCards.Add(new AiContextCardViewModel
             {
                 Title = "Optimization result",
                 Value = context.HasOptimizationResult ? $"{context.CoverageRatio:P0} coverage" : "No completed run",
-                Detail = context.HasOptimizationResult ? $"{context.LiftedElementCount}/{context.TotalElementCount} elements lifted" : "Run ANALYZE -> Run Optimizer before result analysis."
+                Detail = context.HasOptimizationResult
+                    ? $"{context.LiftedElementCount}/{context.TotalElementCount} elements lifted"
+                    : workflowState != null && !workflowState.CanRunOptimizerNow
+                        ? workflowState.RootCause + " Next: " + workflowState.RecommendedAction
+                        : "Run ANALYZE -> Run Optimizer only after readiness is complete."
             });
             ContextCards.Add(new AiContextCardViewModel
             {
@@ -927,6 +1114,21 @@ namespace CraneOptimizer.AI.ViewModels
                 Value = LastDocumentContext.StartsWith("No matching", StringComparison.OrdinalIgnoreCase) ? "No match" : "Attached",
                 Detail = "Documentation snippets and XAML-derived UI labels are included when available."
             });
+
+            if (_lastWorkflowContext?.ScreenContexts.Count > 0)
+            {
+                var warningCount = _lastWorkflowContext.ScreenContexts
+                    .SelectMany(screen => screen.Issues)
+                    .Count(issue => issue.Severity.Equals("Error", StringComparison.OrdinalIgnoreCase)
+                                    || issue.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase));
+
+                ContextCards.Add(new AiContextCardViewModel
+                {
+                    Title = "Screen evidence",
+                    Value = $"{_lastWorkflowContext.ScreenContexts.Count:N0} areas",
+                    Detail = $"Rich UI context attached from IFC/crane/GA/report contributors; {warningCount:N0} warning/error issue(s)."
+                });
+            }
         }
 
         private string BuildModelCapabilitySummary()
@@ -1050,6 +1252,9 @@ namespace CraneOptimizer.AI.ViewModels
             if (string.IsNullOrWhiteSpace(query))
                 return false;
 
+            if (AiBimProjectQuestionService.IsLiveBimDataQuestion(query))
+                return false;
+
             var text = query.ToUpperInvariant();
             return text.Contains("DOCUMENT")
                 || text.Contains("DOCS")
@@ -1069,6 +1274,9 @@ namespace CraneOptimizer.AI.ViewModels
             if (string.IsNullOrWhiteSpace(query))
                 return false;
 
+            if (AiBimProjectQuestionService.IsLiveBimDataQuestion(query))
+                return false;
+
             var text = query.ToUpperInvariant();
             return text.Contains("XAML")
                 || text.Contains("UI INVENTORY")
@@ -1082,9 +1290,39 @@ namespace CraneOptimizer.AI.ViewModels
                 || text.Contains("WHAT CAN THIS SOFTWARE");
         }
 
-        private static string BuildPromptContext(AiOptimizationContextDto context, AiAdvisorResponseDto advisorResponse, AiSoftwareContextDto softwareContext, string documentContext, string promptTemplateSummary, string liveUiContext = "", string deterministicNextAction = "")
+        private static string BuildPromptContext(
+            AiOptimizationContextDto context,
+            AiAdvisorResponseDto advisorResponse,
+            AiSoftwareContextDto softwareContext,
+            string documentContext,
+            string promptTemplateSummary,
+            AiWorkflowContextSnapshot? workflowContext = null,
+            string liveUiContext = "",
+            string deterministicNextAction = "",
+            bool strictWorkflowBlockerMode = false,
+            string userQuestion = "",
+            string selectedModel = "",
+            string modelCapabilitySummary = "",
+            string benchmarkSummary = "")
         {
             var builder = new StringBuilder();
+            var intentDecision = AiIntentOrchestrator.Classify(workflowContext, userQuestion, "AI COPILOT");
+            var suppressApplicationContext = AiIntentOrchestrator.ShouldSuppressApplicationContext(intentDecision);
+            var includeDetailedWorkflowEvidence = AiIntentOrchestrator.ShouldIncludeDetailedWorkflowEvidence(intentDecision);
+            var includeQualityWorkflowEvidence = AiIntentOrchestrator.ShouldIncludeQualityWorkflowEvidence(intentDecision);
+            var includeOptimizationResult = AiIntentOrchestrator.ShouldIncludeOptimizationResultSection(intentDecision);
+            var includeAdvisorFindings = AiIntentOrchestrator.ShouldIncludeAdvisorFindings(intentDecision);
+            var includeLocalDocumentation = AiIntentOrchestrator.ShouldIncludeLocalDocumentationContext(intentDecision);
+            var promptContract = AiIntentOrchestrator.BuildPromptContract(workflowContext, userQuestion, "AI COPILOT", deterministicNextAction);
+            builder.AppendLine(promptContract);
+            builder.AppendLine();
+            builder.AppendLine(AiIntentOrchestrator.BuildEvidenceRoutingPacket(
+                workflowContext,
+                null,
+                userQuestion,
+                "AI COPILOT",
+                deterministicNextAction));
+            builder.AppendLine();
             if (!string.IsNullOrWhiteSpace(liveUiContext))
             {
                 builder.AppendLine("LIVE UI CONTEXT — highest priority for workflow/navigation questions");
@@ -1094,75 +1332,165 @@ namespace CraneOptimizer.AI.ViewModels
                 builder.AppendLine();
             }
 
-            builder.AppendLine("APPLICATION CONTEXT");
-            builder.AppendLine($"Name: {softwareContext.Framework.ApplicationName}");
-            builder.AppendLine($"Purpose: {softwareContext.Framework.ProductPurpose}");
-            builder.AppendLine($"Framework: {softwareContext.Framework.UiFramework}; {softwareContext.Framework.TargetFramework}; {softwareContext.Framework.Architecture}");
-            builder.AppendLine($"AI integration: {softwareContext.Framework.AiIntegrationMode}");
-            builder.AppendLine();
-
-            builder.AppendLine("VISIBLE SOFTWARE TABS AND ACTIONS");
-            foreach (var tab in softwareContext.Tabs)
+            if (intentDecision.Intent == AiIntentOrchestrator.AiIntentFamily.ModelOpsRecommendation)
             {
-                builder.AppendLine($"- {tab.TabName}: {tab.Purpose}");
-                foreach (var action in tab.Actions)
+                builder.AppendLine(AiIntentOrchestrator.BuildModelOpsEvidence(selectedModel, modelCapabilitySummary, benchmarkSummary));
+                builder.AppendLine();
+            }
+
+            if (workflowContext?.ScreenContexts.Count > 0 && (includeDetailedWorkflowEvidence || includeQualityWorkflowEvidence))
+            {
+                builder.AppendLine(includeDetailedWorkflowEvidence
+                    ? "DETERMINISTIC SCREEN CONTEXTS — allowed because the intent asks about workflow/blockers/scenarios/reports"
+                    : "CONCISE PROJECT GAP EVIDENCE — use only as supporting context after the direct answer");
+                builder.AppendLine($"Project workflow: {workflowContext.ProjectDisplayName}; elements {workflowContext.ElementCount}; zones {workflowContext.ZoneCount} ({workflowContext.AllowedZoneCount} allowed/green, {workflowContext.ForbiddenZoneCount} forbidden); cranes {workflowContext.CraneCount}; load-chart evidence {workflowContext.LoadChartEvidenceCount}.");
+                foreach (var screen in workflowContext.ScreenContexts)
                 {
-                    var availability = string.IsNullOrWhiteSpace(action.Availability) ? string.Empty : $" ({action.Availability})";
-                    builder.AppendLine($"  - {action.Label}{availability}: {action.Purpose}");
+                    builder.AppendLine($"- {screen.ScreenName}: {screen.Stage} — {screen.Summary}");
+                    foreach (var metric in screen.Metrics.Take(includeDetailedWorkflowEvidence ? 4 : 2))
+                        builder.AppendLine($"  Metric: {metric.Name} = {metric.Value}{(string.IsNullOrWhiteSpace(metric.Detail) ? string.Empty : " — " + metric.Detail)}");
+                    foreach (var fact in screen.Facts.Take(includeDetailedWorkflowEvidence ? 12 : 4))
+                        builder.AppendLine($"  Fact: {fact.Key} = {fact.Value}");
+                    foreach (var issue in screen.Issues.Take(includeDetailedWorkflowEvidence ? 4 : 2))
+                        builder.AppendLine($"  Issue: {issue.Severity} {issue.Code}. Evidence: {issue.Evidence}. Recommendation: {issue.Recommendation}. Next: {issue.NextClick}");
+                }
+                builder.AppendLine();
+
+                var workflowState = AiWorkflowStateClassifier.Classify(workflowContext);
+                if (includeDetailedWorkflowEvidence && (workflowState.Kind == AiWorkflowStateKind.LiftUnitReadinessBlocked || workflowState.Kind == AiWorkflowStateKind.NoIfcModel))
+                {
+                    builder.AppendLine("DETERMINISTIC WORKFLOW STATE SUMMARY — answer from this only when the visible question asks about workflow, blockers, GA, candidates, weights, or next steps");
+                    builder.AppendLine(AiWorkflowEvidenceTextBuilder.BuildWorkflowBlockerSummary(workflowContext));
+                    builder.AppendLine();
                 }
             }
-            builder.AppendLine();
-
-            builder.AppendLine("WORKFLOWS");
-            foreach (var workflow in softwareContext.Workflows)
+            else if (workflowContext?.ScreenContexts.Count > 0)
             {
-                builder.AppendLine($"- {workflow.Name}: {workflow.Goal}");
-                foreach (var step in workflow.Steps)
-                    builder.AppendLine($"  - {step}");
+                builder.AppendLine("Detailed screen contexts intentionally omitted by the intent router so they do not hijack the answer. Use the concise project facts in the gated evidence packet only if relevant.");
+                builder.AppendLine();
             }
-            builder.AppendLine();
 
-            builder.AppendLine("RESULT-SPECIFIC PROMPT TEMPLATE");
-            builder.AppendLine(promptTemplateSummary);
-            builder.AppendLine("Use the selected prompt-template guidance when it matches the user's question.");
-            builder.AppendLine();
-
-            builder.AppendLine("CURRENT OPTIMIZATION RESULT");
-            if (!context.HasOptimizationResult)
+            if (strictWorkflowBlockerMode)
             {
-                builder.AppendLine("No completed optimization result is currently available. For result-specific questions, tell the user to run ANALYZE -> Run Optimizer first, then return to AI COPILOT.");
+                builder.AppendLine("WORKFLOW ANSWER RULES");
+                builder.AppendLine("Answer the user's visible blocker/next-step question from current deterministic evidence and safety guardrails only. Do not print internal context labels or implementation notes.");
+                builder.AppendLine();
+
+                builder.AppendLine("CURRENT OPTIMIZATION RESULT");
+                builder.AppendLine("No completed optimization result is available because deterministic pre-run evidence reports zero trusted GA-ready lift units. Do not tell the user to simply rerun or bypass the optimizer. Explain the element-readiness blocker and direct them to IFC import readiness / trusted weight-source review.");
+                builder.AppendLine();
+
+                builder.AppendLine("DETERMINISTIC ADVISOR FINDINGS");
+                builder.AppendLine($"Health: {advisorResponse.HealthLabel}");
+                builder.AppendLine($"Summary: {advisorResponse.Summary}");
+                foreach (var recommendation in advisorResponse.Recommendations.Take(4))
+                {
+                    builder.AppendLine($"- {recommendation.Severity}: {recommendation.Title}");
+                    builder.AppendLine($"  Detail: {recommendation.Detail}");
+                    builder.AppendLine($"  Suggested action: {recommendation.SuggestedAction}");
+                }
+                builder.AppendLine();
+
+                builder.AppendLine("SAFETY GUARDRAILS");
+                foreach (var guardrail in softwareContext.SafetyGuardrails)
+                    builder.AppendLine($"- {guardrail}");
+                return builder.ToString();
+            }
+
+            if (!suppressApplicationContext)
+            {
+                builder.AppendLine("APPLICATION CONTEXT");
+                builder.AppendLine($"Name: {softwareContext.Framework.ApplicationName}");
+                builder.AppendLine($"Purpose: {softwareContext.Framework.ProductPurpose}");
+                builder.AppendLine($"Framework: {softwareContext.Framework.UiFramework}; {softwareContext.Framework.TargetFramework}; {softwareContext.Framework.Architecture}");
+                builder.AppendLine($"AI integration: {softwareContext.Framework.AiIntegrationMode}");
+                builder.AppendLine();
+
+                builder.AppendLine("VISIBLE SOFTWARE TABS AND ACTIONS");
+                foreach (var tab in softwareContext.Tabs)
+                {
+                    builder.AppendLine($"- {tab.TabName}: {tab.Purpose}");
+                    foreach (var action in tab.Actions)
+                    {
+                        var availability = string.IsNullOrWhiteSpace(action.Availability) ? string.Empty : $" ({action.Availability})";
+                        builder.AppendLine($"  - {action.Label}{availability}: {action.Purpose}");
+                    }
+                }
+                builder.AppendLine();
+
+                builder.AppendLine("WORKFLOWS");
+                foreach (var workflow in softwareContext.Workflows)
+                {
+                    builder.AppendLine($"- {workflow.Name}: {workflow.Goal}");
+                    foreach (var step in workflow.Steps)
+                        builder.AppendLine($"  - {step}");
+                }
+                builder.AppendLine();
+
+                builder.AppendLine("RESULT-SPECIFIC PROMPT TEMPLATE");
+                builder.AppendLine(promptTemplateSummary);
+                builder.AppendLine("Use the selected prompt-template guidance when it matches the user's question.");
+                builder.AppendLine();
             }
             else
             {
-                builder.AppendLine($"Crane: {context.CraneName}");
-                builder.AppendLine($"Coverage: {context.CoverageRatio:P2} ({context.LiftedElementCount}/{context.TotalElementCount} target elements)");
-                builder.AppendLine($"Setup positions: {context.PositionCount}");
-                builder.AppendLine($"Fitness score: {context.FitnessScore:N3}");
-                builder.AppendLine($"Limits/inputs: max radius {context.MaxCraneRadius:N2} m, max capacity {context.MaxCraneCapacity:N2} t, safety factor {context.SafetyFactor:N2}, derating {context.DeratingRatio:P0}, additional weight {context.AdditionalWeight:N2} t, wire length {context.WireLength:N2} m");
-                builder.AppendLine($"Failure counts: out of radius {context.FailureCounts.OutOfRadius}, overweight {context.FailureCounts.Overweight}, height fail {context.FailureCounts.HeightFail}, not charted {context.FailureCounts.NotCharted}, special case {context.FailureCounts.SpecialCase}");
-                if (context.Reachability != null)
-                {
-                    builder.AppendLine($"Candidate points: {context.Reachability.ValidCandidatePoints}/{context.Reachability.TotalCandidatePoints} valid; hot spots {context.Reachability.HotSpotCount}; max hot-spot coverage {context.Reachability.MaxHotSpotCoverage:P2}");
-                }
+                builder.AppendLine($"Software documentation and broad workflow inventory are intentionally omitted for this {intentDecision.Intent} question. Do not mention this omission to the user; answer from the visible question, allowed deterministic facts, and domain knowledge only.");
+                builder.AppendLine();
             }
-            builder.AppendLine();
 
-            builder.AppendLine("DETERMINISTIC ADVISOR FINDINGS");
-            builder.AppendLine($"Health: {advisorResponse.HealthLabel}");
-            builder.AppendLine($"Summary: {advisorResponse.Summary}");
-            foreach (var recommendation in advisorResponse.Recommendations)
+            if (includeOptimizationResult)
             {
-                builder.AppendLine($"- {recommendation.Severity}: {recommendation.Title}");
-                builder.AppendLine($"  Detail: {recommendation.Detail}");
-                builder.AppendLine($"  Suggested action: {recommendation.SuggestedAction}");
+                builder.AppendLine("CURRENT OPTIMIZATION RESULT — include only when relevant to the routed intent");
+                if (!context.HasOptimizationResult)
+                {
+                    var workflowState = workflowContext == null ? null : AiWorkflowStateClassifier.Classify(workflowContext);
+                    if (workflowState != null && !workflowState.CanRunOptimizerNow)
+                    {
+                        builder.AppendLine("No completed optimization result is currently available because the current workflow state is not ready for GA: " + workflowState.RootCause + " Next: " + workflowState.RecommendedAction);
+                    }
+                    else
+                    {
+                        builder.AppendLine("No completed optimization result is currently available. For result-specific questions, tell the user to run ANALYZE -> Run Optimizer first, then return to AI COPILOT.");
+                    }
+                }
+                else
+                {
+                    builder.AppendLine($"Crane: {context.CraneName}");
+                    builder.AppendLine($"Coverage: {context.CoverageRatio:P2} ({context.LiftedElementCount}/{context.TotalElementCount} target elements)");
+                    builder.AppendLine($"Setup positions: {context.PositionCount}");
+                    builder.AppendLine($"Fitness score: {context.FitnessScore:N3}");
+                    builder.AppendLine($"Limits/inputs: max radius {context.MaxCraneRadius:N2} m, max capacity {context.MaxCraneCapacity:N2} t, safety factor {context.SafetyFactor:N2}, derating {context.DeratingRatio:P0}, additional weight {context.AdditionalWeight:N2} t, wire length {context.WireLength:N2} m");
+                    builder.AppendLine($"Failure counts: out of radius {context.FailureCounts.OutOfRadius}, overweight {context.FailureCounts.Overweight}, height fail {context.FailureCounts.HeightFail}, not charted {context.FailureCounts.NotCharted}, special case {context.FailureCounts.SpecialCase}");
+                    if (context.Reachability != null)
+                    {
+                        builder.AppendLine($"Candidate points: {context.Reachability.ValidCandidatePoints}/{context.Reachability.TotalCandidatePoints} valid; hot spots {context.Reachability.HotSpotCount}; max hot-spot coverage {context.Reachability.MaxHotSpotCoverage:P2}");
+                    }
+                }
+                builder.AppendLine();
             }
-            foreach (var evidence in advisorResponse.Evidence)
-                builder.AppendLine($"Evidence: {evidence}");
-            builder.AppendLine();
 
-            builder.AppendLine("LOCAL DOCUMENTATION CONTEXT");
-            builder.AppendLine(documentContext);
-            builder.AppendLine();
+            if (includeAdvisorFindings)
+            {
+                builder.AppendLine("DETERMINISTIC ADVISOR FINDINGS — allowed for this routed intent");
+                builder.AppendLine($"Health: {advisorResponse.HealthLabel}");
+                builder.AppendLine($"Summary: {advisorResponse.Summary}");
+                foreach (var recommendation in advisorResponse.Recommendations)
+                {
+                    builder.AppendLine($"- {recommendation.Severity}: {recommendation.Title}");
+                    builder.AppendLine($"  Detail: {recommendation.Detail}");
+                    builder.AppendLine($"  Suggested action: {recommendation.SuggestedAction}");
+                }
+                foreach (var evidence in advisorResponse.Evidence)
+                    builder.AppendLine($"Evidence: {evidence}");
+                builder.AppendLine();
+            }
+
+            if (includeLocalDocumentation && !string.IsNullOrWhiteSpace(documentContext))
+            {
+                builder.AppendLine("LOCAL DOCUMENTATION CONTEXT — use only for software/documentation/navigation intents");
+                builder.AppendLine(documentContext);
+                builder.AppendLine();
+            }
 
             builder.AppendLine("SAFETY GUARDRAILS");
             foreach (var guardrail in softwareContext.SafetyGuardrails)
@@ -1171,7 +1499,7 @@ namespace CraneOptimizer.AI.ViewModels
             return builder.ToString();
         }
 
-        private static string BuildContextJson(AiOptimizationContextDto context, AiAdvisorResponseDto advisorResponse, AiSoftwareContextDto softwareContext, string documentContext, string promptTemplateSummary)
+        private static string BuildContextJson(AiOptimizationContextDto context, AiAdvisorResponseDto advisorResponse, AiSoftwareContextDto softwareContext, string documentContext, string promptTemplateSummary, AiWorkflowContextSnapshot? workflowContext = null)
         {
             var payload = new
             {
@@ -1184,6 +1512,7 @@ namespace CraneOptimizer.AI.ViewModels
                     advisorResponse.Evidence,
                     ActivePromptTemplate = promptTemplateSummary
                 },
+                WorkflowContext = workflowContext,
                 SoftwareContext = softwareContext,
                 LocalDocumentationContext = documentContext,
                 SafetyInstruction = "This AI output is advisory only. Final crane planning decisions must be checked by qualified personnel against project rules, manufacturer data, and applicable safety standards."
@@ -1195,14 +1524,24 @@ namespace CraneOptimizer.AI.ViewModels
         private static string BuildSystemPrompt()
         {
             return "You are a local AI copilot embedded in a WPF crane path optimization application. " +
-                   "Answer the user's visible question first. Use supplied internal context silently; never describe it as JSON, schema, prompt metadata, XAML inventory, or documentation snippets unless explicitly asked. " +
-                   "Prioritize evidence in this order: live UI context, deterministic advisor findings, current optimization result, visible tabs/buttons/workflows, then local documentation only when directly relevant. " +
+                   "First obey the INTENT ROUTING CONTRACT in the supplied context: identify the question family, choose the correct evidence world, and answer the actual question directly before adding project caveats. Do not use memorized Q&A prose; synthesize a fresh answer from the user question and evidence. " +
+                   "Use supplied internal context silently; never describe it as JSON, schema, prompt metadata, XAML inventory, or documentation snippets unless explicitly asked. " +
+                   "Never open with phrases like 'This appears to be documentation' or 'Here is a summary of the documentation' unless the user explicitly asked to summarize documentation. " +
+                   "Separate three knowledge worlds: general crane/construction knowledge, current deterministic project facts, and software documentation/navigation. Never collapse a domain question into a documentation summary. " +
+                   "Prioritize evidence in this order: intent routing contract, live UI context, compact deterministic project facts, deterministic screen contexts only when the intent explicitly asks for workflow/blockers/results, visible tabs/buttons/workflows, then local documentation only when directly relevant. " +
                    "Do not invent project facts, standards, site measurements, certification claims, or hidden UI commands. " +
                    "When the user asks what to do next, answer with the practical workflow state first; do not summarize documentation, XAML inventory, UI inventory, or implementation context. " +
+                   "For active blockers, prefer the deterministic blocker summary only when the visible question is about optimization readiness, GA, blockers, candidates, weights, or next steps. For domain, quality, delivery, model-choice, or value questions, answer the question first and use blockers only as a short current-project caveat. " +
                    "Give one concise recommended next click, why it matters, and what to verify afterward. " +
-                   "When the user asks how to use the software, point to exact visible tab and button names from SoftwareContext, and clearly say when a feature is hidden or marked coming soon. " +
+                   "When the user asks how to use the software, point to exact visible tab and button names from SoftwareContext, and say when a requested feature is not visible in the supplied context. " +
                    "When the user asks about optimization, explain the result in practical engineering language, identify the dominant failure mode, and suggest safe next actions. " +
-                   "Use a structured professional format with headings such as Status, Evidence, Recommendation, Next Click, Risk, and Confidence when appropriate. " +
+                   "When NoGaCandidates, GaPreRunNoCandidates, GaCannotStartNoCandidates, or EstimatedWeightBlockedFromGA appears and the user asks about optimization, next steps, blockers, weights, or GA, explain the lift-unit readiness blocker; never suggest bypassing eligibility, forcing a run, or using estimated weights for engineering decisions. " +
+                   "For unrelated questions such as IFC metadata, building usage, UI navigation, delivery scope, quality/accuracy, model selection, or reports, answer the visible question first and mention optimization blockers only as a short separate caveat. " +
+                   "If the question asks accuracy, validation, QA, deliverables, importance, or a construction concept, never begin with the current workflow state or GA blocker unless the prompt contract says the user is asking specifically about the current project/result. " +
+                   "For project-specific accuracy or delivery questions, start with live project verification priorities: readiness blocker, crane count, load-chart evidence, zone counts, model/lift evidence, and result availability; then explain the general method. " +
+                   "For crane logistics or tight urban site questions, include crane-specific constraints such as access route, turning radius, outrigger/mat footprint, ground bearing, working radius, boom/hook height, tail swing, oversailing, staging, traffic, pedestrian protection, and utilities. " +
+                   "Use structure only when it helps the specific intent. Do not force every answer into the same Answer/Evidence/Risk/Confidence template; conceptual and conversational questions should read naturally, while project facts and safety/accuracy questions may use short headings. " +
+                   "Calibrate confidence: distinguish confidence in visible facts or method from confidence in a final crane plan or blocked optimization result. " +
                    "Format the answer as clean Markdown for a professional preview: use short headings, concise paragraphs, bullet lists, and bold labels only where useful. " +
                    "Do not wrap the whole answer in code fences. Do not show raw JSON, prompt metadata, or implementation details unless the user explicitly asks. " +
                    "Never override the application's deterministic calculations. Make it clear that final crane plans require qualified engineering review.";
