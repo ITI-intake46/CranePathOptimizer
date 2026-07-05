@@ -1,6 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
-using CraneOptimizer.AI.Services;
+using CraneOptimizer.AI.Host;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CraneOptimizer.UI.Shared.Layouts
