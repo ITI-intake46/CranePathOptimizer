@@ -41,6 +41,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private CancellationTokenSource? _runCts;
         private bool _isRunning;
         private bool _isAdvancedPanelOpen;
+        private bool _isFilterPanelOpen;
         private List<PrecastElement> _cachedElements = new();
         private List<ElementTypeFilterOption> _targetElementTypes = new();
 
@@ -495,6 +496,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 : $"{selectedTypeCount}/{_targetElementTypes.Count} types, {selectedAssemblyCount}/{totalAssemblyCount} assemblies";
         }
 
+        private void BtnFilterToggle_Click(object sender, RoutedEventArgs e)
+        {
+            _isFilterPanelOpen = !_isFilterPanelOpen;
+            UpdateSidePanels();
+        }
+
         private void BtnAdvancedToggle_Click(object sender, RoutedEventArgs e)
         {
             _isAdvancedPanelOpen = !_isAdvancedPanelOpen;
@@ -503,6 +510,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private void UpdateSidePanels()
         {
+            FilterColumn.Width = _isFilterPanelOpen
+                ? new GridLength(SidePanelWidth)
+                : new GridLength(0);
+
+            PanelFilter.Visibility = _isFilterPanelOpen
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
             AdvancedColumn.Width = _isAdvancedPanelOpen
                 ? new GridLength(SidePanelWidth)
                 : new GridLength(0);
@@ -512,7 +527,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 : Visibility.Collapsed;
 
             Width = CompactDialogWidth
+                + (_isFilterPanelOpen ? SidePanelWidth : 0)
                 + (_isAdvancedPanelOpen ? SidePanelWidth : 0);
+
+            BtnFilterToggle.Content = _isFilterPanelOpen
+                ? "Hide Filter"
+                : "GA Filter Options";
 
             BtnAdvancedToggle.Content = _isAdvancedPanelOpen
                 ? "Hide Advanced"
