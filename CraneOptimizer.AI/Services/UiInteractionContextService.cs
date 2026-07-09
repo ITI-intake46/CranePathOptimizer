@@ -1,3 +1,5 @@
+using CraneOptimizer.AI.Host;
+
 namespace CraneOptimizer.AI.Services
 {
     public sealed class UiInteractionContextService : IUiInteractionContextService

@@ -13,6 +13,7 @@ using CraneOptimizer.AI.DependencyInjection;
 using CraneOptimizer.AI.Host;
 using CraneOptimizer.AI.Interfaces;
 using CraneOptimizer.UI.AIIntegration;
+using CraneOptimizer.UI.AIIntegration.Contributors;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.Ifc;
@@ -175,6 +176,11 @@ namespace CraneOptimizer.UI
             // AI Advisor / Local Ollama Copilot
             // =========================
             services.AddCraneOptimizerAi();
+            services.AddSingleton<IAiScreenContextContributor, IfcAiContextContributor>();
+            services.AddSingleton<IAiScreenContextContributor, GaAiContextContributor>();
+            services.AddSingleton<IAiScreenContextContributor, CraneLoadChartAiContextContributor>();
+            services.AddSingleton<IAiScreenContextContributor, ElementManagementAiContextContributor>();
+            services.AddSingleton<IAiScreenContextContributor, ReportAiContextContributor>();
             services.AddSingleton<AiHostContextBridge>();
             services.AddSingleton<IAiOptimizationContextProvider>(sp => sp.GetRequiredService<AiHostContextBridge>());
             services.AddSingleton<IAiWorkflowContextProvider>(sp => sp.GetRequiredService<AiHostContextBridge>());

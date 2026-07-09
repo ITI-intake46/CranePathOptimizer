@@ -1,4 +1,4 @@
-namespace CraneOptimizer.AI.Services
+namespace CraneOptimizer.AI.Host
 {
     /// <summary>
     /// Lightweight UI context broker used by the embedded copilot.

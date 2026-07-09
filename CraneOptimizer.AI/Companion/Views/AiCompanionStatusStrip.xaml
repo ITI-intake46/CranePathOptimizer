@@ -32,7 +32,7 @@
                 FontSize="{StaticResource FontSizeXS}"
                 FontWeight="SemiBold"
                 Foreground="{StaticResource PrimaryBrush}"
-                Text="AI Copilot" />
+                Text="AI Mission Control" />
 
             <TextBlock
                 Grid.Column="2"
@@ -40,7 +40,7 @@
                 FontFamily="{StaticResource FontPrimary}"
                 FontSize="{StaticResource FontSizeXS}"
                 Foreground="{DynamicResource TextSecondaryBrush}"
-                Text="{Binding CollapsedSubText}"
+                Text="{Binding MissionRootCause}"
                 TextTrimming="CharacterEllipsis" />
 
             <Button
@@ -50,7 +50,7 @@
                 Margin="8,0,0,0"
                 Padding="7,0"
                 Click="AssistButton_Click"
-                Content="Assist"
+                Content="Open"
                 FontSize="{StaticResource FontSizeXS}"
                 Style="{StaticResource ToolbarButton}" />
 
