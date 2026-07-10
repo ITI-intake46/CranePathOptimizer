@@ -18,7 +18,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
         public void OpenMainWindow(ProjectSession session)
         {
-            // Reuse an existing (hidden) MainWindow if one is already in the application
+            // Reuse an existing (hidden or visible) MainWindow if one is already in the application
             MainWindow? existing = null;
             foreach (System.Windows.Window w in System.Windows.Application.Current.Windows)
             {
@@ -27,6 +27,10 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
             if (existing != null)
             {
+                // Always switch to the requested project — do not silently ignore it
+                if (existing.DataContext is MainViewModel viewModel)
+                    viewModel.OpenProject(session);
+
                 System.Windows.Application.Current.MainWindow = existing;
                 existing.Show();
                 existing.Activate();
@@ -36,8 +40,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             // First time — create and initialise a new MainWindow
             var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
 
-            if (mainWindow.DataContext is MainViewModel viewModel)
-                viewModel.OpenProject(session);
+            if (mainWindow.DataContext is MainViewModel vm)
+                vm.OpenProject(session);
 
             System.Windows.Application.Current.MainWindow = mainWindow;
             mainWindow.Show();

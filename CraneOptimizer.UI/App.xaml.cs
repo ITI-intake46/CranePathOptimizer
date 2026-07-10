@@ -343,6 +343,7 @@ namespace CraneOptimizer.UI
                 var context = scope.ServiceProvider.GetRequiredService<CraneDbContext>();
 
                 await SqliteMigrationCompatibilityGuard.EnsureCatalogOperatingConditionSchemaAsync(context);
+                await SqliteMigrationCompatibilityGuard.EnsureCatalogCompanyNameSchemaAsync(context);
 
                 await context.Database.MigrateAsync();
 

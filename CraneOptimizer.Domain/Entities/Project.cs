@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace CraneOptimizer.Domain.Entities
 {
@@ -21,6 +21,9 @@ namespace CraneOptimizer.Domain.Entities
 
         [MaxLength(4000)]
         public string Notes { get; set; } = string.Empty;
+
+        [MaxLength(200)]
+        public string? CompanyName { get; set; }
 
         public bool IsDeleted { get; set; }
 

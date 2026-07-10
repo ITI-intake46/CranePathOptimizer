@@ -25,6 +25,8 @@ namespace CraneOptimizer.Domain.CreatedProject
 
         public string? SiteLocation { get; set; }
 
+        public string? CompanyName { get; set; }
+
         public string? ProjectImagePath { get; set; }
 
         public string UnitSystem { get; set; } = "Metric";

@@ -157,6 +157,10 @@ namespace CraneOptimizer.Infrastructure.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("CompanyName")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ProjectFolderPath")
                         .IsRequired()
                         .HasMaxLength(1000)

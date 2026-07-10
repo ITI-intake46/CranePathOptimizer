@@ -28,5 +28,29 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             string searchText,
             bool favoritesOnly,
             CancellationToken cancellationToken);
+
+        Task UpdateProjectMetadataAsync(
+            Guid projectId,
+            string name,
+            string? companyName,
+            string? country,
+            string? siteLocation,
+            string? projectImagePath,
+            CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Renames the physical project folder on disk, then updates the global catalog
+        /// and the per-project database with the new name and path.
+        /// The ProjectId is never changed.
+        /// </summary>
+        /// <returns>The new absolute folder path after successful rename.</returns>
+        Task<string> RenameProjectFolderAsync(
+            Guid projectId,
+            string newProjectName,
+            string? companyName,
+            string? country,
+            string? siteLocation,
+            string? projectImagePath,
+            CancellationToken cancellationToken);
     }
 }

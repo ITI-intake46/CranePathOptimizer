@@ -1,10 +1,11 @@
-<Window
+﻿<Window
     x:Class="CraneOptimizer.UI.Features.F8_GAOptimizer.Views.GADiagnosticsWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     Title="GA Optimization Diagnostics &amp; Reports Viewer"
+        Icon="pack://application:,,,/CraneOptimizer.UI;component/Resources/Images/CraneIcon.png"
     Width="1250"
     Height="800"
     Background="{DynamicResource BackgroundBrush}"

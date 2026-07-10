@@ -1,0 +1,189 @@
+<UserControl x:Class="CraneOptimizer.UI.F10_ProjectManagement.Views.ApplicationGuideStepperControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="{StaticResource FontPrimary}"
+             Foreground="{DynamicResource TextPrimaryBrush}">
+
+    <UserControl.Resources>
+
+        <!-- Step button: inactive state -->
+        <Style x:Key="GuideStepBtn" TargetType="Button">
+            <Setter Property="Background"           Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush"          Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness"      Value="1"/>
+            <Setter Property="Foreground"           Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="FontFamily"           Value="{StaticResource FontPrimary}"/>
+            <Setter Property="FontSize"             Value="{StaticResource FontSizeMD}"/>
+            <Setter Property="FontWeight"           Value="SemiBold"/>
+            <Setter Property="Cursor"               Value="Hand"/>
+            <Setter Property="FocusVisualStyle"     Value="{x:Null}"/>
+            <Setter Property="Padding"              Value="16,12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/><!-- Step selector row -->
+            <RowDefinition Height="*"/>  <!-- Detail panel -->
+        </Grid.RowDefinitions>
+
+        <!-- ══ ROW 0: Step selector ══════════════════════════════════════════ -->
+        <ScrollViewer Grid.Row="0"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Disabled"
+                      Margin="0,0,0,0">
+            <ItemsControl ItemsSource="{Binding GuideSteps}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+
+                            <!-- Step button — DataTrigger switches to orange when IsSelected -->
+                            <Button MinWidth="140"
+                                    Command="{Binding DataContext.SelectGuideStepCommand,
+                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource GuideStepBtn}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                <Setter Property="Background"  Value="{StaticResource PrimaryBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                                <Setter Property="Foreground"  Value="#1A1A1A"/>
+                                                <Setter Property="FontWeight"  Value="Bold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <!-- Step number circle -->
+                                    <Border Width="24" Height="24" CornerRadius="12"
+                                            Background="#33000000"
+                                            Margin="0,0,10,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding StepNumber}"
+                                                   FontSize="{StaticResource FontSizeSM}"
+                                                   FontWeight="Bold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                    <TextBlock Text="{Binding ShortTitle}"
+                                               FontSize="{StaticResource FontSizeMD}"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Arrow between steps — hidden after step 4 via DataTrigger -->
+                            <TextBlock Text="&#x203A;"
+                                       FontSize="26"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource PrimaryBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="8,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding StepNumber}" Value="4">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- ══ ROW 1: Selected step detail panel ═════════════════════════════ -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="0,8,8,8"
+                Padding="36,32"
+                Margin="0,-1,0,0">
+            <ContentControl Content="{Binding SelectedStep}">
+                <ContentControl.ContentTemplate>
+                    <DataTemplate>
+                        <StackPanel MaxWidth="700" HorizontalAlignment="Left">
+
+                            <!-- Step badge + title row -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                                <Border Width="44" Height="44" CornerRadius="22"
+                                        Background="{StaticResource PrimaryBrush}"
+                                        Margin="0,0,16,0">
+                                    <TextBlock Text="{Binding StepNumber}"
+                                               FontSize="{StaticResource FontSizeLG}"
+                                               FontWeight="Bold"
+                                               Foreground="#1A1A1A"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="{Binding DetailTitle}"
+                                           FontSize="{StaticResource FontSize2XL}"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <!-- Accent divider -->
+                            <Border Height="3" Width="60"
+                                    Background="{StaticResource PrimaryBrush}"
+                                    HorizontalAlignment="Left"
+                                    CornerRadius="2"
+                                    Margin="0,0,0,20"/>
+
+                            <!-- Description -->
+                            <TextBlock Text="{Binding Description}"
+                                       FontSize="{StaticResource FontSizeMD}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       LineHeight="26"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ContentControl.ContentTemplate>
+            </ContentControl>
+        </Border>
+
+    </Grid>
+</UserControl>

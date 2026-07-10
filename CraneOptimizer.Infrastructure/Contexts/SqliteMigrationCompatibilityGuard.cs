@@ -35,6 +35,45 @@ namespace CraneOptimizer.Infrastructure.Contexts
                 cancellationToken);
         }
 
+        // ── CompanyName guards ────────────────────────────────────────────────
+
+        public const string CatalogCompanyNameMigrationId      = "20260710120000_AddCompanyNameToProject";
+        public const string CreatedProjectCompanyNameMigrationId = "20260710120000_AddCompanyName";
+
+        /// <summary>
+        /// Ensures the CompanyName column exists in the global Projects catalog table.
+        /// Safe to run on databases that pre-date the migration.
+        /// </summary>
+        public static Task EnsureCatalogCompanyNameSchemaAsync(
+            DbContext context,
+            CancellationToken cancellationToken = default)
+        {
+            return EnsureColumnAndMigrationHistoryAsync(
+                context,
+                tableName: "Projects",
+                columnName: "CompanyName",
+                columnSql: "TEXT",
+                migrationId: CatalogCompanyNameMigrationId,
+                cancellationToken);
+        }
+
+        /// <summary>
+        /// Ensures the CompanyName column exists in the per-project ProjectInfo table.
+        /// Safe to run on project databases that pre-date the migration.
+        /// </summary>
+        public static Task EnsureCreatedProjectCompanyNameSchemaAsync(
+            DbContext context,
+            CancellationToken cancellationToken = default)
+        {
+            return EnsureColumnAndMigrationHistoryAsync(
+                context,
+                tableName: "ProjectInfo",
+                columnName: "CompanyName",
+                columnSql: "TEXT",
+                migrationId: CreatedProjectCompanyNameMigrationId,
+                cancellationToken);
+        }
+
         private static async Task EnsureColumnAndMigrationHistoryAsync(
             DbContext context,
             string tableName,

@@ -1,4 +1,5 @@
 using CraneOptimizer.UI.AIIntegration;
+using CraneOptimizer.UI.Core.Helpers;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.Shell.ViewModels;
 using System.Windows;
@@ -16,15 +17,16 @@ namespace CraneOptimizer.UI.Shell.Views
             DataContext = vm;
             _nav = nav;
             aiContextBridge.Attach(vm);
+            MaximizeTaskbarHelper.Attach(this, MaximizeButton);
+            // Apply initial maximize after source is initialized
+            Loaded += (_, _) => MaximizeTaskbarHelper.ToggleMaximize(this, MaximizeButton);
         }
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => DragMove();
         private void MinimizeWindow_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
         private void MaximizeWindow_Click(object sender, RoutedEventArgs e)
-        {
-            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-        }
+            => MaximizeTaskbarHelper.ToggleMaximize(this, MaximizeButton);
 
         private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
 

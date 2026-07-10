@@ -54,8 +54,10 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
             await using var projectContext = CreatedProjectDbContextFactory.Create(projectFolderPath);
             await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectOperatingConditionSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
+            await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectCompanyNameSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
             await projectContext.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
             await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectOperatingConditionSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
+            await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectCompanyNameSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
             var projectInfo = new ProjectInfoEntity
             {
                 ProjectGuid = projectId.ToString("N"),
@@ -65,6 +67,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 AreaUnit = "m²",
                 Country = request.Country,
                 SiteLocation = request.SiteLocation,
+                CompanyName = request.CompanyName,
                 ProjectImagePath = request.ProjectImagePath,
                 AppVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString(),
                 SchemaVersion = 1,
@@ -83,6 +86,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 trimmedName,
                 projectFolderPath,
                 request.UnitSettings,
+                request.CompanyName,
                 now,
                 updateUnitSettings: true,
                 cancellationToken).ConfigureAwait(false);
@@ -114,8 +118,10 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
             await using var projectContext = CreatedProjectDbContextFactory.Create(project.ProjectFolderPath);
             await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectOperatingConditionSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
+            await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectCompanyNameSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
             await projectContext.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
             await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectOperatingConditionSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
+            await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectCompanyNameSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
             var projectInfo = await projectContext.ProjectInfo
                 .OrderBy(x => x.Id)
                 .FirstOrDefaultAsync(cancellationToken)
@@ -154,8 +160,10 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
             await using var projectContext = CreatedProjectDbContextFactory.Create(normalizedProjectFolderPath);
             await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectOperatingConditionSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
+            await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectCompanyNameSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
             await projectContext.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
             await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectOperatingConditionSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
+            await SqliteMigrationCompatibilityGuard.EnsureCreatedProjectCompanyNameSchemaAsync(projectContext, cancellationToken).ConfigureAwait(false);
             var projectInfo = await projectContext.ProjectInfo
                 .OrderBy(x => x.Id)
                 .FirstOrDefaultAsync(cancellationToken)
@@ -179,6 +187,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 projectName,
                 normalizedProjectFolderPath,
                 UnitSettings.Default.Clone(),
+                companyName: null,
                 now,
                 updateUnitSettings: false,
                 cancellationToken).ConfigureAwait(false);
@@ -260,12 +269,215 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 .ToList();
         }
 
+        public async Task UpdateProjectMetadataAsync(
+            Guid projectId,
+            string name,
+            string? companyName,
+            string? country,
+            string? siteLocation,
+            string? projectImagePath,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ArgumentException("Project name is required.", nameof(name));
+
+            // ── 1. Update global catalog ───────────────────────────────────
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            var project = await context.Projects
+                .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (project == null)
+                throw new KeyNotFoundException($"Project {projectId} not found.");
+
+            project.Name             = name.Trim();
+            project.CompanyName      = string.IsNullOrWhiteSpace(companyName) ? null : companyName.Trim();
+            project.LastModifiedDate = DateTime.UtcNow;
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            // ── 2. Update per-project DB (Country / SiteLocation / Image) ─
+            if (!string.IsNullOrWhiteSpace(project.ProjectFolderPath)
+                && Directory.Exists(project.ProjectFolderPath))
+            {
+                try
+                {
+                    await using var projectContext = CreatedProjectDbContextFactory.Create(project.ProjectFolderPath);
+                    var info = await projectContext.ProjectInfo
+                        .OrderBy(x => x.Id)
+                        .FirstOrDefaultAsync(cancellationToken)
+                        .ConfigureAwait(false);
+
+                    if (info != null)
+                    {
+                        info.Name             = name.Trim();
+                        info.CompanyName      = string.IsNullOrWhiteSpace(companyName)      ? null : companyName.Trim();
+                        info.Country          = string.IsNullOrWhiteSpace(country)          ? null : country.Trim();
+                        info.SiteLocation     = string.IsNullOrWhiteSpace(siteLocation)     ? null : siteLocation.Trim();
+                        info.ProjectImagePath = string.IsNullOrWhiteSpace(projectImagePath) ? info.ProjectImagePath : projectImagePath.Trim();
+                        await projectContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                catch
+                {
+                    // Per-project DB update is best-effort; don't fail the whole save
+                }
+            }
+        }
+
+        public async Task<string> RenameProjectFolderAsync(
+            Guid projectId,
+            string newProjectName,
+            string? companyName,
+            string? country,
+            string? siteLocation,
+            string? projectImagePath,
+            CancellationToken cancellationToken)
+        {
+            var trimmedName = (newProjectName ?? string.Empty).Trim();
+            ValidateFolderName(trimmedName);
+
+            // Load the project record
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            var project = await context.Projects
+                .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (project == null)
+                throw new KeyNotFoundException($"Project {projectId} not found in the catalog.");
+
+            var oldPath = project.ProjectFolderPath;
+            if (string.IsNullOrWhiteSpace(oldPath))
+                throw new InvalidOperationException("The project does not have a folder path stored.");
+
+            if (!Directory.Exists(oldPath))
+                throw new DirectoryNotFoundException($"The current project folder was not found on disk: {oldPath}");
+
+            var parentPath = Path.GetDirectoryName(oldPath)
+                ?? throw new InvalidOperationException("Cannot determine the parent directory of the project folder.");
+
+            var newPath = Path.Combine(parentPath, trimmedName);
+
+            // No-op: same folder
+            if (string.Equals(Path.GetFullPath(oldPath), Path.GetFullPath(newPath), StringComparison.OrdinalIgnoreCase))
+            {
+                // Still update metadata/display name
+                await UpdateMetadataInContextAsync(context, project, trimmedName, companyName, country, siteLocation, projectImagePath, oldPath, cancellationToken).ConfigureAwait(false);
+                return oldPath;
+            }
+
+            if (Directory.Exists(newPath))
+                throw new IOException($"A folder named \"{trimmedName}\" already exists at that location. Choose a different project name.");
+
+            // ── Rename the folder ─────────────────────────────────────────
+            Directory.Move(oldPath, newPath);
+
+            // ── Update databases (with rollback on failure) ───────────────
+            try
+            {
+                await UpdateMetadataInContextAsync(context, project, trimmedName, companyName, country, siteLocation, projectImagePath, newPath, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception dbEx)
+            {
+                // Attempt rollback: move folder back
+                try
+                {
+                    Directory.Move(newPath, oldPath);
+                }
+                catch (Exception rollbackEx)
+                {
+                    throw new InvalidOperationException(
+                        $"Folder was renamed to \"{newPath}\" but database update failed, AND rollback also failed: {rollbackEx.Message}. " +
+                        $"Original error: {dbEx.Message}", dbEx);
+                }
+
+                throw new InvalidOperationException(
+                    $"Database update failed after folder rename. The folder has been restored to its original location. Error: {dbEx.Message}", dbEx);
+            }
+
+            // ── Patch CurrentSession if it refers to this project ─────────
+            if (CurrentSession != null && CurrentSession.ProjectId == projectId)
+            {
+                CurrentSession = new ProjectSession
+                {
+                    ProjectId           = CurrentSession.ProjectId,
+                    ProjectName         = trimmedName,
+                    ProjectFolderPath   = newPath,
+                    ProjectDatabasePath = CreatedProjectDbContextFactory.GetDatabasePath(newPath),
+                    ProjectInfoId       = CurrentSession.ProjectInfoId,
+                    ProjectGuid         = CurrentSession.ProjectGuid,
+                    LastOpenedAtUtc     = CurrentSession.LastOpenedAtUtc,
+                    ProjectCard         = CurrentSession.ProjectCard
+                };
+            }
+
+            return newPath;
+        }
+
+        /// <summary>Shared logic: update names/path in the global catalog and the per-project DB.</summary>
+        private static async Task UpdateMetadataInContextAsync(
+            CraneDbContext context,
+            Project project,
+            string name,
+            string? companyName,
+            string? country,
+            string? siteLocation,
+            string? projectImagePath,
+            string folderPath,
+            CancellationToken cancellationToken)
+        {
+            project.Name             = name;
+            project.ProjectFolderPath = folderPath;
+            project.CompanyName      = string.IsNullOrWhiteSpace(companyName) ? null : companyName.Trim();
+            project.LastModifiedDate = DateTime.UtcNow;
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            if (!string.IsNullOrWhiteSpace(folderPath) && Directory.Exists(folderPath))
+            {
+                try
+                {
+                    await using var proj = CreatedProjectDbContextFactory.Create(folderPath);
+                    var info = await proj.ProjectInfo.OrderBy(x => x.Id).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+                    if (info != null)
+                    {
+                        info.Name             = name;
+                        info.CompanyName      = string.IsNullOrWhiteSpace(companyName)      ? null : companyName.Trim();
+                        info.Country          = string.IsNullOrWhiteSpace(country)          ? null : country.Trim();
+                        info.SiteLocation     = string.IsNullOrWhiteSpace(siteLocation)     ? null : siteLocation.Trim();
+                        info.ProjectImagePath = string.IsNullOrWhiteSpace(projectImagePath) ? info.ProjectImagePath : projectImagePath.Trim();
+                        await proj.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                catch
+                {
+                    // Best-effort
+                }
+            }
+        }
+
+        /// <summary>Validates a prospective folder name against Windows rules.</summary>
+        private static void ValidateFolderName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ArgumentException("Project name is required.");
+
+            var invalid = Path.GetInvalidFileNameChars();
+            if (name.IndexOfAny(invalid) >= 0)
+                throw new ArgumentException($"The project name contains characters that are not allowed in a folder name: \\ / : * ? \" < > |");
+
+            // Reject Windows reserved names
+            var reserved = new[] { "CON","PRN","AUX","NUL","COM1","COM2","COM3","COM4","COM5","COM6","COM7","COM8","COM9","LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9" };
+            var upper = name.ToUpperInvariant();
+            if (Array.Exists(reserved, r => string.Equals(upper, r, StringComparison.Ordinal)))
+                throw new ArgumentException($"\"{name}\" is a reserved Windows name and cannot be used as a folder name.");
+        }
+
         private static async Task<Project> UpsertGlobalProjectAsync(
             CraneDbContext context,
             Guid projectId,
             string name,
             string projectFolderPath,
             UnitSettings unitSettings,
+            string? companyName,
             DateTime now,
             bool updateUnitSettings,
             CancellationToken cancellationToken)
@@ -299,6 +511,9 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             project.IsDeleted = false;
             project.LastOpenedDate = now;
             project.LastModifiedDate = now;
+
+            if (companyName != null)
+                project.CompanyName = companyName;
 
             if (updateUnitSettings)
             {

@@ -13,6 +13,10 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Models
         public DateTime LastModifiedDate { get; init; }
         public bool IsFavorite { get; init; }
         public string Notes { get; init; } = string.Empty;
+        public string? CompanyName { get; init; }
+        public string? Country { get; init; }
+        public string? SiteLocation { get; init; }
+        public string? ProjectImagePath { get; init; }
 
         public string IfcFileName =>
             string.IsNullOrWhiteSpace(IfcFilePath)

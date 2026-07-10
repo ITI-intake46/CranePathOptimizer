@@ -1107,6 +1107,8 @@ namespace CraneOptimizer.Application.Tests
             public Task DeleteProjectAsync(Guid id, CancellationToken c) => Task.CompletedTask;
             public Task ToggleFavoriteAsync(Guid id, bool f, CancellationToken c) => Task.CompletedTask;
             public Task<IReadOnlyList<ProjectCardModel>> SearchProjectsAsync(string s, bool f, CancellationToken c) => Task.FromResult<IReadOnlyList<ProjectCardModel>>(new List<ProjectCardModel>());
+            public Task UpdateProjectMetadataAsync(Guid id, string name, string? company, string? country, string? site, string? image, CancellationToken c) => Task.CompletedTask;
+            public Task<string> RenameProjectFolderAsync(Guid id, string newName, string? company, string? country, string? site, string? image, CancellationToken c) => Task.FromResult(string.Empty);
         }
 
         private class MockHistoryLogger : IOptimizationHistoryLogger
