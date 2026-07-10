@@ -12,5 +12,9 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.DTOs
         DateTime LastOpenedDateUtc,
         DateTime LastModifiedDateUtc,
         bool IsFavorite,
-        string Notes);
+        string Notes,
+        string? CompanyName,
+        string? Country,
+        string? SiteLocation,
+        string? ProjectImagePath = null);
 }

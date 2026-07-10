@@ -5,13 +5,12 @@
     <!--
         Typography.xaml — CraneOptimizer Design System
         Font family: Exo 2 (embedded in /Fonts/)
-        Scale: compact for dense engineering UI
+        Scale: compact for dense engineering UI (restored)
     -->
 
-    <!--  WPF discovers all weights (Regular, SemiBold, Bold) from the Fonts folder automatically  -->
     <FontFamily x:Key="FontPrimary">/CraneOptimizer.UI;component/Resources/Fonts/#Exo 2</FontFamily>
 
-    <!-- ── Font sizes (compact scale) ──────────────────────────── -->
+    <!-- ── Font sizes (compact scale — restored) ─────────────────── -->
     <sys:Double x:Key="FontSizeXS">9</sys:Double>
     <sys:Double x:Key="FontSizeSM">10</sys:Double>
     <sys:Double x:Key="FontSizeMD">11</sys:Double>
@@ -20,6 +19,11 @@
     <sys:Double x:Key="FontSizeXL">16</sys:Double>
     <sys:Double x:Key="FontSize2XL">20</sys:Double>
     <sys:Double x:Key="FontSize3XL">28</sys:Double>
+
+    <!-- ── Startup-specific overrides (local use only) ─────────────── -->
+    <sys:Double x:Key="FontSizeHeroTitle">38</sys:Double>
+    <sys:Double x:Key="FontSizeProjectCardName">16</sys:Double>
+    <sys:Double x:Key="FontSizeTableHeader">10</sys:Double>
 
     <!-- ── Headline — section / dialog titles ───────────────────── -->
     <Style x:Key="TextHeadline" TargetType="TextBlock">

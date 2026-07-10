@@ -14,6 +14,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Models
 
         public string? SiteLocation { get; init; }
 
+        public string? CompanyName { get; init; }
+
         public string? ProjectImagePath { get; init; }
     }
 }

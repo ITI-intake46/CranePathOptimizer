@@ -279,6 +279,8 @@ public sealed class ReportBuilderViewModelFlowTests
         public Task DeleteProjectAsync(Guid projectId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ToggleFavoriteAsync(Guid projectId, bool isFavorite, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<IReadOnlyList<ProjectCardModel>> SearchProjectsAsync(string searchText, bool favoritesOnly, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ProjectCardModel>>([]);
+        public Task UpdateProjectMetadataAsync(Guid id, string name, string? company, string? country, string? site, string? image, CancellationToken c) => Task.CompletedTask;
+        public Task<string> RenameProjectFolderAsync(Guid id, string newName, string? company, string? country, string? site, string? image, CancellationToken c) => Task.FromResult(string.Empty);
     }
 
     private sealed class TestSceneService : ISceneService

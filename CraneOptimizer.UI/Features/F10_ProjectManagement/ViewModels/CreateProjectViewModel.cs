@@ -18,6 +18,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
 
         private string _country = "Egypt";
         private string _siteLocation = string.Empty;
+        private string _companyName = string.Empty;
         private string? _projectImagePath;
         private BitmapImage? _projectImagePreview;
 
@@ -72,6 +73,12 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
         {
             get => _siteLocation;
             set { _siteLocation = value; OnPropertyChanged(); }
+        }
+
+        public string CompanyName
+        {
+            get => _companyName;
+            set { _companyName = value; OnPropertyChanged(); }
         }
 
         public string? ProjectImagePath

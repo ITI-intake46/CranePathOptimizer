@@ -1,9 +1,10 @@
-    <Window
+﻿    <Window
     x:Class="CraneOptimizer.UI.Features.F8_GAOptimizer.Views.CraneOptimizerDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="clr-namespace:CraneOptimizer.UI.Core.Controls"
     Title="Crane Position Optimizer"
+        Icon="pack://application:,,,/CraneOptimizer.UI;component/Resources/Images/CraneIcon.png"
     Width="560"
     Height="690"
     MinWidth="560"
