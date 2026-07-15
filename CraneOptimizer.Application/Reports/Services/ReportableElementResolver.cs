@@ -10,7 +10,11 @@ public sealed class ReportableElementResolver : IReportableElementResolver
         ArgumentNullException.ThrowIfNull(sourceElements);
 
         var elements = sourceElements
-            .Where(element => element != null && !IfcReferenceGeometryPolicy.IsGridReference(element))
+            .Where(element => element != null 
+                && !IfcReferenceGeometryPolicy.IsGridReference(element)
+                && element.ChildClassification != AssemblyChildClassification.HiddenWeightContributor
+                && element.ChildClassification != AssemblyChildClassification.AccessoryWeightContributor
+                && element.ChildClassification != AssemblyChildClassification.IgnoredReference)
             .ToList();
         var byId = elements
             .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))

@@ -138,6 +138,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
         private async Task LoadIfcAsync()
         {
+            string lastStatus = "Selecting file...";
             try
             {
                 var osnap = App.ServiceProvider?.GetService<IOsnapService>();
@@ -155,10 +156,22 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                 Status = "Reading IFC...";
 
-                var progress = new Progress<double>(p =>
+                string? firstStatus = null;
+                lastStatus = "Opening IFC...";
+
+                var progress = new Progress<IfcLoadingProgressUpdate>(update =>
                 {
-                    Progress = p;
-                    Status = $"Reading IFC... {p:F0}%";
+                    Progress = update.Progress;
+                    if (!string.IsNullOrEmpty(update.Status))
+                    {
+                        Status = $"{update.Status} {update.Progress:F0}%";
+                        if (firstStatus == null)
+                        {
+                            firstStatus = update.Status;
+                            Debug.WriteLine($"[IFC-PERF] First UI status: {firstStatus}");
+                        }
+                        lastStatus = update.Status;
+                    }
                 });
 
                 var readingOptions = await GetCurrentIfcReadingOptionsAsync(filter.HideGrids);
@@ -206,7 +219,20 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     // The model is placed exactly at its native local coordinates (offset = 0,0,0).
                     var placedElements = all;
                     PendingPlacementPoint = new Point3D(0, 0, 0);
+                    DateTime viewportStartedUtc = DateTime.UtcNow;
+                    var viewportTimer = Stopwatch.StartNew();
                     _ifcSceneOperations.ReplaceIfcModel(placedElements);
+                    viewportTimer.Stop();
+                    IfcImportProfiler.Record(
+                        "PreparingViewport",
+                        "",
+                        "Completed",
+                        viewportStartedUtc,
+                        DateTime.UtcNow,
+                        viewportTimer.ElapsedMilliseconds,
+                        "ElementsCount",
+                        placedElements.Count,
+                        true);
                     if (_pendingFilterOptions != null)
                         _filterService.ApplyLoadOptions(_pendingFilterOptions);
 
@@ -236,11 +262,13 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             }
             catch (Exception ex)
             {
+                Debug.WriteLine($"[IFC-PERF] IFC load failed: {ex}");
                 _dialog.ShowMessage(ex.Message);
             }
             finally
             {
                 IsLoading = false;
+                Debug.WriteLine($"[IFC-PERF] Last UI status completed: {lastStatus}");
             }
         }
 
@@ -292,6 +320,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 return false;
             }
 
+            string lastStatus = "Restoring IFC...";
             try
             {
                 var osnap = App.ServiceProvider?.GetService<IOsnapService>();
@@ -310,6 +339,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     usedCache = true;
                     Debug.WriteLine("[IfcRestore] Diagnostic: Cached restore used DB elements. Full extraction skipped.");
                     Status = $"Restored {elements.Count} elements from database cache. Initializing background render session...";
+                    lastStatus = "Restoring from database cache";
                     
                     // Start only the xBIM model session/context in the background for detailed mesh rendering
                     _ = Task.Run(async () =>
@@ -340,10 +370,22 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                     Debug.WriteLine($"[IfcRestore] Diagnostic: Restore used full IFC extraction. Fallback reason: {fallbackReason}.");
 
-                    var progress = new Progress<double>(p =>
+                    string? firstStatus = null;
+                    lastStatus = "Opening IFC...";
+
+                    var progress = new Progress<IfcLoadingProgressUpdate>(update =>
                     {
-                        Progress = p;
-                        Status = $"Reading IFC... {p:F0}%";
+                        Progress = update.Progress;
+                        if (!string.IsNullOrEmpty(update.Status))
+                        {
+                            Status = $"{update.Status} {update.Progress:F0}%";
+                            if (firstStatus == null)
+                            {
+                                firstStatus = update.Status;
+                                Debug.WriteLine($"[IFC-PERF] First UI status: {firstStatus}");
+                            }
+                            lastStatus = update.Status;
+                        }
                     });
 
                     var readingOptions = await GetCurrentIfcReadingOptionsAsync();
@@ -429,7 +471,20 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                 var afterFirstCOG = placedElements.FirstOrDefault()?.ElementCOG;
 
+                DateTime viewportStartedUtc = DateTime.UtcNow;
+                var viewportTimer = Stopwatch.StartNew();
                 _ifcSceneOperations.ReplaceIfcModel(placedElements);
+                viewportTimer.Stop();
+                IfcImportProfiler.Record(
+                    "PreparingViewport",
+                    "",
+                    "Completed",
+                    viewportStartedUtc,
+                    DateTime.UtcNow,
+                    viewportTimer.ElapsedMilliseconds,
+                    "ElementsCount",
+                    placedElements.Count,
+                    true);
                 LoadedIfcFilePath = filePath;
                 PendingPlacementPoint = insertionOffset;
 
@@ -464,12 +519,14 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             }
             catch (Exception ex)
             {
+                Debug.WriteLine($"[IFC-PERF] IFC restore failed: {ex}");
                 Status = $"IFC restore failed: {ex.Message}";
                 return false;
             }
             finally
             {
                 IsLoading = false;
+                Debug.WriteLine($"[IFC-PERF] Last UI status completed: {lastStatus}");
             }
         }
 

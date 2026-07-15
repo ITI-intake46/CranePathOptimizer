@@ -1,3 +1,4 @@
+using CraneOptimizer.UI.Core.Helpers;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels;
 using CraneOptimizer.UI.Resources;
 using Microsoft.Win32;
@@ -9,8 +10,9 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
 {
     public partial class ProjectManagementWindow : Window
     {
-        private readonly ProjectManagementViewModel _vm;
-        private readonly CreateProjectViewModel _createVm;
+        private readonly ProjectManagementViewModel    _vm;
+        private readonly CreateProjectViewModel        _createVm;
+        private readonly ApplicationGuideViewModel     _guideVm;
 
         // ── Style keys ───────────────────────────────────────────────────
         private const string ActiveNav   = "SideNavBtnActive";
@@ -22,9 +24,13 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
         {
             InitializeComponent();
             DataContext = _vm = viewModel;
+            MaximizeTaskbarHelper.Attach(this, MaximizeButton);
 
             _createVm = new CreateProjectViewModel();
             CreatePanelControl.DataContext = _createVm;
+
+            _guideVm = new ApplicationGuideViewModel();
+            GuideCarouselControl.DataContext = _guideVm;
 
             _createVm.CancelRequested         += (_, _) => ShowHome();
             _createVm.BrowseLocationRequested  += (_, _) => BrowseProjectLocation();
@@ -52,33 +58,24 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
         private void CloseWindow_Click(object sender, RoutedEventArgs e)    => Close();
 
         private void ToggleMaximize()
-        {
-            if (WindowState == WindowState.Maximized)
-            {
-                WindowState = WindowState.Normal;
-                MaximizeButton.Content = "☐";
-            }
-            else
-            {
-                WindowState = WindowState.Maximized;
-                MaximizeButton.Content = "❐";
-            }
-        }
+            => MaximizeTaskbarHelper.ToggleMaximize(this, MaximizeButton);
 
         // ════════════════════════════════════════════════════════════════
         //  Sidebar navigation
         // ════════════════════════════════════════════════════════════════
 
-        private void NavHome_Click(object sender, RoutedEventArgs e)           => ShowHome();
-        private void NavCreate_Click(object sender, RoutedEventArgs e)         => ShowCreate();
-        private void NavProjectList_Click(object sender, RoutedEventArgs e)    => ShowProjectList();
-        private void NavOpen_Click(object sender, RoutedEventArgs e)           => _ = OpenFolderAsync();
-        private void NavAppSettings_Click(object sender, RoutedEventArgs e)    => ShowSettings();
-        private void NavHelp_Click(object sender, RoutedEventArgs e)           => ShowHelp(showAbout: false);
-        private void NavAbout_Click(object sender, RoutedEventArgs e)          => ShowHelp(showAbout: true);
+        private void NavHome_Click(object sender, RoutedEventArgs e)              => ShowHome();
+        private void NavCreate_Click(object sender, RoutedEventArgs e)            => ShowCreate();
+        private void NavProjectList_Click(object sender, RoutedEventArgs e)       => ShowProjectList();
+        private void NavRecentProjects_Click(object sender, RoutedEventArgs e)    => ShowRecentProjects();
+        private void NavOpen_Click(object sender, RoutedEventArgs e)              => _ = OpenFolderAsync();
+        private void NavAppSettings_Click(object sender, RoutedEventArgs e)       => ShowSettings();
+        private void NavAppGuide_Click(object sender, RoutedEventArgs e)          => ShowApplicationGuide();
+        private void NavHelp_Click(object sender, RoutedEventArgs e)              => ShowHelp();
+        private void NavAbout_Click(object sender, RoutedEventArgs e)             => ShowAbout();
 
         // ════════════════════════════════════════════════════════════════
-        //  Top tabs
+        //  Top tabs (legacy — kept to avoid removing named elements)
         // ════════════════════════════════════════════════════════════════
 
         private void TabOverview_Click(object sender, RoutedEventArgs e)
@@ -106,9 +103,7 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
             HideAllContent();
             ContentHome.Visibility = Visibility.Visible;
             ResetNavStyles();
-            BtnNavHome.Style   = (Style)FindResource(ActiveNav);
-            TabOverview.Style  = (Style)FindResource(ActiveTab);
-            TabGuide.Style     = (Style)FindResource(InactiveTab);
+            BtnNavHome.Style = (Style)FindResource(ActiveNav);
         }
 
         private void ShowCreate()
@@ -121,8 +116,6 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
             ContentCreate.Visibility = Visibility.Visible;
             ResetNavStyles();
             BtnNavCreate.Style = (Style)FindResource(ActiveNav);
-            TabOverview.Style  = (Style)FindResource(ActiveTab);
-            TabGuide.Style     = (Style)FindResource(InactiveTab);
         }
 
         private void ShowProjectList()
@@ -131,8 +124,14 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
             ContentProjectList.Visibility = Visibility.Visible;
             ResetNavStyles();
             BtnNavProjectList.Style = (Style)FindResource(ActiveNav);
-            TabOverview.Style       = (Style)FindResource(ActiveTab);
-            TabGuide.Style          = (Style)FindResource(InactiveTab);
+        }
+
+        private void ShowRecentProjects()
+        {
+            HideAllContent();
+            ContentRecentProjects.Visibility = Visibility.Visible;
+            ResetNavStyles();
+            BtnNavRecentProjects.Style = (Style)FindResource(ActiveNav);
         }
 
         private void ShowSettings()
@@ -142,62 +141,69 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
             ContentSettings.Visibility = Visibility.Visible;
             ResetNavStyles();
             BtnNavAppSettings.Style = (Style)FindResource(ActiveNav);
-            TabOverview.Style       = (Style)FindResource(ActiveTab);
-            TabGuide.Style          = (Style)FindResource(InactiveTab);
         }
 
-        private void ShowHelp(bool showAbout)
+        private void ShowApplicationGuide()
+        {
+            HideAllContent();
+            ContentGuide.Visibility = Visibility.Visible;
+            ResetNavStyles();
+            BtnNavAppGuide.Style = (Style)FindResource(ActiveNav);
+        }
+
+        private void ShowHelp()
         {
             HideAllContent();
             ContentHelp.Visibility = Visibility.Visible;
 
-            if (showAbout)
-            {
-                TxtHelpTitle.Text    = "ABOUT";
-                TxtHelpSubtitle.Text = "Information about this application.";
-                CardHelp.Visibility  = Visibility.Collapsed;
-                CardAbout.Visibility = Visibility.Visible;
+            TxtHelpTitle.Text    = "HELP";
+            TxtHelpSubtitle.Text = "Frequently asked questions and support resources.";
+            CardHelp.Visibility  = Visibility.Visible;
+            CardAbout.Visibility = Visibility.Collapsed;
 
-                var ver = Assembly.GetEntryAssembly()?.GetName().Version;
-                TxtAboutVersion.Text = ver != null ? $"Version {ver}" : "Version N/A";
+            ResetNavStyles();
+            BtnNavHelp.Style = (Style)FindResource(ActiveNav);
+        }
 
-                ResetNavStyles();
-                BtnNavAbout.Style = (Style)FindResource(ActiveNav);
-            }
-            else
-            {
-                TxtHelpTitle.Text    = "HELP";
-                TxtHelpSubtitle.Text = "Frequently asked questions and support resources.";
-                CardHelp.Visibility  = Visibility.Visible;
-                CardAbout.Visibility = Visibility.Collapsed;
+        private void ShowAbout()
+        {
+            HideAllContent();
+            ContentHelp.Visibility = Visibility.Visible;
 
-                ResetNavStyles();
-                BtnNavHelp.Style = (Style)FindResource(ActiveNav);
-            }
+            TxtHelpTitle.Text    = "ABOUT";
+            TxtHelpSubtitle.Text = "Information about this application.";
+            CardHelp.Visibility  = Visibility.Collapsed;
+            CardAbout.Visibility = Visibility.Visible;
 
-            TabOverview.Style = (Style)FindResource(ActiveTab);
-            TabGuide.Style    = (Style)FindResource(InactiveTab);
+            var ver = Assembly.GetEntryAssembly()?.GetName().Version;
+            TxtAboutVersion.Text = ver != null ? $"Version {ver}" : "Version N/A";
+
+            ResetNavStyles();
+            BtnNavAbout.Style = (Style)FindResource(ActiveNav);
         }
 
         private void HideAllContent()
         {
-            ContentHome.Visibility        = Visibility.Collapsed;
-            ContentCreate.Visibility      = Visibility.Collapsed;
-            ContentProjectList.Visibility = Visibility.Collapsed;
-            ContentGuide.Visibility       = Visibility.Collapsed;
-            ContentSettings.Visibility    = Visibility.Collapsed;
-            ContentHelp.Visibility        = Visibility.Collapsed;
+            ContentHome.Visibility           = Visibility.Collapsed;
+            ContentCreate.Visibility         = Visibility.Collapsed;
+            ContentProjectList.Visibility    = Visibility.Collapsed;
+            ContentRecentProjects.Visibility = Visibility.Collapsed;
+            ContentGuide.Visibility          = Visibility.Collapsed;
+            ContentSettings.Visibility       = Visibility.Collapsed;
+            ContentHelp.Visibility           = Visibility.Collapsed;
         }
 
         private void ResetNavStyles()
         {
-            BtnNavHome.Style        = (Style)FindResource(InactiveNav);
-            BtnNavCreate.Style      = (Style)FindResource(InactiveNav);
-            BtnNavProjectList.Style = (Style)FindResource(InactiveNav);
-            BtnNavOpen.Style        = (Style)FindResource(InactiveNav);
-            BtnNavAppSettings.Style = (Style)FindResource(InactiveNav);
-            BtnNavHelp.Style        = (Style)FindResource(InactiveNav);
-            BtnNavAbout.Style       = (Style)FindResource(InactiveNav);
+            BtnNavHome.Style           = (Style)FindResource(InactiveNav);
+            BtnNavCreate.Style         = (Style)FindResource(InactiveNav);
+            BtnNavProjectList.Style    = (Style)FindResource(InactiveNav);
+            BtnNavRecentProjects.Style = (Style)FindResource(InactiveNav);
+            BtnNavOpen.Style           = (Style)FindResource(InactiveNav);
+            BtnNavAppSettings.Style    = (Style)FindResource(InactiveNav);
+            BtnNavAppGuide.Style       = (Style)FindResource(InactiveNav);
+            BtnNavHelp.Style           = (Style)FindResource(InactiveNav);
+            BtnNavAbout.Style          = (Style)FindResource(InactiveNav);
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -284,6 +290,29 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
                 MessageBox.Show(ex.Message, "Open Folder Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
+        // ════════════════════════════════════════════════════════════════
+        //  Project details / edit  (... button in Project List)
+        // ════════════════════════════════════════════════════════════════
+
+        private async void ProjectDetails_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.Button btn) return;
+            if (btn.Tag is not ProjectCardViewModel card) return;
+
+            var editVm = new EditProjectViewModel(_vm.WorkspaceService, card);
+
+            // When the folder is renamed, sync the active session path
+            editVm.FolderRenamed += async (_, newPath) =>
+                await _vm.OnProjectFolderRenamedAsync(card.Id, newPath);
+
+            var dlg = EditProjectDialog.Create(editVm, this);
+
+            if (dlg.ShowDialog() == true)
+            {
+                // Refresh the projects list so Name / CompanyName / path update everywhere
+                await _vm.RefreshAfterEditAsync();
+            }
+        }
+
     }
 }
-

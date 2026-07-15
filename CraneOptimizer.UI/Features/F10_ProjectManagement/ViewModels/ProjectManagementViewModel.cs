@@ -25,6 +25,8 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
         private string _statusText = "Select a project to continue";
         private ProjectSession? _activeSession;
 
+        // ── Latest-project state (populated from DB once on load) ────────
+        private ProjectCardViewModel? _latestProject;
 
         public ProjectManagementViewModel(
             IProjectWorkspaceService workspaceService,
@@ -37,15 +39,15 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             _shellService = shellService;
             _dialogService = dialogService;
 
-            RefreshCommand = new AsyncRelayCommand(RefreshAsync);
-            CreateProjectCommand = new AsyncRelayCommand(CreateProjectAsync);
+            RefreshCommand           = new AsyncRelayCommand(RefreshAsync);
+            CreateProjectCommand     = new AsyncRelayCommand(CreateProjectAsync);
             OpenProjectFolderCommand = new AsyncRelayCommand(OpenProjectFolderAsync);
-            OpenProjectCommand = new AsyncRelayCommand<ProjectCardViewModel>(OpenProjectAsync, project => project != null);
-            DeleteProjectCommand = new AsyncRelayCommand<ProjectCardViewModel>(DeleteProjectAsync, project => project != null);
-            ToggleFavoriteCommand = new AsyncRelayCommand<ProjectCardViewModel>(ToggleFavoriteAsync, project => project != null);
-            ShowInFolderCommand = new RelayCommand<ProjectCardViewModel>(ShowInFolder, project => project != null);
-            ReturnToProjectCommand = new RelayCommand(ReturnToProject, () => _activeSession != null);
-
+            OpenProjectCommand       = new AsyncRelayCommand<ProjectCardViewModel>(OpenProjectAsync, project => project != null);
+            DeleteProjectCommand     = new AsyncRelayCommand<ProjectCardViewModel>(DeleteProjectAsync, project => project != null);
+            ToggleFavoriteCommand    = new AsyncRelayCommand<ProjectCardViewModel>(ToggleFavoriteAsync, project => project != null);
+            ShowInFolderCommand      = new RelayCommand<ProjectCardViewModel>(ShowInFolder, project => project != null);
+            ReturnToProjectCommand   = new RelayCommand(ReturnToProject, () => _activeSession != null);
+            ContinueWorkingCommand   = new AsyncRelayCommand(ContinueWorkingAsync, () => HasValidLatestProject);
         }
 
         public ObservableCollection<ProjectCardViewModel> Projects { get; } = new();
@@ -112,6 +114,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
         public ICommand ToggleFavoriteCommand { get; }
         public ICommand ShowInFolderCommand { get; }
         public ICommand ReturnToProjectCommand { get; }
+        public ICommand ContinueWorkingCommand { get; }
 
         /// <summary>
         /// The project session that was open when the user navigated back to the startup screen.
@@ -127,6 +130,14 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasActiveSession));
                 OnPropertyChanged(nameof(ActiveProjectName));
+                // Also refresh Home-card derived properties
+                OnPropertyChanged(nameof(HasLatestProject));
+                OnPropertyChanged(nameof(LatestProjectName));
+                OnPropertyChanged(nameof(LatestProjectLastOpenedText));
+                OnPropertyChanged(nameof(HasMissingLatestProject));
+                OnPropertyChanged(nameof(LatestProjectPathStatus));
+                OnPropertyChanged(nameof(HasValidLatestProject));
+                OnPropertyChanged(nameof(CanContinueWorking));
                 CommandManager.InvalidateRequerySuggested();
             }
         }
@@ -134,11 +145,115 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
         public bool HasActiveSession => _activeSession != null;
         public string ActiveProjectName => _activeSession?.ProjectName ?? string.Empty;
 
+        // ── Latest-project card (Home hero) ──────────────────────────────
 
-        public Task InitializeAsync()
+        /// <summary>
+        /// Most recent project card — set after LoadProjectsAsync resolves.
+        /// Drives HasLatestProject, LatestProjectName etc.
+        /// </summary>
+        private ProjectCardViewModel? LatestProject
         {
-            return RefreshAsync();
+            get => _latestProject;
+            set
+            {
+                if (_latestProject == value) return;
+                _latestProject = value;
+                OnPropertyChanged(nameof(HasLatestProject));
+                OnPropertyChanged(nameof(LatestProjectName));
+                OnPropertyChanged(nameof(LatestProjectLastOpenedText));
+                OnPropertyChanged(nameof(HasMissingLatestProject));
+                OnPropertyChanged(nameof(LatestProjectPathStatus));
+                OnPropertyChanged(nameof(HasValidLatestProject));
+                OnPropertyChanged(nameof(CanContinueWorking));
+                CommandManager.InvalidateRequerySuggested();
+            }
         }
+
+        // True when there is a latest project (folder may or may not exist)
+        public bool HasLatestProject => _activeSession != null || _latestProject != null;
+
+        // If a session is active, show that project name; else show the most recent from history
+        public string LatestProjectName =>
+            _activeSession?.ProjectName
+            ?? _latestProject?.Name
+            ?? string.Empty;
+
+        public string LatestProjectLastOpenedText
+        {
+            get
+            {
+                if (_activeSession != null)
+                    return "Currently open";
+                if (_latestProject == null) return string.Empty;
+                var dt = _latestProject.LastOpenedDate;
+                return dt == default
+                    ? "Last opened: unknown"
+                    : $"Last opened: {dt:dd MMM yyyy, HH:mm}";
+            }
+        }
+
+        public bool HasMissingLatestProject
+        {
+            get
+            {
+                if (_activeSession != null) return false;          // session is active — path is valid
+                if (_latestProject == null) return false;
+                return !_latestProject.FolderExists;
+            }
+        }
+
+        public string LatestProjectPathStatus =>
+            HasMissingLatestProject
+                ? $"⚠ Folder not found: {_latestProject?.ProjectFolderPath}"
+                : string.Empty;
+
+        // True when we can actually open/return to a project
+        public bool HasValidLatestProject =>
+            _activeSession != null
+            || (_latestProject != null && _latestProject.FolderExists);
+
+        /// <summary>
+        /// Explicit bindable property for IsEnabled on the Continue Working button.
+        /// Mirrors ContinueWorkingCommand.CanExecute() so XAML can bind directly
+        /// without depending on CommandManager re-query timing.
+        /// </summary>
+        public bool CanContinueWorking => HasValidLatestProject;
+
+        public Task InitializeAsync() => RefreshAsync();
+
+        /// <summary>Called after a metadata edit so all panels refresh.</summary>
+        public Task RefreshAfterEditAsync() => RefreshAsync();
+
+        /// <summary>
+        /// Called by the code-behind when EditProjectViewModel.FolderRenamed fires.
+        /// Patches the active session path (if the renamed project is currently open)
+        /// and refreshes all Home-panel properties so Continue Working stays valid.
+        /// </summary>
+        public async Task OnProjectFolderRenamedAsync(Guid projectId, string newFolderPath)
+        {
+            // If the currently active session is the renamed project, update its path
+            if (_activeSession != null && _activeSession.ProjectId == projectId)
+            {
+                ActiveSession = new Models.ProjectSession
+                {
+                    ProjectId           = _activeSession.ProjectId,
+                    ProjectName         = _activeSession.ProjectName,
+                    ProjectFolderPath   = newFolderPath,
+                    ProjectDatabasePath = System.IO.Path.Combine(newFolderPath,
+                        System.IO.Path.GetFileName(_activeSession.ProjectDatabasePath)),
+                    ProjectInfoId       = _activeSession.ProjectInfoId,
+                    ProjectGuid         = _activeSession.ProjectGuid,
+                    LastOpenedAtUtc     = _activeSession.LastOpenedAtUtc,
+                    ProjectCard         = _activeSession.ProjectCard
+                };
+            }
+
+            // Refresh lists so Home / Recent / Project List show the new path
+            await RefreshAsync().ConfigureAwait(false);
+        }
+
+        /// <summary>Exposed so the code-behind can pass it to EditProjectViewModel.</summary>
+        internal IProjectWorkspaceService WorkspaceService => _workspaceService;
 
         /// <summary>
         /// Called by the window code-behind when the user clicks CREATE PROJECT
@@ -155,8 +270,9 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
                         ProjectName      = createViewModel.ProjectName,
                         ParentFolderPath = createViewModel.ParentFolderPath,
                         UnitSettings     = createViewModel.BuildUnitSettings(),
-                        Country          = string.IsNullOrWhiteSpace(createViewModel.Country) ? null : createViewModel.Country,
+                        Country          = string.IsNullOrWhiteSpace(createViewModel.Country)      ? null : createViewModel.Country,
                         SiteLocation     = string.IsNullOrWhiteSpace(createViewModel.SiteLocation) ? null : createViewModel.SiteLocation,
+                        CompanyName      = string.IsNullOrWhiteSpace(createViewModel.CompanyName)  ? null : createViewModel.CompanyName,
                         ProjectImagePath = createViewModel.ProjectImagePath
                     },
                     _lifetime.Token);
@@ -214,6 +330,9 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
                 foreach (var project in projects)
                     Projects.Add(new ProjectCardViewModel(project));
 
+                // Update the Home-card with the most-recently opened project
+                LatestProject = Projects.FirstOrDefault();
+
                 StatusText = Projects.Count == 0
                     ? "No projects found"
                     : $"{Projects.Count} project(s)";
@@ -222,6 +341,46 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
             {
                 StatusText = "Could not load projects";
                 _dialogService.ShowNonBlockingError(ex.Message, "Project Database Error");
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
+        /// <summary>
+        /// "Continue Working" action on the Home hero card.
+        /// Returns to active session if one exists; otherwise opens the latest project.
+        /// </summary>
+        private async Task ContinueWorkingAsync()
+        {
+            // If an active session exists, just return to it
+            if (_activeSession != null)
+            {
+                ReturnToProject();
+                return;
+            }
+
+            // Otherwise open the latest-history project
+            if (_latestProject == null) return;
+
+            try
+            {
+                IsBusy = true;
+                var session = await _workspaceService.OpenProjectAsync(_latestProject.Id, _lifetime.Token);
+                if (session == null)
+                {
+                    _dialogService.ShowMessage("Project was not found.");
+                    await RefreshAsync();
+                    return;
+                }
+
+                _navigationService.OpenMainWindow(session);
+                CloseEntryWindow();
+            }
+            catch (Exception ex)
+            {
+                _dialogService.ShowNonBlockingError(ex.Message, "Open Project Error");
             }
             finally
             {
@@ -277,6 +436,20 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.ViewModels
         {
             if (card == null)
                 return;
+
+            // Guard: if a different project is already open, confirm before switching
+            if (_activeSession != null && _activeSession.ProjectId != card.Id)
+            {
+                var confirmed = _dialogService.Confirm(
+                    $"Project \"{_activeSession.ProjectName}\" is currently open.\n\nDo you want to switch to \"{card.Name}\"?",
+                    "Switch Project");
+
+                if (!confirmed)
+                    return;
+
+                // Clear the active session so the new project loads fresh
+                ActiveSession = null;
+            }
 
             try
             {

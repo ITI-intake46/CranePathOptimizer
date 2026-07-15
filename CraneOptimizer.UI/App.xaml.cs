@@ -9,6 +9,11 @@ using CraneOptimizer.Application.Reports.Interfaces;
 using CraneOptimizer.Application.Reports.Services;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Application.Services;
+using CraneOptimizer.AI.DependencyInjection;
+using CraneOptimizer.AI.Host;
+using CraneOptimizer.AI.Interfaces;
+using CraneOptimizer.UI.AIIntegration;
+using CraneOptimizer.UI.AIIntegration.Contributors;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.Infrastructure.Contexts;
 using CraneOptimizer.Infrastructure.Ifc;
@@ -168,6 +173,19 @@ namespace CraneOptimizer.UI
             services.AddSingleton<CraneOptimizer.UI.Features.F8_GAOptimizer.Services.IGADiagnosticsWindowService, CraneOptimizer.UI.Features.F8_GAOptimizer.Services.GADiagnosticsWindowService>();
 
             // =========================
+            // AI Advisor / Local Ollama Copilot
+            // =========================
+            services.AddCraneOptimizerAi();
+            services.AddSingleton<IAiScreenContextContributor, IfcAiContextContributor>();
+            services.AddSingleton<IAiScreenContextContributor, GaAiContextContributor>();
+            services.AddSingleton<IAiScreenContextContributor, CraneLoadChartAiContextContributor>();
+            services.AddSingleton<IAiScreenContextContributor, ElementManagementAiContextContributor>();
+            services.AddSingleton<IAiScreenContextContributor, ReportAiContextContributor>();
+            services.AddSingleton<AiHostContextBridge>();
+            services.AddSingleton<IAiOptimizationContextProvider>(sp => sp.GetRequiredService<AiHostContextBridge>());
+            services.AddSingleton<IAiWorkflowContextProvider>(sp => sp.GetRequiredService<AiHostContextBridge>());
+
+            // =========================
             // User-facing Reports
             // =========================
             services.AddSingleton<IReportValidator, ReportValidator>();
@@ -241,8 +259,11 @@ namespace CraneOptimizer.UI
             services.AddScoped<CraneSeedService>();
 
             ServiceProvider = services.BuildServiceProvider();
+            AiServiceLocator.ServiceProvider = ServiceProvider;
 
             base.OnStartup(e);
+            CraneOptimizer.Domain.Diagnostics.DebugOutputGate.EnableProjectPerformanceCapture =
+                CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.EnableProjectPerformanceCapture;
 
             // Start pipeline safely on UI thread
             _ = Dispatcher.InvokeAsync(async () => await StartupPipelineAsync());
@@ -328,6 +349,7 @@ namespace CraneOptimizer.UI
                 var context = scope.ServiceProvider.GetRequiredService<CraneDbContext>();
 
                 await SqliteMigrationCompatibilityGuard.EnsureCatalogOperatingConditionSchemaAsync(context);
+                await SqliteMigrationCompatibilityGuard.EnsureCatalogCompanyNameSchemaAsync(context);
 
                 await context.Database.MigrateAsync();
 

@@ -1,0 +1,464 @@
+<Window
+    x:Class="CraneOptimizer.AI.Views.AiAdvisorWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:rendering="clr-namespace:CraneOptimizer.AI.Rendering"
+    Title="AI Optimization Copilot"
+    Width="1360"
+    Height="820"
+    MinWidth="1000"
+    MinHeight="640"
+    Background="{DynamicResource BackgroundBrush}"
+    ResizeMode="CanResize"
+    WindowStartupLocation="CenterOwner"
+    SnapsToDevicePixels="True"
+    UseLayoutRounding="True">
+
+    <Window.Resources>
+        <Style x:Key="AiSectionLabel" TargetType="TextBlock" BasedOn="{StaticResource PropertyLabel}">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Opacity" Value="0.88" />
+        </Style>
+
+        <Style x:Key="AiCard" TargetType="Border">
+            <Setter Property="Padding" Value="11" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="13" />
+        </Style>
+
+        <Style x:Key="AiSoftCard" TargetType="Border" BasedOn="{StaticResource AiCard}">
+            <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+        </Style>
+
+        <Style x:Key="AiPill" TargetType="Border">
+            <Setter Property="Padding" Value="8,3" />
+            <Setter Property="Margin" Value="0,0,5,0" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+
+        <Style x:Key="AiComposerTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="AcceptsReturn" Value="True" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="MaxHeight" Value="78" />
+            <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}" />
+        </Style>
+
+        <Style x:Key="AiComposerActionButton" TargetType="Button">
+            <Setter Property="MinWidth" Value="60" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="13,0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="17">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Opacity" Value="0.92" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.45" />
+                    <Setter Property="Cursor" Value="Arrow" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid Background="{DynamicResource BackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Margin="6,6,6,4" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="34" Height="34" Margin="0,0,10,0" Background="{StaticResource PrimaryBrush}" CornerRadius="17">
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="White" Text="AI" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="AI Optimization Copilot" />
+                        <WrapPanel Margin="0,5,0,0">
+                            <Border Style="{StaticResource AiPill}">
+                                <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding SelectedModelLabel}" TextTrimming="CharacterEllipsis" />
+                            </Border>
+                            <Border Style="{StaticResource AiPill}">
+                                <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding HistoryCountLabel}" />
+                            </Border>
+                            <Border Style="{StaticResource AiPill}">
+                                <TextBlock FontSize="11" FontWeight="SemiBold" Text="Advisory only" />
+                            </Border>
+                        </WrapPanel>
+                    </StackPanel>
+                </StackPanel>
+
+                <WrapPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
+                    <Button MinWidth="76" Margin="0,0,5,0" Command="{Binding AnalyzeCurrentResultCommand}" Content="Refresh" Style="{StaticResource ButtonSecondary}" ToolTip="Refresh deterministic result and workflow context." />
+                    <Button MinWidth="96" Margin="0,0,5,0" Command="{Binding CopyContextCommand}" Content="Copy Context" Style="{StaticResource ButtonSecondary}" ToolTip="Copy the exact context payload used by the AI." />
+                    <Button MinWidth="78" Margin="0,0,5,0" Command="{Binding ExportAnswerCommand}" Content="Export MD" Style="{StaticResource ButtonSecondary}" ToolTip="Export the current AI response as Markdown." />
+                    <Button MinWidth="120" Command="{Binding ExportReportAppendixCommand}" Content="Report Appendix" Style="{StaticResource ButtonPrimary}" ToolTip="Export the current AI response as a report appendix with safety disclaimer and context snapshot." />
+                </WrapPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="6,0,6,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="276" MinWidth="242" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Style="{StaticResource AiCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource AiSectionLabel}" Text="ADVISOR" />
+                        <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                            <TextBlock Margin="0,0,6,0" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="Health" />
+                            <TextBlock FontWeight="SemiBold" Text="{Binding HealthLabel}" />
+                        </StackPanel>
+                        <TextBlock Margin="0,7,0,0" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="18" Text="{Binding AdvisorSummary}" TextWrapping="Wrap" />
+
+                        <Expander Margin="0,12,0,0" Header="Deterministic recommendations" IsExpanded="True">
+                            <ScrollViewer MaxHeight="134" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Recommendations}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,8" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Margin="0,0,8,0" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding Severity}" />
+                                                        <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                    <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Detail}" TextWrapping="Wrap" />
+                                                    <TextBlock Margin="0,6,0,0" FontWeight="SemiBold" Text="{Binding SuggestedAction}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Expander>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1" Margin="0,8,0,0" Style="{StaticResource AiCard}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource AiSectionLabel}" Text="QUICK QUESTIONS" />
+                            <TextBlock Grid.Column="1" Foreground="{DynamicResource TextSecondaryBrush}" Text="safe prompts" />
+                        </Grid>
+                        <WrapPanel Margin="0,10,0,0">
+                            <Button Margin="0,0,6,6" Command="{Binding SetQuickQuestionCommand}" CommandParameter="What can this software do and what should I click first?" Content="Start here" Style="{StaticResource ButtonSecondary}" />
+                            <Button Margin="0,0,6,6" Command="{Binding SetQuickQuestionCommand}" CommandParameter="Guide me step-by-step from IFC import to an optimization report using exact tab and button names." Content="IFC → Report" Style="{StaticResource ButtonSecondary}" />
+                            <Button Margin="0,0,6,6" Command="{Binding SetQuickQuestionCommand}" CommandParameter="Diagnose the current workflow readiness and produce Status, Evidence, Recommendation, Next Click, Risk, and Confidence." Content="Readiness" Style="{StaticResource ButtonSecondary}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="2" Margin="0,8,0,0" Style="{StaticResource AiCard}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource AiSectionLabel}" Text="RECENT ANSWERS" />
+                                <TextBlock Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" Text="Restore a prior question and answer." TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button Grid.Column="1" MinWidth="56" Command="{Binding ClearHistoryCommand}" Content="Clear" Style="{StaticResource ButtonSecondary}" />
+                        </Grid>
+                        <TextBlock Grid.Row="1" Margin="0,12,0,0" Foreground="{DynamicResource TextSecondaryBrush}" Text="No saved answers yet." TextWrapping="Wrap" Visibility="{Binding HasNoHistory, Converter={StaticResource BoolToVisibilityConverter}}" />
+                        <ScrollViewer Grid.Row="2" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto" Visibility="{Binding HasHistory, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <ItemsControl ItemsSource="{Binding ResponseHistory}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Margin="0,0,0,7" Padding="10" HorizontalContentAlignment="Stretch" Command="{Binding DataContext.SelectHistoryCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Style="{StaticResource ButtonSecondary}">
+                                            <StackPanel>
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding DisplayTitle}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Margin="0,5,0,0" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="16" MaxHeight="48" Text="{Binding Preview}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" Background="Transparent" />
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="6" />
+                    <RowDefinition Height="104" MinHeight="76" MaxHeight="210" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Padding="9" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="13">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="260" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Style="{StaticResource AiSectionLabel}" Text="MODEL" />
+                        <ComboBox Grid.Column="1" Margin="12,0,14,0" VerticalAlignment="Center" DisplayMemberPath="." IsEditable="False" IsTextSearchEnabled="True" ItemsSource="{Binding InstalledModels}" SelectedItem="{Binding ModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding ModelName}" />
+                        <WrapPanel Grid.Column="2" VerticalAlignment="Center">
+                            <Button Margin="0,0,6,0" Command="{Binding CheckOllamaCommand}" Content="Check" Style="{StaticResource ButtonSecondary}" ToolTip="Check local Ollama status and installed models." />
+                            <Button Margin="0,0,6,0" Command="{Binding PullModelCommand}" Content="Pull" Style="{StaticResource ButtonSecondary}" ToolTip="Pull the selected local model." />
+                            <Button Command="{Binding BenchmarkModelsCommand}" Content="Benchmark" Style="{StaticResource ButtonSecondary}" ToolTip="Benchmark detected local models." />
+                        </WrapPanel>
+                        <TextBlock Grid.Column="3" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Text="Local-first · no cloud API" />
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1" Margin="0,6,0,0" Style="{StaticResource AiCard}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid Margin="0,0,0,9">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource AiSectionLabel}" Text="ANSWER" />
+                                <TextBlock Margin="0,4,12,0" Foreground="{DynamicResource TextSecondaryBrush}" Text="Clean Markdown response. Audit details stay collapsed unless you need evidence, context, docs, or benchmarks." TextWrapping="Wrap" />
+                            </StackPanel>
+                            <WrapPanel Grid.Column="1" Margin="14,0,0,0">
+                                <Button Margin="0,0,6,0" Command="{Binding CopyAnswerCommand}" Content="Copy" Style="{StaticResource ButtonSecondary}" />
+                                <Button Margin="0,0,6,0" Command="{Binding ExportAnswerCommand}" Content="Export" Style="{StaticResource ButtonSecondary}" />
+                                <Button Command="{Binding ExportReportAppendixCommand}" Content="Report Appendix" Style="{StaticResource ButtonSecondary}" />
+                            </WrapPanel>
+                        </Grid>
+
+                        <Border Grid.Row="1" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="0">
+                            <rendering:MarkdownPreviewControl Markdown="{Binding AiAnswer, Mode=OneWay}" />
+                        </Border>
+
+                        <Expander Grid.Row="2" Margin="0,9,0,0" Header="Audit details: Context Cards, raw Markdown, evidence, local docs, and benchmarks" IsExpanded="False">
+                            <TabControl Height="226" Margin="0,8,0,0">
+                                <TabItem Header="Context Cards">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl Margin="10" ItemsSource="{Binding ContextCards}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Margin="0,0,0,8" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+                                                        <StackPanel>
+                                                            <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+                                                            <TextBlock Margin="0,4,0,0" Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" Text="{Binding Value}" TextWrapping="Wrap" />
+                                                            <TextBlock Margin="0,4,0,0" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Detail}" TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </TabItem>
+                                <TabItem Header="Prompt Templates">
+                                    <Grid Margin="10">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding SelectedPromptTemplateSummary}" TextWrapping="Wrap" />
+                                        <ScrollViewer Grid.Row="1" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto">
+                                            <ItemsControl ItemsSource="{Binding PromptTemplates}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Margin="0,0,0,8" TextWrapping="Wrap">
+                                                            <Run Text="• " />
+                                                            <Run FontWeight="SemiBold" Text="{Binding Title}" />
+                                                            <Run Text=" — " />
+                                                            <Run Text="{Binding AppliesWhen}" />
+                                                        </TextBlock>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Grid>
+                                </TabItem>
+                                <TabItem Header="Raw Markdown">
+                                    <TextBox Padding="10" AcceptsReturn="True" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" Foreground="{DynamicResource TextPrimaryBrush}" HorizontalScrollBarVisibility="Disabled" IsReadOnly="True" Text="{Binding AiAnswer, Mode=OneWay}" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                                </TabItem>
+                                <TabItem Header="Evidence">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl Margin="10" ItemsSource="{Binding Evidence}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Margin="0,0,0,7" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding}" TextWrapping="Wrap" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </TabItem>
+                                <TabItem Header="Context JSON">
+                                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                                        <TextBlock Padding="10" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ContextPreview}" TextWrapping="NoWrap" />
+                                    </ScrollViewer>
+                                </TabItem>
+                                <TabItem Header="Software Map">
+                                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                                        <TextBlock Padding="10" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding SoftwareGuideText}" TextWrapping="Wrap" />
+                                    </ScrollViewer>
+                                </TabItem>
+                                <TabItem Header="Local Docs">
+                                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                                        <TextBlock Padding="10" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding LastDocumentContext}" TextWrapping="Wrap" />
+                                    </ScrollViewer>
+                                </TabItem>
+                                <TabItem Header="XAML Inventory">
+                                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                                        <TextBlock Padding="10" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding LastXamlInventory}" TextWrapping="Wrap" />
+                                    </ScrollViewer>
+                                </TabItem>
+                                <TabItem Header="Benchmarks">
+                                    <Grid Margin="10">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding BenchmarkSummary}" TextWrapping="Wrap" />
+                                            <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ModelCapabilitySummary}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ScrollViewer Grid.Row="1" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
+                                            <ItemsControl ItemsSource="{Binding ModelBenchmarks}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Margin="0,0,0,5" TextWrapping="Wrap">
+                                                            <Run Text="• " />
+                                                            <Run FontWeight="SemiBold" Text="{Binding Model}" />
+                                                            <Run Text=" — " />
+                                                            <Run Text="{Binding DisplayStatus}" />
+                                                        </TextBlock>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Grid>
+                                </TabItem>
+                            </TabControl>
+                        </Expander>
+                    </Grid>
+                </Border>
+
+                <GridSplitter Grid.Row="2" Height="6" HorizontalAlignment="Stretch" VerticalAlignment="Center" Background="Transparent" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" ShowsPreview="True" ToolTip="Drag to resize the Ask Copilot composer." />
+
+                <Border Grid.Row="3" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="16">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource AiSectionLabel}" Text="ASK COPILOT" />
+                                <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource TextSecondaryBrush}" Text="Ask a workflow, result, safety, or report question. Private project context is attached automatically." TextWrapping="Wrap" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Text="Enter sends · Shift+Enter new line · drag top edge to resize" />
+                        </Grid>
+
+                        <Border Grid.Row="1" Margin="0,8,0,0" Padding="12,8" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="20">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <Grid VerticalAlignment="Stretch">
+                                    <TextBox x:Name="QuestionComposer" Style="{StaticResource AiComposerTextBox}" PreviewKeyDown="QuestionComposer_PreviewKeyDown" Text="{Binding UserQuestion, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Margin="0,2,76,0" Foreground="{DynamicResource TextSecondaryBrush}" IsHitTestVisible="False" Text="Ask what to do next, why a result failed, or how to prepare a report…" TextWrapping="Wrap" Visibility="{Binding IsQuestionEmpty, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                </Grid>
+
+                                <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Bottom" Orientation="Horizontal">
+                                    <TextBlock Margin="0,0,10,0" MaxWidth="220" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ComposerStateText}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                    <Button Command="{Binding ToggleOllamaCommand}" Content="{Binding ComposerActionText}" Style="{StaticResource AiComposerActionButton}" ToolTip="{Binding ComposerActionToolTip}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <Border Grid.Row="2" Margin="6,0,6,6" Padding="7" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="11">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding StatusText}" TextWrapping="Wrap" />
+                    <TextBlock Margin="14,0,0,0" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding OllamaStatusText}" TextWrapping="Wrap" />
+                    <TextBlock Margin="14,0,0,0" Foreground="Tomato" Text="{Binding LastError}" TextWrapping="Wrap" />
+                </StackPanel>
+                <Border Grid.Column="1" Margin="16,0,0,0" Padding="10,5" VerticalAlignment="Center" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9">
+                    <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" Text="Advisory only · engineering review required" TextWrapping="Wrap" />
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

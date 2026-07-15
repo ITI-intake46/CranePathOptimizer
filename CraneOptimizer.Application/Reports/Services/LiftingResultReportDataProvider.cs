@@ -71,6 +71,12 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
                 SetIfMissing(values, "LiftStatus", liftStatus);
                 SetIfMissing(values, "SafetyMargin", effectiveSafetyMargin);
 
+                SetIfMissing(values, "ParentAssemblyGlobalId", row.ParentAssemblyGlobalId);
+                SetIfMissing(values, "MainPartGlobalId", row.MainPartGlobalId);
+                SetIfMissing(values, "AssemblyLiftWeight", row.AssemblyLiftWeight);
+                SetIfMissing(values, "AssemblyLiftCOG", row.AssemblyLiftCOG != null ? $"({row.AssemblyLiftCOG.X.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}; {row.AssemblyLiftCOG.Y.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}; {row.AssemblyLiftCOG.Z.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)})" : null);
+                SetIfMissing(values, "AssemblyMemberIds", row.AssemblyMemberIds != null ? string.Join(", ", row.AssemblyMemberIds) : null);
+
                 return new LiftingResultReportRowDto
                 {
                     Values = values,
@@ -148,6 +154,17 @@ public sealed class LiftingResultReportDataProvider : ILiftingResultReportDataPr
 
     private static string GetElementGroupKey(LiftingResultSourceRowDto row)
     {
+        if (GetText(row.Values, "IsAssemblyGroup").Equals("Yes", StringComparison.OrdinalIgnoreCase))
+        {
+            string parentAssemblyId = GetText(row.Values, "ParentAssemblyGlobalId");
+            if (!IsPlaceholder(parentAssemblyId))
+                return $"assembly:{parentAssemblyId}";
+
+            string mainPartId = GetText(row.Values, "MainPartGlobalId");
+            if (!IsPlaceholder(mainPartId))
+                return $"assembly-main:{mainPartId}";
+        }
+
         if (!string.IsNullOrWhiteSpace(row.ElementId))
             return row.ElementId;
 

@@ -1,4 +1,5 @@
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.UI.Core.Converters;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
@@ -108,7 +109,11 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             _isInitializing = true;
             try
             {
-                _allSceneElements = elements.ToList();
+                var gaElements = elements
+                    .Where(e => e.Role == IfcElementRole.LiftAssembly && e.IncludeInGa)
+                    .ToList();
+
+                _allSceneElements = gaElements;
                 _selectedScopeElements = ResolveSelectedScopeElements(
                     selectedElements ?? GetLiveSelectedElements());
                 _filterScope = _selectedScopeElements.Count > 0

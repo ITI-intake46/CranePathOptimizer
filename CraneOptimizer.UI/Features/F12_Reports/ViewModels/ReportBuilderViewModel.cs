@@ -12,6 +12,8 @@ using CraneOptimizer.Application.Reports.Definitions;
 using CraneOptimizer.Application.Reports.DTOs;
 using CraneOptimizer.Application.Reports.Services;
 using CraneOptimizer.Application.Services;
+using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Base;
@@ -25,6 +27,7 @@ using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using UiCranePlacementResult = CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs.CranePlacementResult;
 using UiElementLiftResult = CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs.ElementLiftResult;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 
 namespace CraneOptimizer.UI.Features.F12_Reports.ViewModels;
 
@@ -1185,8 +1188,9 @@ public sealed class ReportBuilderViewModel : ViewModelBase
     private IReadOnlyList<LiftingResultSourceRowDto> BuildLiftingSourceRows(GaReportContext gaContext)
     {
         var result = _cranePlacement.Result;
+        var allElements = _scene.GetElements() ?? new List<PrecastElement>();
         if (result == null || CountElementResults(result) == 0)
-            return gaContext.Diagnostics.Select(row => ToLiftingSourceRow(row, gaContext.Run)).ToList();
+            return gaContext.Diagnostics.Select(row => ToLiftingSourceRow(row, gaContext.Run, allElements)).ToList();
 
         var rows = new List<LiftingResultSourceRowDto>();
         for (int setupIndex = 0; setupIndex < result.Positions.Count; setupIndex++)
@@ -1307,6 +1311,25 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         UiCranePlacementResult result,
         GARunHistoryDto? run)
     {
+        var allElements = _scene.GetElements() ?? new List<PrecastElement>();
+        PopulateAssemblyRollupFields(lift.ElementId, allElements, out var mainPartId, out var parentAssemblyId, out var assemblyWeight, out var assemblyCog, out var memberIds);
+        if (lift.IsAssemblyGroup)
+        {
+            var allElementsMap = allElements
+                .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
+                .GroupBy(element => element.ElementID, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+            parentAssemblyId = lift.ParentAssemblyGlobalId ?? parentAssemblyId;
+            mainPartId = lift.MainPartGlobalId ?? lift.ElementId;
+            assemblyWeight = lift.Weight is > 0 ? lift.Weight : assemblyWeight;
+            assemblyCog = new DomainPoint3D(lift.CogX, lift.CogY, lift.CogZ);
+            memberIds = lift.AssemblyMemberIds
+                .Where(memberId => allElementsMap.TryGetValue(memberId, out PrecastElement? member)
+                    && GaLiftUnitInputPreparation.IsVisibleMember(member))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+        }
+
         var values = CreateRunSummaryValues(run, result);
         var assignedSetup = setupIndex + 1;
         var utilization = lift.AvailableCapacity > 0 && lift.RequiredCapacity > 0
@@ -1404,6 +1427,14 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         values["BestFailedRequiredRadius"] = lift.HasBestFailedCandidate ? PositiveOrPlaceholder(lift.BestFailedRequiredRadius) : Placeholder;
         values["BestFailedRequiredBoomLength"] = lift.HasBestFailedCandidate ? PositiveOrPlaceholder(lift.BestFailedRequiredBoomLength) : Placeholder;
 
+        values["ParentAssemblyGlobalId"] = parentAssemblyId;
+        values["MainPartGlobalId"] = mainPartId;
+        values["AssemblyLiftWeight"] = assemblyWeight;
+        values["AssemblyLiftCOG"] = assemblyCog != null ? $"({assemblyCog.X.ToString("F3", CultureInfo.InvariantCulture)}; {assemblyCog.Y.ToString("F3", CultureInfo.InvariantCulture)}; {assemblyCog.Z.ToString("F3", CultureInfo.InvariantCulture)})" : null;
+        values["AssemblyMemberIds"] = memberIds != null ? string.Join(", ", memberIds) : null;
+        values["IsAssemblyGroup"] = BoolText(lift.IsAssemblyGroup);
+        values["AssemblyMemberCount"] = memberIds?.Count ?? 0;
+
         return new LiftingResultSourceRowDto
         {
             Values = values,
@@ -1426,12 +1457,19 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             AvailableCapacity = lift.AvailableCapacity,
             InternalLiftStatus = lift.Status.ToString(),
             IsFinalAssignedToPoint = lift.IsFinalAssignedToPoint,
-            IsFinalAssigned = lift.IsFinalAssigned
+            IsFinalAssigned = lift.IsFinalAssigned,
+            ParentAssemblyGlobalId = parentAssemblyId,
+            MainPartGlobalId = mainPartId,
+            AssemblyLiftWeight = assemblyWeight,
+            AssemblyLiftCOG = assemblyCog,
+            AssemblyMemberIds = memberIds
         };
     }
 
-    private static LiftingResultSourceRowDto ToLiftingSourceRow(GAElementDiagnosticDto row, GARunHistoryDto? run)
+    private static LiftingResultSourceRowDto ToLiftingSourceRow(GAElementDiagnosticDto row, GARunHistoryDto? run, IReadOnlyList<PrecastElement> allElements)
     {
+        PopulateAssemblyRollupFields(row.ElementId, allElements, out var mainPartId, out var parentAssemblyId, out var assemblyWeight, out var assemblyCog, out var memberIds);
+
         var values = CreateRunSummaryValues(run, null);
         var utilization = row.AvailableCapacity > 0 && row.RequiredCapacity > 0
             ? row.RequiredCapacity / row.AvailableCapacity * 100.0
@@ -1536,6 +1574,12 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         values["DuplicateAlternativeCount"] = row.DuplicateAlternativeCount;
         values["DuplicateAlternativeSummary"] = CleanText(row.DuplicateAlternativeSummary);
 
+        values["ParentAssemblyGlobalId"] = parentAssemblyId;
+        values["MainPartGlobalId"] = mainPartId;
+        values["AssemblyLiftWeight"] = assemblyWeight;
+        values["AssemblyLiftCOG"] = assemblyCog != null ? $"({assemblyCog.X.ToString("F3", CultureInfo.InvariantCulture)}; {assemblyCog.Y.ToString("F3", CultureInfo.InvariantCulture)}; {assemblyCog.Z.ToString("F3", CultureInfo.InvariantCulture)})" : null;
+        values["AssemblyMemberIds"] = memberIds != null ? string.Join(", ", memberIds) : null;
+
         return new LiftingResultSourceRowDto
         {
             Values = values,
@@ -1559,8 +1603,52 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             AvailableCapacity = row.AvailableCapacity,
             InternalLiftStatus = row.LiftStatus,
             IsFinalAssignedToPoint = row.IsFinalAssignedToPoint,
-            IsFinalAssigned = row.IsFinalAssigned
+            IsFinalAssigned = row.IsFinalAssigned,
+            ParentAssemblyGlobalId = parentAssemblyId,
+            MainPartGlobalId = mainPartId,
+            AssemblyLiftWeight = assemblyWeight,
+            AssemblyLiftCOG = assemblyCog,
+            AssemblyMemberIds = memberIds
         };
+    }
+
+    private static void PopulateAssemblyRollupFields(
+        string elementId,
+        IReadOnlyList<PrecastElement>? allElements,
+        out string? mainPartId,
+        out string? parentAssemblyId,
+        out double? assemblyWeight,
+        out DomainPoint3D? assemblyCog,
+        out List<string>? memberIds)
+    {
+        parentAssemblyId = null;
+        mainPartId = null;
+        assemblyWeight = null;
+        assemblyCog = null;
+        memberIds = null;
+
+        if (allElements == null || allElements.Count == 0 || string.IsNullOrEmpty(elementId))
+            return;
+
+        var element = allElements.FirstOrDefault(e => string.Equals(e.ElementID, elementId, StringComparison.Ordinal));
+        if (element == null)
+            return;
+
+        PrecastElement? parent = ElementBindingResolver.ResolveAssemblyParent(element, allElements);
+
+        if (parent != null)
+        {
+            parentAssemblyId = parent.ElementID;
+            assemblyWeight = parent.AssemblyLiftWeight;
+            mainPartId = parent.MainPartGlobalId ?? ElementBindingResolver.ResolveMainPartOrSelf(parent, allElements).ElementID;
+            assemblyCog = parent.AssemblyLiftCOG;
+            memberIds = parent.AssemblyMemberIds
+                .Where(memberId => allElements.Any(element =>
+                    string.Equals(element.ElementID, memberId, StringComparison.Ordinal)
+                    && GaLiftUnitInputPreparation.IsVisibleMember(element)))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+        }
     }
 
     private static Dictionary<string, object?> CreateRunSummaryValues(GARunHistoryDto? run, UiCranePlacementResult? result)
@@ -1650,7 +1738,12 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             or "AssignedPointId"
             or "FinalOwnerPointId"
             or "BestFailedPointId"
-            or "BestFailureReason";
+            or "BestFailureReason"
+            or "MainPartGlobalId"
+            or "ParentAssemblyGlobalId"
+            or "AssemblyLiftWeight"
+            or "AssemblyLiftCOG"
+            or "AssemblyMemberIds";
 
     private static string ResolveAssignedGaPoint(
         string? finalOwnerPointId,

@@ -60,12 +60,26 @@ namespace CraneOptimizer.Domain.Diagnostics
         public string WeightSource { get; set; } = "Missing";
         public double? WeightRawValue { get; set; }
         public double? WeightStandardValueTons { get; set; }
+        public double? VolumeStandardValueM3 { get; set; }
         public IfcWeightTrustLevel WeightTrustLevel { get; set; } = IfcWeightTrustLevel.Missing;
         public string DecisionReason { get; set; } = string.Empty;
         public List<string> Warnings { get; set; } = new();
         public IfcElementRole Role { get; set; } = IfcElementRole.NeedsReview;
         public IfcAssemblyDecision AssemblyDecision { get; set; } = IfcAssemblyDecision.NotAssembly;
         
+        // Phase 3 Assembly Classification fields
+        public string? MainPartGlobalId { get; set; }
+        public string? MainPartName { get; set; }
+        public string? MainPartCategory { get; set; }
+        public string? MainPartDetectionMethod { get; set; }
+        public int ChildCount { get; set; }
+        public int VisibleSecondaryPartCount { get; set; }
+        public int HiddenWeightContributorCount { get; set; }
+        public int AccessoryWeightContributorCount { get; set; }
+        public int IgnoredReferenceCount { get; set; }
+        public bool HasSecondaryParts { get; set; }
+        public bool HasHiddenContributors { get; set; }
+
         // Internal tracking fields for reinforcement weight roll-ups
         public double? ReinforcementWeightContributionTons { get; set; }
         public bool HasMissingReinforcementWeight { get; set; }

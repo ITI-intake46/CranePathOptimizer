@@ -14,7 +14,8 @@ namespace CraneOptimizer.Application.Tests.GA
             string? enableMultiStageDiscoveryText = null,
             string? deratingRatioText = null,
             string? safetyFactorText = null,
-            string? maxCranePositionsText = null)
+            string? maxCranePositionsText = null,
+            string? enableGroupedLiftsText = null)
         {
             return new CraneOptimizerDialogOptions(
                 CoverageWeightText: "10.0",
@@ -66,8 +67,25 @@ namespace CraneOptimizer.Application.Tests.GA
                 UseHungarianAssignmentText: "false",
                 LoadChartNumberOfLinesConstraint: null,
                 LoadChartOperatingConditionConstraint: null,
-                SelectedPreset: GAModePreset.None
+                SelectedPreset: GAModePreset.None,
+                EnableGroupedLiftsText: enableGroupedLiftsText
             );
+        }
+
+        [Fact]
+        public void BuildSettings_DefaultsGroupedLiftsOn_ForNormalUiRuns()
+        {
+            var settings = _workflow.BuildSettings(CreateOptions());
+
+            Assert.True(settings.EnableGroupedLifts);
+        }
+
+        [Fact]
+        public void BuildSettings_PreservesExplicitGroupedLiftsOverride()
+        {
+            var settings = _workflow.BuildSettings(CreateOptions(enableGroupedLiftsText: "false"));
+
+            Assert.False(settings.EnableGroupedLifts);
         }
 
         [Fact]

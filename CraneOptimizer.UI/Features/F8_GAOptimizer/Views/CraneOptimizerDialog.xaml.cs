@@ -1,4 +1,5 @@
 using CraneOptimizer.Domain.Common;
+using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
@@ -13,7 +14,6 @@ using System.Windows;
 using System.Windows.Controls;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
 using CraneOptimizer.Application.Services;
-using CraneOptimizer.Domain.Diagnostics;
 using System.ComponentModel;
 using System.Text;
 using System.Threading;
@@ -41,6 +41,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private CancellationTokenSource? _runCts;
         private bool _isRunning;
         private bool _isAdvancedPanelOpen;
+        private bool _isFilterPanelOpen;
         private List<PrecastElement> _cachedElements = new();
         private List<ElementTypeFilterOption> _targetElementTypes = new();
 
@@ -129,33 +130,32 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 // Refresh readiness summary to evaluate the latest selected target types/selection
                 RefreshReadinessSummary();
                 var vm = DataContext as CraneOptimizerDialogViewModel;
-                if (vm != null && vm.IsElementCheckerEnabled && vm.ReadinessSummary != null)
+
+                // The only allowed run guard: no lift units at all.
+                // Element Checker toggle, NeedsReview roles, and raw child diagnostics
+                // do NOT block the GA run — feasibility is decided inside GA evaluation.
+                if (vm?.ReadinessSummary != null && vm.ReadinessSummary.GaCandidateElements == 0)
                 {
-                    if (vm.ReadinessSummary.GaCandidateElements == 0)
+                    TxtStatus.Text = "No valid GA lift units found.";
+                    ProgBar.IsIndeterminate = false;
+                    ProgBar.Value = 0;
+
+                    var explanation = new StringBuilder();
+                    explanation.AppendLine("Optimization blocked: Zero valid grouped assembly lift units.");
+                    explanation.AppendLine();
+                    explanation.AppendLine("Details:");
+                    foreach (var msg in vm.ReadinessSummary.Messages)
                     {
-                        TxtStatus.Text = "No valid GA candidates.";
-                        ProgBar.IsIndeterminate = false;
-                        ProgBar.Value = 0;
-
-                        var explanation = new StringBuilder();
-                        explanation.AppendLine("Optimization blocked: Zero valid GA candidate elements.");
-                        explanation.AppendLine();
-                        explanation.AppendLine("Details:");
-                        foreach (var msg in vm.ReadinessSummary.Messages)
+                        if (msg.Severity == "Error")
                         {
-                            if (msg.Severity == "Error" || msg.Severity == "Warning")
-                            {
-                                explanation.AppendLine($"- [{msg.Code}] {msg.Message}");
-                                if (!string.IsNullOrEmpty(msg.RecommendedAction))
-                                {
-                                    explanation.AppendLine($"  Recommended: {msg.RecommendedAction}");
-                                }
-                            }
+                            explanation.AppendLine($"- [{msg.Code}] {msg.Message}");
+                            if (!string.IsNullOrEmpty(msg.RecommendedAction))
+                                explanation.AppendLine($"  Recommended: {msg.RecommendedAction}");
                         }
-
-                        _dialogService.ShowMessage(explanation.ToString());
-                        return;
                     }
+
+                    _dialogService.ShowMessage(explanation.ToString());
+                    return;
                 }
 
                 if (options.TargetElementTypes.Count == 0)
@@ -447,13 +447,19 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
             bool hadPreviousTypes = _targetElementTypes.Count > 0;
 
-            _targetElementTypes = _cachedElements
-                .GroupBy(element => NormalizeElementType(element.ElementType), StringComparer.OrdinalIgnoreCase)
-                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(group => new ElementTypeFilterOption(
-                    group.Key,
-                    group.Count(),
-                    !hadPreviousTypes || previousSelection.Contains(group.Key)))
+            var assemblyCounts = _cachedElements
+                .Where(e => e.Role == IfcElementRole.LiftAssembly && e.IncludeInGa
+                            && !string.IsNullOrWhiteSpace(e.ElementType))
+                .GroupBy(e => e.ElementType.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => (TypeName: g.Key, Count: g.Count()))
+                .OrderBy(x => x.TypeName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            _targetElementTypes = assemblyCounts
+                .Select(ac => new ElementTypeFilterOption(
+                    ac.TypeName,
+                    ac.Count,
+                    !hadPreviousTypes || previousSelection.Contains(ac.TypeName)))
                 .ToList();
 
             TargetElementTypesList.ItemsSource = _targetElementTypes;
@@ -468,13 +474,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 .ToList();
         }
 
-        private static string NormalizeElementType(string? elementType)
-        {
-            return string.IsNullOrWhiteSpace(elementType)
-                ? "Unknown"
-                : elementType.Trim();
-        }
-
         private void SetAllTargetElementTypes(bool isSelected)
         {
             foreach (var option in _targetElementTypes)
@@ -487,14 +486,20 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private void UpdateTargetElementSummary()
         {
             int selectedTypeCount = _targetElementTypes.Count(option => option.IsSelected);
-            int selectedElementCount = _targetElementTypes
+            int selectedAssemblyCount = _targetElementTypes
                 .Where(option => option.IsSelected)
                 .Sum(option => option.Count);
-            int totalElementCount = _targetElementTypes.Sum(option => option.Count);
+            int totalAssemblyCount = _targetElementTypes.Sum(option => option.Count);
 
             TxtTargetElementSummary.Text = _targetElementTypes.Count == 0
-                ? "No element types found"
-                : $"{selectedTypeCount}/{_targetElementTypes.Count} types, {selectedElementCount}/{totalElementCount} elements";
+                ? "No assembly types found"
+                : $"{selectedTypeCount}/{_targetElementTypes.Count} types, {selectedAssemblyCount}/{totalAssemblyCount} assemblies";
+        }
+
+        private void BtnFilterToggle_Click(object sender, RoutedEventArgs e)
+        {
+            _isFilterPanelOpen = !_isFilterPanelOpen;
+            UpdateSidePanels();
         }
 
         private void BtnAdvancedToggle_Click(object sender, RoutedEventArgs e)
@@ -505,6 +510,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private void UpdateSidePanels()
         {
+            FilterColumn.Width = _isFilterPanelOpen
+                ? new GridLength(SidePanelWidth)
+                : new GridLength(0);
+
+            PanelFilter.Visibility = _isFilterPanelOpen
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
             AdvancedColumn.Width = _isAdvancedPanelOpen
                 ? new GridLength(SidePanelWidth)
                 : new GridLength(0);
@@ -514,7 +527,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 : Visibility.Collapsed;
 
             Width = CompactDialogWidth
+                + (_isFilterPanelOpen ? SidePanelWidth : 0)
                 + (_isAdvancedPanelOpen ? SidePanelWidth : 0);
+
+            BtnFilterToggle.Content = _isFilterPanelOpen
+                ? "Hide Filter"
+                : "GA Filter Options";
 
             BtnAdvancedToggle.Content = _isAdvancedPanelOpen
                 ? "Hide Advanced"
@@ -595,7 +613,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
 
         private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(CraneOptimizerDialogViewModel.IsElementCheckerEnabled))
+            if (e.PropertyName == nameof(CraneOptimizerDialogViewModel.EnableGroupedLifts))
             {
                 RefreshReadinessSummary();
             }
@@ -613,12 +631,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 sceneElements = sceneElements.Where(e => selectedIds.Contains(e.ElementID)).ToList();
             }
 
-            // 2. Filter by target types
+            // 2. Filter by target element types
             var selectedTypes = GetSelectedTargetElementTypes();
             if (selectedTypes != null && selectedTypes.Count > 0)
             {
-                var typeSet = selectedTypes.Select(t => t.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                sceneElements = sceneElements.Where(e => typeSet.Contains(NormalizeElementType(e.ElementType))).ToList();
+                var typeSet = selectedTypes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                sceneElements = sceneElements
+                    .Where(e => !string.IsNullOrWhiteSpace(e.ElementType)
+                                && typeSet.Contains(e.ElementType.Trim()))
+                    .ToList();
             }
             else
             {
@@ -633,8 +654,38 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             var vm = DataContext as CraneOptimizerDialogViewModel;
             if (vm == null) return;
 
+            var allElements = _cachedElements;
             var scopedElements = GetScopedElements();
-            var summary = _readinessService.BuildSummary(scopedElements, vm.IsElementCheckerEnabled);
+
+            // Always use the original single-arg BuildSummary — no service overload needed.
+            var summary = _readinessService.BuildSummary(scopedElements);
+
+            if (vm.EnableGroupedLifts)
+            {
+                // In grouped-lifts mode, patch GaCandidateElements with the actual lift-unit
+                // count.  This is a pure UI-layer patch — the service is not changed.
+                var expandedScope = GaLiftUnitInputPreparation.ExpandAssemblyScope(allElements, scopedElements);
+                var eligibleParentIds = GaLiftUnitInputPreparation.GetEligibleAssemblyParentIds(
+                    expandedScope, GetSelectedTargetElementTypes());
+
+                int liftUnitCount = 0;
+                foreach (var parent in expandedScope
+                    .Where(e => e.Role == IfcElementRole.LiftAssembly && eligibleParentIds.Contains(e.ElementID)))
+                {
+                    if (GaLiftUnitInputPreparation.TryPrepareAssemblyParent(
+                            parent, expandedScope, out _, out _))
+                        liftUnitCount++;
+                }
+
+                // Overwrite with the assembly-level count so the badge and run guard
+                // both see the correct grouped lift-unit number.
+                summary.GaCandidateElements = liftUnitCount;
+
+                System.Diagnostics.Debug.WriteLine(
+                    $"[GA_READINESS] GroupedLifts=true, LiftUnits={liftUnitCount}, " +
+                    $"GaCandidateElements={summary.GaCandidateElements}");
+            }
+
             vm.ReadinessSummary = summary;
         }
 

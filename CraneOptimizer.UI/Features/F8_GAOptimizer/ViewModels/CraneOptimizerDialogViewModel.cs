@@ -120,35 +120,17 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             }
         }
 
-        private bool _isElementCheckerEnabled = true;
-        public bool IsElementCheckerEnabled
-        {
-            get => _isElementCheckerEnabled;
-            set
-            {
-                if (_isElementCheckerEnabled != value)
-                {
-                    _isElementCheckerEnabled = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(IsElementCheckerDisabled));
-                    OnPropertyChanged(nameof(ReadinessStatusText));
-                    OnPropertyChanged(nameof(ReadinessStatusBrush));
-                    OnPropertyChanged(nameof(ReadinessWarningsVisibility));
-                }
-            }
-        }
-
-        public bool IsElementCheckerDisabled => !IsElementCheckerEnabled;
-
+        /// <summary>
+        /// Status badge text: "Ready" when grouped lift units exist, "No Lift Units" otherwise.
+        /// Not based on raw-element OverallStatus — that would reflect child-part diagnostics
+        /// which must not gate the GA run.
+        /// </summary>
         public string ReadinessStatusText
         {
             get
             {
-                if (!IsElementCheckerEnabled)
-                    return "Not Checked";
-                if (ReadinessSummary == null)
-                    return "Not Checked";
-                return ReadinessSummary.OverallStatus.ToString();
+                if (ReadinessSummary == null) return "Not Checked";
+                return ReadinessSummary.GaCandidateElements > 0 ? "Ready" : "No Lift Units";
             }
         }
 
@@ -156,32 +138,18 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         {
             get
             {
-                if (!IsElementCheckerEnabled || ReadinessSummary == null)
-                {
-                    return System.Windows.Application.Current?.Resources["TextSecondaryBrush"] as System.Windows.Media.Brush 
-                           ?? System.Windows.Media.Brushes.Gray;
-                }
-
-                string brushKey = ReadinessSummary.OverallStatus switch
-                {
-                    ValidationStatus.Valid => "SuccessBrush",
-                    ValidationStatus.Warning => "WarningBrush",
-                    ValidationStatus.Error => "DestructiveBrush",
-                    _ => "TextSecondaryBrush"
-                };
-
-                return System.Windows.Application.Current?.Resources[brushKey] as System.Windows.Media.Brush 
+                string brushKey = (ReadinessSummary?.GaCandidateElements ?? 0) > 0
+                    ? "SuccessBrush"
+                    : "DestructiveBrush";
+                return System.Windows.Application.Current?.Resources[brushKey] as System.Windows.Media.Brush
                        ?? System.Windows.Media.Brushes.Gray;
             }
         }
 
-        public System.Windows.Visibility ReadinessWarningsVisibility
-        {
-            get
-            {
-                return IsElementCheckerEnabled ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
-            }
-        }
+        // Kept for any existing bindings that reference it; always collapsed since the
+        // raw-element diagnostic panel has been removed from the readiness card.
+        public System.Windows.Visibility ReadinessWarningsVisibility =>
+            System.Windows.Visibility.Collapsed;
 
         // -----------------------------------------------------------------------
         // GA Mode Preset selector
@@ -467,7 +435,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             set { if (_enableConcurrentOptimization != value) { _enableConcurrentOptimization = value; OnPropertyChanged(); OnManualFieldEdit(); } }
         }
 
-        private bool _enableGroupedLifts = false;
+        private bool _enableGroupedLifts = true;
         public bool EnableGroupedLifts
         {
             get => _enableGroupedLifts;

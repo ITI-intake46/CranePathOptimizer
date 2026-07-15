@@ -4,6 +4,7 @@ using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Units;
+using CraneOptimizer.Application.Services;
 using CraneOptimizer.Infrastructure.Ifc;
 using System;
 using System.Collections.Generic;
@@ -35,6 +36,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private readonly IIfcModelSessionService _sessionService;
         private readonly IIfcGeoreferencingExtractor _georeferencingExtractor;
         private readonly ICentralIfcPropertyAliasResolver _aliasResolver;
+        private readonly IActiveProjectPathProvider? _activeProjectPathProvider;
 
         public IfcReaderRepository(
             IIfcDiagnosticAuditService auditService,
@@ -65,6 +67,18 @@ namespace CraneOptimizer.Infrastructure.Repositories
             _sessionService = sessionService;
             _georeferencingExtractor = georeferencingExtractor;
             _aliasResolver = aliasResolver;
+        }
+
+        public IfcReaderRepository(
+            IIfcDiagnosticAuditService auditService,
+            IIfcNormalizationDecisionService normalizationService,
+            IIfcModelSessionService sessionService,
+            IIfcGeoreferencingExtractor georeferencingExtractor,
+            ICentralIfcPropertyAliasResolver aliasResolver,
+            IActiveProjectPathProvider activeProjectPathProvider)
+            : this(auditService, normalizationService, sessionService, georeferencingExtractor, aliasResolver)
+        {
+            _activeProjectPathProvider = activeProjectPathProvider;
         }
 
         public IfcStore? CurrentModel => _sessionService.Current?.Model;
@@ -112,6 +126,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
         }
 
+        private sealed class DoubleProgressAdapter : IProgress<IfcLoadingProgressUpdate>
+        {
+            private readonly IProgress<double> _progress;
+            public DoubleProgressAdapter(IProgress<double> progress) => _progress = progress;
+            public void Report(IfcLoadingProgressUpdate value) => _progress.Report(value.Progress);
+        }
+
         public List<PrecastElement> ReadElements(string ifcPath)
         {
             return ReadElementsCore(ifcPath, null, null, CancellationToken.None);
@@ -124,7 +145,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
         public List<PrecastElement> ReadElements(string path, IProgress<double> progress)
         {
-            return ReadElementsCore(path, progress, null, CancellationToken.None);
+            return ReadElementsCore(path, new DoubleProgressAdapter(progress), null, CancellationToken.None);
         }
 
         public List<PrecastElement> ReadElements(
@@ -133,50 +154,105 @@ namespace CraneOptimizer.Infrastructure.Repositories
             IfcReadingOptions? options,
             CancellationToken cancellationToken = default)
         {
-            return ReadElementsCore(path, progress, options, cancellationToken);
+            return ReadElementsCore(path, new DoubleProgressAdapter(progress), options, cancellationToken);
         }
 
         public List<PrecastElement> ReadElements(string path, IProgress<double> progress, CancellationToken cancellationToken)
         {
-            return ReadElementsCore(path, progress, null, cancellationToken);
+            return ReadElementsCore(path, new DoubleProgressAdapter(progress), null, cancellationToken);
+        }
+
+        public List<PrecastElement> ReadElements(
+            string path,
+            IProgress<IfcLoadingProgressUpdate> progress,
+            IfcReadingOptions? options,
+            CancellationToken cancellationToken = default)
+        {
+            return ReadElementsCore(path, progress, options, cancellationToken);
         }
 
         public Task InitializeSessionForRenderingAsync(string ifcPath, CancellationToken cancellationToken = default)
         {
             return Task.Run(() =>
             {
-                _sessionService.OpenSession(ifcPath, cancellationToken);
+                _sessionService.OpenSession(ifcPath, null, cancellationToken);
             }, cancellationToken);
         }
 
         private List<PrecastElement> ReadElementsCore(
             string ifcPath,
-            IProgress<double>? progress,
+            IProgress<IfcLoadingProgressUpdate>? progress,
             IfcReadingOptions? options,
             CancellationToken cancellationToken)
         {
+            if (_activeProjectPathProvider != null)
+            {
+                IfcImportProfiler.Start(ifcPath, _activeProjectPathProvider.GetActiveProjectPath());
+            }
+
+            var totalTimerStart = DateTime.UtcNow;
+            var totalTimer = Stopwatch.StartNew();
             try
             {
                 var concreteDensityKgPerM3 = ResolveConcreteDensity(options);
                 var loadMemoryBefore = GetPrivateMemoryBytes();
-                var session = _sessionService.OpenSession(ifcPath, cancellationToken);
+                var session = _sessionService.OpenSession(ifcPath, progress, cancellationToken);
+
+                progress?.Report(new IfcLoadingProgressUpdate(20.0, "Running diagnostics audit...", "Running diagnostics audit"));
+                var startAudit = DateTime.UtcNow;
+                var auditTimer = Stopwatch.StartNew();
+                var doubleProgress = progress != null
+                    ? new Progress<double>(p => progress.Report(new IfcLoadingProgressUpdate(20.0 + p * 0.1, "Running diagnostics audit...", "Running diagnostics audit")))
+                    : null;
+                var auditResult = _auditService.RunAuditAsync(ifcPath, options, doubleProgress, cancellationToken).GetAwaiter().GetResult();
+                auditTimer.Stop();
+                var endAudit = DateTime.UtcNow;
+                Debug.WriteLine($"[IFC-PERF] Diagnostic audit duration: {auditTimer.ElapsedMilliseconds} ms");
+
+                IfcImportProfiler.Record(
+                    "RunningDiagnosticsAudit",
+                    "",
+                    "Running diagnostics audit...",
+                    startAudit,
+                    endAudit,
+                    auditTimer.ElapsedMilliseconds,
+                    "WarningsCount",
+                    auditResult.Metadata.Warnings.Count,
+                    true);
+
+                progress?.Report(new IfcLoadingProgressUpdate(35.0, "Enumerating products...", "Enumerating products"));
+                var startNorm = DateTime.UtcNow;
+                var normTimer = Stopwatch.StartNew();
+                var previewResult = _normalizationService.GenerateNormalizationPreviewAsync(auditResult, cancellationToken).GetAwaiter().GetResult();
+                normTimer.Stop();
+                var endNorm = DateTime.UtcNow;
+                Debug.WriteLine($"[IFC-PERF] Normalization decision stage duration: {normTimer.ElapsedMilliseconds} ms");
+
+                IfcImportProfiler.Record(
+                    "NormalizationDecision",
+                    "",
+                    "Generating normalization decision...",
+                    startNorm,
+                    endNorm,
+                    normTimer.ElapsedMilliseconds,
+                    "NormalizedElementsCount",
+                    previewResult.Elements.Count,
+                    true);
 
                 var extractor = new IfcEngineeringExtractor(
                     session.Model,
                     session.GeometryContext,
                     session.ModelLengthFactor,
                     concreteDensityKgPerM3,
-                    _aliasResolver);
-
-                // Run synchronous diagnostics audit and normalization decision preview (Task 3 & 4)
-                var auditTimer = Stopwatch.StartNew();
-                var auditResult = _auditService.RunAuditAsync(ifcPath, options, null, cancellationToken).GetAwaiter().GetResult();
-                auditTimer.Stop();
-                var previewResult = _normalizationService.GenerateNormalizationPreviewAsync(auditResult, cancellationToken).GetAwaiter().GetResult();
+                    _aliasResolver,
+                    auditResult.Metadata);
 
                 var extractionTimer = Stopwatch.StartNew();
                 var elements = extractor.ExtractNormalized(previewResult, auditResult, progress, cancellationToken);
                 extractionTimer.Stop();
+
+                totalTimer.Stop();
+                Debug.WriteLine($"[IFC-PERF] Total Read IFC duration: {totalTimer.ElapsedMilliseconds} ms");
 
                 Debug.WriteLine(
                     $"[IfcReaderRepository] Load complete. SessionId={session.SessionId}, " +
@@ -188,15 +264,55 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     $"MemoryBeforeLoad={FormatBytes(loadMemoryBefore)}, " +
                     $"MemoryAfterLoad={FormatBytes(GetPrivateMemoryBytes())}");
 
+                IfcImportProfiler.Record(
+                    "Completed",
+                    "",
+                    "IFC read completed successfully",
+                    totalTimerStart,
+                    DateTime.UtcNow,
+                    totalTimer.ElapsedMilliseconds,
+                    "ElementsCount",
+                    elements.Count,
+                    true);
+
+                CraneOptimizer.Domain.Services.AssemblyRollupService.ReconstructAssemblyClassifications(elements);
                 return elements;
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException ex)
             {
+                totalTimer.Stop();
+                progress?.Report(new IfcLoadingProgressUpdate(100.0, "Failed", "Failed"));
+                IfcImportProfiler.Record(
+                    "Failed",
+                    "",
+                    "Operation cancelled",
+                    totalTimerStart,
+                    DateTime.UtcNow,
+                    totalTimer.ElapsedMilliseconds,
+                    "Count",
+                    0,
+                    false,
+                    ex.GetType().Name,
+                    ex.Message);
                 throw;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error loading IFC file: {ex.Message}");
+                totalTimer.Stop();
+                progress?.Report(new IfcLoadingProgressUpdate(100.0, "Failed", "Failed"));
+                Debug.WriteLine($"[IFC-PERF] Error loading IFC file: {ex.Message}");
+                IfcImportProfiler.Record(
+                    "Failed",
+                    "",
+                    "Operation failed with exception",
+                    totalTimerStart,
+                    DateTime.UtcNow,
+                    totalTimer.ElapsedMilliseconds,
+                    "Count",
+                    0,
+                    false,
+                    ex.GetType().Name,
+                    ex.Message);
                 throw;
             }
         }
@@ -351,16 +467,33 @@ namespace CraneOptimizer.Infrastructure.Repositories
             private readonly double _concreteDensityKgPerCubicMeter;
             private readonly ICentralIfcPropertyAliasResolver _aliasResolver;
             private readonly IfcExporterProfile _exporterProfile;
+            private readonly IfcAuditMetadata _auditMetadata;
 
             private readonly Dictionary<int, SourceElementSnapshot> _sourceCache = new();
             private readonly Dictionary<int, AggregateSnapshot> _aggregateCache = new();
+            private readonly Dictionary<int, CanonicalAssemblyIdentityResult> _canonicalIdentityCache = new();
+            private readonly Dictionary<int, SourceProductPropertySnapshot> _propertySnapshotCache = new();
+            private readonly Dictionary<int, SourceTypePropertySnapshot> _typePropertySnapshotCache = new();
+            private readonly IIfcExporterProfile _exporterProfileDefinition;
+
+            // Phase 4A: import extraction sub-profiler.
+            // Per-extractor instance only; no static/session-crossing state.
+            private long _sourceSnapshotPropertySnapshotMs;
+            private long _sourceSnapshotDimensionMs;
+            private long _sourceSnapshotVolumeMs;
+            private long _sourceSnapshotMaterialMs;
+            private long _sourceSnapshotWeightMs;
+            private long _sourceSnapshotIdentityMs;
+            private long _sourceSnapshotMarkMs;
+            private long _sourceSnapshotFallbackMs;
 
             public IfcEngineeringExtractor(
                 IfcStore model,
                 Xbim3DModelContext geometryContext,
                 double lengthToMetersFactor,
                 double concreteDensityKgPerCubicMeter,
-                ICentralIfcPropertyAliasResolver aliasResolver)
+                ICentralIfcPropertyAliasResolver aliasResolver,
+                IfcAuditMetadata auditMetadata)
             {
                 _model = model;
                 _geometryContext = geometryContext;
@@ -368,22 +501,64 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 _volumeToCubicMetersFactor = Math.Pow(lengthToMetersFactor, 3);
                 _concreteDensityKgPerCubicMeter = concreteDensityKgPerCubicMeter;
                 _aliasResolver = aliasResolver;
+                _auditMetadata = auditMetadata;
 
                 var profileResolver = new IfcExporterProfileResolver();
-                _exporterProfile = profileResolver.ResolveProfile(model.Header?.FileName?.OriginatingSystem ?? string.Empty);
+                var app = $"{model.Header?.FileName?.OriginatingSystem ?? ""} {model.Header?.FileName?.PreprocessorVersion ?? ""}";
+                _exporterProfile = profileResolver.ResolveProfile(app);
+                _exporterProfileDefinition = _exporterProfile switch
+                {
+                    IfcExporterProfile.Tekla => new TeklaIfcExporterProfile(),
+                    IfcExporterProfile.Revit => new RevitIfcExporterProfile(),
+                    _ => new GenericIfcExporterProfile()
+                };
             }
 
             public List<PrecastElement> Extract(IProgress<double>? progress, CancellationToken cancellationToken)
             {
-                var physicalProducts = _model.Instances
+                progress?.Report(35.0);
+
+                var enumTimer = Stopwatch.StartNew();
+                var allProducts = _model.Instances
                     .OfType<IIfcProduct>()
+                    .ToList();
+                enumTimer.Stop();
+                Debug.WriteLine($"[IFC-PERF] Product enumeration: count = {allProducts.Count}, duration = {enumTimer.ElapsedMilliseconds} ms");
+                DateTime enumCompletedUtc = DateTime.UtcNow;
+                IfcImportProfiler.Record(
+                    "EnumeratingProducts",
+                    "",
+                    "Completed",
+                    enumCompletedUtc - enumTimer.Elapsed,
+                    enumCompletedUtc,
+                    enumTimer.ElapsedMilliseconds,
+                    "ProductsCount",
+                    allProducts.Count,
+                    true);
+
+                var filterTimer = Stopwatch.StartNew();
+                var physicalProducts = allProducts
                     .Where(IsEngineeringProduct)
                     .ToList();
+                filterTimer.Stop();
+                Debug.WriteLine($"[IFC-PERF] IIfcElement filtering: count = {physicalProducts.Count}, duration = {filterTimer.ElapsedMilliseconds} ms");
+                DateTime filterCompletedUtc = DateTime.UtcNow;
+                IfcImportProfiler.Record(
+                    "FilteringElements",
+                    "",
+                    "Completed",
+                    filterCompletedUtc - filterTimer.Elapsed,
+                    filterCompletedUtc,
+                    filterTimer.ElapsedMilliseconds,
+                    "PhysicalProductsCount",
+                    physicalProducts.Count,
+                    true);
 
                 if (physicalProducts.Count == 0)
                     return [];
 
-                CacheSourceProducts(physicalProducts, progress, cancellationToken);
+                var progressUpdate = progress != null ? new DoubleProgressAdapter(progress) : null;
+                CacheSourceProducts(physicalProducts, progressUpdate, cancellationToken);
 
                 var rootAssemblies = physicalProducts
                     .OfType<IIfcElementAssembly>()
@@ -433,61 +608,177 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
             private void CacheSourceProducts(
                 List<IIfcProduct> products,
-                IProgress<double>? progress,
+                IProgress<IfcLoadingProgressUpdate>? progress,
                 CancellationToken cancellationToken)
             {
+                var geomTimer = new Stopwatch();
+                var propTimer = new Stopwatch();
+                long totalGeomMs = 0;
+                long totalPropMs = 0;
+
+                double lastReportedPercentage = 40.0;
+                DateTime lastExtractionHeartbeatUtc = DateTime.UtcNow;
+
                 for (int i = 0; i < products.Count; i++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var product = products[i];
-                    _sourceCache[product.EntityLabel] = BuildSourceSnapshot(product);
 
-                    progress?.Report(((double)(i + 1) / products.Count) * 70d);
+                    geomTimer.Restart();
+                    var geometry = GetGeometrySnapshot(product);
+                    geomTimer.Stop();
+                    totalGeomMs += geomTimer.ElapsedMilliseconds;
+
+                    propTimer.Restart();
+                    var snapshot = BuildSourceSnapshot(product, geometry);
+                    _sourceCache[product.EntityLabel] = snapshot;
+                    propTimer.Stop();
+                    totalPropMs += propTimer.ElapsedMilliseconds;
+
+                    double currentPercentage = 40.0 + ((double)(i + 1) / products.Count) * 45d;
+                    if (currentPercentage - lastReportedPercentage >= 1.0 || i == products.Count - 1)
+                    {
+                        progress?.Report(new IfcLoadingProgressUpdate(
+                            currentPercentage,
+                            $"Extracting element geometry ({i + 1} of {products.Count})...",
+                            "Extracting element geometry"));
+                        lastReportedPercentage = currentPercentage;
+                    }
+
+                    var heartbeatUtc = DateTime.UtcNow;
+                    if ((heartbeatUtc - lastExtractionHeartbeatUtc).TotalSeconds >= 10 || i == products.Count - 1)
+                    {
+                        IfcImportProfiler.Record(
+                            "ExtractingQuantitiesWeights",
+                            "BuildSourceSnapshot_Heartbeat",
+                            "Heartbeat",
+                            heartbeatUtc,
+                            heartbeatUtc,
+                            totalPropMs,
+                            "ProcessedProducts",
+                            i + 1,
+                            false,
+                            currentIndex: i + 1,
+                            totalCount: products.Count,
+                            productGlobalId: product.GlobalId.ToString(),
+                            entityLabel: product.EntityLabel,
+                            expressType: product.ExpressType?.Name ?? product.GetType().Name);
+                        lastExtractionHeartbeatUtc = heartbeatUtc;
+                    }
                 }
+
+                Debug.WriteLine($"[IFC-PERF] COG/BBox/geometry bounds extraction cumulative duration: {totalGeomMs} ms");
+                Debug.WriteLine($"[IFC-PERF] Quantity/property/weight extraction cumulative duration: {totalPropMs} ms");
+                DateTime extractionCompletedUtc = DateTime.UtcNow;
+                IfcImportProfiler.Record(
+                    "ExtractingGeometryBounds",
+                    "",
+                    "Completed",
+                    extractionCompletedUtc - TimeSpan.FromMilliseconds(totalGeomMs),
+                    extractionCompletedUtc,
+                    totalGeomMs,
+                    "PhysicalProductsCount",
+                    products.Count,
+                    true);
+                IfcImportProfiler.Record(
+                    "ExtractingQuantitiesWeights",
+                    "",
+                    "Completed",
+                    extractionCompletedUtc - TimeSpan.FromMilliseconds(totalPropMs),
+                    extractionCompletedUtc,
+                    totalPropMs,
+                    "PhysicalProductsCount",
+                    products.Count,
+                    true);
+
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_PropertySnapshot", _sourceSnapshotPropertySnapshotMs, products.Count, extractionCompletedUtc);
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_Dimensions", _sourceSnapshotDimensionMs, products.Count, extractionCompletedUtc);
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_VolumeAlias", _sourceSnapshotVolumeMs, products.Count, extractionCompletedUtc);
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_MaterialAlias", _sourceSnapshotMaterialMs, products.Count, extractionCompletedUtc);
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_WeightAlias", _sourceSnapshotWeightMs, products.Count, extractionCompletedUtc);
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_RevitId", _sourceSnapshotIdentityMs, products.Count, extractionCompletedUtc);
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_MarkCanonical", _sourceSnapshotMarkMs, products.Count, extractionCompletedUtc);
+                RecordSourceSnapshotSubStage("BuildSourceSnapshot_FallbackEstimate", _sourceSnapshotFallbackMs, products.Count, extractionCompletedUtc);
             }
 
-            private SourceElementSnapshot BuildSourceSnapshot(IIfcProduct product)
+            private static void RecordSourceSnapshotSubStage(string subStage, long elapsedMs, int productsCount, DateTime completedUtc)
             {
-                var geometry = GetGeometrySnapshot(product);
+                IfcImportProfiler.Record(
+                    "ExtractingQuantitiesWeights",
+                    subStage,
+                    "Completed",
+                    completedUtc - TimeSpan.FromMilliseconds(elapsedMs),
+                    completedUtc,
+                    elapsedMs,
+                    "PhysicalProductsCount",
+                    productsCount,
+                    true);
+            }
 
+            private SourceElementSnapshot BuildSourceSnapshot(IIfcProduct product, GeometrySnapshot? geometry)
+            {
                 var bboxLength = geometry?.Length;
                 var bboxWidth = geometry?.Width;
                 var bboxHeight = geometry?.Height;
+                var phase4SectionTimer = Stopwatch.StartNew();
 
+                // Phase 4C: scan IFC property/quantity/type/material relations once per product.
+                // This remains per-extractor/import only and does not change IFC identity,
+                // names, grids, persistence, or GA behavior.
+                var propertySnapshot = GetProductPropertySnapshot(product);
+                phase4SectionTimer.Stop();
+                _sourceSnapshotPropertySnapshotMs += phase4SectionTimer.ElapsedMilliseconds;
+
+                phase4SectionTimer.Restart();
                 var elementLength = ConvertLength(
-                    GetQuantity(product, "length") ??
-                    GetPropertyDouble(product, "length")) ?? bboxLength;
+                    GetQuantity(propertySnapshot, "length") ??
+                    GetPropertyDouble(propertySnapshot, "length")) ?? bboxLength;
 
                 var elementWidth = ConvertLength(
-                    GetQuantity(product, "width") ??
-                    GetPropertyDouble(product, "width")) ?? bboxWidth;
+                    GetQuantity(propertySnapshot, "width") ??
+                    GetPropertyDouble(propertySnapshot, "width")) ?? bboxWidth;
 
                 var elementHeight = ConvertLength(
-                    GetQuantity(product, "height") ??
-                    GetPropertyDouble(product, "height")) ?? bboxHeight;
+                    GetQuantity(propertySnapshot, "height") ??
+                    GetPropertyDouble(propertySnapshot, "height")) ?? bboxHeight;
+                phase4SectionTimer.Stop();
+                _sourceSnapshotDimensionMs += phase4SectionTimer.ElapsedMilliseconds;
 
-                var resolvedVolume = _aliasResolver.ResolveProperty(product, "Volume", _exporterProfile);
-                double? rawVolume = null;
-                if (resolvedVolume != null && double.TryParse(resolvedVolume.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedVol))
-                {
-                    rawVolume = parsedVol;
-                }
+                phase4SectionTimer.Restart();
+                var rawVolume = GetVolumeRaw(propertySnapshot);
                 var volume = ConvertVolume(rawVolume);
                 if (!(volume is > 0) && geometry?.MeshVolumeM3 is > 0)
                 {
                     volume = geometry.MeshVolumeM3;
                 }
+                phase4SectionTimer.Stop();
+                _sourceSnapshotVolumeMs += phase4SectionTimer.ElapsedMilliseconds;
 
-                var material = NormalizeMaterial(GetMaterial(product));
-                var weight = GetWeight(product);
+                phase4SectionTimer.Restart();
+                var material = NormalizeMaterial(GetMaterial(propertySnapshot));
+                phase4SectionTimer.Stop();
+                _sourceSnapshotMaterialMs += phase4SectionTimer.ElapsedMilliseconds;
+
+                phase4SectionTimer.Restart();
+                var weight = GetWeight(propertySnapshot);
+                phase4SectionTimer.Stop();
+                _sourceSnapshotWeightMs += phase4SectionTimer.ElapsedMilliseconds;
 
                 // Fallback: If Weight is 0 or missing, use direct volume and the project concrete density.
-                var revitId = GetRevitId(product);
-                var productName = product.Name?.ToString()?.Trim();
-                var rawName = GetMark(product);
-                var cleanedName = CleanElementName(rawName ?? string.Empty);
+                phase4SectionTimer.Restart();
+                var revitId = GetRevitId(propertySnapshot);
+                var productName = propertySnapshot.ProductName;
+                phase4SectionTimer.Stop();
+                _sourceSnapshotIdentityMs += phase4SectionTimer.ElapsedMilliseconds;
 
+                phase4SectionTimer.Restart();
+                var rawName = GetMark(product, propertySnapshot);
+                var cleanedName = CleanElementName(rawName ?? string.Empty);
+                phase4SectionTimer.Stop();
+                _sourceSnapshotMarkMs += phase4SectionTimer.ElapsedMilliseconds;
+
+                phase4SectionTimer.Restart();
                 if ((weight ?? 0) <= 0
                     && volume.HasValue
                     && volume.Value > 0
@@ -495,6 +786,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 {
                     weight = EstimateWeightFromMaterial(material, volume.Value);
                 }
+                phase4SectionTimer.Stop();
+                _sourceSnapshotFallbackMs += phase4SectionTimer.ElapsedMilliseconds;
 
                 return new SourceElementSnapshot(
                     product.EntityLabel,
@@ -508,9 +801,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     elementWidth,
                     elementHeight,
                     revitId,
-                    cleanedName, productName);
+                    cleanedName,
+                    productName);
             }
-
             private AggregateSnapshot? BuildAggregateSnapshot(
                 IIfcElementAssembly assembly,
                 HashSet<int> consumedByAssemblies)
@@ -534,10 +827,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 var geometry = ResolveAggregateGeometry(parentSnapshot, childSnapshots, totalWeight);
                 var material = ResolveAggregateMaterial(parentSnapshot, childSnapshots);
 
-                var revitId = GetRevitId(assembly);
-                var productName = assembly.Name?.ToString()?.Trim();
-                var rawName = GetMark(assembly);
-                var cleanedName = CleanElementName(rawName ?? string.Empty);
+                var revitId = parentSnapshot.RevitId;
+                var productName = parentSnapshot.Name ?? assembly.Name?.ToString()?.Trim();
+                var cleanedName = parentSnapshot.Mark ?? CleanElementName(GetMark(assembly, GetProductPropertySnapshot(assembly)) ?? string.Empty);
 
                 var aggregate = new AggregateSnapshot(
                     assembly.EntityLabel,
@@ -824,6 +1116,413 @@ namespace CraneOptimizer.Infrastructure.Repositories
             // Property / Quantity readers
             // -------------------------------------------------------------------------
 
+            private SourceProductPropertySnapshot GetProductPropertySnapshot(IIfcProduct product)
+            {
+                if (_propertySnapshotCache.TryGetValue(product.EntityLabel, out var cached))
+                    return cached;
+
+                var snapshot = BuildProductPropertySnapshot(product);
+                _propertySnapshotCache[product.EntityLabel] = snapshot;
+                return snapshot;
+            }
+
+            private SourceTypePropertySnapshot GetTypePropertySnapshot(IIfcTypeObject typeObject)
+            {
+                if (_typePropertySnapshotCache.TryGetValue(typeObject.EntityLabel, out var cached))
+                    return cached;
+
+                string? typeMaterialName = null;
+                var typeProperties = new List<SourceProductProperty>();
+
+                var typeMaterialRelation = typeObject.HasAssociations?
+                    .OfType<IIfcRelAssociatesMaterial>()
+                    .FirstOrDefault();
+
+                if (typeMaterialRelation != null)
+                {
+                    typeMaterialName = ResolveIfcMaterialName(typeMaterialRelation.RelatingMaterial);
+                }
+
+                foreach (var typePropertySet in typeObject.HasPropertySets.OfType<IIfcPropertySet>())
+                {
+                    AddPropertySetValues(typePropertySet, typeProperties);
+                }
+
+                var snapshot = new SourceTypePropertySnapshot(typeMaterialName, typeProperties);
+                _typePropertySnapshotCache[typeObject.EntityLabel] = snapshot;
+                return snapshot;
+            }
+
+            private SourceProductPropertySnapshot BuildProductPropertySnapshot(IIfcProduct product)
+            {
+                var quantities = new List<SourceProductQuantity>();
+                var properties = new List<SourceProductProperty>();
+                var typeProperties = new List<SourceProductProperty>();
+                string? directMaterialName = null;
+                string? typeMaterialName = null;
+
+                var definitions = product.IsDefinedBy.ToList();
+
+                foreach (var relation in definitions)
+                {
+                    if (relation.RelatingPropertyDefinition is IIfcElementQuantity quantitySet)
+                    {
+                        foreach (var quantity in quantitySet.Quantities)
+                        {
+                            if (TryReadQuantityValue(quantity, out var quantityValue, out var quantityKind))
+                            {
+                                quantities.Add(new SourceProductQuantity(
+                                    quantity.Name.ToString(),
+                                    quantitySet.Name.ToString(),
+                                    quantityKind,
+                                    quantityValue));
+                            }
+                        }
+                    }
+                    else if (relation.RelatingPropertyDefinition is IIfcPropertySet propertySet)
+                    {
+                        AddPropertySetValues(propertySet, properties);
+                    }
+                }
+
+                var materialRelation = product.HasAssociations?
+                    .OfType<IIfcRelAssociatesMaterial>()
+                    .FirstOrDefault();
+                if (materialRelation != null)
+                {
+                    directMaterialName = ResolveIfcMaterialName(materialRelation.RelatingMaterial);
+                }
+
+                foreach (var typeRelation in definitions.OfType<IIfcRelDefinesByType>())
+                {
+                    var typeSnapshot = GetTypePropertySnapshot(typeRelation.RelatingType);
+
+                    if (string.IsNullOrWhiteSpace(typeMaterialName))
+                    {
+                        typeMaterialName = typeSnapshot.TypeMaterialName;
+                    }
+
+                    if (typeSnapshot.TypeProperties.Count > 0)
+                    {
+                        typeProperties.AddRange(typeSnapshot.TypeProperties);
+                    }
+                }
+
+                return new SourceProductPropertySnapshot(
+                    product.EntityLabel,
+                    product.GlobalId.ToString(),
+                    product.Name?.ToString()?.Trim(),
+                    (product as IIfcElement)?.Tag?.ToString()?.Trim(),
+                    directMaterialName,
+                    typeMaterialName,
+                    quantities,
+                    properties,
+                    typeProperties);
+            }
+
+            private static void AddPropertySetValues(
+                IIfcPropertySet propertySet,
+                List<SourceProductProperty> target)
+            {
+                var propertySetName = propertySet.Name.ToString();
+
+                foreach (var property in propertySet.HasProperties.OfType<IIfcPropertySingleValue>())
+                {
+                    var propertyName = property.Name.ToString();
+                    var valueText = property.NominalValue?.ToString()?.Trim();
+
+                    target.Add(new SourceProductProperty(
+                        propertyName,
+                        propertySetName,
+                        valueText,
+                        property.Unit?.ToString(),
+                        TryReadNumericPropertyValue(property, out var numericValue) ? numericValue : null));
+                }
+            }
+
+            private static bool TryReadQuantityValue(
+                IIfcPhysicalQuantity quantity,
+                out double value,
+                out SourceQuantityKind kind)
+            {
+                value = 0d;
+                kind = SourceQuantityKind.Other;
+
+                switch (quantity)
+                {
+                    case IIfcQuantityLength qLength:
+                        value = qLength.LengthValue;
+                        kind = SourceQuantityKind.Length;
+                        return true;
+
+                    case IIfcQuantityArea qArea:
+                        value = qArea.AreaValue;
+                        kind = SourceQuantityKind.Area;
+                        return true;
+
+                    case IIfcQuantityVolume qVolume:
+                        value = qVolume.VolumeValue;
+                        kind = SourceQuantityKind.Volume;
+                        return true;
+
+                    case IIfcQuantityWeight qWeight:
+                        value = qWeight.WeightValue;
+                        kind = SourceQuantityKind.Weight;
+                        return true;
+
+                    default:
+                        return false;
+                }
+            }
+
+            private static double? GetQuantity(SourceProductPropertySnapshot snapshot, params string[] keywords)
+            {
+                foreach (var quantity in snapshot.Quantities)
+                {
+                    if (ContainsAny(quantity.Name, keywords))
+                        return quantity.Value;
+                }
+
+                return null;
+            }
+
+            private static double? GetPropertyDouble(SourceProductPropertySnapshot snapshot, params string[] keywords)
+            {
+                foreach (var property in snapshot.Properties)
+                {
+                    if (!ContainsAny(property.Name, keywords))
+                        continue;
+
+                    if (property.NumericValue.HasValue)
+                        return property.NumericValue.Value;
+                }
+
+                return null;
+            }
+
+            private double? GetVolumeRaw(SourceProductPropertySnapshot snapshot)
+            {
+                foreach (var quantity in snapshot.Quantities)
+                {
+                    if (quantity.Kind == SourceQuantityKind.Volume &&
+                        ContainsAnyAlias(quantity.Name, _exporterProfileDefinition.VolumeAliases))
+                    {
+                        return quantity.Value;
+                    }
+                }
+
+                foreach (var property in snapshot.Properties)
+                {
+                    if (ContainsAnyAlias(property.Name, _exporterProfileDefinition.VolumeAliases) &&
+                        property.NumericValue.HasValue)
+                    {
+                        return property.NumericValue.Value;
+                    }
+                }
+
+                return null;
+            }
+
+            private double? GetWeight(SourceProductPropertySnapshot snapshot)
+            {
+                foreach (var quantity in snapshot.Quantities)
+                {
+                    if (quantity.Kind == SourceQuantityKind.Weight &&
+                        ContainsAnyAlias(quantity.Name, _exporterProfileDefinition.WeightAliases) &&
+                        IsTotalWeightProperty(quantity.Name))
+                    {
+                        return UnitSystem.ToTons(quantity.Value, MassUnit.Kilogram);
+                    }
+                }
+
+                foreach (var property in snapshot.Properties)
+                {
+                    if (!ContainsAnyAlias(property.Name, _exporterProfileDefinition.WeightAliases) ||
+                        !IsTotalWeightProperty(property.Name) ||
+                        !property.NumericValue.HasValue)
+                    {
+                        continue;
+                    }
+
+                    return ConvertWeightPropertyToTons(
+                        property.NumericValue.Value,
+                        property.Name,
+                        property.UnitName);
+                }
+
+                return null;
+            }
+
+            private string? GetMaterial(SourceProductPropertySnapshot snapshot)
+            {
+                if (!string.IsNullOrWhiteSpace(snapshot.DirectMaterialName))
+                    return snapshot.DirectMaterialName;
+
+                if (!string.IsNullOrWhiteSpace(snapshot.TypeMaterialName))
+                    return snapshot.TypeMaterialName;
+
+                foreach (var property in snapshot.TypeProperties)
+                {
+                    if (ContainsAnyAlias(property.Name, _exporterProfileDefinition.MaterialAliases) &&
+                        !string.IsNullOrWhiteSpace(property.Value))
+                    {
+                        return property.Value;
+                    }
+                }
+
+                foreach (var property in snapshot.Properties)
+                {
+                    if (ContainsAnyAlias(property.Name, _exporterProfileDefinition.MaterialAliases) &&
+                        !string.IsNullOrWhiteSpace(property.Value))
+                    {
+                        return property.Value;
+                    }
+                }
+
+                return null;
+            }
+
+            private static string? GetRevitId(SourceProductPropertySnapshot snapshot)
+            {
+                if (!string.IsNullOrWhiteSpace(snapshot.Tag))
+                    return snapshot.Tag;
+
+                foreach (var property in snapshot.Properties)
+                {
+                    if (!property.PropertySetName.Contains("Revit_Identity", StringComparison.OrdinalIgnoreCase) &&
+                        !property.PropertySetName.Equals("Pset_Revit_Identity Data", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    if (property.Name.Equals("Id", StringComparison.OrdinalIgnoreCase) ||
+                        property.Name.Equals("ElementId", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (!string.IsNullOrWhiteSpace(property.Value))
+                            return property.Value;
+                    }
+                }
+
+                return null;
+            }
+
+            private static bool ContainsAnyAlias(string source, IEnumerable<string> keywords)
+            {
+                if (string.IsNullOrWhiteSpace(source))
+                    return false;
+
+                foreach (var keyword in keywords)
+                {
+                    if (source.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+
+                return false;
+            }
+
+            private static bool TryReadNumericPropertyValue(IIfcPropertySingleValue property, out double value)
+            {
+                value = 0d;
+
+                var nominal = property.NominalValue;
+                if (nominal == null)
+                    return false;
+
+                object? rawValue = nominal;
+                var valueProperty = nominal.GetType().GetProperty("Value");
+                if (valueProperty != null)
+                {
+                    rawValue = valueProperty.GetValue(nominal);
+                }
+
+                if (rawValue is double doubleValue)
+                {
+                    value = doubleValue;
+                    return true;
+                }
+
+                if (rawValue is float floatValue)
+                {
+                    value = floatValue;
+                    return true;
+                }
+
+                if (rawValue is decimal decimalValue)
+                {
+                    value = (double)decimalValue;
+                    return true;
+                }
+
+                if (rawValue is int intValue)
+                {
+                    value = intValue;
+                    return true;
+                }
+
+                if (rawValue is long longValue)
+                {
+                    value = longValue;
+                    return true;
+                }
+
+                var valueText = Convert.ToString(rawValue, CultureInfo.InvariantCulture);
+                if (double.TryParse(valueText, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
+                    return true;
+
+                valueText = Convert.ToString(nominal, CultureInfo.InvariantCulture);
+                if (double.TryParse(valueText, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
+                    return true;
+
+                var numericMatch = System.Text.RegularExpressions.Regex.Match(
+                    valueText ?? string.Empty,
+                    @"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?");
+
+                return numericMatch.Success &&
+                       double.TryParse(numericMatch.Value, NumberStyles.Any, CultureInfo.InvariantCulture, out value);
+            }
+
+            private static string? ResolveIfcMaterialName(object? materialObject)
+            {
+                return materialObject switch
+                {
+                    IIfcMaterial singleMaterial =>
+                        singleMaterial.Name.ToString(),
+
+                    IIfcMaterialLayer layer =>
+                        layer.Material?.Name.ToString(),
+
+                    IIfcMaterialLayerSet layerSet =>
+                        JoinDistinctMaterials(layerSet.MaterialLayers.Select(l => l.Material?.Name.ToString())),
+
+                    IIfcMaterialLayerSetUsage layerSetUsage =>
+                        JoinDistinctMaterials(layerSetUsage.ForLayerSet.MaterialLayers.Select(l => l.Material?.Name.ToString())),
+
+                    IIfcMaterialList materialList =>
+                        JoinDistinctMaterials(materialList.Materials.Select(m => m.Name.ToString())),
+
+                    _ => null
+                };
+            }
+
+            private static readonly string[] ExcludedWeightKeywords =
+            [
+                "rebar", "reinforcement", "mesh", "steel", "paint", "grout", "strand", "weld", "bolt", "connection", "markup"
+            ];
+
+            private static bool IsTotalWeightProperty(string propertyName)
+            {
+                if (string.IsNullOrWhiteSpace(propertyName))
+                    return false;
+
+                foreach (var keyword in ExcludedWeightKeywords)
+                {
+                    if (propertyName.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                        return false;
+                }
+
+                return true;
+            }
+
             /// <summary>
             /// Reads weight/mass from IFC quantity sets or property sets.
             /// </summary>
@@ -897,11 +1596,290 @@ namespace CraneOptimizer.Infrastructure.Repositories
             }
 
             private CanonicalAssemblyIdentityResult ResolveCanonicalAssemblyIdentity(
-                IIfcProduct? product, 
+                IIfcProduct? product,
                 IfcNormalizedElementPreview preview,
                 IfcExporterProfile exporterProfile)
             {
-                return _aliasResolver.ResolveCanonicalAssemblyIdentity(product, preview.Name, exporterProfile);
+                if (product == null)
+                {
+                    return _aliasResolver.ResolveCanonicalAssemblyIdentity(null, preview.Name, exporterProfile);
+                }
+
+                return GetCachedCanonicalAssemblyIdentity(product, preview.Name, exporterProfile);
+            }
+
+            private CanonicalAssemblyIdentityResult GetCachedCanonicalAssemblyIdentity(
+                IIfcProduct product,
+                string previewName,
+                IfcExporterProfile exporterProfile)
+            {
+                var snapshot = GetProductPropertySnapshot(product);
+                return GetCachedCanonicalAssemblyIdentity(product, snapshot, previewName, exporterProfile);
+            }
+
+            private CanonicalAssemblyIdentityResult GetCachedCanonicalAssemblyIdentity(
+                IIfcProduct product,
+                SourceProductPropertySnapshot snapshot,
+                string previewName,
+                IfcExporterProfile exporterProfile)
+            {
+                if (_canonicalIdentityCache.TryGetValue(product.EntityLabel, out var cached))
+                    return cached;
+
+                var resolved = ResolveCanonicalAssemblyIdentityFromSnapshot(product, snapshot, previewName, exporterProfile);
+                _canonicalIdentityCache[product.EntityLabel] = resolved;
+                return resolved;
+            }
+
+            private static IIfcExporterProfile GetExporterProfileDefinition(IfcExporterProfile profile)
+            {
+                return profile switch
+                {
+                    IfcExporterProfile.Tekla => new TeklaIfcExporterProfile(),
+                    IfcExporterProfile.Revit => new RevitIfcExporterProfile(),
+                    _ => new GenericIfcExporterProfile()
+                };
+            }
+
+            private static CanonicalAssemblyIdentityResult ResolveCanonicalAssemblyIdentityFromSnapshot(
+                IIfcProduct product,
+                SourceProductPropertySnapshot snapshot,
+                string previewName,
+                IfcExporterProfile profileEnum)
+            {
+                // Phase 4I: cached type property snapshots and canonical identity from source snapshot.
+                // This preserves the CentralIfcPropertyAliasResolver decision order while avoiding
+                // a second xBIM property-set traversal during BuildSourceSnapshot mark resolution.
+                var profile = GetExporterProfileDefinition(profileEnum);
+                var result = new CanonicalAssemblyIdentityResult
+                {
+                    SourceSystem = profileEnum == IfcExporterProfile.Tekla ? SourceSystem.Tekla.ToString() :
+                                   profileEnum == IfcExporterProfile.Revit ? SourceSystem.Revit.ToString() :
+                                   SourceSystem.IFC.ToString(),
+                    Confidence = AssemblyMarkConfidence.None.ToString(),
+                    IsExplicitAssemblyMark = false,
+                    UsedFallback = false
+                };
+
+                var psetNames = new[] { "Pset_Revit_Identity Data", "Pset_ConcreteElementGeneral" };
+
+                foreach (var targetPset in psetNames)
+                {
+                    foreach (var propName in profile.AssemblyIdentityAliases)
+                    {
+                        var val = GetSnapshotPropertyString(snapshot, targetPset, propName);
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            result.AssemblyMark = val;
+                            result.SourcePropertySet = targetPset;
+                            result.SourcePropertyName = propName;
+                            result.Confidence = AssemblyMarkConfidence.High.ToString();
+                            result.IsExplicitAssemblyMark = true;
+                            return result;
+                        }
+                    }
+                }
+
+                foreach (var propName in profile.AssemblyIdentityAliases)
+                {
+                    var (val, pset) = GetSnapshotPropertyStringAnySet(snapshot, propName);
+                    if (!string.IsNullOrWhiteSpace(val))
+                    {
+                        result.AssemblyMark = val;
+                        result.SourcePropertySet = pset ?? "AnySet";
+                        result.SourcePropertyName = propName;
+                        result.Confidence = AssemblyMarkConfidence.High.ToString();
+                        result.IsExplicitAssemblyMark = true;
+                        return result;
+                    }
+                }
+
+                var isAssembly = product is IIfcElementAssembly ||
+                    (product.ExpressType?.Name?.Equals("IfcElementAssembly", StringComparison.OrdinalIgnoreCase) ?? false);
+
+                if (isAssembly)
+                {
+                    foreach (var targetPset in psetNames)
+                    {
+                        var val = GetSnapshotPropertyString(snapshot, targetPset, "Mark");
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            result.AssemblyMark = val;
+                            result.SourcePropertySet = targetPset;
+                            result.SourcePropertyName = "Mark";
+                            result.Confidence = AssemblyMarkConfidence.Medium.ToString();
+                            result.IsExplicitAssemblyMark = true;
+                            return result;
+                        }
+                    }
+
+                    foreach (var propName in profile.AssemblyIdentityAliases)
+                    {
+                        var (val, pset) = GetSnapshotPropertyStringAnySet(snapshot, propName);
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            result.AssemblyMark = val;
+                            result.SourcePropertySet = pset ?? "AnySet";
+                            result.SourcePropertyName = propName;
+                            result.Confidence = AssemblyMarkConfidence.Medium.ToString();
+                            result.IsExplicitAssemblyMark = true;
+                            return result;
+                        }
+                    }
+                }
+
+                foreach (var targetPset in psetNames)
+                {
+                    foreach (var propName in profile.ElementIdentityAliases)
+                    {
+                        if (IsPartPositionAlias(propName))
+                            continue;
+
+                        var val = GetSnapshotPropertyString(snapshot, targetPset, propName);
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            result.AssemblyMark = val;
+                            result.SourcePropertySet = targetPset;
+                            result.SourcePropertyName = propName;
+                            result.Confidence = AssemblyMarkConfidence.Medium.ToString();
+                            result.IsExplicitAssemblyMark = false;
+                            return result;
+                        }
+                    }
+                }
+
+                foreach (var propName in profile.ElementIdentityAliases)
+                {
+                    if (IsPartPositionAlias(propName))
+                        continue;
+
+                    var (val, pset) = GetSnapshotPropertyStringAnySet(snapshot, propName);
+                    if (!string.IsNullOrWhiteSpace(val))
+                    {
+                        result.AssemblyMark = val;
+                        result.SourcePropertySet = pset ?? "AnySet";
+                        result.SourcePropertyName = propName;
+                        result.Confidence = AssemblyMarkConfidence.Medium.ToString();
+                        result.IsExplicitAssemblyMark = false;
+                        return result;
+                    }
+                }
+
+                foreach (var targetPset in psetNames)
+                {
+                    foreach (var propName in profile.TypeReferenceAliases)
+                    {
+                        if (propName.Equals("ObjectType", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        var val = GetSnapshotPropertyString(snapshot, targetPset, propName);
+                        if (!string.IsNullOrWhiteSpace(val))
+                        {
+                            result.AssemblyMark = val;
+                            result.SourcePropertySet = targetPset;
+                            result.SourcePropertyName = propName;
+                            result.Confidence = AssemblyMarkConfidence.Low.ToString();
+                            result.IsExplicitAssemblyMark = false;
+                            return result;
+                        }
+                    }
+                }
+
+                foreach (var propName in profile.TypeReferenceAliases)
+                {
+                    if (propName.Equals("ObjectType", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var (val, pset) = GetSnapshotPropertyStringAnySet(snapshot, propName);
+                    if (!string.IsNullOrWhiteSpace(val))
+                    {
+                        result.AssemblyMark = val;
+                        result.SourcePropertySet = pset ?? "AnySet";
+                        result.SourcePropertyName = propName;
+                        result.Confidence = AssemblyMarkConfidence.Low.ToString();
+                        result.IsExplicitAssemblyMark = false;
+                        return result;
+                    }
+                }
+
+                var objType = product.ObjectType?.ToString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(objType))
+                {
+                    result.AssemblyMark = objType;
+                    result.SourcePropertySet = "ObjectType";
+                    result.SourcePropertyName = "ObjectType";
+                    result.Confidence = AssemblyMarkConfidence.Low.ToString();
+                    result.IsExplicitAssemblyMark = false;
+                    return result;
+                }
+
+                var productName = snapshot.ProductName ?? product.Name?.ToString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(productName))
+                {
+                    result.AssemblyMark = productName;
+                    result.SourcePropertySet = "Product";
+                    result.SourcePropertyName = "Name";
+                    result.Confidence = AssemblyMarkConfidence.Low.ToString();
+                    result.IsExplicitAssemblyMark = false;
+                    result.UsedFallback = true;
+                    result.Warnings.Add("Fell back to product Name; no explicit assembly or element mark was found.");
+                }
+                else
+                {
+                    result.AssemblyMark = previewName;
+                    result.SourcePropertySet = "Preview";
+                    result.SourcePropertyName = "Name";
+                    result.Confidence = AssemblyMarkConfidence.None.ToString();
+                    result.IsExplicitAssemblyMark = false;
+                    result.UsedFallback = true;
+                    result.Warnings.Add("No name or mark properties found; fell back to preview name.");
+                }
+
+                return result;
+            }
+
+            private static bool IsPartPositionAlias(string propName)
+            {
+                return propName.Equals("Part Mark", StringComparison.OrdinalIgnoreCase) ||
+                       propName.Equals("PartMark", StringComparison.OrdinalIgnoreCase) ||
+                       propName.Equals("Part Position", StringComparison.OrdinalIgnoreCase) ||
+                       propName.Equals("PartPosition", StringComparison.OrdinalIgnoreCase);
+            }
+
+            private static string? GetSnapshotPropertyString(
+                SourceProductPropertySnapshot snapshot,
+                string propertySetName,
+                string propertyName)
+            {
+                foreach (var property in snapshot.Properties)
+                {
+                    if (!property.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (!property.PropertySetName.Contains(propertySetName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (!string.IsNullOrWhiteSpace(property.Value))
+                        return property.Value;
+                }
+
+                return null;
+            }
+
+            private static (string? Value, string? PropertySetName) GetSnapshotPropertyStringAnySet(
+                SourceProductPropertySnapshot snapshot,
+                string propertyName)
+            {
+                foreach (var property in snapshot.Properties)
+                {
+                    if (!property.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (!string.IsNullOrWhiteSpace(property.Value))
+                        return (property.Value, property.PropertySetName);
+                }
+
+                return (null, null);
             }
 
             private static void ValidateCanonicalAssembly(PrecastElement pe)
@@ -984,17 +1962,28 @@ namespace CraneOptimizer.Infrastructure.Repositories
             private string? GetBestMarkCandidate(IIfcProduct product)
             {
                 if (product == null) return null;
-                var res = _aliasResolver.ResolveCanonicalAssemblyIdentity(product, product.Name?.ToString() ?? string.Empty, _exporterProfile);
+                return GetBestMarkCandidate(product, GetProductPropertySnapshot(product));
+            }
+
+            private string? GetBestMarkCandidate(IIfcProduct product, SourceProductPropertySnapshot snapshot)
+            {
+                var res = GetCachedCanonicalAssemblyIdentity(
+                    product,
+                    snapshot,
+                    snapshot.ProductName ?? product.Name?.ToString() ?? string.Empty,
+                    _exporterProfile);
                 return res.AssemblyMark;
             }
 
             private string? GetMark(IIfcProduct product) => GetBestMarkCandidate(product);
 
+            private string? GetMark(IIfcProduct product, SourceProductPropertySnapshot snapshot) => GetBestMarkCandidate(product, snapshot);
+
 
             private static string CleanElementName(string rawName)
             {
                 if (string.IsNullOrWhiteSpace(rawName)) return "-";
-                
+
                 return rawName.Replace("- Assembly", "")
                              .Replace(" Assembly", "")
                              .Replace(" : ", " - ")
@@ -1066,7 +2055,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
 
 
-            private static double ConvertWeightPropertyToTons(double value, string propertyName, string? unitName)
+            private double ConvertWeightPropertyToTons(double value, string propertyName, string? unitName)
             {
                 var source = $"{propertyName} {unitName}".Trim();
 
@@ -1080,6 +2069,18 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     source.Contains("tonne", StringComparison.OrdinalIgnoreCase))
                 {
                     return value;
+                }
+
+                if (source.Contains("lb", StringComparison.OrdinalIgnoreCase) ||
+                    source.Contains("pound", StringComparison.OrdinalIgnoreCase))
+                {
+                    return value * 0.00045359237; // lb to ton
+                }
+
+                // Fallback to project MassConversionFactor
+                if (_auditMetadata.MassConversionFactor.HasValue)
+                {
+                    return UnitSystem.ToTons(value * _auditMetadata.MassConversionFactor.Value, MassUnit.Kilogram);
                 }
 
                 // Tekla often writes plain numeric "Weight" properties in kilograms.
@@ -1162,7 +2163,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 rawLength.HasValue ? ConvertLength(rawLength.Value) : null;
 
             private double? ConvertVolume(double? rawVolume) =>
-                rawVolume.HasValue ? rawVolume.Value * _volumeToCubicMetersFactor : null;
+                rawVolume.HasValue ? rawVolume.Value * _auditMetadata.VolumeConversionFactor : null;
 
             // -------------------------------------------------------------------------
             // Static helpers
@@ -1234,11 +2235,54 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 IProgress<double>? progress,
                 CancellationToken cancellationToken)
             {
+                var progressUpdate = progress != null ? new DoubleProgressAdapter(progress) : null;
+                return ExtractNormalized(previewSummary, auditResult, progressUpdate, cancellationToken);
+            }
+
+            public List<PrecastElement> ExtractNormalized(
+                IfcNormalizationPreviewSummary previewSummary,
+                IfcAuditResult auditResult,
+                IProgress<IfcLoadingProgressUpdate>? progress,
+                CancellationToken cancellationToken)
+            {
                 // 1. Get all engineering products to build the _sourceCache
-                var physicalProducts = _model.Instances
+                progress?.Report(new IfcLoadingProgressUpdate(38.0, "Filtering elements...", "Filtering elements"));
+
+                var enumTimer = Stopwatch.StartNew();
+                var allProducts = _model.Instances
                     .OfType<IIfcProduct>()
+                    .ToList();
+                enumTimer.Stop();
+                Debug.WriteLine($"[IFC-PERF] Product enumeration: count = {allProducts.Count}, duration = {enumTimer.ElapsedMilliseconds} ms");
+                DateTime enumCompletedUtc = DateTime.UtcNow;
+                IfcImportProfiler.Record(
+                    "EnumeratingProducts",
+                    "",
+                    "Completed",
+                    enumCompletedUtc - enumTimer.Elapsed,
+                    enumCompletedUtc,
+                    enumTimer.ElapsedMilliseconds,
+                    "ProductsCount",
+                    allProducts.Count,
+                    true);
+
+                var filterTimer = Stopwatch.StartNew();
+                var physicalProducts = allProducts
                     .Where(IsEngineeringProduct)
                     .ToList();
+                filterTimer.Stop();
+                Debug.WriteLine($"[IFC-PERF] IIfcElement filtering: count = {physicalProducts.Count}, duration = {filterTimer.ElapsedMilliseconds} ms");
+                DateTime filterCompletedUtc = DateTime.UtcNow;
+                IfcImportProfiler.Record(
+                    "FilteringElements",
+                    "",
+                    "Completed",
+                    filterCompletedUtc - filterTimer.Elapsed,
+                    filterCompletedUtc,
+                    filterTimer.ElapsedMilliseconds,
+                    "PhysicalProductsCount",
+                    physicalProducts.Count,
+                    true);
 
                 var selectedProducts = physicalProducts
                     .Concat(_model.Instances
@@ -1247,31 +2291,107 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     .GroupBy(product => product.EntityLabel)
                     .Select(group => group.First())
                     .ToList();
+
                 var retainedGridGlobalIds = new IfcGridReferenceDeduplicator(
                         _geometryContext,
                         _lengthToMetersFactor)
-                    .SelectBottomGridGlobalIds(selectedProducts.OfType<IIfcGrid>());
+                    .SelectBottomGridGlobalIds(selectedProducts.OfType<IIfcGrid>())
+                    .ToHashSet(StringComparer.Ordinal);
 
                 if (physicalProducts.Count > 0)
                 {
                     CacheSourceProducts(physicalProducts, progress, cancellationToken);
                 }
 
-                // Create a fast lookup by GlobalId for IIfcProduct
+                // Phase 4H: build mapping indexes once after source cache creation.
+                var mappingIndexStartedUtc = DateTime.UtcNow;
+                var mappingIndexTimer = Stopwatch.StartNew();
+
                 var productByGlobalId = selectedProducts
-    .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
-    .GroupBy(p => (string)p.GlobalId, StringComparer.Ordinal)
-    .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+                    .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
+                    .GroupBy(p => p.GlobalId.ToString(), StringComparer.Ordinal)
+                    .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
                 var previewByGlobalId = previewSummary.Elements
-    .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
-    .GroupBy(p => p.GlobalId, StringComparer.Ordinal)
-    .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+                    .Where(p => !string.IsNullOrWhiteSpace(p.GlobalId))
+                    .GroupBy(p => p.GlobalId, StringComparer.Ordinal)
+                    .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
-                var result = new List<PrecastElement>();
+                var sourceSnapshotByGlobalId = new Dictionary<string, SourceElementSnapshot>(StringComparer.Ordinal);
+                foreach (var indexedProduct in selectedProducts)
+                {
+                    if (string.IsNullOrWhiteSpace(indexedProduct.GlobalId))
+                        continue;
+
+                    if (_sourceCache.TryGetValue(indexedProduct.EntityLabel, out var indexedSnapshot) &&
+                        !sourceSnapshotByGlobalId.ContainsKey(indexedProduct.GlobalId.ToString()))
+                    {
+                        sourceSnapshotByGlobalId[indexedProduct.GlobalId.ToString()] = indexedSnapshot;
+                    }
+                }
+
+                var cachedBestMarkByEntityLabel = new Dictionary<int, string?>();
+
+                string? GetCachedBestMarkCandidate(IIfcProduct? cachedProduct)
+                {
+                    if (cachedProduct == null)
+                        return null;
+
+                    if (cachedBestMarkByEntityLabel.TryGetValue(cachedProduct.EntityLabel, out var cachedMark))
+                        return cachedMark;
+
+                    var resolvedMark = GetBestMarkCandidate(cachedProduct);
+                    cachedBestMarkByEntityLabel[cachedProduct.EntityLabel] = resolvedMark;
+                    return resolvedMark;
+                }
+
+                string? GetFastRevitId(IIfcProduct? cachedProduct, SourceElementSnapshot? cachedSnapshot)
+                {
+                    if (!string.IsNullOrWhiteSpace(cachedSnapshot?.RevitId))
+                        return cachedSnapshot.RevitId;
+
+                    if (cachedProduct == null)
+                        return null;
+
+                    return GetRevitId(GetProductPropertySnapshot(cachedProduct));
+                }
+
+                string? GetFastMaterial(IIfcProduct? cachedProduct, SourceElementSnapshot? cachedSnapshot)
+                {
+                    if (IsValidMaterialName(cachedSnapshot?.Material))
+                        return cachedSnapshot!.Material;
+
+                    if (cachedProduct == null)
+                        return null;
+
+                    return GetMaterial(GetProductPropertySnapshot(cachedProduct));
+                }
+
+                mappingIndexTimer.Stop();
+                var mappingIndexCompletedUtc = DateTime.UtcNow;
+                IfcImportProfiler.Record(
+                    "ExtractingQuantitiesWeights",
+                    "ExtractNormalized_BuildLookupIndexes",
+                    "Completed",
+                    mappingIndexStartedUtc,
+                    mappingIndexCompletedUtc,
+                    mappingIndexTimer.ElapsedMilliseconds,
+                    "SelectedProductsCount",
+                    selectedProducts.Count,
+                    true,
+                    currentIndex: selectedProducts.Count,
+                    totalCount: previewSummary.Elements.Count);
+
+                var result = new List<PrecastElement>(previewSummary.Elements.Count);
                 int unresolvedAssemblyMarkCount = 0;
 
                 // 2. Loop through elements from the previewSummary
+                var mappingLoopStartedUtc = DateTime.UtcNow;
+                var mappingLoopTimer = Stopwatch.StartNew();
+                DateTime lastMappingHeartbeatUtc = DateTime.UtcNow;
+                double lastReportedExtractPercentage = 85.0;
+                int previewCount = previewSummary.Elements.Count;
+                int idx = 0;
                 foreach (var preview in previewSummary.Elements)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -1282,12 +2402,13 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                     if (productByGlobalId.TryGetValue(preview.GlobalId, out product))
                     {
-                        _sourceCache.TryGetValue(product.EntityLabel, out sourceSnapshot);
+                        sourceSnapshotByGlobalId.TryGetValue(preview.GlobalId, out sourceSnapshot);
                     }
 
                     if (product is IIfcGrid
                         && !retainedGridGlobalIds.Contains(preview.GlobalId))
                     {
+                        idx++;
                         continue;
                     }
 
@@ -1301,7 +2422,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                         if (productByGlobalId.TryGetValue(preview.ParentGlobalId, out parentProduct))
                         {
-                            _sourceCache.TryGetValue(parentProduct.EntityLabel, out parentSnapshot);
+                            sourceSnapshotByGlobalId.TryGetValue(preview.ParentGlobalId, out parentSnapshot);
                         }
                     }
 
@@ -1318,18 +2439,18 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     // Map all values to a new PrecastElement
                     var pe = new PrecastElement();
                     pe.ElementID = preview.GlobalId;
-                    pe.ElementRevitId = sourceSnapshot?.RevitId ?? (product != null ? GetRevitId(product) : null);
-                    pe.ElementMark = product != null 
-                        ? CleanElementName(GetBestMarkCandidate(product) ?? string.Empty) 
+                    pe.ElementRevitId = GetFastRevitId(product, sourceSnapshot);
+                    pe.ElementMark = product != null
+                        ? CleanElementName(GetCachedBestMarkCandidate(product) ?? string.Empty)
                         : (preview.Name ?? string.Empty);
                     var rawIfcName = product?.Name?.ToString()?.Trim();
                     pe.ElementName = !string.IsNullOrWhiteSpace(rawIfcName)
                         ? rawIfcName
                         : (preview.Name ?? string.Empty);
-                    
+
                     // Traceability to parent assembly
-                    pe.ParentAssemblyName = parentProduct != null 
-                        ? CleanElementName(GetBestMarkCandidate(parentProduct) ?? parentProduct.Name?.ToString() ?? string.Empty) 
+                    pe.ParentAssemblyName = parentProduct != null
+                        ? CleanElementName(GetCachedBestMarkCandidate(parentProduct) ?? parentProduct.Name?.ToString() ?? string.Empty)
                         : (parentPreview?.Name ?? string.Empty);
 
                     // Set ElementType = preview.CandidateCategory to fix UI filter labels (Requirement)
@@ -1341,6 +2462,19 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     pe.Role = preview.Role;
                     pe.ParentGlobalId = preview.ParentGlobalId;
                     pe.ParentGlobalIdSource = preview.ParentGlobalIdSource;
+
+                    // Phase 3 Assembly Classification fields
+                    pe.MainPartGlobalId = preview.MainPartGlobalId;
+                    pe.MainPartName = preview.MainPartName;
+                    pe.MainPartCategory = preview.MainPartCategory;
+                    pe.MainPartDetectionMethod = preview.MainPartDetectionMethod;
+                    pe.ChildCount = preview.ChildCount;
+                    pe.VisibleSecondaryPartCount = preview.VisibleSecondaryPartCount;
+                    pe.HiddenWeightContributorCount = preview.HiddenWeightContributorCount;
+                    pe.AccessoryWeightContributorCount = preview.AccessoryWeightContributorCount;
+                    pe.IgnoredReferenceCount = preview.IgnoredReferenceCount;
+                    pe.HasSecondaryParts = preview.HasSecondaryParts;
+                    pe.HasHiddenContributors = preview.HasHiddenContributors;
                     pe.ChildGlobalIds = new List<string>(preview.ChildGlobalIds);
                     pe.VisibleGeometryOwnerGlobalIds = new List<string>(preview.VisibleGeometryOwnerGlobalIds);
                     pe.HiddenInternalGeometryOwnerGlobalIds = new List<string>(preview.HiddenInternalGeometryOwnerGlobalIds);
@@ -1354,8 +2488,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                     pe.AssemblyMark = canonicalIdentity.AssemblyMark;
                     pe.ResolvedDisplayMark = canonicalIdentity.AssemblyMark ?? pe.ElementMark ?? pe.ElementName;
-                    pe.AssemblyMarkSource = canonicalIdentity.SourcePropertyName != null 
-                        ? $"{canonicalIdentity.SourcePropertySet}.{canonicalIdentity.SourcePropertyName}" 
+                    pe.AssemblyMarkSource = canonicalIdentity.SourcePropertyName != null
+                        ? $"{canonicalIdentity.SourcePropertySet}.{canonicalIdentity.SourcePropertyName}"
                         : "Fallback";
                     _ = Enum.TryParse<AssemblyMarkConfidence>(canonicalIdentity.Confidence, out var confidence);
                     pe.AssemblyMarkConfidence = confidence;
@@ -1390,9 +2524,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     pe.ExtractionWarnings = new List<string>(preview.Warnings);
 
                     // Material, with Revit parent assembly inheritance
-                    var ownMaterial = NormalizeMaterial(
-                        sourceSnapshot?.Material ??
-                        (product != null ? GetMaterial(product) : null));
+                    var ownMaterial = NormalizeMaterial(GetFastMaterial(product, sourceSnapshot));
 
                     var parentMaterial = NormalizeMaterial(parentSnapshot?.Material);
 
@@ -1411,6 +2543,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         pe.ElementMaterial = string.Empty;
                     }
 
+                    // Geometry / COG / Volume / BoundingBox setup
                     // Geometry / COG / Volume / BoundingBox setup
                     if (preview.Role == IfcElementRole.LiftAssembly)
                     {
@@ -1438,6 +2571,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                 }
                                 pe.ElementCOG = aggregate.CenterOfGravity;
                                 pe.COG_M = aggregate.CenterOfGravity; // standardized unit is meters
+                                pe.PhysicalCOGAvailable = sourceSnapshot?.Geometry != null;
                             }
                         }
                     }
@@ -1446,8 +2580,8 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         // Single / standard element
                         if (sourceSnapshot != null)
                         {
-                            pe.ElementVolume = sourceSnapshot.Volume;
-                            pe.VolumeM3 = sourceSnapshot.Volume;
+                            pe.ElementVolume = preview.VolumeStandardValueM3 ?? sourceSnapshot.Volume;
+                            pe.VolumeM3 = preview.VolumeStandardValueM3 ?? sourceSnapshot.Volume;
 
                             if (sourceSnapshot.Geometry != null)
                             {
@@ -1460,6 +2594,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                     Y = sourceSnapshot.Geometry.Width,
                                     Z = sourceSnapshot.Geometry.Height
                                 };
+                                pe.PhysicalCOGAvailable = true;
                             }
                             else
                             {
@@ -1472,11 +2607,17 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                     Y = sourceSnapshot.ElementWidth ?? 0,
                                     Z = sourceSnapshot.ElementHeight ?? 0
                                 };
+                                pe.PhysicalCOGAvailable = false;
                             }
 
                             pe.ElementCOG = sourceSnapshot.CenterOfGravity;
                             pe.COG_M = sourceSnapshot.CenterOfGravity;
                         }
+                    }
+
+                    if (!pe.PhysicalCOGAvailable && preview.RawIfcType == "IfcElementAssembly")
+                    {
+                        pe.ExtractionWarnings.Add("ContainerOnlyAssembly: Physical COG is unavailable because the assembly has no direct geometry shape representation.");
                     }
                     // Last-resort geometry volume fallback from bounding box.
                     // This is approximate, but better than zero for GA pre-screening.
@@ -1499,7 +2640,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                 $"Volume estimated from bounding box because IFC/mesh volume was missing. BBoxVolumeM3={bboxVolume:F3}");
                         }
                     }
-                    
+
                     // Visible geometry owner fallback.
                     // Some normalized Revit/Proxy elements have the logical preview.GlobalId,
                     // but their actual geometry/volume lives on VisibleGeometryOwnerGlobalIds.
@@ -1512,10 +2653,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             if (string.IsNullOrWhiteSpace(ownerId))
                                 continue;
 
-                            if (!productByGlobalId.TryGetValue(ownerId, out var ownerProduct))
-                                continue;
-
-                            if (_sourceCache.TryGetValue(ownerProduct.EntityLabel, out var ownerSnapshot))
+                            if (sourceSnapshotByGlobalId.TryGetValue(ownerId, out var ownerSnapshot))
                                 ownerSnapshots.Add(ownerSnapshot);
                         }
 
@@ -1679,7 +2817,52 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             $"IncludeInGa={pe.IncludeInGa}, Source='{pe.WeightSource}', Reason='{pe.NormalizationDecisionReason}'");
                     }
                     result.Add(pe);
+
+                    idx++;
+                    double currentPercentage = 85.0 + ((double)idx / previewCount) * 10d;
+                    if (currentPercentage - lastReportedExtractPercentage >= 1.0 || idx == previewCount - 1)
+                    {
+                        progress?.Report(new IfcLoadingProgressUpdate(
+                            currentPercentage,
+                            $"Extracting quantities/weights ({idx} of {previewCount})...",
+                            "Extracting quantities/weights"));
+                        lastReportedExtractPercentage = currentPercentage;
+                    }
+
+                    var mappingHeartbeatUtc = DateTime.UtcNow;
+                    if ((mappingHeartbeatUtc - lastMappingHeartbeatUtc).TotalSeconds >= 10 || idx == previewCount)
+                    {
+                        IfcImportProfiler.Record(
+                            "ExtractingQuantitiesWeights",
+                            "ExtractNormalized_MappingLoop",
+                            "Heartbeat",
+                            mappingLoopStartedUtc,
+                            mappingHeartbeatUtc,
+                            mappingLoopTimer.ElapsedMilliseconds,
+                            "MappedPreviewElements",
+                            idx,
+                            false,
+                            currentIndex: idx,
+                            totalCount: previewCount,
+                            productGlobalId: preview.GlobalId,
+                            expressType: preview.RawIfcType);
+                        lastMappingHeartbeatUtc = mappingHeartbeatUtc;
+                    }
                 }
+
+                mappingLoopTimer.Stop();
+                IfcImportProfiler.Record(
+                    "ExtractingQuantitiesWeights",
+                    "ExtractNormalized_MappingLoop",
+                    "Completed",
+                    mappingLoopStartedUtc,
+                    DateTime.UtcNow,
+                    mappingLoopTimer.ElapsedMilliseconds,
+                    "MappedPreviewElements",
+                    result.Count,
+                    true,
+                    currentIndex: result.Count,
+                    totalCount: previewCount);
 
                 // Propagate materials for concrete elements of the same family/type
                 PropagateConcreteMaterials(result);
@@ -1735,7 +2918,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }
                 Debug.WriteLine("=============================================================");
 
-                progress?.Report(100d);
+                progress?.Report(new IfcLoadingProgressUpdate(100.0, "Completed", "Completed"));
                 return result;
             }
 
@@ -1778,6 +2961,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     AssemblyMarkSource = "Snapshot",
                     AssemblyMarkConfidence = AssemblyMarkConfidence.High,
                     AssemblyMarkIsExplicit = true,
+                    PhysicalCOGAvailable = snapshot.Geometry != null,
                     SourceSystem = SourceSystem.IFC,
                     ExporterProfile = IfcExporterProfile.Generic,
                     ValidationStatus = ValidationStatus.Valid
@@ -1984,6 +3168,43 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 return true;
             }
         }
+
+        private enum SourceQuantityKind
+        {
+            Other,
+            Length,
+            Area,
+            Volume,
+            Weight
+        }
+
+        private sealed record SourceProductQuantity(
+            string Name,
+            string QuantitySetName,
+            SourceQuantityKind Kind,
+            double Value);
+
+        private sealed record SourceProductProperty(
+            string Name,
+            string PropertySetName,
+            string? Value,
+            string? UnitName,
+            double? NumericValue);
+
+        private sealed record SourceTypePropertySnapshot(
+            string? TypeMaterialName,
+            IReadOnlyList<SourceProductProperty> TypeProperties);
+
+        private sealed record SourceProductPropertySnapshot(
+            int EntityLabel,
+            string GlobalId,
+            string? ProductName,
+            string? Tag,
+            string? DirectMaterialName,
+            string? TypeMaterialName,
+            IReadOnlyList<SourceProductQuantity> Quantities,
+            IReadOnlyList<SourceProductProperty> Properties,
+            IReadOnlyList<SourceProductProperty> TypeProperties);
 
         // -------------------------------------------------------------------------
         // Snapshot types

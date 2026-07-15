@@ -142,6 +142,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                     {
                         restoredElements.Add(PrecastElementMapper.ToDomain(entity));
                     }
+                    CraneOptimizer.Domain.Services.AssemblyRollupService.ReconstructAssemblyClassifications(restoredElements);
                     Debug.WriteLine($"[ProjectState] DB Restore: Valid cache. Loaded {restoredElements.Count} elements from database.");
                 }
                 else

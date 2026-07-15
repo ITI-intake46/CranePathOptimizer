@@ -85,18 +85,77 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             };
 
             var filteredElements = _scopeEngine.FilterElements(sceneElements, filter);
+            if (settings.EnableGroupedLifts)
+            {
+                filteredElements = GaLiftUnitInputPreparation.ExpandAssemblyScope(sceneElements, filteredElements);
+            }
 
-            var allElementsMap = sceneElements.ToDictionary(e => e.ElementID, StringComparer.Ordinal);
+            var allElementsMap = sceneElements
+                .Where(element => !string.IsNullOrWhiteSpace(element.ElementID))
+                .GroupBy(element => element.ElementID, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+            HashSet<string> eligibleAssemblyParentIds = settings.EnableGroupedLifts
+                ? GaLiftUnitInputPreparation.GetEligibleAssemblyParentIds(filteredElements, settings.TargetElementTypes)
+                : new HashSet<string>(StringComparer.Ordinal);
+            IReadOnlyDictionary<string, string> assemblyParentIds = settings.EnableGroupedLifts
+                ? GaLiftUnitInputPreparation.BuildAssemblyParentIdMap(filteredElements)
+                : new Dictionary<string, string>(StringComparer.Ordinal);
             var elements = new List<PrecastElement>();
             var blockedElements = new List<(PrecastElement element, string reason)>();
+            int rebarExcludedCount = 0;
 
             for (int i = 0; i < filteredElements.Count; i++)
             {
                 var element = filteredElements[i];
 
+                if (GaLiftUnitInputPreparation.IsReinforcement(element)
+                    || element.Role == IfcElementRole.LiftAssembly
+                    && GaLiftUnitInputPreparation.IsReinforcementAssembly(element, filteredElements))
+                {
+                    rebarExcludedCount++;
+                    blockedElements.Add((element, "Reinforcement elements and reinforcement assemblies cannot enter GA."));
+                    continue;
+                }
+
                 if (IfcReferenceGeometryPolicy.IsGridReference(element))
                 {
                     blockedElements.Add((element, "Reference grids cannot enter crane placement or lift checks."));
+                    continue;
+                }
+
+                if (settings.EnableGroupedLifts
+                    && element.Role == IfcElementRole.LiftAssembly
+                    && !eligibleAssemblyParentIds.Contains(element.ElementID))
+                {
+                    blockedElements.Add((element, "Assembly does not match the selected GA target types."));
+                    continue;
+                }
+
+                if (settings.EnableGroupedLifts
+                    && element.Role == IfcElementRole.LiftAssembly
+                    && eligibleAssemblyParentIds.Contains(element.ElementID))
+                {
+                    if (!GaLiftUnitInputPreparation.TryPrepareAssemblyParent(
+                            element,
+                            filteredElements,
+                            out PrecastElement preparedParent,
+                            out string assemblyFailureReason))
+                    {
+                        blockedElements.Add((element, assemblyFailureReason));
+                        continue;
+                    }
+
+                    elements.Add(_coordinateService.NormalizeElementToMeters(preparedParent));
+                    continue;
+                }
+
+                string? assemblyParentId = assemblyParentIds.TryGetValue(element.ElementID, out string? resolvedParentId)
+                    ? resolvedParentId
+                    : null;
+                if (assemblyParentId != null && eligibleAssemblyParentIds.Contains(assemblyParentId))
+                {
+                    elements.Add(_coordinateService.NormalizeElementToMeters(
+                        GaLiftUnitInputPreparation.PrepareAssemblyMember(element)));
                     continue;
                 }
 
@@ -143,9 +202,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 }
 
                 // Safety Rule: Block any estimated fallback/untrusted weights regardless of IncludeInGa flag
-                var hasExplicitTrustedWeight =
-                    element.WeightTrustLevel == CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.ExplicitQuantity ||
-                    element.WeightTrustLevel == CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.ExplicitProperty;
+                var hasExplicitTrustedWeight = GaLiftUnitInputPreparation.HasTrustedPositiveWeight(element);
 
                 if (!hasExplicitTrustedWeight)
                 {
@@ -155,7 +212,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 }
 
                 // Safety Rule: If parent assembly/cast-unit is also selected as the liftable unit, exclude child parts to prevent double-counting
-                if (!string.IsNullOrWhiteSpace(element.ParentGlobalId) && allElementsMap.TryGetValue(element.ParentGlobalId, out var parentElement))
+                if (!settings.EnableGroupedLifts
+                    && !string.IsNullOrWhiteSpace(element.ParentGlobalId)
+                    && allElementsMap.TryGetValue(element.ParentGlobalId, out var parentElement))
                 {
                     if (parentElement.IncludeInGa &&
                         (parentElement.Role == CraneOptimizer.Domain.Diagnostics.IfcElementRole.LiftAssembly ||
@@ -191,6 +250,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             System.Diagnostics.Debug.WriteLine($"Selected/Filtered Scene Elements: {filteredElements.Count}");
             System.Diagnostics.Debug.WriteLine($"GA-Ready Elements (Normalized & Passed Gating): {elements.Count}");
             System.Diagnostics.Debug.WriteLine($"GA-Blocked Elements: {blockedElements.Count}");
+            System.Diagnostics.Debug.WriteLine($"Rebar Excluded: {rebarExcludedCount}");
             foreach (var blocked in blockedElements.GroupBy(b => b.reason))
             {
                 System.Diagnostics.Debug.WriteLine($"  - Reason: {blocked.Key} -> Count: {blocked.Count()}");
@@ -221,6 +281,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             // Build input in normalized meters
             var input = _inputBuilder.Build(settings, crane, elements, zones);
+
+            System.Diagnostics.Debug.WriteLine("=== GA Lift Unit Input Diagnostics ===");
+            System.Diagnostics.Debug.WriteLine($"Raw Scene Element Count: {sceneElements.Count}");
+            System.Diagnostics.Debug.WriteLine($"Raw IncludeInGa Count: {sceneElements.Count(element => element.IncludeInGa)}");
+            System.Diagnostics.Debug.WriteLine($"Parent Assembly Count: {sceneElements.Count(element => element.Role == IfcElementRole.LiftAssembly)}");
+            System.Diagnostics.Debug.WriteLine($"Grouped Assembly Lift Unit Count: {input.GroupedAssemblyCount}");
+            System.Diagnostics.Debug.WriteLine($"Standalone Liftable Count: {input.UngroupedElementCount}");
+            System.Diagnostics.Debug.WriteLine($"Rebar Excluded Count: {rebarExcludedCount}");
+            System.Diagnostics.Debug.WriteLine($"Final GA Candidate Count: {input.Elements.Count}");
+            System.Diagnostics.Debug.WriteLine("======================================");
 
             // Populate benchmark metadata (Phase 7C)
             var currentSession = _workspaceService?.CurrentSession;
@@ -418,6 +488,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                         var normalizedCog = element?.ElementCOG
                             ?? new Domain.Common.DomainPoint3D(appElem.LoadPointX, appElem.LoadPointY, appElem.LoadPointZ);
                         var sceneCog = _coordinateService.DenormalizePoint(normalizedCog);
+                        List<string> visibleMemberIds = appElem.IsAssemblyGroup
+                            ? appElem.AssemblyMemberIds
+                                .Where(memberId => elementLookup.TryGetValue(memberId, out PrecastElement? member)
+                                    && GaLiftUnitInputPreparation.IsVisibleMember(member))
+                                .Distinct(StringComparer.Ordinal)
+                                .ToList()
+                            : new List<string>();
 
                         return new DTOs.ElementLiftResult
                         {
@@ -432,9 +509,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                             ValidationWarningCount = appElem.ValidationWarningCount,
                             ValidationWarningsJoined = appElem.ValidationWarningsJoined,
                             IsAssemblyGroup = appElem.IsAssemblyGroup,
-                            AssemblyMemberCount = appElem.AssemblyMemberCount,
-                            AssemblyMemberIdsJoined = appElem.AssemblyMemberIdsJoined,
-                            AssemblyMemberIds = appElem.AssemblyMemberIds != null ? new List<string>(appElem.AssemblyMemberIds) : new List<string>(),
+                            AssemblyMemberCount = visibleMemberIds.Count,
+                            AssemblyMemberIdsJoined = visibleMemberIds.Count > 0 ? string.Join("\n- ", visibleMemberIds) : null,
+                            AssemblyMemberIds = visibleMemberIds,
+                            ParentAssemblyGlobalId = appElem.IsAssemblyGroup ? element?.ParentGlobalId : null,
+                            MainPartGlobalId = appElem.IsAssemblyGroup ? appElem.ElementId : null,
                             ElementType = appElem.ElementType,
                             Weight = appElem.Weight,
                             CogX = sceneCog.X,
@@ -502,6 +581,19 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 };
                 result.Positions.Add(posResult);
             }
+
+            List<DTOs.ElementLiftResult> mappedRows = result.Positions
+                .SelectMany(position => position.ElementResults)
+                .ToList();
+            int resultsContainingRebarIds = mappedRows.Count(row =>
+                GaLiftUnitInputPreparation.IsReinforcementId(row.ElementId, elementLookup)
+                || row.AssemblyMemberIds.Any(memberId =>
+                    GaLiftUnitInputPreparation.IsReinforcementId(memberId, elementLookup)));
+            System.Diagnostics.Debug.WriteLine("=== GA Lift Unit Result Diagnostics ===");
+            System.Diagnostics.Debug.WriteLine($"ElementLiftResult Rows: {mappedRows.Count}");
+            System.Diagnostics.Debug.WriteLine($"Assembly Result Rows: {mappedRows.Count(row => row.IsAssemblyGroup)}");
+            System.Diagnostics.Debug.WriteLine($"Results Containing Rebar IDs: {resultsContainingRebarIds}");
+            System.Diagnostics.Debug.WriteLine("=======================================");
 
             return result;
         }

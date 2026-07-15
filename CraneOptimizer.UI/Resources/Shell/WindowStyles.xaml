@@ -13,6 +13,7 @@
         <Setter Property="Foreground"  Value="{DynamicResource TextPrimaryBrush}"/>
         <Setter Property="FontFamily"  Value="{StaticResource FontPrimary}"/>
         <Setter Property="FontSize"    Value="{StaticResource FontSizeBase}"/>
+        <Setter Property="Icon"        Value="pack://application:,,,/CraneOptimizer.UI;component/Resources/Images/CraneIcon.png"/>
     </Style>
 
     <!-- ── Maximized window root grid ─────────────────────────────── -->

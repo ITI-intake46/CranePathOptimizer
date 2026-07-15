@@ -5,7 +5,8 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-
+
+using CraneOptimizer.Domain.Diagnostics;
 namespace CraneOptimizer.Infrastructure.Repositories;
 
 public sealed class CsvOptimizationHistoryLogger : IOptimizationHistoryLogger, IDisposable
@@ -26,7 +27,12 @@ public sealed class CsvOptimizationHistoryLogger : IOptimizationHistoryLogger, I
         {
             await _writeLock.WaitAsync();
 
-            Directory.CreateDirectory(historyDirectory);
+            
+            if (!DebugOutputGate.EnableProjectPerformanceCapture)
+            {
+                return;
+            }
+Directory.CreateDirectory(historyDirectory);
             string filePath = Path.Combine(historyDirectory, "debug_ga_optimization_history.csv");
             bool isNewFile = !File.Exists(filePath) || new FileInfo(filePath).Length == 0;
 

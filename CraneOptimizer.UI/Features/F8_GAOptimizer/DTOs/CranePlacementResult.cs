@@ -165,6 +165,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         public int AssemblyMemberCount { get; set; }
         public string? AssemblyMemberIdsJoined { get; set; }
         public List<string> AssemblyMemberIds { get; set; } = new();
+        public string? ParentAssemblyGlobalId { get; set; }
+        public string? MainPartGlobalId { get; set; }
 
         /// <summary>
         /// Element type from the source model.

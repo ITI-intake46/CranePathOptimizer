@@ -13,7 +13,8 @@ using System.Threading;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Services.Identity;
-
+
+using CraneOptimizer.Domain.Diagnostics;
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.PlacementOrchestration
 {
     public class CranePlacementEngine : ICranePlacementEngine
@@ -65,7 +66,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 input.Settings.StageRunId = Guid.NewGuid().ToString();
             }
 
-            GAProfiler.Enabled = input.Settings.EnableProfiling && input.Settings.DiagnosticsLevel >= DiagnosticsLevel.Research;
+            GAProfiler.Enabled = DebugOutputGate.EnableProjectPerformanceCapture && input.Settings.EnableProfiling && input.Settings.DiagnosticsLevel >= DiagnosticsLevel.Research;
 
             if (GAProfiler.CurrentRunId != input.Settings.OptimizationRunId)
             {
@@ -370,7 +371,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                         GAProfiler.StageLogs.Add(stageLog);
                     }
 
-                    if (input.Settings.DiagnosticsLevel != DiagnosticsLevel.Off)
+                    if (DebugOutputGate.EnableProjectPerformanceCapture && input.Settings.DiagnosticsLevel != DiagnosticsLevel.Off)
                     {
                         finalResult.DiagnosticsReportPath = _diagnosticsService.GenerateDiagnostics(input, finalResult);
                     }

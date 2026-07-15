@@ -239,7 +239,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         /// Summary = Compact, user-readable summaries only (default for Release).
         /// Research= All files including heavy profiler, assignment matrix, generation summary.
         /// </summary>
-        public DiagnosticsLevel DiagnosticsLevel { get; set; } = DiagnosticsLevel.Summary;
+        public DiagnosticsLevel DiagnosticsLevel { get; set; } = DiagnosticsLevel.Off;
 
         /// <summary>
         /// Whether the GA is running in batch mode. If true, diagnostics CSVs are appended to aggregate files in a single folder.

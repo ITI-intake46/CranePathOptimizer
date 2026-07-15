@@ -36,17 +36,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
             if (gaEnabledElements.Count == 0)
                 throw new InvalidOperationException("No GA-enabled elements found in the scene.");
 
-            var selectedElementTypes = CreateElementTypeSet(settings.TargetElementTypes);
-            var candidateElements = selectedElementTypes == null
+            var selectedAssemblyTypes = CreateElementTypeSet(settings.TargetElementTypes);
+            var candidateElements = selectedAssemblyTypes == null
                 ? gaEnabledElements
                 : gaEnabledElements
-                    .Where(element => selectedElementTypes.Contains(NormalizeElementType(element.ElementType)))
+                    .Where(element => selectedAssemblyTypes.Contains(NormalizeElementType(element.ElementType)))
                     .ToList();
 
             if (candidateElements.Count == 0)
-                throw new InvalidOperationException("No scene elements match the selected GA target element types.");
+                throw new InvalidOperationException("No scene elements match the selected target element types.");
 
-            var gaLiftUnits = BuildAssemblyLiftUnits(settings, candidateElements);
+            var gaLiftUnits = BuildAssemblyLiftUnits(settings, candidateElements, elements);
 
             var allowedZones = new List<GreenAreaZone>();
             var forbiddenZones = new List<GreenAreaZone>();
@@ -111,264 +111,111 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
         }
 
 
-        private static List<PrecastElement> BuildAssemblyLiftUnits(GASettings settings, IReadOnlyList<PrecastElement> candidateElements)
+        private static List<PrecastElement> BuildAssemblyLiftUnits(
+            GASettings settings,
+            IReadOnlyList<PrecastElement> candidateElements,
+            IReadOnlyList<PrecastElement> allElements)
         {
             var result = new List<PrecastElement>();
             var groupedMemberIds = new HashSet<string>(StringComparer.Ordinal);
 
             if (settings.EnableGroupedLifts)
             {
-                var groupCandidates = candidateElements
-                    .Where(e => !string.IsNullOrWhiteSpace(e.ParentGlobalId) &&
-                                !string.IsNullOrWhiteSpace(e.ElementID) &&
-                                (string.Equals(e.ParentGlobalIdSource, "IfcDecomposition", StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(e.ParentGlobalIdSource, "TeklaCastUnit", StringComparison.OrdinalIgnoreCase)))
-                    .GroupBy(e => e.ParentGlobalId!.Trim(), StringComparer.OrdinalIgnoreCase);
+                // Find all parent assemblies that are active GA candidates
+                var parentAssemblies = allElements
+                    .Where(e => e.Role == IfcElementRole.LiftAssembly && e.IncludeInGa)
+                    .ToList();
 
-                foreach (var group in groupCandidates)
+                var elementsMap = allElements
+                    .Where(e => !string.IsNullOrEmpty(e.ElementID))
+                    .ToDictionary(e => e.ElementID, e => e, StringComparer.Ordinal);
+
+                foreach (var parent in parentAssemblies)
                 {
-                    var parentId = group.Key;
-                    var children = group.ToList();
-
-                    var parent = candidateElements.FirstOrDefault(e => string.Equals(e.ElementID, parentId, StringComparison.Ordinal));
-
-                    var members = children.ToList();
-                    if (parent != null && !members.Any(m => string.Equals(m.ElementID, parent.ElementID, StringComparison.Ordinal)))
-                    {
-                        members.Add(parent);
-                    }
-
-                    var uniqueMembers = members
-                        .Where(m => !string.IsNullOrWhiteSpace(m.ElementID))
-                        .OrderBy(m => m.ElementID, StringComparer.Ordinal)
+                    // Resolve children of this parent from the complete elements list (not just candidateElements)
+                    var children = allElements
+                        .Where(e => string.Equals(e.ParentGlobalId, parent.ElementID, StringComparison.Ordinal))
                         .ToList();
 
-                    if (uniqueMembers.Count <= 1)
-                        continue;
-
-                    var assemblyMark = parent?.AssemblyMark ?? uniqueMembers.FirstOrDefault(m => !string.IsNullOrWhiteSpace(m.AssemblyMark))?.AssemblyMark ?? "Group";
-
-                    var liftUnit = CreateAssemblyLiftUnit(parentId, assemblyMark, uniqueMembers);
-                    result.Add(liftUnit);
-
-                    foreach (var member in uniqueMembers)
+                    if (parent.ChildGlobalIds != null)
                     {
-                        groupedMemberIds.Add(member.ElementID);
+                        foreach (var cid in parent.ChildGlobalIds)
+                        {
+                            if (elementsMap.TryGetValue(cid, out var child) && !children.Contains(child))
+                            {
+                                children.Add(child);
+                            }
+                        }
+                    }
+
+                    if (children.Count == 0 && !parent.AssemblyLiftWeight.HasValue)
+                    {
+                        // Exclude empty parent assemblies
+                        continue;
+                    }
+
+                    if (children.Count > 0)
+                    {
+                        // Reconstruct classifications just in case they were lost
+                        CraneOptimizer.Domain.Services.AssemblyRollupService.ReconstructAssemblyClassifications(children);
+                    }
+
+                    List<string> warnings;
+                    var liftUnit = CraneOptimizer.Domain.Services.AssemblyRollupService.BuildAssemblyLiftUnit(parent, children, out warnings);
+
+                    // Exclude parent and children from individual GA target lists
+                    groupedMemberIds.Add(parent.ElementID);
+                    foreach (var child in children)
+                    {
+                        groupedMemberIds.Add(child.ElementID);
+                    }
+
+                    result.Add(liftUnit);
+                }
+            }
+            else
+            {
+                // Grouped lifts is OFF.
+                // We must unroll children of valid assemblies so they can be lifted individually,
+                // while ensuring the parent container itself never enters the GA as a physical individual target.
+                var parentAssemblies = allElements
+                    .Where(e => e.Role == IfcElementRole.LiftAssembly && e.IncludeInGa)
+                    .ToList();
+
+                var parentIds = new HashSet<string>(parentAssemblies.Select(p => p.ElementID), StringComparer.Ordinal);
+
+                // Exclude parent assemblies from candidateElements so they don't enter GA
+                groupedMemberIds.UnionWith(parentIds);
+
+                // Add child elements of valid parent assemblies to the GA target list
+                foreach (var parent in parentAssemblies)
+                {
+                    var children = allElements
+                        .Where(e => string.Equals(e.ParentGlobalId, parent.ElementID, StringComparison.Ordinal) &&
+                                    e.Role != IfcElementRole.InternalAuxiliary)
+                        .ToList();
+
+                    foreach (var child in children)
+                    {
+                        if (!groupedMemberIds.Contains(child.ElementID))
+                        {
+                            result.Add(child);
+                            groupedMemberIds.Add(child.ElementID);
+                        }
                     }
                 }
             }
 
+            // Add remaining candidate elements not belonging to any assembly rollup group
             foreach (var element in candidateElements)
             {
                 if (groupedMemberIds.Contains(element.ElementID))
                     continue;
 
-                bool hasAssemblyMark = !string.IsNullOrWhiteSpace(element.AssemblyMark);
-                bool hasTrustedParent = !string.IsNullOrWhiteSpace(element.ParentGlobalId) &&
-                                       (string.Equals(element.ParentGlobalIdSource, "IfcDecomposition", StringComparison.OrdinalIgnoreCase) ||
-                                        string.Equals(element.ParentGlobalIdSource, "TeklaCastUnit", StringComparison.OrdinalIgnoreCase));
-
-                bool logAmbiguous = hasAssemblyMark && (!settings.EnableGroupedLifts || !hasTrustedParent);
-
-                if (logAmbiguous)
-                {
-                    if (element.ValidationWarnings == null) element.ValidationWarnings = new List<string>();
-                    if (!element.ValidationWarnings.Contains("AmbiguousAssemblyMarkOnly"))
-                    {
-                        element.ValidationWarnings.Add("AmbiguousAssemblyMarkOnly");
-                    }
-
-                    if (element.ExtractionWarnings == null) element.ExtractionWarnings = new List<string>();
-                    if (!element.ExtractionWarnings.Contains("AmbiguousAssemblyMarkOnly"))
-                    {
-                        element.ExtractionWarnings.Add("AmbiguousAssemblyMarkOnly");
-                    }
-                }
-
                 result.Add(element);
             }
 
             return result;
-        }
-
-        private static bool IsAssemblyGroupCandidate(PrecastElement element)
-        {
-            if (element == null)
-                return false;
-
-            if (!element.AssemblyMarkIsExplicit || element.AssemblyMarkConfidence != AssemblyMarkConfidence.High)
-                return false;
-
-            if (string.IsNullOrWhiteSpace(element.AssemblyMark) || IsPlaceholderAssemblyMark(element.AssemblyMark))
-                return false;
-
-            return element.WeightTons is > 0 && element.ElementCOG != null;
-        }
-
-        private static bool IsPlaceholderAssemblyMark(string mark)
-        {
-            var normalized = mark.Trim().ToUpperInvariant();
-            return normalized is "WALL" or "BEAM" or "COLUMN" or "SLAB" or "ASSEMBLY" or "ELEMENT" or "UNKNOWN" or "-";
-        }
-
-        private static PrecastElement CreateAssemblyLiftUnit(string assemblyId, string assemblyMark, IReadOnlyList<PrecastElement> members)
-        {
-            var totalWeight = members.Sum(member => member.WeightTons ?? member.ElementWT ?? 0);
-            var cog = ComputeWeightedCog(members, totalWeight) ?? ComputeAverageCog(members);
-            var memberIds = members.Select(member => member.ElementID).ToList();
-            var warnings = new List<string>
-            {
-                $"Assembly lift unit grouped from explicit ParentGlobalId '{assemblyId}' with AssemblyMark '{assemblyMark}'. Members={memberIds.Count}."
-            };
-
-            return new PrecastElement
-            {
-                ElementID = $"ASM:{SanitizeAssemblyId(assemblyId)}",
-                ElementMark = assemblyMark,
-                ElementName = null,
-                ResolvedDisplayMark = assemblyMark,
-                ElementType = "Assembly",
-                ElementMaterial = JoinDistinct(members.Select(member => member.ElementMaterial)),
-                ElementWT = totalWeight,
-                WeightTons = totalWeight,
-                WeightSource = "AssemblyGroupExplicitMarkRollup",
-                WeightTrustLevel = ResolveRollupTrustLevel(members),
-                ElementVolume = SumNullable(members.Select(member => member.VolumeM3 ?? member.ElementVolume)),
-                VolumeM3 = SumNullable(members.Select(member => member.VolumeM3 ?? member.ElementVolume)),
-                ElementCOG = cog,
-                COG_M = cog,
-                ElementLength = MaxNullable(members.Select(member => member.ElementLength)),
-                ElementWidth = MaxNullable(members.Select(member => member.ElementWidth)),
-                ElementHeight = MaxNullable(members.Select(member => member.ElementHeight)),
-                BBoxLength = MaxNullable(members.Select(member => member.BBoxLength)),
-                BBoxWidth = MaxNullable(members.Select(member => member.BBoxWidth)),
-                BBoxHeight = MaxNullable(members.Select(member => member.BBoxHeight)),
-                BoundingBox_M = new DomainPoint3D(
-                    MaxNullable(members.Select(member => member.BBoxLength)) ?? 0,
-                    MaxNullable(members.Select(member => member.BBoxWidth)) ?? 0,
-                    MaxNullable(members.Select(member => member.BBoxHeight)) ?? 0),
-                RawIfcType = "AssemblyLiftUnit",
-                ResolvedCategory = "Assembly",
-                Role = IfcElementRole.LiftAssembly,
-                ChildGlobalIds = memberIds,
-                VisibleGeometryOwnerGlobalIds = members
-                    .SelectMany(member => member.VisibleGeometryOwnerGlobalIds?.Count > 0
-                        ? member.VisibleGeometryOwnerGlobalIds
-                        : new List<string> { member.ElementID })
-                    .Where(id => !string.IsNullOrWhiteSpace(id))
-                    .Distinct(StringComparer.Ordinal)
-                    .ToList(),
-                IncludeInRender = false,
-                IncludeInElementTree = false,
-                IncludeInGa = true,
-                AssemblyMark = assemblyMark,
-                AssemblyMarkSource = "GA.AssemblyMarkGroup",
-                AssemblyMarkConfidence = AssemblyMarkConfidence.High,
-                AssemblyMarkIsExplicit = true,
-                ExplicitAssemblyMarkFound = true,
-                SourceSystem = ResolveSourceSystem(members),
-                ExporterProfile = ResolveExporterProfile(members),
-                ValidationStatus = ValidationStatus.Valid,
-                ValidationWarnings = warnings,
-                ExtractionWarnings = warnings,
-                NormalizationDecisionReason = "Grouped explicit parent assembly members into one GA lift unit."
-            };
-        }
-
-        private static DomainPoint3D ComputeAverageCog(IReadOnlyList<PrecastElement> members)
-        {
-            var valid = members
-                .Select(member => member.ElementCOG ?? member.COG_M)
-                .Where(point => point != null)
-                .ToList();
-
-            return valid.Count == 0
-                ? new DomainPoint3D()
-                : new DomainPoint3D(valid.Average(point => point!.X), valid.Average(point => point!.Y), valid.Average(point => point!.Z));
-        }
-
-        private static DomainPoint3D? ComputeWeightedCog(IReadOnlyList<PrecastElement> members, double totalWeight)
-        {
-            if (totalWeight <= 0)
-                return null;
-
-            double x = 0, y = 0, z = 0, weightSum = 0;
-            foreach (var member in members)
-            {
-                var weight = member.WeightTons ?? member.ElementWT ?? 0;
-                var cog = member.ElementCOG ?? member.COG_M;
-                if (weight <= 0 || cog == null)
-                    continue;
-
-                x += cog.X * weight;
-                y += cog.Y * weight;
-                z += cog.Z * weight;
-                weightSum += weight;
-            }
-
-            return weightSum > 0
-                ? new DomainPoint3D(x / weightSum, y / weightSum, z / weightSum)
-                : null;
-        }
-
-        private static string SanitizeAssemblyId(string assemblyMark)
-        {
-            var chars = assemblyMark
-                .Trim()
-                .Select(ch => char.IsLetterOrDigit(ch) || ch == '-' || ch == '_' ? ch : '_')
-                .ToArray();
-            return new string(chars);
-        }
-
-        private static string JoinDistinct(IEnumerable<string?> values)
-        {
-            var distinct = values
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Select(value => value!.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            return distinct.Count == 0 ? string.Empty : string.Join(", ", distinct);
-        }
-
-        private static double? SumNullable(IEnumerable<double?> values)
-        {
-            double sum = 0;
-            bool hasValue = false;
-            foreach (var value in values)
-            {
-                if (value is > 0)
-                {
-                    sum += value.Value;
-                    hasValue = true;
-                }
-            }
-            return hasValue ? sum : null;
-        }
-
-        private static double? MaxNullable(IEnumerable<double?> values)
-        {
-            var positive = values.Where(value => value is > 0).Select(value => value!.Value).ToList();
-            return positive.Count == 0 ? null : positive.Max();
-        }
-
-        private static IfcWeightTrustLevel ResolveRollupTrustLevel(IReadOnlyList<PrecastElement> members)
-        {
-            return members.All(member => member.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity)
-                ? IfcWeightTrustLevel.ExplicitQuantity
-                : IfcWeightTrustLevel.ExplicitProperty;
-        }
-
-        private static SourceSystem ResolveSourceSystem(IReadOnlyList<PrecastElement> members)
-        {
-            var first = members[0].SourceSystem;
-            return members.All(member => member.SourceSystem == first) ? first : SourceSystem.IFC;
-        }
-
-        private static IfcExporterProfile ResolveExporterProfile(IReadOnlyList<PrecastElement> members)
-        {
-            var first = members[0].ExporterProfile;
-            return members.All(member => member.ExporterProfile == first) ? first : IfcExporterProfile.Generic;
         }
 
         private CraneSpecification? SelectCraneSpecification(Crane crane)

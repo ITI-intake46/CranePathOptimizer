@@ -168,3 +168,44 @@ Excel:
 - `Notes`, only when entered.
 
 Templates save selected columns and settings only. They do not save report rows, element IDs, or optimization result data.
+
+## Assembly Summary UI presentation (F5 Panel)
+
+When selecting the parent container, main part, or any child component of a valid assembly in the Element Management pane, an **"Assembly Summary"** group is displayed in the properties list.
+The summary displays:
+*   **Assembly**: The parent assembly mark (e.g. `W1`).
+*   **Main Part**: The category name of the main part in uppercase (e.g. `WALL`).
+*   **Has Secondary Parts**: `"Yes"` or `"No"`.
+*   **Included Hidden Contributors**: `"Rebar weight included"` (if reinforcing/accessory parts are present) or `"None"`.
+*   **Total Lift Weight**: The aggregate rolled-up weight (e.g. `9.28t`) formatted dynamically in unit settings format with a `t` suffix.
+*   **Profile**: The profile dimension of the main part formatted as `Width*Length` in settings unit (e.g., `200*4000`), derived using `UnitSystem` display formatting.
+
+## Hidden Contributor Filtering in Reports
+
+Auxiliary elements classified as `HiddenWeightContributor` (reinforcement bars/meshes) or `AccessoryWeightContributor` (inserts/plates) are excluded from user-facing reports (such as normal element list reports and lifting reports) to keep user-facing views clean, while their weights are preserved in rolled-up assembly totals. Full breakdown of contributors is preserved in technical/debug reports only.
+
+## Rollup Columns in Lifting Reports
+
+The default **Basic Lifting Result** report template and available columns list include:
+*   `ParentAssemblyGlobalId`: The ID of the parent container assembly.
+*   `AssemblyLiftWeight`: The aggregate rolled-up lift weight of the assembly.
+*   `AssemblyLiftCOG`: The aggregate weighted COG coordinate values.
+*   `AssemblyMemberIds`: The list of all member element IDs included in the assembly.
+
+## Debug Report Naming Convention
+
+All generated diagnostic/debug CSV reports must follow this naming pattern:
+
+`debug_<domain>_<target>_<purpose>.csv`
+
+Where:
+*   `debug` indicates that the file is diagnostic/internal and not a final user-facing report.
+*   `<domain>` identifies the pipeline area, such as `ifc`, `ga`, `reports`, or `viewport`.
+*   `<target>` identifies the inspected object or workflow, such as `assembly_lift_unit`, `normalization`, or `optimization_history`.
+*   `<purpose>` describes the report purpose, such as `rollup_audit`, `classification_audit`, or `input_trace`.
+
+Examples:
+*   `debug_ifc_assembly_graph_classification_audit.csv`
+*   `debug_ifc_assembly_lift_unit_rollup_audit.csv`
+*   `debug_reports_lifting_result_input_trace.csv`
+

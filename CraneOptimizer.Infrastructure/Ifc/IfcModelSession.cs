@@ -1,8 +1,10 @@
+using System;
 using System.Diagnostics;
 using System.IO;
 using Xbim.Ifc;
 using Xbim.Ifc4.Interfaces;
 using Xbim.ModelGeometry.Scene;
+using CraneOptimizer.Domain.Diagnostics;
 
 namespace CraneOptimizer.Infrastructure.Ifc
 {
@@ -60,6 +62,11 @@ namespace CraneOptimizer.Infrastructure.Ifc
 
         public static IfcModelSession Open(string ifcPath, CancellationToken cancellationToken = default)
         {
+            return Open(ifcPath, null, cancellationToken);
+        }
+
+        public static IfcModelSession Open(string ifcPath, IProgress<IfcLoadingProgressUpdate>? progress, CancellationToken cancellationToken = default)
+        {
             if (string.IsNullOrWhiteSpace(ifcPath))
                 throw new ArgumentException("IFC path is required.", nameof(ifcPath));
 
@@ -70,9 +77,27 @@ namespace CraneOptimizer.Infrastructure.Ifc
 
             Debug.WriteLine($"[IfcSession] Opening session {sessionId} for '{fullPath}'. MemoryBefore={FormatBytes(memoryBefore)}");
 
+            progress?.Report(new IfcLoadingProgressUpdate(5.0, "Opening IFC...", "Opening IFC"));
+
+            var startOpen = DateTime.UtcNow;
             var openTimer = Stopwatch.StartNew();
             var model = IfcStore.Open(fullPath);
             openTimer.Stop();
+            var endOpen = DateTime.UtcNow;
+
+            Debug.WriteLine($"[IFC-PERF] Open IFC model duration: {openTimer.ElapsedMilliseconds} ms");
+
+            IfcImportProfiler.Record(
+                "OpeningIfc",
+                "",
+                "Opening IFC...",
+                startOpen,
+                endOpen,
+                openTimer.ElapsedMilliseconds,
+                "Count",
+                0,
+                true);
+
             cancellationToken.ThrowIfCancellationRequested();
 
             Xbim3DModelContext? context = null;
@@ -80,16 +105,32 @@ namespace CraneOptimizer.Infrastructure.Ifc
             {
                 _ = new Xbim.Geometry.Engine.Interop.XbimGeometryEngine();
 
+                progress?.Report(new IfcLoadingProgressUpdate(10.0, "Creating geometry context...", "Creating geometry context"));
+
+                var startContext = DateTime.UtcNow;
                 var contextTimer = Stopwatch.StartNew();
                 context = new Xbim3DModelContext(model);
                 context.CreateContext();
                 contextTimer.Stop();
-                cancellationToken.ThrowIfCancellationRequested();
+                var endContext = DateTime.UtcNow;
+
+                Debug.WriteLine($"[IFC-PERF] Geometry context creation duration: {contextTimer.ElapsedMilliseconds} ms");
 
                 var modelLengthFactor = GetLengthToMetersFactor(model);
                 var modelGroundElevation = GetModelGroundElevation(model, modelLengthFactor);
                 var shapeInstanceCount = CountShapeInstances(context);
                 var memoryAfter = GetPrivateMemoryBytes();
+
+                IfcImportProfiler.Record(
+                    "CreatingGeometryContext",
+                    "",
+                    "Creating geometry context...",
+                    startContext,
+                    endContext,
+                    contextTimer.ElapsedMilliseconds,
+                    "ShapeInstances",
+                    shapeInstanceCount,
+                    true);
 
                 Debug.WriteLine(
                     $"[IfcSession] Created session {sessionId}. " +

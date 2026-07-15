@@ -1,4 +1,4 @@
-using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+﻿using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
@@ -8,6 +8,8 @@ using CraneOptimizer.UI.Features.F3_CraneSetup;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
 using System.Diagnostics;
 
+
+using CraneOptimizer.UI.Core.Configuration;
 namespace CraneOptimizer.UI.Core.Services
 {
     public sealed class SceneRenderingManager : ISceneRenderingManager
@@ -95,11 +97,11 @@ namespace CraneOptimizer.UI.Core.Services
                 return;
             }
 
-            Debug.WriteLine("Rendering Elements: " + visibleElements.Count);
+            if (AppFeatureFlags.EnableProjectPerformanceCapture) Debug.WriteLine("Rendering Elements: " + visibleElements.Count);
 
-            // ── Diagnostics: pre-render snapshot ──
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            var memBefore = GetPrivateMemoryMB();
+            // â”€â”€ Diagnostics: pre-render snapshot â”€â”€
+            var sw = AppFeatureFlags.EnableProjectPerformanceCapture ? System.Diagnostics.Stopwatch.StartNew() : null;
+            var memBefore = AppFeatureFlags.EnableProjectPerformanceCapture ? GetPrivateMemoryMB() : 0.0;
 
             var liftResults = _context.GetLiftResults();
             bool hasFinalAssignments = liftResults != null && liftResults.Any(r => r.IsFinalAssigned);
@@ -193,10 +195,12 @@ namespace CraneOptimizer.UI.Core.Services
             // Apply exact visual states (including AssignedToOtherPoint) immediately after rendering
             UpdateElementMaterials(liftResults);
 
-            sw.Stop();
-            var memAfter = GetPrivateMemoryMB();
+            sw?.Stop();
+            var memAfter = AppFeatureFlags.EnableProjectPerformanceCapture ? GetPrivateMemoryMB() : 0.0;
+            if (AppFeatureFlags.EnableProjectPerformanceCapture)
+            {
 
-            // ── Diagnostics: build stats ──
+            // â”€â”€ Diagnostics: build stats â”€â”€
             var sessionService = _ifcReader as CraneOptimizer.Infrastructure.Repositories.IfcReaderRepository;
             var stats = new CraneOptimizer.Domain.Diagnostics.RenderPerformanceStats
             {
@@ -225,8 +229,8 @@ namespace CraneOptimizer.UI.Core.Services
                 RenderGeometryModel3DCount = builder.DiagRenderGeometryModel3DCount,
                 HitTestGeometryModel3DCount = builder.DiagHitTestGeometryModel3DCount,
                 TotalGeometryModel3DCount = builder.DiagTotalGeometryModel3DCount,
-                RenderDurationMs = sw.Elapsed.TotalMilliseconds,
-                ReRenderDurationMs = sw.Elapsed.TotalMilliseconds,
+                RenderDurationMs = sw?.Elapsed.TotalMilliseconds ?? 0.0,
+                ReRenderDurationMs = sw?.Elapsed.TotalMilliseconds ?? 0.0,
                 MemoryBeforeRenderMB = memBefore,
                 MemoryAfterRenderMB = memAfter,
                 TimestampUtc = DateTime.UtcNow
@@ -234,8 +238,10 @@ namespace CraneOptimizer.UI.Core.Services
 
             _diagnosticsStore.AddStats(stats);
 
-            Debug.WriteLine(
-                $"[RenderStats] Quality={stats.RenderQuality} Elements={stats.TotalElements} " +
+            if (AppFeatureFlags.EnableProjectPerformanceCapture)
+            {
+                Debug.WriteLine(
+                    $"[RenderStats] Quality={stats.RenderQuality} Elements={stats.TotalElements} " +
                 $"Visible={stats.VisibleElements} Skipped={stats.IncludeInRenderSkippedCount} " +
                 $"BatchedGroups={stats.BatchedGroupCount} HitBoxes={stats.HitTestBoxCount} " +
                 $"RenderGeomModels={stats.RenderGeometryModel3DCount} HitTestGeomModels={stats.HitTestGeometryModel3DCount} " +
@@ -243,8 +249,10 @@ namespace CraneOptimizer.UI.Core.Services
                 $"HQCacheHits={stats.HighQualityMeshCacheHitCount} HQCacheMisses={stats.HighQualityMeshCacheMissCount} HQCacheHitRatio={stats.HighQualityMeshCacheHitRatio:P1} " +
                 $"HQMeshesCreated={stats.HighQualityMeshesCreatedCount} HQCacheSize={stats.HighQualityCacheCount} " +
                 $"DurationMs={stats.RenderDurationMs:F1} MemBefore={memBefore:F1}MB MemAfter={memAfter:F1}MB");
+            }
         }
 
+        }
         public void UpdateElementMaterials(System.Collections.Generic.IReadOnlyList<CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs.ElementLiftResult>? results = null)
         {
             if (_context == null)
@@ -416,7 +424,7 @@ namespace CraneOptimizer.UI.Core.Services
 
         private void OnElementsChanged(List<PrecastElement> elements)
         {
-            Debug.WriteLine("Scene ElementsChanged: " + elements.Count);
+            if (AppFeatureFlags.EnableProjectPerformanceCapture) Debug.WriteLine("Scene ElementsChanged: " + elements.Count);
 
             _sceneElements.Clear();
             _sceneElements.AddRange(elements);

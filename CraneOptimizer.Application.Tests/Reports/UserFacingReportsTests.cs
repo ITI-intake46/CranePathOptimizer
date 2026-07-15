@@ -1311,4 +1311,101 @@ public sealed class UserFacingReportsTests : IDisposable
             Order = order,
             IsSelected = true
         };
+
+    [Fact]
+    public void ResolveReportableElements_FiltersOutHiddenAndAccessoryAndIgnored()
+    {
+        var resolver = new ReportableElementResolver();
+        var mainPart = Element("main", role: IfcElementRole.LiftableElement);
+        mainPart.ChildClassification = AssemblyChildClassification.MainPart;
+
+        var secondary = Element("sec", role: IfcElementRole.LiftableElement);
+        secondary.ChildClassification = AssemblyChildClassification.VisibleSecondaryPart;
+
+        var hidden = Element("hid", role: IfcElementRole.InternalAuxiliary);
+        hidden.ChildClassification = AssemblyChildClassification.HiddenWeightContributor;
+
+        var accessory = Element("acc", role: IfcElementRole.InternalAuxiliary);
+        accessory.ChildClassification = AssemblyChildClassification.AccessoryWeightContributor;
+
+        var ignored = Element("ign", role: IfcElementRole.InternalAuxiliary);
+        ignored.ChildClassification = AssemblyChildClassification.IgnoredReference;
+
+        var list = new List<PrecastElement> { mainPart, secondary, hidden, accessory, ignored };
+        var resolved = resolver.ResolveReportableElements(list);
+
+        Assert.Equal(2, resolved.Count);
+        Assert.Contains(resolved, e => e.ElementID == "main");
+        Assert.Contains(resolved, e => e.ElementID == "sec");
+        Assert.DoesNotContain(resolved, e => e.ElementID == "hid");
+        Assert.DoesNotContain(resolved, e => e.ElementID == "acc");
+        Assert.DoesNotContain(resolved, e => e.ElementID == "ign");
+    }
+
+    [Fact]
+    public void BuildRows_IncludesAssemblyRollupColumns()
+    {
+        var provider = new LiftingResultReportDataProvider();
+        var row = new LiftingResultSourceRowDto
+        {
+            ElementId = "main",
+            ElementMark = "M-main",
+            AssignedSetupNo = 1,
+            Radius = 10,
+            BoomLength = 15,
+            RequiredCapacity = 5,
+            AvailableCapacity = 10,
+            InternalLiftStatus = "Liftable",
+            ParentAssemblyGlobalId = "parent",
+            AssemblyLiftWeight = 9.28,
+            AssemblyLiftCOG = new DomainPoint3D(89.5, 109.1, 1.9),
+            AssemblyMemberIds = new List<string> { "main", "sec1", "sec2" }
+        };
+
+        var rows = provider.BuildRows(ReportTemplateCatalog.BasicLiftingResult, "Optimization Result", new[] { row });
+        var reportRow = Assert.Single(rows);
+
+        Assert.Equal("parent", reportRow.Values["ParentAssemblyGlobalId"]);
+        Assert.Equal(9.28, reportRow.Values["AssemblyLiftWeight"]);
+        Assert.Equal("(89.500; 109.100; 1.900)", reportRow.Values["AssemblyLiftCOG"]);
+        Assert.Equal("main, sec1, sec2", reportRow.Values["AssemblyMemberIds"]);
+    }
+
+    [Fact]
+    public void BuildRows_DeduplicatesAssemblyRowsByParentIdentity()
+    {
+        var provider = new LiftingResultReportDataProvider();
+        var rows = new[]
+        {
+            new LiftingResultSourceRowDto
+            {
+                ElementId = "main-a",
+                InternalLiftStatus = "Liftable",
+                Values = new Dictionary<string, object?>
+                {
+                    ["IsAssemblyGroup"] = "Yes",
+                    ["ParentAssemblyGlobalId"] = "assembly-1",
+                    ["MainPartGlobalId"] = "main-a"
+                }
+            },
+            new LiftingResultSourceRowDto
+            {
+                ElementId = "child-b",
+                InternalLiftStatus = "Liftable",
+                Values = new Dictionary<string, object?>
+                {
+                    ["IsAssemblyGroup"] = "Yes",
+                    ["ParentAssemblyGlobalId"] = "assembly-1",
+                    ["MainPartGlobalId"] = "main-a"
+                }
+            }
+        };
+
+        IReadOnlyList<LiftingResultReportRowDto> reportRows = provider.BuildRows(
+            ReportTemplateCatalog.BasicLiftingResult,
+            "Optimization Result",
+            rows);
+
+        Assert.Single(reportRows);
+    }
 }
