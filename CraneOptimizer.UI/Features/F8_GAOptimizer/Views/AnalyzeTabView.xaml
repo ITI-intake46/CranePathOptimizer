@@ -10,6 +10,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="260" />
             </Grid.ColumnDefinitions>
 
             <!--  ───────── OPTIMIZE ─────────  -->
@@ -77,6 +78,44 @@
                     FontWeight="SemiBold"
                     Style="{StaticResource ButtonSecondary}" />
 
+            </StackPanel>
+
+            <!--  SAVED RUNS  -->
+            <StackPanel Grid.Column="3" Margin="16,0,0,0">
+
+                <TextBlock
+                    Margin="4,0,0,6"
+                    Style="{StaticResource PropertyLabel}"
+                    Text="SAVED GA RUNS" />
+
+                <ComboBox
+                    MinWidth="240"
+                    ItemsSource="{Binding SavedRuns}"
+                    SelectedItem="{Binding SelectedSavedRun, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <TextBlock FontWeight="SemiBold" Text="{Binding CompletedText}" />
+                                <TextBlock FontSize="11" Text="{Binding SummaryText}" />
+                                <TextBlock FontSize="11" Text="{Binding CraneModeText}" />
+                                <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding SourceText}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+
+                <TextBlock
+                    Margin="0,6,0,0"
+                    FontSize="11"
+                    Foreground="{DynamicResource TextSecondaryBrush}"
+                    Text="{Binding SavedRunStatusText}" />
+
+                <TextBlock
+                    Margin="0,4,0,0"
+                    FontSize="11"
+                    Foreground="{DynamicResource TextSecondaryBrush}"
+                    Text="{Binding SavedRunWarning}"
+                    TextWrapping="Wrap" />
             </StackPanel>
 
         </Grid>

@@ -30,6 +30,7 @@ using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
@@ -619,7 +620,11 @@ namespace CraneOptimizer.Application.Tests
                 workspaceService,
                 null!, // ifcViewer
                 historyLogger,
-                outputPathService);
+                outputPathService,
+                new NoOpGaResultSnapshotMapper(),
+                new NoOpGaResultSnapshotValidator(),
+                new NoOpGaResultSnapshotStore(),
+                new GaCurrentResultStore());
         }
 
         [Fact]
@@ -685,6 +690,11 @@ namespace CraneOptimizer.Application.Tests
                 WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
                 WeightTons = 10.0,
                 ElementWT = 10.0,
+                ElementLength = 2.0,
+                ElementWidth = 1.0,
+                ElementHeight = 1.0,
+                VolumeM3 = 2.0,
+                ElementMaterial = "Concrete C35",
                 ElementCOG = new DomainPoint3D(10, 10, 2),
                 MainPartGlobalId = "ChildPart",
                 ChildGlobalIds = new List<string> { "ChildPart" }
@@ -701,6 +711,11 @@ namespace CraneOptimizer.Application.Tests
                 WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
                 WeightTons = 5.0,
                 ElementWT = 5.0,
+                ElementLength = 2.0,
+                ElementWidth = 1.0,
+                ElementHeight = 1.0,
+                VolumeM3 = 2.0,
+                ElementMaterial = "Concrete C35",
                 ElementCOG = new DomainPoint3D(10, 10, 2)
             };
 
@@ -749,6 +764,11 @@ namespace CraneOptimizer.Application.Tests
                 WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
                 WeightTons = 5.0,
                 ElementWT = 5.0,
+                ElementLength = 2.0,
+                ElementWidth = 1.0,
+                ElementHeight = 1.0,
+                VolumeM3 = 2.0,
+                ElementMaterial = "Concrete C35",
                 ElementCOG = new DomainPoint3D(10, 10, 2)
             };
             var grid = new PrecastElement
@@ -1114,6 +1134,43 @@ namespace CraneOptimizer.Application.Tests
         private class MockHistoryLogger : IOptimizationHistoryLogger
         {
             public Task LogRunAsync(OptimizationRunEntry entry, string historyDirectory) => Task.CompletedTask;
+        }
+
+        private sealed class NoOpGaResultSnapshotMapper : IGaResultSnapshotMapper
+        {
+            public Task<GaResultSnapshotDto> MapAsync(
+                GaExecutionResult execution,
+                GaSnapshotMappingContext context,
+                CancellationToken cancellationToken = default) =>
+                Task.FromResult(new GaResultSnapshotDto());
+        }
+
+        private sealed class NoOpGaResultSnapshotValidator : IGaResultSnapshotValidator
+        {
+            public GaSnapshotValidationResult Validate(GaResultSnapshotDto snapshot) => new();
+        }
+
+        private sealed class NoOpGaResultSnapshotStore : IGaResultSnapshotStore
+        {
+            public Task SaveAsync(GaResultSnapshotDto snapshot, CancellationToken cancellationToken = default) =>
+                Task.CompletedTask;
+
+            public Task<GaResultSnapshotDto?> LoadAsync(string snapshotPath, CancellationToken cancellationToken = default) =>
+                Task.FromResult<GaResultSnapshotDto?>(null);
+
+            public Task<IReadOnlyList<GaRunDescriptorDto>> ListRunsAsync(
+                string projectRoot,
+                string projectGuid,
+                string? modelFingerprint,
+                CancellationToken cancellationToken = default) =>
+                Task.FromResult<IReadOnlyList<GaRunDescriptorDto>>(Array.Empty<GaRunDescriptorDto>());
+
+            public Task<GaResultSnapshotDto?> LoadLatestCompletedAsync(
+                string projectRoot,
+                string projectGuid,
+                string? modelFingerprint,
+                CancellationToken cancellationToken = default) =>
+                Task.FromResult<GaResultSnapshotDto?>(null);
         }
 
         private sealed class FakeProjectPathProviderForGating : CraneOptimizer.Application.Services.IActiveProjectPathProvider

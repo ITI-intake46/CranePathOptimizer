@@ -1,4 +1,5 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Schemas;
 
@@ -19,6 +20,10 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs
         public string? ScenarioId { get; set; }
         public string? ProjectFeatureSnapshotId { get; set; }
         public string? ScopeDefinitionHash { get; set; }
+        public CurrentCanonicalModelSnapshotDto CanonicalSnapshot { get; set; } = new();
+        public IReadOnlyList<CanonicalLiftUnitSnapshotDto> SubmittedCanonicalLiftUnits { get; set; } = Array.Empty<CanonicalLiftUnitSnapshotDto>();
+        public string? CanonicalSnapshotId { get; set; }
+        public string? CanonicalPayloadHash { get; set; }
         public int RawElementCount { get; set; }
         public int OptimizationScopeElementCount { get; set; }
         public int RequestedMaxCranePositions { get; set; }

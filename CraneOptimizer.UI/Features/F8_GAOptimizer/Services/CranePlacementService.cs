@@ -18,6 +18,7 @@ using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 using CraneOptimizer.Application.Services;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
@@ -34,6 +35,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         private readonly IfcViewerViewModel _ifcViewer;
         private readonly IOptimizationHistoryLogger _historyLogger;
         private readonly IProjectOutputPathService _outputPathService;
+        private readonly IGaResultSnapshotMapper _snapshotMapper;
+        private readonly IGaResultSnapshotValidator _snapshotValidator;
+        private readonly IGaResultSnapshotStore _snapshotStore;
+        private readonly IGaCurrentResultStore _currentResultStore;
 
         public CranePlacementService(
             IOptimizationInputBuilder inputBuilder,
@@ -45,7 +50,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             IProjectWorkspaceService workspaceService,
             IfcViewerViewModel ifcViewer,
             IOptimizationHistoryLogger historyLogger,
-            IProjectOutputPathService outputPathService)
+            IProjectOutputPathService outputPathService,
+            IGaResultSnapshotMapper snapshotMapper,
+            IGaResultSnapshotValidator snapshotValidator,
+            IGaResultSnapshotStore snapshotStore,
+            IGaCurrentResultStore currentResultStore)
         {
             _inputBuilder = inputBuilder;
             _placementEngine = placementEngine;
@@ -57,6 +66,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             _ifcViewer = ifcViewer;
             _historyLogger = historyLogger;
             _outputPathService = outputPathService ?? throw new ArgumentNullException(nameof(outputPathService));
+            _snapshotMapper = snapshotMapper ?? throw new ArgumentNullException(nameof(snapshotMapper));
+            _snapshotValidator = snapshotValidator ?? throw new ArgumentNullException(nameof(snapshotValidator));
+            _snapshotStore = snapshotStore ?? throw new ArgumentNullException(nameof(snapshotStore));
+            _currentResultStore = currentResultStore ?? throw new ArgumentNullException(nameof(currentResultStore));
         }
 
         public async Task<CranePlacementResult> RunOptimizationAsync(
@@ -65,6 +78,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var requestedSettings = CloneSettings(settings);
+            if (!settings.EnableMultiStageDiscovery)
+            {
+                if (string.IsNullOrWhiteSpace(settings.OptimizationRunId))
+                    settings.OptimizationRunId = Guid.NewGuid().ToString();
+                if (string.IsNullOrWhiteSpace(settings.StageRunId))
+                    settings.StageRunId = Guid.NewGuid().ToString();
+                settings.StageIndex = Math.Max(settings.StageIndex, 1);
+            }
 
             var sceneElementsRaw = _sceneService.GetElements();
             if (sceneElementsRaw == null || sceneElementsRaw.Count == 0)
@@ -304,6 +326,28 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             input.FeatureScopeElements = filteredElements;
             input.TotalElementsCount = sceneElements.Count;
             input.DiagnosticsReportsDirectory = reportsDir;
+            var canonicalSnapshot = CanonicalLiftUnitSnapshotBuilder.BuildCurrentSnapshot(
+                input.Elements,
+                input.ProjectId ?? string.Empty,
+                null,
+                settings.EnableGroupedLifts ? "GroupedAssemblies" : "Individual",
+                filteredElements);
+            var canonicalErrors = CanonicalLiftUnitSnapshotBuilder.ValidateSchemaV2SubmittedUnits(canonicalSnapshot);
+            if (canonicalErrors.Count > 0)
+            {
+                var logPath = WriteGaCanonicalValidationLog(logsDir, settings.OptimizationRunId, canonicalErrors);
+                throw new InvalidOperationException(BuildGaCanonicalValidationSummary(
+                    input.Elements.Count,
+                    canonicalErrors,
+                    logPath));
+            }
+
+            input.CanonicalSnapshot = canonicalSnapshot;
+            input.SubmittedCanonicalLiftUnits = CanonicalLiftUnitSnapshotBuilder.DeepCloneCanonicalUnits(canonicalSnapshot.CanonicalLiftUnits);
+            input.CanonicalSnapshotId = canonicalSnapshot.CanonicalSnapshotId;
+            input.CanonicalPayloadHash = canonicalSnapshot.CanonicalPayloadHash;
+            input.ProjectFeatureSnapshotId = canonicalSnapshot.CanonicalSnapshotId;
+            input.ScopeDefinitionHash = canonicalSnapshot.CanonicalPayloadHash;
 
             string? ifcFileName = null;
             if (_workspaceService?.CurrentSession?.ProjectCard != null && !string.IsNullOrWhiteSpace(_workspaceService.CurrentSession.ProjectCard.IfcFilePath))
@@ -318,7 +362,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             // Run optimization in a Task
             var sw = System.Diagnostics.Stopwatch.StartNew();
+            var startedAtUtc = DateTimeOffset.UtcNow;
             PlacementResult appResult;
+            IReadOnlyList<GaStageExecutionResult> stageExecutions;
+            string terminationReason;
             if (settings.EnableMultiStageDiscovery)
             {
                 var multiStageResult = await _multiStageGAOrchestrator.RunAsync(
@@ -328,18 +375,100 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     settings.MultiStageCoverageTarget,
                     cancellationToken);
                 appResult = multiStageResult.BestResult;
+                stageExecutions = multiStageResult.StageExecutions ?? Array.Empty<GaStageExecutionResult>();
+                terminationReason = multiStageResult.TerminationReason;
             }
             else
             {
                 appResult = await Task.Run(
                     () => _placementEngine.RunOptimization(input, cancellationToken),
                     cancellationToken);
+                terminationReason = "Completed";
+                stageExecutions =
+                [
+                    new GaStageExecutionResult
+                    {
+                        OptimizationRunId = input.Settings.OptimizationRunId,
+                        StageRunId = input.Settings.StageRunId,
+                        StageIndex = input.Settings.StageIndex,
+                        EffectiveSettings = CloneSettings(input.Settings),
+                        Result = appResult,
+                        StartedAtUtc = startedAtUtc,
+                        CompletedAtUtc = DateTimeOffset.UtcNow,
+                        DurationMilliseconds = sw.ElapsedMilliseconds,
+                        TerminationReason = terminationReason,
+                        WasSelectedAsFinal = true
+                    }
+                ];
             }
             sw.Stop();
+            var completedAtUtc = DateTimeOffset.UtcNow;
+
+            var selectedStage = stageExecutions.FirstOrDefault(stage => stage.WasSelectedAsFinal)
+                ?? stageExecutions.LastOrDefault();
+            var effectiveFinalSettings = selectedStage != null
+                ? CloneSettings(selectedStage.EffectiveSettings)
+                : CloneSettings(input.Settings);
+            var optimizationRunId = !string.IsNullOrWhiteSpace(effectiveFinalSettings.OptimizationRunId)
+                ? effectiveFinalSettings.OptimizationRunId
+                : input.Settings.OptimizationRunId;
+            var finalStageRunId = !string.IsNullOrWhiteSpace(effectiveFinalSettings.StageRunId)
+                ? effectiveFinalSettings.StageRunId
+                : input.Settings.StageRunId;
+            var finalStageIndex = effectiveFinalSettings.StageIndex;
+
+            var execution = new GaExecutionResult
+            {
+                OriginalInput = input,
+                BestResult = appResult,
+                OptimizationRunId = optimizationRunId,
+                FinalStageRunId = finalStageRunId,
+                FinalStageIndex = finalStageIndex,
+                StartedAtUtc = startedAtUtc,
+                CompletedAtUtc = completedAtUtc,
+                DurationMilliseconds = sw.ElapsedMilliseconds,
+                TerminationReason = terminationReason,
+                RequestedSettings = requestedSettings,
+                EffectiveFinalSettings = effectiveFinalSettings,
+                Stages = stageExecutions
+            };
+
+            var snapshotContext = new GaSnapshotMappingContext
+            {
+                ProjectGuid = input.ProjectId ?? currentSession?.ProjectGuid ?? string.Empty,
+                ProjectName = currentSession?.ProjectName ?? input.ProjectName ?? string.Empty,
+                ProjectDatabaseId = currentSession?.ProjectId.ToString("N"),
+                ProjectRoot = currentSession?.ProjectFolderPath,
+                IfcFilePath = currentSession?.ProjectCard?.IfcFilePath ?? _ifcViewer?.LoadedIfcFilePath,
+                ApplicationVersion = typeof(CranePlacementService).Assembly.GetName().Version?.ToString() ?? string.Empty
+            };
+
+            var snapshot = await _snapshotMapper.MapAsync(execution, snapshotContext, cancellationToken);
+            var snapshotValidation = _snapshotValidator.Validate(snapshot);
+            if (!snapshotValidation.IsValid)
+                throw new InvalidOperationException("Internal GA result snapshot validation failed: " + string.Join("; ", snapshotValidation.Errors));
+
+            _currentResultStore.Set(snapshot.Project.ProjectGuid, snapshot.Run.OptimizationRunId, snapshot);
 
             // Map results back to UI DTOs
             var resultElements = sceneElements.Concat(input.Elements ?? new List<PrecastElement>()).ToList();
             var finalResult = MapPlacementResult(appResult, resultElements, input.CraneSpec, input.Settings, crane.Name);
+            finalResult.OptimizationRunId = snapshot.Run.OptimizationRunId;
+            finalResult.SnapshotSourceKind = "CurrentSession";
+            finalResult.PersistenceStatus = "Saving";
+
+            try
+            {
+                await _snapshotStore.SaveAsync(snapshot, cancellationToken);
+                finalResult.PersistenceStatus = "Saved";
+                finalResult.PersistenceMessage = "Permanent GA result snapshot saved.";
+            }
+            catch (Exception ex)
+            {
+                finalResult.PersistenceStatus = "SessionOnlyFailed";
+                finalResult.PersistenceMessage = "Optimization completed, but the permanent GA result snapshot could not be saved. This result is available only in the current application session.";
+                System.Diagnostics.Debug.WriteLine($"[GA Snapshot Save Failed] RunId={snapshot.Run.OptimizationRunId} Error={ex}");
+            }
 
             // Log optimization run history (Phase 5E: resolved via IProjectOutputPathService)
             try
@@ -598,6 +727,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             return result;
         }
 
+        private static GASettings CloneSettings(GASettings settings)
+        {
+            var clone = settings.Clone();
+            if (settings.TargetElementTypes != null)
+                clone.TargetElementTypes = settings.TargetElementTypes.ToArray();
+            return clone;
+        }
 
         private static string BuildGaEligibilityFailureMessage(
             int sceneElementCount,
@@ -639,6 +775,95 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
             sb.Append("Check the IFC normalization report for Role, IncludeInGa, WeightTrustLevel, and DecisionReason.");
             return sb.ToString();
+        }
+
+        private static string WriteGaCanonicalValidationLog(
+            string logsDir,
+            string runId,
+            IReadOnlyList<string> errors)
+        {
+            var safeRunId = string.IsNullOrWhiteSpace(runId)
+                ? DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture)
+                : string.Concat(runId.Select(ch => System.IO.Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch));
+            var directory = System.IO.Path.Combine(logsDir, safeRunId);
+            System.IO.Directory.CreateDirectory(directory);
+            var path = System.IO.Path.Combine(directory, "snapshot-validation-errors.txt");
+            System.IO.File.WriteAllLines(path, errors);
+            return path;
+        }
+
+        private static string BuildGaCanonicalValidationSummary(
+            int submittedCount,
+            IReadOnlyList<string> errors,
+            string logPath)
+        {
+            var groups = errors
+                .Select(ClassifyCanonicalValidationError)
+                .GroupBy(item => item, StringComparer.Ordinal)
+                .OrderByDescending(group => group.Count())
+                .ThenBy(group => group.Key, StringComparer.Ordinal)
+                .ToList();
+            var firstUnits = errors
+                .Select(ExtractLiftUnitId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.Ordinal)
+                .Take(5)
+                .ToList();
+
+            var sb = new StringBuilder();
+            sb.AppendLine("GA snapshot validation failed.");
+            sb.AppendLine();
+            sb.AppendLine($"{submittedCount} submitted lift units were checked.");
+            sb.AppendLine($"{firstUnits.Count} sample affected lift units are shown below; full details were written to the validation log.");
+            sb.AppendLine();
+            foreach (var group in groups.Take(8))
+            {
+                sb.AppendLine($"{group.Key}: {group.Count()}");
+            }
+
+            if (firstUnits.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("First affected units:");
+                foreach (var id in firstUnits)
+                    sb.AppendLine($"- {id}");
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("The optimization was not started.");
+            sb.AppendLine($"Validation log: {logPath}");
+            return sb.ToString();
+        }
+
+        private static string ClassifyCanonicalValidationError(string error)
+        {
+            if (error.Contains("ElementType", StringComparison.OrdinalIgnoreCase))
+                return "Unresolved Element Type";
+            if (error.Contains("dimensions", StringComparison.OrdinalIgnoreCase)
+                || error.Contains("Length", StringComparison.OrdinalIgnoreCase)
+                || error.Contains("Width", StringComparison.OrdinalIgnoreCase)
+                || error.Contains("Height", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Missing Dimensions";
+            }
+            if (error.Contains("weight", StringComparison.OrdinalIgnoreCase))
+                return "Missing Trusted Weight";
+            if (error.Contains("COG", StringComparison.OrdinalIgnoreCase))
+                return "Missing Trusted COG";
+            if (error.Contains("MaterialType", StringComparison.OrdinalIgnoreCase))
+                return "Unresolved Material Type";
+            return "Other Schema v2 Shared Data";
+        }
+
+        private static string? ExtractLiftUnitId(string error)
+        {
+            const string prefix = "LiftUnit '";
+            var start = error.IndexOf(prefix, StringComparison.Ordinal);
+            if (start < 0)
+                return null;
+            start += prefix.Length;
+            var end = error.IndexOf('\'', start);
+            return end > start ? error[start..end] : null;
         }
     }
 }

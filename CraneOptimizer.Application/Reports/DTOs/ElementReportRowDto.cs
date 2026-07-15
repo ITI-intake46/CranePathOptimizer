@@ -17,11 +17,19 @@ public sealed class ElementReportRowDto
     public string SourceRevitId { get; init; } = string.Empty;
     public string StoreyLevel { get; init; } = string.Empty;
     public string Material { get; init; } = string.Empty;
+    public string MaterialType { get; init; } = string.Empty;
+    public string MaterialGrade { get; init; } = "\u2014";
+    public string RawMaterialValue { get; init; } = string.Empty;
+    public string MaterialSource { get; init; } = string.Empty;
     public double? Length { get; init; }
     public double? Width { get; init; }
     public double? Height { get; init; }
     public double? VolumeM3 { get; init; }
     public string VolumeSource { get; init; } = "Missing";
+    public double? CogX { get; init; }
+    public double? CogY { get; init; }
+    public double? CogZ { get; init; }
+    public int AssemblyMemberCount { get; init; }
     public string TopLevelElevation { get; init; } = "\u2014";
     public string BottomLevelElevation { get; init; } = "\u2014";
     public double? WeightTons { get; init; }
@@ -30,13 +38,12 @@ public sealed class ElementReportRowDto
     public string WeightStatus { get; init; } = string.Empty;
     public string WeightWarning { get; init; } = "-";
     public string IncludedInCraneOptimization { get; init; } = "No";
-    public string ReadyForGa { get; init; } = "No";
-    public string MissingReadinessReason { get; init; } = "\u2014";
+    public string IncludedInAnalysis { get; init; } = "No";
+    public string AnalysisExclusionReason { get; init; } = "\u2014";
 
     // Aligned validation fields
     public string ValidationStatus { get; init; } = "Valid";
     public string ValidationWarnings { get; init; } = "\u2014";
     public string WeightTrustLevel { get; init; } = string.Empty;
-    public string ReadinessStatus { get; init; } = "Ready";
     public string BlockingReasons { get; init; } = "\u2014";
 }

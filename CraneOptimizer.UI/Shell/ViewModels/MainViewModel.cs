@@ -17,6 +17,7 @@ using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Models;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.Features.F17_Selection.ViewModels;
@@ -41,6 +42,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly IProjectStateService _projectStateService;
         private readonly IProjectCoordinateTransformService _transformService;
         private readonly IImportReadinessService _readinessService;
+        private readonly IGaModelIdentityService _gaModelIdentityService;
 
         private Crane? _selectedCrane;
         private bool _disposed;
@@ -77,7 +79,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             SelectionViewModel selection,
             CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel coordinateReference,
             IProjectCoordinateTransformService transformService,
-            IImportReadinessService readinessService)
+            IImportReadinessService readinessService,
+            IGaModelIdentityService gaModelIdentityService)
         {
             Scene = scene;
             Drawing = drawing;
@@ -104,6 +107,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _craneVisualBuilder = craneVisualBuilder;
             _projectStateService = projectStateService;
             _readinessService = readinessService;
+            _gaModelIdentityService = gaModelIdentityService;
 
             _transformService.ReferenceChanged += OnReferenceChanged;
 
@@ -470,8 +474,19 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         public void OpenProject(ProjectSession session)
         {
+            _ = OpenProjectAsync(session);
+        }
+
+        public async Task OpenProjectAsync(ProjectSession session)
+        {
             var osnap = App.ServiceProvider?.GetService<IOsnapService>();
             osnap?.SetMasterEnabled(false);
+
+            if (_currentProjectSession != null
+                && !string.Equals(_currentProjectSession.ProjectGuid, session.ProjectGuid, StringComparison.Ordinal))
+            {
+                CranePlacement.DeactivateProject(_currentProjectSession.ProjectGuid);
+            }
 
             _currentProjectSession = session;
             CurrentProjectId = session.ProjectId;
@@ -479,8 +494,34 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CurrentProjectFolderPath = session.ProjectFolderPath;
             CurrentProjectDatabasePath = session.ProjectDatabasePath;
             CurrentProjectIfcPath = session.ProjectCard.IfcFilePath;
-            _ = LoadProjectUnitsAsync(session.ProjectId);
-            _ = LoadProjectStateAsync(session);
+
+            var projectGuid = !string.IsNullOrWhiteSpace(session.ProjectGuid)
+                ? session.ProjectGuid
+                : session.ProjectId.ToString("N");
+            var activation = new GaProjectActivationContext(
+                session.ProjectFolderPath,
+                projectGuid,
+                session.ProjectName,
+                CurrentProjectIfcPath,
+                null,
+                null,
+                null);
+
+            await LoadProjectUnitsAsync(session.ProjectId);
+            await CranePlacement.ActivateProjectAsync(activation);
+            await LoadProjectStateAsync(session);
+
+            var identity = await _gaModelIdentityService.BuildCurrentAsync(
+                activation with { IfcPath = CurrentProjectIfcPath },
+                Scene.GetElements(),
+                CancellationToken.None);
+            await CranePlacement.ActivateProjectAsync(activation with
+            {
+                IfcPath = CurrentProjectIfcPath,
+                CurrentModelFingerprint = identity.ModelFingerprint,
+                CurrentIfcSha256 = identity.IfcSha256,
+                ModelRevision = identity.ModelRevision
+            });
             _status.Set($"Project opened: {session.ProjectName}", "Load IFC when needed.");
         }
 

@@ -8,6 +8,7 @@ using System.Windows.Input;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 using CraneOptimizer.Application.Reports.Definitions;
 using CraneOptimizer.Application.Reports.DTOs;
 using CraneOptimizer.Application.Reports.Services;
@@ -46,6 +47,8 @@ public sealed class ReportBuilderViewModel : ViewModelBase
     private readonly IGADiagnosticsReaderService _gaDiagnosticsReader;
     private readonly IProjectOutputPathService _outputPathService;
     private readonly IImportReadinessService _readinessService;
+    private readonly IGaResultSnapshotProvider _gaSnapshotProvider;
+    private readonly IGaSnapshotReportAdapter _gaSnapshotReportAdapter;
     private readonly List<ReportColumnOptionViewModel> _allowedColumns = new();
     private readonly List<ReportTemplateDto> _userTemplates = new();
     private const string Placeholder = "\u2014";
@@ -74,6 +77,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
     private bool _isBusy;
     private bool _hasPreview;
     private ReportDocumentDto? _currentPreview;
+    private GaReportRunSelection? _runSelection;
     private ReportColumnOptionViewModel? _selectedAvailableColumn;
     private ReportColumnOptionViewModel? _selectedColumn;
     private AsyncRelayCommand _previewCommand = null!;
@@ -96,7 +100,9 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         IReportPreviewDialogService previewDialogs,
         IGADiagnosticsReaderService gaDiagnosticsReader,
         IProjectOutputPathService outputPathService,
-        IImportReadinessService readinessService)
+        IImportReadinessService readinessService,
+        IGaResultSnapshotProvider gaSnapshotProvider,
+        IGaSnapshotReportAdapter gaSnapshotReportAdapter)
     {
         _scene = scene;
         _workspace = workspace;
@@ -111,6 +117,8 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         _gaDiagnosticsReader = gaDiagnosticsReader;
         _outputPathService = outputPathService ?? throw new ArgumentNullException(nameof(outputPathService));
         _readinessService = readinessService;
+        _gaSnapshotProvider = gaSnapshotProvider ?? throw new ArgumentNullException(nameof(gaSnapshotProvider));
+        _gaSnapshotReportAdapter = gaSnapshotReportAdapter ?? throw new ArgumentNullException(nameof(gaSnapshotReportAdapter));
 
         BrowseLogoCommand = new RelayCommand(BrowseLogo);
         _previewCommand = new AsyncRelayCommand(PreviewAsync, () => !IsBusy && CanBuildReport);
@@ -433,14 +441,22 @@ public sealed class ReportBuilderViewModel : ViewModelBase
     public ICommand MoveColumnUpCommand { get; }
     public ICommand MoveColumnDownCommand { get; }
 
-    public void Initialize(ReportFamily family, string templateName, string itemsIncluded)
+    public async Task InitializeAsync(
+        ReportFamily family,
+        string templateName,
+        string itemsIncluded,
+        GaReportRunSelection? runSelection = null)
     {
-        _family = family;
+        _family = ReportTemplateCatalog.GetFamilyForTemplateName(templateName);
+        _runSelection = runSelection ?? CaptureCurrentRunSelection();
         ProjectName = _workspace.CurrentSession?.ProjectName ?? "Untitled Project";
         GeneratedOnText = "Auto on export";
-        LoadOptions(family);
+        await LoadOptionsAsync();
 
-        _selectedReportName = templateName;
+        _selectedReportName = ReportNames.Any(name => name.Equals(templateName, StringComparison.OrdinalIgnoreCase))
+            ? templateName
+            : ReportTemplateCatalog.BasicElementList;
+        _family = ReportTemplateCatalog.GetFamilyForTemplateName(_selectedReportName);
         OnPropertyChanged(nameof(SelectedReportName));
 
         ItemsIncluded = itemsIncluded;
@@ -449,27 +465,45 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         ClearPreview();
     }
 
-    private void LoadOptions(ReportFamily family)
+    private async Task LoadOptionsAsync()
     {
         ReportNames.Clear();
         _userTemplates.Clear();
 
-        foreach (var template in ReportTemplateCatalog.GetBuiltInTemplates(family))
+        foreach (var template in ReportTemplateCatalog.GetNormalTemplates())
             ReportNames.Add(template.Name);
 
-        foreach (var template in _templateStore.LoadAsync(family).GetAwaiter().GetResult()
-                     .OrderBy(template => template.TemplateName))
+        foreach (var family in new[] { ReportFamily.ElementList, ReportFamily.LiftingResult })
         {
-            if (ReportNames.Any(name => name.Equals(template.TemplateName, StringComparison.OrdinalIgnoreCase)))
-                continue;
+            var loadedTemplates = await _templateStore.LoadAsync(family);
+            foreach (var template in loadedTemplates.OrderBy(template => template.TemplateName))
+            {
+                if (IsLegacyGaReadinessTemplate(template.TemplateName))
+                    continue;
 
-            _userTemplates.Add(template);
-            ReportNames.Add(template.TemplateName);
+                if (ReportNames.Any(name => name.Equals(template.TemplateName, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                _userTemplates.Add(SanitizeTemplateForFamily(template, family));
+            }
         }
 
+        ReloadAllowedColumns();
+        ReloadItemsIncludedOptions();
+
+        OnPropertyChanged(nameof(IsSelectedTemplateUserTemplate));
+        RefreshCommandState();
+    }
+
+    private void ReloadAllowedColumns()
+    {
+        var userTemplateColumns = _userTemplates
+            .Where(template => template.InternalFamily == _family)
+            .SelectMany(template => template.Columns);
+
         _allowedColumns.Clear();
-        var allowedDefinitions = ReportTemplateCatalog.GetAvailableColumns(family)
-            .Concat(_userTemplates.SelectMany(template => template.Columns))
+        var allowedDefinitions = ReportTemplateCatalog.GetAvailableColumns(_family)
+            .Concat(userTemplateColumns)
             .GroupBy(column => column.Key)
             .Select(group => group.OrderBy(column => column.Order).First())
             .OrderBy(column => column.Order)
@@ -478,20 +512,25 @@ public sealed class ReportBuilderViewModel : ViewModelBase
 
         foreach (var column in allowedDefinitions)
             _allowedColumns.Add(new ReportColumnOptionViewModel(column));
+    }
 
+    private void ReloadItemsIncludedOptions()
+    {
         ItemsIncludedOptions.Clear();
-        var items = family == ReportFamily.ElementList
+        var items = SelectedReportName.Equals(ReportTemplateCatalog.GaResultReport, StringComparison.OrdinalIgnoreCase)
+            ? new[] { "All Submitted Lift Units" }
+            : _family == ReportFamily.ElementList
             ? new[]
             {
                 "All Elements",
                 "Rendered Elements Only",
-                "GA-Ready Elements",
                 "Needs Review Elements",
                 "Selected Elements Only",
                 "Current Filter Result"
             }
             : new[]
             {
+                "All Submitted Lift Units",
                 "Optimization Result",
                 "Liftable Items Only",
                 "Failed Items Only",
@@ -500,9 +539,6 @@ public sealed class ReportBuilderViewModel : ViewModelBase
 
         foreach (var item in items)
             ItemsIncludedOptions.Add(item);
-
-        OnPropertyChanged(nameof(IsSelectedTemplateUserTemplate));
-        RefreshCommandState();
     }
 
     private void ResetToSelectedTemplate(bool resetItemsIncluded = false)
@@ -512,17 +548,24 @@ public sealed class ReportBuilderViewModel : ViewModelBase
 
         var userTemplate = _userTemplates.FirstOrDefault(template =>
             template.TemplateName.Equals(SelectedReportName, StringComparison.OrdinalIgnoreCase));
+        _family = userTemplate?.InternalFamily ?? ReportTemplateCatalog.GetFamilyForTemplateName(SelectedReportName);
+        ReloadAllowedColumns();
+        ReloadItemsIncludedOptions();
+
         var templateColumns = userTemplate?.Columns
-            ?? ReportTemplateCatalog.GetBuiltInTemplate(_family, SelectedReportName).Columns;
+            ?? ReportTemplateCatalog.GetBuiltInTemplate(SelectedReportName).Columns;
         var defaultItemsIncluded = userTemplate?.ItemsIncluded
-            ?? ReportTemplateCatalog.GetBuiltInTemplate(_family, SelectedReportName).DefaultItemsIncluded;
+            ?? ReportTemplateCatalog.GetBuiltInTemplate(SelectedReportName).DefaultItemsIncluded;
         TextAlignment = string.IsNullOrWhiteSpace(userTemplate?.TextAlignment)
             ? "Left"
             : userTemplate!.TextAlignment!;
         GlobalTextSize = NormalizeTextSizeOption(userTemplate?.TextSizePt ?? 10);
 
         SelectedColumns.Clear();
-        foreach (var column in templateColumns.Where(column => column.IsSelected).OrderBy(column => column.Order))
+        foreach (var column in templateColumns
+                     .Where(column => column.IsSelected)
+                     .Where(column => ReportTemplateCatalog.IsColumnSupported(_family, column.Key))
+                     .OrderBy(column => column.Order))
             SelectedColumns.Add(new ReportColumnOptionViewModel(column));
 
         SelectedColumn = SelectedColumns.FirstOrDefault();
@@ -535,6 +578,9 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         ClearPreview();
         RefreshCommandState();
     }
+
+    private static bool IsLegacyGaReadinessTemplate(string templateName) =>
+        templateName.Contains("GA Readiness", StringComparison.OrdinalIgnoreCase);
 
     private void BrowseLogo()
     {
@@ -673,8 +719,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             if (!ValidateCanBuildReport())
                 return;
 
-            var exportDate = DateTime.Now;
-            var report = await BuildCurrentReportAsync(exportDate, updateGeneratedOnLabel: true, CancellationToken.None);
+            var report = await EnsurePreviewDocumentAsync(CancellationToken.None);
             var fit = ReportLayoutFitEstimator.EstimateForReport(report);
 
             if (fit.Severity != ReportLayoutFitSeverity.Ok
@@ -690,8 +735,8 @@ public sealed class ReportBuilderViewModel : ViewModelBase
                 return;
 
             await _pdfExporter.ExportAsync(report, path);
-            StatusMessage = $"PDF exported: {path}";
-            _dialogs.ShowInfo("PDF export completed.", "Report Export");
+            StatusMessage = $"PDF exported: {path} | Report Reference: {report.ReportReference}";
+            _dialogs.ShowInfo($"PDF export completed.\n\nPath: {path}\nReport Reference: {report.ReportReference}", "Report Export");
         });
     }
 
@@ -702,8 +747,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             if (!ValidateCanBuildReport())
                 return;
 
-            var exportDate = DateTime.Now;
-            var report = await BuildCurrentReportAsync(exportDate, updateGeneratedOnLabel: true, CancellationToken.None);
+            var report = await EnsurePreviewDocumentAsync(CancellationToken.None);
 
             // Phase 5E: route Excel exports to <ProjectRoot>/Exports/Excel/
             var exportsFolder = _outputPathService.GetUserExcelExportsDirectory();
@@ -712,9 +756,23 @@ public sealed class ReportBuilderViewModel : ViewModelBase
                 return;
 
             await _excelExporter.ExportAsync(report, path);
-            StatusMessage = $"Excel exported: {path}";
-            _dialogs.ShowInfo("Excel export completed.", "Report Export");
+            StatusMessage = $"Excel exported: {path} | Report Reference: {report.ReportReference}";
+            _dialogs.ShowInfo($"Excel export completed.\n\nPath: {path}\nReport Reference: {report.ReportReference}", "Report Export");
         });
+    }
+
+    private async Task<ReportDocumentDto> EnsurePreviewDocumentAsync(CancellationToken cancellationToken)
+    {
+        if (_currentPreview != null)
+            return _currentPreview;
+
+        var generatedOn = DateTime.Now;
+        _currentPreview = await BuildCurrentReportAsync(generatedOn, updateGeneratedOnLabel: true, cancellationToken);
+        PreviewSummary = BuildPreviewSummary(_currentPreview, ResolvePreviewRowLimit());
+        HasPreview = true;
+        var fit = ReportLayoutFitEstimator.EstimateForReport(_currentPreview);
+        LayoutWarningMessage = fit.Message;
+        return _currentPreview;
     }
 
     private async Task SaveTemplateAsync()
@@ -750,7 +808,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
                 TextSizePt = TextSizePt
             });
 
-            LoadOptions(_family);
+            await LoadOptionsAsync();
             _selectedReportName = name;
             OnPropertyChanged(nameof(SelectedReportName));
             OnPropertyChanged(nameof(IsSelectedTemplateUserTemplate));
@@ -774,9 +832,9 @@ public sealed class ReportBuilderViewModel : ViewModelBase
                 return;
 
             await _templateStore.DeleteAsync(_family, templateName);
-            LoadOptions(_family);
+            await LoadOptionsAsync();
 
-            var fallback = ReportTemplateCatalog.GetBuiltInTemplates(_family).First().Name;
+            var fallback = ReportTemplateCatalog.BasicElementList;
             _selectedReportName = fallback;
             OnPropertyChanged(nameof(SelectedReportName));
             OnPropertyChanged(nameof(IsSelectedTemplateUserTemplate));
@@ -785,16 +843,18 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         });
     }
 
-    private Task<ReportDocumentDto> BuildCurrentReportAsync(
+    private async Task<ReportDocumentDto> BuildCurrentReportAsync(
         DateTime generatedOn,
         bool updateGeneratedOnLabel,
         CancellationToken cancellationToken)
     {
         var usesGaData = UsesGaData();
         var gaContext = usesGaData
-            ? ResolveGaReportContext()
+            ? await ResolveGaReportContextAsync(cancellationToken)
             : GaReportContext.NoRun;
-        var liftingRows = BuildLiftingSourceRows(gaContext);
+        var liftingRows = usesGaData
+            ? await BuildLiftingRowsAsync(gaContext, cancellationToken)
+            : Array.Empty<LiftingResultSourceRowDto>();
         var selectedColumns = SelectedColumns
             .Select(column =>
             {
@@ -804,6 +864,12 @@ public sealed class ReportBuilderViewModel : ViewModelBase
                     Key = definition.Key,
                     Header = definition.Header,
                     ValueKind = definition.ValueKind,
+                    EvidenceScope = definition.EvidenceScope,
+                    SupportedFamilies = definition.SupportedFamilies,
+                    RequiredCapabilities = definition.RequiredCapabilities,
+                    ShowInPreview = definition.ShowInPreview,
+                    ShowInPdf = definition.ShowInPdf,
+                    ShowInExcel = definition.ShowInExcel,
                     IsSelected = definition.IsSelected,
                     Order = definition.Order,
                     Format = definition.Format,
@@ -841,7 +907,25 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         Debug.WriteLine(reportBridgeDebugLine);
         Trace.WriteLine(reportBridgeDebugLine);
 
-        return _reportBuilder.BuildAsync(request, cancellationToken);
+        return await Task.Run(
+            async () => await _reportBuilder.BuildAsync(request, cancellationToken),
+            cancellationToken);
+    }
+
+    private Task<IReadOnlyList<LiftingResultSourceRowDto>> BuildLiftingRowsAsync(
+        GaReportContext gaContext,
+        CancellationToken cancellationToken)
+    {
+        if (gaContext.ResolvedSnapshot?.Snapshot is { SchemaVersion: >= 1 } snapshot)
+        {
+            return Task.Run<IReadOnlyList<LiftingResultSourceRowDto>>(
+                () => _gaSnapshotReportAdapter.BuildRows(snapshot, SelectedReportName, ItemsIncluded),
+                cancellationToken);
+        }
+
+        return Task.Run<IReadOnlyList<LiftingResultSourceRowDto>>(
+            () => BuildLiftingSourceRows(gaContext),
+            cancellationToken);
     }
 
     private ReportMetadataDto BuildMetadata(DateTime generatedOn, bool updateGeneratedOnLabel, GaReportContext gaContext)
@@ -851,8 +935,8 @@ public sealed class ReportBuilderViewModel : ViewModelBase
 
         var usesGaData = UsesGaData();
         var hasGaRun = !usesGaData || gaContext.HasGaRun;
-        var gaWarning = usesGaData && !gaContext.HasGaRun
-            ? NoGaAnalysisWarning
+        var gaWarning = usesGaData
+            ? BuildVisibleGaWarning(gaContext)
             : null;
 
         return new ReportMetadataDto
@@ -868,15 +952,17 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             Revision = Revision,
             HasGaRun = hasGaRun,
             GaRunStatusText = usesGaData
+                && gaContext.ResolvedSnapshot?.Snapshot is { } snapshot
+                    ? $"{gaContext.ResolvedSnapshot.SourceKind} | {gaContext.ResolvedSnapshot.Classification} | Run {snapshot.Run.OptimizationRunId}"
+                    :
+                usesGaData
                 ? CleanText(gaContext.Run?.Timestamp) != Placeholder
                     ? gaContext.Run!.Timestamp
                     : gaContext.HasGaRun ? "GA run available" : "No GA run"
                 : null,
             GaWarningText = gaWarning,
             CraneInfo = BuildCraneInfo(gaContext),
-            LiftingAccessories = _family == ReportFamily.LiftingResult && gaContext.HasGaRun && ResolveGaAdditionalWeight(gaContext) is { } additionalWeight
-                ? new LiftingAccessoriesInfoDto { AdditionalWeightTons = additionalWeight }
-                : null,
+            LiftingAccessories = BuildLiftingAccessoriesInfo(gaContext),
             GeneralNotes = GeneralNotes
         };
     }
@@ -905,6 +991,26 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             BuildReadinessMessage = message;
             StatusMessage = message;
             _dialogs.ShowInfo(message, "Report Builder");
+            return false;
+        }
+
+        if (_family == ReportFamily.ElementList && SelectedColumns.Any(column => ReportTemplateCatalog.IsPostGaColumn(column.Key)))
+        {
+            const string wrongFamily = "This template contains post-optimization columns. Open it as a Lifting Result report or use a supported GA-aware report family.";
+            BuildReadinessMessage = wrongFamily;
+            StatusMessage = wrongFamily;
+            _dialogs.ShowInfo(wrongFamily, "Report Builder");
+            return false;
+        }
+
+        if (SelectedReportName.Equals(ReportTemplateCatalog.GaResultReport, StringComparison.OrdinalIgnoreCase)
+            && _runSelection == null)
+        {
+            const string missingRun = "Select a saved GA run before building the GA Result Report.";
+            BuildReadinessMessage = missingRun;
+            StatusMessage = missingRun;
+            GaWarningText = missingRun;
+            _dialogs.ShowInfo(missingRun, "GA Result Report");
             return false;
         }
 
@@ -1022,13 +1128,47 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         if (_family != ReportFamily.LiftingResult)
             return null;
 
+        if (gaContext.ResolvedSnapshot?.Snapshot is { SchemaVersion: >= 1 } snapshot)
+        {
+            return new CraneReportInfoDto
+            {
+                CraneName = SavedText(snapshot.Crane.CraneName),
+                CraneModelOrSpecification = SavedText(snapshot.Crane.ModelOrSpecification),
+                ModelName = SavedText(snapshot.Crane.ModelName),
+                SpecificationName = SavedText(snapshot.Crane.SpecificationName),
+                Manufacturer = SavedText(snapshot.Crane.Manufacturer),
+                CraneType = SavedText(snapshot.Crane.CraneType),
+                LoadChartName = SavedText(snapshot.Crane.LoadChartNameOrReference ?? snapshot.LoadChart.ChartNameOrSourceDescription),
+                LoadChartSource = SavedText(snapshot.Crane.LoadChartSource ?? snapshot.LoadChart.SourceFileName),
+                OutriggerConfiguration = SavedText(snapshot.Crane.OutriggerConfiguration),
+                VehicleLengthText = FormatSavedMeters(snapshot.Crane.VehicleLengthM),
+                VehicleWidthText = FormatSavedMeters(snapshot.Crane.VehicleWidthM),
+                VehicleHeightText = FormatSavedMeters(snapshot.Crane.VehicleHeightM),
+                OutriggerLengthText = FormatSavedMeters(snapshot.Crane.OutriggerLengthM),
+                OutriggerWidthText = FormatSavedMeters(snapshot.Crane.OutriggerWidthM),
+                CounterweightTons = snapshot.Crane.CounterWeightTon,
+                WorkingRadiusRangeText = BuildRangeTextFromDiagnostics(new[] { snapshot.Crane.MinRadiusM ?? 0, snapshot.Crane.MaxRadiusM ?? 0 }),
+                BoomLengthRangeText = BuildRangeTextFromDiagnostics(new[] { snapshot.Crane.MinBoomLengthM ?? 0, snapshot.Crane.MaxBoomLengthM ?? 0 }),
+                MinRadiusText = FormatSavedMeters(snapshot.Crane.MinRadiusM),
+                MaxRadiusText = FormatSavedMeters(snapshot.Crane.MaxRadiusM),
+                MinBoomLengthText = FormatSavedMeters(snapshot.Crane.MinBoomLengthM),
+                MaxBoomLengthText = FormatSavedMeters(snapshot.Crane.MaxBoomLengthM),
+                MaximumCapacityTons = snapshot.Crane.MaxCapacityTon,
+                SafetyFactorText = snapshot.Crane.SafetyFactor?.ToString("0.00", CultureInfo.InvariantCulture) ?? "Unavailable in this saved run",
+                DeratingRatioText = snapshot.Crane.DeratingRatio?.ToString("0.00", CultureInfo.InvariantCulture) ?? "Unavailable in this saved run",
+                CombinedCapacityFactorText = snapshot.Crane.CombinedCapacityFactor?.ToString("0.000", CultureInfo.InvariantCulture) ?? "Unavailable in this saved run",
+                WireLengthText = FormatSavedMeters(snapshot.Crane.HoistWireLengthM),
+                CraneHoistWireLengthText = FormatSavedMeters(snapshot.Crane.HoistWireLengthM),
+                CapacityFactor = snapshot.Crane.CombinedCapacityFactor ?? 0.0
+            };
+        }
+
         var result = _cranePlacement.Result;
         var deratingRatio = ResolveGaDeratingRatio(gaContext);
         var safetyFactor = ResolveGaSafetyFactor(gaContext);
         var combinedFactor = deratingRatio.HasValue && safetyFactor.HasValue
             ? deratingRatio.Value * safetyFactor.Value
             : (double?)null;
-        var wireLength = ResolveGaWireLength(gaContext);
 
         var resultCapacityValues = _cranePlacement.Result?.Positions
             .SelectMany(position => position.ElementResults)
@@ -1072,7 +1212,8 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             SafetyFactorText = gaContext.HasGaRun && safetyFactor.HasValue ? safetyFactor.Value.ToString("0.00", CultureInfo.InvariantCulture) : Placeholder,
             DeratingRatioText = gaContext.HasGaRun && deratingRatio.HasValue ? deratingRatio.Value.ToString("0.00", CultureInfo.InvariantCulture) : Placeholder,
             CombinedCapacityFactorText = gaContext.HasGaRun && combinedFactor.HasValue ? combinedFactor.Value.ToString("0.000", CultureInfo.InvariantCulture) : Placeholder,
-            WireLengthText = gaContext.HasGaRun && wireLength.HasValue ? $"{wireLength.Value:0.##} m" : Placeholder,
+            WireLengthText = "Not Provided",
+            CraneHoistWireLengthText = "Not Provided",
             CapacityFactor = combinedFactor ?? 0.0
         };
     }
@@ -1100,6 +1241,9 @@ public sealed class ReportBuilderViewModel : ViewModelBase
 
     private double? ResolveGaAdditionalWeight(GaReportContext gaContext)
     {
+        if (gaContext.ResolvedSnapshot?.Snapshot?.Crane.HookRiggingAdditionalWeightTon is { } savedAdditionalWeight)
+            return savedAdditionalWeight;
+
         if (_cranePlacement.Result?.AdditionalWeight is > 0)
             return _cranePlacement.Result.AdditionalWeight;
 
@@ -1110,6 +1254,9 @@ public sealed class ReportBuilderViewModel : ViewModelBase
 
     private double? ResolveGaDeratingRatio(GaReportContext gaContext)
     {
+        if (gaContext.ResolvedSnapshot?.Snapshot?.Crane.DeratingRatio is { } savedDeratingRatio)
+            return savedDeratingRatio;
+
         if (_cranePlacement.Result?.DeratingRatio is > 0)
             return _cranePlacement.Result.DeratingRatio;
 
@@ -1120,20 +1267,13 @@ public sealed class ReportBuilderViewModel : ViewModelBase
 
     private double? ResolveGaSafetyFactor(GaReportContext gaContext)
     {
+        if (gaContext.ResolvedSnapshot?.Snapshot?.Crane.SafetyFactor is { } savedSafetyFactor)
+            return savedSafetyFactor;
+
         if (_cranePlacement.Result?.SafetyFactor is > 0)
             return _cranePlacement.Result.SafetyFactor;
 
         return gaContext.Diagnostics.Select(row => row.SafetyFactor).FirstOrDefault(value => value > 0) is > 0 and var value
-            ? value
-            : null;
-    }
-
-    private double? ResolveGaWireLength(GaReportContext gaContext)
-    {
-        if (_cranePlacement.Result?.WireLength is > 0)
-            return _cranePlacement.Result.WireLength;
-
-        return gaContext.Diagnostics.Select(row => row.WireLength).FirstOrDefault(value => value > 0) is > 0 and var value
             ? value
             : null;
     }
@@ -1150,26 +1290,12 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             "Rendered Elements Only" => allElements.Where(element => element.IncludeInRender).ToList(),
             "Selected Elements Only" => _scene.GetSelectedElements(),
             "Current Filter Result" => _elementManagement.FilteredElements.ToList(),
-            "GA-Ready Elements" => ResolveGaReadyElements(allElements),
             "Needs Review Elements" => ResolveNeedsReviewElements(allElements),
             _ => allElements
         };
 
 
         return scoped;
-    }
-
-    private IReadOnlyList<PrecastElement> ResolveGaReadyElements(List<PrecastElement> allElements)
-    {
-        var readyIds = _readinessService.BuildSummary(allElements)
-            .ElementDiagnostics
-            .Where(diagnostic => diagnostic.IsReadyForGa)
-            .Select(diagnostic => diagnostic.ElementId)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        return allElements
-            .Where(element => !string.IsNullOrWhiteSpace(element.ElementID) && readyIds.Contains(element.ElementID))
-            .ToList();
     }
 
     private IReadOnlyList<PrecastElement> ResolveNeedsReviewElements(List<PrecastElement> allElements)
@@ -1211,6 +1337,9 @@ public sealed class ReportBuilderViewModel : ViewModelBase
 
     private IReadOnlyList<CraneSetupReportRowDto> BuildCraneSetupRows(GaReportContext gaContext)
     {
+        if (gaContext.ResolvedSnapshot?.Snapshot is { SchemaVersion: >= 1 } snapshot)
+            return _gaSnapshotReportAdapter.BuildCraneSetups(snapshot);
+
         var result = _cranePlacement.Result;
         if (!gaContext.HasGaRun)
             return Array.Empty<CraneSetupReportRowDto>();
@@ -1289,6 +1418,284 @@ public sealed class ReportBuilderViewModel : ViewModelBase
 
         return new GaReportContext(false, null, Array.Empty<GAElementDiagnosticDto>(), Placeholder);
     }
+
+    private static string BuildVisibleGaWarning(GaReportContext gaContext)
+    {
+        var warnings = gaContext.ResolvedSnapshot?.Warnings
+            ?? (gaContext.HasGaRun ? Array.Empty<string>() : [NoGaAnalysisWarning]);
+
+        return string.Join(Environment.NewLine, warnings.Where(IsVisibleGaWarning));
+    }
+
+    private static bool IsVisibleGaWarning(string? warning)
+    {
+        if (string.IsNullOrWhiteSpace(warning))
+            return false;
+
+        return !warning.Contains("Historic GA result generated", StringComparison.OrdinalIgnoreCase)
+            && !warning.Contains("Current GA result generated", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static LiftingAccessoriesInfoDto? BuildLiftingAccessoriesInfo(GaReportContext gaContext)
+    {
+        if (gaContext.ResolvedSnapshot?.Snapshot is { SchemaVersion: >= 1 } snapshot)
+        {
+            return new LiftingAccessoriesInfoDto
+            {
+                WireRopeLengthM = snapshot.LiftingAccessories.WireRopeLengthM,
+                RiggingWireRopeLengthM = snapshot.LiftingAccessories.RiggingWireRopeLengthM,
+                HookRiggingWeightTons = snapshot.LiftingAccessories.HookRiggingWeightTon,
+                TotalBelowHookWeightTons = snapshot.LiftingAccessories.TotalBelowHookWeightTon,
+                TotalLiftingAccessoriesWeightTons = snapshot.LiftingAccessories.TotalLiftingAccessoriesWeightTon,
+                NumberOfFallsOrLines = snapshot.LiftingAccessories.NumberOfFallsOrLines,
+                RiggingConfigurationName = SavedText(snapshot.LiftingAccessories.RiggingConfigurationName),
+                Completeness = SavedText(snapshot.LiftingAccessories.Completeness),
+                AdditionalWeightTons = snapshot.LiftingAccessories.TotalBelowHookWeightTon,
+                Items = snapshot.LiftingAccessories.Items
+                    .Select(item => new LiftingAccessoryItemInfoDto
+                    {
+                        ItemType = item.ItemType,
+                        Description = item.Description,
+                        WeightTons = item.WeightTon,
+                        LengthM = item.LengthM,
+                        Quantity = item.Quantity
+                    })
+                    .ToList()
+            };
+        }
+
+        return gaContext.HasGaRun && gaContext.ResolvedSnapshot == null
+            ? null
+            : null;
+    }
+
+    private static string SavedText(string? value) =>
+        string.IsNullOrWhiteSpace(value) || value == Placeholder
+            ? "Unavailable in this saved run"
+            : value;
+
+    private static string FormatSavedMeters(double? value) =>
+        value.HasValue
+            ? $"{value.Value:0.00} m"
+            : "Not Provided";
+
+    private static ReportTemplateDto SanitizeTemplateForFamily(ReportTemplateDto template, ReportFamily family)
+    {
+        var supportedColumns = template.Columns
+            .Where(column => ReportTemplateCatalog.IsColumnSupported(family, column.Key))
+            .ToList();
+
+        return new ReportTemplateDto
+        {
+            TemplateName = template.TemplateName,
+            InternalFamily = template.InternalFamily,
+            ItemsIncluded = template.ItemsIncluded,
+            Columns = supportedColumns,
+            Sorting = template.Sorting,
+            Grouping = template.Grouping,
+            Filters = template.Filters,
+            Formatting = template.Formatting,
+            TextAlignment = template.TextAlignment,
+            TextSizePt = template.TextSizePt
+        };
+    }
+
+    private async Task<GaReportContext> ResolveGaReportContextAsync(CancellationToken cancellationToken)
+    {
+        var session = _workspace.CurrentSession;
+        if (session != null && !string.IsNullOrWhiteSpace(session.ProjectFolderPath))
+        {
+            var projectGuid = !string.IsNullOrWhiteSpace(session.ProjectGuid)
+                ? session.ProjectGuid
+                : session.ProjectId.ToString("N");
+            var currentModelFingerprint = await BuildCurrentCanonicalFingerprintAsync(
+                projectGuid,
+                cancellationToken).ConfigureAwait(false);
+            var activationContext = new GaProjectActivationContext(
+                session.ProjectFolderPath,
+                projectGuid,
+                session.ProjectName,
+                session.ProjectCard?.IfcFilePath,
+                currentModelFingerprint,
+                null,
+                null);
+
+            if (_runSelection != null)
+                return await ResolveExplicitGaReportContextAsync(activationContext, _runSelection, cancellationToken);
+
+            if (SelectedReportName.Equals(ReportTemplateCatalog.GaResultReport, StringComparison.OrdinalIgnoreCase))
+            {
+                return BuildMissingExplicitRunContext(
+                    new GaReportRunSelection { ProjectGuid = projectGuid },
+                    "Select a saved GA run before building the GA Result Report.");
+            }
+
+            if (_cranePlacement.SelectedSavedRun?.Descriptor is { } selectedRun)
+            {
+                var selectedResolved = await _gaSnapshotProvider.ResolveSelectedAsync(
+                    activationContext,
+                    selectedRun,
+                    cancellationToken).ConfigureAwait(false);
+
+                if (selectedResolved.Snapshot != null
+                    && selectedResolved.Capabilities.HasFinalAssignments)
+                {
+                    return new GaReportContext(
+                        true,
+                        null,
+                        Array.Empty<GAElementDiagnosticDto>(),
+                        selectedResolved.Snapshot.Crane.CraneName,
+                        0,
+                        selectedResolved);
+                }
+            }
+
+            var resolved = await _gaSnapshotProvider.ResolveAsync(
+                session.ProjectFolderPath,
+                projectGuid,
+                modelFingerprint: null,
+                cancellationToken).ConfigureAwait(false);
+
+            if (resolved.Snapshot != null
+                && resolved.Capabilities.HasFinalAssignments)
+            {
+                return new GaReportContext(
+                    true,
+                    null,
+                    Array.Empty<GAElementDiagnosticDto>(),
+                    resolved.Snapshot.Crane.CraneName,
+                    0,
+                    resolved);
+            }
+
+            if (resolved.Snapshot is { SchemaVersion: 0 })
+            {
+                return new GaReportContext(
+                    false,
+                    null,
+                    Array.Empty<GAElementDiagnosticDto>(),
+                    Placeholder,
+                    0,
+                    resolved);
+            }
+        }
+
+        return ResolveGaReportContext();
+    }
+
+    private GaReportRunSelection? CaptureCurrentRunSelection()
+    {
+        if (_cranePlacement.SelectedSavedRun?.Descriptor is not { } descriptor)
+            return null;
+
+        return new GaReportRunSelection
+        {
+            ProjectGuid = descriptor.ProjectGuid,
+            OptimizationRunId = descriptor.OptimizationRunId,
+            SourceKind = descriptor.SourceKind,
+            Classification = descriptor.Classification,
+            SnapshotPath = descriptor.SnapshotPath
+        };
+    }
+
+    private Task<string?> BuildCurrentCanonicalFingerprintAsync(
+        string projectGuid,
+        CancellationToken cancellationToken)
+    {
+        var elements = _scene.GetElements().ToList();
+        if (elements.Count == 0)
+            return Task.FromResult<string?>(null);
+
+        return Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return CanonicalLiftUnitSnapshotBuilder
+                .BuildCurrentSnapshot(elements, projectGuid)
+                .CanonicalPayloadHash;
+        }, cancellationToken);
+    }
+
+    private async Task<GaReportContext> ResolveExplicitGaReportContextAsync(
+        GaProjectActivationContext activationContext,
+        GaReportRunSelection selection,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(selection.ProjectGuid)
+            && !string.Equals(selection.ProjectGuid, activationContext.ProjectGuid, StringComparison.Ordinal))
+        {
+            return BuildMissingExplicitRunContext(
+                selection,
+                $"The selected GA run belongs to project {selection.ProjectGuid}, not the active project {activationContext.ProjectGuid}.");
+        }
+
+        var descriptors = await _gaSnapshotProvider.ListRunsAsync(activationContext, cancellationToken).ConfigureAwait(false);
+        var descriptor = descriptors.FirstOrDefault(run =>
+            string.Equals(run.OptimizationRunId, selection.OptimizationRunId, StringComparison.Ordinal)
+            && (string.IsNullOrWhiteSpace(selection.SourceKind)
+                || string.Equals(run.SourceKind, selection.SourceKind, StringComparison.OrdinalIgnoreCase)));
+
+        if (descriptor == null)
+            return BuildMissingExplicitRunContext(selection, $"The selected GA run '{selection.OptimizationRunId}' could not be found for this project.");
+
+        var resolved = await _gaSnapshotProvider.ResolveSelectedAsync(
+            activationContext,
+            descriptor,
+            cancellationToken).ConfigureAwait(false);
+
+        if (resolved.Snapshot != null && resolved.Capabilities.HasFinalAssignments)
+        {
+            return new GaReportContext(
+                true,
+                null,
+                Array.Empty<GAElementDiagnosticDto>(),
+                resolved.Snapshot.Crane.CraneName,
+                0,
+                resolved);
+        }
+
+        var warnings = resolved.Warnings.Count > 0
+            ? resolved.Warnings
+            : [$"The selected GA run '{selection.OptimizationRunId}' does not provide final assignment rows for this report."];
+
+        return new GaReportContext(
+            false,
+            null,
+            Array.Empty<GAElementDiagnosticDto>(),
+            Placeholder,
+            0,
+            new ResolvedGaResultSnapshot
+            {
+                SourceKind = resolved.SourceKind,
+                Classification = resolved.Classification,
+                Capabilities = resolved.Capabilities,
+                SelectedRun = descriptor,
+                Warnings = warnings
+            });
+    }
+
+    private static GaReportContext BuildMissingExplicitRunContext(
+        GaReportRunSelection selection,
+        string warning) =>
+        new(
+            false,
+            null,
+            Array.Empty<GAElementDiagnosticDto>(),
+            Placeholder,
+            0,
+            new ResolvedGaResultSnapshot
+            {
+                SourceKind = string.IsNullOrWhiteSpace(selection.SourceKind) ? "None" : selection.SourceKind,
+                Classification = string.IsNullOrWhiteSpace(selection.Classification) ? "Missing" : selection.Classification,
+                Warnings = [warning],
+                SelectedRun = new GaRunDescriptorDto
+                {
+                    OptimizationRunId = selection.OptimizationRunId,
+                    ProjectGuid = selection.ProjectGuid,
+                    SourceKind = selection.SourceKind,
+                    Classification = selection.Classification,
+                    SnapshotPath = selection.SnapshotPath
+                }
+            });
 
     private static bool IsValidRunHistory(GARunHistoryDto run) =>
         !string.IsNullOrWhiteSpace(run.Timestamp)
@@ -1691,6 +2098,12 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             return;
         }
 
+        if (_cranePlacement.HasAvailableResult)
+        {
+            GaWarningText = _cranePlacement.SelectedSavedRun?.WarningsText ?? string.Empty;
+            return;
+        }
+
         var context = ResolveGaReportContext();
         GaWarningText = context.HasGaRun
             ? string.Empty
@@ -1700,50 +2113,13 @@ public sealed class ReportBuilderViewModel : ViewModelBase
     private bool UsesGaData() =>
         _family == ReportFamily.LiftingResult
         || SelectedReportName.Equals(ReportTemplateCatalog.ReportDataSourceAudit, StringComparison.OrdinalIgnoreCase)
-        || SelectedColumns.Any(column => IsGaReportColumn(column.Key));
+        || SelectedColumns.Any(column => ReportTemplateCatalog.IsPostGaColumn(column.Key));
 
     private int CountCurrentPlacementElementRows() =>
         _cranePlacement.Result == null ? 0 : CountElementResults(_cranePlacement.Result);
 
     private static int CountElementResults(UiCranePlacementResult result) =>
         result.Positions.Sum(position => position.ElementResults.Count);
-
-    private static bool IsGaReportColumn(string key) =>
-        key is "LiftStatus"
-            or "IsLifted"
-            or "FailureReason"
-            or "FailureCategory"
-            or "SuggestedAction"
-            or "ReachStatus"
-            or "ChartStatus"
-            or "SafetyMargin"
-            or "LookupMode"
-            or "BestRadius"
-            or "RequiredRadius"
-            or "SelectedChartRadius"
-            or "RequiredBoomLength"
-            or "SelectedChartBoomLength"
-            or "HookRiggingWeight"
-            or "RequiredCapacity"
-            or "RawChartCapacity"
-            or "AvailableCapacity"
-            or "DeratingRatio"
-            or "SafetyFactor"
-            or "CombinedCapacityFactor"
-            or "WireLength"
-            or "CapacityUtilizationPercent"
-            or "CapacityMargin"
-            or "AssignedSetupIndex"
-            or "AssignedGaPoint"
-            or "AssignedPointId"
-            or "FinalOwnerPointId"
-            or "BestFailedPointId"
-            or "BestFailureReason"
-            or "MainPartGlobalId"
-            or "ParentAssemblyGlobalId"
-            or "AssemblyLiftWeight"
-            or "AssemblyLiftCOG"
-            or "AssemblyMemberIds";
 
     private static string ResolveAssignedGaPoint(
         string? finalOwnerPointId,
@@ -1827,7 +2203,7 @@ public sealed class ReportBuilderViewModel : ViewModelBase
             ? $"{Math.Min(previewRowLimit.Value, report.Rows.Count)} of {report.Rows.Count}"
             : $"All {report.Rows.Count}";
 
-        return $"Report Name: {report.Metadata.ReportName} | Items Included: {report.Metadata.ItemsIncluded} | Preview Rows: {previewRowsText} | Warnings: {warningCount}";
+        return $"Report Reference: {report.ReportReference} | Report Name: {report.Metadata.ReportName} | Items Included: {report.Metadata.ItemsIncluded} | Preview Rows: {previewRowsText} | Warnings: {warningCount}";
     }
 
     private async Task RunBusyAsync(Func<Task> operation)
@@ -1908,7 +2284,8 @@ public sealed class ReportBuilderViewModel : ViewModelBase
         GARunHistoryDto? Run,
         IReadOnlyList<GAElementDiagnosticDto> Diagnostics,
         string CraneNameOrId,
-        int DiagnosticsFallbackRowsCount = 0)
+        int DiagnosticsFallbackRowsCount = 0,
+        ResolvedGaResultSnapshot? ResolvedSnapshot = null)
     {
         public static GaReportContext NoRun { get; } =
             new(false, null, Array.Empty<GAElementDiagnosticDto>(), Placeholder);

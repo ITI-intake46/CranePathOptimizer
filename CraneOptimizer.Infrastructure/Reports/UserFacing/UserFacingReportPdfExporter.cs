@@ -11,6 +11,8 @@ namespace CraneOptimizer.Infrastructure.Reports.UserFacing;
 
 public sealed class UserFacingReportPdfExporter : IReportPdfExporter
 {
+    private const string ProductName = "Crane Optimizer";
+
     static UserFacingReportPdfExporter()
     {
         QuestPDF.Settings.License = LicenseType.Community;
@@ -31,9 +33,34 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
         return Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var tempPath = Path.Combine(
+                directory ?? Path.GetDirectoryName(fullPath) ?? Environment.CurrentDirectory,
+                $".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.tmp");
+
             Document.Create(container => Compose(container, report, cancellationToken))
-                .GeneratePdf(fullPath);
+                .GeneratePdf(tempPath);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            var tempInfo = new FileInfo(tempPath);
+            if (!tempInfo.Exists || tempInfo.Length == 0)
+                throw new IOException($"PDF export did not produce a valid file for document {report.DocumentId}.");
+
+            ReplaceFinalFile(tempPath, fullPath);
         }, cancellationToken);
+    }
+
+    private static void ReplaceFinalFile(string tempPath, string fullPath)
+    {
+        if (File.Exists(fullPath))
+        {
+            File.Delete(fullPath);
+        }
+
+        File.Move(tempPath, fullPath);
+
+        var finalInfo = new FileInfo(fullPath);
+        if (!finalInfo.Exists || finalInfo.Length == 0)
+            throw new IOException($"PDF export final file verification failed: {fullPath}");
     }
 
     private static void Compose(
@@ -44,9 +71,19 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
         container.Page(page =>
         {
             ApplyPageDefaults(page, report, landscape: false);
-            page.Content().Element(content => ComposeMetadataPage(content, report));
+            page.Content().Element(content => ComposeIntroductionPageOne(content, report));
             page.Footer().Element(footer => ComposeFooter(footer, report));
         });
+
+        if (HasIntroductionPageTwo(report))
+        {
+            container.Page(page =>
+            {
+                ApplyPageDefaults(page, report, landscape: false);
+                page.Content().Element(content => ComposeIntroductionPageTwo(content, report));
+                page.Footer().Element(footer => ComposeFooter(footer, report));
+            });
+        }
 
         container.Page(page =>
         {
@@ -72,16 +109,40 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
 
     private static void ApplyPageDefaults(PageDescriptor page, ReportDocumentDto report, bool landscape)
     {
-        var size = report.PreferA3Landscape ? PageSizes.A3 : PageSizes.A4;
+        var size = landscape ? ChooseLandscapePageSize(report) : PageSizes.A4;
         page.Size(landscape ? size.Landscape() : PageSizes.A4);
         page.MarginTop(15, Unit.Millimetre);
         page.MarginBottom(15, Unit.Millimetre);
         page.MarginLeft(12, Unit.Millimetre);
         page.MarginRight(12, Unit.Millimetre);
-        page.DefaultTextStyle(style => style.FontFamily("Exo 2").FontSize((float)Math.Clamp(report.TextSizePt, 6, 32)));
+        page.DefaultTextStyle(style => style.FontFamily("Exo 2").FontSize((float)Math.Clamp(report.TextSizePt, 7, 32)));
     }
 
-    private static void ComposeMetadataPage(IContainer container, ReportDocumentDto report)
+    private static PageSize ChooseLandscapePageSize(ReportDocumentDto report)
+    {
+        var totalWeight = report.Columns.Sum(column => GetPdfColumnWeight(column));
+        var textScale = Math.Max(1.0, Math.Clamp(report.TextSizePt, 7, 32) / 10.0);
+        var requiredWeight = totalWeight * textScale;
+
+        if (requiredWeight <= 12.0 && !report.PreferA3Landscape)
+            return PageSizes.A4;
+        if (requiredWeight <= 18.0)
+            return PageSizes.A3;
+        if (requiredWeight <= 28.0)
+            return PageSizes.A2;
+        if (requiredWeight <= 40.0)
+            return PageSizes.A1;
+
+        var customLandscapeWidthMm = (float)Math.Clamp(841 + ((requiredWeight - 40.0) * 24.0), 842.0, 2000.0);
+        return new PageSize(594, customLandscapeWidthMm, Unit.Millimetre);
+    }
+
+    private static bool HasIntroductionPageTwo(ReportDocumentDto report) =>
+        report.Metadata.CraneInfo != null
+        || report.Metadata.LiftingAccessories != null
+        || report.CraneSetups.Count > 0;
+
+    private static void ComposeIntroductionPageOne(IContainer container, ReportDocumentDto report)
     {
         var metadata = report.Metadata;
 
@@ -98,7 +159,7 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
 
                 row.RelativeItem().Column(header =>
                 {
-                    header.Item().Text(string.IsNullOrWhiteSpace(metadata.CompanyName) ? "Mobile Crane Path Optimizer" : metadata.CompanyName)
+                    header.Item().Text(ProductName)
                         .FontSize(18)
                         .Bold()
                         .FontColor(Colors.Orange.Darken2);
@@ -107,7 +168,7 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
             });
 
             column.Item().Element(item => ComposeKeyValueBlock(item, "Report Information",
-                BuildReportInformationRows(metadata)));
+                BuildReportInformationRows(report)));
 
             if (!string.IsNullOrWhiteSpace(metadata.GaWarningText))
             {
@@ -116,59 +177,30 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
             }
 
             column.Item().Element(item => ComposeSummary(item, metadata.SummaryItems));
+            if (metadata.FailureBreakdownItems.Count > 0)
+                column.Item().ShowEntire().Element(item => ComposeKeyValueBlock(item, "Failure Breakdown",
+                    metadata.FailureBreakdownItems.Select(summary => (summary.Label, (string?)summary.Value))));
+        });
+    }
+
+    private static void ComposeIntroductionPageTwo(IContainer container, ReportDocumentDto report)
+    {
+        var metadata = report.Metadata;
+
+        container.Column(column =>
+        {
+            column.Spacing(14);
 
             if (metadata.CraneInfo != null)
-            {
-                var crane = metadata.CraneInfo;
-                column.Item().Element(item => ComposeKeyValueBlock(item, "Crane / GA Information",
-                [
-                    ("GA Run", metadata.GaRunStatusText),
-                    ("Crane", crane.CraneName),
-                    ("Model / Specification", crane.CraneModelOrSpecification),
-                    ("Manufacturer", crane.Manufacturer),
-                    ("Crane Type", crane.CraneType),
-                    ("Load Chart", crane.LoadChartName),
-                    ("Counterweight", crane.CounterweightTons.HasValue ? $"{crane.CounterweightTons.Value:0.##} tons" : null),
-                    ("Outrigger Configuration", crane.OutriggerConfiguration),
-                    ("Vehicle Length", crane.VehicleLengthText),
-                    ("Vehicle Width", crane.VehicleWidthText),
-                    ("Vehicle Height", crane.VehicleHeightText),
-                    ("Outrigger Length", crane.OutriggerLengthText),
-                    ("Outrigger Width", crane.OutriggerWidthText),
-                    ("Working Radius", crane.WorkingRadiusRangeText),
-                    ("Min Radius", crane.MinRadiusText),
-                    ("Max Radius", crane.MaxRadiusText),
-                    ("Boom Length", crane.BoomLengthRangeText),
-                    ("Min Boom Length", crane.MinBoomLengthText),
-                    ("Max Boom Length", crane.MaxBoomLengthText),
-                    ("Maximum Capacity", crane.MaximumCapacityTons.HasValue ? $"{crane.MaximumCapacityTons.Value:0.##} tons" : null),
-                    ("Safety Factor", crane.SafetyFactorText),
-                    ("Derating Ratio", crane.DeratingRatioText),
-                    ("Combined Capacity Factor", crane.CombinedCapacityFactorText),
-                    ("Wire Length", crane.WireLengthText),
-                    ("Lifting Accessories / Additional Weight", metadata.LiftingAccessories != null
-                        ? $"{metadata.LiftingAccessories.TotalAdditionalWeightTons:0.00} tons"
-                        : null),
-                    ("Capacity Factor", crane.CapacityFactor.ToString("0.00", CultureInfo.InvariantCulture))
-                ]));
-            }
+                column.Item().ShowEntire().Element(item => ComposeKeyValueBlock(item, "Crane / Analysis Information", BuildCraneInformationRows(metadata.CraneInfo)));
 
             if (metadata.LiftingAccessories != null)
-            {
-                var accessories = metadata.LiftingAccessories;
-                column.Item().Element(item => ComposeKeyValueBlock(item, "Lifting Accessories",
-                [
-                    ("Hook Block Weight", FormatTons(accessories.HookBlockWeightTons)),
-                    ("Rigging Weight", FormatTons(accessories.RiggingWeightTons)),
-                    ("Slings Weight", FormatTons(accessories.SlingsWeightTons)),
-                    ("Spreader Beam Weight", FormatTons(accessories.SpreaderBeamWeightTons)),
-                    ("Additional Weight", FormatTons(accessories.AdditionalWeightTons)),
-                    ("Total Additional Weight", $"{accessories.TotalAdditionalWeightTons:0.00} tons")
-                ]));
-            }
+                column.Item().ShowEntire().Element(item => ComposeKeyValueBlock(item, "Lifting Accessories", BuildLiftingAccessoriesRows(metadata.LiftingAccessories)));
+
+            column.Item().ShowEntire().Element(ComposeCapacityNote);
 
             if (report.CraneSetups.Count > 0)
-                column.Item().Element(item => ComposeCraneSetupTable(item, "Final GA Setup Points", report.CraneSetups));
+                column.Item().ShowEntire().Element(item => ComposeCraneSetupTable(item, "Final GA Setup Points", report.CraneSetups));
         });
     }
 
@@ -223,27 +255,57 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
         });
     }
 
-    private static IReadOnlyList<(string Label, string? Value)> BuildReportInformationRows(ReportMetadataDto metadata)
+    private static IReadOnlyList<(string Label, string? Value)> BuildReportInformationRows(ReportDocumentDto report)
     {
+        var metadata = report.Metadata;
         var rows = new List<(string Label, string? Value)>
         {
+            ("Report Reference", report.ReportReference),
             ("Report Name", metadata.ReportName),
             ("Items Included", metadata.ItemsIncluded),
             ("Project", metadata.ProjectName),
-            ("Generated On", metadata.ReportDate.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture))
+            ("Created On", metadata.ReportDate.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture))
         };
-
-        if (!string.IsNullOrWhiteSpace(metadata.GaRunStatusText))
-            rows.Add(("GA Run", metadata.GaRunStatusText));
-
-        rows.Add(("Created By", metadata.CreatedBy));
-        rows.Add(("Issued To", metadata.IssuedTo));
-        rows.Add(("Revision", metadata.Revision));
         return rows;
+    }
+
+    private static IReadOnlyList<(string Label, string? Value)> BuildCraneInformationRows(CraneReportInfoDto crane) =>
+    [
+        ("Model", FirstNonEmptyNullable(crane.ModelName, crane.CraneModelOrSpecification, crane.CraneName)),
+        ("Specification", crane.SpecificationName),
+        ("Manufacturer", crane.Manufacturer),
+        ("Crane Type", crane.CraneType),
+        ("Counterweight", crane.CounterweightTons.HasValue ? $"{crane.CounterweightTons.Value:0.##} tons" : null),
+        ("Outrigger Configuration", crane.OutriggerConfiguration),
+        ("Working Radius", crane.WorkingRadiusRangeText),
+        ("Boom Length", crane.BoomLengthRangeText),
+        ("Maximum Capacity", crane.MaximumCapacityTons.HasValue ? $"{crane.MaximumCapacityTons.Value:0.##} tons" : null),
+        ("Safety Factor", crane.SafetyFactorText),
+        ("Derating Ratio", crane.DeratingRatioText),
+        ("Crane Hoist Wire Length", crane.CraneHoistWireLengthText)
+    ];
+
+    private static IReadOnlyList<(string Label, string? Value)> BuildLiftingAccessoriesRows(LiftingAccessoriesInfoDto accessories) =>
+    [
+        ("Wire Rope Length", FormatMetersOrNotProvided(accessories.RiggingWireRopeLengthM)),
+        ("Total Lifting Accessories Weight", $"{accessories.VisibleTotalLiftingAccessoriesWeightTons:0.00} tons")
+    ];
+
+    private static void ComposeCapacityNote(IContainer container)
+    {
+        container.Column(column =>
+        {
+            column.Item().Text("Capacity Note").FontSize(12).Bold().FontColor(Colors.Orange.Darken2);
+            column.Item().PaddingTop(6).Background(Colors.Grey.Lighten4).Padding(6)
+                .Text("Adjusted Allowable Capacity includes the selected safety factor and derating ratio.")
+                .FontSize(9);
+        });
     }
 
     private static void ComposeCraneSetupTable(IContainer container, string title, IReadOnlyList<CraneSetupReportRowDto> setups)
     {
+        var showZone = ShouldShowZone(setups);
+
         container.Column(column =>
         {
             column.Item().Text(title).FontSize(12).Bold().FontColor(Colors.Orange.Darken2);
@@ -251,25 +313,33 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
             {
                 table.ColumnsDefinition(columns =>
                 {
-                    columns.ConstantColumn(55);
                     columns.RelativeColumn();
                     columns.RelativeColumn();
                     columns.RelativeColumn();
                     columns.RelativeColumn();
                     columns.RelativeColumn();
+                    columns.RelativeColumn();
+                    if (showZone)
+                        columns.RelativeColumn();
                 });
 
-                foreach (var header in new[] { "Final Setup Point", "X", "Y", "Z", "Lifted Items", "Lifted %" })
+                var headers = showZone
+                    ? new[] { "Setup Reference", "X (m)", "Y (m)", "Z (m)", "Assigned Lift Count", "Assigned Percentage", "Zone" }
+                    : new[] { "Setup Reference", "X (m)", "Y (m)", "Z (m)", "Assigned Lift Count", "Assigned Percentage" };
+
+                foreach (var header in headers)
                     table.Cell().Background(Colors.Grey.Lighten3).Padding(3).Text(header).SemiBold();
 
                 foreach (var setup in setups)
                 {
-                    table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3).Text($"Point_{setup.SetupNo}");
+                    table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3).Text(string.IsNullOrWhiteSpace(setup.SetupReference) ? $"Point_{setup.SetupNo}" : setup.SetupReference);
                     table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3).AlignRight().Text($"{setup.CraneX:0.00}");
                     table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3).AlignRight().Text($"{setup.CraneY:0.00}");
                     table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3).AlignRight().Text($"{setup.CraneZ:0.00}");
                     table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3).AlignRight().Text(setup.LiftedItemsCount.ToString(CultureInfo.InvariantCulture));
                     table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3).AlignRight().Text($"{setup.LiftedItemsPercentage:0.0}%");
+                    if (showZone)
+                        table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3).Text(string.IsNullOrWhiteSpace(setup.Zone) ? "-" : setup.Zone);
                 }
             });
         });
@@ -280,29 +350,222 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
         ReportDocumentDto report,
         CancellationToken cancellationToken)
     {
-        var groups = BuildColumnGroups(report.Columns, report.PreferA3Landscape, report.TextSizePt);
+        if (report.InternalFamily == ReportFamily.LiftingResult
+            && report.Metadata.ReportName.Equals(ReportTemplateCatalog.GaResultReport, StringComparison.OrdinalIgnoreCase))
+        {
+            ComposeGaResultSections(container, report, cancellationToken);
+            return;
+        }
 
         container.Column(column =>
         {
-            for (var index = 0; index < groups.Count; index++)
-            {
-                if (index > 0)
-                    column.Item().PageBreak();
-
-                if (groups.Count > 1)
-                {
-                    column.Item().PaddingBottom(6)
-                        .Text($"Columns {index + 1} of {groups.Count}")
-                        .FontSize(9)
-                        .SemiBold()
-                        .FontColor(Colors.Grey.Darken2);
-                }
-
-                var group = groups[index];
-                column.Item().Element(content => ComposeMainTable(content, group, report.Rows, cancellationToken));
-            }
+            column.Item().Element(content => ComposeMainTable(content, report.Columns, report.Rows, cancellationToken));
         });
     }
+
+    private static void ComposeGaResultSections(
+        IContainer container,
+        ReportDocumentDto report,
+        CancellationToken cancellationToken)
+    {
+        container.Column(column =>
+        {
+            column.Spacing(14);
+
+            foreach (var setup in report.CraneSetups.OrderBy(setup => setup.SetupNo))
+            {
+                var rows = GetSuccessfulRowsForSetup(report, setup);
+                column.Item().ShowEntire().Element(content => ComposeSetupSection(content, setup));
+                column.Item().Element(content => ComposeMainTable(content, GetSetupColumns(report), rows, cancellationToken));
+            }
+
+            column.Item().PaddingTop(10).Text("Not Lifted / Failed Lift Units")
+                .FontSize(14)
+                .Bold()
+                .FontColor(Colors.Orange.Darken2);
+            column.Item().Element(content => ComposeMainTable(content, GetFailedColumns(report), GetFailedRows(report), cancellationToken));
+        });
+    }
+
+    private static void ComposeSetupSection(IContainer container, CraneSetupReportRowDto setup)
+    {
+        container.Column(column =>
+        {
+            column.Item().Text($"Setup {FirstNonEmpty(setup.SetupReference, $"Point_{setup.SetupNo}")}")
+                .FontSize(14)
+                .Bold()
+                .FontColor(Colors.Orange.Darken2);
+            column.Item().PaddingTop(3).Text(
+                $"Coordinates: X {setup.CraneX:0.00} m, Y {setup.CraneY:0.00} m, Z {setup.CraneZ:0.00} m").FontSize(9);
+            column.Item().Text(
+                $"Assigned Lift Units: {setup.LiftedItemsCount} | Assigned Percentage: {setup.LiftedItemsPercentage:0.0}%{FormatSetupZone(setup)}").FontSize(9);
+        });
+    }
+
+    private static bool ShouldShowZone(IReadOnlyList<CraneSetupReportRowDto> setups) =>
+        setups.Any(setup => !string.IsNullOrWhiteSpace(setup.Zone)
+            && setup.Zone.Trim() is not "-" and not "\u2014");
+
+    private static string FormatSetupZone(CraneSetupReportRowDto setup) =>
+        string.IsNullOrWhiteSpace(setup.Zone) || setup.Zone.Trim() is "-" or "\u2014"
+            ? string.Empty
+            : $" | Zone: {setup.Zone.Trim()}";
+
+    private static IReadOnlyList<ReportColumnDefinition> GetSetupColumns(ReportDocumentDto report) =>
+        SelectColumns(report,
+        [
+            "No",
+            "ElementMark",
+            "ElementName",
+            "ElementType",
+            "MaterialType",
+            "Weight",
+            "CogX",
+            "CogY",
+            "CogZ",
+            "RequiredRadius",
+            "SelectedChartRadius",
+            "RequiredBoomLength",
+            "SelectedChartBoomLength",
+            "RequiredCapacity",
+            "AvailableCapacity",
+            "RawChartCapacity",
+            "CapacityUtilizationPercent"
+        ]);
+
+    private static IReadOnlyList<ReportColumnDefinition> GetFailedColumns(ReportDocumentDto report) =>
+        SelectColumns(report,
+        [
+            "No",
+            "ElementMark",
+            "ElementName",
+            "ElementType",
+            "MaterialType",
+            "Weight",
+            "CogX",
+            "CogY",
+            "CogZ",
+            "RequiredRadius",
+            "SelectedChartRadius",
+            "RequiredBoomLength",
+            "SelectedChartBoomLength",
+            "RequiredCapacity",
+            "AvailableCapacity",
+            "RawChartCapacity",
+            "CapacityUtilizationPercent",
+            "FailureCategory",
+            "FailureReason",
+            "SuggestedAction"
+        ]);
+
+    private static IReadOnlyList<ReportColumnDefinition> SelectColumns(ReportDocumentDto report, IReadOnlyList<string> keys)
+    {
+        var catalog = ReportTemplateCatalog.GetBuiltInTemplate(ReportFamily.LiftingResult, ReportTemplateCatalog.GaResultReport)
+            .Columns
+            .Concat(report.Columns)
+            .GroupBy(column => column.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        return keys
+            .Where(key => !ReportTemplateCatalog.IsUserFacingForbiddenColumn(key))
+            .Select((key, index) =>
+            {
+                if (catalog.TryGetValue(key, out var column))
+                {
+                    return new ReportColumnDefinition
+                    {
+                        Key = column.Key,
+                        Header = column.Header,
+                        ValueKind = column.ValueKind,
+                        EvidenceScope = column.EvidenceScope,
+                        SupportedFamilies = column.SupportedFamilies,
+                        RequiredCapabilities = column.RequiredCapabilities,
+                        ShowInPreview = column.ShowInPreview,
+                        ShowInPdf = column.ShowInPdf,
+                        ShowInExcel = column.ShowInExcel,
+                        IsSelected = true,
+                        Order = index,
+                        Format = column.Format,
+                        Alignment = column.Alignment,
+                        TextSize = column.TextSize,
+                        Category = column.Category,
+                        Unit = column.Unit
+                    };
+                }
+
+                return new ReportColumnDefinition
+                {
+                    Key = key,
+                    Header = key,
+                    ValueKind = ReportColumnValueKind.Text,
+                    SupportedFamilies = [ReportFamily.LiftingResult],
+                    IsSelected = true,
+                    Order = index
+                };
+            })
+            .ToList();
+    }
+
+    private static IReadOnlyList<ReportDataRowDto> GetSuccessfulRowsForSetup(ReportDocumentDto report, CraneSetupReportRowDto setup) =>
+        ApplySectionDisplayNumbers(report.Rows
+            .Where(IsSuccessfulLift)
+            .Where(row => TryGetSetupNo(row, out var setupNo) && setupNo == setup.SetupNo)
+            .ToList());
+
+    private static IReadOnlyList<ReportDataRowDto> GetFailedRows(ReportDocumentDto report) =>
+        ApplySectionDisplayNumbers(report.Rows.Where(row => !IsSuccessfulLift(row)).ToList());
+
+    private static IReadOnlyList<ReportDataRowDto> ApplySectionDisplayNumbers(IReadOnlyList<ReportDataRowDto> rows) =>
+        rows
+            .Select((row, index) =>
+            {
+                var values = new Dictionary<string, object?>(row.Values, StringComparer.OrdinalIgnoreCase)
+                {
+                    ["No"] = index + 1
+                };
+
+                return new ReportDataRowDto { Values = values };
+            })
+            .ToList();
+
+    private static bool IsSuccessfulLift(ReportDataRowDto row)
+    {
+        var isLifted = GetText(row, "IsLifted");
+        if (isLifted.Equals("Yes", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var status = GetText(row, "LiftStatus");
+        return (status.Equals("Liftable", StringComparison.OrdinalIgnoreCase)
+                || status.Equals("Lifted", StringComparison.OrdinalIgnoreCase))
+            && TryGetSetupNo(row, out var setupNo)
+            && setupNo > 0;
+    }
+
+    private static bool TryGetSetupNo(ReportDataRowDto row, out int setupNo)
+    {
+        setupNo = 0;
+        foreach (var key in new[] { "AssignedSetupNo", "AssignedSetupIndex" })
+        {
+            if (!row.Values.TryGetValue(key, out var value) || value == null)
+                continue;
+
+            if (value is int intValue)
+            {
+                setupNo = intValue;
+                return true;
+            }
+
+            if (int.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Integer, CultureInfo.InvariantCulture, out setupNo))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static string GetText(ReportDataRowDto row, string key) =>
+        row.Values.TryGetValue(key, out var value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
+            : string.Empty;
 
     private static void ComposeMainTable(
         IContainer container,
@@ -330,61 +593,15 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
                 foreach (var column in columns)
                 {
                     row.Values.TryGetValue(column.Key, out var value);
-                    var cell = table.Cell().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3);
+                    var cell = table.Cell().ShowEntire().BorderBottom(0.25f).BorderColor(Colors.Grey.Lighten2).Padding(3);
                     ApplyAlignment(cell, column).Text(FormatValue(value, column)).FontSize(GetBodyFontSize(column));
                 }
             }
         });
     }
 
-    private static IReadOnlyList<IReadOnlyList<ReportColumnDefinition>> BuildColumnGroups(
-        IReadOnlyList<ReportColumnDefinition> columns,
-        bool preferA3Landscape,
-        double textSizePt)
-    {
-        var maxWeight = (preferA3Landscape ? 18.0 : 12.0) * Math.Max(1.0, 10.0 / Math.Clamp(textSizePt, 6, 32));
-        var totalWeight = columns.Sum(column => GetPdfColumnWeight(column));
-        if (totalWeight <= maxWeight)
-            return [columns];
-
-        var identityColumns = columns
-            .Where(IsRepeatedIdentityColumn)
-            .Take(2)
-            .ToList();
-        var dataColumns = columns
-            .Where(column => !identityColumns.Any(identity => identity.Key.Equals(column.Key, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-
-        var groups = new List<IReadOnlyList<ReportColumnDefinition>>();
-        var current = new List<ReportColumnDefinition>(identityColumns);
-        var currentWeight = current.Sum(column => GetPdfColumnWeight(column));
-
-        foreach (var dataColumn in dataColumns)
-        {
-            var columnWeight = GetPdfColumnWeight(dataColumn);
-            if (current.Count > identityColumns.Count && currentWeight + columnWeight > maxWeight)
-            {
-                groups.Add(current.ToList());
-                current = new List<ReportColumnDefinition>(identityColumns);
-                currentWeight = current.Sum(column => GetPdfColumnWeight(column));
-            }
-
-            current.Add(dataColumn);
-            currentWeight += columnWeight;
-        }
-
-        if (current.Count > 0)
-            groups.Add(current);
-
-        return groups;
-    }
-
-    private static bool IsRepeatedIdentityColumn(ReportColumnDefinition column) =>
-        column.Key.Equals("No", StringComparison.OrdinalIgnoreCase)
-        || column.Key.Equals("ElementMark", StringComparison.OrdinalIgnoreCase);
-
     private static float GetBodyFontSize(ReportColumnDefinition column) =>
-        (float)ParseTextSize(column.TextSize);
+        (float)Math.Max(7.0, ParseTextSize(column.TextSize));
 
     private static float GetPdfColumnWeight(ReportColumnDefinition column)
     {
@@ -459,9 +676,7 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
     {
         container.Row(row =>
         {
-            row.RelativeItem().Text(string.IsNullOrWhiteSpace(report.Metadata.CompanyName)
-                ? "Mobile Crane Path Optimizer"
-                : report.Metadata.CompanyName).FontSize(8);
+            row.RelativeItem().Text(ProductName).FontSize(8);
             row.RelativeItem().AlignCenter().Text(report.Metadata.ReportName).FontSize(8);
             row.RelativeItem().AlignRight().Text(text =>
             {
@@ -472,6 +687,21 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
             });
         });
     }
+
+    private static string Shorten(string? value, int length)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "-";
+
+        var text = value.Trim();
+        return text.Length <= length ? text : text[..length];
+    }
+
+    private static string FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "-";
+
+    private static string? FirstNonEmptyNullable(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 
     private static string FormatValue(object? value, ReportColumnDefinition column)
     {
@@ -489,6 +719,7 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
                 ReportColumnValueKind.Percentage => $"{converted:0.0}%",
                 ReportColumnValueKind.Tons when column.Unit == "kg" => converted.ToString("0", CultureInfo.InvariantCulture),
                 ReportColumnValueKind.Meters when column.Unit == "mm" => converted.ToString("0", CultureInfo.InvariantCulture),
+                ReportColumnValueKind.Tons when converted is > 0 and < 0.01 => converted.ToString("0.0000", CultureInfo.InvariantCulture),
                 ReportColumnValueKind.Tons or ReportColumnValueKind.Meters or ReportColumnValueKind.Number => converted.ToString("0.00", CultureInfo.InvariantCulture),
                 _ => converted.ToString("0.##", CultureInfo.InvariantCulture)
             };
@@ -508,5 +739,6 @@ public sealed class UserFacingReportPdfExporter : IReportPdfExporter
         return value;
     }
 
-    private static string? FormatTons(double? value) => value.HasValue ? $"{value.Value:0.00} tons" : null;
+    private static string FormatMetersOrNotProvided(double? value) =>
+        value.HasValue ? $"{value.Value:0.00} m" : "Not Provided";
 }

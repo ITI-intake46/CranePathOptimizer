@@ -88,7 +88,7 @@ public sealed class Phase51BindingTests
 
         LiftingResultReportRowDto row = Assert.Single(
             new LiftingResultReportDataProvider().BuildRows(
-                ReportTemplateCatalog.BasicLiftingResult,
+                ReportTemplateCatalog.GaResultReport,
                 "Optimization Result",
                 new[] { source }));
 
@@ -100,7 +100,7 @@ public sealed class Phase51BindingTests
     }
 
     [Fact]
-    public void LiftingReportCatalog_ExposesEveryRequiredAssemblyField()
+    public void LiftingReportCatalog_KeepsAssemblyFieldsInternalOnly()
     {
         string[] expectedKeys =
         {
@@ -112,7 +112,7 @@ public sealed class Phase51BindingTests
         };
 
         var templateKeys = ReportTemplateCatalog
-            .GetBuiltInTemplate(ReportFamily.LiftingResult, ReportTemplateCatalog.BasicLiftingResult)
+            .GetBuiltInTemplate(ReportFamily.LiftingResult, ReportTemplateCatalog.GaResultReport)
             .Columns
             .Select(column => column.Key)
             .ToHashSet(StringComparer.Ordinal);
@@ -121,8 +121,8 @@ public sealed class Phase51BindingTests
             .Select(column => column.Key)
             .ToHashSet(StringComparer.Ordinal);
 
-        Assert.All(expectedKeys, key => Assert.Contains(key, templateKeys));
-        Assert.All(expectedKeys, key => Assert.Contains(key, availableKeys));
+        Assert.All(expectedKeys, key => Assert.DoesNotContain(key, templateKeys));
+        Assert.All(expectedKeys, key => Assert.DoesNotContain(key, availableKeys));
     }
 
     private static List<PrecastElement> CreateAssemblyFixture()
@@ -134,7 +134,8 @@ public sealed class Phase51BindingTests
             ElementName = "WALL",
             ElementType = "Assembly",
             ElementMaterial = "CONCRETE",
-            Role = IfcElementRole.NeedsReview,
+            Role = IfcElementRole.LiftAssembly,
+            IncludeInGa = true,
             MainPartGlobalId = "main",
             ChildGlobalIds = new List<string> { "main", "secondary", "hidden" },
             AssemblyMemberIds = new List<string> { "main", "secondary", "hidden" },
@@ -143,7 +144,12 @@ public sealed class Phase51BindingTests
             ElementWT = 9.28,
             VolumeM3 = 3.8,
             ElementVolume = 3.8,
-            PhysicalCOGAvailable = false
+            AssemblyLiftCOG = new DomainPoint3D(10.0, 20.0, 1.5),
+            ElementCOG = new DomainPoint3D(10.0, 20.0, 1.5),
+            COG_M = new DomainPoint3D(10.0, 20.0, 1.5),
+            PhysicalCOGAvailable = true,
+            WeightTrustLevel = IfcWeightTrustLevel.ExplicitQuantity,
+            WeightSource = "ExplicitQuantity"
         };
 
         var main = new PrecastElement

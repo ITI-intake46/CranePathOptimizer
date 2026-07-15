@@ -8,9 +8,9 @@ The Reports tab now contains the first user-facing reporting workflow in additio
   - Default report template: `Basic Element List`
   - Default items included: `All Elements`
 - **Lifting Summary Report** opens the report builder for the internal Lifting Result Report family.
-  - Default report template: `Basic Lifting Result`
-  - Default items included: `Optimization Result`
-  - The button is disabled until an optimization result exists.
+  - Default report template: `GA Result Report`
+  - Default items included: `Final GA Result`
+  - The button is enabled when the shared Analyze `CranePlacementViewModel` has a live result or a usable completed saved run discovered under the active project.
 
 The exported report metadata does not show the internal report family. For users, **Report Name** is the selected template name.
 
@@ -67,7 +67,7 @@ User-facing Element List templates intentionally exclude internal/debug IFC colu
 
 ## Lifting Result Rules
 
-Lifting reports are based on the latest optimization result. Capacity utilization is calculated from the already reduced available capacity stored in the optimization result:
+Lifting reports are based on one immutable resolved GA run. The Analyze selected saved run is preferred, then current-session data, then the latest current production JSON, then same-project historic JSON with a warning, then supported legacy CSV. Capacity utilization is calculated from the already reduced available capacity stored in that resolved result:
 
 ```text
 Capacity Utilization (%) = Required Capacity / Available Capacity * 100
@@ -91,3 +91,6 @@ The following report buttons remain placeholders:
 - Site Zones Report
 
 The shared **GA Diagnostics** and **View Results** buttons remain wired to the existing `CranePlacementViewModel` commands.
+`View Results` is enabled by `HasAvailableResult`, so it can open a restored production JSON or supported legacy CSV run after project reopen without rerunning GA. Legacy runs show their partial-capability warning and disable matrix-only result modes.
+The **Lifting Summary** button uses the same saved-run availability signal, but opens the Lifting Result report builder directly. It must not open the GA Results window or move the scene crane as a side effect.
+The Analyze saved-runs panel synchronizes automatically during project activation and after GA persistence; production UI does not expose a manual Refresh button.

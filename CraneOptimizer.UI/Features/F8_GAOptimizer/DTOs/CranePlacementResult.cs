@@ -52,6 +52,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         /// </summary>
         public string? DebugReportError { get; set; }
 
+        public string? OptimizationRunId { get; set; }
+        public string? SnapshotSourceKind { get; set; }
+        public string? ResultClassification { get; set; }
+        public string? ResultSourceBanner { get; set; }
+        public bool IsReadOnlyRestoredResult { get; set; }
+        public string PersistenceStatus { get; set; } = "SessionOnly";
+        public string? PersistenceMessage { get; set; }
+
         /// <summary>
         /// Reachability diagnostics computed before running GA.
         /// </summary>
@@ -101,6 +109,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
     /// </summary>
     public class CranePositionResult
     {
+        public string PositionId { get; set; } = string.Empty;
+
+        public int SetupIndex { get; set; }
+
         /// <summary>
         /// X coordinate of crane position.
         /// </summary>
@@ -121,6 +133,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs
         /// covered by any earlier crane position. Used for display ordering.
         /// </summary>
         public int NewLiftableCount { get; set; }
+
+        public int FinalAssignedCount { get; set; }
+
+        public List<string> FinalAssignedLiftUnitIds { get; set; } = new();
 
         /// <summary>
         /// Number of elements this point can lift by itself.

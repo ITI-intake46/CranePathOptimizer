@@ -43,7 +43,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
                 var mode = _getViewMode();
                 if (mode == GAViewMode.FinalAssignment)
                 {
-                    int assignedCount = _underlying.ElementResults.Count(r => r.IsFinalAssignedToPoint);
+                    int assignedCount = _underlying.FinalAssignedCount > 0
+                        ? _underlying.FinalAssignedCount
+                        : _underlying.ElementResults.Count(r => r.IsFinalAssignedToPoint);
                     return $"{assignedCount} lifted";
                 }
                 else
@@ -240,6 +242,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public double FitnessScore => _result.FitnessScore;
         public double CoverageRatio => _result.CoverageRatio;
         public string TotalLiftedText => $"Total Lifted: {_result.LiftedElementCount} / {_result.TotalElementCount}";
+        public string ResultSourceText => _result.ResultSourceBanner ?? _result.PersistenceMessage ?? string.Empty;
+        public bool HasResultSourceText => !string.IsNullOrWhiteSpace(ResultSourceText);
 
         public string GroupingBreakdownText
         {
@@ -551,12 +555,16 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         private void RenderSelectedPoint()
         {
             SelectedPointRenderer.Clear(_renderingService);
-            _selectedPointChanged(SelectedPoint?.Underlying);
 
             if (SelectedPoint != null)
                 SelectedPointRenderer.RenderPlacementPoint(
                     _renderingService,
                     new DomainPoint3D(SelectedPoint.X, SelectedPoint.Y, SelectedPoint.Z));
+
+            if (_result.IsReadOnlyRestoredResult)
+                return;
+
+            _selectedPointChanged(SelectedPoint?.Underlying);
 
             // Move the existing crane to the selected GA point
             if (SelectedPoint != null)
