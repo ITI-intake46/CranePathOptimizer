@@ -180,7 +180,7 @@
                     <TextBlock Text="{Binding PreviewRowsText}"/>
                 </StackPanel>
                 <StackPanel Grid.Column="3">
-                    <TextBlock Text="Preview Generated" Style="{StaticResource TextCaption}" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    <TextBlock Text="Created On" Style="{StaticResource TextCaption}" Foreground="{DynamicResource TextSecondaryBrush}"/>
                     <TextBlock Text="{Binding PreviewGeneratedOn, StringFormat={}{0} (preview only)}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </Grid>

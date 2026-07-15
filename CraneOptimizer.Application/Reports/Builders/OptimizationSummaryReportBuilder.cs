@@ -234,10 +234,8 @@ public sealed class OptimizationSummaryReportBuilder
                 new ReportColumn { Key = "BoomLength", Header = "Boom Length", Unit = "m", Type = ReportColumnType.Number },
                 new ReportColumn { Key = "RequiredCapacity", Header = "Required Capacity", Unit = "ton", Type = ReportColumnType.Number },
                 new ReportColumn { Key = "AvailableCapacity", Header = "Available Capacity", Unit = "ton", Type = ReportColumnType.Number },
-                new ReportColumn { Key = "SafetyMargin", Header = "Safety Margin", Unit = "ton", Type = ReportColumnType.Number },
                 new ReportColumn { Key = "LiftStatus", Header = "Lift Status" },
                 new ReportColumn { Key = "ReachStatus", Header = "Reach Status" },
-                new ReportColumn { Key = "ChartStatus", Header = "Chart Status" },
                 new ReportColumn { Key = "LookupMode", Header = "Lookup Mode" }
             }
         };

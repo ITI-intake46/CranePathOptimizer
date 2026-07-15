@@ -1,6 +1,7 @@
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 {
@@ -123,7 +124,13 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                     string.Equals(child.ElementID, parent.MainPartGlobalId, StringComparison.Ordinal))
                 ?? validContributors.OrderByDescending(child => child.WeightTons).FirstOrDefault()
                 ?? nonRebarChildren.FirstOrDefault(child => child.IncludeInRender);
-            DomainPoint3D? liftCog = FirstValidPoint(parent.AssemblyLiftCOG, mainPart?.ElementCOG, parent.ElementCOG);
+            var canonicalCog = CanonicalLiftUnitSnapshotBuilder.ResolveCanonicalCog(parent, allElements);
+            DomainPoint3D? liftCog = canonicalCog.PhysicalCogTrustedForGa
+                ? new DomainPoint3D(
+                    canonicalCog.PhysicalCogProjectM.X,
+                    canonicalCog.PhysicalCogProjectM.Y,
+                    canonicalCog.PhysicalCogProjectM.Z)
+                : FirstValidPoint(parent.AssemblyLiftCOG, mainPart?.ElementCOG, parent.ElementCOG);
 
             if (liftCog == null)
             {
@@ -139,6 +146,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             prepared.AssemblyLiftCOG = liftCog;
             prepared.ElementCOG = liftCog;
             prepared.COG_M = liftCog;
+            if (mainPart != null)
+            {
+                prepared.ElementLength = FirstPositive(mainPart.ElementLength, mainPart.BBoxLength, mainPart.BoundingBox_M.X);
+                prepared.ElementWidth = FirstPositive(mainPart.ElementWidth, mainPart.BBoxWidth, mainPart.BoundingBox_M.Y);
+                prepared.ElementHeight = FirstPositive(mainPart.ElementHeight, mainPart.BBoxHeight, mainPart.BoundingBox_M.Z);
+            }
             prepared.PhysicalCOGAvailable = true;
             prepared.ChildGlobalIds = nonRebarChildren.Select(child => child.ElementID).Distinct(StringComparer.Ordinal).ToList();
             prepared.AssemblyMemberIds = nonRebarChildren
@@ -283,6 +296,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
         private static DomainPoint3D? FirstValidPoint(params DomainPoint3D?[] points) =>
             points.FirstOrDefault(IsValidPoint);
+
+        private static double? FirstPositive(params double?[] values) =>
+            values.FirstOrDefault(value => value is > 0);
 
         private static bool IsValidPoint(DomainPoint3D? point) => point != null
             && double.IsFinite(point.X)

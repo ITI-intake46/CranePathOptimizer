@@ -4,6 +4,8 @@ public sealed class CraneReportInfoDto
 {
     public string? CraneName { get; init; }
     public string? CraneModelOrSpecification { get; init; }
+    public string? ModelName { get; init; }
+    public string? SpecificationName { get; init; }
     public string? Manufacturer { get; init; }
     public string? CraneType { get; init; }
     public string? LoadChartName { get; init; }
@@ -25,5 +27,7 @@ public sealed class CraneReportInfoDto
     public string? DeratingRatioText { get; init; }
     public string? CombinedCapacityFactorText { get; init; }
     public string? WireLengthText { get; init; }
+    public string? CraneHoistWireLengthText { get; init; }
+    public string? LoadChartSource { get; init; }
     public double CapacityFactor { get; init; } = 0.90;
 }

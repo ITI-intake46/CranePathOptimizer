@@ -28,6 +28,7 @@
     <Grid Margin="{StaticResource Space4}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="12" />
             <RowDefinition Height="*" />
             <RowDefinition Height="12" />
@@ -54,7 +55,22 @@
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="2">
+        <Border Grid.Row="1"
+                Margin="0,8,0,0"
+                Padding="8"
+                Background="{DynamicResource SurfaceElevatedBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="4"
+                Visibility="{Binding HasResultSourceText, Converter={StaticResource BoolToVisibilityConverter}}">
+            <TextBlock
+                FontSize="{StaticResource FontSizeXS}"
+                Foreground="{DynamicResource TextSecondaryBrush}"
+                Text="{Binding ResultSourceText}"
+                TextWrapping="Wrap" />
+        </Border>
+
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="380" />
                 <ColumnDefinition Width="12" />
@@ -305,7 +321,7 @@
         </Grid>
 
         <Border
-            Grid.Row="4"
+            Grid.Row="5"
             Padding="{StaticResource Space3}"
             Background="{DynamicResource SurfaceBrush}"
             BorderBrush="{DynamicResource BorderBrush}"

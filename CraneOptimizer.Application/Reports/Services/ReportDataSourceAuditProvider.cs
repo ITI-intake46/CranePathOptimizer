@@ -108,7 +108,8 @@ public static class ReportDataSourceAuditProvider
         rows.Add(ElementRow("Element Mark", "Element Mark", "PrecastElement.ElementMark, fallback display from PrecastElement.ElementName", projectElementCount, "Mark missing/placeholder, polluted with type/material, and ElementName missing."));
         rows.Add(ElementRow("Element Name", "Element Name", "PrecastElement.ElementName", projectElementCount, "ElementName was not normalized during import or project restore."));
         rows.Add(ElementRow("Element Type", "Element Type", "PrecastElement.ElementType", projectElementCount, "ElementType is missing or still Unknown in normalized project state."));
-        rows.Add(ElementRow("Material", "Material", "PrecastElement.ElementMaterial", projectElementCount, "Material is missing from normalized project state."));
+        rows.Add(ElementRow("Material Type", "Material Type", "Resolved canonical material category", projectElementCount, "Material type is missing from normalized project state."));
+        rows.Add(ElementRow("Material Grade", "Material Grade", "Resolved canonical material grade", projectElementCount, "Material grade is missing from normalized project state."));
         rows.Add(ElementRow("Length", "Length", "PrecastElement.ElementLength / BBoxLength", projectElementCount, "Neither explicit dimension nor bounding box dimension is available."));
         rows.Add(ElementRow("Width", "Width", "PrecastElement.ElementWidth / BBoxWidth", projectElementCount, "Neither explicit dimension nor bounding box dimension is available."));
         rows.Add(ElementRow("Height", "Height", "PrecastElement.ElementHeight / BBoxHeight", projectElementCount, "Neither explicit dimension nor bounding box dimension is available."));
@@ -118,7 +119,6 @@ public static class ReportDataSourceAuditProvider
         rows.Add(ElementRow("Bottom Elevation", "Bottom Level / Elevation", "Bounding box min Z or COG.Z - Height / 2", projectElementCount, "COG/height or bounding box data is unavailable."));
         rows.Add(ElementRow("Element Weight", "Element Weight (t)", "PrecastElement.ElementWT / WeightTons", projectElementCount, "Weight is missing, zero, or not trusted in normalized project state."));
         rows.Add(ElementRow("Included in GA Input", "Included in GA Input", "PrecastElement.IncludeInGa", projectElementCount, "Element was intentionally excluded from GA input."));
-        rows.Add(ElementRow("Ready for GA", "Ready for GA", "Pre-GA readiness from IncludeInGa, weight, COG, and geometry", projectElementCount, "The element is excluded or required pre-GA fields are missing."));
     }
 
     private static void AddGaRows(
@@ -146,7 +146,6 @@ public static class ReportDataSourceAuditProvider
         rows.Add(GaRow("Raw Chart Capacity", "Raw Chart Capacity (t)", "ElementLiftResult.RawChartCapacity / GAElementDiagnosticDto.RawChartCapacity", source, sourceObject, availability, gaRowCount, why, "Raw Chart Capacity is the original manufacturer/load-chart value before derating/safety."));
         rows.Add(GaRow("Available Capacity After Derating/Safety", "Available Capacity After Derating/Safety (t)", "ElementLiftResult.AvailableCapacity / GAElementDiagnosticDto.AvailableCapacity", source, sourceObject, availability, gaRowCount, why, "Available Capacity = Raw Chart Capacity x DeratingRatio x SafetyFactor and is already adjusted."));
         rows.Add(GaRow("Capacity Utilization", "Capacity Utilization (%)", "RequiredCapacity / AvailableCapacity x 100", "Report-only calculation from GA values", sourceObject, availability, gaRowCount, why, "Required Capacity is not the same as Element Weight."));
-        rows.Add(GaRow("Safety Margin", "Safety Margin (t)", "ElementLiftResult.SafetyMargin or AvailableCapacity - RequiredCapacity", source, sourceObject, availability, gaRowCount, why, action));
         rows.Add(GaRow("Derating Ratio", "Derating Ratio", "GASettings.DeratingRatio used during GA run", source, sourceObject, hasGaRun ? availability : "No GA run", gaRowCount, why, "GA crane metadata must come from the GA run, not selected UI crane."));
         rows.Add(GaRow("Safety Factor", "Safety Factor", "GASettings.SafetyFactor used during GA run", source, sourceObject, hasGaRun ? availability : "No GA run", gaRowCount, why, "GA crane metadata must come from the GA run, not selected UI crane."));
         rows.Add(GaRow("Combined Capacity Factor", "Combined Capacity Factor", "GASettings.DeratingRatio x GASettings.SafetyFactor", "Report-only calculation from GA run settings", sourceObject, hasGaRun ? availability : "No GA run", gaRowCount, why, "Combined factor explains why adjusted capacity is lower than raw chart capacity."));

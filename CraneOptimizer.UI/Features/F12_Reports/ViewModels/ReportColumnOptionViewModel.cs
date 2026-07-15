@@ -27,6 +27,8 @@ public sealed class ReportColumnOptionViewModel : ViewModelBase
         _format = string.IsNullOrWhiteSpace(definition.Format) ? DefaultFormat(definition.ValueKind) : definition.Format;
         _alignment = string.IsNullOrWhiteSpace(definition.Alignment) ? DefaultAlignment(definition.ValueKind) : definition.Alignment;
         _textSizeText = ParseTextSize(definition.TextSize).ToString("0.##", CultureInfo.InvariantCulture);
+        _showInPdf = definition.ShowInPdf;
+        _showInExcel = definition.ShowInExcel;
         UnitOptions = ResolveUnitOptions(definition);
         _unit = ResolveUnit(definition);
     }
@@ -203,6 +205,12 @@ public sealed class ReportColumnOptionViewModel : ViewModelBase
         Key = Definition.Key,
         Header = DisplayHeader,
         ValueKind = Definition.ValueKind,
+        EvidenceScope = Definition.EvidenceScope,
+        SupportedFamilies = Definition.SupportedFamilies,
+        RequiredCapabilities = Definition.RequiredCapabilities,
+        ShowInPreview = Definition.ShowInPreview,
+        ShowInPdf = ShowInPdf,
+        ShowInExcel = ShowInExcel,
         Order = Order,
         IsSelected = IsSelected,
         Format = Format,

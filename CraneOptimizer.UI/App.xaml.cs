@@ -2,6 +2,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Operators;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization;
 using CraneOptimizer.Application.Reports.Builders;
 using CraneOptimizer.Application.Reports.Inputs;
@@ -20,6 +21,7 @@ using CraneOptimizer.Infrastructure.Ifc;
 using CraneOptimizer.Infrastructure.Reports.Csv;
 using CraneOptimizer.Infrastructure.Reports.Pdf;
 using CraneOptimizer.Infrastructure.Reports.UserFacing;
+using CraneOptimizer.Infrastructure.Optimization.GeneticAlgorithms.Snapshots;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
@@ -137,6 +139,16 @@ namespace CraneOptimizer.UI
             // =========================
             services.AddSingleton<IActiveProjectPathProvider, UiActiveProjectPathProvider>();
             services.AddSingleton<IProjectOutputPathService, ProjectOutputPathService>();
+            services.AddSingleton<IGaResultSnapshotMapper, GaResultSnapshotMapper>();
+            services.AddSingleton<IGaResultSnapshotValidator, GaResultSnapshotValidator>();
+            services.AddSingleton<IGaSnapshotClassificationService, GaSnapshotClassificationService>();
+            services.AddSingleton<IGaModelIdentityService, GaModelIdentityService>();
+            services.AddSingleton<IGaCurrentResultStore, GaCurrentResultStore>();
+            services.AddSingleton<IGaSnapshotReportAdapter, GaSnapshotReportAdapter>();
+            services.AddSingleton<IGaResultSnapshotPathResolver, GaResultSnapshotPathResolver>();
+            services.AddSingleton<IGaResultSnapshotStore, JsonGaResultSnapshotStore>();
+            services.AddSingleton<IGaLegacyCsvSnapshotAdapter, LegacyCsvGaSnapshotAdapter>();
+            services.AddSingleton<IGaResultSnapshotProvider, GaResultSnapshotProvider>();
 
             services.AddTransient<SplashScreenViewModel>();
             services.AddTransient<ProjectManagementViewModel>();
@@ -169,6 +181,7 @@ namespace CraneOptimizer.UI
             services.AddScoped<ICranePlacementService, CranePlacementService>();
             services.AddSingleton<ICraneOptimizerDialogService, CraneOptimizerDialogService>();
             services.AddSingleton<IGAResultsWindowService, GAResultsWindowService>();
+            services.AddSingleton<IGaSnapshotToUiResultMapper, GaSnapshotToUiResultMapper>();
             services.AddSingleton<CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces.IGADiagnosticsReaderService, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GADiagnosticsReaderService>();
             services.AddSingleton<CraneOptimizer.UI.Features.F8_GAOptimizer.Services.IGADiagnosticsWindowService, CraneOptimizer.UI.Features.F8_GAOptimizer.Services.GADiagnosticsWindowService>();
 

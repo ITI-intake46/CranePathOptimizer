@@ -9,6 +9,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
             _disposed = true;
 
+            if (_currentProjectSession != null)
+                CranePlacement.DeactivateProject(_currentProjectSession.ProjectGuid);
+
             _status.StatusChanged -= OnStatusChanged;
             _status.HistoryChanged -= OnHistoryChanged;
             _originService.OriginChanged -= OnOriginChanged;

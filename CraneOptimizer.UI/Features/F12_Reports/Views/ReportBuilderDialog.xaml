@@ -260,7 +260,7 @@
                            TextTrimming="CharacterEllipsis"
                            Margin="0,0,0,2"/>
 
-                <TextBlock Grid.Row="1" Grid.Column="3" Text="Generated On" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Grid.Row="1" Grid.Column="3" Text="Created On" Style="{StaticResource FieldLabel}"/>
                 <TextBlock Grid.Row="1" Grid.Column="4"
                            Text="{Binding GeneratedOnText}"
                            VerticalAlignment="Center"
