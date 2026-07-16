@@ -13,7 +13,7 @@
                         Command="{Binding NewProjectCommand}"
                         Content="New"
                         FontSize="{StaticResource FontSizeXS}"
-                        Style="{StaticResource RibbonMajorCommandTile}">
+                        Style="{StaticResource RibbonMajorLeadingCommandTile}">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="🆕" />
                         </Button.Tag>
@@ -22,7 +22,7 @@
                         Command="{Binding OpenProjectCommand}"
                         Content="Open"
                         FontSize="{StaticResource FontSizeXS}"
-                        Style="{StaticResource RibbonMajorCommandTile}">
+                        Style="{StaticResource RibbonMajorMiddleCommandTile}">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="📂" />
                         </Button.Tag>
@@ -31,7 +31,7 @@
                         Command="{Binding SaveProjectCommand}"
                         Content="Save"
                         FontSize="{StaticResource FontSizeXS}"
-                        Style="{StaticResource RibbonMajorCommandTile}">
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="💾" />
                         </Button.Tag>
@@ -43,7 +43,7 @@
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="SETTINGS">
                 <UniformGrid Rows="1">
-                    <Button ContentTemplate="{x:Null}" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
+                    <Button ContentTemplate="{x:Null}" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorLeadingCommandTile}">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="⚙️" />
                         </Button.Tag>
@@ -55,7 +55,7 @@
                     <Button
                         Content="Units"
                         FontSize="{StaticResource FontSizeXS}"
-                        Style="{StaticResource RibbonMajorCommandTile}">
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="📐" />
                         </Button.Tag>
@@ -70,7 +70,7 @@
                     <Button
                         Command="{Binding IfcViewer.LoadIfcCommand}"
                         Content="Load IFC Model"
-                        Style="{StaticResource RibbonMajorCommandTile}"
+                        Style="{StaticResource RibbonMajorLeadingCommandTile}"
                         ToolTip="Load IFC Model">
                         <Button.Tag>
                             <TextBlock Text="📦" />
@@ -78,7 +78,7 @@
                     </Button>
                     <Button
                         Content="Add Crane"
-                        Style="{StaticResource RibbonMajorCommandTile}">
+                        Style="{StaticResource RibbonMajorMiddleCommandTile}">
                         <Button.Tag>
                             <TextBlock Text="🏗" />
                         </Button.Tag>
@@ -86,7 +86,7 @@
                     <Button
                         Command="{Binding StartDrawingCommand}"
                         Content="Draw Zones"
-                        Style="{StaticResource RibbonMajorCommandTile}">
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}">
                         <Button.Tag>
                             <TextBlock Text="🗺" />
                         </Button.Tag>

@@ -34,7 +34,7 @@
                                     </Style.Triggers>
                                 </Style>
                             </Border.Style>
-                            <Button Command="{Binding StartAllowedCommand}" ContentTemplate="{x:Null}" Style="{StaticResource RibbonMajorCommandTile}">
+                            <Button Command="{Binding StartAllowedCommand}" ContentTemplate="{x:Null}" Style="{StaticResource RibbonMajorLeadingCommandTile}">
                                 <Button.Tag>
                                     <Image
                                         Width="32"
@@ -71,7 +71,7 @@
                                     </Style.Triggers>
                                 </Style>
                             </Border.Style>
-                            <Button Command="{Binding StartForbiddenCommand}" ContentTemplate="{x:Null}" Style="{StaticResource RibbonMajorCommandTile}">
+                            <Button Command="{Binding StartForbiddenCommand}" ContentTemplate="{x:Null}" Style="{StaticResource RibbonMajorTrailingCommandTile}">
                                 <Button.Tag>
                                     <Image
                                         Width="32"
@@ -116,17 +116,17 @@
 
                 <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="ACTIONS">
                     <UniformGrid Rows="1">
-                        <Button Command="{Binding FinishCommand}" Content="Finish Zone" Style="{StaticResource RibbonMajorCommandTile}">
+                        <Button Command="{Binding FinishCommand}" Content="Finish Zone" Style="{StaticResource RibbonMajorLeadingCommandTile}">
                             <Button.Tag>
                                 <TextBlock Text="✔" />
                             </Button.Tag>
                         </Button>
-                        <Button Command="{Binding UndoCommand}" Content="Undo Vertex" Style="{StaticResource RibbonMajorCommandTile}">
+                        <Button Command="{Binding UndoCommand}" Content="Undo Vertex" Style="{StaticResource RibbonMajorMiddleCommandTile}">
                             <Button.Tag>
                                 <TextBlock Text="↩" />
                             </Button.Tag>
                         </Button>
-                        <Button Command="{Binding CancelCommand}" Content="Cancel" Style="{StaticResource RibbonMajorCommandTile}">
+                        <Button Command="{Binding CancelCommand}" Content="Cancel" Style="{StaticResource RibbonMajorTrailingCommandTile}">
                             <Button.Tag>
                                 <TextBlock Text="✕" />
                             </Button.Tag>
@@ -140,17 +140,17 @@
                     Style="{StaticResource RibbonCommandGroup}"
                     Tag="{Binding ZoneList.ZoneCount, StringFormat=MANAGE ({0} zones)}">
                     <UniformGrid Rows="1">
-                        <Button Command="{Binding DeleteZoneCommand}" Content="Delete Selected" Style="{StaticResource RibbonMajorCommandTile}" ToolTip="Delete Selected">
+                        <Button Command="{Binding DeleteZoneCommand}" Content="Delete Selected" Style="{StaticResource RibbonMajorLeadingCommandTile}" ToolTip="Delete Selected">
                             <Button.Tag>
                                 <TextBlock Text="🗑" />
                             </Button.Tag>
                         </Button>
-                        <Button Command="{Binding DeleteAllCommand}" Content="Delete All" Style="{StaticResource RibbonMajorCommandTile}">
+                        <Button Command="{Binding DeleteAllCommand}" Content="Delete All" Style="{StaticResource RibbonMajorMiddleCommandTile}">
                             <Button.Tag>
                                 <TextBlock Text="🗑" />
                             </Button.Tag>
                         </Button>
-                        <Button Command="{Binding ZoneList.ExportZonesCommand}" Content="Export JSON" Style="{StaticResource RibbonMajorCommandTile}">
+                        <Button Command="{Binding ZoneList.ExportZonesCommand}" Content="Export JSON" Style="{StaticResource RibbonMajorTrailingCommandTile}">
                             <Button.Tag>
                                 <TextBlock Text="📤" />
                             </Button.Tag>

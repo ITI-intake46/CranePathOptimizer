@@ -43,7 +43,7 @@
                     </Grid.ColumnDefinitions>
                     <Button
                         Click="OpenUnits_Click"
-                        Content="Units..."
+                        Content="Units"
                         Style="{StaticResource RibbonMajorPrimaryCommandTile}" />
                     <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
                         <TextBlock

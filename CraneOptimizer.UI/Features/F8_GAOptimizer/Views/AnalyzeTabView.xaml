@@ -8,15 +8,10 @@
         <StackPanel Margin="6,0" Orientation="Horizontal">
 
             <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="OPTIMIZE">
-                <Button Command="{Binding OptimizeCommand}" ContentTemplate="{x:Null}" Style="{StaticResource RibbonMajorPrimaryCommandTile}">
+                <Button Command="{Binding OptimizeCommand}" Content="Run Optimizer" Style="{StaticResource RibbonAnalyzeAccentCommandTile}">
                     <Button.Tag>
                         <TextBlock FontSize="22" Text="⚡" />
                     </Button.Tag>
-                    <TextBlock
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        FontWeight="SemiBold"
-                        Text="Run Optimizer" />
                 </Button>
             </ContentControl>
 
@@ -24,16 +19,16 @@
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="REPORTS">
                 <UniformGrid Rows="1">
-                    <Button Content="Export Analysis" Style="{StaticResource RibbonMajorSecondaryCommandTile}" Tag="📄" />
-                    <Button Content="Export Zones (JSON)" Style="{StaticResource RibbonMajorSecondaryCommandTile}" Tag="📤" ToolTip="Export Zones (JSON)" />
-                    <Button Command="{Binding ShowDiagnosticsCommand}" Content="GA Diagnostics" Style="{StaticResource RibbonMajorSecondaryCommandTile}" Tag="📈" />
+                    <Button Content="Export Analysis" Style="{StaticResource RibbonMajorLeadingCommandTile}" Tag="📄" />
+                    <Button Content="Export Zones (JSON)" Style="{StaticResource RibbonMajorMiddleCommandTile}" Tag="📤" ToolTip="Export Zones (JSON)" />
+                    <Button Command="{Binding ShowDiagnosticsCommand}" Content="GA Diagnostics" Style="{StaticResource RibbonMajorTrailingCommandTile}" Tag="📈" />
                 </UniformGrid>
             </ContentControl>
 
             <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="RESULTS">
-                <Button Command="{Binding ShowResultsCommand}" Content="View Results" Style="{StaticResource RibbonMajorSecondaryCommandTile}" Tag="📊" />
+                <Button Command="{Binding ShowResultsCommand}" Content="View Results" Style="{StaticResource RibbonMajorCommandTile}" Tag="📊" />
             </ContentControl>
 
             <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />

@@ -8,15 +8,10 @@
         <StackPanel Margin="6,0" Orientation="Horizontal">
 
             <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="AI COPILOT">
-                <Button Click="OpenAdvisor_Click" ContentTemplate="{x:Null}" Style="{StaticResource RibbonMajorPrimaryCommandTile}">
+                <Button Click="OpenAdvisor_Click" Content="Open Copilot" Style="{StaticResource RibbonMajorCommandTile}">
                     <Button.Tag>
                         <TextBlock FontSize="22" Text="🤖" />
                     </Button.Tag>
-                    <TextBlock
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        FontWeight="SemiBold"
-                        Text="Open Copilot" />
                 </Button>
             </ContentControl>
 
@@ -27,14 +22,14 @@
                     <Button
                         Command="{Binding AnalyzeCurrentResultCommand}"
                         Content="Analyze Current Result"
-                        Style="{StaticResource RibbonMajorSecondaryCommandTile}"
+                        Style="{StaticResource RibbonMajorLeadingCommandTile}"
                         Tag="🔎"
-                        ToolTip="Analyze Current Result" />
+                        ToolTip="Analyze Current Result"
+                        Width="{StaticResource RibbonMajorLongCommandWidth}" />
                     <Button
                         Click="OpenAdvisor_Click"
                         Content="Ask Local Ollama"
-                        FontWeight="SemiBold"
-                        Style="{StaticResource RibbonMajorSecondaryCommandTile}"
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}"
                         Tag="💬" />
                 </UniformGrid>
             </ContentControl>

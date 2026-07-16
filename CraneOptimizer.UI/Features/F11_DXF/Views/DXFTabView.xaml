@@ -13,7 +13,7 @@
                         Command="{Binding Dxf.UploadDxfCommand}"
                         Content="Upload DXF"
                         FontSize="{StaticResource FontSizeXS}"
-                        Style="{StaticResource RibbonMajorCommandTile}"
+                        Style="{StaticResource RibbonMajorLeadingCommandTile}"
                         ToolTip="Select a DXF file from disk">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="📂" />
@@ -23,7 +23,7 @@
                         Content="Add Another"
                         FontSize="{StaticResource FontSizeXS}"
                         IsEnabled="False"
-                        Style="{StaticResource RibbonMajorCommandTile}"
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}"
                         ToolTip="Add another DXF (coming soon)">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="➕" />
@@ -87,7 +87,7 @@
                     <Button
                         Content="Select"
                         IsEnabled="False"
-                        Style="{StaticResource RibbonMajorCommandTile}"
+                        Style="{StaticResource RibbonMajorLeadingCommandTile}"
                         ToolTip="Select DXF entities (coming soon)">
                         <Button.Tag>
                             <TextBlock Text="⬚" />
@@ -96,7 +96,7 @@
                     <Button
                         Content="Select All"
                         IsEnabled="False"
-                        Style="{StaticResource RibbonMajorCommandTile}"
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}"
                         ToolTip="Select all DXF entities (coming soon)">
                         <Button.Tag>
                             <TextBlock Text="⬛" />

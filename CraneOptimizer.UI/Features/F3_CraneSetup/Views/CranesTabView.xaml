@@ -47,8 +47,9 @@
                     <Button
                         Command="{Binding RemoveSelectedCraneCommand}"
                         Content="Remove Selected Crane"
-                        Style="{StaticResource RibbonMajorCommandTile}"
-                        ToolTip="Remove Selected Crane">
+                        Style="{StaticResource RibbonMajorLeadingCommandTile}"
+                        ToolTip="Remove Selected Crane"
+                        Width="{StaticResource RibbonMajorLongCommandWidth}">
                         <Button.Tag>
                             <TextBlock Foreground="{StaticResource DestructiveBrush}" Text="✖" />
                         </Button.Tag>
@@ -56,7 +57,7 @@
                     <Button
                         Command="{Binding RemoveAllCranesCommand}"
                         Content="Remove All Cranes"
-                        Style="{StaticResource RibbonMajorCommandTile}"
+                        Style="{StaticResource RibbonMajorMiddleCommandTile}"
                         ToolTip="Remove All Cranes">
                         <Button.Tag>
                             <TextBlock Text="🗑" />
@@ -66,7 +67,7 @@
                         Command="{Binding CraneSetup.UnlockPositionCommand}"
                         Content="Unlock Position"
                         IsEnabled="{Binding CraneSetup.IsPositionLocked}"
-                        Style="{StaticResource RibbonMajorCommandTile}"
+                        Style="{StaticResource RibbonMajorMiddleCommandTile}"
                         ToolTip="Unlock Position">
                         <Button.Tag>
                             <TextBlock Text="🔓" />
@@ -75,7 +76,7 @@
                     <ToggleButton
                         Content="Show Swing Radius"
                         IsChecked="{Binding ShowCraneRadius}"
-                        Style="{StaticResource RibbonMajorToggleTile}"
+                        Style="{StaticResource RibbonMajorTrailingToggleTile}"
                         ToolTip="Show Swing Radius">
                         <ToggleButton.Tag>
                             <Ellipse
@@ -116,9 +117,9 @@
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="LOAD CHART">
                 <UniformGrid Rows="1">
-                    <Button Click="ImportLoadChart_Click" Content="Import Load Chart..." Style="{StaticResource RibbonMajorCommandTile}" ToolTip="Import Load Chart..." />
-                    <Button Click="ViewSavedCharts_Click" Content="View Saved Charts" Style="{StaticResource RibbonMajorCommandTile}" ToolTip="View Saved Charts" />
-                    <Button Click="CraneCatalog_Click" Content="Crane Catalog..." Style="{StaticResource RibbonMajorCommandTile}" ToolTip="Crane Catalog..." />
+                    <Button Click="ImportLoadChart_Click" Content="Import Load Chart" Style="{StaticResource RibbonMajorLeadingCommandTile}" ToolTip="Import Load Chart" />
+                    <Button Click="ViewSavedCharts_Click" Content="View Saved Charts" Style="{StaticResource RibbonMajorMiddleCommandTile}" ToolTip="View Saved Charts" />
+                    <Button Click="CraneCatalog_Click" Content="Crane Catalog" Style="{StaticResource RibbonMajorTrailingCommandTile}" ToolTip="Crane Catalog" />
                 </UniformGrid>
             </ContentControl>
 

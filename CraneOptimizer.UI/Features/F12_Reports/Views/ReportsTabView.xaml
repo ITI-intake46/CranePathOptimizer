@@ -25,6 +25,7 @@
                 <Button
                     Command="{Binding OpenLiftingSummaryReportCommand}"
                     Content="Lifting Summary Report"
+                    Width="{StaticResource RibbonMajorLongCommandWidth}"
                     Style="{StaticResource RibbonMajorCommandTile}"
                     ToolTip="Build a lifting summary report">
                     <Button.Tag>
@@ -39,6 +40,7 @@
                 <Button
                     Click="AllCranesInDatabase_Click"
                     Content="All Cranes in Database"
+                    Width="{StaticResource RibbonMajorLongCommandWidth}"
                     Style="{StaticResource RibbonMajorCommandTile}"
                     ToolTip="All cranes in the catalog â€” brand, model, capacity range, boom range, outrigger config">
                     <Button.Tag>
@@ -83,7 +85,7 @@
                     <Button
                         Click="ProjectOverview_Click"
                         Content="Project Overview"
-                        Style="{StaticResource RibbonMajorCommandTile}"
+                        Style="{StaticResource RibbonMajorLeadingCommandTile}"
                         ToolTip="Project meta + all imported IFC files (name, path, element count, schema, size)">
                         <Button.Tag>
                             <TextBlock Text="📁" />
@@ -92,7 +94,7 @@
                     <Button
                         Click="SiteZonesReport_Click"
                         Content="Site Zones Report"
-                        Style="{StaticResource RibbonMajorCommandTile}"
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}"
                         ToolTip="All site zones: name, type, vertex coordinates">
                         <Button.Tag>
                             <TextBlock Text="📌" />
@@ -108,7 +110,7 @@
                     <Button
                         Command="{Binding ShowDiagnosticsCommand}"
                         Content="GA Diagnostics"
-                        Style="{StaticResource RibbonMajorCommandTile}"
+                        Style="{StaticResource RibbonMajorLeadingCommandTile}"
                         ToolTip="GA convergence graph and generation statistics">
                         <Button.Tag>
                             <TextBlock Text="📈" />
@@ -117,7 +119,7 @@
                     <Button
                         Command="{Binding ShowResultsCommand}"
                         Content="View Results"
-                        Style="{StaticResource RibbonMajorCommandTile}"
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}"
                         ToolTip="Open the optimization results window">
                         <Button.Tag>
                             <TextBlock Text="📊" />

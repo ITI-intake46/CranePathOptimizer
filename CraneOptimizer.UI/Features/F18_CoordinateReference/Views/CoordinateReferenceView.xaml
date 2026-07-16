@@ -272,12 +272,12 @@
                 <!-- 5. ACTIONS -->
                 <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="ACTIONS">
                     <UniformGrid Rows="1">
-                            <Button Command="{Binding ApplyCommand}" Content="Apply" FontSize="10" FontWeight="SemiBold" Foreground="White" Style="{StaticResource RibbonMajorCommandTile}">
+                            <Button Command="{Binding ApplyCommand}" Content="Apply" FontSize="10" FontWeight="SemiBold" Foreground="White" Style="{StaticResource RibbonMajorLeadingCommandTile}">
                                 <Button.Tag>
                                     <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="White" Text="✔" />
                                 </Button.Tag>
                             </Button>
-                            <Button Command="{Binding ResetCommand}" Content="Reset" FontSize="10" FontWeight="SemiBold" Style="{StaticResource RibbonMajorCommandTile}">
+                            <Button Command="{Binding ResetCommand}" Content="Reset" FontSize="10" FontWeight="SemiBold" Style="{StaticResource RibbonMajorTrailingCommandTile}">
                                 <Button.Tag>
                                     <TextBlock FontSize="10" FontWeight="SemiBold" Text="✕" />
                                 </Button.Tag>

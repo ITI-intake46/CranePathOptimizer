@@ -15,6 +15,7 @@
     <sys:Double x:Key="RibbonMajorCommandHeight">78</sys:Double>
     <sys:Double x:Key="RibbonMajorCommandContentHeight">72</sys:Double>
     <sys:Double x:Key="RibbonMajorCommandWidth">104</sys:Double>
+    <sys:Double x:Key="RibbonMajorLongCommandWidth">120</sys:Double>
     <sys:Double x:Key="RibbonMajorCommandIconSlotSize">38</sys:Double>
     <sys:Double x:Key="RibbonMajorCommandIconSize">34</sys:Double>
     <GridLength x:Key="RibbonMajorCommandIconRowHeight">58*</GridLength>
@@ -22,6 +23,9 @@
     <GridLength x:Key="RibbonMajorCommandSubtitleRowHeight">12</GridLength>
     <Thickness x:Key="RibbonCommandGroupPadding">0</Thickness>
     <Thickness x:Key="RibbonMajorCommandTileMargin">7,5,7,9</Thickness>
+    <Thickness x:Key="RibbonMajorCommandLeadingTileMargin">7,5,3,9</Thickness>
+    <Thickness x:Key="RibbonMajorCommandMiddleTileMargin">3,5,3,9</Thickness>
+    <Thickness x:Key="RibbonMajorCommandTrailingTileMargin">3,5,7,9</Thickness>
     <Thickness x:Key="RibbonMajorCommandTilePadding">8,6,8,4</Thickness>
 
     <ControlTemplate x:Key="RibbonMajorCommandButtonTemplate" TargetType="Button">
@@ -145,13 +149,17 @@
     </ControlTemplate>
 
     <DataTemplate x:Key="RibbonMajorCommandLabelTemplate">
-        <TextBlock HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   MaxHeight="26"
-                   Text="{Binding}"
-                   TextAlignment="Center"
-                   TextTrimming="CharacterEllipsis"
-                   TextWrapping="Wrap" />
+        <Grid Height="26">
+            <TextBlock HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       LineHeight="13"
+                       LineStackingStrategy="BlockLineHeight"
+                       MaxHeight="26"
+                       Text="{Binding}"
+                       TextAlignment="Center"
+                       TextTrimming="None"
+                       TextWrapping="Wrap" />
+        </Grid>
     </DataTemplate>
 
     <Style x:Key="RibbonLargeBtn" TargetType="Button">
@@ -227,6 +235,45 @@
         </Style.Triggers>
     </Style>
 
+    <Style x:Key="RibbonMajorLeadingCommandTile"
+           TargetType="Button"
+           BasedOn="{StaticResource RibbonMajorCommandTile}">
+        <Setter Property="Margin" Value="{StaticResource RibbonMajorCommandLeadingTileMargin}" />
+    </Style>
+
+    <Style x:Key="RibbonMajorMiddleCommandTile"
+           TargetType="Button"
+           BasedOn="{StaticResource RibbonMajorCommandTile}">
+        <Setter Property="Margin" Value="{StaticResource RibbonMajorCommandMiddleTileMargin}" />
+    </Style>
+
+    <Style x:Key="RibbonMajorTrailingCommandTile"
+           TargetType="Button"
+           BasedOn="{StaticResource RibbonMajorCommandTile}">
+        <Setter Property="Margin" Value="{StaticResource RibbonMajorCommandTrailingTileMargin}" />
+    </Style>
+
+    <Style x:Key="RibbonAnalyzeAccentCommandTile"
+           TargetType="Button"
+           BasedOn="{StaticResource RibbonMajorCommandTile}">
+        <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource PrimaryHoverBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{StaticResource PrimaryPressedBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}" />
+                <Setter Property="Opacity" Value="0.4" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="RibbonMajorPrimaryCommandTile"
            TargetType="Button"
            BasedOn="{StaticResource RibbonMajorCommandTile}">
@@ -252,28 +299,7 @@
 
     <Style x:Key="RibbonMajorSecondaryCommandTile"
            TargetType="Button"
-           BasedOn="{StaticResource RibbonMajorCommandTile}">
-        <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
-        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        <Setter Property="FontSize" Value="{StaticResource FontSizeBase}" />
-        <Setter Property="FontWeight" Value="Bold" />
-        <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
-                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                <Setter Property="Opacity" Value="0.8" />
-            </Trigger>
-            <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
-                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                <Setter Property="Opacity" Value="0.6" />
-            </Trigger>
-            <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                <Setter Property="Opacity" Value="0.4" />
-            </Trigger>
-        </Style.Triggers>
-    </Style>
+           BasedOn="{StaticResource RibbonMajorCommandTile}" />
 
     <Style x:Key="RibbonMajorDestructiveCommandTile"
            TargetType="Button"
@@ -333,6 +359,12 @@
                 <Setter Property="Opacity" Value="0.55" />
             </Trigger>
         </Style.Triggers>
+    </Style>
+
+    <Style x:Key="RibbonMajorTrailingToggleTile"
+           TargetType="ToggleButton"
+           BasedOn="{StaticResource RibbonMajorToggleTile}">
+        <Setter Property="Margin" Value="{StaticResource RibbonMajorCommandTrailingTileMargin}" />
     </Style>
 
     <Style x:Key="RibbonMajorCommandContent" TargetType="Grid">

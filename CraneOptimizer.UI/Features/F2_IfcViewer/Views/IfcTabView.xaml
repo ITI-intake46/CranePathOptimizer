@@ -9,17 +9,17 @@
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="LOAD MODEL">
                 <UniformGrid Rows="1">
-                    <Button Command="{Binding IfcViewer.LoadIfcCommand}" Content="Load IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
+                    <Button Command="{Binding IfcViewer.LoadIfcCommand}" Content="Load IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorLeadingCommandTile}">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="📦" />
                         </Button.Tag>
                     </Button>
-                    <Button Command="{Binding IfcViewer.MergeIfcCommand}" Content="Merge IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
+                    <Button Command="{Binding IfcViewer.MergeIfcCommand}" Content="Merge IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorMiddleCommandTile}">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="🔗" />
                         </Button.Tag>
                     </Button>
-                    <Button Command="{Binding IfcViewer.MoveIfcCommand}" Content="Move IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
+                    <Button Command="{Binding IfcViewer.MoveIfcCommand}" Content="Move IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorMiddleCommandTile}">
                         <Button.Tag>
                             <Viewbox
                                 Width="30"
@@ -37,7 +37,7 @@
                             </Viewbox>
                         </Button.Tag>
                     </Button>
-                    <Button Command="{Binding IfcViewer.DeleteIfcCommand}" Content="Delete IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
+                    <Button Command="{Binding IfcViewer.DeleteIfcCommand}" Content="Delete IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorTrailingCommandTile}">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="🗑" />
                         </Button.Tag>
@@ -49,17 +49,17 @@
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="DISPLAY">
                 <UniformGrid Rows="1">
-                    <Button Content="Toggle COG Markers" Style="{StaticResource RibbonMajorCommandTile}" ToolTip="Toggle COG Markers">
+                    <Button Content="Toggle COG Markers" Style="{StaticResource RibbonMajorLeadingCommandTile}" ToolTip="Toggle COG Markers">
                         <Button.Tag>
                             <TextBlock Text="⊙" />
                         </Button.Tag>
                     </Button>
-                    <Button Content="Color by Weight" Style="{StaticResource RibbonMajorCommandTile}" ToolTip="Color by Weight">
+                    <Button Content="Color by Weight" Style="{StaticResource RibbonMajorMiddleCommandTile}" ToolTip="Color by Weight">
                         <Button.Tag>
                             <TextBlock Text="🎨" />
                         </Button.Tag>
                     </Button>
-                    <Button Content="Export Element List" Style="{StaticResource RibbonMajorCommandTile}" ToolTip="Export Element List">
+                    <Button Content="Export Element List" Style="{StaticResource RibbonMajorTrailingCommandTile}" ToolTip="Export Element List" Width="{StaticResource RibbonMajorLongCommandWidth}">
                         <Button.Tag>
                             <TextBlock Text="📊" />
                         </Button.Tag>
@@ -98,12 +98,12 @@
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="SITE LAYOUT">
                 <UniformGrid Rows="1">
-                    <Button Content="Upload DXF" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
+                    <Button Content="Upload DXF" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorLeadingCommandTile}">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="📐" />
                         </Button.Tag>
                     </Button>
-                    <Button Content="Align DXF" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
+                    <Button Content="Align DXF" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorTrailingCommandTile}">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="🎯" />
                         </Button.Tag>
