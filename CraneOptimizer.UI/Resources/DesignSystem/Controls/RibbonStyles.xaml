@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
     <!--
         ═══════════════════════════════════════════════════════════════
@@ -10,12 +11,155 @@
     -->
 
     <!-- ── Large ribbon button: big icon stacked above label ─────────── -->
+    <!-- Major-command geometry follows the approved Compare tile. -->
+    <sys:Double x:Key="RibbonMajorCommandHeight">78</sys:Double>
+    <sys:Double x:Key="RibbonMajorCommandContentHeight">72</sys:Double>
+    <sys:Double x:Key="RibbonMajorCommandWidth">104</sys:Double>
+    <sys:Double x:Key="RibbonMajorCommandIconSlotSize">38</sys:Double>
+    <sys:Double x:Key="RibbonMajorCommandIconSize">34</sys:Double>
+    <GridLength x:Key="RibbonMajorCommandIconRowHeight">58*</GridLength>
+    <GridLength x:Key="RibbonMajorCommandLabelRowHeight">42*</GridLength>
+    <GridLength x:Key="RibbonMajorCommandSubtitleRowHeight">12</GridLength>
+    <Thickness x:Key="RibbonCommandGroupPadding">0</Thickness>
+    <Thickness x:Key="RibbonMajorCommandTileMargin">7,5,7,9</Thickness>
+    <Thickness x:Key="RibbonMajorCommandTilePadding">8,6,8,4</Thickness>
+
+    <ControlTemplate x:Key="RibbonMajorCommandButtonTemplate" TargetType="Button">
+        <Grid>
+            <Border x:Name="Tile"
+                    Margin="1"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="3"
+                    Opacity="{TemplateBinding Opacity}"
+                    Padding="{TemplateBinding Padding}">
+                <Grid HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="{StaticResource RibbonMajorCommandIconRowHeight}" />
+                        <RowDefinition Height="{StaticResource RibbonMajorCommandLabelRowHeight}" />
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch">
+                        <Grid Width="{StaticResource RibbonMajorCommandIconSlotSize}"
+                              Height="{StaticResource RibbonMajorCommandIconSlotSize}"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center">
+                            <Viewbox Width="{StaticResource RibbonMajorCommandIconSize}"
+                                     Height="{StaticResource RibbonMajorCommandIconSize}"
+                                     HorizontalAlignment="Center"
+                                     VerticalAlignment="Center"
+                                     Stretch="Uniform">
+                                <ContentPresenter Content="{TemplateBinding Tag}"
+                                                  RecognizesAccessKey="False"
+                                                  TextElement.FontSize="{StaticResource RibbonMajorCommandIconSize}" />
+                            </Viewbox>
+                        </Grid>
+                    </Grid>
+                    <ContentPresenter Grid.Row="1"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch"
+                                      Content="{TemplateBinding Content}"
+                                      ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      TextElement.FontFamily="{TemplateBinding FontFamily}"
+                                      TextElement.FontSize="{TemplateBinding FontSize}"
+                                      TextElement.FontWeight="{TemplateBinding FontWeight}" />
+                </Grid>
+            </Border>
+            <Border x:Name="FocusRing"
+                    Margin="2"
+                    BorderBrush="{StaticResource PrimaryBrush}"
+                    BorderThickness="1"
+                    CornerRadius="3"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed" />
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="FocusRing" Property="Visibility" Value="Visible" />
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <ControlTemplate x:Key="RibbonMajorToggleButtonTemplate" TargetType="ToggleButton">
+        <Grid>
+            <Border x:Name="Tile"
+                    Margin="1"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="3"
+                    Opacity="{TemplateBinding Opacity}"
+                    Padding="{TemplateBinding Padding}">
+                <Grid HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="{StaticResource RibbonMajorCommandIconRowHeight}" />
+                        <RowDefinition Height="{StaticResource RibbonMajorCommandLabelRowHeight}" />
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch">
+                        <Grid Width="{StaticResource RibbonMajorCommandIconSlotSize}"
+                              Height="{StaticResource RibbonMajorCommandIconSlotSize}"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center">
+                            <Viewbox Width="{StaticResource RibbonMajorCommandIconSize}"
+                                     Height="{StaticResource RibbonMajorCommandIconSize}"
+                                     HorizontalAlignment="Center"
+                                     VerticalAlignment="Center"
+                                     Stretch="Uniform">
+                                <ContentPresenter Content="{TemplateBinding Tag}"
+                                                  RecognizesAccessKey="False"
+                                                  TextElement.FontSize="{StaticResource RibbonMajorCommandIconSize}" />
+                            </Viewbox>
+                        </Grid>
+                    </Grid>
+                    <ContentPresenter Grid.Row="1"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch"
+                                      Content="{TemplateBinding Content}"
+                                      ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      TextElement.FontFamily="{TemplateBinding FontFamily}"
+                                      TextElement.FontSize="{TemplateBinding FontSize}"
+                                      TextElement.FontWeight="{TemplateBinding FontWeight}" />
+                </Grid>
+            </Border>
+            <Border x:Name="FocusRing"
+                    Margin="2"
+                    BorderBrush="{StaticResource PrimaryBrush}"
+                    BorderThickness="1"
+                    CornerRadius="3"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed" />
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="FocusRing" Property="Visibility" Value="Visible" />
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <DataTemplate x:Key="RibbonMajorCommandLabelTemplate">
+        <TextBlock HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   MaxHeight="26"
+                   Text="{Binding}"
+                   TextAlignment="Center"
+                   TextTrimming="CharacterEllipsis"
+                   TextWrapping="Wrap" />
+    </DataTemplate>
+
     <Style x:Key="RibbonLargeBtn" TargetType="Button">
         <Setter Property="Background"      Value="Transparent"/>
         <Setter Property="Foreground"      Value="{DynamicResource TextSecondaryBrush}"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Width"           Value="58"/>
-        <Setter Property="Height"          Value="78"/>
+        <Setter Property="Height"          Value="{StaticResource RibbonMajorCommandHeight}"/>
         <Setter Property="Cursor"          Value="Hand"/>
         <Setter Property="FontFamily"      Value="{StaticResource FontPrimary}"/>
         <Setter Property="FontSize"        Value="{StaticResource FontSizeXS}"/>
@@ -47,6 +191,172 @@
     </Style>
 
     <!-- ── Small ribbon button: icon + label side by side ────────────── -->
+    <!-- Full-height ribbon command tile. Scoped by key; never applied implicitly. -->
+    <Style x:Key="RibbonMajorCommandTile" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Height" Value="{StaticResource RibbonMajorCommandHeight}" />
+        <Setter Property="Width" Value="{StaticResource RibbonMajorCommandWidth}" />
+        <Setter Property="Margin" Value="{StaticResource RibbonMajorCommandTileMargin}" />
+        <Setter Property="Padding" Value="{StaticResource RibbonMajorCommandTilePadding}" />
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeSM}" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="ContentTemplate" Value="{StaticResource RibbonMajorCommandLabelTemplate}" />
+        <Setter Property="Template" Value="{StaticResource RibbonMajorCommandButtonTemplate}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+                <Setter Property="Opacity" Value="0.55" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="RibbonMajorPrimaryCommandTile"
+           TargetType="Button"
+           BasedOn="{StaticResource RibbonMajorCommandTile}">
+        <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBase}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource PrimaryHoverBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{StaticResource PrimaryPressedBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}" />
+                <Setter Property="Opacity" Value="0.4" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="RibbonMajorSecondaryCommandTile"
+           TargetType="Button"
+           BasedOn="{StaticResource RibbonMajorCommandTile}">
+        <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBase}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="Opacity" Value="0.8" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="Opacity" Value="0.6" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                <Setter Property="Opacity" Value="0.4" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="RibbonMajorDestructiveCommandTile"
+           TargetType="Button"
+           BasedOn="{StaticResource RibbonMajorCommandTile}">
+        <Setter Property="Background" Value="{StaticResource DestructiveBrush}" />
+        <Setter Property="Foreground" Value="#FFFFFF" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBase}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource DestructiveHoverBrush}" />
+                <Setter Property="Foreground" Value="#FFFFFF" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{StaticResource DestructiveHoverBrush}" />
+                <Setter Property="Foreground" Value="#FFFFFF" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="#FFFFFF" />
+                <Setter Property="Opacity" Value="0.4" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="RibbonMajorToggleTile" TargetType="ToggleButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Height" Value="{StaticResource RibbonMajorCommandHeight}" />
+        <Setter Property="Width" Value="{StaticResource RibbonMajorCommandWidth}" />
+        <Setter Property="Margin" Value="{StaticResource RibbonMajorCommandTileMargin}" />
+        <Setter Property="Padding" Value="{StaticResource RibbonMajorCommandTilePadding}" />
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeSM}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="ContentTemplate" Value="{StaticResource RibbonMajorCommandLabelTemplate}" />
+        <Setter Property="Template" Value="{StaticResource RibbonMajorToggleButtonTemplate}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+                <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+                <Setter Property="Opacity" Value="0.55" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="RibbonMajorCommandContent" TargetType="Grid">
+        <Setter Property="Height" Value="{StaticResource RibbonMajorCommandContentHeight}"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style x:Key="RibbonMajorCommandLabel" TargetType="TextBlock">
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="TextAlignment" Value="Center"/>
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="MaxHeight" Value="26" />
+    </Style>
+
+    <Style x:Key="RibbonMajorCommandSubtitle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="9"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="TextAlignment" Value="Center"/>
+    </Style>
+
     <Style x:Key="RibbonSmallBtn" TargetType="Button">
         <Setter Property="Background"               Value="Transparent"/>
         <Setter Property="Foreground"               Value="{DynamicResource TextSecondaryBrush}"/>
@@ -185,8 +495,41 @@
         <Setter Property="FontSize"            Value="9"/>
         <Setter Property="FontWeight"          Value="SemiBold"/>
         <Setter Property="HorizontalAlignment" Value="Center"/>
-        <Setter Property="Margin"              Value="0,3,0,3"/>
+        <Setter Property="Margin"              Value="0"/>
         <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+    </Style>
+
+    <!-- Shared two-row ribbon group: command area above, caption below. -->
+    <Style x:Key="RibbonCommandGroup" TargetType="ContentControl">
+        <Setter Property="Padding" Value="{StaticResource RibbonCommandGroupPadding}" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <Border Padding="{TemplateBinding Padding}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" SharedSizeGroup="RibbonCommandArea" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <ContentPresenter Grid.Row="0"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            <TextBlock Grid.Row="1"
+                                       Style="{StaticResource GroupLabel}"
+                                       Text="{TemplateBinding Tag}" />
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="RibbonSingleCommandGroup"
+           TargetType="ContentControl"
+           BasedOn="{StaticResource RibbonCommandGroup}">
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
 
     <!-- ── Ribbon Tab Selector button (tab strip at top of ribbon) ────── -->

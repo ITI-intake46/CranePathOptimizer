@@ -4,57 +4,48 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Background="{DynamicResource SurfaceBrush}">
 
-    <Border Padding="8">
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <StackPanel Margin="6,0" Orientation="Horizontal">
 
-            <StackPanel Grid.Column="0" Margin="0,0,18,0">
-                <TextBlock
-                    Margin="4,0,0,6"
-                    Style="{StaticResource PropertyLabel}"
-                    Text="AI COPILOT" />
-
-                <Button
-                    Width="120"
-                    Height="70"
-                    Click="OpenAdvisor_Click"
-                    Style="{StaticResource ButtonPrimary}">
-                    <StackPanel HorizontalAlignment="Center">
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="AI COPILOT">
+                <Button Click="OpenAdvisor_Click" ContentTemplate="{x:Null}" Style="{StaticResource RibbonMajorPrimaryCommandTile}">
+                    <Button.Tag>
                         <TextBlock FontSize="22" Text="🤖" />
-                        <TextBlock
-                            Margin="0,4,0,0"
-                            FontWeight="SemiBold"
-                            Text="Open Copilot" />
-                    </StackPanel>
+                    </Button.Tag>
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontWeight="SemiBold"
+                        Text="Open Copilot" />
                 </Button>
-            </StackPanel>
+            </ContentControl>
 
-            <StackPanel Grid.Column="1" Margin="0,0,18,0">
-                <TextBlock
-                    Margin="4,0,0,6"
-                    Style="{StaticResource PropertyLabel}"
-                    Text="RESULT CHECK" />
+            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
-                <Button
-                    Margin="0,0,0,4"
-                    Command="{Binding AnalyzeCurrentResultCommand}"
-                    Content="🔎 Analyze Current Result"
-                    Style="{StaticResource ButtonSecondary}" />
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="RESULT CHECK">
+                <UniformGrid Rows="1">
+                    <Button
+                        Command="{Binding AnalyzeCurrentResultCommand}"
+                        Content="Analyze Current Result"
+                        Style="{StaticResource RibbonMajorSecondaryCommandTile}"
+                        Tag="🔎"
+                        ToolTip="Analyze Current Result" />
+                    <Button
+                        Click="OpenAdvisor_Click"
+                        Content="Ask Local Ollama"
+                        FontWeight="SemiBold"
+                        Style="{StaticResource RibbonMajorSecondaryCommandTile}"
+                        Tag="💬" />
+                </UniformGrid>
+            </ContentControl>
 
-                <Button
-                    Click="OpenAdvisor_Click"
-                    Content="💬 Ask Local Ollama"
-                    FontWeight="SemiBold"
-                    Style="{StaticResource ButtonSecondary}" />
-            </StackPanel>
+            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
             <Border
-                Grid.Column="2"
+                Width="620"
+                Margin="8,6,8,6"
                 Padding="10"
+                VerticalAlignment="Center"
                 Background="{DynamicResource SurfaceElevatedBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
@@ -73,9 +64,7 @@
                             FontWeight="SemiBold"
                             Foreground="{StaticResource PrimaryBrush}"
                             Text="AI Studio:" />
-                        <TextBlock
-                            FontWeight="SemiBold"
-                            Text="Mission Control · RAG · ModelOps · What-if · Reports" />
+                        <TextBlock FontWeight="SemiBold" Text="Mission Control آ· RAG آ· ModelOps آ· What-if آ· Reports" />
                     </StackPanel>
 
                     <WrapPanel Grid.Row="1" Margin="0,7,0,0">
@@ -99,9 +88,7 @@
                             FontWeight="SemiBold"
                             Foreground="{StaticResource PrimaryBrush}"
                             Text="Health:" />
-                        <TextBlock
-                            FontWeight="SemiBold"
-                            Text="{Binding HealthLabel}" />
+                        <TextBlock FontWeight="SemiBold" Text="{Binding HealthLabel}" />
                     </StackPanel>
 
                     <TextBlock
@@ -113,6 +100,7 @@
                         TextWrapping="Wrap" />
                 </Grid>
             </Border>
-        </Grid>
-    </Border>
+
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>

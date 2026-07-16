@@ -22,7 +22,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="28" />
                 <!--  Tab selector strip  -->
-                <RowDefinition Height="120" />
+                <RowDefinition Height="Auto" />
                 <!--  Tab content area  -->
             </Grid.RowDefinitions>
 
@@ -112,7 +112,7 @@
             </Border>
 
             <!--  â”€â”€ ROW 1: Tab content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
-            <Grid Grid.Row="1">
+            <Grid Grid.Row="1" Grid.IsSharedSizeScope="True">
 
                 <!--  â”€â”€ HOME tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
                 <project:HomeTabView x:Name="PanelHome" Visibility="Visible" />

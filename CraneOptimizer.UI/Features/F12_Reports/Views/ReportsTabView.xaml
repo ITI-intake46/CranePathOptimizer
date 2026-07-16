@@ -5,154 +5,127 @@
     Background="{DynamicResource SurfaceBrush}">
 
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <StackPanel Margin="6,0" Orientation="Horizontal">
 
-        <StackPanel Orientation="Horizontal" Margin="6,0">
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="ELEMENTS">
+                <Button
+                    Command="{Binding OpenAllElementsReportCommand}"
+                    Content="All Elements List"
+                    Style="{StaticResource RibbonMajorCommandTile}"
+                    ToolTip="Build an element list report">
+                    <Button.Tag>
+                        <TextBlock Text="📋" />
+                    </Button.Tag>
+                </Button>
+            </ContentControl>
 
-            <!-- ─────────────────  ELEMENTS  ───────────────────────────── -->
-            <Border Padding="8,6,8,0">
-                <DockPanel Width="155">
-                    <TextBlock DockPanel.Dock="Bottom" Text="ELEMENTS" Style="{StaticResource GroupLabel}" />
-                    <StackPanel Margin="0,2,0,0">
-                        <Button Style="{StaticResource RibbonSmallBtn}"
-                                Width="142"
-                                ToolTip="Build an element list report"
-                                Command="{Binding OpenAllElementsReportCommand}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="📋" Margin="0,0,6,0" />
-                                <TextBlock Text="All Elements List" />
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
-                </DockPanel>
-            </Border>
+            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
-            <Rectangle Style="{StaticResource RibbonSep}" Margin="4,0" />
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="LIFTING">
+                <Button
+                    Command="{Binding OpenLiftingSummaryReportCommand}"
+                    Content="Lifting Summary Report"
+                    Style="{StaticResource RibbonMajorCommandTile}"
+                    ToolTip="Build a lifting summary report">
+                    <Button.Tag>
+                        <TextBlock Text="⛓" />
+                    </Button.Tag>
+                </Button>
+            </ContentControl>
 
-            <!-- ─────────────────  LIFTING  ────────────────────────────── -->
-            <!--  Covers: radius, hoist height, hook load, capacity lookup, lift status  -->
-            <Border Padding="8,6,8,0">
-                <DockPanel Width="168">
-                    <TextBlock DockPanel.Dock="Bottom" Text="LIFTING" Style="{StaticResource GroupLabel}" />
-                    <StackPanel Margin="0,2,0,0">
-                        <Button Style="{StaticResource RibbonSmallBtn}"
-                                Width="155"
-                                ToolTip="Build a lifting summary report"
-                                Command="{Binding OpenLiftingSummaryReportCommand}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="⛓" Margin="0,0,6,0" />
-                                <TextBlock Text="Lifting Summary Report" />
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
-                </DockPanel>
-            </Border>
+            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
-            <Rectangle Style="{StaticResource RibbonSep}" Margin="4,0" />
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="CRANE CATALOG">
+                <Button
+                    Click="AllCranesInDatabase_Click"
+                    Content="All Cranes in Database"
+                    Style="{StaticResource RibbonMajorCommandTile}"
+                    ToolTip="All cranes in the catalog â€” brand, model, capacity range, boom range, outrigger config">
+                    <Button.Tag>
+                        <TextBlock Text="🗂" />
+                    </Button.Tag>
+                </Button>
+            </ContentControl>
 
-            <!-- ─────────────────  CRANE CATALOG  ───────────────────── -->
-            <Border Padding="8,6,8,0">
-                <DockPanel Width="155">
-                    <TextBlock DockPanel.Dock="Bottom" Text="CRANE CATALOG" Style="{StaticResource GroupLabel}" />
-                    <StackPanel Margin="0,2,0,0">
-                        <Button Style="{StaticResource RibbonSmallBtn}"
-                                Width="142"
-                                ToolTip="All cranes in the catalog — brand, model, capacity range, boom range, outrigger config"
-                                Click="AllCranesInDatabase_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="🗂" Margin="0,0,6,0" />
-                                <TextBlock Text="All Cranes in Database" />
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
-                </DockPanel>
-            </Border>
+            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
-            <Rectangle Style="{StaticResource RibbonSep}" Margin="4,0" />
-
-            <!-- ─────────────────  COMPARE  ──────────────────────────── -->
-            <Border Padding="8,6,8,0">
-                <DockPanel Width="100">
-                    <TextBlock DockPanel.Dock="Bottom" Text="COMPARE" Style="{StaticResource GroupLabel}" />
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="COMPARE">
+                <Button Click="Compare2Cranes_Click" Style="{StaticResource RibbonMajorCommandTile}" ToolTip="Pick 2 cranes â†’ side-by-side specs + coverage over this building">
+                    <Button.Tag>
+                        <TextBlock FontSize="26" Foreground="{StaticResource PrimaryBrush}" Text="⚖" />
+                    </Button.Tag>
+                    <Button.ContentTemplate>
+                        <DataTemplate>
+                            <ContentPresenter Content="{Binding}" />
+                        </DataTemplate>
+                    </Button.ContentTemplate>
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <Button Style="{StaticResource RibbonLargeBtn}"
-                                Width="80"
-                                ToolTip="Pick 2 cranes → side-by-side specs + coverage over this building"
-                                Click="Compare2Cranes_Click">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock Text="⚖" FontSize="26" Margin="0,6,0,4"
-                                           Foreground="{StaticResource PrimaryBrush}" />
-                                <TextBlock Text="Compare" FontSize="9" FontWeight="Bold"
-                                           Margin="0,0,0,1"
-                                           Foreground="{StaticResource PrimaryBrush}" />
-                                <TextBlock Text="2 Cranes" FontSize="9"
-                                           Foreground="{DynamicResource TextSecondaryBrush}" />
-                            </StackPanel>
-                        </Button>
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontSize="9"
+                            FontWeight="Bold"
+                            Foreground="{StaticResource PrimaryBrush}"
+                            Text="Compare" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            Margin="0,2,0,0"
+                            FontSize="9"
+                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            Text="2 Cranes" />
                     </StackPanel>
-                </DockPanel>
-            </Border>
+                </Button>
+            </ContentControl>
 
-            <Rectangle Style="{StaticResource RibbonSep}" Margin="4,0" />
+            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
-            <!-- ─────────────────  PROJECT  ──────────────────────────── -->
-            <!--  Merged: Project Summary + IFC Files → Project Overview   -->
-            <Border Padding="8,6,8,0">
-                <DockPanel Width="155">
-                    <TextBlock DockPanel.Dock="Bottom" Text="PROJECT" Style="{StaticResource GroupLabel}" />
-                    <StackPanel Margin="0,2,0,0">
-                        <Button Style="{StaticResource RibbonSmallBtn}"
-                                Width="142" Margin="0,0,0,3"
-                                ToolTip="Project meta + all imported IFC files (name, path, element count, schema, size)"
-                                Click="ProjectOverview_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="📁" Margin="0,0,6,0" />
-                                <TextBlock Text="Project Overview" />
-                            </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource RibbonSmallBtn}"
-                                Width="142"
-                                ToolTip="All site zones: name, type, vertex coordinates"
-                                Click="SiteZonesReport_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="📌" Margin="0,0,6,0" />
-                                <TextBlock Text="Site Zones Report" />
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
-                </DockPanel>
-            </Border>
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="PROJECT">
+                <UniformGrid Rows="1">
+                    <Button
+                        Click="ProjectOverview_Click"
+                        Content="Project Overview"
+                        Style="{StaticResource RibbonMajorCommandTile}"
+                        ToolTip="Project meta + all imported IFC files (name, path, element count, schema, size)">
+                        <Button.Tag>
+                            <TextBlock Text="📁" />
+                        </Button.Tag>
+                    </Button>
+                    <Button
+                        Click="SiteZonesReport_Click"
+                        Content="Site Zones Report"
+                        Style="{StaticResource RibbonMajorCommandTile}"
+                        ToolTip="All site zones: name, type, vertex coordinates">
+                        <Button.Tag>
+                            <TextBlock Text="📌" />
+                        </Button.Tag>
+                    </Button>
+                </UniformGrid>
+            </ContentControl>
 
-            <Rectangle Style="{StaticResource RibbonSep}" Margin="4,0" />
+            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
-            <!-- ─────────────────  ANALYSIS  ─────────────────────────── -->
-            <!--  Only the two wired commands remain; exports moved below  -->
-            <Border Padding="8,6,8,0">
-                <DockPanel Width="145">
-                    <TextBlock DockPanel.Dock="Bottom" Text="ANALYSIS" Style="{StaticResource GroupLabel}" />
-                    <StackPanel Margin="0,2,0,0">
-                        <Button Style="{StaticResource RibbonSmallBtn}"
-                                Width="132" Margin="0,0,0,3"
-                                ToolTip="GA convergence graph and generation statistics"
-                                Command="{Binding ShowDiagnosticsCommand}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="📈" Margin="0,0,6,0" />
-                                <TextBlock Text="GA Diagnostics" />
-                            </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource RibbonSmallBtn}"
-                                Width="132"
-                                ToolTip="Open the optimization results window"
-                                Command="{Binding ShowResultsCommand}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="📊" Margin="0,0,6,0" />
-                                <TextBlock Text="View Results" />
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
-                </DockPanel>
-            </Border>
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="ANALYSIS">
+                <UniformGrid Rows="1">
+                    <Button
+                        Command="{Binding ShowDiagnosticsCommand}"
+                        Content="GA Diagnostics"
+                        Style="{StaticResource RibbonMajorCommandTile}"
+                        ToolTip="GA convergence graph and generation statistics">
+                        <Button.Tag>
+                            <TextBlock Text="📈" />
+                        </Button.Tag>
+                    </Button>
+                    <Button
+                        Command="{Binding ShowResultsCommand}"
+                        Content="View Results"
+                        Style="{StaticResource RibbonMajorCommandTile}"
+                        ToolTip="Open the optimization results window">
+                        <Button.Tag>
+                            <TextBlock Text="📊" />
+                        </Button.Tag>
+                    </Button>
+                </UniformGrid>
+            </ContentControl>
 
         </StackPanel>
     </ScrollViewer>
-
 </UserControl>

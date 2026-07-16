@@ -4,120 +4,71 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Background="{DynamicResource SurfaceBrush}">
 
-    <Border Padding="8,8,8,8">
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="260" />
-            </Grid.ColumnDefinitions>
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <StackPanel Margin="6,0" Orientation="Horizontal">
 
-            <!--  ───────── OPTIMIZE ─────────  -->
-            <StackPanel Grid.Column="0" Margin="0,0,16,0">
-
-                <TextBlock
-                    Margin="4,0,0,6"
-                    Style="{StaticResource PropertyLabel}"
-                    Text="OPTIMIZE" />
-
-                <Button
-                    Width="110"
-                    Height="70"
-                    Command="{Binding OptimizeCommand}"
-                    Style="{StaticResource ButtonPrimary}">
-
-                    <StackPanel HorizontalAlignment="Center">
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="OPTIMIZE">
+                <Button Command="{Binding OptimizeCommand}" ContentTemplate="{x:Null}" Style="{StaticResource RibbonMajorPrimaryCommandTile}">
+                    <Button.Tag>
                         <TextBlock FontSize="22" Text="⚡" />
-                        <TextBlock
-                            Margin="0,4,0,0"
-                            FontWeight="SemiBold"
-                            Text="Run Optimizer" />
-                    </StackPanel>
+                    </Button.Tag>
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontWeight="SemiBold"
+                        Text="Run Optimizer" />
                 </Button>
+            </ContentControl>
 
-            </StackPanel>
+            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
-            <!--  ───────── REPORTS ─────────  -->
-            <StackPanel Grid.Column="1" Margin="0,0,16,0">
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="REPORTS">
+                <UniformGrid Rows="1">
+                    <Button Content="Export Analysis" Style="{StaticResource RibbonMajorSecondaryCommandTile}" Tag="📄" />
+                    <Button Content="Export Zones (JSON)" Style="{StaticResource RibbonMajorSecondaryCommandTile}" Tag="📤" ToolTip="Export Zones (JSON)" />
+                    <Button Command="{Binding ShowDiagnosticsCommand}" Content="GA Diagnostics" Style="{StaticResource RibbonMajorSecondaryCommandTile}" Tag="📈" />
+                </UniformGrid>
+            </ContentControl>
 
-                <TextBlock
-                    Margin="4,0,0,6"
-                    Style="{StaticResource PropertyLabel}"
-                    Text="REPORTS" />
+            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
-                <Button
-                    Margin="0,0,0,4"
-                    Content="📄 Export Analysis"
-                    Style="{StaticResource ButtonSecondary}" />
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="RESULTS">
+                <Button Command="{Binding ShowResultsCommand}" Content="View Results" Style="{StaticResource RibbonMajorSecondaryCommandTile}" Tag="📊" />
+            </ContentControl>
 
-                <Button
-                    Margin="0,0,0,4"
-                    Content="📤 Export Zones (JSON)"
-                    Style="{StaticResource ButtonSecondary}" />
+            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
-                <Button
-                    Command="{Binding ShowDiagnosticsCommand}"
-                    Content="📈 GA Diagnostics"
-                    FontWeight="SemiBold"
-                    Style="{StaticResource ButtonSecondary}" />
+            <ContentControl Width="280" Style="{StaticResource RibbonCommandGroup}" Tag="SAVED GA RUNS">
+                <StackPanel VerticalAlignment="Center">
+                    <ComboBox
+                        MinWidth="240"
+                        ItemsSource="{Binding SavedRuns}"
+                        SelectedItem="{Binding SelectedSavedRun, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding CompletedText}" />
+                                    <TextBlock FontSize="11" Text="{Binding SummaryText}" />
+                                    <TextBlock FontSize="11" Text="{Binding CraneModeText}" />
+                                    <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding SourceText}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock
+                        Margin="0,6,0,0"
+                        FontSize="11"
+                        Foreground="{DynamicResource TextSecondaryBrush}"
+                        Text="{Binding SavedRunStatusText}" />
+                    <TextBlock
+                        Margin="0,4,0,0"
+                        FontSize="11"
+                        Foreground="{DynamicResource TextSecondaryBrush}"
+                        Text="{Binding SavedRunWarning}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </ContentControl>
 
-            </StackPanel>
-
-            <!--  ───────── RESULTS ─────────  -->
-            <StackPanel Grid.Column="2">
-
-                <TextBlock
-                    Margin="4,0,0,6"
-                    Style="{StaticResource PropertyLabel}"
-                    Text="RESULTS" />
-
-                <Button
-                    Command="{Binding ShowResultsCommand}"
-                    Content="📊 View Results"
-                    FontWeight="SemiBold"
-                    Style="{StaticResource ButtonSecondary}" />
-
-            </StackPanel>
-
-            <!--  SAVED RUNS  -->
-            <StackPanel Grid.Column="3" Margin="16,0,0,0">
-
-                <TextBlock
-                    Margin="4,0,0,6"
-                    Style="{StaticResource PropertyLabel}"
-                    Text="SAVED GA RUNS" />
-
-                <ComboBox
-                    MinWidth="240"
-                    ItemsSource="{Binding SavedRuns}"
-                    SelectedItem="{Binding SelectedSavedRun, Mode=TwoWay}">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel>
-                                <TextBlock FontWeight="SemiBold" Text="{Binding CompletedText}" />
-                                <TextBlock FontSize="11" Text="{Binding SummaryText}" />
-                                <TextBlock FontSize="11" Text="{Binding CraneModeText}" />
-                                <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding SourceText}" />
-                            </StackPanel>
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-
-                <TextBlock
-                    Margin="0,6,0,0"
-                    FontSize="11"
-                    Foreground="{DynamicResource TextSecondaryBrush}"
-                    Text="{Binding SavedRunStatusText}" />
-
-                <TextBlock
-                    Margin="0,4,0,0"
-                    FontSize="11"
-                    Foreground="{DynamicResource TextSecondaryBrush}"
-                    Text="{Binding SavedRunWarning}"
-                    TextWrapping="Wrap" />
-            </StackPanel>
-
-        </Grid>
-    </Border>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>

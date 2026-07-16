@@ -5,199 +5,124 @@
     Background="{DynamicResource SurfaceBrush}">
 
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-
         <StackPanel Margin="4,0" Orientation="Horizontal">
 
-            <!--  ── DXF FILES ─────────────────────────────────────────────  -->
-            <Border Padding="4,4,0,0">
-                <DockPanel LastChildFill="False">
-
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="DXF FILES" />
-
-                    <StackPanel Orientation="Horizontal">
-
-                        <!--  Upload DXF — functional  -->
-                        <Button
-                            Command="{Binding Dxf.UploadDxfCommand}"
-                            Style="{StaticResource RibbonLargeBtn}"
-                            ToolTip="Select a DXF file from disk">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,8,0,2"
-                                    FontSize="26"
-                                    Text="📂" />
-                                <TextBlock Text="Upload DXF" />
-                            </StackPanel>
-                        </Button>
-
-                        <!--  Add Another DXF — visual stub  -->
-                        <Button
-                            IsEnabled="False"
-                            Style="{StaticResource RibbonLargeBtn}"
-                            ToolTip="Add another DXF (coming soon)">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,8,0,2"
-                                    FontSize="26"
-                                    Text="➕" />
-                                <TextBlock Text="Add Another" />
-                            </StackPanel>
-                        </Button>
-
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
-            <Rectangle Style="{StaticResource RibbonSep}" />
-
-            <!--  ── TRANSFORM ──────────────────────────────────────────────  -->
-            <Border Padding="4,4,0,0">
-                <DockPanel LastChildFill="False">
-
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="TRANSFORM" />
-
-                    <StackPanel Orientation="Horizontal">
-
-                        <!--  Align — functional (enabled only when DXF is loaded)  -->
-                        <Button
-                            Command="{Binding Dxf.AlignCommand}"
-                            IsEnabled="{Binding Dxf.HasDxfLoaded}"
-                            Style="{StaticResource RibbonLargeBtn}"
-                            ToolTip="Open the alignment dialog to position the DXF on the site">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,8,0,2"
-                                    FontSize="26"
-                                    Text="🎯" />
-                                <TextBlock Text="Align" />
-                            </StackPanel>
-                        </Button>
-
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
-            <Rectangle Style="{StaticResource RibbonSep}" />
-
-            <!--  ── IMPORT ─────────────────────────────────────────────────  -->
-            <Border Padding="4,4,0,0">
-                <DockPanel LastChildFill="False">
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="IMPORT" />
-                    <StackPanel Orientation="Horizontal">
-                        <Button
-                            Command="{Binding Dxf.DrawZonesByLayerCommand}"
-                            IsEnabled="{Binding Dxf.HasDxfLoaded}"
-                            Style="{StaticResource RibbonLargeBtn}"
-                            ToolTip="Draw zones from closed DXF polylines on a selected layer">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,8,0,2"
-                                    FontSize="26"
-                                    Text="🗂" />
-                                <TextBlock Text="By Layer" />
-                            </StackPanel>
-                        </Button>
-                        <StackPanel
-                            Width="122"
-                            Margin="8,10,0,0">
-                            <CheckBox
-                                Content="Use DXF Colors"
-                                FontFamily="{StaticResource FontPrimary}"
-                                FontSize="{StaticResource FontSizeSM}"
-                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                IsChecked="{Binding Dxf.UseDxfColors, Mode=TwoWay}"
-                                IsEnabled="{Binding Dxf.HasDxfLoaded}"
-                                ToolTip="Render the DXF overlay with original entity and layer colors" />
-                        </StackPanel>
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
-            <Rectangle Style="{StaticResource RibbonSep}" />
-
-            <!--  ── SELECTION ────────────────────────────────────────────────  -->
-            <Border Padding="8,8,0,0">
-                <DockPanel>
-
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="SELECTION" />
-
-                    <StackPanel>
-
-                        <!--  Select — stub  -->
-                        <Button
-                            Width="130"
-                            Margin="0,0,0,2"
-                            IsEnabled="False"
-                            Style="{StaticResource RibbonSmallBtn}"
-                            ToolTip="Select DXF entities (coming soon)">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Margin="0,0,6,0" Text="⬚" />
-                                <TextBlock Text="Select" />
-                            </StackPanel>
-                        </Button>
-
-                        <!--  Select All — stub  -->
-                        <Button
-                            Width="130"
-                            IsEnabled="False"
-                            Style="{StaticResource RibbonSmallBtn}"
-                            ToolTip="Select all DXF entities (coming soon)">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Margin="0,0,6,0" Text="⬛" />
-                                <TextBlock Text="Select All" />
-                            </StackPanel>
-                        </Button>
-
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
-            <Rectangle Style="{StaticResource RibbonSep}" />
-
-            <!--  ── EDIT ──────────────────────────────────────────────────────  -->
-            <Border Padding="4,4,0,0">
-                <DockPanel LastChildFill="False">
-
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="EDIT" />
-
-                    <!--  Delete — stub  -->
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="DXF FILES">
+                <UniformGrid Rows="1">
                     <Button
-                        IsEnabled="False"
-                        Style="{StaticResource RibbonLargeBtn}"
-                        ToolTip="Delete selected DXF entities (coming soon)">
-                        <StackPanel HorizontalAlignment="Center">
-                            <TextBlock
-                                Margin="0,8,0,2"
-                                FontSize="26"
-                                Text="🗑" />
-                            <TextBlock Text="Delete" />
-                        </StackPanel>
+                        Command="{Binding Dxf.UploadDxfCommand}"
+                        Content="Upload DXF"
+                        FontSize="{StaticResource FontSizeXS}"
+                        Style="{StaticResource RibbonMajorCommandTile}"
+                        ToolTip="Select a DXF file from disk">
+                        <Button.Tag>
+                            <TextBlock FontSize="26" Text="📂" />
+                        </Button.Tag>
                     </Button>
-
-                </DockPanel>
-            </Border>
+                    <Button
+                        Content="Add Another"
+                        FontSize="{StaticResource FontSizeXS}"
+                        IsEnabled="False"
+                        Style="{StaticResource RibbonMajorCommandTile}"
+                        ToolTip="Add another DXF (coming soon)">
+                        <Button.Tag>
+                            <TextBlock FontSize="26" Text="➕" />
+                        </Button.Tag>
+                    </Button>
+                </UniformGrid>
+            </ContentControl>
 
             <Rectangle Style="{StaticResource RibbonSep}" />
 
-            <!--  ── STATUS STRIP ──────────────────────────────────────────────  -->
-            <Border
-                Padding="12,0"
-                VerticalAlignment="Center">
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="TRANSFORM">
+                <Button
+                    Command="{Binding Dxf.AlignCommand}"
+                    Content="Align"
+                    FontSize="{StaticResource FontSizeXS}"
+                    IsEnabled="{Binding Dxf.HasDxfLoaded}"
+                    Style="{StaticResource RibbonMajorCommandTile}"
+                    ToolTip="Open the alignment dialog to position the DXF on the site">
+                    <Button.Tag>
+                        <TextBlock FontSize="26" Text="🎯" />
+                    </Button.Tag>
+                </Button>
+            </ContentControl>
+
+            <Rectangle Style="{StaticResource RibbonSep}" />
+
+            <ContentControl Width="260" Style="{StaticResource RibbonCommandGroup}" Tag="IMPORT">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button
+                        Command="{Binding Dxf.DrawZonesByLayerCommand}"
+                        Content="By Layer"
+                        FontSize="{StaticResource FontSizeXS}"
+                        IsEnabled="{Binding Dxf.HasDxfLoaded}"
+                        Style="{StaticResource RibbonMajorCommandTile}"
+                        ToolTip="Draw zones from closed DXF polylines on a selected layer">
+                        <Button.Tag>
+                            <TextBlock FontSize="26" Text="🗂" />
+                        </Button.Tag>
+                    </Button>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <CheckBox
+                            Content="Use DXF Colors"
+                            FontFamily="{StaticResource FontPrimary}"
+                            FontSize="{StaticResource FontSizeSM}"
+                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            IsChecked="{Binding Dxf.UseDxfColors, Mode=TwoWay}"
+                            IsEnabled="{Binding Dxf.HasDxfLoaded}"
+                            ToolTip="Render the DXF overlay with original entity and layer colors" />
+                    </StackPanel>
+                </Grid>
+            </ContentControl>
+
+            <Rectangle Style="{StaticResource RibbonSep}" />
+
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="SELECTION">
+                <UniformGrid Rows="1">
+                    <Button
+                        Content="Select"
+                        IsEnabled="False"
+                        Style="{StaticResource RibbonMajorCommandTile}"
+                        ToolTip="Select DXF entities (coming soon)">
+                        <Button.Tag>
+                            <TextBlock Text="⬚" />
+                        </Button.Tag>
+                    </Button>
+                    <Button
+                        Content="Select All"
+                        IsEnabled="False"
+                        Style="{StaticResource RibbonMajorCommandTile}"
+                        ToolTip="Select all DXF entities (coming soon)">
+                        <Button.Tag>
+                            <TextBlock Text="⬛" />
+                        </Button.Tag>
+                    </Button>
+                </UniformGrid>
+            </ContentControl>
+
+            <Rectangle Style="{StaticResource RibbonSep}" />
+
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="EDIT">
+                <Button
+                    Content="Delete"
+                    FontSize="{StaticResource FontSizeXS}"
+                    IsEnabled="False"
+                    Style="{StaticResource RibbonMajorCommandTile}"
+                    ToolTip="Delete selected DXF entities (coming soon)">
+                    <Button.Tag>
+                        <TextBlock FontSize="26" Text="🗑" />
+                    </Button.Tag>
+                </Button>
+            </ContentControl>
+
+            <Rectangle Style="{StaticResource RibbonSep}" />
+
+            <Border Padding="12,0" VerticalAlignment="Center">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock
                         FontFamily="{StaticResource FontPrimary}"

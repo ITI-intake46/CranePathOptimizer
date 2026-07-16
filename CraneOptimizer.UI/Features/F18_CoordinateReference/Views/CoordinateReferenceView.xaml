@@ -270,23 +270,20 @@
                 <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
                 <!-- 5. ACTIONS -->
-                <Border Padding="8,6,8,0" Width="150">
-                    <DockPanel>
-                        <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource GroupLabel}" Text="ACTIONS" />
-                        <StackPanel VerticalAlignment="Center">
-                            <Button Command="{Binding ApplyCommand}" Height="22" Margin="0,0,0,4" Style="{StaticResource RibbonSmallBtn}">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <TextBlock Text="✔ Apply" FontSize="10" FontWeight="SemiBold" Foreground="White"/>
-                                </StackPanel>
+                <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="ACTIONS">
+                    <UniformGrid Rows="1">
+                            <Button Command="{Binding ApplyCommand}" Content="Apply" FontSize="10" FontWeight="SemiBold" Foreground="White" Style="{StaticResource RibbonMajorCommandTile}">
+                                <Button.Tag>
+                                    <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="White" Text="✔" />
+                                </Button.Tag>
                             </Button>
-                            <Button Command="{Binding ResetCommand}" Height="22" Style="{StaticResource RibbonSmallBtn}">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <TextBlock Text="✕ Reset" FontSize="10" FontWeight="SemiBold"/>
-                                </StackPanel>
+                            <Button Command="{Binding ResetCommand}" Content="Reset" FontSize="10" FontWeight="SemiBold" Style="{StaticResource RibbonMajorCommandTile}">
+                                <Button.Tag>
+                                    <TextBlock FontSize="10" FontWeight="SemiBold" Text="✕" />
+                                </Button.Tag>
                             </Button>
-                        </StackPanel>
-                    </DockPanel>
-                </Border>
+                    </UniformGrid>
+                </ContentControl>
 
             </StackPanel>
         </ScrollViewer>

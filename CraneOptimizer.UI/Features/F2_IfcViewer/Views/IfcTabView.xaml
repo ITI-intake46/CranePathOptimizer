@@ -5,204 +5,111 @@
     Background="{DynamicResource SurfaceBrush}">
 
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-
         <StackPanel Margin="4,0" Orientation="Horizontal">
 
-            <!--  ── Load Model ─────────────────────────  -->
-            <Border Padding="4,4,0,0">
-                <DockPanel Width="360" LastChildFill="False">
-
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="LOAD MODEL" />
-
-                    <StackPanel Orientation="Horizontal">
-
-                        <!--  Load IFC  -->
-                        <Button Command="{Binding IfcViewer.LoadIfcCommand}" Style="{StaticResource RibbonLargeBtn}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,8,0,2"
-                                    FontSize="26"
-                                    Text="📦" />
-                                <TextBlock Text="Load IFC" />
-                            </StackPanel>
-                        </Button>
-
-                        <!--  Merge IFC  -->
-                        <Button Command="{Binding IfcViewer.MergeIfcCommand}" Style="{StaticResource RibbonLargeBtn}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,8,0,2"
-                                    FontSize="26"
-                                    Text="🔗" />
-                                <TextBlock Text="Merge IFC" />
-                            </StackPanel>
-                        </Button>
-
-                        <!--  Move IFC  -->
-                        <Button Command="{Binding IfcViewer.MoveIfcCommand}" Style="{StaticResource RibbonLargeBtn}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <Viewbox
-                                    Width="30"
-                                    Height="30"
-                                    Margin="0,8,0,2"
-                                    Stretch="Uniform">
-                                    <Canvas Width="32" Height="32">
-                                        <Path
-                                            Data="M16,3 L16,29 M16,3 L9,10 M16,3 L23,10 M16,29 L9,22 M16,29 L23,22 M3,16 L29,16 M3,16 L10,9 M3,16 L10,23 M29,16 L22,9 M29,16 L22,23"
-                                            Stroke="{StaticResource PrimaryBrush}"
-                                            StrokeEndLineCap="Round"
-                                            StrokeLineJoin="Round"
-                                            StrokeStartLineCap="Round"
-                                            StrokeThickness="3.4" />
-                                    </Canvas>
-                                </Viewbox>
-                                <TextBlock Text="Move IFC" />
-                            </StackPanel>
-                        </Button>
-
-                        <!--  Delete IFC  -->
-                        <Button Command="{Binding IfcViewer.DeleteIfcCommand}" Style="{StaticResource RibbonLargeBtn}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,8,0,2"
-                                    FontSize="26"
-                                    Text="🗑" />
-                                <TextBlock Text="Delete IFC" />
-                            </StackPanel>
-                        </Button>
-
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
-            <Rectangle Style="{StaticResource RibbonSep}" />
-
-            <!--  ── Display ─────────────────────────  -->
-            <Border Padding="8,8,0,0">
-                <DockPanel>
-
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="DISPLAY" />
-
-                    <StackPanel>
-
-                        <Button
-                            Width="160"
-                            Margin="0,0,0,2"
-                            Style="{StaticResource RibbonSmallBtn}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Margin="0,0,6,0" Text="⊙" />
-                                <TextBlock Text="Toggle COG Markers" />
-                            </StackPanel>
-                        </Button>
-
-                        <Button
-                            Width="160"
-                            Margin="0,0,0,2"
-                            Style="{StaticResource RibbonSmallBtn}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Margin="0,0,6,0" Text="🎨" />
-                                <TextBlock Text="Color by Weight" />
-                            </StackPanel>
-                        </Button>
-
-                        <Button Width="160" Style="{StaticResource RibbonSmallBtn}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Margin="0,0,6,0" Text="📊" />
-                                <TextBlock Text="Export Element List" />
-                            </StackPanel>
-                        </Button>
-
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
-            <Rectangle Style="{StaticResource RibbonSep}" />
-
-            <!--  ── Filter ─────────────────────────  -->
-            <Border Padding="4,4,4,0">
-                <DockPanel Width="84">
-
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="FILTER" />
-
-                    <Button
-                        Width="84"
-                        Command="{Binding ElementManagement.ShowFilterDialogCommand}"
-                        Style="{StaticResource RibbonLargeBtn}">
-
-                        <StackPanel HorizontalAlignment="Center">
-
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="LOAD MODEL">
+                <UniformGrid Rows="1">
+                    <Button Command="{Binding IfcViewer.LoadIfcCommand}" Content="Load IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
+                        <Button.Tag>
+                            <TextBlock FontSize="26" Text="📦" />
+                        </Button.Tag>
+                    </Button>
+                    <Button Command="{Binding IfcViewer.MergeIfcCommand}" Content="Merge IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
+                        <Button.Tag>
+                            <TextBlock FontSize="26" Text="🔗" />
+                        </Button.Tag>
+                    </Button>
+                    <Button Command="{Binding IfcViewer.MoveIfcCommand}" Content="Move IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
+                        <Button.Tag>
                             <Viewbox
-                                Width="26"
-                                Height="26"
-                                Margin="0,8,0,2">
-                                <Canvas Width="24" Height="24">
-
-                                    <Polygon Fill="{StaticResource PrimaryBrush}" Points="2,3 22,3 14,13 14,21 10,21 10,13" />
-
-                                    <!--  Indicator  -->
-                                    <Ellipse
-                                        Canvas.Left="15"
-                                        Canvas.Top="1"
-                                        Width="8"
-                                        Height="8"
-                                        Fill="{StaticResource DestructiveBrush}"
-                                        Visibility="Collapsed" />
-
+                                Width="30"
+                                Height="30"
+                                Stretch="Uniform">
+                                <Canvas Width="32" Height="32">
+                                    <Path
+                                        Data="M16,3 L16,29 M16,3 L9,10 M16,3 L23,10 M16,29 L9,22 M16,29 L23,22 M3,16 L29,16 M3,16 L10,9 M3,16 L10,23 M29,16 L22,9 M29,16 L22,23"
+                                        Stroke="{StaticResource PrimaryBrush}"
+                                        StrokeEndLineCap="Round"
+                                        StrokeLineJoin="Round"
+                                        StrokeStartLineCap="Round"
+                                        StrokeThickness="3.4" />
                                 </Canvas>
                             </Viewbox>
-
-                            <TextBlock Text="Filter" />
-
-                        </StackPanel>
+                        </Button.Tag>
                     </Button>
-                </DockPanel>
-            </Border>
+                    <Button Command="{Binding IfcViewer.DeleteIfcCommand}" Content="Delete IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
+                        <Button.Tag>
+                            <TextBlock FontSize="26" Text="🗑" />
+                        </Button.Tag>
+                    </Button>
+                </UniformGrid>
+            </ContentControl>
 
             <Rectangle Style="{StaticResource RibbonSep}" />
 
-            <!--  ── Site Layout ─────────────────────────  -->
-            <Border Padding="4,4,0,0">
-                <DockPanel Width="140">
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="DISPLAY">
+                <UniformGrid Rows="1">
+                    <Button Content="Toggle COG Markers" Style="{StaticResource RibbonMajorCommandTile}" ToolTip="Toggle COG Markers">
+                        <Button.Tag>
+                            <TextBlock Text="⊙" />
+                        </Button.Tag>
+                    </Button>
+                    <Button Content="Color by Weight" Style="{StaticResource RibbonMajorCommandTile}" ToolTip="Color by Weight">
+                        <Button.Tag>
+                            <TextBlock Text="🎨" />
+                        </Button.Tag>
+                    </Button>
+                    <Button Content="Export Element List" Style="{StaticResource RibbonMajorCommandTile}" ToolTip="Export Element List">
+                        <Button.Tag>
+                            <TextBlock Text="📊" />
+                        </Button.Tag>
+                    </Button>
+                </UniformGrid>
+            </ContentControl>
 
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="SITE LAYOUT" />
+            <Rectangle Style="{StaticResource RibbonSep}" />
 
-                    <StackPanel Orientation="Horizontal">
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="FILTER">
+                <Button
+                    Command="{Binding ElementManagement.ShowFilterDialogCommand}"
+                    Content="Filter"
+                    FontSize="{StaticResource FontSizeXS}"
+                    Style="{StaticResource RibbonMajorCommandTile}">
+                    <Button.Tag>
+                        <Viewbox
+                            Width="26"
+                            Height="26">
+                            <Canvas Width="24" Height="24">
+                                <Polygon Fill="{StaticResource PrimaryBrush}" Points="2,3 22,3 14,13 14,21 10,21 10,13" />
+                                <Ellipse
+                                    Canvas.Left="15"
+                                    Canvas.Top="1"
+                                    Width="8"
+                                    Height="8"
+                                    Fill="{StaticResource DestructiveBrush}"
+                                    Visibility="Collapsed" />
+                            </Canvas>
+                        </Viewbox>
+                    </Button.Tag>
+                </Button>
+            </ContentControl>
 
-                        <Button Style="{StaticResource RibbonLargeBtn}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,8,0,2"
-                                    FontSize="26"
-                                    Text="📐" />
-                                <TextBlock Text="Upload DXF" />
-                            </StackPanel>
-                        </Button>
+            <Rectangle Style="{StaticResource RibbonSep}" />
 
-                        <Button Style="{StaticResource RibbonLargeBtn}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,8,0,2"
-                                    FontSize="26"
-                                    Text="🎯" />
-                                <TextBlock Text="Align DXF" />
-                            </StackPanel>
-                        </Button>
-
-                    </StackPanel>
-                </DockPanel>
-            </Border>
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="SITE LAYOUT">
+                <UniformGrid Rows="1">
+                    <Button Content="Upload DXF" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
+                        <Button.Tag>
+                            <TextBlock FontSize="26" Text="📐" />
+                        </Button.Tag>
+                    </Button>
+                    <Button Content="Align DXF" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
+                        <Button.Tag>
+                            <TextBlock FontSize="26" Text="🎯" />
+                        </Button.Tag>
+                    </Button>
+                </UniformGrid>
+            </ContentControl>
 
         </StackPanel>
     </ScrollViewer>
