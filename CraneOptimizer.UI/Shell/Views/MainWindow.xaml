@@ -151,7 +151,7 @@
                         <TextBlock
                             FontSize="{StaticResource FontSizeSM}"
                             FontWeight="Bold"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
                             Text="↩" />
                     </Button>
                     <TextBlock
@@ -160,7 +160,7 @@
                         VerticalAlignment="Center"
                         FontFamily="{StaticResource FontPrimary}"
                         FontSize="{StaticResource FontSizeXS}"
-                        Foreground="{DynamicResource TextSecondaryBrush}"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
                         Text="Undo" />
                     <Button
                         Width="26"
@@ -172,7 +172,7 @@
                         <TextBlock
                             FontSize="{StaticResource FontSizeSM}"
                             FontWeight="Bold"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
                             Text="↪" />
                     </Button>
                     <TextBlock
@@ -180,7 +180,7 @@
                         VerticalAlignment="Center"
                         FontFamily="{StaticResource FontPrimary}"
                         FontSize="{StaticResource FontSizeXS}"
-                        Foreground="{DynamicResource TextSecondaryBrush}"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
                         Text="Redo" />
                 </StackPanel>
 
@@ -200,7 +200,7 @@
                     VerticalAlignment="Center"
                     FontFamily="{StaticResource FontPrimary}"
                     FontSize="{StaticResource FontSizeXS}"
-                    Foreground="{DynamicResource TextSecondaryBrush}"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
                     Text="{Binding HistoryBreadcrumb, FallbackValue='No recent action'}" />
 
                 <!--  Col 8: Clear History  -->
@@ -237,7 +237,7 @@
                     FontFamily="{StaticResource FontPrimary}"
                     FontSize="{StaticResource FontSizeXS}"
                     FontWeight="SemiBold"
-                    Foreground="{DynamicResource TextSecondaryBrush}"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
                     Text="IFC Building Analyzer — Crane Planner Edition" />
 
                 <!--  Col 11: Window chrome  -->
@@ -308,6 +308,7 @@
                 <TextBlock
                     Grid.Column="0"
                     Margin="0,0,4,0"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
                     Style="{StaticResource PropertyLabel}"
                     Text="Storeys:" />
                 <TextBlock
@@ -322,6 +323,7 @@
                 <TextBlock
                     Grid.Column="2"
                     Margin="0,0,4,0"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
                     Style="{StaticResource PropertyLabel}"
                     Text="Area:" />
                 <TextBlock
@@ -340,6 +342,7 @@
                 <TextBlock
                     Grid.Column="4"
                     Margin="0,0,4,0"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
                     Style="{StaticResource PropertyLabel}"
                     Text="Height:" />
                 <TextBlock
@@ -358,6 +361,7 @@
                 <TextBlock
                     Grid.Column="6"
                     Margin="0,0,6,0"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
                     Style="{StaticResource PropertyLabel}"
                     Text="Unit:" />
                 <ComboBox
@@ -388,7 +392,7 @@
                     FontFamily="{StaticResource FontPrimary}"
                     FontSize="{StaticResource FontSizeSM}"
                     FontWeight="SemiBold"
-                    Foreground="{DynamicResource TextSecondaryBrush}"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
                     Text="{Binding BuildingName, FallbackValue='No Building Loaded'}" />
             </Grid>
         </Border>
@@ -453,7 +457,7 @@
                     SelectedIndex="0">
                     <TabControl.Resources>
                         <Style TargetType="{x:Type TabItem}">
-                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
                             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
                             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
                             <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
@@ -614,7 +618,7 @@
                     Orientation="Horizontal">
                     <TextBlock
                         Margin="0,0,3,0"
-                        Foreground="{DynamicResource TextSecondaryBrush}"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
                         Style="{StaticResource CoordLabel}"
                         Text="X:" />
                     <TextBlock
@@ -624,7 +628,7 @@
                         Text="{Binding CoordX, FallbackValue='0.00M'}" />
                     <TextBlock
                         Margin="0,0,3,0"
-                        Foreground="{DynamicResource TextSecondaryBrush}"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
                         Style="{StaticResource CoordLabel}"
                         Text="Y:" />
                     <TextBlock
@@ -691,7 +695,7 @@
                         FontFamily="{StaticResource FontPrimary}"
                         FontSize="{StaticResource FontSizeXS}"
                         FontWeight="SemiBold"
-                        Foreground="{DynamicResource TextSecondaryBrush}"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
                         Text="ELEMENTS: " />
                     <TextBlock
                         VerticalAlignment="Center"

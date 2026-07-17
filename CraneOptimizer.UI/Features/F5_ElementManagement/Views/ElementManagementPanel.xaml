@@ -9,7 +9,7 @@
         <Style x:Key="PropertyHeaderText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="{StaticResource FontSizeXS}" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Padding" Value="8,0" />
         </Style>
@@ -52,7 +52,6 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -60,82 +59,15 @@
                     Padding="8,6"
                     Background="{DynamicResource SurfaceElevatedBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="0,1,0,0">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="90" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock VerticalAlignment="Center"
-                               FontFamily="{StaticResource FontPrimary}"
-                               FontSize="{StaticResource FontSizeXS}"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               Text="Concrete Density (kg/m3)" />
-
-                    <TextBox Grid.Column="1"
-                             Height="26"
-                             Margin="10,0,0,0"
-                             Padding="8,2"
-                             VerticalContentAlignment="Center"
-                             FontFamily="{StaticResource FontPrimary}"
-                             FontSize="{StaticResource FontSizeXS}"
-                             Text="{Binding ConcreteDensityKgPerM3, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
-
-                    <Button Grid.Column="2"
-                            Height="26"
-                            Margin="8,0,0,0"
-                            Padding="12,0"
-                            Background="{StaticResource PrimaryBrush}"
-                            Command="{Binding SaveDensityCommand}"
-                            Content="Save Density"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeXS}"
-                            Style="{StaticResource PrimaryButtonStyle}" />
-
-                    <TextBlock Grid.Column="3"
-                               Margin="10,0,0,0"
-                               VerticalAlignment="Center"
-                               FontFamily="{StaticResource FontPrimary}"
-                               FontSize="{StaticResource FontSizeXS}"
-                               Foreground="{DynamicResource ErrorBrush}"
-                               Text="{Binding DensityValidationMessage}"
-                               TextTrimming="CharacterEllipsis" />
-                </Grid>
-            </Border>
-
-            <Border Grid.Row="1"
-                    Padding="8,6"
-                    Background="{DynamicResource SurfaceElevatedBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,1,0,1">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock VerticalAlignment="Center"
-                               FontSize="{StaticResource FontSizeXS}"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               Text="{Binding SelectedElementName}" />
-
-                    <TextBox Grid.Column="1"
-                             Height="26"
-                             Margin="10,0,0,0"
-                             Padding="8,2"
-                             VerticalContentAlignment="Center"
-                             FontSize="{StaticResource FontSizeXS}"
-                             Text="{Binding PropertySearchText, UpdateSourceTrigger=PropertyChanged}" />
-
-                </Grid>
+                <TextBlock VerticalAlignment="Center"
+                           FontSize="{StaticResource FontSizeXS}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           Text="{Binding SelectedElementName}" />
             </Border>
 
-            <Grid Grid.Row="2">
+            <Grid Grid.Row="1">
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding ElementProperties}">
                         <ItemsControl.ItemTemplate>
@@ -202,12 +134,12 @@
                         <TextBlock HorizontalAlignment="Center"
                                    FontSize="{StaticResource FontSizeSM}"
                                    FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                    Text="No Element Selected" />
                         <TextBlock Margin="0,6,0,0"
                                    HorizontalAlignment="Center"
                                    FontSize="{StaticResource FontSizeXS}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                    Text="Select an element to inspect its BIM properties."
                                    TextAlignment="Center" />
                     </StackPanel>

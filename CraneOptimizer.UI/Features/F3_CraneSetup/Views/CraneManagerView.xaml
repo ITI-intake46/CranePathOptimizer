@@ -19,7 +19,7 @@
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="&lt;"
                                FontSize="14" FontWeight="Bold"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                Margin="0,0,8,0" VerticalAlignment="Center" Cursor="Hand"/>
                     <TextBlock Text="Mobile Crane 1"
                                FontSize="{StaticResource FontSizeSM}"
@@ -33,7 +33,7 @@
                         Command="{Binding RemoveSelectedCraneCommand}"
                         ToolTip="Remove crane">
                     <TextBlock Text="✕" FontSize="12"
-                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                               Foreground="{DynamicResource TextPrimaryBrush}"/>
                 </Button>
             </Grid>
         </Border>
@@ -54,11 +54,11 @@
                 <TextBlock Text="🏗" FontSize="36" HorizontalAlignment="Center"/>
                 <TextBlock Text="No crane placed"
                            FontSize="{StaticResource FontSizeSM}" FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            HorizontalAlignment="Center" Margin="0,10,0,4"/>
                 <TextBlock Text="Click MOBILE CRANE to place"
                            FontSize="{StaticResource FontSizeXS}"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            HorizontalAlignment="Center"/>
             </StackPanel>
         </Border>
@@ -82,7 +82,7 @@
 
                 <TextBlock Text="DATABASE CRANE"
                            FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            Margin="0,0,0,6"/>
                 <ComboBox Margin="0,0,0,10"
                           ItemsSource="{Binding DataContext.AvailableCranes, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -100,10 +100,10 @@
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{Binding Manufacturer}"
                                                FontSize="{StaticResource FontSizeXS}"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     <TextBlock Text="  |  "
                                                FontSize="{StaticResource FontSizeXS}"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     <TextBlock Text="{Binding CraneType}"
                                                FontSize="{StaticResource FontSizeXS}"
                                                Foreground="{StaticResource PrimaryBrush}"/>
@@ -188,7 +188,7 @@
                 <!-- ── BODY ANGLE ───────────────────────────────────── -->
                 <TextBlock Text="BODY ANGLE"
                            FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            Margin="0,0,0,6"/>
                 <Grid Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
@@ -219,7 +219,7 @@
                 <!-- ── SLEW ANGLE ───────────────────────────────────── -->
                 <TextBlock Text="SLEW ANGLE"
                            FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            Margin="0,0,0,6"/>
                 <Grid Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
@@ -241,7 +241,7 @@
                 <!-- ── CABLE LENGTH ─────────────────────────────────── -->
                 <TextBlock Text="CABLE LENGTH"
                            FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            Margin="0,0,0,6"/>
                 <Grid Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
@@ -263,7 +263,7 @@
                 <!-- ── LOAD CHART ───────────────────────────────────── -->
                 <TextBlock Text="LOAD CHART"
                            FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            Margin="0,0,0,6"/>
 
                 <!-- Chart info card -->
@@ -285,7 +285,7 @@
                         <!-- Max Cap -->
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Max Cap."
                                    FontSize="{StaticResource FontSizeXS}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,1"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,1"/>
                         <TextBlock Grid.Row="0" Grid.Column="1"
                                    Text="{Binding MaxCapacity, Converter={StaticResource MassDisplayConverter}}"
                                    FontSize="{StaticResource FontSizeXS}"
@@ -293,7 +293,7 @@
                         <!-- Radius range -->
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Radius"
                                    FontSize="{StaticResource FontSizeXS}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,1"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,1"/>
                         <TextBlock Grid.Row="1" Grid.Column="1"
                                    FontSize="{StaticResource FontSizeXS}"
                                    Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" Margin="0,1">
@@ -304,7 +304,7 @@
                         <!-- Boom range -->
                         <TextBlock Grid.Row="2" Grid.Column="0" Text="Boom"
                                    FontSize="{StaticResource FontSizeXS}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,1"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,1"/>
                         <TextBlock Grid.Row="2" Grid.Column="1"
                                    FontSize="{StaticResource FontSizeXS}"
                                    Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" Margin="0,1">
@@ -315,7 +315,7 @@
                         <!-- Outrigger -->
                         <TextBlock Grid.Row="3" Grid.Column="0" Text="Operating"
                                    FontSize="{StaticResource FontSizeXS}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,1"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,1"/>
                         <TextBlock Grid.Row="3" Grid.Column="1"
                                    FontSize="{StaticResource FontSizeXS}"
                                    Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" Margin="0,1">
@@ -333,7 +333,7 @@
                         <!-- Derating -->
                         <TextBlock Grid.Row="4" Grid.Column="0" Text="Derating"
                                    FontSize="{StaticResource FontSizeXS}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,1"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,1"/>
                         <TextBlock Grid.Row="4" Grid.Column="1" Text="100%"
                                    FontSize="{StaticResource FontSizeXS}"
                                    Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" Margin="0,1"/>
@@ -362,7 +362,7 @@
                 <!-- ── BOOM LENGTH ──────────────────────────────────── -->
                 <TextBlock Text="BOOM LENGTH"
                            FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            Margin="0,0,0,6"/>
                 <Grid Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
@@ -385,7 +385,7 @@
                 <!-- ── WORKING RADIUS ──────────────────────────────── -->
                 <TextBlock Text="WORKING RADIUS"
                            FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            Margin="0,0,0,6"/>
                 <Grid Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
@@ -408,7 +408,7 @@
                 <!-- ── EXCLUSION RADIUS ────────────────────────────── -->
                 <TextBlock Text="EXCLUSION RADIUS"
                            FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            Margin="0,0,0,6"/>
                 <Grid Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
@@ -441,7 +441,7 @@
                     </StackPanel.Style>
                     <TextBlock Text="OUTRIGGER SPAN"
                                FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                Margin="0,0,0,6"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -464,12 +464,12 @@
                 <!-- ── DISPLAY TOGGLES ─────────────────────────────── -->
                 <TextBlock Text="DISPLAY"
                            FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            Margin="0,0,0,8"/>
                 <Grid Margin="0,0,0,6">
                     <TextBlock Text="Swing Radius"
                                FontSize="{StaticResource FontSizeXS}"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                VerticalAlignment="Center"/>
                     <CheckBox HorizontalAlignment="Right"
                               IsChecked="{Binding ShowSwingRadius, Mode=TwoWay}"
@@ -478,7 +478,7 @@
                 <Grid Margin="0,0,0,6">
                     <TextBlock Text="Dimension Guide"
                                FontSize="{StaticResource FontSizeXS}"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                VerticalAlignment="Center"/>
                     <CheckBox HorizontalAlignment="Right"
                               IsChecked="{Binding ShowDimensionGuide, Mode=TwoWay}"
@@ -498,7 +498,7 @@
                     </Grid.Style>
                     <TextBlock Text="Outrigger Pads"
                                FontSize="{StaticResource FontSizeXS}"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                VerticalAlignment="Center"/>
                     <CheckBox HorizontalAlignment="Right"
                               IsChecked="{Binding ShowOutriggerPads, Mode=TwoWay}"
