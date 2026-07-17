@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:behaviors="clr-namespace:CraneOptimizer.UI.Shared.Behaviors">
 
     <!-- ════════════════════════════════════════════════════════════════
          CONTROL STYLES — CraneOptimizer.UI Design System
@@ -8,42 +9,137 @@
     ════════════════════════════════════════════════════════════════ -->
 
     <!-- ── ScrollBar ─────────────────────────────────────────────── -->
-    <Style x:Key="ScrollBarThumbStyle" TargetType="Thumb">
+    <Style x:Key="VerticalScrollBarThumbStyle" TargetType="Thumb">
+        <Setter Property="MinHeight" Value="24"/>
+        <Setter Property="Background" Value="{DynamicResource TextDisabledBrush}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
-                    <Border Background="{StaticResource SecondaryBrush}"
-                            CornerRadius="3" Margin="2,2,2,2"/>
+                    <Border Background="{TemplateBinding Background}"
+                            CornerRadius="2"
+                            Margin="2,1"/>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource TextSecondaryBrush}"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
-    <Style TargetType="ScrollBar">
-        <Setter Property="Width"      Value="8"/>
-        <Setter Property="Background" Value="Transparent"/>
+    <Style x:Key="HorizontalScrollBarThumbStyle" TargetType="Thumb">
+        <Setter Property="MinWidth" Value="24"/>
+        <Setter Property="Background" Value="{DynamicResource TextDisabledBrush}"/>
         <Setter Property="Template">
             <Setter.Value>
-                <ControlTemplate TargetType="ScrollBar">
-                    <Grid>
-                        <Border Background="Transparent" CornerRadius="4"/>
-                        <Track x:Name="PART_Track" IsDirectionReversed="True">
-                            <Track.Thumb>
-                                <Thumb Style="{StaticResource ScrollBarThumbStyle}"/>
-                            </Track.Thumb>
-                        </Track>
-                    </Grid>
+                <ControlTemplate TargetType="Thumb">
+                    <Border Background="{TemplateBinding Background}"
+                            CornerRadius="2"
+                            Margin="1,2"/>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource TextSecondaryBrush}"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
-    <Style TargetType="ScrollViewer">
+    <ControlTemplate x:Key="VerticalScrollBarTemplate" TargetType="ScrollBar">
+        <Grid Background="Transparent">
+            <Track x:Name="PART_Track"
+                   Focusable="False"
+                   IsDirectionReversed="True"
+                   Maximum="{TemplateBinding Maximum}"
+                   Minimum="{TemplateBinding Minimum}"
+                   Orientation="Vertical"
+                   Value="{Binding Value, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                   ViewportSize="{TemplateBinding ViewportSize}">
+                <Track.DecreaseRepeatButton>
+                    <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}"
+                                  Focusable="False"
+                                  IsTabStop="False"
+                                  Opacity="0"/>
+                </Track.DecreaseRepeatButton>
+                <Track.Thumb>
+                    <Thumb Style="{StaticResource VerticalScrollBarThumbStyle}"/>
+                </Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                    <RepeatButton Command="{x:Static ScrollBar.PageDownCommand}"
+                                  Focusable="False"
+                                  IsTabStop="False"
+                                  Opacity="0"/>
+                </Track.IncreaseRepeatButton>
+            </Track>
+        </Grid>
+    </ControlTemplate>
+
+    <ControlTemplate x:Key="HorizontalScrollBarTemplate" TargetType="ScrollBar">
+        <Grid Background="Transparent">
+            <Track x:Name="PART_Track"
+                   Focusable="False"
+                   IsDirectionReversed="False"
+                   Maximum="{TemplateBinding Maximum}"
+                   Minimum="{TemplateBinding Minimum}"
+                   Orientation="Horizontal"
+                   Value="{Binding Value, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                   ViewportSize="{TemplateBinding ViewportSize}">
+                <Track.DecreaseRepeatButton>
+                    <RepeatButton Command="{x:Static ScrollBar.PageLeftCommand}"
+                                  Focusable="False"
+                                  IsTabStop="False"
+                                  Opacity="0"/>
+                </Track.DecreaseRepeatButton>
+                <Track.Thumb>
+                    <Thumb Style="{StaticResource HorizontalScrollBarThumbStyle}"/>
+                </Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                    <RepeatButton Command="{x:Static ScrollBar.PageRightCommand}"
+                                  Focusable="False"
+                                  IsTabStop="False"
+                                  Opacity="0"/>
+                </Track.IncreaseRepeatButton>
+            </Track>
+        </Grid>
+    </ControlTemplate>
+
+    <Style x:Key="SharedScrollBarStyle" TargetType="ScrollBar">
+        <Setter Property="Width" Value="8"/>
+        <Setter Property="Height" Value="Auto"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Template" Value="{StaticResource VerticalScrollBarTemplate}"/>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Width" Value="Auto"/>
+                <Setter Property="Height" Value="8"/>
+                <Setter Property="Template" Value="{StaticResource HorizontalScrollBarTemplate}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="ScrollBar" BasedOn="{StaticResource SharedScrollBarStyle}"/>
+
+    <Style x:Key="SharedScrollViewerStyle" TargetType="ScrollViewer">
         <Setter Property="CanContentScroll"              Value="True"/>
         <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
         <Setter Property="VerticalScrollBarVisibility"   Value="Auto"/>
         <Setter Property="Background"                    Value="Transparent"/>
+        <Setter Property="behaviors:SmoothScrollBehavior.IsEnabled" Value="True"/>
     </Style>
+
+    <Style TargetType="ScrollViewer" BasedOn="{StaticResource SharedScrollViewerStyle}"/>
+
+    <Style x:Key="PixelVirtualizingItemsControlStyle" TargetType="ItemsControl">
+        <Setter Property="ScrollViewer.CanContentScroll" Value="True"/>
+        <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
+        <Setter Property="VirtualizingPanel.IsVirtualizingWhenGrouping" Value="True"/>
+        <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling"/>
+        <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel"/>
+    </Style>
+
+    <Style TargetType="ItemsControl" BasedOn="{StaticResource PixelVirtualizingItemsControlStyle}"/>
 
     <!-- ── Button — Primary ──────────────────────────────────────── -->
     <Style x:Key="ButtonPrimary" TargetType="Button">
@@ -689,7 +785,9 @@
     </Style>
 
     <!-- ── DataGrid ──────────────────────────────────────────────── -->
-    <Style TargetType="DataGrid">
+    <Style x:Key="SharedDataGridStyle"
+           TargetType="DataGrid"
+           BasedOn="{StaticResource PixelVirtualizingItemsControlStyle}">
         <Setter Property="FontFamily"               Value="{StaticResource FontPrimary}"/>
         <Setter Property="FontSize"                 Value="{StaticResource FontSizeBase}"/>
         <Setter Property="Foreground"               Value="{DynamicResource TextPrimaryBrush}"/>
@@ -706,7 +804,11 @@
         <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
         <Setter Property="HeadersVisibility"        Value="Column"/>
         <Setter Property="CanUserResizeRows"        Value="False"/>
+        <Setter Property="EnableRowVirtualization"  Value="True"/>
+        <Setter Property="EnableColumnVirtualization" Value="True"/>
     </Style>
+
+    <Style TargetType="DataGrid" BasedOn="{StaticResource SharedDataGridStyle}"/>
 
     <Style TargetType="DataGridColumnHeader">
         <Setter Property="FontFamily"      Value="{StaticResource FontPrimary}"/>
@@ -761,7 +863,9 @@
     </Style>
 
     <!-- ── ListBox ───────────────────────────────────────────────── -->
-    <Style TargetType="ListBox">
+    <Style x:Key="SharedListBoxStyle"
+           TargetType="ListBox"
+           BasedOn="{StaticResource PixelVirtualizingItemsControlStyle}">
         <Setter Property="FontFamily"      Value="{StaticResource FontPrimary}"/>
         <Setter Property="FontSize"        Value="{StaticResource FontSizeBase}"/>
         <Setter Property="Foreground"      Value="{DynamicResource TextPrimaryBrush}"/>
@@ -770,6 +874,12 @@
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding"         Value="0"/>
     </Style>
+
+    <Style TargetType="ListBox" BasedOn="{StaticResource SharedListBoxStyle}"/>
+
+    <Style TargetType="ListView" BasedOn="{StaticResource PixelVirtualizingItemsControlStyle}"/>
+
+    <Style TargetType="TreeView" BasedOn="{StaticResource PixelVirtualizingItemsControlStyle}"/>
 
     <Style TargetType="ListBoxItem">
         <Setter Property="FontFamily" Value="{StaticResource FontPrimary}"/>

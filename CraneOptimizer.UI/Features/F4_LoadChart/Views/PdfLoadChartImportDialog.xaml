@@ -15,71 +15,9 @@
         SnapsToDevicePixels="True">
 
     <Window.Resources>
-        <!-- Local slim scrollbars matching Import Crane Load Chart. -->
-        <Style x:Key="DialogScrollThumbStyle" TargetType="Thumb">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Thumb">
-                        <Border Background="{DynamicResource SecondaryBrush}"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="4"/>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="DialogScrollBarStyle" TargetType="ScrollBar">
-            <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
-            <Setter Property="Width" Value="12"/>
-            <Setter Property="MinWidth" Value="12"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ScrollBar">
-                        <Grid Background="{TemplateBinding Background}">
-                            <Track x:Name="PART_Track" IsDirectionReversed="True">
-                                <Track.DecreaseRepeatButton>
-                                    <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" IsTabStop="False"/>
-                                </Track.DecreaseRepeatButton>
-                                <Track.Thumb>
-                                    <Thumb Style="{StaticResource DialogScrollThumbStyle}" MinHeight="28"/>
-                                </Track.Thumb>
-                                <Track.IncreaseRepeatButton>
-                                    <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" IsTabStop="False"/>
-                                </Track.IncreaseRepeatButton>
-                            </Track>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="Orientation" Value="Horizontal">
-                    <Setter Property="Height" Value="12"/>
-                    <Setter Property="MinHeight" Value="12"/>
-                    <Setter Property="Width" Value="Auto"/>
-                    <Setter Property="MinWidth" Value="0"/>
-                    <Setter Property="Template">
-                        <Setter.Value>
-                            <ControlTemplate TargetType="ScrollBar">
-                                <Grid Background="{TemplateBinding Background}">
-                                    <Track x:Name="PART_Track">
-                                        <Track.DecreaseRepeatButton>
-                                            <RepeatButton Command="ScrollBar.PageLeftCommand" Opacity="0" IsTabStop="False"/>
-                                        </Track.DecreaseRepeatButton>
-                                        <Track.Thumb>
-                                            <Thumb Style="{StaticResource DialogScrollThumbStyle}" MinWidth="28"/>
-                                        </Track.Thumb>
-                                        <Track.IncreaseRepeatButton>
-                                            <RepeatButton Command="ScrollBar.PageRightCommand" Opacity="0" IsTabStop="False"/>
-                                        </Track.IncreaseRepeatButton>
-                                    </Track>
-                                </Grid>
-                            </ControlTemplate>
-                        </Setter.Value>
-                    </Setter>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+        <Style x:Key="DialogScrollBarStyle"
+               TargetType="ScrollBar"
+               BasedOn="{StaticResource SharedScrollBarStyle}"/>
 
         <Style TargetType="ScrollBar" BasedOn="{StaticResource DialogScrollBarStyle}"/>
 
@@ -153,7 +91,9 @@
             <Setter Property="ResizeBehavior" Value="PreviousAndNext"/>
         </Style>
 
-        <Style x:Key="CandidateListBoxStyle" TargetType="ListBox">
+        <Style x:Key="CandidateListBoxStyle"
+               TargetType="ListBox"
+               BasedOn="{StaticResource SharedListBoxStyle}">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -349,7 +289,7 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
-        <Style TargetType="DataGrid">
+        <Style TargetType="DataGrid" BasedOn="{StaticResource SharedDataGridStyle}">
             <Setter Property="Background" Value="{DynamicResource BackgroundBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>

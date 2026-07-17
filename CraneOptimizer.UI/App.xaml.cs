@@ -61,6 +61,7 @@ using CraneOptimizer.UI.F90_CraneSeedData.Services;
 using CraneOptimizer.UI.Features.F17_Selection.Interaction;
 using CraneOptimizer.UI.Features.F17_Selection.Services;
 using CraneOptimizer.UI.Features.F17_Selection.ViewModels;
+using CraneOptimizer.UI.Shared.Behaviors;
 
 namespace CraneOptimizer.UI
 {
@@ -70,6 +71,8 @@ namespace CraneOptimizer.UI
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            SmoothScrollBehavior.Initialize();
+
             // Initialize transitional static holder
             ZoneGeometryServiceHolder.Instance = new CraneOptimizer.Domain.Services.ZoneGeometryService();
 

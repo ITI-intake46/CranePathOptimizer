@@ -146,12 +146,13 @@
                                           BorderThickness="0,0,0,1"
                                           IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
                                     <Expander.Header>
-                                        <TextBlock MinHeight="24"
-                                                   VerticalAlignment="Center"
-                                                   FontSize="{StaticResource FontSizeXS}"
-                                                   FontWeight="Bold"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                   Text="{Binding Name}" />
+                                        <Grid Height="24" VerticalAlignment="Center">
+                                            <TextBlock VerticalAlignment="Center"
+                                                       FontSize="{StaticResource FontSizeXS}"
+                                                       FontWeight="Bold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       Text="{Binding Name}" />
+                                        </Grid>
                                     </Expander.Header>
 
                                     <Grid Background="{DynamicResource SurfaceElevatedBrush}">
