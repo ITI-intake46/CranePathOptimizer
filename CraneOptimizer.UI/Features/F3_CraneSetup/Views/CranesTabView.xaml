@@ -40,7 +40,7 @@
                 </Grid>
             </ContentControl>
 
-            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+            <Rectangle Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="MANAGE">
                 <StackPanel Orientation="Horizontal">
@@ -89,7 +89,7 @@
                 </StackPanel>
             </ContentControl>
 
-            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+            <Rectangle Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="OPTIMIZE">
                 <Button Command="{Binding OptimizeCommand}" ContentTemplate="{x:Null}" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
@@ -113,7 +113,7 @@
                 </Button>
             </ContentControl>
 
-            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+            <Rectangle Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="LOAD CHART">
                 <StackPanel Orientation="Horizontal">

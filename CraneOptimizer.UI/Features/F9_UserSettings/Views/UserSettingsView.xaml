@@ -7,7 +7,10 @@
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
         <StackPanel Margin="6,0" Orientation="Horizontal">
 
-            <Border Padding="8,6">
+            <Border
+                Height="{StaticResource RibbonCommandGroupHeight}"
+                Padding="8,6"
+                VerticalAlignment="Top">
                 <StackPanel Width="300" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                         <Border
@@ -33,12 +36,12 @@
                 </StackPanel>
             </Border>
 
-            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+            <Rectangle Style="{StaticResource RibbonSep}" />
 
             <ContentControl Width="480" Style="{StaticResource RibbonCommandGroup}" Tag="Project units">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Button
@@ -72,7 +75,7 @@
                 </Grid>
             </ContentControl>
 
-            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+            <Rectangle Style="{StaticResource RibbonSep}" />
 
             <ContentControl Width="330" Style="{StaticResource RibbonCommandGroup}" Tag="User information">
                 <StackPanel VerticalAlignment="Center">
@@ -118,7 +121,7 @@
                 </StackPanel>
             </ContentControl>
 
-            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+            <Rectangle Style="{StaticResource RibbonSep}" />
 
             <ContentControl Width="360" Style="{StaticResource RibbonCommandGroup}" Tag="Licence information">
                 <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
@@ -165,7 +168,7 @@
                 </StackPanel>
             </ContentControl>
 
-            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+            <Rectangle Style="{StaticResource RibbonSep}" />
 
             <ContentControl Width="270" Style="{StaticResource RibbonCommandGroup}" Tag="Connection status">
                 <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
@@ -192,7 +195,7 @@
                 </StackPanel>
             </ContentControl>
 
-            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+            <Rectangle Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="ACCOUNT">
                 <Button

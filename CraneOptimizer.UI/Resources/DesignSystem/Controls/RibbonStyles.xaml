@@ -14,6 +14,7 @@
     <!-- Major-command geometry follows the approved Compare tile. -->
     <sys:Double x:Key="RibbonMajorCommandHeight">78</sys:Double>
     <sys:Double x:Key="RibbonMajorCommandContentHeight">72</sys:Double>
+    <sys:Double x:Key="RibbonCommandGroupHeight">103</sys:Double>
     <sys:Double x:Key="RibbonMajorCommandWidth">104</sys:Double>
     <sys:Double x:Key="RibbonMajorLongCommandWidth">120</sys:Double>
     <sys:Double x:Key="RibbonMajorCommandIconSlotSize">38</sys:Double>
@@ -21,6 +22,7 @@
     <GridLength x:Key="RibbonMajorCommandIconRowHeight">58*</GridLength>
     <GridLength x:Key="RibbonMajorCommandLabelRowHeight">42*</GridLength>
     <GridLength x:Key="RibbonMajorCommandSubtitleRowHeight">12</GridLength>
+    <GridLength x:Key="RibbonCommandAreaHeight">92</GridLength>
     <Thickness x:Key="RibbonCommandGroupPadding">0</Thickness>
     <Thickness x:Key="RibbonMajorCommandTileMargin">7,5,7,9</Thickness>
     <Thickness x:Key="RibbonMajorCommandLeadingTileMargin">7,5,2,9</Thickness>
@@ -533,7 +535,10 @@
 
     <!-- Shared two-row ribbon group: command area above, caption below. -->
     <Style x:Key="RibbonCommandGroup" TargetType="ContentControl">
+        <Setter Property="Height" Value="{StaticResource RibbonCommandGroupHeight}" />
         <Setter Property="Padding" Value="{StaticResource RibbonCommandGroupPadding}" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="VerticalAlignment" Value="Top" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Stretch" />
         <Setter Property="Template">
@@ -542,7 +547,7 @@
                     <Border Padding="{TemplateBinding Padding}">
                         <Grid>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" SharedSizeGroup="RibbonCommandArea" />
+                                <RowDefinition Height="{StaticResource RibbonCommandAreaHeight}" SharedSizeGroup="RibbonCommandArea" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <ContentPresenter Grid.Row="0"

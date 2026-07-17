@@ -79,7 +79,7 @@
         <Style TargetType="ScrollBar" BasedOn="{StaticResource DialogScrollBarStyle}"/>
     </Window.Resources>
 
-    <Grid Margin="16">
+    <Grid Margin="16" Background="{DynamicResource BackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>

@@ -35,8 +35,15 @@ namespace CraneOptimizer.UI.Features.F4_LoadChart.Views
             var factory = App.ServiceProvider.GetRequiredService<IDbContextFactory<CraneDbContext>>();
             _catalogService = new LoadChartCatalogService(factory);
             _unitSettingsService = App.ServiceProvider.GetRequiredService<IUnitSettingsService>();
-            Loaded += async (_, _) => await LoadCranesAsync();
+            ContentRendered += OnContentRendered;
         }
+
+        private async void OnContentRendered(object? sender, EventArgs e)
+        {
+            ContentRendered -= OnContentRendered;
+            await LoadCranesAsync();
+        }
+
         private void ApplyDialogMode()
         {
             if (_isReadOnlyView)

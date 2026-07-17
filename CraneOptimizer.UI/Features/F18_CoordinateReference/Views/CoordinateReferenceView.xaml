@@ -17,10 +17,10 @@
         </Grid.RowDefinitions>
 
         <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-            <StackPanel Margin="6,0" Orientation="Horizontal" VerticalAlignment="Center" Height="110">
+            <StackPanel Margin="6,0" Orientation="Horizontal" VerticalAlignment="Top">
 
                 <!-- 1. SYSTEM -->
-                <Border Padding="8,6,8,0" Width="200">
+                <Border Height="{StaticResource RibbonCommandGroupHeight}" Padding="8,6,8,0" VerticalAlignment="Top" Width="200">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource GroupLabel}" Text="SYSTEM" />
                         <StackPanel VerticalAlignment="Center" Margin="0,2,0,0">
@@ -53,10 +53,10 @@
                     </DockPanel>
                 </Border>
 
-                <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+                <Rectangle Style="{StaticResource RibbonSep}" />
 
                 <!-- 2. SITE ORIGIN -->
-                <Border Padding="8,6,8,0" Width="260">
+                <Border Height="{StaticResource RibbonCommandGroupHeight}" Padding="8,6,8,0" VerticalAlignment="Top" Width="260">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource GroupLabel}" Text="SITE ORIGIN" />
                         <Grid VerticalAlignment="Center">
@@ -91,10 +91,10 @@
                     </DockPanel>
                 </Border>
 
-                <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+                <Rectangle Style="{StaticResource RibbonSep}" />
 
                 <!-- 3. ROTATION -->
-                <Border Padding="8,6,8,0" Width="255">
+                <Border Height="{StaticResource RibbonCommandGroupHeight}" Padding="8,6,8,0" VerticalAlignment="Top" Width="255">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource GroupLabel}" Text="ROTATION" />
                         <Grid VerticalAlignment="Center">
@@ -140,10 +140,10 @@
                     </DockPanel>
                 </Border>
 
-                <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+                <Rectangle Style="{StaticResource RibbonSep}" />
 
                 <!-- METADATA -->
-                <Border Padding="8,6,8,0" Width="240">
+                <Border Height="{StaticResource RibbonCommandGroupHeight}" Padding="8,6,8,0" VerticalAlignment="Top" Width="240">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource GroupLabel}" Text="METADATA" />
                         <Grid VerticalAlignment="Center">
@@ -178,10 +178,10 @@
                     </DockPanel>
                 </Border>
 
-                <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+                <Rectangle Style="{StaticResource RibbonSep}" />
 
                 <!-- 4. REFERENCE CHECK -->
-                <Border Padding="8,6,8,0" Width="360">
+                <Border Height="{StaticResource RibbonCommandGroupHeight}" Padding="8,6,8,0" VerticalAlignment="Top" Width="360">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource GroupLabel}" Text="REFERENCE CHECK" />
                         <Grid VerticalAlignment="Center">
@@ -267,7 +267,7 @@
                     </DockPanel>
                 </Border>
 
-                <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
+                <Rectangle Style="{StaticResource RibbonSep}" />
 
                 <!-- 5. ACTIONS -->
                 <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="ACTIONS">
