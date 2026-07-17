@@ -271,7 +271,7 @@
 
                 <!-- 5. ACTIONS -->
                 <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="ACTIONS">
-                    <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                             <Button Command="{Binding ApplyCommand}" Content="Apply" FontSize="10" FontWeight="SemiBold" Foreground="White" Style="{StaticResource RibbonMajorLeadingCommandTile}">
                                 <Button.Tag>
                                     <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="White" Text="✔" />
@@ -282,7 +282,7 @@
                                     <TextBlock FontSize="10" FontWeight="SemiBold" Text="✕" />
                                 </Button.Tag>
                             </Button>
-                    </UniformGrid>
+                </StackPanel>
                 </ContentControl>
 
             </StackPanel>

@@ -20,7 +20,7 @@
             <StackPanel Margin="6,0" Orientation="Horizontal">
 
                 <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="DRAW MODE">
-                    <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                         <Border>
                             <Border.Style>
                                 <Style TargetType="Border">
@@ -95,7 +95,7 @@
                                 </StackPanel>
                             </Button>
                         </Border>
-                    </UniformGrid>
+                </StackPanel>
                 </ContentControl>
 
                 <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
@@ -115,7 +115,7 @@
                 <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
                 <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="ACTIONS">
-                    <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                         <Button Command="{Binding FinishCommand}" Content="Finish Zone" Style="{StaticResource RibbonMajorLeadingCommandTile}">
                             <Button.Tag>
                                 <TextBlock Text="✔" />
@@ -131,7 +131,7 @@
                                 <TextBlock Text="✕" />
                             </Button.Tag>
                         </Button>
-                    </UniformGrid>
+                </StackPanel>
                 </ContentControl>
 
                 <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
@@ -139,7 +139,7 @@
                 <ContentControl
                     Style="{StaticResource RibbonCommandGroup}"
                     Tag="{Binding ZoneList.ZoneCount, StringFormat=MANAGE ({0} zones)}">
-                    <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                         <Button Command="{Binding DeleteZoneCommand}" Content="Delete Selected" Style="{StaticResource RibbonMajorLeadingCommandTile}" ToolTip="Delete Selected">
                             <Button.Tag>
                                 <TextBlock Text="🗑" />
@@ -155,7 +155,7 @@
                                 <TextBlock Text="📤" />
                             </Button.Tag>
                         </Button>
-                    </UniformGrid>
+                </StackPanel>
                 </ContentControl>
 
             </StackPanel>

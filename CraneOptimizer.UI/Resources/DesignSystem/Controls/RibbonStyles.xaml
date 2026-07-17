@@ -23,9 +23,9 @@
     <GridLength x:Key="RibbonMajorCommandSubtitleRowHeight">12</GridLength>
     <Thickness x:Key="RibbonCommandGroupPadding">0</Thickness>
     <Thickness x:Key="RibbonMajorCommandTileMargin">7,5,7,9</Thickness>
-    <Thickness x:Key="RibbonMajorCommandLeadingTileMargin">7,5,3,9</Thickness>
-    <Thickness x:Key="RibbonMajorCommandMiddleTileMargin">3,5,3,9</Thickness>
-    <Thickness x:Key="RibbonMajorCommandTrailingTileMargin">3,5,7,9</Thickness>
+    <Thickness x:Key="RibbonMajorCommandLeadingTileMargin">7,5,2,9</Thickness>
+    <Thickness x:Key="RibbonMajorCommandMiddleTileMargin">2,5,2,9</Thickness>
+    <Thickness x:Key="RibbonMajorCommandTrailingTileMargin">2,5,7,9</Thickness>
     <Thickness x:Key="RibbonMajorCommandTilePadding">8,6,8,4</Thickness>
 
     <ControlTemplate x:Key="RibbonMajorCommandButtonTemplate" TargetType="Button">

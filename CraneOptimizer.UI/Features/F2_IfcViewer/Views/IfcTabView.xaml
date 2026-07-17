@@ -8,7 +8,7 @@
         <StackPanel Margin="4,0" Orientation="Horizontal">
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="LOAD MODEL">
-                <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                     <Button Command="{Binding IfcViewer.LoadIfcCommand}" Content="Load IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorLeadingCommandTile}">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="📦" />
@@ -42,13 +42,13 @@
                             <TextBlock FontSize="26" Text="🗑" />
                         </Button.Tag>
                     </Button>
-                </UniformGrid>
+                </StackPanel>
             </ContentControl>
 
             <Rectangle Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="DISPLAY">
-                <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                     <Button Content="Toggle COG Markers" Style="{StaticResource RibbonMajorLeadingCommandTile}" ToolTip="Toggle COG Markers">
                         <Button.Tag>
                             <TextBlock Text="⊙" />
@@ -64,7 +64,7 @@
                             <TextBlock Text="📊" />
                         </Button.Tag>
                     </Button>
-                </UniformGrid>
+                </StackPanel>
             </ContentControl>
 
             <Rectangle Style="{StaticResource RibbonSep}" />
@@ -97,7 +97,7 @@
             <Rectangle Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="SITE LAYOUT">
-                <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                     <Button Content="Upload DXF" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorLeadingCommandTile}">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="📐" />
@@ -108,7 +108,7 @@
                             <TextBlock FontSize="26" Text="🎯" />
                         </Button.Tag>
                     </Button>
-                </UniformGrid>
+                </StackPanel>
             </ContentControl>
 
         </StackPanel>

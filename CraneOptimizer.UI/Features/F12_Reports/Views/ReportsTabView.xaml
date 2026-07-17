@@ -81,7 +81,7 @@
             <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="PROJECT">
-                <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                     <Button
                         Click="ProjectOverview_Click"
                         Content="Project Overview"
@@ -100,13 +100,13 @@
                             <TextBlock Text="📌" />
                         </Button.Tag>
                     </Button>
-                </UniformGrid>
+                </StackPanel>
             </ContentControl>
 
             <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="ANALYSIS">
-                <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                     <Button
                         Command="{Binding ShowDiagnosticsCommand}"
                         Content="GA Diagnostics"
@@ -125,7 +125,7 @@
                             <TextBlock Text="📊" />
                         </Button.Tag>
                     </Button>
-                </UniformGrid>
+                </StackPanel>
             </ContentControl>
 
         </StackPanel>

@@ -18,7 +18,7 @@
             <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="RESULT CHECK">
-                <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                     <Button
                         Command="{Binding AnalyzeCurrentResultCommand}"
                         Content="Analyze Current Result"
@@ -31,7 +31,7 @@
                         Content="Ask Local Ollama"
                         Style="{StaticResource RibbonMajorTrailingCommandTile}"
                         Tag="💬" />
-                </UniformGrid>
+                </StackPanel>
             </ContentControl>
 
             <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />

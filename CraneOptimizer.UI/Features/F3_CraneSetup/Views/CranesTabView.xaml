@@ -43,7 +43,7 @@
             <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="MANAGE">
-                <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                     <Button
                         Command="{Binding RemoveSelectedCraneCommand}"
                         Content="Remove Selected Crane"
@@ -86,7 +86,7 @@
                                 StrokeThickness="1.5" />
                         </ToggleButton.Tag>
                     </ToggleButton>
-                </UniformGrid>
+                </StackPanel>
             </ContentControl>
 
             <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
@@ -116,11 +116,38 @@
             <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="LOAD CHART">
-                <UniformGrid Rows="1">
-                    <Button Click="ImportLoadChart_Click" Content="Import Load Chart" Style="{StaticResource RibbonMajorLeadingCommandTile}" ToolTip="Import Load Chart" />
-                    <Button Click="ViewSavedCharts_Click" Content="View Saved Charts" Style="{StaticResource RibbonMajorMiddleCommandTile}" ToolTip="View Saved Charts" />
-                    <Button Click="CraneCatalog_Click" Content="Crane Catalog" Style="{StaticResource RibbonMajorTrailingCommandTile}" ToolTip="Crane Catalog" />
-                </UniformGrid>
+                <StackPanel Orientation="Horizontal">
+                    <Button Click="ImportLoadChart_Click" Content="Import Load Chart" Style="{StaticResource RibbonMajorLeadingCommandTile}" ToolTip="Import Load Chart">
+                        <Button.Tag>
+                            <Path
+                                Data="M3,7 H9 L11,10 H21 V20 H3 Z M12,3 V14 M8,10 L12,14 L16,10"
+                                Fill="Transparent"
+                                Stroke="{DynamicResource TextSecondaryBrush}"
+                                StrokeLineJoin="Round"
+                                StrokeThickness="1.5" />
+                        </Button.Tag>
+                    </Button>
+                    <Button Click="ViewSavedCharts_Click" Content="View Saved Charts" Style="{StaticResource RibbonMajorMiddleCommandTile}" ToolTip="View Saved Charts">
+                        <Button.Tag>
+                            <Path
+                                Data="M4,2 H14 L20,8 V22 H4 Z M14,2 V8 H20 M8,18 V14 M12,18 V11 M16,18 V9"
+                                Fill="Transparent"
+                                Stroke="{DynamicResource TextSecondaryBrush}"
+                                StrokeLineJoin="Round"
+                                StrokeThickness="1.5" />
+                        </Button.Tag>
+                    </Button>
+                    <Button Click="CraneCatalog_Click" Content="Crane Catalog" Style="{StaticResource RibbonMajorTrailingCommandTile}" ToolTip="Crane Catalog">
+                        <Button.Tag>
+                            <Path
+                                Data="M3,4 C7,3 10,4 12,6 V21 C10,19 7,18 3,19 Z M21,4 C17,3 14,4 12,6 V21 C14,19 17,18 21,19 Z"
+                                Fill="Transparent"
+                                Stroke="{DynamicResource TextSecondaryBrush}"
+                                StrokeLineJoin="Round"
+                                StrokeThickness="1.5" />
+                        </Button.Tag>
+                    </Button>
+                </StackPanel>
             </ContentControl>
 
         </StackPanel>

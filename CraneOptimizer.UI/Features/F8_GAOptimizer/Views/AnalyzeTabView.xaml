@@ -18,11 +18,11 @@
             <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="REPORTS">
-                <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                     <Button Content="Export Analysis" Style="{StaticResource RibbonMajorLeadingCommandTile}" Tag="📄" />
                     <Button Content="Export Zones (JSON)" Style="{StaticResource RibbonMajorMiddleCommandTile}" Tag="📤" ToolTip="Export Zones (JSON)" />
                     <Button Command="{Binding ShowDiagnosticsCommand}" Content="GA Diagnostics" Style="{StaticResource RibbonMajorTrailingCommandTile}" Tag="📈" />
-                </UniformGrid>
+                </StackPanel>
             </ContentControl>
 
             <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />

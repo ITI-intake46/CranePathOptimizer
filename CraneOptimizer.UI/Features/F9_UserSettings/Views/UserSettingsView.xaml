@@ -44,7 +44,16 @@
                     <Button
                         Click="OpenUnits_Click"
                         Content="Units"
-                        Style="{StaticResource RibbonMajorPrimaryCommandTile}" />
+                        Style="{StaticResource RibbonMajorPrimaryCommandTile}">
+                        <Button.Tag>
+                            <Path
+                                Data="M4,17 L17,4 L21,8 L8,21 Z M13,8 L17,12 M10,11 L13,14 M7,14 L10,17"
+                                Fill="Transparent"
+                                Stroke="{StaticResource OnPrimaryBrush}"
+                                StrokeLineJoin="Round"
+                                StrokeThickness="1.5" />
+                        </Button.Tag>
+                    </Button>
                     <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
                         <TextBlock
                             Margin="0,0,0,4"

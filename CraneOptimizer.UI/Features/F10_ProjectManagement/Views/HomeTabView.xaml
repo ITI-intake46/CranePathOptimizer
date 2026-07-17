@@ -8,7 +8,7 @@
         <StackPanel Margin="6,0" Orientation="Horizontal">
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="PROJECT">
-                <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                     <Button
                         Command="{Binding NewProjectCommand}"
                         Content="New"
@@ -36,13 +36,13 @@
                             <TextBlock FontSize="26" Text="💾" />
                         </Button.Tag>
                     </Button>
-                </UniformGrid>
+                </StackPanel>
             </ContentControl>
 
             <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="SETTINGS">
-                <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                     <Button ContentTemplate="{x:Null}" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorLeadingCommandTile}">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="⚙️" />
@@ -60,13 +60,13 @@
                             <TextBlock FontSize="26" Text="📐" />
                         </Button.Tag>
                     </Button>
-                </UniformGrid>
+                </StackPanel>
             </ContentControl>
 
             <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="QUICK ACCESS">
-                <UniformGrid Rows="1">
+                <StackPanel Orientation="Horizontal">
                     <Button
                         Command="{Binding IfcViewer.LoadIfcCommand}"
                         Content="Load IFC Model"
@@ -91,7 +91,7 @@
                             <TextBlock Text="🗺" />
                         </Button.Tag>
                     </Button>
-                </UniformGrid>
+                </StackPanel>
             </ContentControl>
 
         </StackPanel>
