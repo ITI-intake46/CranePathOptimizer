@@ -48,6 +48,13 @@
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         </Style>
 
+        <Style x:Key="CraneSectionHeading" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,14,0,8"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeXS}"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        </Style>
+
         <Style x:Key="CraneDisplayRow" TargetType="Grid">
             <Setter Property="MinHeight" Value="22"/>
             <Setter Property="Margin" Value="0,0,0,6"/>
@@ -165,7 +172,7 @@
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <ScrollViewer.Style>
-                <Style TargetType="ScrollViewer">
+                <Style BasedOn="{StaticResource SharedScrollViewerStyle}" TargetType="ScrollViewer">
                     <Setter Property="Visibility" Value="Collapsed"/>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding HasActiveCrane}" Value="True">
@@ -175,12 +182,12 @@
                 </Style>
             </ScrollViewer.Style>
 
-            <StackPanel Margin="12,10,12,0" DataContext="{Binding ActiveParams}">
+            <Border Padding="12,10,12,18">
+                <StackPanel DataContext="{Binding ActiveParams}">
 
-                <TextBlock Text="DATABASE CRANE"
-                           FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Margin="0,0,0,6"/>
+                <TextBlock Margin="0,0,0,8"
+                           Style="{StaticResource CraneSectionHeading}"
+                           Text="DATABASE CRANE"/>
                 <ComboBox Margin="0,0,0,10"
                           ItemsSource="{Binding DataContext.AvailableCranes, RelativeSource={RelativeSource AncestorType=UserControl}}"
                           SelectedItem="{Binding DataContext.SelectedDatabaseCrane, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
@@ -210,7 +217,7 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
 
-                <Border Margin="0,0,0,16" Style="{StaticResource CraneSummaryBorder}">
+                <Border Margin="0,0,0,12" Style="{StaticResource CraneSummaryBorder}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="68"/>
@@ -273,7 +280,7 @@
                 </Border>
 
                 <!-- ── Z POSITION + SET XYZ ─────────────────────────── -->
-                <Grid Margin="0,0,0,16">
+                <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
@@ -308,11 +315,8 @@
                 </Grid>
 
                 <!-- ── BODY ANGLE ───────────────────────────────────── -->
-                <TextBlock Text="BODY ANGLE"
-                           FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Margin="0,0,0,6"/>
-                <Grid Margin="0,0,0,16">
+                <TextBlock Style="{StaticResource CraneSectionHeading}" Text="BODY ANGLE"/>
+                <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
@@ -340,11 +344,8 @@
                 </Grid>
 
                 <!-- ── SLEW ANGLE ───────────────────────────────────── -->
-                <TextBlock Text="SLEW ANGLE"
-                           FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Margin="0,0,0,6"/>
-                <Grid Margin="0,0,0,16">
+                <TextBlock Style="{StaticResource CraneSectionHeading}" Text="SLEW ANGLE"/>
+                <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
@@ -359,11 +360,8 @@
                 </Grid>
 
                 <!-- ── CABLE LENGTH ─────────────────────────────────── -->
-                <TextBlock Text="CABLE LENGTH"
-                           FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Margin="0,0,0,6"/>
-                <Grid Margin="0,0,0,16">
+                <TextBlock Style="{StaticResource CraneSectionHeading}" Text="CABLE LENGTH"/>
+                <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
@@ -378,13 +376,10 @@
                 </Grid>
 
                 <!-- ── LOAD CHART ───────────────────────────────────── -->
-                <TextBlock Text="LOAD CHART"
-                           FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Margin="0,0,0,6"/>
+                <TextBlock Style="{StaticResource CraneSectionHeading}" Text="LOAD CHART"/>
 
                 <!-- Chart summary -->
-                <Border Margin="0,0,0,4" Style="{StaticResource CraneSummaryBorder}">
+                <Border Style="{StaticResource CraneSummaryBorder}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="112"/>
@@ -447,7 +442,7 @@
 
                 <!-- Swap outrigger button -->
                 <Border Background="{DynamicResource BackgroundBrush}"
-                        CornerRadius="4" Padding="8,6" Margin="0,4,0,16"
+                        CornerRadius="4" Padding="10,6" Margin="0,10,0,0"
                         Cursor="Hand" HorizontalAlignment="Left">
                     <Border.Style>
                         <Style TargetType="Border">
@@ -465,11 +460,10 @@
                 </Border>
 
                 <!-- ── BOOM LENGTH ──────────────────────────────────── -->
-                <TextBlock Text="BOOM LENGTH"
-                           FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Margin="0,0,0,6"/>
-                <Grid Margin="0,0,0,16">
+                <TextBlock Margin="0,12,0,8"
+                           Style="{StaticResource CraneSectionHeading}"
+                           Text="BOOM LENGTH"/>
+                <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
@@ -485,11 +479,8 @@
                 </Grid>
 
                 <!-- ── WORKING RADIUS ──────────────────────────────── -->
-                <TextBlock Text="WORKING RADIUS"
-                           FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Margin="0,0,0,6"/>
-                <Grid Margin="0,0,0,16">
+                <TextBlock Style="{StaticResource CraneSectionHeading}" Text="WORKING RADIUS"/>
+                <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
@@ -505,11 +496,8 @@
                 </Grid>
 
                 <!-- ── EXCLUSION RADIUS ────────────────────────────── -->
-                <TextBlock Text="EXCLUSION RADIUS"
-                           FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Margin="0,0,0,6"/>
-                <Grid Margin="0,0,0,16">
+                <TextBlock Style="{StaticResource CraneSectionHeading}" Text="EXCLUSION RADIUS"/>
+                <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
@@ -524,7 +512,7 @@
                 </Grid>
 
                 <!-- ── OUTRIGGER SPAN ──────────────────────────────── -->
-                <StackPanel Margin="0,0,0,16">
+                <StackPanel Margin="0,14,0,0">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Visible"/>
@@ -535,10 +523,9 @@
                             </Style.Triggers>
                         </Style>
                     </StackPanel.Style>
-                    <TextBlock Text="OUTRIGGER SPAN"
-                               FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               Margin="0,0,0,6"/>
+                    <TextBlock Margin="0,0,0,8"
+                               Style="{StaticResource CraneSectionHeading}"
+                               Text="OUTRIGGER SPAN"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -555,11 +542,8 @@
                 </StackPanel>
 
                 <!-- ── DISPLAY TOGGLES ─────────────────────────────── -->
-                <TextBlock Text="DISPLAY"
-                           FontSize="{StaticResource FontSizeXS}" FontWeight="Bold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Margin="0,0,0,8"/>
-                <StackPanel Margin="0,0,0,18">
+                <TextBlock Style="{StaticResource CraneSectionHeading}" Text="DISPLAY"/>
+                <StackPanel>
                     <Grid Style="{StaticResource CraneDisplayRow}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -616,7 +600,8 @@
                     </Grid>
                 </StackPanel>
 
-            </StackPanel>
+                </StackPanel>
+            </Border>
         </ScrollViewer>
     </Grid>
 </UserControl>
