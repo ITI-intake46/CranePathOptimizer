@@ -45,22 +45,39 @@
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="MANAGE">
                 <StackPanel Orientation="Horizontal">
                     <Button
+                        AutomationProperties.Name="Remove selected crane"
                         Command="{Binding RemoveSelectedCraneCommand}"
                         Content="Remove Selected Crane"
                         Style="{StaticResource RibbonMajorLeadingCommandTile}"
-                        ToolTip="Remove Selected Crane"
+                        ToolTip="Removes the selected crane from the scene. Select a crane first. This action cannot be undone."
+                        ToolTipService.ShowOnDisabled="True"
                         Width="{StaticResource RibbonMajorLongCommandWidth}">
                         <Button.Tag>
-                            <TextBlock Foreground="{StaticResource DestructiveBrush}" Text="✖" />
+                            <Grid Width="24" Height="24">
+                                <Path Data="M 6,6 L 18,18 M 18,6 L 6,18"
+                                      Stroke="{StaticResource DestructiveBrush}"
+                                      StrokeEndLineCap="Round"
+                                      StrokeStartLineCap="Round"
+                                      StrokeThickness="1.8" />
+                            </Grid>
                         </Button.Tag>
                     </Button>
                     <Button
+                        AutomationProperties.Name="Remove all cranes"
                         Command="{Binding RemoveAllCranesCommand}"
                         Content="Remove All Cranes"
                         Style="{StaticResource RibbonMajorMiddleCommandTile}"
-                        ToolTip="Remove All Cranes">
+                        ToolTip="Removes every crane from the scene. Requires at least one crane. This action cannot be undone."
+                        ToolTipService.ShowOnDisabled="True">
                         <Button.Tag>
-                            <TextBlock Text="🗑" />
+                            <Grid Width="24" Height="24">
+                                <Path Data="M 7,7 H 17 L 16,20 H 8 Z M 9,7 V 4 H 15 V 7 M 5,7 H 19 M 10,10 V 17 M 14,10 V 17"
+                                      Stroke="{StaticResource DestructiveBrush}"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      StrokeStartLineCap="Round"
+                                      StrokeThickness="1.6" />
+                            </Grid>
                         </Button.Tag>
                     </Button>
                     <Button

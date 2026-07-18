@@ -140,14 +140,40 @@
                     Style="{StaticResource RibbonCommandGroup}"
                     Tag="{Binding ZoneList.ZoneCount, StringFormat=MANAGE ({0} zones)}">
                 <StackPanel Orientation="Horizontal">
-                        <Button Command="{Binding DeleteZoneCommand}" Content="Delete Selected" Style="{StaticResource RibbonMajorLeadingCommandTile}" ToolTip="Delete Selected">
+                        <Button
+                            AutomationProperties.Name="Delete selected zone"
+                            Command="{Binding DeleteZoneCommand}"
+                            Content="Delete Selected"
+                            Style="{StaticResource RibbonMajorLeadingCommandTile}"
+                            ToolTip="Deletes the selected zone from the scene. Requires a selected zone and no active drawing or measurement. This action cannot be undone."
+                            ToolTipService.ShowOnDisabled="True">
                             <Button.Tag>
-                                <TextBlock Text="🗑" />
+                                <Grid Width="24" Height="24">
+                                    <Path Data="M 7,7 H 17 L 16,20 H 8 Z M 9,7 V 4 H 15 V 7 M 5,7 H 19 M 10,10 V 17 M 14,10 V 17"
+                                          Stroke="{StaticResource DestructiveBrush}"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          StrokeStartLineCap="Round"
+                                          StrokeThickness="1.6" />
+                                </Grid>
                             </Button.Tag>
                         </Button>
-                        <Button Command="{Binding DeleteAllCommand}" Content="Delete All" Style="{StaticResource RibbonMajorMiddleCommandTile}">
+                        <Button
+                            AutomationProperties.Name="Delete all zones"
+                            Command="{Binding DeleteAllCommand}"
+                            Content="Delete All"
+                            Style="{StaticResource RibbonMajorMiddleCommandTile}"
+                            ToolTip="Deletes every zone from the scene. Requires at least one zone and no active drawing or measurement. Press Delete All again to confirm; this action cannot be undone."
+                            ToolTipService.ShowOnDisabled="True">
                             <Button.Tag>
-                                <TextBlock Text="🗑" />
+                                <Grid Width="24" Height="24">
+                                    <Path Data="M 7,7 H 17 L 16,20 H 8 Z M 9,7 V 4 H 15 V 7 M 5,7 H 19 M 10,10 V 17 M 14,10 V 17"
+                                          Stroke="{StaticResource DestructiveBrush}"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          StrokeStartLineCap="Round"
+                                          StrokeThickness="1.6" />
+                                </Grid>
                             </Button.Tag>
                         </Button>
                         <Button Command="{Binding ZoneList.ExportZonesCommand}" Content="Export JSON" Style="{StaticResource RibbonMajorTrailingCommandTile}">

@@ -571,7 +571,19 @@
                                 </ScrollViewer>
                             </Border>
                         </Popup>
+                        <Border x:Name="FocusRing"
+                                Margin="1"
+                                BorderBrush="{StaticResource PrimaryBrush}"
+                                BorderThickness="1"
+                                CornerRadius="2"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed" />
                     </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="FocusRing" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -649,6 +661,10 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
                         </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="Box" Property="BorderThickness" Value="2"/>
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -687,6 +703,10 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Outer" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
                         </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Outer" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="Outer" Property="BorderThickness" Value="2"/>
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -696,7 +716,8 @@
     <!-- ── Slider (Primary accent — brand orange) ────────────────── -->
     <Style x:Key="SliderPrimary" TargetType="Slider">
         <Setter Property="Height"    Value="18"/>
-        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Focusable" Value="True"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="SmallChange" Value="1"/>
         <Setter Property="LargeChange" Value="10"/>
         <Setter Property="Cursor"    Value="Hand"/>
@@ -753,7 +774,18 @@
                                 </Thumb>
                             </Track.Thumb>
                         </Track>
+                        <Border x:Name="FocusRing"
+                                Height="16"
+                                BorderBrush="{StaticResource PrimaryBrush}"
+                                BorderThickness="1"
+                                IsHitTestVisible="False"
+                                Visibility="Collapsed" />
                     </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="FocusRing" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

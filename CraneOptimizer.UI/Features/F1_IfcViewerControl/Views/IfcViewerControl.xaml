@@ -7,6 +7,21 @@
              xmlns:osnap="clr-namespace:CraneOptimizer.UI.Features.F15_ObjectSnap.Views"
              mc:Ignorable="d" 
              d:DesignHeight="600" d:DesignWidth="800">
+    <UserControl.Resources>
+        <Style x:Key="ViewportIconFocusVisual" TargetType="Control">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Control">
+                        <Rectangle Margin="-2"
+                                   Stroke="{DynamicResource PrimaryBrush}"
+                                   StrokeThickness="1"
+                                   SnapsToDevicePixels="True" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
     <Border Background="{DynamicResource BackgroundBrush}">
         <Grid>
             <Grid.RowDefinitions>
@@ -82,20 +97,23 @@
                             Height="28"
                             HorizontalAlignment="Left"
                             VerticalAlignment="Bottom"
+                            AutomationProperties.HelpText="Restore the default viewport orientation and framing."
+                            AutomationProperties.Name="Reset View"
                             Click="ResetCamera_Click"
                             ToolTip="Reset View">
                         <Button.Style>
                             <Style BasedOn="{StaticResource ToolbarButton}" TargetType="Button">
+                                <Setter Property="FocusVisualStyle" Value="{StaticResource ViewportIconFocusVisual}" />
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="Button">
-                                            <Border Width="{TemplateBinding Width}"
-                                                    Height="{TemplateBinding Height}"
-                                                    Padding="{TemplateBinding Padding}"
-                                                    Background="{TemplateBinding Background}"
-                                                    CornerRadius="3">
-                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            </Border>
+                                            <Path Width="14"
+                                                  Height="14"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Data="M12,2 L2,10 L4,10 L4,22 L10,22 L10,15 L14,15 L14,22 L20,22 L20,10 L22,10 Z"
+                                                  Fill="{TemplateBinding Foreground}"
+                                                  Stretch="Uniform" />
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsEnabled" Value="False">
                                                     <Setter Property="Opacity" Value="0.35" />
@@ -106,7 +124,6 @@
                                 </Setter>
                             </Style>
                         </Button.Style>
-                        <TextBlock FontSize="{StaticResource FontSizeSM}" Text="🏠" />
                     </Button>
                 </Grid>
 

@@ -22,7 +22,21 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" Margin="0,0,6,0" VerticalAlignment="Center" FontSize="12" Text="🤖" />
+            <Viewbox
+                Grid.Column="0"
+                Width="12"
+                Height="12"
+                Margin="0,0,6,0"
+                VerticalAlignment="Center"
+                Stretch="Uniform">
+                <Path
+                    Data="M 4,10 C 4,8.34 5.34,7 7,7 H 17 C 18.66,7 20,8.34 20,10 V 18 C 20,19.1 19.1,20 18,20 H 6 C 4.9,20 4,19.1 4,18 Z M 12,7 V 4 M 10,4 H 14 M 9,12 V 14 M 15,12 V 14 M 8,17 H 16"
+                    Stroke="{StaticResource PrimaryBrush}"
+                    StrokeEndLineCap="Round"
+                    StrokeLineJoin="Round"
+                    StrokeStartLineCap="Round"
+                    StrokeThickness="1.6" />
+            </Viewbox>
 
             <TextBlock
                 Grid.Column="1"
@@ -32,16 +46,19 @@
                 FontSize="{StaticResource FontSizeXS}"
                 FontWeight="SemiBold"
                 Foreground="{StaticResource PrimaryBrush}"
-                Text="AI Mission Control" />
+                Text="AI" />
 
             <TextBlock
                 Grid.Column="2"
+                MaxWidth="280"
+                HorizontalAlignment="Left"
                 VerticalAlignment="Center"
                 FontFamily="{StaticResource FontPrimary}"
                 FontSize="{StaticResource FontSizeXS}"
                 Foreground="{DynamicResource TextSecondaryBrush}"
                 Text="{Binding MissionRootCause}"
-                TextTrimming="CharacterEllipsis" />
+                TextTrimming="CharacterEllipsis"
+                ToolTip="{Binding MissionRootCause}" />
 
             <Button
                 Grid.Column="3"
@@ -49,10 +66,13 @@
                 Height="18"
                 Margin="8,0,0,0"
                 Padding="7,0"
+                AutomationProperties.Name="Open AI Assist"
                 Click="AssistButton_Click"
                 Content="Open"
                 FontSize="{StaticResource FontSizeXS}"
-                Style="{StaticResource ToolbarButton}" />
+                Style="{StaticResource ToolbarButton}"
+                ToolTip="Open AI Assist for the full diagnosis, evidence, recommended action, and local-model tools."
+                ToolTipService.ShowOnDisabled="True" />
 
             <Button
                 Grid.Column="4"
@@ -60,12 +80,14 @@
                 Height="18"
                 Margin="4,0,0,0"
                 Padding="0"
+                AutomationProperties.Name="Hide AI Companion"
                 Click="HideButton_Click"
-                Content="×"
+                Content="&#x00D7;"
                 FontSize="11"
                 FontWeight="Bold"
                 Style="{StaticResource ToolbarButton}"
-                ToolTip="Hide AI Companion from the status bar" />
+                ToolTip="Hide AI Companion from the status bar"
+                ToolTipService.ShowOnDisabled="True" />
         </Grid>
     </Border>
 </UserControl>
