@@ -137,12 +137,26 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             if (selected == null)
                 return;
 
+            if (!_dialog.Confirm(
+                    "Remove the selected crane from the scene? This action cannot be undone.",
+                    "Remove Crane"))
+            {
+                return;
+            }
+
             Scene.RemoveCrane(selected);
             StatusText = "Selected crane removed.";
         }
 
         private void RemoveAllCranes()
         {
+            if (!_dialog.Confirm(
+                    "Remove every crane from the scene? This action cannot be undone.",
+                    "Remove All Cranes"))
+            {
+                return;
+            }
+
             Scene.ClearCranes();
             StatusText = "All cranes removed.";
         }

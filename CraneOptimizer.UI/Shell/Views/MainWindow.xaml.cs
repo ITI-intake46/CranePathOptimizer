@@ -1,6 +1,7 @@
 using CraneOptimizer.UI.AIIntegration;
 using CraneOptimizer.UI.Core.Helpers;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
+using CraneOptimizer.UI.F10_ProjectManagement.Views;
 using CraneOptimizer.UI.Shell.ViewModels;
 using System.Windows;
 using System.Windows.Input;
@@ -17,6 +18,9 @@ namespace CraneOptimizer.UI.Shell.Views
             DataContext = vm;
             _nav = nav;
             aiContextBridge.Attach(vm);
+            AddHandler(
+                HomeTabView.ProjectSettingsRequestedEvent,
+                new RoutedEventHandler(OnProjectSettingsRequested));
             MaximizeTaskbarHelper.Attach(this, MaximizeButton);
             // Apply initial maximize after source is initialized
             Loaded += (_, _) => MaximizeTaskbarHelper.ToggleMaximize(this, MaximizeButton);
@@ -29,6 +33,21 @@ namespace CraneOptimizer.UI.Shell.Views
             => MaximizeTaskbarHelper.ToggleMaximize(this, MaximizeButton);
 
         private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
+
+        private void OnProjectSettingsRequested(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+
+            if (DataContext is not MainViewModel viewModel)
+                return;
+
+            var settingsWindow = new ProjectSettingsWindow(viewModel, IfcViewerHost)
+            {
+                Owner = this
+            };
+
+            settingsWindow.ShowDialog();
+        }
 
         // â”€â”€ Back to startup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 

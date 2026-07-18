@@ -5,147 +5,90 @@
     Background="{DynamicResource SurfaceBrush}">
 
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-
         <StackPanel Margin="6,0" Orientation="Horizontal">
 
-            <Border Padding="8,6,8,0">
-                <DockPanel Width="220">
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="PROJECT">
+                <StackPanel Orientation="Horizontal">
+                    <Button
+                        Command="{Binding NewProjectCommand}"
+                        Content="New"
+                        FontSize="{StaticResource FontSizeXS}"
+                        Style="{StaticResource RibbonMajorLeadingCommandTile}">
+                        <Button.Tag>
+                            <TextBlock FontSize="26" Text="🆕" />
+                        </Button.Tag>
+                    </Button>
+                    <Button
+                        Command="{Binding OpenProjectCommand}"
+                        Content="Open"
+                        FontSize="{StaticResource FontSizeXS}"
+                        Style="{StaticResource RibbonMajorMiddleCommandTile}">
+                        <Button.Tag>
+                            <TextBlock FontSize="26" Text="📂" />
+                        </Button.Tag>
+                    </Button>
+                    <Button
+                        Command="{Binding SaveProjectCommand}"
+                        Content="Save"
+                        FontSize="{StaticResource FontSizeXS}"
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}">
+                        <Button.Tag>
+                            <TextBlock FontSize="26" Text="💾" />
+                        </Button.Tag>
+                    </Button>
+                </StackPanel>
+            </ContentControl>
 
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="PROJECT" />
+            <Rectangle Style="{StaticResource RibbonSep}" />
 
-                    <StackPanel Orientation="Horizontal">
-                        <Button Command="{Binding NewProjectCommand}" Style="{StaticResource RibbonLargeBtn}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,6,0,4"
-                                    FontSize="26"
-                                    Text="🆕" />
-                                <TextBlock Text="New" />
-                            </StackPanel>
-                        </Button>
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="SETTINGS">
+                <StackPanel Orientation="Horizontal">
+                    <Button
+                        Click="ProjectSettings_Click"
+                        ContentTemplate="{x:Null}"
+                        FontSize="{StaticResource FontSizeXS}"
+                        Style="{StaticResource RibbonMajorCommandTile}">
+                        <Button.Tag>
+                            <TextBlock FontSize="26" Text="⚙️" />
+                        </Button.Tag>
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock HorizontalAlignment="Center" Text="Project" />
+                            <TextBlock HorizontalAlignment="Center" Text="Settings" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </ContentControl>
 
-                        <Button
-                            Margin="4,0,0,0"
-                            Command="{Binding OpenProjectCommand}"
-                            Style="{StaticResource RibbonLargeBtn}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,6,0,4"
-                                    FontSize="26"
-                                    Text="📂" />
-                                <TextBlock Text="Open" />
-                            </StackPanel>
-                        </Button>
+            <Rectangle Style="{StaticResource RibbonSep}" />
 
-                        <Button
-                            Margin="4,0,0,0"
-                            Command="{Binding SaveProjectCommand}"
-                            Style="{StaticResource RibbonLargeBtn}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,6,0,4"
-                                    FontSize="26"
-                                    Text="💾" />
-                                <TextBlock Text="Save" />
-                            </StackPanel>
-                        </Button>
-
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
-            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
-
-            <Border Padding="8,6,8,0">
-                <DockPanel Width="150">
-
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="SETTINGS" />
-
-                    <StackPanel Orientation="Horizontal">
-
-                        <Button Style="{StaticResource RibbonLargeBtn}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,6,0,2"
-                                    FontSize="26"
-                                    Text="⚙️" />
-                                <TextBlock Text="Project" />
-                                <TextBlock Text="Settings" />
-                            </StackPanel>
-                        </Button>
-
-                        <Button Margin="4,0,0,0" Style="{StaticResource RibbonLargeBtn}">
-                            <StackPanel HorizontalAlignment="Center">
-                                <TextBlock
-                                    Margin="0,6,0,6"
-                                    FontSize="26"
-                                    Text="📐" />
-                                <TextBlock Text="Units" />
-                            </StackPanel>
-                        </Button>
-
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
-            <Rectangle Margin="4,0" Style="{StaticResource RibbonSep}" />
-
-            <Border Padding="8,6,8,0">
-                <DockPanel Width="160">
-
-                    <TextBlock
-                        DockPanel.Dock="Bottom"
-                        Style="{StaticResource GroupLabel}"
-                        Text="QUICK ACCESS" />
-
-                    <StackPanel Margin="0,2,0,0">
-
-                        <Button
-                            Width="150"
-                            Margin="0,0,0,3"
-                            Command="{Binding IfcViewer.LoadIfcCommand}"
-                            Style="{StaticResource RibbonSmallBtn}">
-
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Margin="0,0,6,0" Text="📦" />
-                                <TextBlock Text="Load IFC Model" />
-                            </StackPanel>
-
-                        </Button>
-
-                        <Button
-                            Width="150"
-                            Margin="0,0,0,3"
-                            Style="{StaticResource RibbonSmallBtn}">
-
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Margin="0,0,6,0" Text="🏗" />
-                                <TextBlock Text="Add Crane" />
-                            </StackPanel>
-
-                        </Button>
-
-                        <Button
-                            Width="150"
-                            Command="{Binding StartDrawingCommand}"
-                            Style="{StaticResource RibbonSmallBtn}">
-
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Margin="0,0,6,0" Text="🗺" />
-                                <TextBlock Text="Draw Zones" />
-                            </StackPanel>
-
-                        </Button>
-
-                    </StackPanel>
-                </DockPanel>
-            </Border>
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="QUICK ACCESS">
+                <StackPanel Orientation="Horizontal">
+                    <Button
+                        Command="{Binding IfcViewer.LoadIfcCommand}"
+                        Content="Load IFC Model"
+                        Style="{StaticResource RibbonMajorLeadingCommandTile}"
+                        ToolTip="Load IFC Model">
+                        <Button.Tag>
+                            <TextBlock Text="📦" />
+                        </Button.Tag>
+                    </Button>
+                    <Button
+                        Content="Add Crane"
+                        Style="{StaticResource RibbonMajorMiddleCommandTile}">
+                        <Button.Tag>
+                            <TextBlock Text="🏗" />
+                        </Button.Tag>
+                    </Button>
+                    <Button
+                        Command="{Binding StartDrawingCommand}"
+                        Content="Draw Zones"
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}">
+                        <Button.Tag>
+                            <TextBlock Text="🗺" />
+                        </Button.Tag>
+                    </Button>
+                </StackPanel>
+            </ContentControl>
 
         </StackPanel>
     </ScrollViewer>

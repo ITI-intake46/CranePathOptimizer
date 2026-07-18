@@ -852,6 +852,8 @@ namespace CraneOptimizer.Application.Tests
             public void Render<T>(IEnumerable<T> items, IVisualBuilder<T> builder, string layerName) { }
             public void Clear() { }
             public void ClearLayer(string layerKey) { }
+            public bool IsGridVisible { get; private set; } = true;
+            public void SetGridVisible(bool isVisible) => IsGridVisible = isVisible;
             public void SetGridSize(double widthMeters, double lengthMeters) { }
             public void SetGridSize(double widthMeters, double lengthMeters, double centerXMeters, double centerYMeters) { }
             public HelixViewport3D? GetViewport() => _viewport;

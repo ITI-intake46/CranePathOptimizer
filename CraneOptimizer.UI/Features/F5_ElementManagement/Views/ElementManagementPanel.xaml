@@ -2,53 +2,50 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:views="clr-namespace:CraneOptimizer.UI.Features.F5_ElementManagement.Views"
-             xmlns:converters="clr-namespace:CraneOptimizer.UI.Core.Converters"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d">
 
     <UserControl.Resources>
-        <converters:ElementDisplayNameConverter x:Key="ElementDisplayNameConverter" />
-        <views:ElementWeightDisplayConverter x:Key="ElementWeightDisplayConverter" />
-        <converters:CanonicalMarkConverter x:Key="CanonicalMarkConverter" />
-
-        <Style x:Key="PropertyHeaderText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="{StaticResource FontSizeXS}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Padding" Value="8,0" />
-        </Style>
-
         <Style x:Key="PropertyCellText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="{StaticResource FontSizeXS}" />
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="Padding" Value="8,0,6,0" />
         </Style>
 
-        <Style x:Key="PropertyCellBorder" TargetType="Border">
-            <Setter Property="MinHeight" Value="23" />
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-            <Setter Property="BorderThickness" Value="0,0,1,1" />
+        <Style x:Key="PropertyLabelText"
+               BasedOn="{StaticResource PropertyCellText}"
+               TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        </Style>
+
+        <Style x:Key="PropertyValueText"
+               BasedOn="{StaticResource PropertyCellText}"
+               TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         </Style>
 
         <DataTemplate x:Key="PropertyRowTemplate">
-            <Grid MinHeight="23">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="42*" />
-                    <ColumnDefinition Width="58*" />
-                </Grid.ColumnDefinitions>
+            <Border MinHeight="25"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="112" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Style="{StaticResource PropertyCellBorder}">
-                    <TextBlock Style="{StaticResource PropertyCellText}" Text="{Binding Name}" />
-                </Border>
+                    <TextBlock Grid.Column="0"
+                               Style="{StaticResource PropertyLabelText}"
+                               Text="{Binding Name}"
+                               ToolTip="{Binding Name}" />
 
-                <Border Grid.Column="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                    <TextBlock Style="{StaticResource PropertyCellText}" Text="{Binding Value}" />
-                </Border>
-            </Grid>
+                    <TextBlock Grid.Column="1"
+                               Style="{StaticResource PropertyValueText}"
+                               Text="{Binding Value}"
+                               ToolTip="{Binding Value}" />
+                </Grid>
+            </Border>
         </DataTemplate>
     </UserControl.Resources>
 
@@ -57,188 +54,23 @@
             BorderThickness="0,0,1,0">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="190" />
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
             <Border Grid.Row="0"
-                    Margin="12"
-                    Background="{DynamicResource SurfaceElevatedBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="32" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <Grid Grid.Row="0" Background="{DynamicResource SurfaceBrush}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Margin="10,0"
-                                   VerticalAlignment="Center"
-                                   Style="{StaticResource PanelSectionHeader}"
-                                   Text="ELEMENTS" />
-
-                    </Grid>
-
-                    <Grid Grid.Row="1" Margin="8,6,8,6">
-                        <TextBox Height="26"
-                                 Padding="8,2"
-                                 VerticalContentAlignment="Center"
-                                 FontSize="{StaticResource FontSizeXS}"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" />
-                        <TextBlock Margin="12,0,0,0"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   IsHitTestVisible="False"
-                                   Text="Search Elements...">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SearchText}" Value="">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </Grid>
-
-                    <DataGrid x:Name="ElementsGrid"
-                              Grid.Row="2"
-                              AutoGenerateColumns="False"
-                              CanUserAddRows="False"
-                              GridLinesVisibility="Horizontal"
-                              HeadersVisibility="Column"
-                              ItemsSource="{Binding FilteredElements}"
-                              SelectionChanged="ElementsGrid_SelectionChanged"
-                              SelectionMode="Extended">
-                        <DataGrid.Columns>
-                            <DataGridTemplateColumn Width="2*" Header="Name">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Converter={StaticResource ElementDisplayNameConverter}}"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Width="1.5*" Header="Lift Mark">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Converter={StaticResource CanonicalMarkConverter}}"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Width="90" Header="Weight">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Converter={StaticResource ElementWeightDisplayConverter}}"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTextColumn Width="80" Binding="{Binding ElementLength, Converter={StaticResource LengthDisplayConverter}}" Header="Length" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
-            </Border>
-
-            <Border Grid.Row="1"
-                    Padding="8,6"
-                    Background="{DynamicResource SurfaceElevatedBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="0,1,0,0">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="90" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock VerticalAlignment="Center"
-                               FontFamily="{StaticResource FontPrimary}"
-                               FontSize="{StaticResource FontSizeXS}"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               Text="Concrete Density (kg/m3)" />
-
-                    <TextBox Grid.Column="1"
-                             Height="26"
-                             Margin="10,0,0,0"
-                             Padding="8,2"
-                             VerticalContentAlignment="Center"
-                             FontFamily="{StaticResource FontPrimary}"
-                             FontSize="{StaticResource FontSizeXS}"
-                             Text="{Binding ConcreteDensityKgPerM3, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
-
-                    <Button Grid.Column="2"
-                            Height="26"
-                            Margin="8,0,0,0"
-                            Padding="12,0"
-                            Background="{StaticResource PrimaryBrush}"
-                            Command="{Binding SaveDensityCommand}"
-                            Content="Save Density"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeXS}"
-                            Style="{StaticResource PrimaryButtonStyle}" />
-
-                    <TextBlock Grid.Column="3"
-                               Margin="10,0,0,0"
-                               VerticalAlignment="Center"
-                               FontFamily="{StaticResource FontPrimary}"
-                               FontSize="{StaticResource FontSizeXS}"
-                               Foreground="{DynamicResource ErrorBrush}"
-                               Text="{Binding DensityValidationMessage}"
-                               TextTrimming="CharacterEllipsis" />
-                </Grid>
-            </Border>
-
-            <Border Grid.Row="2"
                     Padding="8,6"
                     Background="{DynamicResource SurfaceElevatedBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,1,0,1">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock VerticalAlignment="Center"
-                               FontSize="{StaticResource FontSizeXS}"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               Text="{Binding SelectedElementName}" />
-
-                    <TextBox Grid.Column="1"
-                             Height="26"
-                             Margin="10,0,0,0"
-                             Padding="8,2"
-                             VerticalContentAlignment="Center"
-                             FontSize="{StaticResource FontSizeXS}"
-                             Text="{Binding PropertySearchText, UpdateSourceTrigger=PropertyChanged}" />
-
-                    <TextBlock Grid.Column="2"
-                               Margin="12,0,0,0"
-                               VerticalAlignment="Center"
-                               FontSize="{StaticResource FontSizeXS}"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               Text="{Binding FilterStatus}" />
-                </Grid>
+                <TextBlock VerticalAlignment="Center"
+                           FontSize="{StaticResource FontSizeXS}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           Text="{Binding SelectedElementName}" />
             </Border>
 
-            <Grid Grid.Row="3">
+            <Grid Grid.Row="1">
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding ElementProperties}">
                         <ItemsControl.ItemTemplate>
@@ -247,37 +79,22 @@
                                           Background="{DynamicResource SurfaceBrush}"
                                           BorderBrush="{DynamicResource BorderBrush}"
                                           BorderThickness="0,0,0,1"
+                                          HorizontalContentAlignment="Stretch"
                                           IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
                                     <Expander.Header>
-                                        <TextBlock MinHeight="24"
-                                                   VerticalAlignment="Center"
-                                                   FontSize="{StaticResource FontSizeXS}"
-                                                   FontWeight="Bold"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                   Text="{Binding Name}" />
+                                        <Grid MinHeight="30" VerticalAlignment="Center">
+                                            <TextBlock VerticalAlignment="Center"
+                                                       FontSize="{StaticResource FontSizeXS}"
+                                                       FontWeight="Bold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       Text="{Binding Name}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding Name, StringFormat='{}{0} properties'}" />
+                                        </Grid>
                                     </Expander.Header>
 
                                     <Grid Background="{DynamicResource SurfaceElevatedBrush}">
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="23" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-
-                                        <Grid Grid.Row="0" Background="{DynamicResource SurfaceBrush}">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="42*" />
-                                                <ColumnDefinition Width="58*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Border Grid.Column="0" Style="{StaticResource PropertyCellBorder}">
-                                                <TextBlock Style="{StaticResource PropertyHeaderText}" Text="Name" />
-                                            </Border>
-                                            <Border Grid.Column="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-                                                <TextBlock Style="{StaticResource PropertyHeaderText}" Text="Value" />
-                                            </Border>
-                                        </Grid>
-
-                                        <ItemsControl Grid.Row="1"
-                                                      ItemTemplate="{StaticResource PropertyRowTemplate}"
+                                        <ItemsControl ItemTemplate="{StaticResource PropertyRowTemplate}"
                                                       ItemsSource="{Binding Children}" />
                                     </Grid>
                                 </Expander>
@@ -304,12 +121,12 @@
                         <TextBlock HorizontalAlignment="Center"
                                    FontSize="{StaticResource FontSizeSM}"
                                    FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                    Text="No Element Selected" />
                         <TextBlock Margin="0,6,0,0"
                                    HorizontalAlignment="Center"
                                    FontSize="{StaticResource FontSizeXS}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                    Text="Select an element to inspect its BIM properties."
                                    TextAlignment="Center" />
                     </StackPanel>

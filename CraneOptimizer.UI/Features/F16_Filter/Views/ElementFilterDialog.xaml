@@ -501,10 +501,11 @@
                             BorderThickness="1"
                             ItemContainerStyle="{StaticResource HierarchyTreeItemStyle}"
                             ItemTemplate="{StaticResource HierarchyNodeTemplate}"
-                            ScrollViewer.CanContentScroll="False"
+                            ScrollViewer.CanContentScroll="True"
                             ScrollViewer.PanningMode="VerticalOnly"
                             VirtualizingStackPanel.IsVirtualizing="True"
-                            VirtualizingStackPanel.VirtualizationMode="Recycling" />
+                            VirtualizingStackPanel.VirtualizationMode="Recycling"
+                            VirtualizingPanel.ScrollUnit="Pixel" />
                     </Grid>
             </Border>
         </Grid>

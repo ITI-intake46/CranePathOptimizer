@@ -40,7 +40,9 @@
 
 
 
-    <Grid Margin="{StaticResource Space4}">
+    <Grid
+        Margin="{StaticResource Space4}"
+        Background="{DynamicResource BackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="12" />
@@ -1389,6 +1391,7 @@
                     MinHeight="{StaticResource InputHeight}"
                     Click="BtnRun_Click"
                     Content="Run"
+                    IsEnabled="False"
                     Style="{StaticResource ButtonPrimary}" />
 
                 <Button
@@ -1438,7 +1441,7 @@
                     VerticalAlignment="Center"
                     FontSize="{StaticResource FontSizeSM}"
                     Foreground="{DynamicResource TextSecondaryBrush}"
-                    Text="Ready" />
+                    Text="Loading optimizer..." />
             </Grid>
         </Border>
     </Grid>

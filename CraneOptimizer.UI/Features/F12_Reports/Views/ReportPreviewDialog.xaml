@@ -37,57 +37,9 @@
             <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
         </Style>
 
-        <Style x:Key="ReportScrollBarThumbStyle" TargetType="Thumb">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Thumb">
-                        <Border Background="{StaticResource SecondaryBrush}"
-                                CornerRadius="4"
-                                Margin="2"/>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="ReportScrollBarStyle" TargetType="ScrollBar">
-            <Setter Property="Width" Value="12"/>
-            <Setter Property="Height" Value="12"/>
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ScrollBar">
-                        <Grid Background="{TemplateBinding Background}">
-                            <Track x:Name="PART_Track"
-                                   Orientation="{TemplateBinding Orientation}"
-                                   Minimum="{TemplateBinding Minimum}"
-                                   Maximum="{TemplateBinding Maximum}"
-                                   Value="{Binding Value, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
-                                   ViewportSize="{TemplateBinding ViewportSize}">
-                                <Track.Thumb>
-                                    <Thumb Style="{StaticResource ReportScrollBarThumbStyle}"/>
-                                </Track.Thumb>
-                            </Track>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="Orientation" Value="Vertical">
-                                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="True"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="Orientation" Value="Horizontal">
-                    <Setter Property="Width" Value="Auto"/>
-                    <Setter Property="MinHeight" Value="12"/>
-                </Trigger>
-                <Trigger Property="Orientation" Value="Vertical">
-                    <Setter Property="Width" Value="12"/>
-                    <Setter Property="MinWidth" Value="12"/>
-                    <Setter Property="Height" Value="Auto"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+        <Style x:Key="ReportScrollBarStyle"
+               TargetType="ScrollBar"
+               BasedOn="{StaticResource SharedScrollBarStyle}"/>
 
         <Style x:Key="ReportScrollViewerStyle" TargetType="ScrollViewer">
             <Setter Property="CanContentScroll" Value="False"/>
@@ -243,7 +195,6 @@
                               EnableColumnVirtualization="True"
                               HeadersVisibility="Column"
                               GridLinesVisibility="Horizontal"
-                              PreviewMouseWheel="PreviewGrid_PreviewMouseWheel"
                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                               ScrollViewer.VerticalScrollBarVisibility="Disabled"
                               ScrollViewer.CanContentScroll="False"

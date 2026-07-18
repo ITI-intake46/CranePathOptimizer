@@ -36,12 +36,10 @@
             <!--  Row 1: Drawing options bar (collapsed)  -->
             <RowDefinition Height="Auto" />
             <!--  Row 2: Main ribbon  -->
-            <RowDefinition Height="Auto" />
-            <!--  Row 3: Building info bar  -->
             <RowDefinition Height="*" />
-            <!--  Row 4: Main content area  -->
+            <!--  Row 3: Main content area  -->
             <RowDefinition Height="22" />
-            <!--  Row 5: Status bar  -->
+            <!--  Row 4: Status bar  -->
         </Grid.RowDefinitions>
 
         <!--
@@ -151,7 +149,7 @@
                         <TextBlock
                             FontSize="{StaticResource FontSizeSM}"
                             FontWeight="Bold"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
                             Text="↩" />
                     </Button>
                     <TextBlock
@@ -160,7 +158,7 @@
                         VerticalAlignment="Center"
                         FontFamily="{StaticResource FontPrimary}"
                         FontSize="{StaticResource FontSizeXS}"
-                        Foreground="{DynamicResource TextSecondaryBrush}"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
                         Text="Undo" />
                     <Button
                         Width="26"
@@ -172,7 +170,7 @@
                         <TextBlock
                             FontSize="{StaticResource FontSizeSM}"
                             FontWeight="Bold"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
                             Text="↪" />
                     </Button>
                     <TextBlock
@@ -180,7 +178,7 @@
                         VerticalAlignment="Center"
                         FontFamily="{StaticResource FontPrimary}"
                         FontSize="{StaticResource FontSizeXS}"
-                        Foreground="{DynamicResource TextSecondaryBrush}"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
                         Text="Redo" />
                 </StackPanel>
 
@@ -200,7 +198,7 @@
                     VerticalAlignment="Center"
                     FontFamily="{StaticResource FontPrimary}"
                     FontSize="{StaticResource FontSizeXS}"
-                    Foreground="{DynamicResource TextSecondaryBrush}"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
                     Text="{Binding HistoryBreadcrumb, FallbackValue='No recent action'}" />
 
                 <!--  Col 8: Clear History  -->
@@ -237,7 +235,7 @@
                     FontFamily="{StaticResource FontPrimary}"
                     FontSize="{StaticResource FontSizeXS}"
                     FontWeight="SemiBold"
-                    Foreground="{DynamicResource TextSecondaryBrush}"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
                     Text="IFC Building Analyzer — Crane Planner Edition" />
 
                 <!--  Col 11: Window chrome  -->
@@ -281,134 +279,20 @@
 
         <!--
             ══════════════════════════════════════════════════════════════════
-            ROW 3 — BUILDING INFO BAR
+            ROW 3 — MAIN CONTENT AREA
             ══════════════════════════════════════════════════════════════════
         -->
-        <Border
-            Grid.Row="3"
-            Padding="12,0"
-            Background="{DynamicResource SurfaceBrush}"
-            BorderBrush="{DynamicResource BorderBrush}"
-            BorderThickness="0,0,0,1">
-            <Grid Height="26">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <!--  Storeys  -->
-                <TextBlock
-                    Grid.Column="0"
-                    Margin="0,0,4,0"
-                    Style="{StaticResource PropertyLabel}"
-                    Text="Storeys:" />
-                <TextBlock
-                    x:Name="txtNumberOfStoreys"
-                    Grid.Column="1"
-                    Margin="0,0,20,0"
-                    Foreground="{StaticResource PrimaryBrush}"
-                    Style="{StaticResource PropertyValue}"
-                    Text="{Binding NumberOfStoreys, FallbackValue='0'}" />
-
-                <!--  Area  -->
-                <TextBlock
-                    Grid.Column="2"
-                    Margin="0,0,4,0"
-                    Style="{StaticResource PropertyLabel}"
-                    Text="Area:" />
-                <TextBlock
-                    Grid.Column="3"
-                    Margin="0,0,20,0"
-                    Style="{StaticResource PropertyValue}">
-                    <TextBlock.Text>
-                        <MultiBinding StringFormat="{}{0:F2} {1}">
-                            <Binding FallbackValue="0.00" Path="BuildingArea" />
-                            <Binding FallbackValue="m²" Path="AreaUnit" />
-                        </MultiBinding>
-                    </TextBlock.Text>
-                </TextBlock>
-
-                <!--  Height  -->
-                <TextBlock
-                    Grid.Column="4"
-                    Margin="0,0,4,0"
-                    Style="{StaticResource PropertyLabel}"
-                    Text="Height:" />
-                <TextBlock
-                    Grid.Column="5"
-                    Margin="0,0,20,0"
-                    Style="{StaticResource PropertyValue}">
-                    <TextBlock.Text>
-                        <MultiBinding StringFormat="{}{0:F2} {1}">
-                            <Binding FallbackValue="0.00" Path="BuildingHeight" />
-                            <Binding FallbackValue="m" Path="SelectedUnit" />
-                        </MultiBinding>
-                    </TextBlock.Text>
-                </TextBlock>
-
-                <!--  Unit selector  -->
-                <TextBlock
-                    Grid.Column="6"
-                    Margin="0,0,6,0"
-                    Style="{StaticResource PropertyLabel}"
-                    Text="Unit:" />
-                <ComboBox
-                    x:Name="UnitSelector"
-                    Grid.Column="7"
-                    Width="60"
-                    Height="20"
-                    Margin="0,0,20,0"
-                    FontFamily="{StaticResource FontPrimary}"
-                    FontSize="{StaticResource FontSizeSM}"
-                    FontWeight="SemiBold"
-                    ItemContainerStyle="{StaticResource DarkComboBoxItem}"
-                    ItemsSource="{Binding AvailableUnits}"
-                    SelectedItem="{Binding SelectedUnit, Mode=TwoWay}"
-                    Style="{StaticResource DarkComboBox}" />
-
-                <!--  Building name  -->
-                <Rectangle
-                    Grid.Column="8"
-                    Width="1"
-                    Height="14"
-                    Margin="0,0,12,0"
-                    Fill="{DynamicResource BorderBrush}" />
-                <TextBlock
-                    x:Name="txtBuildingName"
-                    Grid.Column="9"
-                    VerticalAlignment="Center"
-                    FontFamily="{StaticResource FontPrimary}"
-                    FontSize="{StaticResource FontSizeSM}"
-                    FontWeight="SemiBold"
-                    Foreground="{DynamicResource TextSecondaryBrush}"
-                    Text="{Binding BuildingName, FallbackValue='No Building Loaded'}" />
-            </Grid>
-        </Border>
-
-        <!--
-            ══════════════════════════════════════════════════════════════════
-            ROW 4 — MAIN CONTENT AREA
-            ══════════════════════════════════════════════════════════════════
-        -->
-        <Grid Grid.Row="4" Background="{DynamicResource BackgroundBrush}">
+        <Grid Grid.Row="3" Background="{DynamicResource BackgroundBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="300" MinWidth="250" />
                 <!--  Col 0: Element Details  -->
-                <ColumnDefinition Width="4" />
+                <ColumnDefinition Width="8" />
                 <!--  Col 1: Splitter  -->
                 <ColumnDefinition Width="*" MinWidth="400" />
                 <!--  Col 2: 3D Viewport  -->
-                <ColumnDefinition Width="4" />
+                <ColumnDefinition Width="8" />
                 <!--  Col 3: Splitter  -->
-                <ColumnDefinition Width="400" MinWidth="360" MaxWidth="560" />
+                <ColumnDefinition Width="360" MinWidth="330" MaxWidth="380" />
                 <!--  Col 4: Crane + Zones / AI assist dock  -->
             </Grid.ColumnDefinitions>
 
@@ -418,23 +302,69 @@
             <!--  ── Col 1: Vertical splitter ────────────────────────────────  -->
             <GridSplitter
                 Grid.Column="1"
-                Width="4"
+                Width="8"
                 HorizontalAlignment="Stretch"
-                Background="{DynamicResource BorderBrush}"
+                AutomationProperties.Name="Resize Element Properties panel"
+                Background="Transparent"
                 Cursor="SizeWE"
-                ShowsPreview="True" />
+                Focusable="True"
+                ShowsPreview="True"
+                ToolTip="Resize the Element Properties panel">
+                <GridSplitter.Template>
+                    <ControlTemplate TargetType="GridSplitter">
+                        <Border
+                            Width="1"
+                            HorizontalAlignment="Center"
+                            Background="{DynamicResource BorderBrush}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource AncestorType=GridSplitter}}" Value="True">
+                                            <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                                            <Setter Property="BorderThickness" Value="1,0" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
+                    </ControlTemplate>
+                </GridSplitter.Template>
+            </GridSplitter>
 
             <!--  ── Col 2: 3D Viewport ───────────────────────────────────────  -->
-            <f1:IfcViewerControl Grid.Column="2" />
+            <f1:IfcViewerControl x:Name="IfcViewerHost" Grid.Column="2" />
 
             <!--  ── Col 3: Vertical splitter ────────────────────────────────  -->
             <GridSplitter
                 Grid.Column="3"
-                Width="4"
+                Width="8"
                 HorizontalAlignment="Stretch"
-                Background="{DynamicResource BorderBrush}"
+                AutomationProperties.Name="Resize Crane Properties panel"
+                Background="Transparent"
                 Cursor="SizeWE"
-                ShowsPreview="True" />
+                Focusable="True"
+                ShowsPreview="True"
+                ToolTip="Resize the Crane Properties panel">
+                <GridSplitter.Template>
+                    <ControlTemplate TargetType="GridSplitter">
+                        <Border
+                            Width="1"
+                            HorizontalAlignment="Center"
+                            Background="{DynamicResource BorderBrush}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource AncestorType=GridSplitter}}" Value="True">
+                                            <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                                            <Setter Property="BorderThickness" Value="1,0" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
+                    </ControlTemplate>
+                </GridSplitter.Template>
+            </GridSplitter>
 
             <!--
                 ── Col 4: Right dock workspace ─────────────────────────────
@@ -453,7 +383,7 @@
                     SelectedIndex="0">
                     <TabControl.Resources>
                         <Style TargetType="{x:Type TabItem}">
-                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
                             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
                             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
                             <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
@@ -512,7 +442,7 @@
                         </Style>
                     </TabControl.Resources>
 
-                    <TabItem Header="PROPERTIES">
+                    <TabItem Header="CRANE PROPERTIES">
                         <f3:CraneManagerView DataContext="{Binding CraneManager}" />
                     </TabItem>
 
@@ -543,11 +473,11 @@
 
         <!--
             ══════════════════════════════════════════════════════════════════
-            ROW 5 — STATUS BAR
+            ROW 4 — STATUS BAR
             ══════════════════════════════════════════════════════════════════
         -->
         <Border
-            Grid.Row="5"
+            Grid.Row="4"
             Padding="10,0"
             Background="{DynamicResource SurfaceElevatedBrush}"
             BorderBrush="{DynamicResource BorderBrush}"
@@ -591,12 +521,15 @@
                         Fill="{StaticResource SuccessBrush}" />
                     <TextBlock
                         x:Name="StatusText"
+                        MaxWidth="220"
                         VerticalAlignment="Center"
                         FontFamily="{StaticResource FontPrimary}"
                         FontSize="{StaticResource FontSizeXS}"
                         FontWeight="SemiBold"
                         Foreground="{DynamicResource TextPrimaryBrush}"
-                        Text="{Binding StatusText, FallbackValue='IDLE'}" />
+                        Text="{Binding StatusText, FallbackValue='IDLE'}"
+                        TextTrimming="CharacterEllipsis"
+                        ToolTip="{Binding StatusText}" />
                 </StackPanel>
 
                 <!--  Col 1: Separator  -->
@@ -614,23 +547,29 @@
                     Orientation="Horizontal">
                     <TextBlock
                         Margin="0,0,3,0"
-                        Foreground="{DynamicResource TextSecondaryBrush}"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
                         Style="{StaticResource CoordLabel}"
                         Text="X:" />
                     <TextBlock
                         x:Name="TxtCoordX"
+                        MaxWidth="220"
                         Margin="0,0,12,0"
                         Style="{StaticResource CoordLabel}"
-                        Text="{Binding CoordX, FallbackValue='0.00M'}" />
+                        Text="{Binding CoordX, FallbackValue='0.00M'}"
+                        TextTrimming="CharacterEllipsis"
+                        ToolTip="{Binding CoordX}" />
                     <TextBlock
                         Margin="0,0,3,0"
-                        Foreground="{DynamicResource TextSecondaryBrush}"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
                         Style="{StaticResource CoordLabel}"
                         Text="Y:" />
                     <TextBlock
                         x:Name="TxtCoordY"
+                        MaxWidth="360"
                         Style="{StaticResource CoordLabel}"
-                        Text="{Binding CoordY, FallbackValue='0.00M'}" />
+                        Text="{Binding CoordY, FallbackValue='0.00M'}"
+                        TextTrimming="CharacterEllipsis"
+                        ToolTip="{Binding CoordY}" />
                 </StackPanel>
 
                 <!--  Col 8: Element count — already bound via Elements.Count  -->
@@ -645,7 +584,8 @@
                         FontSize="{StaticResource FontSizeXS}"
                         FontWeight="SemiBold"
                         Foreground="{StaticResource PrimaryBrush}"
-                        Text="{Binding Selection.StatusText}" />
+                        Text="{Binding Selection.StatusText}"
+                        ToolTip="{Binding Selection.StatusText}" />
                 </StackPanel>
 
                 <Rectangle
@@ -661,7 +601,7 @@
                     x:Name="AiCompanionStrip"
                     Grid.Column="3"
                     Margin="12,0"
-                    HorizontalAlignment="Right"
+                    HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     AssistRequested="AiCompanionStatusStrip_AssistRequested"
                     HideRequested="AiCompanionStatusStrip_HideRequested" />
@@ -691,15 +631,17 @@
                         FontFamily="{StaticResource FontPrimary}"
                         FontSize="{StaticResource FontSizeXS}"
                         FontWeight="SemiBold"
-                        Foreground="{DynamicResource TextSecondaryBrush}"
-                        Text="ELEMENTS: " />
+                        Foreground="{DynamicResource TextPrimaryBrush}"
+                        Text="MODEL ELEMENTS: "
+                        ToolTip="Total elements in the loaded model" />
                     <TextBlock
                         VerticalAlignment="Center"
                         FontFamily="{StaticResource FontPrimary}"
                         FontSize="{StaticResource FontSizeXS}"
                         FontWeight="Bold"
                         Foreground="{DynamicResource TextPrimaryBrush}"
-                        Text="{Binding Elements.Count, FallbackValue='0'}" />
+                        Text="{Binding Elements.Count, FallbackValue='0'}"
+                        ToolTip="{Binding Elements.Count, StringFormat='{}{0} model elements'}" />
                 </StackPanel>
 
                 <!--  Col 9: Separator  -->
@@ -723,7 +665,8 @@
                         FontFamily="{StaticResource FontPrimary}"
                         FontSize="{StaticResource FontSizeXS}"
                         FontWeight="SemiBold"
-                        Style="{StaticResource ToolbarButton}" />
+                        Style="{StaticResource ToolbarButton}"
+                        ToolTip="Open the command panel" />
                     <Button
                         Padding="6,2"
                         Click="ShowLogsPanel_Click"
@@ -731,7 +674,8 @@
                         FontFamily="{StaticResource FontPrimary}"
                         FontSize="{StaticResource FontSizeXS}"
                         FontWeight="SemiBold"
-                        Style="{StaticResource ToolbarButton}" />
+                        Style="{StaticResource ToolbarButton}"
+                        ToolTip="Open application logs" />
                 </StackPanel>
             </Grid>
         </Border>

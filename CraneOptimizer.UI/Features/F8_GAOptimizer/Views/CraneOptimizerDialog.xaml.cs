@@ -79,14 +79,20 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             vm.PropertyChanged += OnViewModelPropertyChanged;
             DataContext = vm;
 
-            Loaded += OnLoaded;
+            UpdateSidePanels();
+            ContentRendered += OnContentRendered;
             Closed += OnClosed;
         }
 
-        private async void OnLoaded(object sender, RoutedEventArgs e)
+        private async void OnContentRendered(object? sender, EventArgs e)
         {
+            ContentRendered -= OnContentRendered;
+            await System.Windows.Threading.Dispatcher.Yield(
+                System.Windows.Threading.DispatcherPriority.Background);
             await LoadCranesAsync();
             RefreshSceneCache();
+            TxtStatus.Text = "Ready";
+            BtnRun.IsEnabled = true;
         }
 
         private async Task LoadCranesAsync()
