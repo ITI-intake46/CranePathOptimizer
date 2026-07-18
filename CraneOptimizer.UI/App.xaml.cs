@@ -370,6 +370,7 @@ namespace CraneOptimizer.UI
                 await context.Database.MigrateAsync();
 
                 await SqliteMigrationCompatibilityGuard.EnsureCatalogOperatingConditionSchemaAsync(context);
+                await SqliteMigrationCompatibilityGuard.EnsureCatalogCompanyNameSchemaAsync(context);
                 var seeder = scope.ServiceProvider.GetRequiredService<CraneSeedService>();
                 await seeder.SeedAsync();
             }
