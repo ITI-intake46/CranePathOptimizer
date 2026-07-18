@@ -106,7 +106,6 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _sceneService.ZoneRemoved += OnZoneChanged;
             _sceneService.ZoneUpdated += OnZoneChanged;
             _sceneService.ZonesCleared += OnZonesCleared;
-            _unitSettingsService.SettingsChanged += OnUnitSettingsChanged;
             IfcViewer.CameraChanged += IfcViewer_CameraChanged;
             IfcViewer.SizeChanged += IfcViewer_SizeChanged;
             _drawingViewModel.MeasurementLabelsChanged += DrawingViewModel_MeasurementLabelsChanged;
@@ -123,7 +122,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 AttachDxfSnapBridge(vm);
             }
 
-            SetGridText(50d, 50d);
+            SetGridState(50d, 50d);
             var elements = _sceneService.GetElements();
             if (elements.Count == 0)
                 _cameraService.ResetToDefaultView();
@@ -143,7 +142,6 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _sceneService.ZoneRemoved -= OnZoneChanged;
             _sceneService.ZoneUpdated -= OnZoneChanged;
             _sceneService.ZonesCleared -= OnZonesCleared;
-            _unitSettingsService.SettingsChanged -= OnUnitSettingsChanged;
             IfcViewer.CameraChanged -= IfcViewer_CameraChanged;
             IfcViewer.SizeChanged -= IfcViewer_SizeChanged;
             _drawingViewModel.MeasurementLabelsChanged -= DrawingViewModel_MeasurementLabelsChanged;
@@ -202,7 +200,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                     _sceneGridSizingService.CalculateGridSizeMeters(elements);
                 _gridCenterXMeters = centerXMeters;
                 _gridCenterYMeters = centerYMeters;
-                SetGridText(widthMeters, lengthMeters);
+                SetGridState(widthMeters, lengthMeters);
                 _renderingService.SetGridSize(
                     widthMeters,
                     lengthMeters,
@@ -356,6 +354,9 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         }
 
         private void ResetCamera_Click(object sender, RoutedEventArgs e)
+            => ResetView();
+
+        public void ResetView()
         {
             var elements = _sceneService.GetElements();
             if (elements.Count == 0)
@@ -565,15 +566,27 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             };
         }
 
-        private void ApplyGridSize_Click(object sender, RoutedEventArgs e)
+        public double CurrentGridWidthMeters => _gridWidthMeters;
+
+        public double CurrentGridLengthMeters => _gridLengthMeters;
+
+        public string CurrentGridWidthDisplayText => FormatGridDisplayValue(_gridWidthMeters);
+
+        public string CurrentGridLengthDisplayText => FormatGridDisplayValue(_gridLengthMeters);
+
+        public string CurrentGridUnitSymbol => UnitSystem.LengthSymbol(_unitSettingsService.Current.DisplayLengthUnit);
+
+        public bool IsGridVisible => _renderingService.IsGridVisible;
+
+        public bool ApplyManualGridSize(string widthText, string lengthText)
         {
-            if (!TryReadGridSizeMeters(out var widthMeters, out var lengthMeters))
+            if (!TryReadGridSizeMeters(widthText, lengthText, out var widthMeters, out var lengthMeters))
             {
                 if (DataContext is MainViewModel vm)
                 {
-                    vm.StatusText = "Grid size must be positive numbers in meters.";
+                    vm.StatusText = "Grid size must be positive finite numbers.";
                 }
-                return;
+                return false;
             }
 
             _manualGridSize = true;
@@ -582,15 +595,17 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 lengthMeters,
                 _gridCenterXMeters,
                 _gridCenterYMeters);
-            SetGridText(widthMeters, lengthMeters);
+            SetGridState(widthMeters, lengthMeters);
 
             if (DataContext is MainViewModel mainVm)
             {
                 mainVm.StatusText = $"Grid size set to {FormatGridLength(widthMeters)} x {FormatGridLength(lengthMeters)}.";
             }
+
+            return true;
         }
 
-        private void AutoGridSize_Click(object sender, RoutedEventArgs e)
+        public void AutoSizeGrid()
         {
             _manualGridSize = false;
             OnElementsChanged(_sceneService.GetElements());
@@ -601,38 +616,39 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             }
         }
 
-        private bool TryReadGridSizeMeters(out double widthMeters, out double lengthMeters)
+        public void SetGridVisible(bool isVisible)
+            => _renderingService.SetGridVisible(isVisible);
+
+        private bool TryReadGridSizeMeters(
+            string widthText,
+            string lengthText,
+            out double widthMeters,
+            out double lengthMeters)
         {
-            var hasWidth = double.TryParse(GridSizeXTextBox.Text, out widthMeters);
-            var hasLength = double.TryParse(GridSizeYTextBox.Text, out lengthMeters);
+            var hasWidth = double.TryParse(widthText, out widthMeters);
+            var hasLength = double.TryParse(lengthText, out lengthMeters);
 
             if (hasWidth)
                 widthMeters = UnitSystem.ToMeters(widthMeters, _unitSettingsService.Current.DisplayLengthUnit);
             if (hasLength)
                 lengthMeters = UnitSystem.ToMeters(lengthMeters, _unitSettingsService.Current.DisplayLengthUnit);
 
-            return hasWidth && hasLength && widthMeters > 0 && lengthMeters > 0;
+            return hasWidth && hasLength &&
+                   double.IsFinite(widthMeters) && double.IsFinite(lengthMeters) &&
+                   widthMeters > 0 && lengthMeters > 0;
         }
 
-        private void SetGridText(double widthMeters, double lengthMeters)
+        private void SetGridState(double widthMeters, double lengthMeters)
         {
             _gridWidthMeters = widthMeters;
             _gridLengthMeters = lengthMeters;
-            var settings = _unitSettingsService.Current;
-            GridUnitLabel.Text = $"GRID {UnitSystem.LengthSymbol(settings.DisplayLengthUnit)}";
-            GridSizeXTextBox.ToolTip = $"Grid size on X axis in {UnitSystem.LengthSymbol(settings.DisplayLengthUnit)}";
-            GridSizeYTextBox.ToolTip = $"Grid size on Y axis in {UnitSystem.LengthSymbol(settings.DisplayLengthUnit)}";
-            GridSizeXTextBox.Text = UnitSystem.FromMeters(widthMeters, settings.DisplayLengthUnit).ToString("0.###");
-            GridSizeYTextBox.Text = UnitSystem.FromMeters(lengthMeters, settings.DisplayLengthUnit).ToString("0.###");
         }
+
+        private string FormatGridDisplayValue(double meters)
+            => UnitSystem.FromMeters(meters, _unitSettingsService.Current.DisplayLengthUnit).ToString("0.###");
 
         private string FormatGridLength(double meters)
             => UnitSystem.FormatLength(meters, _unitSettingsService.Current);
-
-        private void OnUnitSettingsChanged(object? sender, UnitSettings settings)
-        {
-            SetGridText(_gridWidthMeters, _gridLengthMeters);
-        }
 
         private static string BuildElementSceneKey(IReadOnlyList<PrecastElement> elements)
         {

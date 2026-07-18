@@ -43,7 +43,11 @@
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="SETTINGS">
                 <StackPanel Orientation="Horizontal">
-                    <Button ContentTemplate="{x:Null}" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorLeadingCommandTile}">
+                    <Button
+                        Click="ProjectSettings_Click"
+                        ContentTemplate="{x:Null}"
+                        FontSize="{StaticResource FontSizeXS}"
+                        Style="{StaticResource RibbonMajorCommandTile}">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="⚙️" />
                         </Button.Tag>
@@ -51,14 +55,6 @@
                             <TextBlock HorizontalAlignment="Center" Text="Project" />
                             <TextBlock HorizontalAlignment="Center" Text="Settings" />
                         </StackPanel>
-                    </Button>
-                    <Button
-                        Content="Units"
-                        FontSize="{StaticResource FontSizeXS}"
-                        Style="{StaticResource RibbonMajorTrailingCommandTile}">
-                        <Button.Tag>
-                            <TextBlock FontSize="26" Text="📐" />
-                        </Button.Tag>
                     </Button>
                 </StackPanel>
             </ContentControl>
