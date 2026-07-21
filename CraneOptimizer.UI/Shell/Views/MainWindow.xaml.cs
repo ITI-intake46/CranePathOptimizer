@@ -14,9 +14,9 @@ namespace CraneOptimizer.UI.Shell.Views
         private const double CranePropertiesMinWidth = 330;
         private const double CranePropertiesMaxWidth = 380;
         private const double CranePropertiesDefaultWidth = 360;
-        private const double AiAssistMinWidth = 420;
-        private const double AiAssistPreferredWidth = 440;
-        private const double AiAssistMaxWidth = 560;
+        private const double AiAssistMinWidth = 400;
+        private const double AiAssistPreferredWidth = 400;
+        private const double AiAssistMaxWidth = 480;
 
         private readonly IProjectNavigationService _nav;
         private GridLength _rightWorkspaceWidthBeforeAi = new(CranePropertiesDefaultWidth);
