@@ -58,9 +58,13 @@
                                      HorizontalAlignment="Center"
                                      VerticalAlignment="Center"
                                      Stretch="Uniform">
-                                <ContentPresenter Content="{TemplateBinding Tag}"
-                                                  RecognizesAccessKey="False"
-                                                  TextElement.FontSize="{StaticResource RibbonMajorCommandIconSize}" />
+                                <ContentControl Content="{TemplateBinding Tag}"
+                                                ContentTemplate="{x:Null}"
+                                                Focusable="False"
+                                                Foreground="{TemplateBinding Foreground}"
+                                                HorizontalContentAlignment="Stretch"
+                                                IsHitTestVisible="False"
+                                                VerticalContentAlignment="Stretch" />
                             </Viewbox>
                         </Grid>
                     </Grid>
@@ -118,9 +122,13 @@
                                      HorizontalAlignment="Center"
                                      VerticalAlignment="Center"
                                      Stretch="Uniform">
-                                <ContentPresenter Content="{TemplateBinding Tag}"
-                                                  RecognizesAccessKey="False"
-                                                  TextElement.FontSize="{StaticResource RibbonMajorCommandIconSize}" />
+                                <ContentControl Content="{TemplateBinding Tag}"
+                                                ContentTemplate="{x:Null}"
+                                                Focusable="False"
+                                                Foreground="{TemplateBinding Foreground}"
+                                                HorizontalContentAlignment="Stretch"
+                                                IsHitTestVisible="False"
+                                                VerticalContentAlignment="Stretch" />
                             </Viewbox>
                         </Grid>
                     </Grid>
