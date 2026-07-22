@@ -313,6 +313,45 @@
                                         </ItemsControl>
                                     </ScrollViewer>
                                 </TabItem>
+                                <TabItem Header="Agent Run">
+                                    <Grid Margin="10">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding AgentExecutionLabel}" TextWrapping="Wrap" />
+                                        <TextBlock Grid.Row="1" Margin="0,5,0,0" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding AgentConclusion}" TextWrapping="Wrap" />
+                                        <ScrollViewer Grid.Row="2" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
+                                            <StackPanel>
+                                                <ItemsControl ItemsSource="{Binding AgentExecutionTrace}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Margin="0,0,0,8" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+                                                                <StackPanel>
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                            <ColumnDefinition Width="*" />
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <TextBlock FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding Sequence}" />
+                                                                        <TextBlock Grid.Column="1" Margin="8,0,0,0" FontWeight="SemiBold" Text="{Binding ToolName}" TextWrapping="Wrap" />
+                                                                        <TextBlock Grid.Column="2" Margin="8,0,0,0" Foreground="{StaticResource PrimaryBrush}" Text="{Binding StatusLabel}" />
+                                                                    </Grid>
+                                                                    <TextBlock Margin="0,4,0,0" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Purpose}" TextWrapping="Wrap" />
+                                                                    <TextBlock Margin="0,4,0,0" FontSize="11" Text="{Binding Summary}" TextWrapping="Wrap" />
+                                                                    <TextBlock Margin="0,3,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Governance}" TextWrapping="Wrap" />
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Margin="0,2,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding AgentGovernanceSummary}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </Grid>
+                                </TabItem>
                                 <TabItem Header="RAG Grounding">
                                     <Grid Margin="10">
                                         <Grid.RowDefinitions>

@@ -186,6 +186,9 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 if (_questionText == value) return;
                 _questionText = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(IsProjectReadinessAgentQuestion));
+                OnPropertyChanged(nameof(AskToggleLabel));
+                OnPropertyChanged(nameof(AskToggleToolTip));
             }
         }
 
@@ -564,10 +567,13 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             }
         }
 
-        public string AskToggleLabel => Advisor.IsBusy ? "Stop" : "Send";
+        public bool IsProjectReadinessAgentQuestion => !Advisor.IsBusy && Advisor.CanRunProjectReadinessAgent(QuestionText);
+        public string AskToggleLabel => Advisor.IsBusy ? "Stop" : IsProjectReadinessAgentQuestion ? "Run Agent" : "Send";
         public string AskToggleToolTip => Advisor.IsBusy
             ? "Stop the current local Ollama response."
-            : "Send the visible question with private live project context. Enter also sends.";
+            : IsProjectReadinessAgentQuestion
+                ? "Run the governed Project Readiness Agent with typed read-only project tools."
+                : "Send the visible question with private live project context. Enter also sends.";
 
         public string CollapsedTitle => $"AI Copilot · {WorkflowStage}";
         public string CollapsedSubText => IsQuietMode ? "Quiet mode enabled" : CurrentHint;
@@ -1197,6 +1203,18 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             FocusChatForSubmittedPrompt();
 
             var readiness = _workflowReadinessService.Evaluate(liveContext, uiContextAtSend);
+
+            if (Advisor.CanRunProjectReadinessAgent(visibleQuestion))
+            {
+                await Advisor.RunProjectReadinessAgentAsync(
+                    liveContext,
+                    visibleQuestion,
+                    activeScreenAtSend,
+                    nextActionAtSend).ConfigureAwait(true);
+                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(Advisor.AiAnswer, liveContext));
+                FocusChatForSubmittedPrompt();
+                return;
+            }
 
             if (AiIntentOrchestrator.TryBuildDeterministicAnswer(
                     liveContext,

@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
 using CraneOptimizer.AI.DTOs;
+using CraneOptimizer.AI.Agents.Contracts;
 using CraneOptimizer.AI.Interfaces;
 using CraneOptimizer.AI.Host;
 using CraneOptimizer.AI.Core.Base;
@@ -33,6 +34,7 @@ namespace CraneOptimizer.AI.ViewModels
         private readonly IAiCopilotSettingsService _settingsService;
         private readonly IAiLocalDocumentSearchService _documentSearchService;
         private readonly IAiProjectGroundingService _projectGroundingService;
+        private readonly IProjectReadinessAgentService _projectReadinessAgent;
         private readonly IAiSoftwareInventoryService _softwareInventoryService;
         private readonly IAiPromptTemplateService _promptTemplateService;
         private readonly IAiReportAppendixService _reportAppendixService;
@@ -66,6 +68,7 @@ namespace CraneOptimizer.AI.ViewModels
         private AiWorkflowContextSnapshot? _lastWorkflowContext;
         private AiAdvisorResponseDto? _lastAdvisorResponse;
         private AiGroundingPacket _lastGroundingPacket = AiGroundingPacket.Empty;
+        private AiAgentRunSnapshot _lastAgentRun = AiAgentRunSnapshot.Empty;
 
         public AiAdvisorViewModel(
             IAiOptimizationAdvisorService advisorService,
@@ -75,6 +78,7 @@ namespace CraneOptimizer.AI.ViewModels
             IAiCopilotSettingsService settingsService,
             IAiLocalDocumentSearchService documentSearchService,
             IAiProjectGroundingService projectGroundingService,
+            IProjectReadinessAgentService projectReadinessAgent,
             IAiSoftwareInventoryService softwareInventoryService,
             IAiPromptTemplateService promptTemplateService,
             IAiReportAppendixService reportAppendixService,
@@ -88,6 +92,7 @@ namespace CraneOptimizer.AI.ViewModels
             _settingsService = settingsService;
             _documentSearchService = documentSearchService;
             _projectGroundingService = projectGroundingService ?? throw new ArgumentNullException(nameof(projectGroundingService));
+            _projectReadinessAgent = projectReadinessAgent ?? throw new ArgumentNullException(nameof(projectReadinessAgent));
             _softwareInventoryService = softwareInventoryService;
             _promptTemplateService = promptTemplateService;
             _reportAppendixService = reportAppendixService;
@@ -103,6 +108,7 @@ namespace CraneOptimizer.AI.ViewModels
             ModelBenchmarks = new ObservableCollection<AiModelBenchmarkResultViewModel>();
             ContextCards = new ObservableCollection<AiContextCardViewModel>();
             GroundingCitations = new ObservableCollection<AiKnowledgeCitation>();
+            AgentExecutionTrace = new ObservableCollection<AiAgentTraceEntry>();
             PromptTemplates = new ObservableCollection<AiPromptTemplate>(_promptTemplateService.GetAllTemplates());
             SoftwareGuideText = BuildSoftwareGuideText(_softwareContext);
             LoadPersistentHistory();
@@ -131,6 +137,7 @@ namespace CraneOptimizer.AI.ViewModels
         public ObservableCollection<AiModelBenchmarkResultViewModel> ModelBenchmarks { get; }
         public ObservableCollection<AiContextCardViewModel> ContextCards { get; }
         public ObservableCollection<AiKnowledgeCitation> GroundingCitations { get; }
+        public ObservableCollection<AiAgentTraceEntry> AgentExecutionTrace { get; }
         public ObservableCollection<AiPromptTemplate> PromptTemplates { get; }
 
         public ICommand AnalyzeCurrentResultCommand { get; }
@@ -179,7 +186,11 @@ namespace CraneOptimizer.AI.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IsQuestionEmpty));
                 OnPropertyChanged(nameof(HasUserQuestion));
+                OnPropertyChanged(nameof(IsProjectReadinessAgentQuestion));
                 OnPropertyChanged(nameof(CanUseComposerAction));
+                OnPropertyChanged(nameof(ComposerActionText));
+                OnPropertyChanged(nameof(ComposerActionToolTip));
+                OnPropertyChanged(nameof(ComposerStateText));
                 CommandManager.InvalidateRequerySuggested();
             }
         }
@@ -353,10 +364,19 @@ namespace CraneOptimizer.AI.ViewModels
         public bool CanCancel => IsBusy && _activeRequestCts is { IsCancellationRequested: false };
         public bool IsQuestionEmpty => string.IsNullOrWhiteSpace(UserQuestion);
         public bool HasUserQuestion => !IsQuestionEmpty;
-        public bool CanUseComposerAction => IsBusy || (!string.IsNullOrWhiteSpace(ModelName) && HasUserQuestion);
-        public string ComposerActionText => IsBusy ? "Stop" : "Send";
-        public string ComposerActionToolTip => IsBusy ? "Stop the current local Ollama response." : "Send this question to local Ollama. Press Enter to send or Shift+Enter for a new line.";
-        public string ComposerStateText => IsBusy ? "Generating locally… click Stop to cancel" : "Private project context is attached automatically";
+        public bool IsProjectReadinessAgentQuestion => !IsBusy && _projectReadinessAgent.CanHandle(UserQuestion);
+        public bool CanUseComposerAction => IsBusy || (HasUserQuestion && (IsProjectReadinessAgentQuestion || !string.IsNullOrWhiteSpace(ModelName)));
+        public string ComposerActionText => IsBusy ? "Stop" : IsProjectReadinessAgentQuestion ? "Run Agent" : "Send";
+        public string ComposerActionToolTip => IsBusy
+            ? "Stop the current local Ollama response."
+            : IsProjectReadinessAgentQuestion
+                ? "Run the governed Project Readiness Agent with typed read-only tools. No model or cloud API is required."
+                : "Send this question to local Ollama. Press Enter to send or Shift+Enter for a new line.";
+        public string ComposerStateText => IsBusy
+            ? "Generating locally… click Stop to cancel"
+            : IsProjectReadinessAgentQuestion
+                ? "Governed agent · typed read-only tools · no model required"
+                : "Private project context is attached automatically";
         public bool HasAiAnswer => IsMeaningfulAnswer(AiAnswer);
 
         public static bool IsMeaningfulAnswer(string? value)
@@ -374,6 +394,15 @@ namespace CraneOptimizer.AI.ViewModels
         public string HistoryCountLabel => ResponseHistory.Count == 0
             ? "No saved answers"
             : $"{ResponseHistory.Count} saved answer(s)";
+        public AiAgentRunSnapshot LastAgentRun => _lastAgentRun;
+        public bool HasAgentExecution => _lastAgentRun.HasTrace;
+        public Visibility AgentExecutionVisibility => HasAgentExecution ? Visibility.Visible : Visibility.Collapsed;
+        public string AgentExecutionLabel => HasAgentExecution
+            ? $"Agent run · {_lastAgentRun.StatusLabel} · {_lastAgentRun.SuccessfulToolCount}/{_lastAgentRun.PlannedToolCount} tools · model rev {_lastAgentRun.ModelRevision:N0}"
+            : "Agent run · not executed";
+        public string AgentConclusion => _lastAgentRun.Conclusion;
+        public string AgentGovernanceSummary => _lastAgentRun.GovernanceSummary;
+
         public bool HasGroundingEvidence => GroundingCitations.Count > 0;
         public Visibility GroundingEvidenceVisibility => HasGroundingEvidence ? Visibility.Visible : Visibility.Collapsed;
         public string GroundingEvidenceLabel => HasGroundingEvidence
@@ -435,7 +464,7 @@ namespace CraneOptimizer.AI.ViewModels
                 : "XAML-derived software inventory not injected for this workflow request.";
             SelectedPromptTemplateSummary = BuildSelectedTemplateSummary(_lastContext, _lastAdvisorResponse);
             RefreshContextCards(_lastContext, _lastAdvisorResponse);
-            ContextPreview = BuildContextJson(_lastContext, _lastAdvisorResponse, _softwareContext, LastDocumentContext + Environment.NewLine + LastXamlInventory, SelectedPromptTemplateSummary, _lastWorkflowContext, _lastGroundingPacket);
+            ContextPreview = BuildContextJson(_lastContext, _lastAdvisorResponse, _softwareContext, LastDocumentContext + Environment.NewLine + LastXamlInventory, SelectedPromptTemplateSummary, _lastWorkflowContext, _lastGroundingPacket, _lastAgentRun);
             StatusText = _lastContext.HasOptimizationResult
                 ? "Analysis complete. AI context includes result metrics and deterministic findings."
                 : workflowState != null && !workflowState.CanRunOptimizerNow
@@ -443,6 +472,68 @@ namespace CraneOptimizer.AI.ViewModels
                     : "No optimizer result found yet. The AI can still answer workflow, IFC metadata, and software-navigation questions.";
         }
 
+
+        public bool CanRunProjectReadinessAgent(string? question) => _projectReadinessAgent.CanHandle(question);
+
+        public async Task<AiAgentRunSnapshot> RunProjectReadinessAgentAsync(
+            AiWorkflowContextSnapshot context,
+            string visibleQuestion,
+            string activeScreen,
+            string nextAction,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+
+            UserQuestion = string.IsNullOrWhiteSpace(visibleQuestion)
+                ? "Assess project readiness and identify the next safe action."
+                : visibleQuestion.Trim();
+            _lastWorkflowContext = context;
+            var grounding = RefreshProjectGrounding(UserQuestion);
+
+            _activeRequestCts?.Dispose();
+            _activeRequestCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            IsBusy = true;
+            StatusText = "Project Readiness Agent is executing governed read-only tools...";
+
+            try
+            {
+                var run = await _projectReadinessAgent.RunAsync(
+                    context,
+                    UserQuestion,
+                    activeScreen,
+                    nextAction,
+                    _activeRequestCts.Token).ConfigureAwait(true);
+
+                SetAgentRun(run);
+                if (_lastContext != null && _lastAdvisorResponse != null)
+                {
+                    ContextPreview = BuildContextJson(
+                        _lastContext,
+                        _lastAdvisorResponse,
+                        _softwareContext,
+                        LastDocumentContext + Environment.NewLine + LastXamlInventory,
+                        SelectedPromptTemplateSummary,
+                        _lastWorkflowContext,
+                        _lastGroundingPacket,
+                        _lastAgentRun);
+                }
+
+                var visibleAnswer = string.IsNullOrWhiteSpace(run.VisibleAnswer)
+                    ? run.Conclusion
+                    : run.VisibleAnswer;
+                AiAnswer = _projectGroundingService.AppendCitationTrace(visibleAnswer, grounding);
+                LastError = string.Empty;
+                StatusText = $"{run.AgentName} {run.StatusLabel.ToLowerInvariant()} using {run.SuccessfulToolCount:N0}/{run.PlannedToolCount:N0} governed read-only tools.";
+                AddHistory("Project Readiness Agent", UserQuestion, AiAnswer, "Agent + typed tools + RAG");
+                return run;
+            }
+            finally
+            {
+                IsBusy = false;
+                _activeRequestCts?.Dispose();
+                _activeRequestCts = null;
+            }
+        }
 
         public void RecordDeterministicCompanionAnswer(string visibleQuestion, string answer, string source)
         {
@@ -492,6 +583,17 @@ namespace CraneOptimizer.AI.ViewModels
             LastError = string.Empty;
             _lastWorkflowContext = _workflowContextProvider?.GetSnapshot() ?? _lastWorkflowContext;
             RefreshProjectGrounding(UserQuestion);
+
+            if (_lastWorkflowContext != null && _projectReadinessAgent.CanHandle(UserQuestion))
+            {
+                await RunProjectReadinessAgentAsync(
+                    _lastWorkflowContext,
+                    UserQuestion,
+                    "AI COPILOT",
+                    _pendingDeterministicNextAction,
+                    CancellationToken.None).ConfigureAwait(true);
+                return;
+            }
 
             if (AiIntentOrchestrator.TryBuildDeterministicAnswer(
                     _lastWorkflowContext,
@@ -699,7 +801,7 @@ namespace CraneOptimizer.AI.ViewModels
         private void CancelOllama()
         {
             _activeRequestCts?.Cancel();
-            StatusText = "Cancelling Ollama request...";
+            StatusText = "Cancelling active AI operation...";
         }
 
         private void CopyContext()
@@ -1101,6 +1203,21 @@ namespace CraneOptimizer.AI.ViewModels
         {
             var template = _promptTemplateService.SelectTemplate(context, advisorResponse);
             return $"{template.Title}: {template.AppliesWhen}";
+        }
+
+        private void SetAgentRun(AiAgentRunSnapshot run)
+        {
+            _lastAgentRun = run;
+            AgentExecutionTrace.Clear();
+            foreach (var entry in _lastAgentRun.Trace)
+                AgentExecutionTrace.Add(entry);
+
+            OnPropertyChanged(nameof(LastAgentRun));
+            OnPropertyChanged(nameof(HasAgentExecution));
+            OnPropertyChanged(nameof(AgentExecutionVisibility));
+            OnPropertyChanged(nameof(AgentExecutionLabel));
+            OnPropertyChanged(nameof(AgentConclusion));
+            OnPropertyChanged(nameof(AgentGovernanceSummary));
         }
 
         private AiGroundingPacket RefreshProjectGrounding(string question)
@@ -1567,7 +1684,7 @@ namespace CraneOptimizer.AI.ViewModels
             return builder.ToString();
         }
 
-        private static string BuildContextJson(AiOptimizationContextDto context, AiAdvisorResponseDto advisorResponse, AiSoftwareContextDto softwareContext, string documentContext, string promptTemplateSummary, AiWorkflowContextSnapshot? workflowContext = null, AiGroundingPacket? groundingPacket = null)
+        private static string BuildContextJson(AiOptimizationContextDto context, AiAdvisorResponseDto advisorResponse, AiSoftwareContextDto softwareContext, string documentContext, string promptTemplateSummary, AiWorkflowContextSnapshot? workflowContext = null, AiGroundingPacket? groundingPacket = null, AiAgentRunSnapshot? agentRun = null)
         {
             var payload = new
             {
@@ -1582,6 +1699,7 @@ namespace CraneOptimizer.AI.ViewModels
                 },
                 WorkflowContext = workflowContext,
                 ProjectRagGrounding = groundingPacket,
+                AgentExecution = agentRun,
                 SoftwareContext = softwareContext,
                 LocalDocumentationContext = documentContext,
                 SafetyInstruction = "This AI output is advisory only. Final crane planning decisions must be checked by qualified personnel against project rules, manufacturer data, and applicable safety standards."

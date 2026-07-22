@@ -1,4 +1,8 @@
 using CraneOptimizer.AI.Companion.ViewModels;
+using CraneOptimizer.AI.Agents.Contracts;
+using CraneOptimizer.AI.Agents.Readiness;
+using CraneOptimizer.AI.Agents.Runtime;
+using CraneOptimizer.AI.Agents.Tools;
 using CraneOptimizer.AI.Configuration;
 using CraneOptimizer.AI.Host;
 using CraneOptimizer.AI.Interfaces;
@@ -50,6 +54,18 @@ namespace CraneOptimizer.AI.DependencyInjection
             services.AddSingleton<IAiReportAppendixService, AiReportAppendixService>();
             services.AddSingleton<IWorkflowReadinessService, WorkflowReadinessService>();
             services.AddSingleton<IUiInteractionContextService, UiInteractionContextService>();
+
+            services.AddSingleton<IAiProjectTool, GetProjectOverviewTool>();
+            services.AddSingleton<IAiProjectTool, GetBimReadinessTool>();
+            services.AddSingleton<IAiProjectTool, GetZoneSummaryTool>();
+            services.AddSingleton<IAiProjectTool, GetCraneSetupTool>();
+            services.AddSingleton<IAiProjectTool, GetGaReadinessTool>();
+            services.AddSingleton<IAiProjectTool, GetCriticalIssuesTool>();
+            services.AddSingleton<IAiProjectTool, SearchProjectEvidenceTool>();
+            services.AddSingleton<IAiToolRegistry, AiToolRegistry>();
+            services.AddSingleton<IAiAgentApprovalPolicy, DefaultAiAgentApprovalPolicy>();
+            services.AddSingleton<IAiAgentAuditStore, InMemoryAiAgentAuditStore>();
+            services.AddSingleton<IProjectReadinessAgentService, ProjectReadinessAgentService>();
 
             services.AddSingleton<AiAdvisorViewModel>();
             services.AddTransient<AiCompanionViewModel>();
