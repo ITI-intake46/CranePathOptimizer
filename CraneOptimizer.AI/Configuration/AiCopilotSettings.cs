@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace CraneOptimizer.AI.Configuration
 {
     /// <summary>
-    /// User-facing AI Copilot preferences persisted outside the project database.
+    /// User-facing AI Assist and AI Studio preferences persisted outside the project database.
     /// These settings intentionally affect only AI UX behavior; they do not alter
     /// crane calculations, GA configuration, IFC data, zones, or report outputs.
     /// </summary>

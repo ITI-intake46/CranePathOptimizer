@@ -12,10 +12,17 @@ namespace CraneOptimizer.Application.Tests.AI
 
             var context = service.GetSoftwareContext();
 
-            Assert.Contains(context.Tabs, tab => tab.TabName == "AI COPILOT");
+            Assert.DoesNotContain(context.Tabs, tab => tab.TabName == "AI COPILOT");
+            Assert.Contains(context.Tabs, tab => tab.TabName == "AI ASSIST");
             Assert.Contains(context.Tabs, tab => tab.TabName == "ANALYZE");
             Assert.Contains(context.Tabs.Single(tab => tab.TabName == "ANALYZE").Actions, action => action.Label == "Run Optimizer");
-            Assert.Contains(context.Tabs.Single(tab => tab.TabName == "AI COPILOT").Actions, action => action.Label == "Check Ollama");
+
+            var aiAssist = context.Tabs.Single(tab => tab.TabName == "AI ASSIST");
+            Assert.Contains("not a top-level ribbon tab", aiAssist.Purpose, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(aiAssist.Actions, action => action.Label == "Open Full Studio");
+            Assert.Contains(aiAssist.Actions, action => action.Label == "Analyze Current Result");
+            Assert.Contains(aiAssist.Actions, action => action.Label == "Ask Local Ollama");
+            Assert.Contains(aiAssist.Actions, action => action.Label == "Check Ollama");
         }
 
         [Fact]

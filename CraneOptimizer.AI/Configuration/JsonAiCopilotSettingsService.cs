@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace CraneOptimizer.AI.Configuration
 {
     /// <summary>
-    /// Lightweight local settings store for AI Copilot preferences. Persistence is
+    /// Lightweight local settings store for AI Assist and AI Studio preferences. Persistence is
     /// intentionally best-effort: failure to read/write preferences must never
     /// prevent the crane planner from launching or running deterministic workflows.
     /// </summary>

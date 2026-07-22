@@ -47,7 +47,7 @@ This baseline remains available even when Ollama is stopped. A later implementat
 ## Visible surfaces
 
 - AI Assist CHAT displays an expanded grounding-evidence list after a question.
-- Full Copilot includes a **RAG Grounding** audit tab.
+- The full AI Studio window includes a **RAG Grounding** audit tab.
 - Context Cards show corpus size, retrieval coverage, and the top citations.
 - Deterministic and model-generated project answers include a Markdown grounding trace.
 

@@ -215,19 +215,19 @@ namespace CraneOptimizer.AI.Services
                 },
                 new AiFeatureTabDto
                 {
-                    TabName = "AI COPILOT",
-                    Purpose = "Local-first assistant for result analysis, software navigation, Ollama explanation, and context export.",
-                    PrimaryView = "CraneOptimizer.AI/Views/AiAdvisorTabView.xaml and AiAdvisorWindow.xaml",
-                    PrimaryViewModel = "AiAdvisorViewModel",
+                    TabName = "AI ASSIST",
+                    Purpose = "Persistent right-side intelligence layer for crane-planning guidance, deterministic result analysis, local Ollama explanation, software navigation, and context export. AI Assist is not a top-level ribbon tab; advanced tools live in its Studio section.",
+                    PrimaryView = "CraneOptimizer.AI/Companion/Views/AiCompanionPanel.xaml and Views/AiAdvisorWindow.xaml",
+                    PrimaryViewModel = "AiCompanionViewModel and AiAdvisorViewModel",
                     Actions = new[]
                     {
-                        Action("AI Assist / Mission Control", "AiCompanionPanel", "Use the docked AI Assist panel for a sleek vertical-label section-rail navigator: Chat, Mission Control, BIM Intelligence, Optimization Readiness, Report & QA, and AI Studio. The rail shows complete rotated labels in a 38 px strip, retracts immediately to a 14 px navigation spine, persists the user preference, preserves a compact active-section accent, and supports mouse-wheel plus keyboard section switching. Each focused section exposes only the relevant grounded tools, evidence, recovery plans, what-if advisor, report wording, and contextual next-step chat without leaving the current screen.", "Always available in the main project window; expanded by explicit user action. The panel keeps the state header, primary recommendation, composer, footer, and full-height collapsible section rail fixed while one focused section is shown at a time.", "The companion explains, copies evidence, and proposes safe text/navigation actions but never changes crane data automatically."),
-                        Action("AI Studio Showcase", "AiShowcaseService / AiCompanionPanel", "Visible AI makeover surface showing agent stack, live capabilities, demo prompt chips, explainable decision trace, and a copyable presentation brief.", "Available in the AI Studio section of the docked AI Assist panel when live workflow context is available.", "Showcase text is generated from deterministic context and remains advisory; it does not mutate project or optimizer state."),
-                        Action("Open Copilot", "OpenAdvisor_Click", "Open the full AI Optimization Copilot window.", "Available from AI COPILOT tab and from the companion drawer.", "AI output is advisory only."),
-                        Action("Analyze Current Result", "AnalyzeCurrentResultCommand", "Run deterministic advisor rules against the current optimization result.", "Works even without Ollama.", "Deterministic analysis explains app metrics but does not certify crane plans."),
-                        Action("Ask Local Ollama", "OpenAdvisor_Click / AskOllamaCommand", "Ask a local Ollama model to explain result context or software usage.", "Requires Ollama server and installed model.", "Ollama receives structured context and must not override calculations."),
-                        Action("Check Ollama", "CheckOllamaCommand", "Detect local Ollama server and installed models.", "Available in the Copilot window.", "Does not install anything."),
-                        Action("Pull Model", "PullModelCommand", "Ask Ollama to download the model named in the Model field.", "Explicit user action only; may take time and disk space.", "Do not pull very large models unless the machine has enough resources."),
+                        Action("AI Assist / Mission Control", "AiCompanionPanel", "Use the docked AI Assist panel for a sleek vertical-label section-rail navigator: Chat, Mission Control, BIM Intelligence, Optimization Readiness, Report & QA, and AI Studio. The rail shows complete rotated labels in a 38 px strip, retracts immediately to a 14 px navigation spine, persists the user preference, preserves a compact active-section accent, and supports mouse-wheel plus keyboard section switching. Each focused section exposes only the relevant grounded tools, evidence, recovery plans, what-if advisor, report wording, and contextual next-step chat without leaving the current screen.", "Always available from the main project window; opened by explicit user action. The panel keeps the state header, primary recommendation, composer, footer, and full-height collapsible section rail fixed while one focused section is shown at a time.", "The companion explains, copies evidence, and proposes safe text/navigation actions but never changes crane data automatically."),
+                        Action("AI Studio Showcase", "AiShowcaseService / AiCompanionPanel", "Visible AI surface showing the agent stack, live capabilities, demo prompt chips, explainable decision trace, and a copyable presentation brief.", "Available in AI Assist → Studio when live workflow context is available.", "Showcase text is generated from deterministic context and remains advisory; it does not mutate project or optimizer state."),
+                        Action("Open Full Studio", "OpenFullStudioCommand", "Open the complete AI Optimization Studio window.", "Available in AI Assist → Studio.", "AI output is advisory only."),
+                        Action("Analyze Current Result", "AnalyzeHereCommand / AnalyzeCurrentResultCommand", "Run deterministic advisor rules against the current optimization result.", "Available in AI Assist → Studio and works even without Ollama.", "Deterministic analysis explains app metrics but does not certify crane plans."),
+                        Action("Ask Local Ollama", "PrepareLocalOllamaQuestionCommand / AskOllamaCommand", "Open the private AI Assist chat composer for the selected local Ollama model, or use the full Studio window for model controls.", "Available in AI Assist → Studio; requires an Ollama server and installed model for generative responses.", "Ollama receives structured context and must not override calculations."),
+                        Action("Check Ollama", "CheckOllamaCommand", "Detect the local Ollama server and installed models.", "Available in the full AI Optimization Studio window.", "Does not install anything."),
+                        Action("Pull Model", "PullModelCommand", "Ask Ollama to download the model named in the Model field.", "Explicit user action in the full AI Optimization Studio window; may take time and disk space.", "Do not pull very large models unless the machine has enough resources."),
                         Action("Copy Context", "CopyContextCommand", "Copy structured AI context JSON.", "Available after analysis.", "Context may include project names/paths; share carefully."),
                         Action("Copy Recovery Plan", "CopyRecoveryPlanCommand", "Copy the AI Mission Control recovery checklist with owner, evidence, verification, and safety boundary.", "Available from the relevant AI Assist rail section.", "Advisory text only; it does not change optimizer gates."),
                         Action("Copy What-if Advisor", "CopyWhatIfAdvisorCommand", "Copy the AI-ranked next investigation lever: data, zones, crane model, load chart, diagnostics, or reporting.", "Available from the relevant AI Assist rail section.", "Ranks investigation options but does not perform engineering changes."),
@@ -282,7 +282,7 @@ namespace CraneOptimizer.AI.Services
                 {
                     Name = "Normal optimization workflow",
                     Goal = "Move from raw IFC/site data to a reviewed crane placement result.",
-                    RelatedTabs = new[] { "HOME", "IFC MODEL", "DXF", "ZONES", "CRANES", "ANALYZE", "AI COPILOT", "REPORTS" },
+                    RelatedTabs = new[] { "HOME", "IFC MODEL", "DXF", "ZONES", "CRANES", "ANALYZE", "AI ASSIST", "REPORTS" },
                     Steps = new[]
                     {
                         "HOME → New or Open project.",
@@ -292,7 +292,7 @@ namespace CraneOptimizer.AI.Services
                         "CRANES → Add/select mobile crane, import/check load chart, and review crane catalog data.",
                         "ANALYZE → Run Optimizer.",
                         "ANALYZE or REPORTS → Open GA Diagnostics and View Results.",
-                        "AI COPILOT → Analyze Current Result and optionally ask local Ollama to explain recommended next actions.",
+                        "AI ASSIST → STUDIO → Analyze Current Result, then optionally use Ask Local Ollama to explain recommended next actions.",
                         "REPORTS → Generate lifting summary, elements list, project overview, site zones, or crane comparison reports."
                     }
                 },
@@ -300,10 +300,10 @@ namespace CraneOptimizer.AI.Services
                 {
                     Name = "Low coverage troubleshooting workflow",
                     Goal = "Diagnose why many elements are not liftable.",
-                    RelatedTabs = new[] { "ANALYZE", "AI COPILOT", "ZONES", "CRANES", "IFC MODEL", "REPORTS" },
+                    RelatedTabs = new[] { "ANALYZE", "AI ASSIST", "ZONES", "CRANES", "IFC MODEL", "REPORTS" },
                     Steps = new[]
                     {
-                        "AI COPILOT → Analyze Current Result to identify dominant failure categories.",
+                        "AI ASSIST → STUDIO → Analyze Current Result to identify dominant failure categories.",
                         "ANALYZE → Open GA Diagnostics to check convergence and candidate behavior.",
                         "If failures are OutOfRadius, inspect ZONES and CRANES setup radius/allowed positions.",
                         "If failures are Overweight, inspect IFC element weights, rigging additional weight, derating, safety factor, and crane capacity.",
@@ -316,11 +316,11 @@ namespace CraneOptimizer.AI.Services
                 {
                     Name = "Report generation workflow",
                     Goal = "Create defensible project documentation after reviewing optimization results.",
-                    RelatedTabs = new[] { "ANALYZE", "AI COPILOT", "REPORTS" },
+                    RelatedTabs = new[] { "ANALYZE", "AI ASSIST", "REPORTS" },
                     Steps = new[]
                     {
                         "ANALYZE → View Results and GA Diagnostics.",
-                        "AI COPILOT → Generate/ask for a natural-language explanation using the current structured context.",
+                        "AI ASSIST → STUDIO or CHAT → Generate or request a natural-language explanation using the current structured context.",
                         "REPORTS → Generate Lifting Summary Report for optimization outcome.",
                         "REPORTS → Generate All Elements List, Project Overview, and Site Zones Report as needed.",
                         "Attach or archive diagnostics CSVs when available."
@@ -329,7 +329,7 @@ namespace CraneOptimizer.AI.Services
             },
             SafetyGuardrails = new[]
             {
-                "The AI copilot may explain, summarize, and suggest next software actions, but it must not certify crane lift plans.",
+                "AI Assist may explain, summarize, and suggest next software actions, but it must not certify crane lift plans.",
                 "The deterministic optimizer, load chart lookup, zone constraints, and domain services remain the source of calculation truth.",
                 "Final crane plans require qualified engineering review against manufacturer data, site rules, project requirements, and applicable safety standards.",
                 "Do not invent hidden buttons, unimplemented features, standards, measurements, or project facts not supplied by the software context.",

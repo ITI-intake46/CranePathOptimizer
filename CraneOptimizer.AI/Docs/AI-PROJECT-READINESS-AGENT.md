@@ -61,7 +61,7 @@ Readiness and blocker questions change the composer action from **Send** to **Ru
 - retrieved evidence (`E1`, `E2`, ...);
 - governance statement.
 
-AI Assist shows a live agent trace above RAG evidence. Full Copilot exposes the same trace in the **Agent Run** audit tab.
+AI Assist shows a live agent trace above RAG evidence. The full AI Studio window exposes the same trace in the **Agent Run** audit tab.
 
 ## Isolation
 

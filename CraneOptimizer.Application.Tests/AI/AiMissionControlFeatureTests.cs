@@ -144,12 +144,18 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("CommandParameter=\"AI Studio\"", companionXaml);
             Assert.Contains("AI MISSION CONTROL", companionXaml);
             Assert.Contains("AI STUDIO", companionXaml);
+            Assert.Contains("STUDIO ACTIONS", companionXaml);
+            Assert.Contains("Open Full Studio", companionXaml);
+            Assert.Contains("Analyze Current Result", companionXaml);
+            Assert.Contains("Ask Local Ollama", companionXaml);
             Assert.Contains("Capabilities", companionXaml);
             Assert.Contains("Decision trace", companionXaml);
             Assert.Contains("Count slabs", companionXaml);
             Assert.Contains("Category summary", companionXaml);
             Assert.Contains("ASK CURRENT MODEL", companionXaml);
             Assert.Contains("SelectCommandCenterTabCommand", companionVm);
+            Assert.Contains("OpenFullStudioCommand", companionVm);
+            Assert.Contains("PrepareLocalOllamaQuestionCommand", companionVm);
             Assert.Contains("FocusChatForSubmittedPrompt", companionVm);
             Assert.Contains("SelectedCommandCenterTab = \"Chat\"", companionVm);
             Assert.DoesNotContain("SelectedCommandCenterTab = intentDecision.PreferredSection", companionVm);

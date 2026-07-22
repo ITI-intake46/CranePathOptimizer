@@ -7,14 +7,14 @@
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
         <StackPanel Margin="6,0" Orientation="Horizontal">
 
-            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="AI COPILOT">
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="AI STUDIO">
                 <Button
                     x:Name="OpenCopilotRibbonButton"
-                    AutomationProperties.Name="Open AI Copilot"
+                    AutomationProperties.Name="Open full AI Studio"
                     Click="OpenAdvisor_Click"
-                    Content="Open Copilot"
+                    Content="Open Full Studio"
                     Style="{StaticResource RibbonMajorCommandTile}"
-                    ToolTip="Open the full AI Copilot. Project context stays on this device unless you explicitly export or copy it."
+                    ToolTip="Open the full AI Optimization Studio. Project context stays on this device unless you explicitly export or copy it."
                     ToolTipService.ShowOnDisabled="True">
                     <Button.Tag>
                         <Grid Width="24" Height="24">
@@ -61,7 +61,7 @@
                         Click="OpenAdvisor_Click"
                         Content="Ask Local Ollama"
                         Style="{StaticResource RibbonMajorTrailingCommandTile}"
-                        ToolTip="Open Copilot to ask the selected local Ollama model. If the action is unavailable, check Ollama and select an installed model in Copilot."
+                        ToolTip="Open AI Studio to ask the selected local Ollama model. If the action is unavailable, check Ollama and select an installed model in Studio."
                         ToolTipService.ShowOnDisabled="True">
                         <Button.Tag>
                             <Grid Width="24" Height="24">

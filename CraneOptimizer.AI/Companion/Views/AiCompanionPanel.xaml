@@ -562,6 +562,27 @@
                         <TextBlock Margin="0,4,0,0" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding ShowcaseHeroHeadline}" TextWrapping="Wrap" />
                         <Border Margin="0,10,0,0" Style="{StaticResource AiAssistCard}">
                             <StackPanel>
+                                <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="STUDIO ACTIONS" />
+                                <Button Margin="0,8,0,0" HorizontalAlignment="Stretch" AutomationProperties.Name="Open full AI Studio" Command="{Binding OpenFullStudioCommand}" Content="Open Full Studio" Style="{StaticResource ButtonPrimary}" ToolTip="Open the complete AI Optimization Studio with local model controls, history, RAG grounding, ModelOps, and audit traces." />
+                                <Grid Margin="0,7,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" HorizontalAlignment="Stretch" AutomationProperties.Name="Analyze current optimization result" Command="{Binding AnalyzeHereCommand}" Style="{StaticResource ButtonSecondary}" ToolTip="Run deterministic advisor rules against the current optimization result. This works without Ollama.">
+                                        <TextBlock Text="Analyze Current Result" TextAlignment="Center" TextWrapping="Wrap" />
+                                    </Button>
+                                    <Button Grid.Column="2" HorizontalAlignment="Stretch" AutomationProperties.Name="Ask local Ollama" Command="{Binding PrepareLocalOllamaQuestionCommand}" Style="{StaticResource ButtonSecondary}" ToolTip="Open Chat and focus the private prompt composer for the selected local Ollama model.">
+                                        <TextBlock Text="Ask Local Ollama" TextAlignment="Center" TextWrapping="Wrap" />
+                                    </Button>
+                                </Grid>
+                                <TextBlock Margin="0,8,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Advisor.AdvisorSummary}" TextTrimming="CharacterEllipsis" TextWrapping="Wrap" ToolTip="{Binding Advisor.AdvisorSummary}" />
+                                <TextBlock Margin="0,3,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Advisor.OllamaStatusText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Advisor.OllamaStatusText}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Margin="0,8,0,0" Style="{StaticResource AiAssistCard}">
+                            <StackPanel>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -744,7 +765,6 @@
                 <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Advisor.StatusText}" TextTrimming="CharacterEllipsis" />
                 <WrapPanel Grid.Column="1" Margin="8,0,0,0" HorizontalAlignment="Right">
                     <Button Margin="0,0,6,0" Style="{StaticResource AiAssistMicroButton}" Command="{Binding AnalyzeHereCommand}" Content="↻" ToolTip="Refresh readiness and deterministic analysis." />
-                    <Button Margin="0,0,6,0" Style="{StaticResource AiAssistMicroButton}" Command="{Binding OpenFullCopilotCommand}" Content="Full" ToolTip="Open the full AI Copilot window." />
                     <Button Margin="0,0,6,0" Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyContextCommand}" Content="Ctx" ToolTip="Copy the AI context payload." />
                     <Button Style="{StaticResource AiAssistMicroButton}" Command="{Binding CopyAnswerCommand}" Content="Copy" ToolTip="Copy the latest AI answer." />
                 </WrapPanel>

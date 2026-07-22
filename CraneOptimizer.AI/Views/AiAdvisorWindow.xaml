@@ -3,7 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:rendering="clr-namespace:CraneOptimizer.AI.Rendering"
-    Title="AI Optimization Copilot"
+    Title="AI Optimization Studio"
     Width="1360"
     Height="820"
     MinWidth="1000"
@@ -112,7 +112,7 @@
                         <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="White" Text="AI" />
                     </Border>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="AI Optimization Copilot" />
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="AI Optimization Studio" />
                         <WrapPanel Margin="0,5,0,0">
                             <Border Style="{StaticResource AiPill}">
                                 <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding SelectedModelLabel}" TextTrimming="CharacterEllipsis" />
@@ -529,7 +529,7 @@
                     </Grid>
                 </Border>
 
-                <GridSplitter Grid.Row="2" Height="6" HorizontalAlignment="Stretch" VerticalAlignment="Center" Background="Transparent" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" ShowsPreview="True" ToolTip="Drag to resize the Ask Copilot composer." />
+                <GridSplitter Grid.Row="2" Height="6" HorizontalAlignment="Stretch" VerticalAlignment="Center" Background="Transparent" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" ShowsPreview="True" ToolTip="Drag to resize the AI Studio prompt composer." />
 
                 <Border Grid.Row="3" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="16">
                     <Grid>
@@ -543,7 +543,7 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel>
-                                <TextBlock Style="{StaticResource AiSectionLabel}" Text="ASK COPILOT" />
+                                <TextBlock Style="{StaticResource AiSectionLabel}" Text="ASK AI STUDIO" />
                                 <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource TextSecondaryBrush}" Text="Ask a workflow, result, safety, or report question. Private project context is attached automatically." TextWrapping="Wrap" />
                             </StackPanel>
                             <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Text="Enter sends · Shift+Enter new line · drag top edge to resize" />

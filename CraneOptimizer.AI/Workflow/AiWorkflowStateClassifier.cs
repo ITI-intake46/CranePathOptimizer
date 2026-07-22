@@ -5,7 +5,7 @@ namespace CraneOptimizer.AI.Workflow
 {
     /// <summary>
     /// Deterministic workflow-state classifier used by all AI surfaces. The purpose is
-    /// to keep Mission Control, the docked assistant, and the full Copilot from giving
+    /// to keep Mission Control, the docked assistant, and the full AI Studio from giving
     /// contradictory next actions such as recommending GA while pre-run eligibility is blocked.
     /// </summary>
     public enum AiWorkflowStateKind
@@ -183,7 +183,7 @@ namespace CraneOptimizer.AI.Workflow
                 Title = "AI Diagnosis: ready for controlled optimization",
                 Status = "Ready",
                 RootCause = "Core deterministic prerequisites are present and no zero-candidate blocker is currently exposed.",
-                RecommendedAction = "ANALYZE → Run Optimizer, then return to AI COPILOT for result diagnosis.",
+                RecommendedAction = "ANALYZE → Run Optimizer, then open AI ASSIST → STUDIO for result diagnosis.",
                 Risk = "Low before run, but final crane planning still requires load-chart/source-data review and qualified engineering approval.",
                 HasLoadedElements = true,
                 CanRunOptimizerNow = true,

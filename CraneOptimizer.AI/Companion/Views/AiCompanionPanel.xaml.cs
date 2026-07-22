@@ -36,6 +36,7 @@ namespace CraneOptimizer.AI.Companion.Views
 
         private AiCompanionViewModel? _viewModel;
         private IAiCopilotSettingsService? _settingsService;
+        private string? _pendingSectionName;
 
         public bool IsSectionRailExpanded
         {
@@ -78,6 +79,41 @@ namespace CraneOptimizer.AI.Companion.Views
 
             DataContext = _viewModel;
             UpdateSectionRailState(animate: false);
+
+            if (!string.IsNullOrWhiteSpace(_pendingSectionName))
+            {
+                var pendingSection = _pendingSectionName;
+                _pendingSectionName = null;
+                OpenSection(pendingSection);
+            }
+            else
+            {
+                ScrollBodyToHome();
+            }
+        }
+
+        public void OpenSection(string sectionName)
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.Invoke(() => OpenSection(sectionName));
+                return;
+            }
+
+            var normalized = SectionNames.FirstOrDefault(
+                section => string.Equals(section, sectionName?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (string.IsNullOrWhiteSpace(normalized))
+                normalized = "AI Studio";
+
+            if (_viewModel == null)
+            {
+                _pendingSectionName = normalized;
+                return;
+            }
+
+            if (_viewModel.SelectCommandCenterTabCommand.CanExecute(normalized))
+                _viewModel.SelectCommandCenterTabCommand.Execute(normalized);
+
             ScrollBodyToHome();
         }
 

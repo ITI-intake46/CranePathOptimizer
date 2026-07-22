@@ -596,7 +596,7 @@ namespace CraneOptimizer.AI.ViewModels
                 : visibleQuestion.Trim();
             var currentWorkflow = _workflowContextProvider?.GetSnapshot();
             _pendingStrictWorkflowBlockerMode = _pendingLiveUiContext.Contains("CURRENT WORKFLOW BLOCKER", StringComparison.OrdinalIgnoreCase)
-                || AiIntentOrchestrator.ShouldUseStrictWorkflowBlockerRouting(currentWorkflow, UserQuestion, "AI COPILOT");
+                || AiIntentOrchestrator.ShouldUseStrictWorkflowBlockerRouting(currentWorkflow, UserQuestion, "AI STUDIO");
 
             await AskOllamaAsync().ConfigureAwait(true);
         }
@@ -612,7 +612,7 @@ namespace CraneOptimizer.AI.ViewModels
                 await RunProjectReadinessAgentAsync(
                     _lastWorkflowContext,
                     UserQuestion,
-                    "AI COPILOT",
+                    "AI STUDIO",
                     _pendingDeterministicNextAction,
                     CancellationToken.None).ConfigureAwait(true);
                 return;
@@ -622,7 +622,7 @@ namespace CraneOptimizer.AI.ViewModels
                     _lastWorkflowContext,
                     null,
                     UserQuestion,
-                    "AI COPILOT",
+                    "AI STUDIO",
                     ModelName,
                     ModelCapabilitySummary,
                     BenchmarkSummary,
@@ -635,7 +635,7 @@ namespace CraneOptimizer.AI.ViewModels
                 return;
             }
 
-            if (AiBimProjectQuestionService.TryBuildAnswer(_lastWorkflowContext, UserQuestion, "AI COPILOT", out var bimAnswer, out var bimSource))
+            if (AiBimProjectQuestionService.TryBuildAnswer(_lastWorkflowContext, UserQuestion, "AI STUDIO", out var bimAnswer, out var bimSource))
             {
                 RecordDeterministicCompanionAnswer(UserQuestion, bimAnswer, bimSource);
                 return;
@@ -646,7 +646,7 @@ namespace CraneOptimizer.AI.ViewModels
                 var metadataAnswer = AiWorkflowEvidenceTextBuilder.BuildIfcMetadataAssistantAnswer(
                     _lastWorkflowContext,
                     UserQuestion,
-                    "AI COPILOT");
+                    "AI STUDIO");
 
                 RecordDeterministicCompanionAnswer(
                     UserQuestion,
@@ -655,7 +655,7 @@ namespace CraneOptimizer.AI.ViewModels
                 return;
             }
 
-            if (_lastWorkflowContext != null && AiIntentOrchestrator.ShouldUseStrictWorkflowBlockerRouting(_lastWorkflowContext, UserQuestion, "AI COPILOT"))
+            if (_lastWorkflowContext != null && AiIntentOrchestrator.ShouldUseStrictWorkflowBlockerRouting(_lastWorkflowContext, UserQuestion, "AI STUDIO"))
             {
                 var nextAction = string.IsNullOrWhiteSpace(_pendingDeterministicNextAction)
                     ? "Review AI Assist next action."
@@ -664,7 +664,7 @@ namespace CraneOptimizer.AI.ViewModels
                     _lastWorkflowContext,
                     UserQuestion,
                     nextAction,
-                    "AI COPILOT");
+                    "AI STUDIO");
 
                 RecordDeterministicCompanionAnswer(
                     UserQuestion,
@@ -742,7 +742,7 @@ namespace CraneOptimizer.AI.ViewModels
                 if (response.Success)
                 {
                     var normalizedAnswer = NormalizeAiOutput(response.Content);
-                    var intentDecision = AiIntentOrchestrator.Classify(_lastWorkflowContext, UserQuestion, "AI COPILOT");
+                    var intentDecision = AiIntentOrchestrator.Classify(_lastWorkflowContext, UserQuestion, "AI STUDIO");
                     var repairReason = string.Empty;
                     var stillNeedsRepair = !string.IsNullOrWhiteSpace(normalizedAnswer)
                         && AiIntentOrchestrator.NeedsResponseRepair(intentDecision, normalizedAnswer, out repairReason);
@@ -755,7 +755,7 @@ namespace CraneOptimizer.AI.ViewModels
                             Model = request.Model,
                             SystemPrompt = request.SystemPrompt,
                             UserPrompt = AiIntentOrchestrator.BuildResponseRepairPrompt(UserQuestion, normalizedAnswer, intentDecision, repairReason),
-                            ContextJson = AiIntentOrchestrator.BuildRepairContext(_lastWorkflowContext, UserQuestion, "AI COPILOT", _pendingDeterministicNextAction),
+                            ContextJson = AiIntentOrchestrator.BuildRepairContext(_lastWorkflowContext, UserQuestion, "AI STUDIO", _pendingDeterministicNextAction),
                             Temperature = Math.Min(request.Temperature ?? 0.2, 0.12),
                             TimeoutSeconds = request.TimeoutSeconds,
                             PreferStreaming = false
@@ -778,7 +778,7 @@ namespace CraneOptimizer.AI.ViewModels
                             _lastWorkflowContext,
                             null,
                             UserQuestion,
-                            "AI COPILOT",
+                            "AI STUDIO",
                             ModelName,
                             ModelCapabilitySummary,
                             BenchmarkSummary,
@@ -852,8 +852,8 @@ namespace CraneOptimizer.AI.ViewModels
 
             var dialog = new SaveFileDialog
             {
-                Title = "Export AI Copilot response",
-                FileName = $"ai-copilot-response-{DateTime.Now:yyyyMMdd-HHmmss}.md",
+                Title = "Export AI Studio response",
+                FileName = $"ai-studio-response-{DateTime.Now:yyyyMMdd-HHmmss}.md",
                 Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt|All files (*.*)|*.*"
             };
 
@@ -861,7 +861,7 @@ namespace CraneOptimizer.AI.ViewModels
                 return;
 
             var builder = new StringBuilder();
-            builder.AppendLine("# AI Copilot Response");
+            builder.AppendLine("# AI Studio Response");
             builder.AppendLine();
             builder.AppendLine($"- Generated: {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}");
             builder.AppendLine($"- Model: {ModelName}");
@@ -974,7 +974,7 @@ namespace CraneOptimizer.AI.ViewModels
                         {
                             Model = model,
                             SystemPrompt = "You are benchmarking local model availability. Reply in one concise sentence.",
-                            UserPrompt = "Reply with: AI Copilot benchmark ready.",
+                            UserPrompt = "Reply with: AI Studio benchmark ready.",
                             ContextJson = "Benchmark context only. No project data is included.",
                             Temperature = 0.0,
                             TimeoutSeconds = Math.Min(_settingsService.Current.RequestTimeoutSeconds, 60),
@@ -1153,8 +1153,8 @@ namespace CraneOptimizer.AI.ViewModels
 
             var dialog = new SaveFileDialog
             {
-                Title = "Export AI Copilot report appendix",
-                FileName = $"ai-copilot-report-appendix-{DateTime.Now:yyyyMMdd-HHmmss}.md",
+                Title = "Export AI Studio report appendix",
+                FileName = $"ai-studio-report-appendix-{DateTime.Now:yyyyMMdd-HHmmss}.md",
                 Filter = "Markdown (*.md)|*.md|Text (*.txt)|*.txt|All files (*.*)|*.*"
             };
 
@@ -1537,6 +1537,7 @@ namespace CraneOptimizer.AI.ViewModels
                 || text.Contains("REPORT")
                 || text.Contains("DOSSIER")
                 || text.Contains("SEARCH")
+                || text.Contains("EXPLAIN THE AI STUDIO")
                 || text.Contains("EXPLAIN THE AI COPILOT")
                 || text.Contains("WHAT DOES THE DOCUMENTATION")
                 || text.Contains("USER GUIDE");
@@ -1580,21 +1581,21 @@ namespace CraneOptimizer.AI.ViewModels
             string benchmarkSummary = "")
         {
             var builder = new StringBuilder();
-            var intentDecision = AiIntentOrchestrator.Classify(workflowContext, userQuestion, "AI COPILOT");
+            var intentDecision = AiIntentOrchestrator.Classify(workflowContext, userQuestion, "AI STUDIO");
             var suppressApplicationContext = AiIntentOrchestrator.ShouldSuppressApplicationContext(intentDecision);
             var includeDetailedWorkflowEvidence = AiIntentOrchestrator.ShouldIncludeDetailedWorkflowEvidence(intentDecision);
             var includeQualityWorkflowEvidence = AiIntentOrchestrator.ShouldIncludeQualityWorkflowEvidence(intentDecision);
             var includeOptimizationResult = AiIntentOrchestrator.ShouldIncludeOptimizationResultSection(intentDecision);
             var includeAdvisorFindings = AiIntentOrchestrator.ShouldIncludeAdvisorFindings(intentDecision);
             var includeLocalDocumentation = AiIntentOrchestrator.ShouldIncludeLocalDocumentationContext(intentDecision);
-            var promptContract = AiIntentOrchestrator.BuildPromptContract(workflowContext, userQuestion, "AI COPILOT", deterministicNextAction);
+            var promptContract = AiIntentOrchestrator.BuildPromptContract(workflowContext, userQuestion, "AI STUDIO", deterministicNextAction);
             builder.AppendLine(promptContract);
             builder.AppendLine();
             builder.AppendLine(AiIntentOrchestrator.BuildEvidenceRoutingPacket(
                 workflowContext,
                 null,
                 userQuestion,
-                "AI COPILOT",
+                "AI STUDIO",
                 deterministicNextAction));
             builder.AppendLine();
             if (!string.IsNullOrWhiteSpace(projectGroundingContext))
@@ -1729,7 +1730,7 @@ namespace CraneOptimizer.AI.ViewModels
                     }
                     else
                     {
-                        builder.AppendLine("No completed optimization result is currently available. For result-specific questions, tell the user to run ANALYZE -> Run Optimizer first, then return to AI COPILOT.");
+                        builder.AppendLine("No completed optimization result is currently available. For result-specific questions, tell the user to run ANALYZE -> Run Optimizer first, then open AI ASSIST -> STUDIO.");
                     }
                 }
                 else
