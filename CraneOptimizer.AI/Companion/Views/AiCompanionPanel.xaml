@@ -66,12 +66,6 @@
             </Setter>
         </Style>
 
-        <DropShadowEffect x:Key="AiAssistRailActiveGlowEffect"
-                          BlurRadius="11"
-                          Color="#D68A56"
-                          Opacity="0.42"
-                          ShadowDepth="0" />
-
         <Style x:Key="AiAssistRailButton" TargetType="Button">
             <Setter Property="Padding" Value="0" />
             <Setter Property="MinWidth" Value="0" />
@@ -83,7 +77,8 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Margin" Value="0,2,0,2" />
+            <Setter Property="Margin" Value="1,2" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="150" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -91,31 +86,20 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="1"
-                                CornerRadius="10"
+                                CornerRadius="7"
                                 SnapsToDevicePixels="True">
                             <Grid ClipToBounds="True">
-                                <!-- The active section is intentionally much stronger than hover: a muted
-                                     primary wash, a bright spine, and a small glow echo the app's terracotta
-                                     ribbon/primary action theme while keeping the rail compact. -->
                                 <Border x:Name="ActiveWash"
                                         Margin="1"
                                         Background="{StaticResource PrimaryMutedBrush}"
-                                        CornerRadius="9"
+                                        CornerRadius="6"
                                         Opacity="0" />
                                 <Border x:Name="SelectionRail"
-                                        Width="4"
-                                        Margin="0,8,0,8"
+                                        Width="3"
+                                        Margin="0,7,0,7"
                                         HorizontalAlignment="Left"
                                         Background="Transparent"
-                                        CornerRadius="3" />
-                                <Border x:Name="SelectionSpark"
-                                        Width="3"
-                                        Height="18"
-                                        Margin="0,0,2,0"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Center"
-                                        Background="Transparent"
-                                        CornerRadius="3" />
+                                        CornerRadius="2" />
                                 <ContentPresenter Margin="{TemplateBinding Padding}"
                                                   HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                   VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
@@ -126,72 +110,108 @@
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SurfaceBrush}" />
                                 <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-                                <Setter TargetName="ActiveWash" Property="Opacity" Value="0.45" />
+                                <Setter TargetName="ActiveWash" Property="Opacity" Value="0.38" />
                                 <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
                             </Trigger>
                             <DataTrigger Binding="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Tag}" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SurfaceBrush}" />
                                 <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
-                                <Setter TargetName="Chrome" Property="Effect" Value="{StaticResource AiAssistRailActiveGlowEffect}" />
                                 <Setter TargetName="ActiveWash" Property="Opacity" Value="1" />
                                 <Setter TargetName="SelectionRail" Property="Background" Value="{StaticResource PrimaryBrush}" />
-                                <Setter TargetName="SelectionSpark" Property="Background" Value="{StaticResource PrimaryBrush}" />
                                 <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
                             </DataTrigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource PrimaryHoverBrush}" />
-                                <Setter TargetName="ActiveWash" Property="Opacity" Value="0.72" />
+                                <Setter TargetName="ActiveWash" Property="Opacity" Value="0.66" />
                                 <Setter Property="Foreground" Value="{StaticResource PrimaryHoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Opacity" Value="0.85" />
+                                <Setter Property="Opacity" Value="0.82" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding IsSectionRailExpanded, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="True">
-                    <Setter Property="Padding" Value="11,0,7,0" />
-                    <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <DataTrigger Binding="{Binding IsSectionRailExpanded, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="False">
+                    <Setter Property="Margin" Value="0,2" />
+                    <Setter Property="ToolTipService.InitialShowDelay" Value="0" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="AiAssistRailToggleButton" TargetType="Button" BasedOn="{StaticResource ToolbarButton}">
-            <Setter Property="Height" Value="26" />
+        <Style x:Key="AiAssistRailToggleButton" TargetType="Button">
+            <Setter Property="Height" Value="24" />
             <Setter Property="MinWidth" Value="0" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="Margin" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Opacity" Value="0.8" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
-        <Style x:Key="AiAssistRailCompactLabel" TargetType="TextBlock">
+        <Style x:Key="AiAssistRailVerticalLabel" TargetType="TextBlock">
             <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="FontSize" Value="9" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Visibility" Value="Visible" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="LayoutTransform">
+                <Setter.Value>
+                    <RotateTransform Angle="90" />
+                </Setter.Value>
+            </Setter>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding IsSectionRailExpanded, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="True">
+                <DataTrigger Binding="{Binding IsSectionRailExpanded, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="False">
                     <Setter Property="Visibility" Value="Collapsed" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="AiAssistRailExpandedLabel" TargetType="TextBlock">
-            <Setter Property="HorizontalAlignment" Value="Left" />
+        <Style x:Key="AiAssistRailCollapsedMarker" TargetType="Border">
+            <Setter Property="Width" Value="2" />
+            <Setter Property="Height" Value="12" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="FontSize" Value="10" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="CornerRadius" Value="1" />
+            <Setter Property="Opacity" Value="0.72" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsSectionRailExpanded, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="True">
-                    <Setter Property="Visibility" Value="Visible" />
+                    <Setter Property="Visibility" Value="Collapsed" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -585,18 +605,30 @@
 
         </Grid>
 
-        <!-- Collapsible full-height section rail. It defaults to compact abbreviations and expands on demand to readable labels. -->
+        <!-- Sleek full-height section rail. Expanded mode keeps complete labels vertical; collapsed mode retracts to a 14 px navigation spine. -->
         <Border x:Name="SectionRail"
                 Grid.Row="1"
                 Grid.Column="1"
                 Grid.RowSpan="3"
-                Width="26"
+                Width="38"
                 Background="{DynamicResource SurfaceElevatedBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1,0,0,0"
+                KeyboardNavigation.DirectionalNavigation="Contained"
+                PreviewKeyDown="SectionRail_PreviewKeyDown"
                 PreviewMouseWheel="SectionRail_PreviewMouseWheel"
-                ToolTip="Section rail: click a section or use the mouse wheel to switch AI views.">
-            <Grid Margin="3,6">
+                ToolTip="Section rail: expand for full vertical labels, click a section, or use Up/Down and the mouse wheel to switch views.">
+            <Grid x:Name="SectionRailLayout" Margin="2,6">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Margin" Value="2,6" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSectionRailExpanded, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="False">
+                                <Setter Property="Margin" Value="1,6" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -604,51 +636,49 @@
 
                 <Button x:Name="SectionRailToggleButton"
                         Grid.Row="0"
-                        AutomationProperties.Name="Expand AI section rail"
+                        AutomationProperties.HelpText="Retracts or expands the AI Assist section rail without changing the selected section."
+                        AutomationProperties.Name="Collapse AI section rail"
                         Click="SectionRailToggleButton_Click"
                         Style="{StaticResource AiAssistRailToggleButton}"
-                        ToolTip="Expand section labels">
-                    <Grid>
-                        <TextBlock Style="{StaticResource AiAssistRailCompactLabel}" Text="‹" />
-                        <TextBlock Style="{StaticResource AiAssistRailExpandedLabel}" Text="›" />
-                    </Grid>
+                        ToolTip="Collapse to the slim section spine">
+                    <TextBlock x:Name="SectionRailToggleGlyph" Text="›" />
                 </Button>
 
-                <primitives:UniformGrid Grid.Row="1" Margin="0,4,0,0" Rows="6" VerticalAlignment="Stretch">
-                    <Button Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsChatSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="Chat" ToolTip="Chat with private live project context">
+                <primitives:UniformGrid x:Name="SectionRailNavigation" Grid.Row="1" Margin="0,4,0,0" Rows="6" VerticalAlignment="Stretch">
+                    <Button AutomationProperties.Name="Open Chat section" Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsChatSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="Chat" ToolTip="Chat with private live project context">
                         <Grid>
-                            <TextBlock Style="{StaticResource AiAssistRailCompactLabel}" Text="C" />
-                            <TextBlock Style="{StaticResource AiAssistRailExpandedLabel}" Text="Chat" />
+                            <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="CHAT" />
+                            <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
                     </Button>
-                    <Button Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsMissionSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="Mission" ToolTip="Mission Control readiness and root cause">
+                    <Button AutomationProperties.Name="Open Mission section" Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsMissionSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="Mission" ToolTip="Mission Control readiness and root cause">
                         <Grid>
-                            <TextBlock Style="{StaticResource AiAssistRailCompactLabel}" Text="M" />
-                            <TextBlock Style="{StaticResource AiAssistRailExpandedLabel}" Text="Mission" />
+                            <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="MISSION" />
+                            <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
                     </Button>
-                    <Button Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsBimSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="BIM" ToolTip="BIM counts, categories, and IFC metadata">
+                    <Button AutomationProperties.Name="Open BIM section" Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsBimSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="BIM" ToolTip="BIM counts, categories, and IFC metadata">
                         <Grid>
-                            <TextBlock Style="{StaticResource AiAssistRailCompactLabel}" Text="B" />
-                            <TextBlock Style="{StaticResource AiAssistRailExpandedLabel}" Text="BIM" />
+                            <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="BIM" />
+                            <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
                     </Button>
-                    <Button Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsOptimizeSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="Optimize" ToolTip="Optimization readiness and what-if advisor">
+                    <Button AutomationProperties.Name="Open GA optimization section" Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsOptimizeSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="Optimize" ToolTip="Optimization readiness and what-if advisor">
                         <Grid>
-                            <TextBlock Style="{StaticResource AiAssistRailCompactLabel}" Text="GA" />
-                            <TextBlock Style="{StaticResource AiAssistRailExpandedLabel}" Text="GA" />
+                            <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="GA" />
+                            <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
                     </Button>
-                    <Button Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsReportSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="Report" ToolTip="Report wording and QA evidence packs">
+                    <Button AutomationProperties.Name="Open Report section" Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsReportSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="Report" ToolTip="Report wording and QA evidence packs">
                         <Grid>
-                            <TextBlock Style="{StaticResource AiAssistRailCompactLabel}" Text="R" />
-                            <TextBlock Style="{StaticResource AiAssistRailExpandedLabel}" Text="Report" />
+                            <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="REPORT" />
+                            <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
                     </Button>
-                    <Button Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsAiStudioSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="AI Studio" ToolTip="AI Studio capabilities, RAG, ModelOps, and decision trace">
+                    <Button AutomationProperties.Name="Open AI Studio section" Style="{StaticResource AiAssistRailButton}" Tag="{Binding IsAiStudioSectionSelected}" Command="{Binding SelectCommandCenterTabCommand}" CommandParameter="AI Studio" ToolTip="AI Studio capabilities, RAG, ModelOps, and decision trace">
                         <Grid>
-                            <TextBlock Style="{StaticResource AiAssistRailCompactLabel}" Text="AI" />
-                            <TextBlock Style="{StaticResource AiAssistRailExpandedLabel}" Text="Studio" />
+                            <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="STUDIO" />
+                            <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
                     </Button>
                 </primitives:UniformGrid>

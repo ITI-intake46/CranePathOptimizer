@@ -14,6 +14,7 @@ namespace CraneOptimizer.AI.Configuration
         public string OllamaEndpoint { get; set; } = "http://localhost:11434/";
         public bool IsCompanionVisible { get; set; } = true;
         public bool IsAiAssistDockVisible { get; set; }
+        public bool IsSectionRailExpanded { get; set; } = true;
         public string DockPreference { get; set; } = "Right";
         public bool AutoCheckOllamaOnStartup { get; set; }
         public bool ShowContextInspectorByDefault { get; set; }

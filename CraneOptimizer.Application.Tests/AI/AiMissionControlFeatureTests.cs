@@ -112,6 +112,7 @@ namespace CraneOptimizer.Application.Tests.AI
             var companionXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "Views", "AiCompanionPanel.xaml"));
             var companionVm = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "ViewModels", "AiCompanionViewModel.cs"));
             var softwareContext = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Services", "StaticAiSoftwareContextService.cs"));
+            var settingsModel = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Configuration", "AiCopilotSettings.cs"));
 
             Assert.Contains("AI Assist", companionXaml);
             Assert.Contains("PRIMARY RECOMMENDATION", companionXaml);
@@ -121,9 +122,13 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("x:Name=\"SectionRailToggleButton\"", companionXaml);
             Assert.Contains("SectionRailToggleButton_Click", companionXaml);
             Assert.Contains("IsSectionRailExpanded", companionXaml);
-            Assert.Contains("AiAssistRailCompactLabel", companionXaml);
-            Assert.Contains("AiAssistRailExpandedLabel", companionXaml);
-            Assert.DoesNotContain("RotateTransform Angle=\"-90\"", companionXaml);
+            Assert.Contains("AiAssistRailVerticalLabel", companionXaml);
+            Assert.Contains("AiAssistRailCollapsedMarker", companionXaml);
+            Assert.Contains("RotateTransform Angle=\"90\"", companionXaml);
+            Assert.DoesNotContain("AiAssistRailCompactLabel", companionXaml);
+            Assert.DoesNotContain("AiAssistRailExpandedLabel", companionXaml);
+            Assert.Contains("Width=\"38\"", companionXaml);
+            Assert.Contains("PreviewKeyDown=\"SectionRail_PreviewKeyDown\"", companionXaml);
             Assert.Contains("PreviewMouseWheel=\"SectionRail_PreviewMouseWheel\"", companionXaml);
             Assert.Contains("VerticalScrollBarVisibility=\"Hidden\"", companionXaml);
             Assert.DoesNotContain("Text=\"SECTION\"", companionXaml);
@@ -151,8 +156,11 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.DoesNotContain("SelectedCommandCenterTab = routeDecision.PreferredSection", companionVm);
             var companionCodeBehind = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "Views", "AiCompanionPanel.xaml.cs"));
             Assert.Contains("SectionRail_PreviewMouseWheel", companionCodeBehind);
-            Assert.Contains("CollapsedSectionRailWidth", companionCodeBehind);
-            Assert.Contains("ExpandedSectionRailWidth", companionCodeBehind);
+            Assert.Contains("CollapsedSectionRailWidth = 14d", companionCodeBehind);
+            Assert.Contains("ExpandedSectionRailWidth = 38d", companionCodeBehind);
+            Assert.Contains("SectionRail_PreviewKeyDown", companionCodeBehind);
+            Assert.Contains("settings.IsSectionRailExpanded", companionCodeBehind);
+            Assert.Contains("!IsSectionRailExpanded", companionCodeBehind);
             Assert.Contains("DoubleAnimation", companionCodeBehind);
             Assert.Contains("AI Studio", companionCodeBehind);
             Assert.Contains("DispatcherPriority.ContextIdle", companionCodeBehind);
@@ -169,11 +177,13 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("CopyAiShowcaseBriefCommand", companionVm);
             Assert.Contains("AiShowcaseService", companionVm);
             Assert.Contains("Generate BIM exporter request", companionVm);
+            Assert.Contains("IsSectionRailExpanded", settingsModel);
             Assert.Contains("AI Assist / Mission Control", softwareContext);
-            Assert.Contains("collapsible section-rail navigator", softwareContext);
-            Assert.Contains("compact abbreviations", softwareContext);
-            Assert.Contains("expands on demand", softwareContext);
-            Assert.Contains("mouse-wheel section switching", softwareContext);
+            Assert.Contains("vertical-label section-rail navigator", softwareContext);
+            Assert.Contains("38 px strip", softwareContext);
+            Assert.Contains("14 px navigation spine", softwareContext);
+            Assert.Contains("persists the user preference", softwareContext);
+            Assert.Contains("mouse-wheel plus keyboard section switching", softwareContext);
         }
 
         private static AiWorkflowContextSnapshot BuildBlockedContext()
