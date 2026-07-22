@@ -3,6 +3,7 @@ using CraneOptimizer.AI.Configuration;
 using CraneOptimizer.AI.Host;
 using CraneOptimizer.AI.Interfaces;
 using CraneOptimizer.AI.Knowledge;
+using CraneOptimizer.AI.Knowledge.Rag;
 using CraneOptimizer.AI.Providers.Ollama;
 using CraneOptimizer.AI.Runtime;
 using CraneOptimizer.AI.Security;
@@ -40,6 +41,10 @@ namespace CraneOptimizer.AI.DependencyInjection
             services.AddSingleton<IAiOptimizationAdvisorService, AiOptimizationAdvisorService>();
             services.AddSingleton<IAiSoftwareContextService, StaticAiSoftwareContextService>();
             services.AddSingleton<IAiLocalDocumentSearchService, AiLocalDocumentSearchService>();
+            services.AddSingleton<IAiTextEmbeddingService, AiDeterministicHashEmbeddingService>();
+            services.AddSingleton<IAiWorkflowKnowledgeProjector, AiWorkflowKnowledgeProjector>();
+            services.AddSingleton<IAiHybridKnowledgeRetriever, AiHybridKnowledgeRetriever>();
+            services.AddSingleton<IAiProjectGroundingService, AiProjectGroundingService>();
             services.AddSingleton<IAiSoftwareInventoryService, AiSoftwareInventoryService>();
             services.AddSingleton<IAiPromptTemplateService, AiPromptTemplateService>();
             services.AddSingleton<IAiReportAppendixService, AiReportAppendixService>();

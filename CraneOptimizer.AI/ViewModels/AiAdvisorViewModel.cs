@@ -12,6 +12,7 @@ using CraneOptimizer.AI.Core.Base;
 using CraneOptimizer.AI.Core.Commands;
 using CraneOptimizer.AI.Configuration;
 using CraneOptimizer.AI.Knowledge;
+using CraneOptimizer.AI.Knowledge.Rag;
 using CraneOptimizer.AI.Services;
 using CraneOptimizer.AI.Workflow;
 using Microsoft.Win32;
@@ -31,6 +32,7 @@ namespace CraneOptimizer.AI.ViewModels
         private readonly IAiModelManagementService _modelManagementService;
         private readonly IAiCopilotSettingsService _settingsService;
         private readonly IAiLocalDocumentSearchService _documentSearchService;
+        private readonly IAiProjectGroundingService _projectGroundingService;
         private readonly IAiSoftwareInventoryService _softwareInventoryService;
         private readonly IAiPromptTemplateService _promptTemplateService;
         private readonly IAiReportAppendixService _reportAppendixService;
@@ -63,6 +65,7 @@ namespace CraneOptimizer.AI.ViewModels
         private AiOptimizationContextDto? _lastContext;
         private AiWorkflowContextSnapshot? _lastWorkflowContext;
         private AiAdvisorResponseDto? _lastAdvisorResponse;
+        private AiGroundingPacket _lastGroundingPacket = AiGroundingPacket.Empty;
 
         public AiAdvisorViewModel(
             IAiOptimizationAdvisorService advisorService,
@@ -71,6 +74,7 @@ namespace CraneOptimizer.AI.ViewModels
             IAiModelManagementService modelManagementService,
             IAiCopilotSettingsService settingsService,
             IAiLocalDocumentSearchService documentSearchService,
+            IAiProjectGroundingService projectGroundingService,
             IAiSoftwareInventoryService softwareInventoryService,
             IAiPromptTemplateService promptTemplateService,
             IAiReportAppendixService reportAppendixService,
@@ -83,6 +87,7 @@ namespace CraneOptimizer.AI.ViewModels
             _modelManagementService = modelManagementService;
             _settingsService = settingsService;
             _documentSearchService = documentSearchService;
+            _projectGroundingService = projectGroundingService ?? throw new ArgumentNullException(nameof(projectGroundingService));
             _softwareInventoryService = softwareInventoryService;
             _promptTemplateService = promptTemplateService;
             _reportAppendixService = reportAppendixService;
@@ -97,6 +102,7 @@ namespace CraneOptimizer.AI.ViewModels
             ResponseHistory = new ObservableCollection<AiResponseHistoryItemViewModel>();
             ModelBenchmarks = new ObservableCollection<AiModelBenchmarkResultViewModel>();
             ContextCards = new ObservableCollection<AiContextCardViewModel>();
+            GroundingCitations = new ObservableCollection<AiKnowledgeCitation>();
             PromptTemplates = new ObservableCollection<AiPromptTemplate>(_promptTemplateService.GetAllTemplates());
             SoftwareGuideText = BuildSoftwareGuideText(_softwareContext);
             LoadPersistentHistory();
@@ -124,6 +130,7 @@ namespace CraneOptimizer.AI.ViewModels
         public ObservableCollection<AiResponseHistoryItemViewModel> ResponseHistory { get; }
         public ObservableCollection<AiModelBenchmarkResultViewModel> ModelBenchmarks { get; }
         public ObservableCollection<AiContextCardViewModel> ContextCards { get; }
+        public ObservableCollection<AiKnowledgeCitation> GroundingCitations { get; }
         public ObservableCollection<AiPromptTemplate> PromptTemplates { get; }
 
         public ICommand AnalyzeCurrentResultCommand { get; }
@@ -367,12 +374,18 @@ namespace CraneOptimizer.AI.ViewModels
         public string HistoryCountLabel => ResponseHistory.Count == 0
             ? "No saved answers"
             : $"{ResponseHistory.Count} saved answer(s)";
+        public bool HasGroundingEvidence => GroundingCitations.Count > 0;
+        public Visibility GroundingEvidenceVisibility => HasGroundingEvidence ? Visibility.Visible : Visibility.Collapsed;
+        public string GroundingEvidenceLabel => HasGroundingEvidence
+            ? $"Grounding evidence · {GroundingCitations.Count} source(s) · model rev {_lastGroundingPacket.ModelRevision:N0}"
+            : "Grounding evidence · none retrieved";
 
         public void AnalyzeCurrentResult()
         {
             LastError = string.Empty;
             _lastContext = BuildContextFromCurrentResult();
             _lastWorkflowContext = _workflowContextProvider?.GetSnapshot();
+            SetGroundingPacket(_projectGroundingService.Ground(_lastWorkflowContext, UserQuestion, 6), refreshContextCards: false);
             _lastAdvisorResponse = _advisorService.Analyze(_lastContext);
 
             var workflowState = _lastWorkflowContext == null ? null : AiWorkflowStateClassifier.Classify(_lastWorkflowContext);
@@ -422,7 +435,7 @@ namespace CraneOptimizer.AI.ViewModels
                 : "XAML-derived software inventory not injected for this workflow request.";
             SelectedPromptTemplateSummary = BuildSelectedTemplateSummary(_lastContext, _lastAdvisorResponse);
             RefreshContextCards(_lastContext, _lastAdvisorResponse);
-            ContextPreview = BuildContextJson(_lastContext, _lastAdvisorResponse, _softwareContext, LastDocumentContext + Environment.NewLine + LastXamlInventory, SelectedPromptTemplateSummary, _lastWorkflowContext);
+            ContextPreview = BuildContextJson(_lastContext, _lastAdvisorResponse, _softwareContext, LastDocumentContext + Environment.NewLine + LastXamlInventory, SelectedPromptTemplateSummary, _lastWorkflowContext, _lastGroundingPacket);
             StatusText = _lastContext.HasOptimizationResult
                 ? "Analysis complete. AI context includes result metrics and deterministic findings."
                 : workflowState != null && !workflowState.CanRunOptimizerNow
@@ -436,14 +449,17 @@ namespace CraneOptimizer.AI.ViewModels
             UserQuestion = string.IsNullOrWhiteSpace(visibleQuestion)
                 ? "What should I do next from this screen?"
                 : visibleQuestion.Trim();
-            AiAnswer = string.IsNullOrWhiteSpace(answer)
+            _lastWorkflowContext = _workflowContextProvider?.GetSnapshot() ?? _lastWorkflowContext;
+            var grounding = RefreshProjectGrounding(UserQuestion);
+            var visibleAnswer = string.IsNullOrWhiteSpace(answer)
                 ? "No deterministic companion answer was generated."
                 : answer.Trim();
+            AiAnswer = _projectGroundingService.AppendCitationTrace(visibleAnswer, grounding);
             LastError = string.Empty;
             StatusText = string.IsNullOrWhiteSpace(source)
-                ? "Deterministic AI companion guidance produced locally."
-                : source.Trim();
-            AddHistory("Deterministic AI", UserQuestion, AiAnswer, "Companion");
+                ? $"Deterministic AI companion guidance produced locally with {grounding.Citations.Count:N0} grounded source(s)."
+                : source.Trim() + (grounding.HasEvidence ? $" Grounded with {grounding.Citations.Count:N0} cited live source(s)." : string.Empty);
+            AddHistory("Deterministic AI", UserQuestion, AiAnswer, "Companion + RAG");
         }
 
         private async Task ToggleOllamaAsync()
@@ -475,6 +491,7 @@ namespace CraneOptimizer.AI.ViewModels
         {
             LastError = string.Empty;
             _lastWorkflowContext = _workflowContextProvider?.GetSnapshot() ?? _lastWorkflowContext;
+            RefreshProjectGrounding(UserQuestion);
 
             if (AiIntentOrchestrator.TryBuildDeterministicAnswer(
                     _lastWorkflowContext,
@@ -574,6 +591,7 @@ namespace CraneOptimizer.AI.ViewModels
                         _lastAdvisorResponse,
                         _softwareContext,
                         LastDocumentContext + Environment.NewLine + LastXamlInventory,
+                        _lastGroundingPacket.PromptContext,
                         SelectedPromptTemplateSummary,
                         _lastWorkflowContext,
                         _pendingLiveUiContext,
@@ -646,6 +664,9 @@ namespace CraneOptimizer.AI.ViewModels
                         normalizedAnswer = fallbackAnswer;
                         StatusText = fallbackSource;
                     }
+
+                    if (!string.IsNullOrWhiteSpace(normalizedAnswer) && _lastGroundingPacket.HasEvidence)
+                        normalizedAnswer = _projectGroundingService.AppendCitationTrace(normalizedAnswer, _lastGroundingPacket);
 
                     AiAnswer = string.IsNullOrWhiteSpace(normalizedAnswer)
                         ? "Ollama returned a successful response, but no visible text was included. Try another model or ask a shorter question."
@@ -1082,6 +1103,28 @@ namespace CraneOptimizer.AI.ViewModels
             return $"{template.Title}: {template.AppliesWhen}";
         }
 
+        private AiGroundingPacket RefreshProjectGrounding(string question)
+        {
+            var packet = _projectGroundingService.Ground(_lastWorkflowContext, question, 6);
+            SetGroundingPacket(packet, refreshContextCards: true);
+            return packet;
+        }
+
+        private void SetGroundingPacket(AiGroundingPacket packet, bool refreshContextCards)
+        {
+            _lastGroundingPacket = packet ?? AiGroundingPacket.Empty;
+            GroundingCitations.Clear();
+            foreach (var citation in _lastGroundingPacket.Citations)
+                GroundingCitations.Add(citation);
+
+            OnPropertyChanged(nameof(HasGroundingEvidence));
+            OnPropertyChanged(nameof(GroundingEvidenceVisibility));
+            OnPropertyChanged(nameof(GroundingEvidenceLabel));
+
+            if (refreshContextCards && _lastContext != null && _lastAdvisorResponse != null)
+                RefreshContextCards(_lastContext, _lastAdvisorResponse);
+        }
+
         private void RefreshContextCards(AiOptimizationContextDto context, AiAdvisorResponseDto advisorResponse)
         {
             ContextCards.Clear();
@@ -1127,6 +1170,25 @@ namespace CraneOptimizer.AI.ViewModels
                     Title = "Screen evidence",
                     Value = $"{_lastWorkflowContext.ScreenContexts.Count:N0} areas",
                     Detail = $"Rich UI context attached from IFC/crane/GA/report contributors; {warningCount:N0} warning/error issue(s)."
+                });
+            }
+
+            ContextCards.Add(new AiContextCardViewModel
+            {
+                Title = "Project RAG",
+                Value = _lastGroundingPacket.CoverageLabel,
+                Detail = _lastGroundingPacket.HasEvidence
+                    ? $"Hybrid lexical/semantic retrieval indexed {_lastGroundingPacket.IndexedDocumentCount:N0} documents and {_lastGroundingPacket.IndexedChunkCount:N0} chunks for model revision {_lastGroundingPacket.ModelRevision:N0}."
+                    : "No live evidence exceeded the retrieval threshold for the current question."
+            });
+
+            foreach (var citation in _lastGroundingPacket.Citations.Take(4))
+            {
+                ContextCards.Add(new AiContextCardViewModel
+                {
+                    Title = $"[{citation.Id}] {citation.SourceLabel}",
+                    Value = citation.ScoreLabel,
+                    Detail = citation.Snippet
                 });
             }
         }
@@ -1295,6 +1357,7 @@ namespace CraneOptimizer.AI.ViewModels
             AiAdvisorResponseDto advisorResponse,
             AiSoftwareContextDto softwareContext,
             string documentContext,
+            string projectGroundingContext,
             string promptTemplateSummary,
             AiWorkflowContextSnapshot? workflowContext = null,
             string liveUiContext = "",
@@ -1323,6 +1386,11 @@ namespace CraneOptimizer.AI.ViewModels
                 "AI COPILOT",
                 deterministicNextAction));
             builder.AppendLine();
+            if (!string.IsNullOrWhiteSpace(projectGroundingContext))
+            {
+                builder.AppendLine(projectGroundingContext);
+                builder.AppendLine();
+            }
             if (!string.IsNullOrWhiteSpace(liveUiContext))
             {
                 builder.AppendLine("LIVE UI CONTEXT — highest priority for workflow/navigation questions");
@@ -1499,7 +1567,7 @@ namespace CraneOptimizer.AI.ViewModels
             return builder.ToString();
         }
 
-        private static string BuildContextJson(AiOptimizationContextDto context, AiAdvisorResponseDto advisorResponse, AiSoftwareContextDto softwareContext, string documentContext, string promptTemplateSummary, AiWorkflowContextSnapshot? workflowContext = null)
+        private static string BuildContextJson(AiOptimizationContextDto context, AiAdvisorResponseDto advisorResponse, AiSoftwareContextDto softwareContext, string documentContext, string promptTemplateSummary, AiWorkflowContextSnapshot? workflowContext = null, AiGroundingPacket? groundingPacket = null)
         {
             var payload = new
             {
@@ -1513,6 +1581,7 @@ namespace CraneOptimizer.AI.ViewModels
                     ActivePromptTemplate = promptTemplateSummary
                 },
                 WorkflowContext = workflowContext,
+                ProjectRagGrounding = groundingPacket,
                 SoftwareContext = softwareContext,
                 LocalDocumentationContext = documentContext,
                 SafetyInstruction = "This AI output is advisory only. Final crane planning decisions must be checked by qualified personnel against project rules, manufacturer data, and applicable safety standards."
@@ -1528,7 +1597,8 @@ namespace CraneOptimizer.AI.ViewModels
                    "Use supplied internal context silently; never describe it as JSON, schema, prompt metadata, XAML inventory, or documentation snippets unless explicitly asked. " +
                    "Never open with phrases like 'This appears to be documentation' or 'Here is a summary of the documentation' unless the user explicitly asked to summarize documentation. " +
                    "Separate three knowledge worlds: general crane/construction knowledge, current deterministic project facts, and software documentation/navigation. Never collapse a domain question into a documentation summary. " +
-                   "Prioritize evidence in this order: intent routing contract, live UI context, compact deterministic project facts, deterministic screen contexts only when the intent explicitly asks for workflow/blockers/results, visible tabs/buttons/workflows, then local documentation only when directly relevant. " +
+                   "Prioritize evidence in this order: intent routing contract, live UI context, PROJECT RAG GROUNDING PACKET, compact deterministic project facts, deterministic screen contexts only when the intent explicitly asks for workflow/blockers/results, visible tabs/buttons/workflows, then local documentation only when directly relevant. " +
+                   "When a PROJECT RAG GROUNDING PACKET is supplied, cite project-specific factual claims with its evidence IDs such as [E1], and explicitly state when the retrieved evidence is incomplete or conflicting. " +
                    "Do not invent project facts, standards, site measurements, certification claims, or hidden UI commands. " +
                    "When the user asks what to do next, answer with the practical workflow state first; do not summarize documentation, XAML inventory, UI inventory, or implementation context. " +
                    "For active blockers, prefer the deterministic blocker summary only when the visible question is about optimization readiness, GA, blockers, candidates, weights, or next steps. For domain, quality, delivery, model-choice, or value questions, answer the question first and use blockers only as a short current-project caveat. " +

@@ -313,6 +313,37 @@
                                         </ItemsControl>
                                     </ScrollViewer>
                                 </TabItem>
+                                <TabItem Header="RAG Grounding">
+                                    <Grid Margin="10">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding GroundingEvidenceLabel}" TextWrapping="Wrap" />
+                                        <ScrollViewer Grid.Row="1" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
+                                            <ItemsControl ItemsSource="{Binding GroundingCitations}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Margin="0,0,0,8" Padding="10" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+                                                            <StackPanel>
+                                                                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
+                                                                    <Run Foreground="{StaticResource PrimaryBrush}" Text="[" />
+                                                                    <Run Foreground="{StaticResource PrimaryBrush}" Text="{Binding Id}" />
+                                                                    <Run Foreground="{StaticResource PrimaryBrush}" Text="]" />
+                                                                    <Run Text=" " />
+                                                                    <Run Text="{Binding SourceLabel}" />
+                                                                </TextBlock>
+                                                                <TextBlock Margin="0,4,0,0" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Snippet}" TextWrapping="Wrap" />
+                                                                <TextBlock Margin="0,5,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ScoreLabel}" TextWrapping="Wrap" />
+                                                                <TextBlock Margin="0,2,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding SourceLocator}" TextWrapping="Wrap" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Grid>
+                                </TabItem>
                                 <TabItem Header="Prompt Templates">
                                     <Grid Margin="10">
                                         <Grid.RowDefinitions>
