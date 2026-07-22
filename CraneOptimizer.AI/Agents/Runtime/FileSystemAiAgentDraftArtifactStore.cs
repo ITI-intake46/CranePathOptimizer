@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
 using CraneOptimizer.AI.Agents.Contracts;
+using System.IO;
+
 
 namespace CraneOptimizer.AI.Agents.Runtime
 {
