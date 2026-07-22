@@ -49,17 +49,19 @@ namespace CraneOptimizer.AI.Runtime
             Action<AiStreamingUpdateDto>? onUpdate,
             CancellationToken cancellationToken)
         {
-            var correlationId = string.IsNullOrWhiteSpace(request?.CorrelationId)
+            ArgumentNullException.ThrowIfNull(request);
+
+            var correlationId = string.IsNullOrWhiteSpace(request.CorrelationId)
                 ? Guid.NewGuid().ToString("N")
                 : request.CorrelationId.Trim();
             var startedAt = DateTimeOffset.UtcNow;
             var stopwatch = Stopwatch.StartNew();
-            var providerId = request?.ProviderId?.Trim() ?? string.Empty;
+            var providerId = request.ProviderId?.Trim() ?? string.Empty;
             AiChatResponseDto? response = null;
 
             try
             {
-                var decision = _requestPolicy.Evaluate(request!);
+                var decision = _requestPolicy.Evaluate(request);
                 if (!decision.IsAllowed)
                 {
                     response = Failure(decision.ErrorMessage, providerId, correlationId);
@@ -99,14 +101,14 @@ namespace CraneOptimizer.AI.Runtime
                 _telemetrySink.Record(new AiTelemetryEvent(
                     CorrelationId: correlationId,
                     ProviderId: providerId,
-                    Model: request?.Model ?? string.Empty,
+                    Model: request.Model ?? string.Empty,
                     StartedAt: startedAt,
                     ElapsedMilliseconds: stopwatch.ElapsedMilliseconds,
                     Success: finalResponse?.Success == true,
                     Streaming: onUpdate != null,
-                    SystemPromptCharacters: request?.SystemPrompt?.Length ?? 0,
-                    UserPromptCharacters: request?.UserPrompt?.Length ?? 0,
-                    ContextCharacters: request?.ContextJson?.Length ?? 0,
+                    SystemPromptCharacters: request.SystemPrompt?.Length ?? 0,
+                    UserPromptCharacters: request.UserPrompt?.Length ?? 0,
+                    ContextCharacters: request.ContextJson?.Length ?? 0,
                     ResponseCharacters: finalResponse?.Content?.Length ?? 0,
                     ErrorCategory: CategorizeError(finalResponse?.ErrorMessage)));
             }

@@ -156,6 +156,7 @@ namespace CraneOptimizer.AI.Providers.Ollama
             return tags?.Models?
                 .Select(model => string.IsNullOrWhiteSpace(model.Name) ? model.Model : model.Name)
                 .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name!)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
                 .ToArray() ?? Array.Empty<string>();
