@@ -9,15 +9,17 @@ namespace CraneOptimizer.Application.Tests.AI
     public sealed class AiAgentActionWorkflowTests
     {
         [Fact]
-        public void Registry_ExposesSixTypedNavigationTools()
+        public void Registry_ExposesSixNavigationToolsAndOneApprovalGatedDraftTool()
         {
             var registry = CreateRegistry(new CapturingUiContext());
 
-            Assert.Equal(6, registry.Definitions.Count);
-            Assert.All(registry.Definitions, definition => Assert.Equal(AiToolAccessMode.Navigation, definition.AccessMode));
+            Assert.Equal(7, registry.Definitions.Count);
+            Assert.Equal(6, registry.Definitions.Count(definition => definition.AccessMode == AiToolAccessMode.Navigation));
+            Assert.Equal(1, registry.Definitions.Count(definition => definition.AccessMode == AiToolAccessMode.Mutating));
             Assert.Contains(registry.Definitions, definition => definition.Name == "open_crane_setup");
             Assert.Contains(registry.Definitions, definition => definition.Name == "open_element_export");
             Assert.Contains(registry.Definitions, definition => definition.Name == "open_ga_readiness");
+            Assert.Contains(registry.Definitions, definition => definition.Name == "prepare_readiness_remediation_draft");
         }
 
         [Fact]
@@ -26,6 +28,8 @@ namespace CraneOptimizer.Application.Tests.AI
             var service = CreateService(new CapturingUiContext(), out _);
             var proposals = service.BuildProposals(BuildBlockedRun());
 
+            Assert.Equal("prepare_readiness_remediation_draft", proposals[0].ToolName);
+            Assert.Contains(proposals, proposal => proposal.ToolName == "prepare_readiness_remediation_draft" && proposal.RequiresExplicitApproval);
             Assert.Contains(proposals, proposal => proposal.ToolName == "open_crane_setup");
             Assert.Contains(proposals, proposal => proposal.ToolName == "open_load_chart_import");
             Assert.Contains(proposals, proposal => proposal.ToolName == "open_element_export");
@@ -132,6 +136,11 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("AgentActionAuditLabel", advisor, StringComparison.Ordinal);
             Assert.Contains("Recommended actions", viewModel, StringComparison.Ordinal);
             Assert.Contains("RejectAgentActionCommand", viewModel, StringComparison.Ordinal);
+            Assert.Contains("Review details", companion, StringComparison.Ordinal);
+            Assert.Contains("ApprovalScope", advisor, StringComparison.Ordinal);
+            Assert.Contains("ArtifactLabel", advisor, StringComparison.Ordinal);
+            Assert.Contains("ToolArgumentsLabel", companion, StringComparison.Ordinal);
+            Assert.Contains("AuditMetadataLabel", advisor, StringComparison.Ordinal);
         }
 
         [Fact]
@@ -161,6 +170,7 @@ namespace CraneOptimizer.Application.Tests.AI
         private static IAiAgentActionTool[] CreateTools(CapturingUiContext ui) =>
             new IAiAgentActionTool[]
             {
+                new PrepareReadinessRemediationDraftActionTool(new RecordingDraftArtifactStore()),
                 new OpenCraneSetupActionTool(ui),
                 new OpenLoadChartImportActionTool(ui),
                 new OpenElementExportActionTool(ui),
@@ -293,6 +303,24 @@ namespace CraneOptimizer.Application.Tests.AI
             public void RequestTabNavigation(string tabName, string reason)
             {
                 ActionRequested?.Invoke(this, new AiUiActionRequestedEventArgs("NavigateTab", tabName, reason));
+            }
+        }
+
+        private sealed class RecordingDraftArtifactStore : IAiAgentDraftArtifactStore
+        {
+            public Task<AiAgentDraftArtifactResult> WriteAsync(
+                AiAgentDraftArtifactRequest request,
+                CancellationToken cancellationToken = default)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return Task.FromResult(new AiAgentDraftArtifactResult
+                {
+                    Succeeded = true,
+                    ArtifactPath = Path.Combine(Path.GetTempPath(), "readiness-remediation.md"),
+                    ArtifactKind = "Markdown readiness-remediation draft",
+                    SizeBytes = request.Content.Length,
+                    Sha256 = "test-sha256"
+                });
             }
         }
 
