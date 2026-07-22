@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CraneOptimizer.AI.Configuration;
 using CraneOptimizer.AI.DTOs;
 using CraneOptimizer.AI.Interfaces;
 
@@ -16,13 +17,25 @@ namespace CraneOptimizer.AI.Providers.Ollama
         };
 
         private readonly HttpClient _httpClient;
+        private readonly Uri _endpoint;
         private bool _disposed;
 
         public OllamaModelManagementService()
+            : this(DefaultEndpoint)
         {
+        }
+
+        public OllamaModelManagementService(IAiCopilotSettingsService settingsService)
+            : this(ResolveEndpoint(settingsService?.Current.OllamaEndpoint))
+        {
+        }
+
+        private OllamaModelManagementService(Uri endpoint)
+        {
+            _endpoint = EnsureTrailingSlash(endpoint);
             _httpClient = new HttpClient
             {
-                BaseAddress = DefaultEndpoint,
+                BaseAddress = _endpoint,
                 Timeout = TimeSpan.FromMinutes(20)
             };
         }
@@ -37,7 +50,7 @@ namespace CraneOptimizer.AI.Providers.Ollama
                 return new AiModelStatusDto
                 {
                     IsAvailable = true,
-                    Endpoint = DefaultEndpoint.ToString().TrimEnd('/'),
+                    Endpoint = _endpoint.ToString().TrimEnd('/'),
                     Version = version,
                     InstalledModels = models
                 };
@@ -63,6 +76,7 @@ namespace CraneOptimizer.AI.Providers.Ollama
                 return new AiChatResponseDto
                 {
                     Success = false,
+                    ProviderId = OllamaChatService.ProviderId,
                     ErrorMessage = "Enter an Ollama model name before pulling, for example llama3.2 or qwen3."
                 };
             }
@@ -79,6 +93,7 @@ namespace CraneOptimizer.AI.Providers.Ollama
                     return new AiChatResponseDto
                     {
                         Success = false,
+                        ProviderId = OllamaChatService.ProviderId,
                         ErrorMessage = $"Ollama pull returned {(int)response.StatusCode} {response.ReasonPhrase}: {TrimForDisplay(responseJson)}"
                     };
                 }
@@ -86,6 +101,7 @@ namespace CraneOptimizer.AI.Providers.Ollama
                 return new AiChatResponseDto
                 {
                     Success = true,
+                    ProviderId = OllamaChatService.ProviderId,
                     Content = $"Model '{modelName.Trim()}' is available in Ollama."
                 };
             }
@@ -94,6 +110,7 @@ namespace CraneOptimizer.AI.Providers.Ollama
                 return new AiChatResponseDto
                 {
                     Success = false,
+                    ProviderId = OllamaChatService.ProviderId,
                     ErrorMessage = "Model pull timed out. The download may still be running in Ollama; check `ollama list`. " + ex.Message
                 };
             }
@@ -102,7 +119,8 @@ namespace CraneOptimizer.AI.Providers.Ollama
                 return new AiChatResponseDto
                 {
                     Success = false,
-                    ErrorMessage = "Could not connect to Ollama at http://localhost:11434. Start Ollama before pulling a model. " + ex.Message
+                    ProviderId = OllamaChatService.ProviderId,
+                    ErrorMessage = $"Could not connect to Ollama at {_endpoint.ToString().TrimEnd('/')}. Start Ollama before pulling a model. " + ex.Message
                 };
             }
             catch (Exception ex)
@@ -110,6 +128,7 @@ namespace CraneOptimizer.AI.Providers.Ollama
                 return new AiChatResponseDto
                 {
                     Success = false,
+                    ProviderId = OllamaChatService.ProviderId,
                     ErrorMessage = "Ollama model pull failed: " + ex.Message
                 };
             }
@@ -142,15 +161,31 @@ namespace CraneOptimizer.AI.Providers.Ollama
                 .ToArray() ?? Array.Empty<string>();
         }
 
-        private static AiModelStatusDto Offline(string errorMessage)
+        private AiModelStatusDto Offline(string errorMessage)
         {
             return new AiModelStatusDto
             {
                 IsAvailable = false,
-                Endpoint = DefaultEndpoint.ToString().TrimEnd('/'),
+                Endpoint = _endpoint.ToString().TrimEnd('/'),
                 ErrorMessage = errorMessage,
                 InstalledModels = Array.Empty<string>()
             };
+        }
+
+        private static Uri ResolveEndpoint(string? configuredEndpoint)
+        {
+            return Uri.TryCreate(configuredEndpoint, UriKind.Absolute, out var endpoint)
+                   && (endpoint.Scheme == Uri.UriSchemeHttp || endpoint.Scheme == Uri.UriSchemeHttps)
+                ? endpoint
+                : DefaultEndpoint;
+        }
+
+        private static Uri EnsureTrailingSlash(Uri endpoint)
+        {
+            var value = endpoint.ToString();
+            return value.EndsWith("/", StringComparison.Ordinal)
+                ? endpoint
+                : new Uri(value + "/", UriKind.Absolute);
         }
 
         private static string TrimForDisplay(string? value)

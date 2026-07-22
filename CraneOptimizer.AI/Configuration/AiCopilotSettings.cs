@@ -9,7 +9,9 @@ namespace CraneOptimizer.AI.Configuration
     /// </summary>
     public sealed class AiCopilotSettings
     {
+        public string DefaultProviderId { get; set; } = "ollama";
         public string DefaultModelName { get; set; } = "llama3.2:latest";
+        public string OllamaEndpoint { get; set; } = "http://localhost:11434/";
         public bool IsCompanionVisible { get; set; } = true;
         public bool IsAiAssistDockVisible { get; set; }
         public string DockPreference { get; set; } = "Right";
@@ -19,6 +21,10 @@ namespace CraneOptimizer.AI.Configuration
         public int BenchmarkModelLimit { get; set; } = 3;
         public int RequestTimeoutSeconds { get; set; } = 120;
         public double Temperature { get; set; } = 0.2;
+        public int MaxSystemPromptCharacters { get; set; } = 40_000;
+        public int MaxUserPromptCharacters { get; set; } = 20_000;
+        public int MaxContextCharacters { get; set; } = 500_000;
+        public int TelemetryBufferCapacity { get; set; } = 500;
 
         public bool UseStreamingResponses { get; set; } = true;
         public bool SaveConversationHistory { get; set; } = true;
