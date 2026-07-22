@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using CraneOptimizer.AI.Companion.ViewModels;
 using CraneOptimizer.AI.Host;
@@ -15,6 +16,16 @@ namespace CraneOptimizer.AI.Companion.Views
 {
     public partial class AiCompanionPanel : UserControl
     {
+        private const double CollapsedSectionRailWidth = 26d;
+        private const double ExpandedSectionRailWidth = 92d;
+        private static readonly Duration SectionRailAnimationDuration = new(TimeSpan.FromMilliseconds(160));
+
+        public static readonly DependencyProperty IsSectionRailExpandedProperty = DependencyProperty.Register(
+            nameof(IsSectionRailExpanded),
+            typeof(bool),
+            typeof(AiCompanionPanel),
+            new PropertyMetadata(false, OnSectionRailExpandedChanged));
+
         public static readonly RoutedEvent CloseRequestedEvent = EventManager.RegisterRoutedEvent(
             nameof(CloseRequested),
             RoutingStrategy.Bubble,
@@ -22,6 +33,12 @@ namespace CraneOptimizer.AI.Companion.Views
             typeof(AiCompanionPanel));
 
         private AiCompanionViewModel? _viewModel;
+
+        public bool IsSectionRailExpanded
+        {
+            get => (bool)GetValue(IsSectionRailExpandedProperty);
+            set => SetValue(IsSectionRailExpandedProperty, value);
+        }
 
         public event RoutedEventHandler CloseRequested
         {
@@ -53,6 +70,7 @@ namespace CraneOptimizer.AI.Companion.Views
                 message.PropertyChanged += OnConversationMessagePropertyChanged;
 
             DataContext = _viewModel;
+            UpdateSectionRailState(animate: false);
             ScrollBodyToHome();
         }
 
@@ -60,6 +78,68 @@ namespace CraneOptimizer.AI.Companion.Views
         {
             RaiseEvent(new RoutedEventArgs(CloseRequestedEvent));
             e.Handled = true;
+        }
+
+        private static void OnSectionRailExpandedChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
+        {
+            if (dependencyObject is AiCompanionPanel panel)
+                panel.UpdateSectionRailState(animate: panel.IsLoaded);
+        }
+
+        private void SectionRailToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            IsSectionRailExpanded = !IsSectionRailExpanded;
+            e.Handled = true;
+        }
+
+        private void UpdateSectionRailState(bool animate)
+        {
+            if (SectionRail == null || SectionRailToggleButton == null)
+                return;
+
+            var targetWidth = IsSectionRailExpanded
+                ? ExpandedSectionRailWidth
+                : CollapsedSectionRailWidth;
+
+            SectionRailToggleButton.ToolTip = IsSectionRailExpanded
+                ? "Collapse section labels"
+                : "Expand section labels";
+            System.Windows.Automation.AutomationProperties.SetName(
+                SectionRailToggleButton,
+                IsSectionRailExpanded ? "Collapse AI section rail" : "Expand AI section rail");
+
+            if (!animate)
+            {
+                SectionRail.BeginAnimation(FrameworkElement.WidthProperty, null);
+                SectionRail.Width = targetWidth;
+                return;
+            }
+
+            var expectedExpandedState = IsSectionRailExpanded;
+            var currentWidth = SectionRail.ActualWidth > 0d
+                ? SectionRail.ActualWidth
+                : SectionRail.Width;
+            var animation = new DoubleAnimation
+            {
+                From = currentWidth,
+                To = targetWidth,
+                Duration = SectionRailAnimationDuration,
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            animation.Completed += (_, _) =>
+            {
+                if (IsSectionRailExpanded != expectedExpandedState)
+                    return;
+
+                SectionRail.BeginAnimation(FrameworkElement.WidthProperty, null);
+                SectionRail.Width = targetWidth;
+            };
+
+            SectionRail.BeginAnimation(
+                FrameworkElement.WidthProperty,
+                animation,
+                HandoffBehavior.SnapshotAndReplace);
         }
 
         private void BodyScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)

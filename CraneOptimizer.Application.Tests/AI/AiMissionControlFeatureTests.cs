@@ -116,8 +116,14 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("AI Assist", companionXaml);
             Assert.Contains("PRIMARY RECOMMENDATION", companionXaml);
             Assert.Contains("AiAssistRailButton", companionXaml);
-            Assert.Contains("<ColumnDefinition Width=\"34\" />", companionXaml);
-            Assert.Contains("RotateTransform Angle=\"-90\"", companionXaml);
+            Assert.Contains("MinWidth=\"360\"", companionXaml);
+            Assert.Contains("x:Name=\"SectionRail\"", companionXaml);
+            Assert.Contains("x:Name=\"SectionRailToggleButton\"", companionXaml);
+            Assert.Contains("SectionRailToggleButton_Click", companionXaml);
+            Assert.Contains("IsSectionRailExpanded", companionXaml);
+            Assert.Contains("AiAssistRailCompactLabel", companionXaml);
+            Assert.Contains("AiAssistRailExpandedLabel", companionXaml);
+            Assert.DoesNotContain("RotateTransform Angle=\"-90\"", companionXaml);
             Assert.Contains("PreviewMouseWheel=\"SectionRail_PreviewMouseWheel\"", companionXaml);
             Assert.Contains("VerticalScrollBarVisibility=\"Hidden\"", companionXaml);
             Assert.DoesNotContain("Text=\"SECTION\"", companionXaml);
@@ -145,6 +151,9 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.DoesNotContain("SelectedCommandCenterTab = routeDecision.PreferredSection", companionVm);
             var companionCodeBehind = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "Views", "AiCompanionPanel.xaml.cs"));
             Assert.Contains("SectionRail_PreviewMouseWheel", companionCodeBehind);
+            Assert.Contains("CollapsedSectionRailWidth", companionCodeBehind);
+            Assert.Contains("ExpandedSectionRailWidth", companionCodeBehind);
+            Assert.Contains("DoubleAnimation", companionCodeBehind);
             Assert.Contains("AI Studio", companionCodeBehind);
             Assert.Contains("DispatcherPriority.ContextIdle", companionCodeBehind);
             Assert.Contains("SelectedCommandCenterTab, \"Chat\"", companionCodeBehind);
@@ -161,9 +170,10 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("AiShowcaseService", companionVm);
             Assert.Contains("Generate BIM exporter request", companionVm);
             Assert.Contains("AI Assist / Mission Control", softwareContext);
-            Assert.Contains("slim section-rail navigator", softwareContext);
+            Assert.Contains("collapsible section-rail navigator", softwareContext);
+            Assert.Contains("compact abbreviations", softwareContext);
+            Assert.Contains("expands on demand", softwareContext);
             Assert.Contains("mouse-wheel section switching", softwareContext);
-            Assert.Contains("scrollbar-sized", softwareContext);
         }
 
         private static AiWorkflowContextSnapshot BuildBlockedContext()
