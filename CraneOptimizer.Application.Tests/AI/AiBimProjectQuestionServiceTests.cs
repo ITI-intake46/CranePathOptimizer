@@ -31,6 +31,50 @@ namespace CraneOptimizer.Application.Tests.AI
         }
 
         [Fact]
+        public void AnswersCombinedBimObjectAndZoneCountsFromOneSnapshot()
+        {
+            var context = BuildModelContext(
+                elementCount: 362,
+                modelRevision: 7,
+                zoneCount: 5,
+                allowedZoneCount: 3,
+                forbiddenZoneCount: 2);
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "How many BIM objects and zones are currently loaded?",
+                "HOME",
+                out var answer,
+                out var source);
+
+            Assert.True(handled);
+            Assert.Contains("362 BIM/model object", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("5 zone", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("3 allowed/green", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("2 forbidden", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("same captured live project snapshot", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("BIM object and zone count", source, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("cannot find a deterministic count", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void AnswersBimObjectCountAliasAsTotalSceneCount()
+        {
+            var context = BuildModelContext(elementCount: 362, modelRevision: 7);
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "How many BIM objects are currently loaded?",
+                "HOME",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("362 scene BIM/model object", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("cannot find a deterministic count", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public void AnswersBimCategoryBreakdownFromLiveFacts()
         {
             var context = BuildModelContext();
@@ -201,7 +245,15 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.False(AiBimProjectQuestionService.IsLiveBimDataQuestion("Are you able to extract the type of building or usage of the building?"));
         }
 
-        private static AiWorkflowContextSnapshot BuildModelContext(IReadOnlyDictionary<string, string>? facts = null, int elementCount = 2483, long modelRevision = 7, int tableTotalCount = 2382, int visibleTableCount = 2351)
+        private static AiWorkflowContextSnapshot BuildModelContext(
+            IReadOnlyDictionary<string, string>? facts = null,
+            int elementCount = 2483,
+            long modelRevision = 7,
+            int tableTotalCount = 2382,
+            int visibleTableCount = 2351,
+            int zoneCount = 0,
+            int allowedZoneCount = 0,
+            int forbiddenZoneCount = 0)
         {
             var modelFacts = facts ?? new Dictionary<string, string>
             {
@@ -223,7 +275,9 @@ namespace CraneOptimizer.Application.Tests.AI
                 ElementCount = elementCount,
                 ElementTableTotalCount = tableTotalCount,
                 ElementTableVisibleCount = visibleTableCount,
-                ZoneCount = 0,
+                ZoneCount = zoneCount,
+                AllowedZoneCount = allowedZoneCount,
+                ForbiddenZoneCount = forbiddenZoneCount,
                 CraneCount = 0,
                 OptimizationResult = new AiOptimizationResultSnapshot { HasResult = false },
                 ScreenContexts = new[]

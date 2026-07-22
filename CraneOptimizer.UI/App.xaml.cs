@@ -189,7 +189,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<CraneOptimizer.UI.Features.F8_GAOptimizer.Services.IGADiagnosticsWindowService, CraneOptimizer.UI.Features.F8_GAOptimizer.Services.GADiagnosticsWindowService>();
 
             // =========================
-            // AI Advisor / Local Ollama Copilot
+            // AI Assist / Local Ollama Studio
             // =========================
             services.AddCraneOptimizerAi();
             services.AddSingleton<IAiScreenContextContributor, IfcAiContextContributor>();

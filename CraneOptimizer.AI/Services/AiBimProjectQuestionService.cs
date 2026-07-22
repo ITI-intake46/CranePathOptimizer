@@ -97,6 +97,12 @@ namespace CraneOptimizer.AI.Services
                 return true;
             }
 
+            if (TryBuildSceneInputSummaryAnswer(context, visibleQuestion, activeScreen, out answer))
+            {
+                source = "Deterministic BIM object and zone count answer produced locally from live project facts.";
+                return true;
+            }
+
             if (TryBuildThresholdAnswer(context, visibleQuestion, activeScreen, out answer))
             {
                 source = "Deterministic BIM threshold/count answer produced locally from live model facts.";
@@ -126,11 +132,47 @@ namespace CraneOptimizer.AI.Services
             return true;
         }
 
+        private static bool TryBuildSceneInputSummaryAnswer(AiWorkflowContextSnapshot context, string question, string? activeScreen, out string answer)
+        {
+            answer = string.Empty;
+            var text = NormalizeQuestion(question);
+            var asksForBimObjects = ContainsAny(
+                text,
+                "bim object", "bim objects", "model object", "model objects", "scene object", "scene objects",
+                "how many elements", "total elements", "element count", "number of elements", "count elements");
+            var asksForZones = ContainsAny(text, "zone", "zones", "placement zone", "placement zones");
+
+            if (!asksForBimObjects || !asksForZones)
+                return false;
+
+            var builder = new StringBuilder();
+            builder.AppendLine("## Answer");
+            builder.AppendLine($"The current project has {context.ElementCount:N0} BIM/model object(s) and {context.ZoneCount:N0} zone(s).");
+            builder.AppendLine();
+            builder.AppendLine("## Evidence");
+            AppendModelEvidence(builder, context, activeScreen);
+            builder.AppendLine($"- BIM/model objects in the captured scene: {context.ElementCount:N0}");
+            builder.AppendLine($"- Zones: {context.ZoneCount:N0} total ({context.AllowedZoneCount:N0} allowed/green, {context.ForbiddenZoneCount:N0} forbidden)");
+            AppendCountScopeEvidence(builder, context);
+            builder.AppendLine();
+            builder.AppendLine("## Next Click");
+            builder.AppendLine("Use IFC MODEL to inspect/export model objects, or ZONES to review the allowed and forbidden placement areas.");
+            builder.AppendLine();
+            builder.AppendLine("## Confidence");
+            builder.AppendLine("High — both counts come directly from the same captured live project snapshot.");
+            answer = builder.ToString().Trim();
+            return true;
+        }
+
         private static bool TryBuildTotalElementAnswer(AiWorkflowContextSnapshot context, string question, string? activeScreen, out string answer)
         {
             answer = string.Empty;
             var text = NormalizeQuestion(question);
-            var asksTotalElements = ContainsAny(text, "how many elements", "total elements", "element count", "number of elements", "count elements")
+            var asksTotalElements = ContainsAny(
+                                        text,
+                                        "how many elements", "total elements", "element count", "number of elements", "count elements",
+                                        "how many bim objects", "total bim objects", "bim object count", "number of bim objects", "count bim objects",
+                                        "how many model objects", "total model objects", "model object count", "number of model objects")
                                     && !CategoryTargets.Any(target => ContainsAny(text, target.Aliases));
             if (!asksTotalElements)
                 return false;

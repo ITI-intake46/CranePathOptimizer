@@ -11,8 +11,7 @@
     xmlns:F18Views="clr-namespace:CraneOptimizer.UI.Features.F18_CoordinateReference.Views"
     xmlns:project="clr-namespace:CraneOptimizer.UI.F10_ProjectManagement.Views"
     xmlns:ReportViews="clr-namespace:CraneOptimizer.UI.Features.F12_Reports.Views"
-    xmlns:config="clr-namespace:CraneOptimizer.UI.Core.Configuration"
-    xmlns:AiAdvisorViews="clr-namespace:CraneOptimizer.AI.Views;assembly=CraneOptimizer.AI">
+    xmlns:config="clr-namespace:CraneOptimizer.UI.Core.Configuration">
 
     <Border
         Background="{DynamicResource SurfaceBrush}"
@@ -83,13 +82,6 @@
                         Content="REPORTS"
                         GroupName="RibbonTabs"
                         Style="{StaticResource RibbonTabBtn}" />
-                    <RadioButton
-                        x:Name="TabAiCopilot"
-                        Checked="Tab_Checked"
-                        Content="AI COPILOT"
-                        GroupName="RibbonTabs"
-                        Style="{StaticResource RibbonTabBtn}" />
-
                     <!-- Temporarily hidden by product decision. Keep logic intact for future re-enable. -->
                     <RadioButton
                         x:Name="TabSettings"
@@ -162,11 +154,6 @@
                     DataContext="{Binding CranePlacement}"
                     VerticalAlignment="Stretch"
                     Visibility="Collapsed" />
-                <AiAdvisorViews:AiAdvisorTabView
-                    x:Name="PanelAiCopilot"
-                    VerticalAlignment="Stretch"
-                    Visibility="Collapsed" />
-
                 <!-- Temporarily hidden by product decision. Keep logic intact for future re-enable. -->
                 <F9Views:UserSettingsView
                     x:Name="PanelSettings"

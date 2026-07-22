@@ -6,8 +6,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using CraneOptimizer.AI.Companion.ViewModels;
+using CraneOptimizer.AI.Configuration;
 using CraneOptimizer.AI.Host;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,6 +17,17 @@ namespace CraneOptimizer.AI.Companion.Views
 {
     public partial class AiCompanionPanel : UserControl
     {
+        private const double CollapsedSectionRailWidth = 14d;
+        private const double ExpandedSectionRailWidth = 38d;
+        private static readonly Duration SectionRailAnimationDuration = new(TimeSpan.FromMilliseconds(120));
+        private static readonly string[] SectionNames = { "Chat", "Mission", "BIM", "Optimize", "Report", "AI Studio" };
+
+        public static readonly DependencyProperty IsSectionRailExpandedProperty = DependencyProperty.Register(
+            nameof(IsSectionRailExpanded),
+            typeof(bool),
+            typeof(AiCompanionPanel),
+            new PropertyMetadata(true, OnSectionRailExpandedChanged));
+
         public static readonly RoutedEvent CloseRequestedEvent = EventManager.RegisterRoutedEvent(
             nameof(CloseRequested),
             RoutingStrategy.Bubble,
@@ -22,6 +35,14 @@ namespace CraneOptimizer.AI.Companion.Views
             typeof(AiCompanionPanel));
 
         private AiCompanionViewModel? _viewModel;
+        private IAiCopilotSettingsService? _settingsService;
+        private string? _pendingSectionName;
+
+        public bool IsSectionRailExpanded
+        {
+            get => (bool)GetValue(IsSectionRailExpandedProperty);
+            set => SetValue(IsSectionRailExpandedProperty, value);
+        }
 
         public event RoutedEventHandler CloseRequested
         {
@@ -45,6 +66,10 @@ namespace CraneOptimizer.AI.Companion.Views
             if (serviceProvider == null)
                 return;
 
+            _settingsService = serviceProvider.GetService<IAiCopilotSettingsService>();
+            if (_settingsService != null)
+                IsSectionRailExpanded = _settingsService.Current.IsSectionRailExpanded;
+
             _viewModel = serviceProvider.GetRequiredService<AiCompanionViewModel>();
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
             _viewModel.ComposerFocusRequested += OnComposerFocusRequested;
@@ -53,6 +78,42 @@ namespace CraneOptimizer.AI.Companion.Views
                 message.PropertyChanged += OnConversationMessagePropertyChanged;
 
             DataContext = _viewModel;
+            UpdateSectionRailState(animate: false);
+
+            if (!string.IsNullOrWhiteSpace(_pendingSectionName))
+            {
+                var pendingSection = _pendingSectionName;
+                _pendingSectionName = null;
+                OpenSection(pendingSection);
+            }
+            else
+            {
+                ScrollBodyToHome();
+            }
+        }
+
+        public void OpenSection(string sectionName)
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.Invoke(() => OpenSection(sectionName));
+                return;
+            }
+
+            var normalized = SectionNames.FirstOrDefault(
+                section => string.Equals(section, sectionName?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (string.IsNullOrWhiteSpace(normalized))
+                normalized = "AI Studio";
+
+            if (_viewModel == null)
+            {
+                _pendingSectionName = normalized;
+                return;
+            }
+
+            if (_viewModel.SelectCommandCenterTabCommand.CanExecute(normalized))
+                _viewModel.SelectCommandCenterTabCommand.Execute(normalized);
+
             ScrollBodyToHome();
         }
 
@@ -60,6 +121,81 @@ namespace CraneOptimizer.AI.Companion.Views
         {
             RaiseEvent(new RoutedEventArgs(CloseRequestedEvent));
             e.Handled = true;
+        }
+
+        private static void OnSectionRailExpandedChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
+        {
+            if (dependencyObject is AiCompanionPanel panel)
+                panel.UpdateSectionRailState(animate: panel.IsLoaded);
+        }
+
+        private void SectionRailToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            SetSectionRailExpanded(!IsSectionRailExpanded, persist: true);
+            e.Handled = true;
+        }
+
+        private void SetSectionRailExpanded(bool isExpanded, bool persist)
+        {
+            IsSectionRailExpanded = isExpanded;
+
+            if (!persist || _settingsService == null)
+                return;
+
+            _settingsService.Update(settings => settings.IsSectionRailExpanded = isExpanded);
+        }
+
+        private void UpdateSectionRailState(bool animate)
+        {
+            if (SectionRail == null || SectionRailToggleButton == null)
+                return;
+
+            var targetWidth = IsSectionRailExpanded
+                ? ExpandedSectionRailWidth
+                : CollapsedSectionRailWidth;
+
+            SectionRailToggleButton.ToolTip = IsSectionRailExpanded
+                ? "Collapse to the slim section spine"
+                : "Expand full vertical section labels";
+            SectionRailToggleGlyph.Text = IsSectionRailExpanded ? "›" : "‹";
+            System.Windows.Automation.AutomationProperties.SetName(
+                SectionRailToggleButton,
+                IsSectionRailExpanded ? "Collapse AI section rail" : "Expand AI section rail");
+
+            // Collapsing is intentionally immediate so the main AI content recovers width
+            // at the same moment the user retracts the rail. Only expansion is animated.
+            if (!animate || !IsSectionRailExpanded)
+            {
+                SectionRail.BeginAnimation(FrameworkElement.WidthProperty, null);
+                SectionRail.Width = targetWidth;
+                return;
+            }
+
+            var expectedExpandedState = IsSectionRailExpanded;
+            var currentWidth = SectionRail.ActualWidth > 0d
+                ? SectionRail.ActualWidth
+                : SectionRail.Width;
+            var animation = new DoubleAnimation
+            {
+                From = currentWidth,
+                To = targetWidth,
+                Duration = SectionRailAnimationDuration,
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            animation.Completed += (_, _) =>
+            {
+                if (IsSectionRailExpanded != expectedExpandedState)
+                    return;
+
+                SectionRail.BeginAnimation(FrameworkElement.WidthProperty, null);
+                SectionRail.Width = targetWidth;
+            };
+
+            SectionRail.BeginAnimation(
+                FrameworkElement.WidthProperty,
+                animation,
+                HandoffBehavior.SnapshotAndReplace);
         }
 
         private void BodyScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -180,24 +316,62 @@ namespace CraneOptimizer.AI.Companion.Views
 
         private void SectionRail_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
+            MoveSectionSelection(e.Delta < 0 ? 1 : -1);
+            e.Handled = true;
+        }
+
+        private void SectionRail_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            switch (e.Key)
+            {
+                case Key.Left:
+                    SetSectionRailExpanded(true, persist: true);
+                    break;
+                case Key.Right:
+                    SetSectionRailExpanded(false, persist: true);
+                    break;
+                case Key.Up:
+                    MoveSectionSelection(-1);
+                    break;
+                case Key.Down:
+                    MoveSectionSelection(1);
+                    break;
+                case Key.Home:
+                    SelectSection(0);
+                    break;
+                case Key.End:
+                    SelectSection(SectionNames.Length - 1);
+                    break;
+                default:
+                    return;
+            }
+
+            e.Handled = true;
+        }
+
+        private void MoveSectionSelection(int delta)
+        {
             if (_viewModel == null)
                 return;
 
-            var sections = new[] { "Chat", "Mission", "BIM", "Optimize", "Report", "AI Studio" };
             var currentIndex = Array.FindIndex(
-                sections,
+                SectionNames,
                 section => string.Equals(section, _viewModel.SelectedCommandCenterTab, StringComparison.OrdinalIgnoreCase));
 
             if (currentIndex < 0)
                 currentIndex = 0;
 
-            var requestedIndex = currentIndex + (e.Delta < 0 ? 1 : -1);
-            var nextIndex = Math.Max(0, Math.Min(sections.Length - 1, requestedIndex));
+            SelectSection(Math.Clamp(currentIndex + delta, 0, SectionNames.Length - 1));
+        }
 
-            if (nextIndex != currentIndex && _viewModel.SelectCommandCenterTabCommand.CanExecute(sections[nextIndex]))
-                _viewModel.SelectCommandCenterTabCommand.Execute(sections[nextIndex]);
+        private void SelectSection(int index)
+        {
+            if (_viewModel == null || index < 0 || index >= SectionNames.Length)
+                return;
 
-            e.Handled = true;
+            var section = SectionNames[index];
+            if (_viewModel.SelectCommandCenterTabCommand.CanExecute(section))
+                _viewModel.SelectCommandCenterTabCommand.Execute(section);
         }
 
         private void ComposerResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
@@ -232,6 +406,7 @@ namespace CraneOptimizer.AI.Companion.Views
             }
 
             _viewModel = null;
+            _settingsService = null;
             DataContext = null;
         }
     }

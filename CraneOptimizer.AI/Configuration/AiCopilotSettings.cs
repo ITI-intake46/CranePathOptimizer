@@ -3,15 +3,18 @@ using System.Collections.Generic;
 namespace CraneOptimizer.AI.Configuration
 {
     /// <summary>
-    /// User-facing AI Copilot preferences persisted outside the project database.
+    /// User-facing AI Assist and AI Studio preferences persisted outside the project database.
     /// These settings intentionally affect only AI UX behavior; they do not alter
     /// crane calculations, GA configuration, IFC data, zones, or report outputs.
     /// </summary>
     public sealed class AiCopilotSettings
     {
+        public string DefaultProviderId { get; set; } = "ollama";
         public string DefaultModelName { get; set; } = "llama3.2:latest";
+        public string OllamaEndpoint { get; set; } = "http://localhost:11434/";
         public bool IsCompanionVisible { get; set; } = true;
         public bool IsAiAssistDockVisible { get; set; }
+        public bool IsSectionRailExpanded { get; set; } = true;
         public string DockPreference { get; set; } = "Right";
         public bool AutoCheckOllamaOnStartup { get; set; }
         public bool ShowContextInspectorByDefault { get; set; }
@@ -19,6 +22,10 @@ namespace CraneOptimizer.AI.Configuration
         public int BenchmarkModelLimit { get; set; } = 3;
         public int RequestTimeoutSeconds { get; set; } = 120;
         public double Temperature { get; set; } = 0.2;
+        public int MaxSystemPromptCharacters { get; set; } = 40_000;
+        public int MaxUserPromptCharacters { get; set; } = 20_000;
+        public int MaxContextCharacters { get; set; } = 500_000;
+        public int TelemetryBufferCapacity { get; set; } = 500;
 
         public bool UseStreamingResponses { get; set; } = true;
         public bool SaveConversationHistory { get; set; } = true;

@@ -1,3 +1,4 @@
+using CraneOptimizer.AI.Host;
 using CraneOptimizer.UI.AIIntegration;
 using CraneOptimizer.UI.Core.Helpers;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
@@ -14,19 +15,27 @@ namespace CraneOptimizer.UI.Shell.Views
         private const double CranePropertiesMinWidth = 330;
         private const double CranePropertiesMaxWidth = 380;
         private const double CranePropertiesDefaultWidth = 360;
-        private const double AiAssistMinWidth = 400;
-        private const double AiAssistPreferredWidth = 400;
-        private const double AiAssistMaxWidth = 480;
+        private const double AiAssistMinWidth = 360;
+        private const double AiAssistPreferredWidth = 380;
+        private const double AiAssistMaxWidth = 460;
 
         private readonly IProjectNavigationService _nav;
+        private readonly IUiInteractionContextService _uiContext;
         private GridLength _rightWorkspaceWidthBeforeAi = new(CranePropertiesDefaultWidth);
         private bool _isAiAssistWidthActive;
 
-        public MainWindow(MainViewModel vm, IProjectNavigationService nav, AiHostContextBridge aiContextBridge)
+        public MainWindow(
+            MainViewModel vm,
+            IProjectNavigationService nav,
+            AiHostContextBridge aiContextBridge,
+            IUiInteractionContextService uiContext)
         {
             InitializeComponent();
             DataContext = vm;
             _nav = nav;
+            _uiContext = uiContext ?? throw new ArgumentNullException(nameof(uiContext));
+            _uiContext.ActionRequested += OnAiActionRequested;
+            Closed += OnClosed;
             aiContextBridge.Attach(vm);
             AddHandler(
                 HomeTabView.ProjectSettingsRequestedEvent,
@@ -34,6 +43,44 @@ namespace CraneOptimizer.UI.Shell.Views
             MaximizeTaskbarHelper.Attach(this, MaximizeButton);
             // Apply initial maximize after source is initialized
             Loaded += (_, _) => MaximizeTaskbarHelper.ToggleMaximize(this, MaximizeButton);
+        }
+
+        private void OnClosed(object? sender, EventArgs e)
+        {
+            _uiContext.ActionRequested -= OnAiActionRequested;
+        }
+
+        private void OnAiActionRequested(object? sender, AiUiActionRequestedEventArgs e)
+        {
+            if (!string.Equals(e.ActionType, "NavigateTab", StringComparison.OrdinalIgnoreCase)
+                || !IsLegacyAiWorkspaceTarget(e.Target))
+            {
+                return;
+            }
+
+            Dispatcher.Invoke(OpenAiAssistStudio);
+        }
+
+        private static bool IsLegacyAiWorkspaceTarget(string? target)
+        {
+            var normalized = (target ?? string.Empty)
+                .Trim()
+                .Replace('_', ' ')
+                .Replace('-', ' ')
+                .ToUpperInvariant();
+
+            return normalized.Contains("COPILOT", StringComparison.Ordinal)
+                || normalized.Contains("AI STUDIO", StringComparison.Ordinal)
+                || normalized.Contains("AI ASSIST", StringComparison.Ordinal)
+                || normalized.Contains("AIADVISOR", StringComparison.Ordinal)
+                || normalized.Equals("AI", StringComparison.Ordinal)
+                || normalized.Equals("STUDIO", StringComparison.Ordinal);
+        }
+
+        private void OpenAiAssistStudio()
+        {
+            OpenAiAssistTab();
+            AiAssistPanel.OpenSection("AI Studio");
         }
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => DragMove();

@@ -94,7 +94,8 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             ToggleExpandedCommand = new RelayCommand(ToggleExpanded);
             CollapseCommand = new RelayCommand(() => IsExpanded = false);
             ToggleQuietModeCommand = new RelayCommand(() => IsQuietMode = !IsQuietMode);
-            OpenFullCopilotCommand = new RelayCommand(OpenFullCopilot);
+            OpenFullStudioCommand = new RelayCommand(OpenFullStudio);
+            PrepareLocalOllamaQuestionCommand = new RelayCommand(PrepareLocalOllamaQuestion);
             AnalyzeHereCommand = new RelayCommand(AnalyzeHere);
             AskFromHereCommand = new RelayCommand(AskFromHere, () => !Advisor.IsBusy);
             AskToggleCommand = new RelayCommand(ToggleAskOrStop, () => Advisor.IsBusy ? Advisor.CanCancel : true);
@@ -131,7 +132,9 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         public ICommand ToggleExpandedCommand { get; }
         public ICommand CollapseCommand { get; }
         public ICommand ToggleQuietModeCommand { get; }
-        public ICommand OpenFullCopilotCommand { get; }
+        public ICommand OpenFullStudioCommand { get; }
+        public ICommand OpenFullCopilotCommand => OpenFullStudioCommand;
+        public ICommand PrepareLocalOllamaQuestionCommand { get; }
         public ICommand AnalyzeHereCommand { get; }
         public ICommand AskFromHereCommand { get; }
         public ICommand AskToggleCommand { get; }
@@ -186,6 +189,9 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 if (_questionText == value) return;
                 _questionText = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(IsProjectReadinessAgentQuestion));
+                OnPropertyChanged(nameof(AskToggleLabel));
+                OnPropertyChanged(nameof(AskToggleToolTip));
             }
         }
 
@@ -564,12 +570,15 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             }
         }
 
-        public string AskToggleLabel => Advisor.IsBusy ? "Stop" : "Send";
+        public bool IsProjectReadinessAgentQuestion => !Advisor.IsBusy && Advisor.CanRunProjectReadinessAgent(QuestionText);
+        public string AskToggleLabel => Advisor.IsBusy ? "Stop" : IsProjectReadinessAgentQuestion ? "Run Agent" : "Send";
         public string AskToggleToolTip => Advisor.IsBusy
             ? "Stop the current local Ollama response."
-            : "Send the visible question with private live project context. Enter also sends.";
+            : IsProjectReadinessAgentQuestion
+                ? "Run the governed Project Readiness Agent with typed read-only project tools."
+                : "Send the visible question with private live project context. Enter also sends.";
 
-        public string CollapsedTitle => $"AI Copilot · {WorkflowStage}";
+        public string CollapsedTitle => $"AI Assist · {WorkflowStage}";
         public string CollapsedSubText => IsQuietMode ? "Quiet mode enabled" : CurrentHint;
         public string QuietModeLabel => IsQuietMode ? "Quiet" : "Quiet mode";
         public double PanelWidth => IsExpanded ? 460d : 320d;
@@ -639,7 +648,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             else
             {
                 CurrentHint = snapshot.Summary;
-                NextAction = "Review AI Assist context or open Full Copilot.";
+                NextAction = "Review AI Assist context or open AI Studio.";
             }
 
             WorkflowChecklist.Clear();
@@ -1198,6 +1207,18 @@ namespace CraneOptimizer.AI.Companion.ViewModels
 
             var readiness = _workflowReadinessService.Evaluate(liveContext, uiContextAtSend);
 
+            if (Advisor.CanRunProjectReadinessAgent(visibleQuestion))
+            {
+                await Advisor.RunProjectReadinessAgentAsync(
+                    liveContext,
+                    visibleQuestion,
+                    activeScreenAtSend,
+                    nextActionAtSend).ConfigureAwait(true);
+                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(Advisor.AiAnswer, liveContext));
+                FocusChatForSubmittedPrompt();
+                return;
+            }
+
             if (AiIntentOrchestrator.TryBuildDeterministicAnswer(
                     liveContext,
                     readiness,
@@ -1276,7 +1297,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                     _liveAssistantMessage.Body = Advisor.HasAiAnswer
                         ? Advisor.AiAnswer
                         : string.IsNullOrWhiteSpace(Advisor.LastError)
-                            ? "No visible AI answer was produced. Check Ollama status or open Full Copilot for details."
+                            ? "No visible AI answer was produced. Check Ollama status or open AI Studio for details."
                             : Advisor.LastError;
                     FocusChatForSubmittedPrompt();
                 }
@@ -1341,11 +1362,21 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             FocusChatForSubmittedPrompt();
         }
 
-        private void OpenFullCopilot()
+        private void OpenFullStudio()
         {
             RefreshContext();
             Advisor.AnalyzeCurrentResult();
             _windowService.Show();
+        }
+
+        private void PrepareLocalOllamaQuestion()
+        {
+            RefreshContext();
+            IsExpanded = true;
+            SelectedCommandCenterTab = "Chat";
+            if (string.IsNullOrWhiteSpace(QuestionText))
+                QuestionText = "Explain the current project state and recommended next step.";
+            RequestComposerFocus();
         }
 
         private void ToggleExpanded()

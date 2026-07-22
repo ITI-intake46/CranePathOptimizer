@@ -5,7 +5,7 @@ namespace CraneOptimizer.AI.Rendering
 {
     /// <summary>
     /// WPF-native Markdown preview for AI responses.
-    /// The control can either own its vertical scroll bar (full Copilot window)
+    /// The control can either own its vertical scroll bar (full AI Studio window)
     /// or yield scrolling to a parent ScrollViewer (right-docked AI Assist) to avoid
     /// nested two-step scrolling in constrained side panels.
     /// </summary>

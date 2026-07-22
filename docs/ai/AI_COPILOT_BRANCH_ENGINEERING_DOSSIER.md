@@ -1,19 +1,19 @@
-# AI Copilot Branch Engineering Dossier
+# AI Assist / AI Studio Branch Engineering Dossier
 
 **Repository:** `ITI-intake46/CranePathOptimizer`  
 **Product:** IFC Building Analyzer — Crane Planner Edition  
-**Branch lineage:** `div` AI Copilot enhancement branch  
-**Canonical AI documentation status:** Current, final-state engineering dossier for the AI Copilot branch  
+**Branch lineage:** AI platform enhancement branch
+**Canonical AI documentation status:** Current, final-state engineering dossier for AI Assist and AI Studio
 **Prepared for:** senior maintainers, reviewers, research collaborators, safety reviewers, future contributors  
 **Prepared on:** 2026-06-27  
 **Primary implementation area:** `CraneOptimizer.AI` plus thin host adapters in `CraneOptimizer.UI/AIIntegration`  
-**Latest branch snapshot represented by this document:** AI Assist professional chat polish + full Copilot sleek composer/spacing refinements  
+**Latest branch snapshot represented by this document:** sleek AI Assist vertical rail + removal of the top-level AI Copilot tab + Studio action integration
 
 ---
 
 ## Documentation Authority Notice
 
-This document is the **canonical branch-level engineering dossier** for the AI Copilot work. It supersedes the earlier incremental AI notes that were created during iterative development, including but not limited to Markdown preview fixes, docked companion notes, UX consolidation notes, future-work completion notes, full-window polish notes, and side-panel polish notes.
+This document is the **canonical branch-level engineering dossier** for the AI Assist / AI Studio work. It supersedes the earlier incremental AI notes that were created during iterative development, including but not limited to Markdown preview fixes, docked companion notes, UX consolidation notes, future-work completion notes, full-window polish notes, and side-panel polish notes.
 
 Those earlier files may remain useful as historical implementation notes, but future contributors should treat this dossier as the authoritative description of the **current branch state**. When a statement in an older incremental AI document conflicts with this dossier, this dossier should be considered the source of truth.
 
@@ -58,12 +58,12 @@ If maintaining a documentation index, link this file as the canonical branch imp
 
 ## 1. Executive Summary
 
-This branch adds a **local-first AI Optimization Copilot** to CranePathOptimizer. The feature gives users a professional AI-assisted workflow layer for understanding crane-optimization readiness, interpreting deterministic optimization results, asking local Ollama models about the current workflow, and producing auditable AI explanation text for review or report appendices.
+This branch adds a **local-first AI Optimization Studio** to CranePathOptimizer. The feature gives users a professional AI-assisted workflow layer for understanding crane-optimization readiness, interpreting deterministic optimization results, asking local Ollama models about the current workflow, and producing auditable AI explanation text for review or report appendices.
 
 The branch introduces two complementary AI surfaces:
 
-1. **Full AI Optimization Copilot window** — a larger, professional command-center window for model selection, deterministic analysis, local Ollama chat, Markdown answer review, recent answers, report appendix generation, context inspection, prompt-template inspection, local documentation snippets, XAML inventory, and benchmarking.
-2. **Right-docked AI Assist panel** — a compact in-workspace companion with workflow readiness, next action, live chat, stateful Send/Stop behavior, resizable prompt composer, safe navigation proposals, evidence, context copy, answer copy, and full-Copilot launch.
+1. **Full AI Optimization Studio window** — a larger, professional command-center window for model selection, deterministic analysis, local Ollama chat, Markdown answer review, recent answers, report appendix generation, context inspection, prompt-template inspection, local documentation snippets, XAML inventory, and benchmarking.
+2. **Right-docked AI Assist panel** — a compact in-workspace companion with workflow readiness, next action, live chat, stateful Send/Stop behavior, resizable prompt composer, safe navigation proposals, evidence, context copy, answer copy, and Studio action access.
 
 The branch is intentionally **advisory-only**. It does not replace the Genetic Algorithm, load-chart capacity resolver, PDF load-chart parser, report generation pipeline, IFC loader, zone geometry, crane setup logic, or diagnostics. Instead, it reads the deterministic state produced by those systems, explains it, and proposes safe next steps that require user confirmation.
 
@@ -73,7 +73,7 @@ The branch is intentionally **advisory-only**. It does not replace the Genetic A
 |---|---|
 | AI behavior | Local-first Ollama integration plus deterministic advisor fallback. |
 | Safety model | Advisory only; no automatic crane-planning changes or lift-plan certification. |
-| UX model | Full Copilot window for deep work; right-docked AI Assist for in-context guidance. |
+| UX model | Right-docked AI Assist is the cross-workflow entry point; its Studio section opens the full AI Optimization Studio for deep work. |
 | Streaming | Ollama streaming updates feed live Markdown/chat previews with cancellation. |
 | Composer design | Modern single action button: **Send** when idle, **Stop** while generating. |
 | Transparency | Context cards, evidence, raw Markdown, context JSON, local docs, XAML inventory, and model benchmarks remain inspectable. |
@@ -114,7 +114,7 @@ The objective is not only to say **what** changed, but to capture **why** it cha
 | Preserve deterministic engineering authority | AI reads and explains optimizer/report/IFC state; it does not modify GA mathematics, load-chart capacity, crane setup, or report validation. |
 | Improve user workflow guidance | Added readiness scoring, next action, safe navigation proposals, exact tab/button references, and AI Assist. |
 | Maintain auditability | Added evidence lists, context JSON, raw Markdown, context cards, local docs, prompt templates, benchmarks, and report appendix disclaimers. |
-| Make the UX professional | Iteratively refined the UI into a sleek full Copilot window and compact right-side live chat panel with resizable composers and stateful Send/Stop buttons. |
+| Make the UX professional | Iteratively refined the UI into a sleek full AI Studio window and compact right-side live chat panel with resizable composers and stateful Send/Stop buttons. |
 | Preserve maintainability | Consolidated AI code into the isolated `CraneOptimizer.AI` project, with UI host adapters kept under `CraneOptimizer.UI/AIIntegration`. |
 | Add regression coverage | Added AI tests for deterministic advisor, software context, prompt template selection, UI contract strings, and confirmable navigation actions. |
 
@@ -126,7 +126,7 @@ The objective is not only to say **what** changed, but to capture **why** it cha
 | Automatically modify crane-planning data | AI actions are advisory; navigation proposals are safe and explicit. Project state mutations remain user-driven. |
 | Send project context to cloud AI services | The branch uses local Ollama only. |
 | Auto-install large models silently | Model pull is explicit and user-triggered; model storage/network cost must remain visible. |
-| Redesign the entire WPF shell | Shell changes are limited to AI tab integration, right dock, and bottom companion strip. |
+| Redesign the entire WPF shell | Shell changes are limited to removing the redundant AI ribbon tab, integrating advanced actions into AI Assist → Studio, and retaining the right dock and bottom companion strip. |
 | Replace existing report/PDF/export engines | AI report appendix generation is Markdown-oriented and separate from the existing QuestPDF/report exporters. |
 | Change IFC, DXF, crane, load-chart, zone, or diagnostics behavior | These systems are consumed as read-only context by the AI layer. |
 | Add Streamlit UI behavior | No Streamlit UI component is present in this WPF branch. Streamlit impact is therefore not applicable. |
@@ -166,9 +166,9 @@ The AI branch layers over these systems. It does not move ownership of crane cal
 
 ## 5. Final User-Facing Behavior
 
-### 5.1 Full AI Optimization Copilot Window
+### 5.1 Full AI Optimization Studio Window
 
-The full Copilot window is the primary deep-work AI surface. It is reachable from the `AI COPILOT` ribbon area and through the `Full` action in AI Assist.
+The full AI Optimization Studio is the primary deep-work AI surface. It is reachable from **AI ASSIST → STUDIO → Open Full Studio**. There is no top-level AI ribbon tab.
 
 Final UX characteristics:
 
@@ -177,7 +177,7 @@ Final UX characteristics:
 - left rail for deterministic advisor, quick questions, and recent answers;
 - answer-first main area with Markdown preview;
 - collapsed audit details for advanced review;
-- bottom `ASK COPILOT` composer;
+- bottom `ASK AI STUDIO` composer;
 - stateful single action button: `Send` while idle and `Stop` while Ollama is generating;
 - Enter-to-send and Shift+Enter-for-new-line behavior;
 - draggable splitter above the composer to resize prompt space;
@@ -201,7 +201,7 @@ Final UX characteristics:
 - draggable composer resize grip;
 - single stateful `Send`/`Stop` button;
 - Enter-to-send and Shift+Enter-new-line;
-- compact footer micro-actions for refresh, full Copilot, copy context, and copy answer;
+- compact footer micro-actions for refresh, copy context, and copy answer;
 - confirmable action proposals under an expander;
 - evidence and readiness details under an expander.
 
@@ -211,9 +211,15 @@ The side panel preserves the full feature set while prioritizing daily usability
 
 The bottom strip provides non-intrusive status and access to AI Assist. It avoids the earlier floating overlay problem and keeps the 3D viewport and properties panel usable.
 
-### 5.4 AI COPILOT Ribbon Tab
+### 5.4 AI Assist Studio Integration
 
-The ribbon tab exposes open full Copilot, analyze current result, ask local Ollama, and current deterministic health state. The tab integrates with the existing shell rather than bypassing project navigation.
+The main ribbon ends at **REPORTS**. The former AI Copilot ribbon commands are consolidated into **AI ASSIST → STUDIO**:
+
+- **Open Full Studio** opens the complete AI Optimization Studio window.
+- **Analyze Current Result** runs deterministic advisor rules without requiring Ollama.
+- **Ask Local Ollama** opens Chat and focuses the private prompt composer for the selected local model.
+
+Legacy `NavigateTab` requests that target `AI COPILOT`, `AI STUDIO`, `AI ASSIST`, or the old advisor view are intercepted by the shell and redirected to the visible AI Assist Studio section without changing the active engineering ribbon tab.
 
 ---
 
@@ -223,7 +229,7 @@ The ribbon tab exposes open full Copilot, analyze current result, ask local Olla
 
 ```mermaid
 flowchart LR
-    UI[CraneOptimizer.UI\nWPF views, ViewModels, AI Assist, full Copilot]
+    UI[CraneOptimizer.UI\nWPF views, ViewModels, AI Assist, full AI Studio]
     APP[CraneOptimizer.Application\nAI DTOs, interfaces, deterministic advisor, software context]
     INFRA[CraneOptimizer.Infrastructure\nOllama HTTP adapters]
     EXISTING[Existing deterministic systems\nGA, IFC, reports, load charts, zones, diagnostics]
@@ -244,7 +250,7 @@ flowchart LR
 | Domain | Core crane/project entities | No AI changes. |
 | Application | Contracts, DTOs, deterministic logic | AI DTOs, interfaces, deterministic advisor, static software context. |
 | Infrastructure | External integration | Ollama chat/model management adapters. |
-| UI | WPF presentation and orchestration | Full Copilot window, AI Assist, companion strip, settings, workflow readiness, prompt templates, report appendix, Markdown renderer. |
+| UI | WPF presentation and orchestration | Full AI Studio window, AI Assist, companion strip, settings, workflow readiness, prompt templates, report appendix, Markdown renderer. |
 | Tests | Regression coverage | AI advisor, software context, maturity/contract tests. |
 
 AI code owns AI settings/history JSON, prompt composition, AI UI state, advisory output, and AI appendix Markdown. AI code does **not** own IFC data, geometry, crane capacity calculations, GA solution generation, load chart parsing, report engine validation, database schema, or installer behavior.
@@ -288,7 +294,7 @@ AI code owns AI settings/history JSON, prompt composition, AI UI state, advisory
 
 **How:** `OllamaChatService` posts to `/api/chat`, supports streaming line-by-line JSON response parsing, cancellation, timeout handling, and buffered fallback. `OllamaModelManagementService` checks version/model tags and performs explicit model pulls.
 
-**Downstream impact:** Full Copilot and AI Assist can show live answer previews and stop generation. No external cloud dependency is introduced.
+**Downstream impact:** Full AI Studio and AI Assist can show live answer previews and stop generation. No external cloud dependency is introduced.
 
 ### 8.3 Prompt Routing and Context Prioritization
 
@@ -326,7 +332,7 @@ AI code owns AI settings/history JSON, prompt composition, AI UI state, advisory
 
 **Downstream impact:** Safe tab navigation becomes guided and auditable. No model loading, file opening, crane changing, or optimizer running happens automatically.
 
-### 8.6 Full Copilot Professional Window
+### 8.6 Full AI Studio Professional Window
 
 **What changed:** The full window was transformed from a dense panel into a sleek, answer-first assistant surface.
 
@@ -348,7 +354,7 @@ AI code owns AI settings/history JSON, prompt composition, AI UI state, advisory
 
 **How:** The panel now has one scroll body, live chat, streaming preview, compact composer, resize grip, stateful Send/Stop, micro footer actions, explicit next action, and expanders for advanced material.
 
-**Downstream impact:** AI Assist is usable during modeling without opening the full Copilot window.
+**Downstream impact:** AI Assist is usable during modeling without opening the full AI Studio window.
 
 ### 8.8 Markdown Rendering
 
@@ -461,7 +467,7 @@ No installer, publish profile, NuGet package, or project-file dependency change 
 | `CraneOptimizer.CraneOptimizer.AI/DTOs/AiRecommendationSeverity.cs` | Application DTO | Defines Info, Success, Warning, and Critical advisor severity levels. | Keeps severity values explicit and stable for UI mapping. |
 | `CraneOptimizer.CraneOptimizer.AI/DTOs/AiChatRequestDto.cs` | Application DTO | Defines model, system prompt, visible user prompt, context JSON, temperature, timeout, and streaming preference. | Separates visible question from private context and enables local model configuration. |
 | `CraneOptimizer.CraneOptimizer.AI/DTOs/AiChatResponseDto.cs` | Application DTO | Represents success/error response from any AI chat provider. | Keeps Infrastructure errors isolated from UI logic. |
-| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiStreamingUpdateDto.cs` | Application DTO | Represents token/fragment updates from streaming providers. | Enables live preview in the full Copilot and side AI Assist. |
+| `CraneOptimizer.CraneOptimizer.AI/DTOs/AiStreamingUpdateDto.cs` | Application DTO | Represents token/fragment updates from streaming providers. | Enables live preview in the full AI Studio and side AI Assist. |
 | `CraneOptimizer.CraneOptimizer.AI/DTOs/AiModelStatusDto.cs` | Application DTO | Captures Ollama availability, endpoint, version, installed models, and error message. | Supports model diagnostics without coupling UI to HTTP schema. |
 | `CraneOptimizer.CraneOptimizer.AI/DTOs/AiSoftwareContextDto.cs` | Application DTO | Defines framework, tab/action inventory, workflows, and safety guardrails. | Supplies stable software context for local AI reasoning and audit displays. |
 | `CraneOptimizer.CraneOptimizer.AI/Interfaces/IAiOptimizationAdvisorService.cs` | Application interface | Contract for deterministic optimization analysis. | Maintains clean Application-layer boundary. |
@@ -473,12 +479,12 @@ No installer, publish profile, NuGet package, or project-file dependency change 
 | `CraneOptimizer.CraneOptimizer.AI/Services/StaticAiSoftwareContextService.cs` | Application service | Static software map for framework, feature tabs, actions, workflows, and guardrails. | Improves workflow-aware AI answers and reduces model hallucination risk. |
 | `CraneOptimizer.CraneOptimizer.AI/Providers/Ollama/OllamaChatService.cs` | Infrastructure adapter | Calls local Ollama `/api/chat`; supports streaming and buffered modes, timeout, cancellation, and error reporting. | Optional local LLM explanation layer; no cloud dependency. |
 | `CraneOptimizer.CraneOptimizer.AI/Providers/Ollama/OllamaModelManagementService.cs` | Infrastructure adapter | Calls Ollama `/api/version`, `/api/tags`, and `/api/pull`. | Enables local model status, selection, and explicit pull workflow. |
-| `CraneOptimizer.AI/ViewModels/AiAdvisorViewModel.cs` | UI ViewModel | Coordinates context building, deterministic advisor, Ollama calls, streaming updates, history, export, benchmark, prompt templates, and audit surfaces. | Primary orchestration point for the full Copilot window. |
-| `CraneOptimizer.AI/Views/AiAdvisorWindow.xaml` | UI view | Sleek full Copilot window with compact header, left rail, answer surface, audit disclosure, resizable bottom composer, and single Send/Stop action. | Professional desktop AI command center while preserving advanced audit features. |
+| `CraneOptimizer.AI/ViewModels/AiAdvisorViewModel.cs` | UI ViewModel | Coordinates context building, deterministic advisor, Ollama calls, streaming updates, history, export, benchmark, prompt templates, and audit surfaces. | Primary orchestration point for the full AI Studio window. |
+| `CraneOptimizer.AI/Views/AiAdvisorWindow.xaml` | UI view | Sleek full AI Studio window with compact header, left rail, answer surface, audit disclosure, resizable bottom composer, and single Send/Stop action. | Professional desktop AI command center while preserving advanced audit features. |
 | `CraneOptimizer.AI/Views/AiAdvisorWindow.xaml.cs` | UI code-behind | Handles composer keyboard behavior and window sizing/lifecycle support. | Allows Enter-to-send, Shift+Enter newline, and native window behavior. |
-| `CraneOptimizer.AI/Views/AiAdvisorTabView.xaml` | UI tab | Ribbon-hosted AI Copilot entry surface. | Provides feature discovery inside the existing WPF navigation model. |
+| `CraneOptimizer.AI/Views/AiAdvisorTabView.xaml` | Legacy UI surface | Preserved implementation of the former ribbon command group, no longer mounted in `TopNavigation`. | Keeps underlying actions available for compatibility while the supported entry point is AI Assist → Studio. |
 | `CraneOptimizer.AI/Views/AiAdvisorTabView.xaml.cs` | UI code-behind | Bridges tab UI events to the advisor window service. | Keeps full window launch separate from shell navigation. |
-| `CraneOptimizer.AI/Companion/ViewModels/AiCompanionViewModel.cs` | UI ViewModel | Right-side AI Assist orchestration: workflow readiness, live chat, stateful Send/Stop, resizable prompt, actions, evidence, context copy, and full Copilot launch. | Makes AI guidance available in context without blocking the 3D workspace. |
+| `CraneOptimizer.AI/Companion/ViewModels/AiCompanionViewModel.cs` | UI ViewModel | Right-side AI Assist orchestration: workflow readiness, live chat, stateful Send/Stop, resizable prompt, Studio actions, evidence, context copy, and full Studio launch. | Makes AI guidance available in context without blocking the 3D workspace. |
 | `CraneOptimizer.AI/Companion/Views/AiCompanionPanel.xaml` | UI view | Right-docked AI Assist panel with live chat, scrollable body, compact composer, micro-actions, readiness, next action, and expanders. | Final side-panel UX surface after multiple usability refinements. |
 | `CraneOptimizer.AI/Companion/Views/AiCompanionPanel.xaml.cs` | UI code-behind | Handles panel-specific UI events, close signaling, and keyboard/scroll support. | Keeps AI Assist dock interactive without overloading the ViewModel. |
 | `CraneOptimizer.AI/Companion/Views/AiCompanionStatusStrip.xaml` | UI view | Bottom companion/status strip that exposes lightweight AI status and re-open controls. | Non-intrusive entry point for AI Assist. |
@@ -499,7 +505,7 @@ No installer, publish profile, NuGet package, or project-file dependency change 
 | `CraneOptimizer.AI/Rendering/MarkdownPreviewControl.xaml` | UI control | Reusable Markdown preview host. | Provides a consistent response rendering surface. |
 | `CraneOptimizer.AI/Rendering/MarkdownPreviewControl.xaml.cs` | UI control code | Binds Markdown text to WPF FlowDocument and scroll behavior. | Fixes raw Markdown and nested scroll usability issues. |
 | `CraneOptimizer.AI/Rendering/MarkdownToFlowDocumentConverter.cs` | UI renderer | Converts a controlled Markdown subset into WPF FlowDocument content. | Keeps Markdown rendering dependency-free. |
-| `CraneOptimizer.AI/Services/AiAdvisorWindowService.cs` | UI service | Creates and shows the full Copilot window. | Centralizes window lifecycle and owner relationship. |
+| `CraneOptimizer.AI/Services/AiAdvisorWindowService.cs` | UI service | Creates and shows the full AI Studio window. | Centralizes window lifecycle and owner relationship. |
 | `CraneOptimizer.AI/Services/IUiInteractionContextService.cs` | UI service contract | Tracks active screen and exposes confirmable UI action requests. | Makes safe navigation actions possible without project mutation. |
 | `CraneOptimizer.AI/Services/UiInteractionContextService.cs` | UI service | Implements active-tab tracking and navigation-action event dispatch. | Connects AI proposals to shell navigation. |
 | `CraneOptimizer.AI/ViewModels/AiActionProposalViewModel.cs` | UI ViewModel | Represents safe, confirmable action proposals. | Allows navigation actions to be explicit and user-confirmed. |
@@ -520,7 +526,7 @@ No installer, publish profile, NuGet package, or project-file dependency change 
 
 ## 11. Runtime Data and Control Flow
 
-### 11.1 Full Copilot Ask Flow
+### 11.1 Full AI Studio Ask Flow
 
 ```mermaid
 sequenceDiagram
@@ -643,7 +649,8 @@ Settings persistence is best-effort. Read/write failure falls back to defaults a
 |---|---|
 | `AiOptimizationAdvisorServiceTests.cs` | No-result behavior, out-of-radius dominant recommendation, load-chart/not-charted recommendation. |
 | `StaticAiSoftwareContextServiceTests.cs` | Software context availability, tab/action inventory, guardrails. |
-| `AiCopilotMaturityFeatureTests.cs` | Prompt-template selection, confirmable navigation event, UI contract strings for docked/full Copilot features. |
+| `AiCopilotMaturityFeatureTests.cs` | Prompt-template selection, confirmable navigation event, UI contract strings for AI Assist and the full Studio window. |
+| `AiStudioNavigationFeatureTests.cs` | Removal of the top-level AI tab, legacy navigation redirection, Studio action ownership, full-window terminology, and maintained documentation contracts. |
 
 ### 13.2 Regression Issues Found and Fixed During Iteration
 
@@ -730,10 +737,11 @@ Known local models used during development included `llama3.2:latest`, `embeddin
 4. Confirm readiness shows missing IFC/elements if no model is loaded.
 5. Use `Send` in AI Assist with `What should I do next from this screen?`.
 6. Confirm the chat area streams/updates and the button changes to `Stop` while generating.
-7. Open the full Copilot.
-8. Confirm model selection, recent answers, Markdown preview, audit expander, and report appendix actions are available.
-9. Run `Analyze Current Result` before and after an optimizer result exists.
-10. Confirm AI does not mutate crane, zone, load chart, IFC, or GA state automatically.
+7. Confirm the top ribbon ends at **REPORTS** and has no AI Copilot tab.
+8. Open AI Assist → Studio, then select **Open Full Studio**.
+9. Confirm model selection, recent answers, Markdown preview, audit expander, and report appendix actions are available.
+10. Run `Analyze Current Result` before and after an optimizer result exists.
+11. Confirm AI does not mutate crane, zone, load chart, IFC, or GA state automatically.
 
 ---
 
@@ -813,7 +821,7 @@ UI labels such as `AI ASSIST`, `Report Appendix`, `Context Cards`, and `Confirma
 
 Preserve one predictable scroll surface, fixed compact composer, stateful Send/Stop button, live streaming in chat, evidence/action details behind expanders, and no automatic project mutation.
 
-### 18.5 Editing Full Copilot
+### 18.5 Editing Full AI Studio
 
 Preserve answer-first layout, bottom composer with resizable prompt area, single Send/Stop action, collapsed audit details, recent answers clear/restore behavior, and native maximize behavior.
 
@@ -843,8 +851,8 @@ Preserve answer-first layout, bottom composer with resizable prompt area, single
 - [ ] AI Assist is navigable with one obvious scroll body.
 - [ ] AI Assist chat streams live while generating.
 - [ ] AI Assist composer is compact and resizable.
-- [ ] Full Copilot composer is compact and resizable.
-- [ ] Full Copilot maximize behavior reaches native window boundaries.
+- [ ] Full AI Studio composer is compact and resizable.
+- [ ] Full AI Studio maximize behavior reaches native window boundaries.
 - [ ] Advanced material remains available but collapsed.
 - [ ] Send/Stop state changes correctly.
 
@@ -1019,4 +1027,4 @@ The following external practices informed this dossier structure. These are not 
 
 ## End of Dossier
 
-This dossier is intended to be committed with the AI Copilot branch and reviewed as part of the branch acceptance process. Future modifications to AI behavior, prompt routing, UI affordances, safety controls, or report/export integration should update this document or create a successor dossier with an explicit supersession notice.
+This dossier is intended to be committed with the AI platform branch and reviewed as part of the branch acceptance process. Future modifications to AI behavior, prompt routing, UI affordances, safety controls, or report/export integration should update this document or create a successor dossier with an explicit supersession notice.

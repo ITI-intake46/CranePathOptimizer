@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace CraneOptimizer.AI.Configuration
 {
     /// <summary>
-    /// Lightweight local settings store for AI Copilot preferences. Persistence is
+    /// Lightweight local settings store for AI Assist and AI Studio preferences. Persistence is
     /// intentionally best-effort: failure to read/write preferences must never
     /// prevent the crane planner from launching or running deterministic workflows.
     /// </summary>
@@ -78,8 +78,21 @@ namespace CraneOptimizer.AI.Configuration
 
         private static void Normalize(AiCopilotSettings settings)
         {
+            if (string.IsNullOrWhiteSpace(settings.DefaultProviderId))
+                settings.DefaultProviderId = "ollama";
+
             if (string.IsNullOrWhiteSpace(settings.DefaultModelName))
                 settings.DefaultModelName = "llama3.2:latest";
+
+            if (!Uri.TryCreate(settings.OllamaEndpoint, UriKind.Absolute, out var ollamaEndpoint)
+                || (ollamaEndpoint.Scheme != Uri.UriSchemeHttp && ollamaEndpoint.Scheme != Uri.UriSchemeHttps))
+            {
+                settings.OllamaEndpoint = "http://localhost:11434/";
+            }
+            else if (!settings.OllamaEndpoint.EndsWith("/", StringComparison.Ordinal))
+            {
+                settings.OllamaEndpoint += "/";
+            }
 
             if (string.IsNullOrWhiteSpace(settings.DockPreference))
                 settings.DockPreference = "Right";
@@ -88,6 +101,10 @@ namespace CraneOptimizer.AI.Configuration
             settings.BenchmarkModelLimit = Math.Clamp(settings.BenchmarkModelLimit, 1, 8);
             settings.RequestTimeoutSeconds = Math.Clamp(settings.RequestTimeoutSeconds, 15, 600);
             settings.Temperature = Math.Clamp(settings.Temperature, 0.0, 1.5);
+            settings.MaxSystemPromptCharacters = Math.Clamp(settings.MaxSystemPromptCharacters, 1_000, 200_000);
+            settings.MaxUserPromptCharacters = Math.Clamp(settings.MaxUserPromptCharacters, 1_000, 200_000);
+            settings.MaxContextCharacters = Math.Clamp(settings.MaxContextCharacters, 10_000, 2_000_000);
+            settings.TelemetryBufferCapacity = Math.Clamp(settings.TelemetryBufferCapacity, 10, 10_000);
             settings.ConversationHistory ??= new List<AiConversationRecord>();
             settings.ProjectConversationHistory ??= new Dictionary<string, List<AiConversationRecord>>();
             settings.ProjectDockPreferences ??= new Dictionary<string, AiDockPreferenceRecord>();

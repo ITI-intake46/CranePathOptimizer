@@ -1,4 +1,4 @@
-﻿<Window
+<Window
     x:Class="CraneOptimizer.UI.Shell.Views.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -465,7 +465,7 @@
                                     ToolTip="Close AI Assist tab" />
                             </DockPanel>
                         </TabItem.Header>
-                        <aiCompanion:AiCompanionPanel CloseRequested="AiCompanionPanel_CloseRequested" />
+                        <aiCompanion:AiCompanionPanel x:Name="AiAssistPanel" CloseRequested="AiCompanionPanel_CloseRequested" />
                     </TabItem>
                 </TabControl>
             </Border>
