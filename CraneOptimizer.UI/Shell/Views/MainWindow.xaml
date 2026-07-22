@@ -292,7 +292,7 @@
                 <!--  Col 2: 3D Viewport  -->
                 <ColumnDefinition Width="8" />
                 <!--  Col 3: Splitter  -->
-                <ColumnDefinition Width="360" MinWidth="330" MaxWidth="380" />
+                <ColumnDefinition x:Name="RightWorkspaceColumn" Width="360" MinWidth="330" MaxWidth="380" />
                 <!--  Col 4: Crane + Zones / AI assist dock  -->
             </Grid.ColumnDefinitions>
 
@@ -380,7 +380,8 @@
                     x:Name="RightWorkspaceTabs"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderThickness="0"
-                    SelectedIndex="0">
+                    SelectedIndex="0"
+                    SelectionChanged="RightWorkspaceTabs_SelectionChanged">
                     <TabControl.Resources>
                         <Style TargetType="{x:Type TabItem}">
                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
