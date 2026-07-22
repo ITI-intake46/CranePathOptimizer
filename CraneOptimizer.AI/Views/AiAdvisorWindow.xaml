@@ -357,6 +357,17 @@
                                                                     <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
                                                                     <TextBlock Margin="0,4,0,0" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Description}" TextWrapping="Wrap" />
                                                                     <TextBlock Margin="0,4,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding EvidenceLabel}" TextWrapping="Wrap" />
+                                                                    <TextBlock Margin="0,3,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Risk}" TextWrapping="Wrap" />
+                                                                    <Expander Margin="0,6,0,0" Header="Review details" Visibility="{Binding RequiresExplicitApproval, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                                        <StackPanel Margin="0,6,0,0">
+                                                                            <TextBlock FontSize="10" FontWeight="SemiBold" Text="Impact" />
+                                                                            <TextBlock Margin="0,2,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Impact}" TextWrapping="Wrap" />
+                                                                            <TextBlock Margin="0,6,0,0" FontSize="10" FontWeight="SemiBold" Text="Reversibility" />
+                                                                            <TextBlock Margin="0,2,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Reversibility}" TextWrapping="Wrap" />
+                                                                            <TextBlock Margin="0,6,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ApprovalScope}" TextWrapping="Wrap" />
+                                                                            <TextBlock Margin="0,6,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ToolArgumentsLabel}" TextWrapping="Wrap" />
+                                                                        </StackPanel>
+                                                                    </Expander>
                                                                     <WrapPanel Margin="0,7,0,0">
                                                                         <Button Margin="0,0,6,0" Command="{Binding DataContext.ExecuteAgentActionCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Content="{Binding ApprovalLabel}" Style="{StaticResource ButtonPrimary}" />
                                                                         <Button Command="{Binding DataContext.RejectAgentActionCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Content="Reject" Style="{StaticResource ButtonSecondary}" Visibility="{Binding RequiresExplicitApproval, Converter={StaticResource BoolToVisibilityConverter}}" />
@@ -385,6 +396,9 @@
                                                                             </Grid>
                                                                             <TextBlock Margin="0,3,0,0" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Summary}" TextWrapping="Wrap" />
                                                                             <TextBlock Margin="0,3,0,0" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Governance}" TextWrapping="Wrap" />
+                                                                            <TextBlock Margin="0,3,0,0" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding AuditMetadataLabel}" TextWrapping="Wrap" />
+                                                                            <TextBlock Margin="0,3,0,0" FontSize="9" Foreground="{StaticResource PrimaryBrush}" Text="{Binding ArtifactLabel}" TextWrapping="Wrap" Visibility="{Binding HasArtifact, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                                            <TextBlock Margin="0,2,0,0" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ArtifactIntegrityLabel}" TextWrapping="Wrap" Visibility="{Binding HasArtifact, Converter={StaticResource BoolToVisibilityConverter}}" />
                                                                         </StackPanel>
                                                                     </Border>
                                                                 </DataTemplate>

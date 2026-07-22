@@ -40,3 +40,7 @@ Action implementations remain in `CraneOptimizer.AI`. They communicate through t
 ## Future mutating tools
 
 A future tool that changes GA settings, crane configuration, report drafts, or project data must declare `AiToolAccessMode.Mutating`. The default approval policy blocks it unless the execution request includes explicit user approval. Rejection and blocked attempts are audited without invoking the tool.
+
+## Approval-gated draft artifact
+
+The action registry also contains `prepare_readiness_remediation_draft`, a mutating but reversible local-artifact tool. It is blocked until a named desktop user selects **Approve once**. Approval is run-bound, model-bound, evidence-bound, definition-bound, and single-use. The generated Markdown draft is stored outside the repository and does not alter engineering or project state. See `AI-APPROVAL-GATED-DRAFT-ARTIFACTS.md`.

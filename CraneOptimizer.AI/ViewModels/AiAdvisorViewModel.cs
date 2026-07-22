@@ -1270,6 +1270,14 @@ namespace CraneOptimizer.AI.ViewModels
                     userApproved: true,
                     initiatedBy: "Desktop user").ConfigureAwait(true);
                 RecordAgentActionExecution(execution);
+                if (proposal.RequiresExplicitApproval
+                    && execution.Status != AiAgentActionExecutionStatus.ApprovalRequired)
+                {
+                    AgentActionProposals.Remove(proposal);
+                    OnPropertyChanged(nameof(HasAgentActions));
+                    OnPropertyChanged(nameof(AgentActionsVisibility));
+                    OnPropertyChanged(nameof(AgentActionsLabel));
+                }
             }
             catch (Exception ex)
             {
@@ -1283,6 +1291,13 @@ namespace CraneOptimizer.AI.ViewModels
                 return;
 
             RecordAgentActionExecution(_agentActionService.Reject(proposal, _lastAgentRun, "Desktop user"));
+            if (proposal.RequiresExplicitApproval)
+            {
+                AgentActionProposals.Remove(proposal);
+                OnPropertyChanged(nameof(HasAgentActions));
+                OnPropertyChanged(nameof(AgentActionsVisibility));
+                OnPropertyChanged(nameof(AgentActionsLabel));
+            }
         }
 
         private void RecordAgentActionExecution(AiAgentActionExecutionSnapshot execution)

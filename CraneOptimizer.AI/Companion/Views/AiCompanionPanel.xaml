@@ -299,6 +299,18 @@
                                                     <TextBlock Margin="0,4,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="15" Text="{Binding Description}" TextWrapping="Wrap" />
                                                     <TextBlock Margin="0,4,0,0" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding EvidenceLabel}" TextWrapping="Wrap" />
                                                     <TextBlock Margin="0,3,0,0" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Risk}" TextWrapping="Wrap" />
+                                                    <Expander Margin="0,5,0,0"
+                                                              Header="Review details"
+                                                              Visibility="{Binding RequiresExplicitApproval, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                        <StackPanel Margin="0,5,0,0">
+                                                            <TextBlock FontSize="9" FontWeight="SemiBold" Text="Impact" />
+                                                            <TextBlock Margin="0,2,0,0" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Impact}" TextWrapping="Wrap" />
+                                                            <TextBlock Margin="0,5,0,0" FontSize="9" FontWeight="SemiBold" Text="Reversibility" />
+                                                            <TextBlock Margin="0,2,0,0" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Reversibility}" TextWrapping="Wrap" />
+                                                            <TextBlock Margin="0,5,0,0" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ApprovalScope}" TextWrapping="Wrap" />
+                                                            <TextBlock Margin="0,5,0,0" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ToolArgumentsLabel}" TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                    </Expander>
                                                     <WrapPanel Margin="0,7,0,0">
                                                         <Button Margin="0,0,6,0" Padding="8,4"
                                                                 Command="{Binding DataContext.Advisor.ExecuteAgentActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"

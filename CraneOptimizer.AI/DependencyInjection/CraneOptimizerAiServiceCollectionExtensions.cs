@@ -68,6 +68,8 @@ namespace CraneOptimizer.AI.DependencyInjection
             services.AddSingleton<IAiAgentAuditStore, InMemoryAiAgentAuditStore>();
             services.AddSingleton<IProjectReadinessAgentService, ProjectReadinessAgentService>();
 
+            services.AddSingleton<IAiAgentDraftArtifactStore, FileSystemAiAgentDraftArtifactStore>();
+            services.AddSingleton<IAiAgentActionTool, PrepareReadinessRemediationDraftActionTool>();
             services.AddSingleton<IAiAgentActionTool, OpenCraneSetupActionTool>();
             services.AddSingleton<IAiAgentActionTool, OpenLoadChartImportActionTool>();
             services.AddSingleton<IAiAgentActionTool, OpenElementExportActionTool>();

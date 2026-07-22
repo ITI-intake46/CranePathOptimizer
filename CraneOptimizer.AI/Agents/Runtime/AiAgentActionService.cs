@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using CraneOptimizer.AI.Agents.Contracts;
 
@@ -8,6 +9,7 @@ namespace CraneOptimizer.AI.Agents.Runtime
         private readonly IAiAgentActionToolRegistry _registry;
         private readonly IAiAgentApprovalPolicy _approvalPolicy;
         private readonly IAiAgentActionAuditStore _auditStore;
+        private readonly ConcurrentDictionary<string, byte> _consumedOneTimeApprovals = new(StringComparer.Ordinal);
 
         public AiAgentActionService(
             IAiAgentActionToolRegistry registry,
@@ -33,6 +35,18 @@ namespace CraneOptimizer.AI.Agents.Runtime
                 string.Join("\n", run.ToolResults.Select(result => result.Evidence)),
                 string.Join("\n", run.Citations.Select(citation => citation.SourceLabel + " " + citation.Snippet))
             }).ToLowerInvariant();
+
+            var criticalResult = FindResult(run, "get_critical_issues");
+            var criticalIssueCount = ReadInt(criticalResult, "CriticalIssueCount");
+            if (criticalIssueCount > 0
+                || corpus.Contains("blocked", StringComparison.Ordinal)
+                || corpus.Contains("not ready", StringComparison.Ordinal)
+                || corpus.Contains("critical", StringComparison.Ordinal)
+                || corpus.Contains("missing", StringComparison.Ordinal)
+                || corpus.Contains("zero trusted", StringComparison.Ordinal))
+            {
+                requested.Add("prepare_readiness_remediation_draft");
+            }
 
             var craneResult = FindResult(run, "get_crane_setup");
             var craneCount = ReadInt(craneResult, "CraneCount");
@@ -67,6 +81,9 @@ namespace CraneOptimizer.AI.Agents.Runtime
                     Target = definition.Target,
                     ButtonLabel = definition.ButtonLabel,
                     Risk = definition.Risk,
+                    Impact = definition.Impact,
+                    Reversibility = definition.Reversibility,
+                    InputJson = BuildProposalInput(run, definition.Name),
                     AccessMode = definition.AccessMode,
                     PermissionLevel = definition.PermissionLevel,
                     EvidenceIds = SelectEvidenceIds(run, definition.Name),
@@ -75,7 +92,7 @@ namespace CraneOptimizer.AI.Agents.Runtime
                 });
             }
 
-            return proposals.Take(6).ToArray();
+            return proposals.Take(7).ToArray();
         }
 
         public async Task<AiAgentActionExecutionSnapshot> ExecuteAsync(
@@ -91,6 +108,30 @@ namespace CraneOptimizer.AI.Agents.Runtime
             var startedAt = DateTimeOffset.UtcNow;
             var stopwatch = Stopwatch.StartNew();
             var userInitiated = !string.IsNullOrWhiteSpace(initiatedBy);
+
+            if (!ProposalMatchesRun(proposal, run, out var proposalValidationError))
+            {
+                return Record(new AiAgentActionExecutionSnapshot
+                {
+                    RunId = run.RunId,
+                    ProposalId = proposal.ProposalId,
+                    ToolName = proposal.ToolName,
+                    ActionType = proposal.ActionType,
+                    Target = proposal.Target,
+                    Status = AiAgentActionExecutionStatus.Failed,
+                    StartedAt = startedAt,
+                    CompletedAt = DateTimeOffset.UtcNow,
+                    DurationMilliseconds = stopwatch.ElapsedMilliseconds,
+                    UserInitiated = userInitiated,
+                    ExplicitApproval = false,
+                    InitiatedBy = initiatedBy,
+                    ModelRevision = run.ModelRevision,
+                    ModelFingerprint = run.ModelFingerprint,
+                    EvidenceIds = proposal.EvidenceIds,
+                    Summary = proposalValidationError,
+                    Governance = "Stale or mismatched proposals are never executed."
+                });
+            }
 
             if (!_registry.TryGet(proposal.ToolName, out var tool) || tool == null)
             {
@@ -113,6 +154,54 @@ namespace CraneOptimizer.AI.Agents.Runtime
                     EvidenceIds = proposal.EvidenceIds,
                     Summary = "The requested action tool is not registered.",
                     Governance = "Unregistered action tools are never invoked."
+                });
+            }
+
+            if (!ProposalMatchesDefinition(proposal, tool.Definition, out var definitionValidationError))
+            {
+                return Record(new AiAgentActionExecutionSnapshot
+                {
+                    RunId = run.RunId,
+                    ProposalId = proposal.ProposalId,
+                    ToolName = proposal.ToolName,
+                    ActionType = proposal.ActionType,
+                    Target = proposal.Target,
+                    Status = AiAgentActionExecutionStatus.Failed,
+                    StartedAt = startedAt,
+                    CompletedAt = DateTimeOffset.UtcNow,
+                    DurationMilliseconds = stopwatch.ElapsedMilliseconds,
+                    UserInitiated = userInitiated,
+                    ExplicitApproval = false,
+                    InitiatedBy = initiatedBy,
+                    ModelRevision = run.ModelRevision,
+                    ModelFingerprint = run.ModelFingerprint,
+                    EvidenceIds = proposal.EvidenceIds,
+                    Summary = definitionValidationError,
+                    Governance = "Action metadata cannot be downgraded or altered after the proposal is created."
+                });
+            }
+
+            if (tool.Definition.AccessMode == AiToolAccessMode.Mutating && !userInitiated)
+            {
+                return Record(new AiAgentActionExecutionSnapshot
+                {
+                    RunId = run.RunId,
+                    ProposalId = proposal.ProposalId,
+                    ToolName = proposal.ToolName,
+                    ActionType = proposal.ActionType,
+                    Target = proposal.Target,
+                    Status = AiAgentActionExecutionStatus.ApprovalRequired,
+                    StartedAt = startedAt,
+                    CompletedAt = DateTimeOffset.UtcNow,
+                    DurationMilliseconds = stopwatch.ElapsedMilliseconds,
+                    UserInitiated = false,
+                    ExplicitApproval = false,
+                    InitiatedBy = initiatedBy,
+                    ModelRevision = run.ModelRevision,
+                    ModelFingerprint = run.ModelFingerprint,
+                    EvidenceIds = proposal.EvidenceIds,
+                    Summary = "A named user must explicitly approve this mutating action.",
+                    Governance = "Background or anonymous approval is not accepted. No change was made."
                 });
             }
 
@@ -140,6 +229,31 @@ namespace CraneOptimizer.AI.Agents.Runtime
                     EvidenceIds = proposal.EvidenceIds,
                     Summary = approval.Reason,
                     Governance = "No application or project action was executed."
+                });
+            }
+
+            if (tool.Definition.AccessMode == AiToolAccessMode.Mutating
+                && !_consumedOneTimeApprovals.TryAdd(proposal.ProposalId, 0))
+            {
+                return Record(new AiAgentActionExecutionSnapshot
+                {
+                    RunId = run.RunId,
+                    ProposalId = proposal.ProposalId,
+                    ToolName = proposal.ToolName,
+                    ActionType = proposal.ActionType,
+                    Target = proposal.Target,
+                    Status = AiAgentActionExecutionStatus.Rejected,
+                    StartedAt = startedAt,
+                    CompletedAt = DateTimeOffset.UtcNow,
+                    DurationMilliseconds = stopwatch.ElapsedMilliseconds,
+                    UserInitiated = userInitiated,
+                    ExplicitApproval = userApproved,
+                    InitiatedBy = initiatedBy,
+                    ModelRevision = run.ModelRevision,
+                    ModelFingerprint = run.ModelFingerprint,
+                    EvidenceIds = proposal.EvidenceIds,
+                    Summary = "The one-time approval for this proposal has already been consumed.",
+                    Governance = "Mutating action approvals cannot be replayed. No additional change was made."
                 });
             }
 
@@ -175,7 +289,11 @@ namespace CraneOptimizer.AI.Agents.Runtime
                     ModelFingerprint = run.ModelFingerprint,
                     EvidenceIds = proposal.EvidenceIds,
                     Summary = result.Succeeded ? result.Summary : result.Error,
-                    Governance = approval.Reason + " No crane-planning data was modified by this navigation action."
+                    Governance = BuildSuccessGovernance(tool.Definition, approval.Reason, result),
+                    ArtifactPath = result.ArtifactPath,
+                    ArtifactKind = result.ArtifactKind,
+                    ArtifactSha256 = result.ArtifactSha256,
+                    ArtifactSizeBytes = result.ArtifactSizeBytes
                 });
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -257,6 +375,9 @@ namespace CraneOptimizer.AI.Agents.Runtime
             ArgumentNullException.ThrowIfNull(proposal);
             ArgumentNullException.ThrowIfNull(run);
 
+            if (proposal.RequiresExplicitApproval && !string.IsNullOrWhiteSpace(proposal.ProposalId))
+                _consumedOneTimeApprovals.TryAdd(proposal.ProposalId, 0);
+
             return Record(new AiAgentActionExecutionSnapshot
             {
                 RunId = run.RunId,
@@ -282,6 +403,96 @@ namespace CraneOptimizer.AI.Agents.Runtime
             return execution;
         }
 
+        private static string BuildProposalInput(AiAgentRunSnapshot run, string toolName)
+        {
+            if (!toolName.Equals("prepare_readiness_remediation_draft", StringComparison.OrdinalIgnoreCase))
+                return "{}";
+
+            return "{\"format\":\"markdown\",\"scope\":\"readiness-remediation\",\"runId\":\""
+                   + EscapeJson(run.RunId)
+                   + "\",\"modelRevision\":"
+                   + run.ModelRevision
+                   + "}";
+        }
+
+        private static bool ProposalMatchesRun(
+            AiAgentActionProposal proposal,
+            AiAgentRunSnapshot run,
+            out string error)
+        {
+            if (string.IsNullOrWhiteSpace(proposal.ProposalId))
+            {
+                error = "The action proposal has no approval identity.";
+                return false;
+            }
+
+            if (!string.Equals(proposal.RunId, run.RunId, StringComparison.Ordinal))
+            {
+                error = "The action proposal belongs to a different agent run.";
+                return false;
+            }
+
+            if (proposal.ModelRevision != run.ModelRevision
+                || !string.Equals(proposal.ModelFingerprint, run.ModelFingerprint, StringComparison.Ordinal))
+            {
+                error = "The action proposal is stale because the captured model revision or fingerprint has changed.";
+                return false;
+            }
+
+            var validEvidenceIds = run.Citations
+                .Select(citation => citation.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (proposal.EvidenceIds.Any(id => !validEvidenceIds.Contains(id)))
+            {
+                error = "The action proposal references evidence that is not part of the captured agent run.";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+
+        private static bool ProposalMatchesDefinition(
+            AiAgentActionProposal proposal,
+            AiAgentActionToolDefinition definition,
+            out string error)
+        {
+            if (proposal.AccessMode != definition.AccessMode
+                || !string.Equals(proposal.PermissionLevel, definition.PermissionLevel, StringComparison.Ordinal)
+                || !string.Equals(proposal.ActionType, definition.ActionType, StringComparison.Ordinal)
+                || !string.Equals(proposal.Target, definition.Target, StringComparison.Ordinal))
+            {
+                error = "The action proposal metadata no longer matches the registered tool definition.";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+
+        private static string BuildSuccessGovernance(
+            AiAgentActionToolDefinition definition,
+            string approvalReason,
+            AiAgentActionToolResult result)
+        {
+            if (!string.IsNullOrWhiteSpace(result.Governance))
+                return approvalReason + " " + result.Governance.Trim();
+
+            return definition.AccessMode switch
+            {
+                AiToolAccessMode.Mutating => approvalReason +
+                    " The approved change was limited to the declared action scope. No optimizer run was started.",
+                AiToolAccessMode.Navigation => approvalReason +
+                    " No crane-planning data was modified by this navigation action.",
+                _ => approvalReason + " No project state was modified by this read-only action."
+            };
+        }
+
+        private static string EscapeJson(string? value)
+            => (value ?? string.Empty)
+                .Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("\"", "\\\"", StringComparison.Ordinal);
+
         private static AiToolExecutionResult? FindResult(AiAgentRunSnapshot run, string toolName)
             => run.ToolResults.FirstOrDefault(result => result.ToolName.Equals(toolName, StringComparison.OrdinalIgnoreCase));
 
@@ -302,6 +513,7 @@ namespace CraneOptimizer.AI.Agents.Runtime
         {
             var terms = toolName switch
             {
+                "prepare_readiness_remediation_draft" => new[] { "ga", "optimization", "weight", "crane", "readiness", "issue" },
                 "open_crane_setup" => new[] { "crane", "load chart" },
                 "open_load_chart_import" => new[] { "load chart", "capacity", "crane" },
                 "open_element_export" => new[] { "weight", "trusted", "ga-ready" },
