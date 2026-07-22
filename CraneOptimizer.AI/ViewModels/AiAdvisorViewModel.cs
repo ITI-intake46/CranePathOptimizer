@@ -35,6 +35,7 @@ namespace CraneOptimizer.AI.ViewModels
         private readonly IAiLocalDocumentSearchService _documentSearchService;
         private readonly IAiProjectGroundingService _projectGroundingService;
         private readonly IProjectReadinessAgentService _projectReadinessAgent;
+        private readonly IAiAgentActionService _agentActionService;
         private readonly IAiSoftwareInventoryService _softwareInventoryService;
         private readonly IAiPromptTemplateService _promptTemplateService;
         private readonly IAiReportAppendixService _reportAppendixService;
@@ -69,6 +70,7 @@ namespace CraneOptimizer.AI.ViewModels
         private AiAdvisorResponseDto? _lastAdvisorResponse;
         private AiGroundingPacket _lastGroundingPacket = AiGroundingPacket.Empty;
         private AiAgentRunSnapshot _lastAgentRun = AiAgentRunSnapshot.Empty;
+        private AiAgentActionExecutionSnapshot? _lastAgentActionExecution;
 
         public AiAdvisorViewModel(
             IAiOptimizationAdvisorService advisorService,
@@ -79,6 +81,7 @@ namespace CraneOptimizer.AI.ViewModels
             IAiLocalDocumentSearchService documentSearchService,
             IAiProjectGroundingService projectGroundingService,
             IProjectReadinessAgentService projectReadinessAgent,
+            IAiAgentActionService agentActionService,
             IAiSoftwareInventoryService softwareInventoryService,
             IAiPromptTemplateService promptTemplateService,
             IAiReportAppendixService reportAppendixService,
@@ -93,6 +96,7 @@ namespace CraneOptimizer.AI.ViewModels
             _documentSearchService = documentSearchService;
             _projectGroundingService = projectGroundingService ?? throw new ArgumentNullException(nameof(projectGroundingService));
             _projectReadinessAgent = projectReadinessAgent ?? throw new ArgumentNullException(nameof(projectReadinessAgent));
+            _agentActionService = agentActionService ?? throw new ArgumentNullException(nameof(agentActionService));
             _softwareInventoryService = softwareInventoryService;
             _promptTemplateService = promptTemplateService;
             _reportAppendixService = reportAppendixService;
@@ -109,6 +113,8 @@ namespace CraneOptimizer.AI.ViewModels
             ContextCards = new ObservableCollection<AiContextCardViewModel>();
             GroundingCitations = new ObservableCollection<AiKnowledgeCitation>();
             AgentExecutionTrace = new ObservableCollection<AiAgentTraceEntry>();
+            AgentActionProposals = new ObservableCollection<AiAgentActionProposal>();
+            AgentActionAudit = new ObservableCollection<AiAgentActionExecutionSnapshot>();
             PromptTemplates = new ObservableCollection<AiPromptTemplate>(_promptTemplateService.GetAllTemplates());
             SoftwareGuideText = BuildSoftwareGuideText(_softwareContext);
             LoadPersistentHistory();
@@ -128,6 +134,8 @@ namespace CraneOptimizer.AI.ViewModels
             BenchmarkModelsCommand = new AsyncRelayCommand(BenchmarkModelsAsync, () => !IsBusy);
             SetQuickQuestionCommand = new RelayCommand<string>(SetQuickQuestion);
             SelectModelCommand = new RelayCommand<string>(SelectModel);
+            ExecuteAgentActionCommand = new RelayCommand<AiAgentActionProposal>(ExecuteAgentAction);
+            RejectAgentActionCommand = new RelayCommand<AiAgentActionProposal>(RejectAgentAction);
         }
 
         public ObservableCollection<AiRecommendationItemViewModel> Recommendations { get; }
@@ -138,6 +146,8 @@ namespace CraneOptimizer.AI.ViewModels
         public ObservableCollection<AiContextCardViewModel> ContextCards { get; }
         public ObservableCollection<AiKnowledgeCitation> GroundingCitations { get; }
         public ObservableCollection<AiAgentTraceEntry> AgentExecutionTrace { get; }
+        public ObservableCollection<AiAgentActionProposal> AgentActionProposals { get; }
+        public ObservableCollection<AiAgentActionExecutionSnapshot> AgentActionAudit { get; }
         public ObservableCollection<AiPromptTemplate> PromptTemplates { get; }
 
         public ICommand AnalyzeCurrentResultCommand { get; }
@@ -155,6 +165,8 @@ namespace CraneOptimizer.AI.ViewModels
         public ICommand BenchmarkModelsCommand { get; }
         public ICommand SetQuickQuestionCommand { get; }
         public ICommand SelectModelCommand { get; }
+        public ICommand ExecuteAgentActionCommand { get; }
+        public ICommand RejectAgentActionCommand { get; }
 
         public string ModelName
         {
@@ -402,6 +414,17 @@ namespace CraneOptimizer.AI.ViewModels
             : "Agent run · not executed";
         public string AgentConclusion => _lastAgentRun.Conclusion;
         public string AgentGovernanceSummary => _lastAgentRun.GovernanceSummary;
+        public bool HasAgentActions => AgentActionProposals.Count > 0;
+        public Visibility AgentActionsVisibility => HasAgentActions ? Visibility.Visible : Visibility.Collapsed;
+        public string AgentActionsLabel => HasAgentActions
+            ? $"Recommended actions · {AgentActionProposals.Count:N0} executable step(s)"
+            : "Recommended actions · none";
+        public bool HasAgentActionAudit => AgentActionAudit.Count > 0;
+        public Visibility AgentActionAuditVisibility => HasAgentActionAudit ? Visibility.Visible : Visibility.Collapsed;
+        public string AgentActionAuditLabel => _lastAgentActionExecution == null
+            ? "Action audit · no action executed"
+            : $"Action audit · {_lastAgentActionExecution.StatusLabel} · {_lastAgentActionExecution.ToolName}";
+        public string AgentActionStatus => _lastAgentActionExecution?.Summary ?? "Select an action card to continue. Navigation actions never modify project data.";
 
         public bool HasGroundingEvidence => GroundingCitations.Count > 0;
         public Visibility GroundingEvidenceVisibility => HasGroundingEvidence ? Visibility.Visible : Visibility.Collapsed;
@@ -1208,16 +1231,72 @@ namespace CraneOptimizer.AI.ViewModels
         private void SetAgentRun(AiAgentRunSnapshot run)
         {
             _lastAgentRun = run;
+            _lastAgentActionExecution = null;
             AgentExecutionTrace.Clear();
             foreach (var entry in _lastAgentRun.Trace)
                 AgentExecutionTrace.Add(entry);
 
+            AgentActionProposals.Clear();
+            foreach (var proposal in _agentActionService.BuildProposals(_lastAgentRun))
+                AgentActionProposals.Add(proposal);
+
+            AgentActionAudit.Clear();
             OnPropertyChanged(nameof(LastAgentRun));
             OnPropertyChanged(nameof(HasAgentExecution));
             OnPropertyChanged(nameof(AgentExecutionVisibility));
             OnPropertyChanged(nameof(AgentExecutionLabel));
             OnPropertyChanged(nameof(AgentConclusion));
             OnPropertyChanged(nameof(AgentGovernanceSummary));
+            OnPropertyChanged(nameof(HasAgentActions));
+            OnPropertyChanged(nameof(AgentActionsVisibility));
+            OnPropertyChanged(nameof(AgentActionsLabel));
+            OnPropertyChanged(nameof(HasAgentActionAudit));
+            OnPropertyChanged(nameof(AgentActionAuditVisibility));
+            OnPropertyChanged(nameof(AgentActionAuditLabel));
+            OnPropertyChanged(nameof(AgentActionStatus));
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private async void ExecuteAgentAction(AiAgentActionProposal proposal)
+        {
+            if (proposal == null || string.IsNullOrWhiteSpace(_lastAgentRun.RunId))
+                return;
+
+            try
+            {
+                var execution = await _agentActionService.ExecuteAsync(
+                    proposal,
+                    _lastAgentRun,
+                    userApproved: true,
+                    initiatedBy: "Desktop user").ConfigureAwait(true);
+                RecordAgentActionExecution(execution);
+            }
+            catch (Exception ex)
+            {
+                LastError = ex.Message;
+            }
+        }
+
+        private void RejectAgentAction(AiAgentActionProposal proposal)
+        {
+            if (proposal == null || string.IsNullOrWhiteSpace(_lastAgentRun.RunId))
+                return;
+
+            RecordAgentActionExecution(_agentActionService.Reject(proposal, _lastAgentRun, "Desktop user"));
+        }
+
+        private void RecordAgentActionExecution(AiAgentActionExecutionSnapshot execution)
+        {
+            _lastAgentActionExecution = execution;
+            AgentActionAudit.Insert(0, execution);
+            while (AgentActionAudit.Count > 12)
+                AgentActionAudit.RemoveAt(AgentActionAudit.Count - 1);
+
+            StatusText = execution.Summary;
+            OnPropertyChanged(nameof(HasAgentActionAudit));
+            OnPropertyChanged(nameof(AgentActionAuditVisibility));
+            OnPropertyChanged(nameof(AgentActionAuditLabel));
+            OnPropertyChanged(nameof(AgentActionStatus));
         }
 
         private AiGroundingPacket RefreshProjectGrounding(string question)

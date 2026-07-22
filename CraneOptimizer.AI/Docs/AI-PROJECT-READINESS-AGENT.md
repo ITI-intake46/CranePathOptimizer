@@ -66,3 +66,7 @@ AI Assist shows a live agent trace above RAG evidence. Full Copilot exposes the 
 ## Isolation
 
 All agent contracts, planning, policies, tools, audit storage, synthesis, and UI bindings live in `CraneOptimizer.AI`. Host projects continue to provide only AI-owned immutable snapshots through existing host contracts.
+
+## Executable next actions
+
+A completed readiness run now produces typed, evidence-linked action cards. The first action set is navigation-only and includes crane setup, load-chart import, IFC element review, zone management, and GA readiness. Each action requires an explicit user click and creates an audit record. See `AI-GOVERNED-AGENT-ACTIONS.md`.

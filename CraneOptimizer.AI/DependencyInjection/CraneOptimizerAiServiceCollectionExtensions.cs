@@ -1,5 +1,6 @@
 using CraneOptimizer.AI.Companion.ViewModels;
 using CraneOptimizer.AI.Agents.Contracts;
+using CraneOptimizer.AI.Agents.Actions;
 using CraneOptimizer.AI.Agents.Readiness;
 using CraneOptimizer.AI.Agents.Runtime;
 using CraneOptimizer.AI.Agents.Tools;
@@ -66,6 +67,16 @@ namespace CraneOptimizer.AI.DependencyInjection
             services.AddSingleton<IAiAgentApprovalPolicy, DefaultAiAgentApprovalPolicy>();
             services.AddSingleton<IAiAgentAuditStore, InMemoryAiAgentAuditStore>();
             services.AddSingleton<IProjectReadinessAgentService, ProjectReadinessAgentService>();
+
+            services.AddSingleton<IAiAgentActionTool, OpenCraneSetupActionTool>();
+            services.AddSingleton<IAiAgentActionTool, OpenLoadChartImportActionTool>();
+            services.AddSingleton<IAiAgentActionTool, OpenElementExportActionTool>();
+            services.AddSingleton<IAiAgentActionTool, OpenElementManagementActionTool>();
+            services.AddSingleton<IAiAgentActionTool, OpenZoneManagerActionTool>();
+            services.AddSingleton<IAiAgentActionTool, OpenGaReadinessActionTool>();
+            services.AddSingleton<IAiAgentActionToolRegistry, AiAgentActionToolRegistry>();
+            services.AddSingleton<IAiAgentActionAuditStore, InMemoryAiAgentActionAuditStore>();
+            services.AddSingleton<IAiAgentActionService, AiAgentActionService>();
 
             services.AddSingleton<AiAdvisorViewModel>();
             services.AddTransient<AiCompanionViewModel>();

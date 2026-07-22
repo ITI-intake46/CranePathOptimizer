@@ -10,5 +10,6 @@ namespace CraneOptimizer.AI.Agents.Contracts
     public interface IAiAgentApprovalPolicy
     {
         AiApprovalDecision Evaluate(AiToolDefinition definition);
+        AiApprovalDecision Evaluate(AiAgentActionToolDefinition definition, bool userApproved);
     }
 }

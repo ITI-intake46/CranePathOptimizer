@@ -461,8 +461,8 @@ namespace CraneOptimizer.AI.Agents.Readiness
                 LastUpdatedAt = DateTimeOffset.UtcNow;
             }
 
-            public event EventHandler? ContextChanged;
-            public event EventHandler<AiUiActionRequestedEventArgs>? ActionRequested;
+            public event EventHandler? ContextChanged { add { } remove { } }
+            public event EventHandler<AiUiActionRequestedEventArgs>? ActionRequested { add { } remove { } }
             public string ActiveTabName { get; }
             public string ActivePanelName { get; }
             public DateTimeOffset LastUpdatedAt { get; }

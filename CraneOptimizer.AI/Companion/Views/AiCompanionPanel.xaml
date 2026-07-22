@@ -285,6 +285,46 @@
                                 </ItemsControl>
                             </StackPanel>
                         </Expander>
+                        <Expander Margin="0,2,0,8"
+                                  Header="{Binding Advisor.AgentActionsLabel}"
+                                  IsExpanded="True"
+                                  Visibility="{Binding Advisor.AgentActionsVisibility}">
+                            <StackPanel Margin="0,8,0,0">
+                                <ItemsControl ItemsSource="{Binding Advisor.AgentActionProposals}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,7" Padding="9" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9">
+                                                <StackPanel>
+                                                    <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                                                    <TextBlock Margin="0,4,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="15" Text="{Binding Description}" TextWrapping="Wrap" />
+                                                    <TextBlock Margin="0,4,0,0" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding EvidenceLabel}" TextWrapping="Wrap" />
+                                                    <TextBlock Margin="0,3,0,0" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Risk}" TextWrapping="Wrap" />
+                                                    <WrapPanel Margin="0,7,0,0">
+                                                        <Button Margin="0,0,6,0" Padding="8,4"
+                                                                Command="{Binding DataContext.Advisor.ExecuteAgentActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="{Binding ApprovalLabel}"
+                                                                Style="{StaticResource ButtonPrimary}" />
+                                                        <Button Padding="8,4"
+                                                                Command="{Binding DataContext.Advisor.RejectAgentActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="Reject"
+                                                                Style="{StaticResource ButtonSecondary}"
+                                                                Visibility="{Binding RequiresExplicitApproval, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Border Margin="0,1,0,0" Padding="8" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Visibility="{Binding Advisor.AgentActionAuditVisibility}">
+                                    <StackPanel>
+                                        <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding Advisor.AgentActionAuditLabel}" TextWrapping="Wrap" />
+                                        <TextBlock Margin="0,3,0,0" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Advisor.AgentActionStatus}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Expander>
                         <Expander Margin="0,2,0,0"
                                   Header="{Binding Advisor.GroundingEvidenceLabel}"
                                   IsExpanded="True"

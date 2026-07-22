@@ -5,6 +5,7 @@ namespace CraneOptimizer.AI.Agents.Contracts
     public enum AiToolAccessMode
     {
         ReadOnly,
+        Navigation,
         Mutating
     }
 
