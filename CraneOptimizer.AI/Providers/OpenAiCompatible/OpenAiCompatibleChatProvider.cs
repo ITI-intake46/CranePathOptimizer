@@ -183,6 +183,8 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
             CancellationToken cancellationToken)
         {
             var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (!IsJsonPayload(response.Content.Headers.ContentType?.MediaType, json))
+                return Failure(request, "The provider returned a non-JSON response. Verify that the configured base URL points to the API root.");
             if (TryExtractProviderError(json, out var providerError))
                 return Failure(request, providerError);
             var text = ExtractBufferedContent(json);
@@ -205,6 +207,7 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
             CancellationToken cancellationToken)
         {
             var builder = new StringBuilder();
+            var sawCompletionMarker = false;
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             using var reader = new StreamReader(stream, Encoding.UTF8);
 
@@ -219,10 +222,16 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
 
                 var data = line[5..].Trim();
                 if (data.Equals("[DONE]", StringComparison.OrdinalIgnoreCase))
+                {
+                    sawCompletionMarker = true;
                     break;
+                }
 
                 if (TryExtractProviderError(data, out var streamError))
                     return Failure(request, streamError);
+
+                if (StreamingFrameIndicatesCompletion(data))
+                    sawCompletionMarker = true;
 
                 var delta = ExtractStreamingDelta(data);
                 if (string.IsNullOrEmpty(delta))
@@ -240,6 +249,8 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
             var text = builder.ToString().Trim();
             if (string.IsNullOrWhiteSpace(text))
                 return Failure(request, "The provider returned an empty streaming response.");
+            if (!sawCompletionMarker)
+                return Failure(request, "The streaming response ended before the provider sent a completion marker. The partial text remains visible; retry the request if needed.");
 
             onUpdate(new AiStreamingUpdateDto
             {
@@ -293,6 +304,31 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
             catch (JsonException)
             {
                 return string.Empty;
+            }
+        }
+
+
+        private static bool StreamingFrameIndicatesCompletion(string json)
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(json);
+                var root = document.RootElement;
+                if (!root.TryGetProperty("choices", out var choices)
+                    || choices.ValueKind != JsonValueKind.Array
+                    || choices.GetArrayLength() == 0)
+                {
+                    return false;
+                }
+
+                var choice = choices[0];
+                return choice.TryGetProperty("finish_reason", out var finishReason)
+                    && finishReason.ValueKind != JsonValueKind.Null
+                    && !string.IsNullOrWhiteSpace(finishReason.ToString());
+            }
+            catch (JsonException)
+            {
+                return false;
             }
         }
 
@@ -359,8 +395,14 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
             var detail = ExtractErrorMessage(body);
             var retryAfter = response.Headers.RetryAfter?.Delta;
             var suffix = retryAfter.HasValue ? $" Retry after approximately {Math.Ceiling(retryAfter.Value.TotalSeconds):N0} seconds." : string.Empty;
+            var temperatureRejected = !string.IsNullOrWhiteSpace(detail)
+                && detail.Contains("temperature", StringComparison.OrdinalIgnoreCase);
             var message = response.StatusCode switch
             {
+                HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity when temperatureRejected =>
+                    $"{profile.DisplayName} rejected the temperature parameter for model '{request.Model}'. Disable 'Send the temperature parameter' in provider settings and retry.",
+                HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity =>
+                    $"{profile.DisplayName} rejected the request parameters for model '{request.Model}'.",
                 HttpStatusCode.Unauthorized => $"{profile.DisplayName} rejected the API key. Replace the stored credential and test the connection.",
                 HttpStatusCode.PaymentRequired => $"{profile.DisplayName} reports insufficient credits or quota.",
                 HttpStatusCode.Forbidden => $"{profile.DisplayName} denied this request. Check account permissions, provider policy, and model access.",
@@ -371,9 +413,28 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
                 _ => $"{profile.DisplayName} returned {(int)response.StatusCode} {response.ReasonPhrase}."
             };
 
-            if (!string.IsNullOrWhiteSpace(detail))
+            if (!string.IsNullOrWhiteSpace(detail) && !temperatureRejected)
                 message += " " + detail;
             return Failure(request, message);
+        }
+
+        private static bool IsJsonPayload(string? mediaType, string body)
+        {
+            if (string.Equals(mediaType, "text/html", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(mediaType, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(mediaType)
+                && (string.Equals(mediaType, "application/json", StringComparison.OrdinalIgnoreCase)
+                    || mediaType.EndsWith("+json", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            var trimmed = body?.TrimStart() ?? string.Empty;
+            return trimmed.StartsWith('{') || trimmed.StartsWith('[');
         }
 
         private static string ExtractErrorMessage(string body)

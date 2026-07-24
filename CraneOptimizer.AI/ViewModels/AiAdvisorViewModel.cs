@@ -999,9 +999,11 @@ namespace CraneOptimizer.AI.ViewModels
                 if (status.IsAvailable)
                 {
                     var modelText = InstalledModels.Count == 0
-                        ? "No model IDs were discovered; enter one manually."
+                        ? status.ErrorMessage ?? "No model IDs were discovered; enter one manually."
                         : $"{InstalledModels.Count:N0} model ID(s) available.";
                     OllamaStatusText = $"{status.DisplayName} connected at {status.Endpoint}. {modelText}";
+                    if (InstalledModels.Count > 0 && !string.IsNullOrWhiteSpace(status.ErrorMessage))
+                        OllamaStatusText += " " + status.ErrorMessage;
                     StatusText = $"{status.DisplayName} connection check complete.";
                 }
                 else

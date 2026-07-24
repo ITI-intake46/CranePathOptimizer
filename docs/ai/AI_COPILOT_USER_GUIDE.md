@@ -59,6 +59,8 @@ Auth:        Bearer
 
 Click **Check** to retrieve available model IDs, then select or type a provider/model slug. The optional `HTTP-Referer` and `X-OpenRouter-Title` fields are available in the provider dialog. No specific free model is hard-coded because model availability can change.
 
+Legacy settings that stored only `https://openrouter.ai/` are migrated to the API root automatically. Connection checks reject HTML website pages, malformed JSON, unexpected model-list schemas, and empty built-in OpenRouter/OpenAI model catalogs instead of reporting a false success. Exact model choices are persisted separately for every provider.
+
 ## Custom Compatible Providers
 
 The custom profile supports:

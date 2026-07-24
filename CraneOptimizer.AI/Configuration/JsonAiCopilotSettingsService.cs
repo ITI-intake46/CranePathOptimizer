@@ -40,7 +40,10 @@ namespace CraneOptimizer.AI.Configuration
 
                 var json = File.ReadAllText(_settingsPath);
                 _current = JsonSerializer.Deserialize<AiCopilotSettings>(json, JsonOptions) ?? new AiCopilotSettings();
+                var migrated = ApplyProviderMigrations(_current);
                 Normalize(_current);
+                if (migrated)
+                    Save();
             }
             catch
             {
@@ -136,6 +139,17 @@ namespace CraneOptimizer.AI.Configuration
                     settings.ModelCapabilities.Remove(entry.Key);
             }
         }
+        private static bool ApplyProviderMigrations(AiCopilotSettings settings)
+        {
+            var migrated = false;
+            foreach (var profile in settings.ProviderProfiles ?? new List<AiProviderProfileSettings>())
+            {
+                if (profile != null)
+                    migrated |= AiProviderProfileMigrations.Apply(profile);
+            }
+            return migrated;
+        }
+
         private static void EnsureProviderProfiles(AiCopilotSettings settings)
         {
             var defaults = AiProviderProfileSettings.CreateDefaults();
@@ -207,6 +221,7 @@ namespace CraneOptimizer.AI.Configuration
                 ? fallback?.CredentialTarget ?? $"CraneOptimizer/AI/{profile.Id}"
                 : profile.CredentialTarget.Trim();
             profile.DefaultModel = profile.DefaultModel?.Trim() ?? fallback?.DefaultModel ?? string.Empty;
+            AiProviderProfileMigrations.Apply(profile);
             var normalizedHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var header in profile.AdditionalHeaders ?? new Dictionary<string, string>())
             {

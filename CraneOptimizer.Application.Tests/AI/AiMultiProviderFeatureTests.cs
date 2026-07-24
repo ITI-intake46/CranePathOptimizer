@@ -19,6 +19,9 @@ namespace CraneOptimizer.Application.Tests.AI
 
             Assert.Contains(profiles, profile => profile.Id == AiProviderProfileSettings.OllamaId && profile.IsLocal);
             Assert.Contains(profiles, profile => profile.Id == AiProviderProfileSettings.OpenRouterId && !profile.IsLocal);
+            Assert.Equal(
+                AiProviderProfileMigrations.OpenRouterApiBaseUrl,
+                profiles.Single(profile => profile.Id == AiProviderProfileSettings.OpenRouterId).BaseUrl);
             Assert.Contains(profiles, profile => profile.Id == AiProviderProfileSettings.OpenAiId && !profile.IsLocal);
             Assert.Contains(profiles, profile => profile.Id == AiProviderProfileSettings.AzureOpenAiId && !profile.IsLocal);
             Assert.Contains(profiles, profile => profile.Id == AiProviderProfileSettings.CustomOpenAiId && !profile.IsLocal);
@@ -26,6 +29,36 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.All(profiles, profile => Assert.DoesNotContain(profile.GetType().GetProperties(), property =>
                 property.Name.Contains("Secret", StringComparison.OrdinalIgnoreCase)
                 || property.Name.Equals("ApiKey", StringComparison.OrdinalIgnoreCase)));
+        }
+
+        [Fact]
+        public void OpenRouterMigration_UpgradesOnlyTheLegacyWebsiteRoot()
+        {
+            var legacy = AiProviderProfileSettings.CreateDefaults()
+                .Single(profile => profile.Id == AiProviderProfileSettings.OpenRouterId);
+            legacy.BaseUrl = "https://openrouter.ai/";
+
+            Assert.True(AiProviderProfileMigrations.Apply(legacy));
+            Assert.Equal(AiProviderProfileMigrations.OpenRouterApiBaseUrl, legacy.BaseUrl);
+
+            var intentionalCustomPath = AiProviderProfileSettings.CreateDefaults()
+                .Single(profile => profile.Id == AiProviderProfileSettings.OpenRouterId);
+            intentionalCustomPath.BaseUrl = "https://openrouter.ai/custom-gateway/";
+
+            Assert.False(AiProviderProfileMigrations.Apply(intentionalCustomPath));
+            Assert.Equal("https://openrouter.ai/custom-gateway/", intentionalCustomPath.BaseUrl);
+        }
+
+        [Fact]
+        public void ProviderDescriptor_AlwaysDisplaysItsHumanReadableName()
+        {
+            var descriptor = new AiProviderDescriptor(
+                "openrouter",
+                "OpenRouter",
+                AiProviderCapabilities.Chat,
+                IsLocal: false);
+
+            Assert.Equal("OpenRouter", descriptor.ToString());
         }
 
         [Fact]
@@ -65,6 +98,57 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Equal("https://example.test/v1/chat/completions", capturedUri);
         }
 
+
+        [Fact]
+        public async Task OpenAiCompatibleProvider_RejectsSuccessfulHtmlInsteadOfApiJson()
+        {
+            var settings = CreateSettings();
+            var credentials = new InMemoryCredentialStore();
+            credentials.Save("CraneOptimizer/AI/TestCloud", "test-secret");
+            var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("<html><body>Provider website</body></html>", Encoding.UTF8, "text/html")
+            });
+            using var provider = new OpenAiCompatibleChatProvider("test-cloud", settings, credentials, handler);
+
+            var response = await provider.AskAsync(new AiChatRequestDto
+            {
+                ProviderId = "test-cloud",
+                Model = "vendor/model",
+                UserPrompt = "Test API root validation."
+            });
+
+            Assert.False(response.Success);
+            Assert.Contains("non-JSON", response.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("API root", response.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task OpenAiCompatibleProvider_ExplainsTemperatureRejection()
+        {
+            var settings = CreateSettings();
+            var credentials = new InMemoryCredentialStore();
+            credentials.Save("CraneOptimizer/AI/TestCloud", "test-secret");
+            var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent(
+                    "{\"error\":{\"message\":\"temperature is not supported for this model\"}}",
+                    Encoding.UTF8,
+                    "application/json")
+            });
+            using var provider = new OpenAiCompatibleChatProvider("test-cloud", settings, credentials, handler);
+
+            var response = await provider.AskAsync(new AiChatRequestDto
+            {
+                ProviderId = "test-cloud",
+                Model = "vendor/model",
+                UserPrompt = "Test parameter guidance.",
+                Temperature = 0.2
+            });
+
+            Assert.False(response.Success);
+            Assert.Contains("Disable 'Send the temperature parameter'", response.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
 
         [Fact]
         public async Task OpenAiCompatibleProvider_SupportsCustomApiKeyHeaderAndAdditionalHeaders()
@@ -211,6 +295,34 @@ namespace CraneOptimizer.Application.Tests.AI
         }
 
         [Fact]
+        public async Task OpenAiCompatibleProvider_ReportsInterruptedStreamWithoutMarkingItComplete()
+        {
+            var settings = CreateSettings();
+            var credentials = new InMemoryCredentialStore();
+            credentials.Save("CraneOptimizer/AI/TestCloud", "test-secret");
+            var sse = "data: {\"choices\":[{\"delta\":{\"content\":\"Partial answer\"}}]}\n\n";
+            var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(sse, Encoding.UTF8, "text/event-stream")
+            });
+            using var provider = new OpenAiCompatibleChatProvider("test-cloud", settings, credentials, handler);
+            var updates = new List<AiStreamingUpdateDto>();
+
+            var response = await provider.AskStreamingAsync(new AiChatRequestDto
+            {
+                ProviderId = "test-cloud",
+                Model = "vendor/model",
+                UserPrompt = "Stream.",
+                PreferStreaming = true
+            }, updates.Add);
+
+            Assert.False(response.Success);
+            Assert.Contains("completion marker", response.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(updates, update => update.AccumulatedContent == "Partial answer" && !update.IsComplete);
+            Assert.DoesNotContain(updates, update => update.IsComplete);
+        }
+
+        [Fact]
         public async Task OpenAiCompatibleProvider_FallsBackToBufferedParsingWhenStreamingEndpointReturnsJson()
         {
             var settings = CreateSettings();
@@ -281,6 +393,120 @@ namespace CraneOptimizer.Application.Tests.AI
         }
 
         [Fact]
+        public void ProviderManagement_UpdateProfileMigratesLegacyOpenRouterRoot()
+        {
+            var settings = CreateSettings(AiProviderProfileSettings.OpenRouterId, "https://openrouter.ai/");
+            var credentials = new InMemoryCredentialStore();
+            var provider = new StubProvider(AiProviderProfileSettings.OpenRouterId, isLocal: false);
+            var registry = new AiProviderRegistry(new IAiChatProvider[] { provider }, settings);
+            using var ollama = new OllamaModelManagementService(settings);
+            using var management = new AiProviderManagementService(settings, registry, ollama, credentials, new StubHandler(_ => JsonResponse("{\"data\":[]}")));
+            var profile = management.GetProfile(AiProviderProfileSettings.OpenRouterId);
+
+            management.UpdateProfile(profile);
+
+            Assert.Equal(
+                AiProviderProfileMigrations.OpenRouterApiBaseUrl,
+                settings.Current.ProviderProfiles.Single().BaseUrl);
+        }
+
+        [Fact]
+        public async Task ProviderManagement_RejectsHtmlWebsiteResponseAsFalsePositive()
+        {
+            var settings = CreateSettings();
+            var credentials = new InMemoryCredentialStore();
+            credentials.Save("CraneOptimizer/AI/TestCloud", "test-secret");
+            var provider = new StubProvider("test-cloud", isLocal: false);
+            var registry = new AiProviderRegistry(new IAiChatProvider[] { provider }, settings);
+            var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("<!doctype html><html>website</html>", Encoding.UTF8, "text/html")
+            });
+            using var ollama = new OllamaModelManagementService(settings);
+            using var management = new AiProviderManagementService(settings, registry, ollama, credentials, handler);
+
+            var status = await management.GetStatusAsync("test-cloud");
+
+            Assert.False(status.IsAvailable);
+            Assert.Contains("non-JSON", status.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("API root", status.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task ProviderManagement_RejectsUnexpectedModelsJsonSchema()
+        {
+            var settings = CreateSettings();
+            var credentials = new InMemoryCredentialStore();
+            credentials.Save("CraneOptimizer/AI/TestCloud", "test-secret");
+            var provider = new StubProvider("test-cloud", isLocal: false);
+            var registry = new AiProviderRegistry(new IAiChatProvider[] { provider }, settings);
+            var handler = new StubHandler(_ => JsonResponse("{\"status\":\"ok\"}"));
+            using var ollama = new OllamaModelManagementService(settings);
+            using var management = new AiProviderManagementService(settings, registry, ollama, credentials, handler);
+
+            var status = await management.GetStatusAsync("test-cloud");
+
+            Assert.False(status.IsAvailable);
+            Assert.Contains("unexpected models response", status.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task ProviderManagement_RequiresNonEmptyOpenRouterDiscoveryResult()
+        {
+            var settings = CreateSettings(AiProviderProfileSettings.OpenRouterId, AiProviderProfileMigrations.OpenRouterApiBaseUrl);
+            var credentials = new InMemoryCredentialStore();
+            credentials.Save("CraneOptimizer/AI/TestCloud", "test-secret");
+            var provider = new StubProvider(AiProviderProfileSettings.OpenRouterId, isLocal: false);
+            var registry = new AiProviderRegistry(new IAiChatProvider[] { provider }, settings);
+            var handler = new StubHandler(_ => JsonResponse("{\"data\":[]}"));
+            using var ollama = new OllamaModelManagementService(settings);
+            using var management = new AiProviderManagementService(settings, registry, ollama, credentials, handler);
+
+            var status = await management.GetStatusAsync(AiProviderProfileSettings.OpenRouterId);
+
+            Assert.False(status.IsAvailable);
+            Assert.Contains("no model IDs", status.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void ProviderManagement_RemovesCredentialAndCloudConsentTogether()
+        {
+            var settings = CreateSettings();
+            settings.Current.CloudConsentAcceptedProviderIds.Add("test-cloud");
+            var credentials = new InMemoryCredentialStore();
+            credentials.Save("CraneOptimizer/AI/TestCloud", "test-secret");
+            var provider = new StubProvider("test-cloud", isLocal: false);
+            var registry = new AiProviderRegistry(new IAiChatProvider[] { provider }, settings);
+            using var ollama = new OllamaModelManagementService(settings);
+            using var management = new AiProviderManagementService(settings, registry, ollama, credentials, new StubHandler(_ => JsonResponse("{\"data\":[]}")));
+
+            management.DeleteCredential("test-cloud");
+
+            Assert.False(credentials.Contains("CraneOptimizer/AI/TestCloud"));
+            Assert.DoesNotContain(settings.Current.CloudConsentAcceptedProviderIds, id => string.Equals(id, "test-cloud", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public void ProviderSpecificModelSelections_SurviveSettingsSerialization()
+        {
+            var settings = new AiCopilotSettings
+            {
+                ProviderProfiles = AiProviderProfileSettings.CreateDefaults()
+            };
+            settings.ProviderProfiles.Single(profile => profile.Id == AiProviderProfileSettings.OllamaId).DefaultModel = "llama3.2:latest";
+            settings.ProviderProfiles.Single(profile => profile.Id == AiProviderProfileSettings.OpenRouterId).DefaultModel = "google/gemma-test:free";
+            settings.ProviderProfiles.Single(profile => profile.Id == AiProviderProfileSettings.OpenAiId).DefaultModel = "gpt-test";
+
+            var json = System.Text.Json.JsonSerializer.Serialize(settings);
+            var restored = System.Text.Json.JsonSerializer.Deserialize<AiCopilotSettings>(json);
+
+            Assert.NotNull(restored);
+            Assert.Equal("llama3.2:latest", restored!.ProviderProfiles.Single(profile => profile.Id == AiProviderProfileSettings.OllamaId).DefaultModel);
+            Assert.Equal("google/gemma-test:free", restored.ProviderProfiles.Single(profile => profile.Id == AiProviderProfileSettings.OpenRouterId).DefaultModel);
+            Assert.Equal("gpt-test", restored.ProviderProfiles.Single(profile => profile.Id == AiProviderProfileSettings.OpenAiId).DefaultModel);
+        }
+
+        [Fact]
         public void AiStudioXaml_ExposesProviderModelAndProtectedConfigurationControls()
         {
             var root = FindRepositoryRoot();
@@ -289,6 +515,7 @@ namespace CraneOptimizer.Application.Tests.AI
             var dialog = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Views", "AiProviderSettingsDialog.xaml"));
 
             Assert.Contains("SelectedProviderId", xaml);
+            Assert.Contains("DisplayMemberPath=\"DisplayName\"", xaml);
             Assert.Contains("ConfigureProviderCommand", xaml);
             Assert.Contains("ProviderPrivacyLabel", xaml);
             Assert.Contains("PasswordBox", dialog);
@@ -359,18 +586,20 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.DoesNotContain("\"ApiKey\"", json, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static StubSettingsService CreateSettings()
+        private static StubSettingsService CreateSettings(
+            string providerId = "test-cloud",
+            string baseUrl = "https://example.test/v1/")
         {
             var settings = new AiCopilotSettings
             {
-                DefaultProviderId = "test-cloud",
+                DefaultProviderId = providerId,
                 ProviderProfiles = new List<AiProviderProfileSettings>
                 {
                     new()
                     {
-                        Id = "test-cloud",
-                        DisplayName = "Test Cloud",
-                        BaseUrl = "https://example.test/v1/",
+                        Id = providerId,
+                        DisplayName = providerId == AiProviderProfileSettings.OpenRouterId ? "OpenRouter" : "Test Cloud",
+                        BaseUrl = baseUrl,
                         ChatCompletionsPath = "chat/completions",
                         ModelsPath = "models",
                         AuthenticationMode = "Bearer",
