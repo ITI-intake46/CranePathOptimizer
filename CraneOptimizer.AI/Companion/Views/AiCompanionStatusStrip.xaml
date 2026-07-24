@@ -50,7 +50,7 @@
 
             <TextBlock
                 Grid.Column="2"
-                MaxWidth="280"
+                MaxWidth="210"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Center"
                 FontFamily="{StaticResource FontPrimary}"
@@ -58,6 +58,8 @@
                 Foreground="{DynamicResource TextSecondaryBrush}"
                 Text="{Binding MissionRootCause}"
                 TextTrimming="CharacterEllipsis"
+                TextWrapping="NoWrap"
+                ClipToBounds="True"
                 ToolTip="{Binding MissionRootCause}" />
 
             <Button

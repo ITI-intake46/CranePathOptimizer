@@ -1661,9 +1661,16 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
 
         private class StubIfcOptionsDialogService : IIfcOptionsDialogService
         {
-            private readonly CoordinateReferenceMode _mode;
-            public StubIfcOptionsDialogService(CoordinateReferenceMode mode) => _mode = mode;
-            public IfcLoadOptionsDto? Show(string filePath) => new IfcLoadOptionsDto { CoordinateMode = _mode };
+            private readonly IfcLoadOptionsDto _options;
+
+            public StubIfcOptionsDialogService(CoordinateReferenceMode mode)
+                : this(new IfcLoadOptionsDto { CoordinateMode = mode })
+            {
+            }
+
+            public StubIfcOptionsDialogService(IfcLoadOptionsDto options) => _options = options;
+            public IfcLoadOptionsDto? Show(string filePath) => _options;
+            public IfcLoadOptionsDto? ShowDisplayOptions(string? modelPath) => _options;
         }
 
         private class StubViewportInteractionService : IViewportInteractionService
@@ -1686,6 +1693,13 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
 
         private class StubElementVisibilityFilterService : IElementVisibilityFilterService
         {
+            private readonly List<string>? _operationLog;
+
+            public StubElementVisibilityFilterService(List<string>? operationLog = null)
+            {
+                _operationLog = operationLog;
+            }
+
             public event Action? StateChanged { add { } remove { } }
             public IReadOnlyList<PrecastElement> AllElements => new List<PrecastElement>();
             public IReadOnlyList<PrecastElement> VisibleElements => new List<PrecastElement>();
@@ -1712,7 +1726,10 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
             public void ShowElements(IEnumerable<PrecastElement> elements) { }
             public void HideElements(IEnumerable<PrecastElement> elements) { }
             public void IsolateElements(IEnumerable<PrecastElement> elements) { }
-            public void ApplyLoadOptions(IfcLoadOptionsDto options) { }
+            public void ApplyLoadOptions(IfcLoadOptionsDto options)
+            {
+                _operationLog?.Add("ApplyOptions");
+            }
             public string GetStorey(PrecastElement element) => "";
             public bool IsTypeEnabled(string type) => true;
             public bool IsMaterialEnabled(string material) => true;
@@ -1723,12 +1740,20 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
 
         private class StubIfcSceneOperationService : IIfcSceneOperationService
         {
+            private readonly List<string>? _operationLog;
+
+            public StubIfcSceneOperationService(List<string>? operationLog = null)
+            {
+                _operationLog = operationLog;
+            }
+
             public bool HasIfcModel { get; set; } = true;
             public List<PrecastElement> LastReplacedElements { get; private set; } = new();
             public List<PrecastElement> GetElements() => new();
             public List<PrecastElement> TranslateElements(IEnumerable<PrecastElement> elements, DomainPoint3D offset) => elements.ToList();
             public List<PrecastElement> ReplaceIfcModel(IEnumerable<PrecastElement> elements)
             {
+                _operationLog?.Add("ReplaceIfcModel");
                 LastReplacedElements = elements.ToList();
                 return LastReplacedElements;
             }
@@ -1864,6 +1889,63 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
             Assert.Equal(0.0, service.CurrentReference.LocalReferenceX);
             Assert.Equal(0.0, service.CurrentReference.LocalReferenceY);
             Assert.Equal(0.0, service.CurrentReference.LocalReferenceZ);
+        }
+
+        [Fact]
+        public async Task Test_53A_LoadKeepsGridGeometryAndAppliesSharedVisibilityBeforeFirstScene()
+        {
+            var coordinateService = new ProjectCoordinateTransformService();
+            var mockGeoref = new IfcGeoreferencingResult(
+                HasMapConversion: false,
+                Eastings: 0.0,
+                Northings: 0.0,
+                OrthogonalHeight: 0.0,
+                XAxisAbscissa: null,
+                XAxisOrdinate: null,
+                Scale: 1.0,
+                CrsName: null,
+                CrsDescription: null,
+                EpsgCode: null,
+                HasSiteLatLon: false,
+                SiteLatitude: null,
+                SiteLongitude: null,
+                SiteElevation: null);
+            var mockReader = new MockIfcReaderWithGeoref(mockGeoref);
+            var options = new IfcLoadOptionsDto
+            {
+                CoordinateMode = CoordinateReferenceMode.IfcOrigin,
+                HideGrids = true
+            };
+            var operationLog = new List<string>();
+            var filterService = new StubElementVisibilityFilterService(operationLog);
+            var visibilityService = new IfcVisibilityOptionsService(filterService);
+            var sceneOperations = new StubIfcSceneOperationService(operationLog);
+            var viewModel = new IfcViewerViewModel(
+                mockReader,
+                null!,
+                new StubDialogService(),
+                new StubIfcOptionsDialogService(options),
+                new StubViewportInteractionService(),
+                null!,
+                filterService,
+                sceneOperations,
+                new StubIfcDiagnosticAuditService(),
+                null,
+                new StubIfcNormalizationDecisionService(),
+                coordinateService,
+                visibilityOptionsService: visibilityService);
+
+            var method = typeof(IfcViewerViewModel).GetMethod(
+                "LoadIfcAsync",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(method);
+
+            await (Task)method.Invoke(viewModel, null)!;
+
+            Assert.NotNull(mockReader.LastReadingOptions);
+            Assert.False(mockReader.LastReadingOptions.HideGrids);
+            Assert.True(visibilityService.GetCurrentOptions().HideGrids);
+            Assert.Equal(new[] { "ApplyOptions", "ReplaceIfcModel" }, operationLog);
         }
 
         [Fact]
@@ -2190,6 +2272,7 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
             public MockIfcReaderWithGeoref(IfcGeoreferencingResult georef) => _georef = georef;
             public double ModelLengthFactor => 1.0;
             public double? ModelGroundElevation => null;
+            public IfcReadingOptions? LastReadingOptions { get; private set; }
 
             private static List<PrecastElement> DummyElements() => new()
             {
@@ -2205,7 +2288,11 @@ namespace CraneOptimizer.Application.Tests.Diagnostics
             public List<PrecastElement> ReadElements(string ifcPath) => DummyElements();
             public List<PrecastElement> ReadElements(string ifcPath, IfcReadingOptions? options) => DummyElements();
             public List<PrecastElement> ReadElements(string path, IProgress<double> progress) => DummyElements();
-            public List<PrecastElement> ReadElements(string path, IProgress<double> progress, IfcReadingOptions? options, CancellationToken cancellationToken = default) => DummyElements();
+            public List<PrecastElement> ReadElements(string path, IProgress<double> progress, IfcReadingOptions? options, CancellationToken cancellationToken = default)
+            {
+                LastReadingOptions = options;
+                return DummyElements();
+            }
             public Task InitializeSessionForRenderingAsync(string ifcPath, CancellationToken cancellationToken = default) => Task.CompletedTask;
             public IfcGeoreferencingResult? GetGeoreferencingData() => _georef;
             public void ClearData() { }

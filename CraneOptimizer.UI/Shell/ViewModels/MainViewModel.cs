@@ -308,6 +308,11 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             set => _status.SetStatus(value);
         }
 
+        public string StatusBarStatusText =>
+            StatusText.StartsWith("Project opened:", StringComparison.Ordinal)
+                ? string.Empty
+                : StatusText;
+
         public string HistoryBreadcrumb
         {
             get => _status.HistoryBreadcrumb;
@@ -326,6 +331,13 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         {
             get => _coordY;
             set { _coordY = value; OnPropertyChanged(); }
+        }
+
+        private string _coordZ = "0.00M";
+        public string CoordZ
+        {
+            get => _coordZ;
+            set { _coordZ = value; OnPropertyChanged(); }
         }
 
         private bool _isModelLoaded;
@@ -539,41 +551,55 @@ namespace CraneOptimizer.UI.Shell.ViewModels
 
         private double _lastCoordinateX;
         private double _lastCoordinateY;
+        private double _lastCoordinateZ;
         private bool _hasCoordinate;
 
         private void OnReferenceChanged(object? sender, EventArgs e)
         {
             if (_hasCoordinate)
             {
-                SetCoordinates(_lastCoordinateX, _lastCoordinateY);
+                SetCoordinates(_lastCoordinateX, _lastCoordinateY, _lastCoordinateZ);
             }
         }
 
         public void SetCoordinates(double x, double y)
         {
+            SetCoordinates(x, y, 0.0, isReferencePlane: true);
+        }
+
+        public void SetCoordinates(double x, double y, double z, bool isReferencePlane = false)
+        {
             _lastCoordinateX = x;
             _lastCoordinateY = y;
+            _lastCoordinateZ = z;
             _hasCoordinate = true;
 
             var settings = _unitSettings.Current;
-            var zVal = 0.0; // default ground Z
             if (CraneOptimizer.UI.Core.Configuration.AppFeatureFlags.ShowCoordinateReferenceUi && _transformService != null && _transformService.IsEnabled)
             {
-                var localPt = new DomainPoint3D(x, y, zVal);
+                var localPt = new DomainPoint3D(x, y, z);
                 var surveyPt = _transformService.LocalToSurvey(localPt);
                 CoordX = $"{UnitSystem.FormatLength(x, settings)} (Easting: {surveyPt.X:F3} m)";
-                CoordY = $"{UnitSystem.FormatLength(y, settings)} (Northing: {surveyPt.Y:F3} m) [Default Local Z: {UnitSystem.FormatLength(zVal, settings)} | Elevation: {surveyPt.Z:F3} m (Ground)]";
+                CoordY = $"{UnitSystem.FormatLength(y, settings)} (Northing: {surveyPt.Y:F3} m)";
+                CoordZ = $"{UnitSystem.FormatLength(z, settings)} (Elevation: {surveyPt.Z:F3} m)";
             }
             else
             {
                 CoordX = UnitSystem.FormatLength(x, settings);
                 // Temporarily hidden by product decision. Keep logic intact for future re-enable.
-                // CoordY = $"{UnitSystem.FormatLength(y, settings)} [Default Local Z: {UnitSystem.FormatLength(zVal, settings)}] (Survey: Not active)";
-                CoordY = $"{UnitSystem.FormatLength(y, settings)} [Default Local Z: {UnitSystem.FormatLength(zVal, settings)}]";
+                // CoordY = $"{UnitSystem.FormatLength(y, settings)} [Default Local Z: {UnitSystem.FormatLength(z, settings)}] (Survey: Not active)";
+                CoordY = UnitSystem.FormatLength(y, settings);
+                CoordZ = isReferencePlane
+                    ? $"{UnitSystem.FormatLength(z, settings)} [Default Local Z]"
+                    : UnitSystem.FormatLength(z, settings);
             }
         }
 
-        private void OnStatusChanged() => OnPropertyChanged(nameof(StatusText));
+        private void OnStatusChanged()
+        {
+            OnPropertyChanged(nameof(StatusText));
+            OnPropertyChanged(nameof(StatusBarStatusText));
+        }
         private void OnHistoryChanged() => OnPropertyChanged(nameof(HistoryBreadcrumb));
     }
 }

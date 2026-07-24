@@ -2,20 +2,24 @@ using System;
 using System.Windows;
 using System.Windows.Input;
 using CraneOptimizer.Domain.CreatedProject;
+using CraneOptimizer.UI.Features.F2_IfcViewer.DTOs;
+using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
+using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using System.Threading.Tasks;
 
 namespace CraneOptimizer.UI.Features.F2_IfcViewer.Views
 {
     public partial class IFCLoadOptionsDialog : Window
     {
-        // ── Result properties (read by caller) ────────────────────────────
-        public bool HideGrids => ChkHideGrids.IsChecked == true;
-        public bool HideLevels => ChkHideLevels.IsChecked == true;
-        public bool HideAnnotations => ChkHideAnnotations.IsChecked == true;
-        public bool HideSite => ChkHideSite.IsChecked == true;
-        public bool HideSpaces => ChkHideSpaces.IsChecked == true;
-        public bool HideOpenings => ChkHideOpenings.IsChecked == true;
-        public bool HideVirtualElements => ChkHideVirtualElements.IsChecked == true;
+        public IfcOptionsDialogViewModel ViewModel { get; }
+
+        public bool HideGrids => ViewModel.HideGrids;
+        public bool HideLevels => ViewModel.HideLevels;
+        public bool HideAnnotations => ViewModel.HideAnnotations;
+        public bool HideSite => ViewModel.HideSite;
+        public bool HideSpaces => ViewModel.HideSpaces;
+        public bool HideOpenings => ViewModel.HideOpenings;
+        public bool HideVirtualElements => ViewModel.HideVirtualElements;
 
         public CoordinateReferenceMode SelectedCoordinateMode =>
             RadIfcOrigin.IsChecked == true ? CoordinateReferenceMode.IfcOrigin : CoordinateReferenceMode.LocalOnly;
@@ -25,11 +29,31 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.Views
         }
 
         public IFCLoadOptionsDialog(string filePath, Task<IfcGeoreferencingResult?>? georefTask)
+            : this(
+                IfcOptionsMode.Load,
+                filePath,
+                georefTask,
+                IfcVisibilityOptionsCatalog.CreateDefaultOptions(),
+                IfcVisibilityOptionsCatalog.Definitions)
+        {
+        }
+
+        private IFCLoadOptionsDialog(
+            IfcOptionsMode mode,
+            string? filePath,
+            Task<IfcGeoreferencingResult?>? georefTask,
+            IfcLoadOptionsDto currentOptions,
+            IReadOnlyList<IfcVisibilityOptionDefinition> optionDefinitions)
         {
             InitializeComponent();
-            TxtFilePath.Text = filePath;
 
-            // Initial scanning state
+            ViewModel = new IfcOptionsDialogViewModel(mode, filePath, currentOptions, optionDefinitions);
+            DataContext = ViewModel;
+            ApplyCoordinateMode(currentOptions.CoordinateMode);
+
+            if (ViewModel.CoordinateReferenceVisibility == Visibility.Collapsed)
+                CoordinateReferencePanel.Visibility = Visibility.Collapsed;
+
             RadIfcOrigin.IsEnabled = false;
             TxtStatus.Text = "Scanning georeferencing...";
             if (TryFindResource("TextSecondaryBrush") is System.Windows.Media.Brush secondaryBrush)
@@ -44,12 +68,12 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.Views
                     try
                     {
                         var result = await georefTask;
-                        Dispatcher.Invoke(() => InitializeGeoreferencing(result));
+                        await Dispatcher.InvokeAsync(() => InitializeGeoreferencing(result));
                     }
                     catch (Exception ex)
                     {
                         System.Diagnostics.Debug.WriteLine($"[IfcGeoreferencing] Exception during pre-scan: {ex}");
-                        Dispatcher.Invoke(() => InitializeGeoreferencing(null));
+                        await Dispatcher.InvokeAsync(() => InitializeGeoreferencing(null));
                     }
                 });
             }
@@ -59,8 +83,50 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.Views
             }
         }
 
+        public static IFCLoadOptionsDialog CreateLoadOptionsDialog(
+            string filePath,
+            Task<IfcGeoreferencingResult?>? georefTask,
+            IfcLoadOptionsDto currentOptions,
+            IReadOnlyList<IfcVisibilityOptionDefinition> optionDefinitions)
+        {
+            return new IFCLoadOptionsDialog(
+                IfcOptionsMode.Load,
+                filePath,
+                georefTask,
+                currentOptions,
+                optionDefinitions);
+        }
+
+        public static IFCLoadOptionsDialog CreateDisplayOptionsDialog(
+            string? modelPath,
+            IfcLoadOptionsDto currentOptions,
+            IReadOnlyList<IfcVisibilityOptionDefinition> optionDefinitions)
+        {
+            return new IFCLoadOptionsDialog(
+                IfcOptionsMode.Display,
+                modelPath,
+                null,
+                currentOptions,
+                optionDefinitions);
+        }
+
+        public IfcLoadOptionsDto GetOptions()
+        {
+            ViewModel.CoordinateMode = SelectedCoordinateMode;
+            return ViewModel.ToOptions();
+        }
+
+        private void ApplyCoordinateMode(CoordinateReferenceMode mode)
+        {
+            RadIfcOrigin.IsChecked = mode == CoordinateReferenceMode.IfcOrigin;
+            RadLocalOnly.IsChecked = mode != CoordinateReferenceMode.IfcOrigin;
+        }
+
         private void InitializeGeoreferencing(IfcGeoreferencingResult? georef)
         {
+            if (ViewModel.Mode == IfcOptionsMode.Display)
+                return;
+
             if (georef != null && georef.HasMapConversion)
             {
                 RadIfcOrigin.IsEnabled = true;
@@ -96,6 +162,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.Views
 
         private void BtnLoad_Click(object sender, RoutedEventArgs e)
         {
+            ViewModel.CoordinateMode = SelectedCoordinateMode;
             DialogResult = true;
             Close();
         }
@@ -108,24 +175,12 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.Views
 
         private void BtnSelectAll_Click(object sender, RoutedEventArgs e)
         {
-            ChkHideGrids.IsChecked = true;
-            ChkHideLevels.IsChecked = true;
-            ChkHideAnnotations.IsChecked = true;
-            ChkHideSite.IsChecked = true;
-            ChkHideSpaces.IsChecked = true;
-            ChkHideOpenings.IsChecked = true;
-            ChkHideVirtualElements.IsChecked = true;
+            ViewModel.SelectAll();
         }
 
         private void BtnClearAll_Click(object sender, RoutedEventArgs e)
         {
-            ChkHideGrids.IsChecked = false;
-            ChkHideLevels.IsChecked = false;
-            ChkHideAnnotations.IsChecked = false;
-            ChkHideSite.IsChecked = false;
-            ChkHideSpaces.IsChecked = false;
-            ChkHideOpenings.IsChecked = false;
-            ChkHideVirtualElements.IsChecked = false;
+            ViewModel.ClearAll();
         }
     }
 }

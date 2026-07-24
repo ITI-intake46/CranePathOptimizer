@@ -56,6 +56,7 @@ namespace CraneOptimizer.AI.Services
                         Action("Open", "OpenProjectCommand", "Open an existing .craneopt project.", "Available from the HOME project group.", "Use trusted project files only."),
                         Action("Save", "SaveProjectCommand", "Save the current project state.", "Available when project state is loaded.", "Save before long optimization or report-generation workflows."),
                         Action("Load IFC Model", "IfcViewer.LoadIfcCommand", "Import the primary BIM/IFC model into the viewer.", "Available from HOME quick access and IFC MODEL tab.", "Check model units and coordinate alignment after import."),
+                        Action("Filter", "ElementManagement.ShowFilterDialogCommand", "Open the element filter dialog.", "Available from the HOME view group after an IFC model is loaded.", "Filters can change visibility and optimization scope."),
                         Action("Add Crane", "AddMobileCraneCommand", "Start adding a mobile crane to the 3D scene.", "Quick access route to the CRANES workflow.", "Crane placement must still be validated against site constraints and manufacturer data."),
                         Action("Draw Zones", "StartDrawingCommand", "Start drawing site zones used by placement constraints.", "Quick access route to the ZONES workflow.", "Allowed/forbidden zones strongly affect GA candidate points.")
                     },
@@ -69,25 +70,20 @@ namespace CraneOptimizer.AI.Services
                 new AiFeatureTabDto
                 {
                     TabName = "IFC MODEL",
-                    Purpose = "Import, merge, move, delete, display, filter, and inspect BIM/IFC elements.",
+                    Purpose = "Import, move, delete, filter, and adjust viewport display options for BIM/IFC elements.",
                     PrimaryView = "Features/F2_IfcViewer/Views/IfcTabView.xaml",
                     PrimaryViewModel = "IfcViewerViewModel and ElementManagementViewModel via MainViewModel",
                     Actions = new[]
                     {
                         Action("Load IFC", "IfcViewer.LoadIfcCommand", "Load an IFC model from disk.", "Use when no IFC has been loaded or when replacing the active model.", "Confirm units, geometry, and element counts."),
-                        Action("Merge IFC", "IfcViewer.MergeIfcCommand", "Merge another IFC model into the current scene.", "Use for multi-model projects.", "Merged models may need coordinate alignment."),
                         Action("Move IFC", "IfcViewer.MoveIfcCommand", "Move the IFC model in the scene.", "Use when BIM geometry is offset from site/zones/DXF.", "Coordinate changes affect all downstream crane reach calculations."),
                         Action("Delete IFC", "IfcViewer.DeleteIfcCommand", "Remove the loaded IFC model.", "Use when replacing or cleaning the scene.", "Deleting the model invalidates optimization context that depends on elements."),
-                        Action("Toggle COG Markers", "UI toggle", "Show or hide element center-of-gravity markers.", "Useful for inspecting lifting points.", "COG visibility does not change calculations."),
-                        Action("Color by Weight", "UI toggle", "Color elements by estimated/imported weight.", "Useful for visually finding heavy elements.", "Verify weight provenance before using results for decisions."),
-                        Action("Export Element List", "UI action", "Export loaded element metadata.", "Useful before reports or QA.", "Review missing or estimated weights."),
-                        Action("Filter", "ElementManagement.ShowFilterDialogCommand", "Open the element filter dialog.", "Use to control which elements are included or shown.", "Filters can change optimization scope."),
-                        Action("Upload DXF", "Dxf.UploadDxfCommand", "Load a DXF site overlay from the IFC tab.", "Shortcut to DXF workflow.", "Coordinate alignment matters."),
-                        Action("Align DXF", "Dxf.AlignCommand", "Align the DXF overlay with the BIM/site.", "Use after uploading DXF.", "Incorrect DXF alignment can invalidate zones.")
+                        Action("IFC Display Options", "IfcViewer.ShowIfcDisplayOptionsCommand", "Adjust post-import IFC visibility options in the active viewport.", "Available after an IFC model is loaded.", "This changes viewport display only, not stored IFC data."),
+                        Action("Filter", "ElementManagement.ShowFilterDialogCommand", "Open the element filter dialog.", "Available from HOME and IFC MODEL after an IFC model is loaded.", "Both buttons open the same filter state.")
                     },
                     TypicalQuestions = new[]
                     {
-                        "How do I load or merge IFC files?",
+                        "How do I load IFC files?",
                         "Why are some elements missing from optimization?",
                         "Where can I filter elements?",
                         "How do I check element weights?"

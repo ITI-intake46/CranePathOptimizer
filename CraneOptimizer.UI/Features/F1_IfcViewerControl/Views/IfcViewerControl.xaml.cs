@@ -15,7 +15,6 @@ using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
-using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Views;
 using CraneOptimizer.UI.Features.F7_Zones;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
@@ -35,7 +34,6 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private readonly IViewportHitTestService _hitTestService = null!;
         private readonly ICameraService _cameraService = null!;
         private readonly IOsnapService _osnapService = null!;
-        private readonly OsnapPanelViewModel _osnapVm = null!;
         private readonly OsnapGeometryBridge _osnapBridge = null!;
         private readonly IUnitSettingsService _unitSettingsService = null!;
         private readonly IViewportSelectionService _viewportSelectionService = null!;
@@ -70,14 +68,12 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _hitTestService = App.ServiceProvider.GetRequiredService<IViewportHitTestService>();
             _cameraService = App.ServiceProvider.GetRequiredService<ICameraService>();
             _osnapService = App.ServiceProvider.GetRequiredService<IOsnapService>();
-            _osnapVm = App.ServiceProvider.GetRequiredService<OsnapPanelViewModel>();
             _osnapBridge = App.ServiceProvider.GetRequiredService<OsnapGeometryBridge>();
             _unitSettingsService = App.ServiceProvider.GetRequiredService<IUnitSettingsService>();
             _viewportSelectionService = App.ServiceProvider.GetRequiredService<IViewportSelectionService>();
             _selectionHandler = App.ServiceProvider.GetRequiredService<SelectionHandler>();
             _drawingViewModel = App.ServiceProvider.GetRequiredService<DrawingViewModel>();
 
-            OsnapPanel.DataContext = _osnapVm;
             _osnapIndicator = new OsnapIndicator(OsnapOverlayCanvas);
 
             _renderingService.Initialize(IfcViewer);
@@ -260,9 +256,9 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
             if (DataContext is MainViewModel vm)
             {
-                if (_hitTestService.TryGetWorldPoint(viewport, screen, out var worldPt))
+                if (TryResolveMouseCoordinatePoint(viewport, screen, out Point3D worldPt, out bool isReferencePlane))
                 {
-                    vm.SetCoordinates(worldPt.X, worldPt.Y);
+                    vm.SetCoordinates(worldPt.X, worldPt.Y, worldPt.Z, isReferencePlane);
                 }
             }
 
@@ -295,6 +291,89 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             => e.LeftButton == MouseButtonState.Pressed ||
                e.MiddleButton == MouseButtonState.Pressed ||
                e.RightButton == MouseButtonState.Pressed;
+
+        private bool TryResolveMouseCoordinatePoint(
+            HelixViewport3D viewport,
+            Point screen,
+            out Point3D worldPoint,
+            out bool isReferencePlane)
+        {
+            if (TryGetGeometryCoordinatePoint(viewport, screen, out worldPoint))
+            {
+                isReferencePlane = false;
+                return true;
+            }
+
+            isReferencePlane = true;
+            return _hitTestService.TryGetWorldPoint(viewport, screen, out worldPoint);
+        }
+
+        private static bool TryGetGeometryCoordinatePoint(
+            HelixViewport3D viewport,
+            Point screen,
+            out Point3D worldPoint)
+        {
+            worldPoint = default;
+
+            try
+            {
+                Point innerPoint = ToInnerViewportPoint(viewport, screen);
+                foreach (PointHitResult hit in viewport.Viewport.FindHits(innerPoint))
+                {
+                    if (hit.Visual == null ||
+                        hit.Mesh == null ||
+                        hit.RayHit is not RayMeshGeometry3DHitTestResult ||
+                        !IsCoordinateGeometryVisual(hit.Visual) ||
+                        !IsFinite(hit.Position))
+                    {
+                        continue;
+                    }
+
+                    worldPoint = hit.Position;
+                    return true;
+                }
+            }
+            catch
+            {
+                // Coordinate display falls back to the active reference plane.
+            }
+
+            return false;
+        }
+
+        private static bool IsCoordinateGeometryVisual(Visual3D visual)
+        {
+            while (visual != null)
+            {
+                object? tag = visual.GetValue(FrameworkElement.TagProperty);
+                if (tag is PrecastElement || tag is SceneCrane || tag is GreenAreaZone)
+                    return true;
+
+                if (tag is string)
+                    return false;
+
+                visual = VisualTreeHelper.GetParent(visual) as Visual3D;
+            }
+
+            return false;
+        }
+
+        private static Point ToInnerViewportPoint(HelixViewport3D viewport, Point helixPoint)
+        {
+            try
+            {
+                return viewport.TranslatePoint(helixPoint, viewport.Viewport);
+            }
+            catch
+            {
+                return helixPoint;
+            }
+        }
+
+        private static bool IsFinite(Point3D point)
+            => double.IsFinite(point.X) &&
+               double.IsFinite(point.Y) &&
+               double.IsFinite(point.Z);
 
         private void IfcViewer_MouseDown(object sender, MouseButtonEventArgs e)
         {
@@ -517,12 +596,9 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             }
         }
 
-        private void RenderQualityCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        public void ApplyRenderQualitySelection(string? qualityTag)
         {
-            if (RenderQualityCombo.SelectedItem is not ComboBoxItem item)
-                return;
-
-            var selectedQuality = item.Tag?.ToString() switch
+            var selectedQuality = qualityTag switch
             {
                 "High" => ElementVisualBuilder.MeshQuality.High,
                 "Low" => ElementVisualBuilder.MeshQuality.Low,

@@ -61,6 +61,35 @@
 
             <Rectangle Style="{StaticResource RibbonSep}" />
 
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="VIEW">
+                <Button
+                    Command="{Binding ElementManagement.ShowFilterDialogCommand}"
+                    Content="Filter"
+                    FontSize="{StaticResource FontSizeXS}"
+                    IsEnabled="{Binding IfcViewer.HasIfcModel}"
+                    Style="{StaticResource RibbonMajorCommandTile}"
+                    ToolTip="Filter">
+                    <Button.Tag>
+                        <Viewbox
+                            Width="26"
+                            Height="26">
+                            <Canvas Width="24" Height="24">
+                                <Polygon Fill="{StaticResource PrimaryBrush}" Points="2,3 22,3 14,13 14,21 10,21 10,13" />
+                                <Ellipse
+                                    Canvas.Left="15"
+                                    Canvas.Top="1"
+                                    Width="8"
+                                    Height="8"
+                                    Fill="{StaticResource DestructiveBrush}"
+                                    Visibility="Collapsed" />
+                            </Canvas>
+                        </Viewbox>
+                    </Button.Tag>
+                </Button>
+            </ContentControl>
+
+            <Rectangle Style="{StaticResource RibbonSep}" />
+
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="QUICK ACCESS">
                 <StackPanel Orientation="Horizontal">
                     <Button

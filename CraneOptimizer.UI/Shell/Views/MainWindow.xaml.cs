@@ -1,6 +1,7 @@
 using CraneOptimizer.AI.Host;
 using CraneOptimizer.UI.AIIntegration;
 using CraneOptimizer.UI.Core.Helpers;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.F10_ProjectManagement.Views;
 using CraneOptimizer.UI.Shell.ViewModels;
@@ -28,10 +29,12 @@ namespace CraneOptimizer.UI.Shell.Views
             MainViewModel vm,
             IProjectNavigationService nav,
             AiHostContextBridge aiContextBridge,
-            IUiInteractionContextService uiContext)
+            IUiInteractionContextService uiContext,
+            OsnapPanelViewModel osnapViewModel)
         {
             InitializeComponent();
             DataContext = vm;
+            ShellOsnapPanel.DataContext = osnapViewModel;
             _nav = nav;
             _uiContext = uiContext ?? throw new ArgumentNullException(nameof(uiContext));
             _uiContext.ActionRequested += OnAiActionRequested;
@@ -142,8 +145,12 @@ namespace CraneOptimizer.UI.Shell.Views
         private void RedoBtn_Click(object sender, RoutedEventArgs e) { }
         private void ClearHistory_Click(object sender, RoutedEventArgs e) { }
         private void BtnDimensionTool_Click(object sender, RoutedEventArgs e) { }
-        private void ShowCommandPanel_Click(object sender, RoutedEventArgs e) { }
-        private void ShowLogsPanel_Click(object sender, RoutedEventArgs e) { }
+        private void RenderQualityCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is ComboBox { SelectedItem: ComboBoxItem item })
+                IfcViewerHost.ApplyRenderQualitySelection(item.Tag?.ToString());
+        }
+
         private void OpenAiAssistTab()
         {
             AiAssistTab.Visibility = Visibility.Visible;
