@@ -380,8 +380,7 @@
                     x:Name="RightWorkspaceTabs"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderThickness="0"
-                    SelectedIndex="0"
-                    SelectionChanged="RightWorkspaceTabs_SelectionChanged">
+                    SelectedIndex="0">
                     <TabControl.Resources>
                         <Style TargetType="{x:Type TabItem}">
                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />

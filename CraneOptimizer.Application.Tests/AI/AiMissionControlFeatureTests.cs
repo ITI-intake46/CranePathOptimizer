@@ -104,7 +104,7 @@ namespace CraneOptimizer.Application.Tests.AI
         }
 
         [Fact]
-        public void CompanionPanel_ExposesMinimalResizableMissionControlSurfacesAndGovernedActions()
+        public void CompanionPanel_ExposesSlimVerticalMissionControlSurfacesAndGovernedActions()
         {
             var root = FindRepositoryRoot();
             Assert.NotNull(root);
@@ -116,14 +116,18 @@ namespace CraneOptimizer.Application.Tests.AI
             var mainWindowCode = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.UI", "Shell", "Views", "MainWindow.xaml.cs"));
             var softwareContext = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Services", "StaticAiSoftwareContextService.cs"));
 
-            Assert.Contains("MinWidth=\"420\"", companionXaml);
-            Assert.Contains("AiAssistNavButton", companionXaml);
-            Assert.Contains("x:Name=\"SectionNavigation\"", companionXaml);
-            Assert.Contains("Columns=\"6\"", companionXaml);
-            Assert.Contains("PreviewKeyDown=\"SectionNavigation_PreviewKeyDown\"", companionXaml);
+            Assert.Contains("MinWidth=\"330\"", companionXaml);
+            Assert.Contains("AiAssistRailButton", companionXaml);
+            Assert.Contains("x:Name=\"SectionRail\"", companionXaml);
+            Assert.Contains("x:Name=\"SectionRailNavigation\"", companionXaml);
+            Assert.Contains("Rows=\"6\"", companionXaml);
+            Assert.Contains("PreviewKeyDown=\"SectionRail_PreviewKeyDown\"", companionXaml);
+            Assert.Contains("PreviewMouseWheel=\"SectionRail_PreviewMouseWheel\"", companionXaml);
+            Assert.Contains("RotateTransform Angle=\"90\"", companionXaml);
+            Assert.Contains("Width=\"38\"", companionXaml);
             Assert.Contains("VerticalScrollBarVisibility=\"Auto\"", companionXaml);
-            Assert.DoesNotContain("RotateTransform", companionXaml);
-            Assert.DoesNotContain("SectionRail", companionXaml);
+            Assert.DoesNotContain("AiAssistNavButton", companionXaml);
+            Assert.DoesNotContain("x:Name=\"SectionNavigation\"", companionXaml);
             Assert.DoesNotContain("PRIMARY RECOMMENDATION", companionXaml);
             Assert.Contains("Text=\"NEXT STEP\"", companionXaml);
             Assert.Contains("Text=\"VERIFIED\"", companionXaml);
@@ -160,22 +164,25 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("AiShowcaseService", companionVm);
             Assert.Contains("Generate BIM exporter request", companionVm);
 
-            Assert.Contains("SectionNavigation_PreviewKeyDown", companionCodeBehind);
+            Assert.Contains("SectionRail_PreviewKeyDown", companionCodeBehind);
+            Assert.Contains("SectionRail_PreviewMouseWheel", companionCodeBehind);
+            Assert.Contains("IsSectionRailExpanded", companionCodeBehind);
+            Assert.Contains("DoubleAnimation", companionCodeBehind);
             Assert.Contains("DispatcherPriority.ContextIdle", companionCodeBehind);
             Assert.Contains("SelectedCommandCenterTab, \"Chat\"", companionCodeBehind);
             Assert.Contains("ScrollBodyToEnd();", companionCodeBehind);
-            Assert.DoesNotContain("DoubleAnimation", companionCodeBehind);
-            Assert.DoesNotContain("IsSectionRailExpanded", companionCodeBehind);
 
             Assert.Contains("AutomationProperties.Name=\"Resize right workspace panel\"", mainWindowXaml);
-            Assert.Contains("private const double AiAssistMinWidth = 420", mainWindowCode);
-            Assert.Contains("private const double AiAssistPreferredWidth = 540", mainWindowCode);
-            Assert.Contains("private const double AiAssistMaxWidth = 760", mainWindowCode);
+            Assert.Contains("x:Name=\"RightWorkspaceColumn\" Width=\"360\" MinWidth=\"330\" MaxWidth=\"380\"", mainWindowXaml);
+            Assert.DoesNotContain("SelectionChanged=\"RightWorkspaceTabs_SelectionChanged\"", mainWindowXaml);
+            Assert.DoesNotContain("AiAssistPreferredWidth", mainWindowCode);
+            Assert.DoesNotContain("ApplyAiAssistWorkspaceWidth", mainWindowCode);
+            Assert.DoesNotContain("RestoreCranePropertiesWorkspaceWidth", mainWindowCode);
 
             Assert.Contains("AI Assist / Mission Control", softwareContext);
-            Assert.Contains("resizable, evidence-first workspace", softwareContext);
-            Assert.Contains("horizontal sections", softwareContext);
-            Assert.Contains("from 420 to 760 px", softwareContext);
+            Assert.Contains("slim, evidence-first sidecar", softwareContext);
+            Assert.Contains("rotated vertical section rail", softwareContext);
+            Assert.Contains("same 330 to 380 px right dock", softwareContext);
             Assert.Contains("context inspector", softwareContext);
         }
 
