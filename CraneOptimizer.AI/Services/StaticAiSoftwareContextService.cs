@@ -216,7 +216,7 @@ namespace CraneOptimizer.AI.Services
                 new AiFeatureTabDto
                 {
                     TabName = "AI ASSIST",
-                    Purpose = "Persistent right-side intelligence layer for crane-planning guidance, deterministic result analysis, local Ollama explanation, software navigation, and context export. AI Assist is not a top-level ribbon tab; advanced tools live in its Studio section.",
+                    Purpose = "Persistent right-side intelligence layer for crane-planning guidance, deterministic result analysis, provider-neutral generative explanation, software navigation, and context export. AI Assist is not a top-level ribbon tab; advanced tools live in its Studio section.",
                     PrimaryView = "CraneOptimizer.AI/Companion/Views/AiCompanionPanel.xaml and Views/AiAdvisorWindow.xaml",
                     PrimaryViewModel = "AiCompanionViewModel and AiAdvisorViewModel",
                     Actions = new[]
@@ -225,8 +225,8 @@ namespace CraneOptimizer.AI.Services
                         Action("AI Studio Showcase", "AiShowcaseService / AiCompanionPanel", "Visible AI surface showing the agent stack, live capabilities, demo prompt chips, explainable decision trace, and a copyable presentation brief.", "Available in AI Assist → Studio when live workflow context is available.", "Showcase text is generated from deterministic context and remains advisory; it does not mutate project or optimizer state."),
                         Action("Open Full Studio", "OpenFullStudioCommand", "Open the complete AI Optimization Studio window.", "Available in AI Assist → Studio.", "AI output is advisory only."),
                         Action("Analyze Current Result", "AnalyzeHereCommand / AnalyzeCurrentResultCommand", "Run deterministic advisor rules against the current optimization result.", "Available in AI Assist → Studio and works even without Ollama.", "Deterministic analysis explains app metrics but does not certify crane plans."),
-                        Action("Ask Local Ollama", "PrepareLocalOllamaQuestionCommand / AskOllamaCommand", "Open the private AI Assist chat composer for the selected local Ollama model, or use the full Studio window for model controls.", "Available in AI Assist → Studio; requires an Ollama server and installed model for generative responses.", "Ollama receives structured context and must not override calculations."),
-                        Action("Check Ollama", "CheckOllamaCommand", "Detect the local Ollama server and installed models.", "Available in the full AI Optimization Studio window.", "Does not install anything."),
+                        Action("Ask AI Model", "PrepareLocalOllamaQuestionCommand / AskOllamaCommand", "Open the private AI Assist chat composer for the selected local Ollama or BYOK cloud model, or use the full Studio window for provider controls.", "Available in AI Assist → Studio; requires a working Ollama model or an explicitly configured cloud provider.", "The selected provider receives only the governed structured context; generative output must not override calculations."),
+                        Action("Check Provider", "CheckOllamaCommand", "Test the selected local or cloud provider and discover model IDs when supported.", "Available in the full AI Optimization Studio window.", "Does not install anything and never sends project context during the connection test."),
                         Action("Pull Model", "PullModelCommand", "Ask Ollama to download the model named in the Model field.", "Explicit user action in the full AI Optimization Studio window; may take time and disk space.", "Do not pull very large models unless the machine has enough resources."),
                         Action("Copy Context", "CopyContextCommand", "Copy structured AI context JSON.", "Available after analysis.", "Context may include project names/paths; share carefully."),
                         Action("Copy Recovery Plan", "CopyRecoveryPlanCommand", "Copy the AI Mission Control recovery checklist with owner, evidence, verification, and safety boundary.", "Available from the relevant AI Assist section.", "Advisory text only; it does not change optimizer gates."),
@@ -292,7 +292,7 @@ namespace CraneOptimizer.AI.Services
                         "CRANES → Add/select mobile crane, import/check load chart, and review crane catalog data.",
                         "ANALYZE → Run Optimizer.",
                         "ANALYZE or REPORTS → Open GA Diagnostics and View Results.",
-                        "AI ASSIST → STUDIO → Analyze Current Result, then optionally use Ask Local Ollama to explain recommended next actions.",
+                        "AI ASSIST → STUDIO → Analyze Current Result, then optionally use Ask AI Model with the explicitly selected local or cloud provider to explain recommended next actions.",
                         "REPORTS → Generate lifting summary, elements list, project overview, site zones, or crane comparison reports."
                     }
                 },

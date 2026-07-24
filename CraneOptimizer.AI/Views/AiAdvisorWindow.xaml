@@ -251,18 +251,30 @@
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="260" />
+                            <ColumnDefinition Width="178" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="250" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Style="{StaticResource AiSectionLabel}" Text="MODEL" />
-                        <ComboBox Grid.Column="1" Margin="12,0,14,0" VerticalAlignment="Center" DisplayMemberPath="." IsEditable="False" IsTextSearchEnabled="True" ItemsSource="{Binding InstalledModels}" SelectedItem="{Binding ModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding ModelName}" />
-                        <WrapPanel Grid.Column="2" VerticalAlignment="Center">
-                            <Button Margin="0,0,6,0" Command="{Binding CheckOllamaCommand}" Content="Check" Style="{StaticResource ButtonSecondary}" ToolTip="Check local Ollama status and installed models." />
-                            <Button Margin="0,0,6,0" Command="{Binding PullModelCommand}" Content="Pull" Style="{StaticResource ButtonSecondary}" ToolTip="Pull the selected local model." />
-                            <Button Command="{Binding BenchmarkModelsCommand}" Content="Benchmark" Style="{StaticResource ButtonSecondary}" ToolTip="Benchmark detected local models." />
+                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Style="{StaticResource AiSectionLabel}" Text="PROVIDER" />
+                        <ComboBox Grid.Column="1" Margin="10,0,14,0" VerticalAlignment="Center"
+                                  DisplayMemberPath="DisplayName" ItemsSource="{Binding Providers}"
+                                  SelectedValuePath="Id" SelectedValue="{Binding SelectedProviderId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource AiSectionLabel}" Text="MODEL" />
+                        <ComboBox Grid.Column="3" Margin="10,0,14,0" VerticalAlignment="Center"
+                                  IsEditable="True" IsTextSearchEnabled="True" ItemsSource="{Binding InstalledModels}"
+                                  Text="{Binding ModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding ModelName}" />
+                        <WrapPanel Grid.Column="4" VerticalAlignment="Center">
+                            <Button Margin="0,0,6,0" Command="{Binding CheckOllamaCommand}" Content="Check" Style="{StaticResource ButtonSecondary}" ToolTip="Test the selected provider and discover model IDs where supported." />
+                            <Button Margin="0,0,6,0" Command="{Binding ConfigureProviderCommand}" Content="Configure" Style="{StaticResource ButtonSecondary}" ToolTip="Configure endpoint, protected API key, model discovery, and streaming." />
+                            <Button Margin="0,0,6,0" Command="{Binding PullModelCommand}" Content="Pull" IsEnabled="{Binding CanPullModel}" Style="{StaticResource ButtonSecondary}" ToolTip="Pull the selected model into local Ollama. Cloud models are not downloaded." />
+                            <Button Command="{Binding BenchmarkModelsCommand}" Content="Benchmark" Style="{StaticResource ButtonSecondary}" ToolTip="Benchmark selected or discovered models without including project data." />
                         </WrapPanel>
-                        <TextBlock Grid.Column="3" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" Text="Local-first · no cloud API" />
+                        <StackPanel Grid.Column="5" Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ProviderModeLabel}" />
+                            <TextBlock MaxWidth="260" Margin="0,2,0,0" HorizontalAlignment="Right" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ProviderPrivacyLabel}" TextTrimming="CharacterEllipsis" ToolTip="{Binding ProviderPrivacyLabel}" />
+                        </StackPanel>
                     </Grid>
                 </Border>
 
@@ -281,7 +293,7 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Style="{StaticResource AiSectionLabel}" Text="ANSWER" />
-                                <TextBlock Margin="0,4,12,0" Foreground="{DynamicResource TextSecondaryBrush}" Text="Clean Markdown response. Audit details stay collapsed unless you need evidence, context, docs, or benchmarks." TextWrapping="Wrap" />
+                                <TextBlock Margin="0,4,12,0" Foreground="{DynamicResource TextSecondaryBrush}" Text="Provider-neutral Markdown response. Audit details stay collapsed unless you need evidence, context, docs, or benchmarks." TextWrapping="Wrap" />
                             </StackPanel>
                             <WrapPanel Grid.Column="1" Margin="14,0,0,0">
                                 <Button Margin="0,0,6,0" Command="{Binding CopyAnswerCommand}" Content="Copy" Style="{StaticResource ButtonSecondary}" />

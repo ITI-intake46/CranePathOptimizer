@@ -172,7 +172,7 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("CommandParameter=\"AI Studio\"", companionXaml);
             Assert.Contains("Content=\"Open Full Studio\"", companionXaml);
             Assert.Contains("Text=\"Analyze result\"", companionXaml);
-            Assert.Contains("Text=\"Ask local model\"", companionXaml);
+            Assert.Contains("Text=\"Ask AI model\"", companionXaml);
             Assert.Contains("Capabilities", companionXaml);
             Assert.Contains("Decision trace", companionXaml);
             Assert.Contains("Count slabs", companionXaml);

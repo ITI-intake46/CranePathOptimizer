@@ -695,8 +695,8 @@
                         <Button Grid.Column="0" HorizontalAlignment="Stretch" AutomationProperties.Name="Analyze current optimization result" Command="{Binding AnalyzeHereCommand}" Style="{StaticResource ButtonSecondary}" ToolTip="Run deterministic advisor rules against the current optimization result.">
                             <TextBlock Text="Analyze result" TextAlignment="Center" TextWrapping="Wrap" />
                         </Button>
-                        <Button Grid.Column="2" HorizontalAlignment="Stretch" AutomationProperties.Name="Ask local Ollama" Command="{Binding PrepareLocalOllamaQuestionCommand}" Style="{StaticResource ButtonSecondary}" ToolTip="Open Chat and focus the private prompt composer.">
-                            <TextBlock Text="Ask local model" TextAlignment="Center" TextWrapping="Wrap" />
+                        <Button Grid.Column="2" HorizontalAlignment="Stretch" AutomationProperties.Name="Ask AI model" Command="{Binding PrepareLocalOllamaQuestionCommand}" Style="{StaticResource ButtonSecondary}" ToolTip="Open Chat and focus the private prompt composer.">
+                            <TextBlock Text="Ask AI model" TextAlignment="Center" TextWrapping="Wrap" />
                         </Button>
                     </Grid>
                     <Border Margin="0,14,0,0" Padding="0,12,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">

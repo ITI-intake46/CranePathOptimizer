@@ -45,6 +45,24 @@ namespace CraneOptimizer.AI.Runtime
             if (request.TimeoutSeconds is <= 0)
                 return AiRequestPolicyDecision.Deny("The AI request timeout must be greater than zero seconds.");
 
+            var providerId = string.IsNullOrWhiteSpace(request.ProviderId)
+                ? settings.DefaultProviderId
+                : request.ProviderId.Trim();
+            var profile = settings.ProviderProfiles.FirstOrDefault(item =>
+                string.Equals(item.Id, providerId, StringComparison.OrdinalIgnoreCase));
+            if (profile is { IsLocal: false })
+            {
+                var containsProjectContext = !request.Metadata.TryGetValue("ContainsProjectContext", out var value)
+                    ? !string.IsNullOrWhiteSpace(request.ContextJson)
+                    : !string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);
+                if (containsProjectContext
+                    && !settings.CloudConsentAcceptedProviderIds.Contains(profile.Id))
+                {
+                    return AiRequestPolicyDecision.Deny(
+                        $"Cloud privacy consent is required before project context can be sent to {profile.DisplayName}.");
+                }
+            }
+
             return AiRequestPolicyDecision.Allow();
         }
     }

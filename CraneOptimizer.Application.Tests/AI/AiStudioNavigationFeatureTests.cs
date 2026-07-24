@@ -49,7 +49,7 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("Text=\"AI STUDIO\"", companionXaml, StringComparison.Ordinal);
             Assert.Contains("Content=\"Open Full Studio\"", companionXaml, StringComparison.Ordinal);
             Assert.Contains("Text=\"Analyze result\"", companionXaml, StringComparison.Ordinal);
-            Assert.Contains("Text=\"Ask local model\"", companionXaml, StringComparison.Ordinal);
+            Assert.Contains("Text=\"Ask AI model\"", companionXaml, StringComparison.Ordinal);
             Assert.Contains("OpenFullStudioCommand", companionViewModel, StringComparison.Ordinal);
             Assert.Contains("PrepareLocalOllamaQuestionCommand", companionViewModel, StringComparison.Ordinal);
             Assert.Contains("SelectedCommandCenterTab = \"Chat\"", companionViewModel, StringComparison.Ordinal);
@@ -69,7 +69,7 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("The main ribbon intentionally ends at **REPORTS**", userGuide, StringComparison.Ordinal);
             Assert.Contains("AI ASSIST → STUDIO", userGuide, StringComparison.Ordinal);
             Assert.Contains("Open Full Studio", userGuide, StringComparison.Ordinal);
-            Assert.Contains("Ask local model", userGuide, StringComparison.Ordinal);
+            Assert.Contains("Ask AI model", userGuide, StringComparison.Ordinal);
             Assert.DoesNotContain("**AI COPILOT ribbon tab**", userGuide, StringComparison.Ordinal);
             Assert.Contains("not a top-level AI Copilot ribbon tab", documentationIndex, StringComparison.Ordinal);
         }

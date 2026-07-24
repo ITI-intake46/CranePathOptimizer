@@ -19,7 +19,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
     /// Non-intrusive, in-shell AI companion that follows the user through the workflow.
     /// It does not open popups automatically and never mutates crane-planning data;
     /// it summarizes context, suggests the next safe step, and forwards explicit user prompts
-    /// to the existing local Ollama copilot.
+    /// to the configured local or BYOK cloud AI provider.
     /// </summary>
     public sealed class AiCompanionViewModel : ViewModelBase, IDisposable
     {
@@ -601,7 +601,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         public bool IsProjectReadinessAgentQuestion => !Advisor.IsBusy && Advisor.CanRunProjectReadinessAgent(QuestionText);
         public string AskToggleLabel => Advisor.IsBusy ? "Stop" : IsProjectReadinessAgentQuestion ? "Run Agent" : "Send";
         public string AskToggleToolTip => Advisor.IsBusy
-            ? "Stop the current local Ollama response."
+            ? $"Stop the current {Advisor.SelectedProviderDisplayName} response."
             : IsProjectReadinessAgentQuestion
                 ? "Run the governed Project Readiness Agent with typed read-only project tools."
                 : "Send the visible question with private live project context. Enter also sends.";
@@ -611,7 +611,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 ? "Needs attention"
                 : IsProjectReadinessAgentQuestion
                     ? "Read-only agent"
-                    : "Local Ollama";
+                    : Advisor.ProviderModeLabel;
 
         public string CollapsedTitle => $"AI Assist · {WorkflowStage}";
         public string CollapsedSubText => IsQuietMode ? "Quiet mode enabled" : CurrentHint;
@@ -1329,7 +1329,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 Advisor.RecordDeterministicCompanionAnswer(
                     visibleQuestion,
                     metadataAnswer,
-                    "Deterministic IFC metadata guidance produced locally; Ollama was not required for this evidence-routing answer.");
+                    "Deterministic IFC metadata guidance produced locally; no generative provider was required for this evidence-routing answer.");
 
                 ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(metadataAnswer, liveContext));
                 FocusChatForSubmittedPrompt();
@@ -1347,14 +1347,14 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 Advisor.RecordDeterministicCompanionAnswer(
                     visibleQuestion,
                     deterministicAnswer,
-                    "Deterministic blocker guidance produced locally; Ollama was not required for this safety-critical next-step answer.");
+                    "Deterministic blocker guidance produced locally; no generative provider was required for this safety-critical next-step answer.");
 
                 ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(deterministicAnswer, liveContext));
                 FocusChatForSubmittedPrompt();
                 return;
             }
 
-            _liveAssistantMessage = AiCompanionChatMessageViewModel.Assistant("Generating locally… live response will appear here as Ollama streams.", liveContext);
+            _liveAssistantMessage = AiCompanionChatMessageViewModel.Assistant($"Generating with {Advisor.SelectedProviderDisplayName}… live response will appear here as it streams.", liveContext);
             ConversationMessages.Add(_liveAssistantMessage);
             FocusChatForSubmittedPrompt();
 
@@ -1370,7 +1370,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                     _liveAssistantMessage.Body = Advisor.HasAiAnswer
                         ? Advisor.AiAnswer
                         : string.IsNullOrWhiteSpace(Advisor.LastError)
-                            ? "No visible AI answer was produced. Check Ollama status or open AI Studio for details."
+                            ? $"No visible AI answer was produced. Check {Advisor.SelectedProviderDisplayName} status or open AI Studio for details."
                             : Advisor.LastError;
                     FocusChatForSubmittedPrompt();
                 }
@@ -1545,7 +1545,10 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             if (e.PropertyName is nameof(AiAdvisorViewModel.IsBusy)
                 or nameof(AiAdvisorViewModel.CanCancel)
                 or nameof(AiAdvisorViewModel.LastError)
-                or nameof(AiAdvisorViewModel.HasError))
+                or nameof(AiAdvisorViewModel.HasError)
+                or nameof(AiAdvisorViewModel.SelectedProviderId)
+                or nameof(AiAdvisorViewModel.SelectedProviderDisplayName)
+                or nameof(AiAdvisorViewModel.ProviderModeLabel))
             {
                 OnPropertyChanged(nameof(AskToggleLabel));
                 OnPropertyChanged(nameof(AskToggleToolTip));
@@ -1557,7 +1560,10 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                 or nameof(AiAdvisorViewModel.IsBusy)
                 or nameof(AiAdvisorViewModel.CanCancel)
                 or nameof(AiAdvisorViewModel.LastError)
-                or nameof(AiAdvisorViewModel.HasError))
+                or nameof(AiAdvisorViewModel.HasError)
+                or nameof(AiAdvisorViewModel.SelectedProviderId)
+                or nameof(AiAdvisorViewModel.SelectedProviderDisplayName)
+                or nameof(AiAdvisorViewModel.ProviderModeLabel))
                 CommandManager.InvalidateRequerySuggested();
         }
 

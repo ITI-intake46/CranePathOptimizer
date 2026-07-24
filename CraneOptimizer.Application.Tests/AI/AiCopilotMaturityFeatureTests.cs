@@ -68,7 +68,7 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.DoesNotContain("PanelAiCopilot", topNavigationXaml, StringComparison.Ordinal);
             Assert.Contains("Open Full Studio", assistantXaml);
             Assert.Contains("Analyze result", assistantXaml);
-            Assert.Contains("Ask local model", assistantXaml);
+            Assert.Contains("Ask AI model", assistantXaml);
             Assert.Contains("Confirmable actions", assistantXaml);
             Assert.Contains("AI Optimization Studio", fullWindowXaml);
             Assert.Contains("Report Appendix", fullWindowXaml);
