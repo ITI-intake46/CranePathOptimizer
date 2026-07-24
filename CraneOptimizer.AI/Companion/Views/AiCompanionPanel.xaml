@@ -947,8 +947,10 @@
                                  Foreground="{DynamicResource TextPrimaryBrush}"
                                  PreviewKeyDown="QuestionTextBox_PreviewKeyDown"
                                  Text="{Binding QuestionText, UpdateSourceTrigger=PropertyChanged}"
+                                 HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.PanningMode="VerticalOnly"
                                  TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Auto"
+                                 VerticalScrollBarVisibility="Hidden"
                                  ToolTip="Ask about the current project. Live context is included privately." />
                         <Button Grid.Column="1"
                                 MinWidth="62"
