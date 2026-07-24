@@ -106,7 +106,7 @@
         </Style>
 
 
-        <Style x:Key="AiAssistRailButton" TargetType="Button">
+        <Style x:Key="AiAssistRailButton" TargetType="RadioButton">
             <Setter Property="Padding" Value="0" />
             <Setter Property="MinWidth" Value="0" />
             <Setter Property="MinHeight" Value="40" />
@@ -121,7 +121,7 @@
             <Setter Property="ToolTipService.InitialShowDelay" Value="150" />
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="Button">
+                    <ControlTemplate TargetType="RadioButton">
                         <Border x:Name="Chrome"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
@@ -160,13 +160,13 @@
                                 <Setter TargetName="ActiveWash" Property="Opacity" Value="0.18" />
                                 <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
                             </Trigger>
-                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Tag}" Value="True">
+                            <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SurfaceBrush}" />
                                 <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
                                 <Setter TargetName="ActiveWash" Property="Opacity" Value="0.42" />
                                 <Setter TargetName="SelectionRail" Property="Background" Value="{StaticResource PrimaryBrush}" />
                                 <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
-                            </DataTrigger>
+                            </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="FocusRing" Property="Opacity" Value="0.72" />
                             </Trigger>
@@ -801,78 +801,84 @@
                                         Margin="0,4,0,0"
                                         Rows="6"
                                         VerticalAlignment="Stretch">
-                    <Button x:Name="ChatSectionButton"
-                            AutomationProperties.Name="Open Chat section"
-                            Command="{Binding SelectCommandCenterTabCommand}"
-                            CommandParameter="Chat"
-                            Style="{StaticResource AiAssistRailButton}"
-                            Tag="{Binding IsChatSectionSelected}"
-                            ToolTip="Conversation with private live project context">
+                    <RadioButton x:Name="ChatSectionButton"
+                                 AutomationProperties.Name="Open Chat section"
+                                 Command="{Binding SelectCommandCenterTabCommand}"
+                                 CommandParameter="Chat"
+                                 GroupName="AiAssistSections"
+                                 IsChecked="{Binding IsChatSectionSelected, Mode=OneWay}"
+                                 Style="{StaticResource AiAssistRailButton}"
+                                 ToolTip="Conversation with private live project context">
                         <Grid>
                             <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="CHAT" />
                             <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
-                    </Button>
-                    <Button x:Name="MissionSectionButton"
-                            AutomationProperties.Name="Open Mission section"
-                            Command="{Binding SelectCommandCenterTabCommand}"
-                            CommandParameter="Mission"
-                            Style="{StaticResource AiAssistRailButton}"
-                            Tag="{Binding IsMissionSectionSelected}"
-                            ToolTip="Readiness, root cause, and evidence">
+                    </RadioButton>
+                    <RadioButton x:Name="MissionSectionButton"
+                                 AutomationProperties.Name="Open Mission section"
+                                 Command="{Binding SelectCommandCenterTabCommand}"
+                                 CommandParameter="Mission"
+                                 GroupName="AiAssistSections"
+                                 IsChecked="{Binding IsMissionSectionSelected, Mode=OneWay}"
+                                 Style="{StaticResource AiAssistRailButton}"
+                                 ToolTip="Readiness, root cause, and evidence">
                         <Grid>
                             <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="MISSION" />
                             <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
-                    </Button>
-                    <Button x:Name="BimSectionButton"
-                            AutomationProperties.Name="Open BIM section"
-                            Command="{Binding SelectCommandCenterTabCommand}"
-                            CommandParameter="BIM"
-                            Style="{StaticResource AiAssistRailButton}"
-                            Tag="{Binding IsBimSectionSelected}"
-                            ToolTip="BIM counts, categories, and IFC metadata">
+                    </RadioButton>
+                    <RadioButton x:Name="BimSectionButton"
+                                 AutomationProperties.Name="Open BIM section"
+                                 Command="{Binding SelectCommandCenterTabCommand}"
+                                 CommandParameter="BIM"
+                                 GroupName="AiAssistSections"
+                                 IsChecked="{Binding IsBimSectionSelected, Mode=OneWay}"
+                                 Style="{StaticResource AiAssistRailButton}"
+                                 ToolTip="BIM counts, categories, and IFC metadata">
                         <Grid>
                             <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="BIM" />
                             <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
-                    </Button>
-                    <Button x:Name="OptimizeSectionButton"
-                            AutomationProperties.Name="Open GA optimization section"
-                            Command="{Binding SelectCommandCenterTabCommand}"
-                            CommandParameter="Optimize"
-                            Style="{StaticResource AiAssistRailButton}"
-                            Tag="{Binding IsOptimizeSectionSelected}"
-                            ToolTip="Optimization readiness and what-if guidance">
+                    </RadioButton>
+                    <RadioButton x:Name="OptimizeSectionButton"
+                                 AutomationProperties.Name="Open GA optimization section"
+                                 Command="{Binding SelectCommandCenterTabCommand}"
+                                 CommandParameter="Optimize"
+                                 GroupName="AiAssistSections"
+                                 IsChecked="{Binding IsOptimizeSectionSelected, Mode=OneWay}"
+                                 Style="{StaticResource AiAssistRailButton}"
+                                 ToolTip="Optimization readiness and what-if guidance">
                         <Grid>
                             <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="GA" />
                             <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
-                    </Button>
-                    <Button x:Name="ReportSectionButton"
-                            AutomationProperties.Name="Open Report section"
-                            Command="{Binding SelectCommandCenterTabCommand}"
-                            CommandParameter="Report"
-                            Style="{StaticResource AiAssistRailButton}"
-                            Tag="{Binding IsReportSectionSelected}"
-                            ToolTip="Report wording and QA evidence">
+                    </RadioButton>
+                    <RadioButton x:Name="ReportSectionButton"
+                                 AutomationProperties.Name="Open Report section"
+                                 Command="{Binding SelectCommandCenterTabCommand}"
+                                 CommandParameter="Report"
+                                 GroupName="AiAssistSections"
+                                 IsChecked="{Binding IsReportSectionSelected, Mode=OneWay}"
+                                 Style="{StaticResource AiAssistRailButton}"
+                                 ToolTip="Report wording and QA evidence">
                         <Grid>
                             <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="REPORT" />
                             <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
-                    </Button>
-                    <Button x:Name="AiStudioSectionButton"
-                            AutomationProperties.Name="Open AI Studio section"
-                            Command="{Binding SelectCommandCenterTabCommand}"
-                            CommandParameter="AI Studio"
-                            Style="{StaticResource AiAssistRailButton}"
-                            Tag="{Binding IsAiStudioSectionSelected}"
-                            ToolTip="AI capabilities, RAG, ModelOps, and decision trace">
+                    </RadioButton>
+                    <RadioButton x:Name="AiStudioSectionButton"
+                                 AutomationProperties.Name="Open AI Studio section"
+                                 Command="{Binding SelectCommandCenterTabCommand}"
+                                 CommandParameter="AI Studio"
+                                 GroupName="AiAssistSections"
+                                 IsChecked="{Binding IsAiStudioSectionSelected, Mode=OneWay}"
+                                 Style="{StaticResource AiAssistRailButton}"
+                                 ToolTip="AI capabilities, RAG, ModelOps, and decision trace">
                         <Grid>
                             <TextBlock Style="{StaticResource AiAssistRailVerticalLabel}" Text="STUDIO" />
                             <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
-                    </Button>
+                    </RadioButton>
                 </primitives:UniformGrid>
             </Grid>
         </Border>

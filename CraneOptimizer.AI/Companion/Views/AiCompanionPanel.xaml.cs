@@ -334,7 +334,7 @@ namespace CraneOptimizer.AI.Companion.Views
             }
         }
 
-        private IEnumerable<(string Name, Button Button)> GetSectionRailButtons()
+        private IEnumerable<(string Name, RadioButton Button)> GetSectionRailButtons()
         {
             yield return ("Chat", ChatSectionButton);
             yield return ("Mission", MissionSectionButton);
