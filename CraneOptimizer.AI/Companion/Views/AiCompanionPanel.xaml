@@ -15,7 +15,7 @@
         </Style>
 
         <Style x:Key="AiAssistSectionTitle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="17" />
+            <Setter Property="FontSize" Value="15" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
@@ -23,23 +23,27 @@
 
         <Style x:Key="AiAssistBodyText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="LineHeight" Value="18" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="LineHeight" Value="19" />
+            <Setter Property="TextAlignment" Value="Left" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
 
         <Style x:Key="AiAssistSecondaryText" TargetType="TextBlock" BasedOn="{StaticResource AiAssistBodyText}">
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="LineHeight" Value="16" />
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="LineHeight" Value="16.5" />
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
         </Style>
 
         <Style x:Key="AiAssistSurface" TargetType="Border">
-            <Setter Property="Padding" Value="12" />
+            <Setter Property="Padding" Value="11" />
             <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="CornerRadius" Value="6" />
         </Style>
 
         <Style x:Key="AiAssistMicroButton" TargetType="Button" BasedOn="{StaticResource ButtonSecondary}">
@@ -105,7 +109,7 @@
         <Style x:Key="AiAssistRailButton" TargetType="Button">
             <Setter Property="Padding" Value="0" />
             <Setter Property="MinWidth" Value="0" />
-            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="MinHeight" Value="40" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -113,7 +117,7 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Margin" Value="1,2" />
+            <Setter Property="Margin" Value="0,1" />
             <Setter Property="ToolTipService.InitialShowDelay" Value="150" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -122,13 +126,13 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="1"
-                                CornerRadius="6"
+                                CornerRadius="3"
                                 SnapsToDevicePixels="True">
                             <Grid ClipToBounds="True">
                                 <Border x:Name="ActiveWash"
-                                        Margin="1"
+                                        Margin="0"
                                         Background="{StaticResource PrimaryMutedBrush}"
-                                        CornerRadius="5"
+                                        CornerRadius="2"
                                         Opacity="0" />
                                 <Border x:Name="SelectionRail"
                                         Width="2"
@@ -146,12 +150,12 @@
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SurfaceBrush}" />
                                 <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-                                <Setter TargetName="ActiveWash" Property="Opacity" Value="0.32" />
+                                <Setter TargetName="ActiveWash" Property="Opacity" Value="0.18" />
                                 <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
                             </Trigger>
                             <DataTrigger Binding="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Tag}" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SurfaceBrush}" />
-                                <Setter TargetName="ActiveWash" Property="Opacity" Value="0.75" />
+                                <Setter TargetName="ActiveWash" Property="Opacity" Value="0.42" />
                                 <Setter TargetName="SelectionRail" Property="Background" Value="{StaticResource PrimaryBrush}" />
                                 <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
                             </DataTrigger>
@@ -175,13 +179,13 @@
         </Style>
 
         <Style x:Key="AiAssistRailToggleButton" TargetType="Button">
-            <Setter Property="Height" Value="24" />
+            <Setter Property="Height" Value="20" />
             <Setter Property="MinWidth" Value="0" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="10" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
             <Setter Property="Background" Value="Transparent" />
@@ -219,7 +223,7 @@
         <Style x:Key="AiAssistRailVerticalLabel" TargetType="TextBlock">
             <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="FontSize" Value="9" />
+            <Setter Property="FontSize" Value="8.5" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="LayoutTransform">
@@ -252,11 +256,11 @@
         <Style x:Key="AiAssistMessageBubble" TargetType="Border">
             <Setter Property="MaxWidth" Value="620" />
             <Setter Property="HorizontalAlignment" Value="Left" />
-            <Setter Property="Padding" Value="11,9" />
+            <Setter Property="Padding" Value="12,10" />
             <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="CornerRadius" Value="6" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Sender}" Value="You">
                     <Setter Property="HorizontalAlignment" Value="Right" />
@@ -267,7 +271,7 @@
         </Style>
 
         <Style x:Key="AiAssistInlineExpander" TargetType="Expander">
-            <Setter Property="Margin" Value="0,8,0,0" />
+            <Setter Property="Margin" Value="0,10,0,0" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         </Style>
     </UserControl.Resources>
@@ -288,7 +292,7 @@
         <!-- Compact, evidence-first header. The tab itself already identifies AI Assist. -->
         <Border Grid.Row="0"
                 Grid.ColumnSpan="2"
-                Padding="14,10"
+                Padding="12,8"
                 Background="{DynamicResource SurfaceElevatedBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1">
@@ -299,29 +303,28 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Border Width="8" Height="8" Margin="0,3,9,0" VerticalAlignment="Top" Background="{StaticResource PrimaryBrush}" CornerRadius="4" />
+                <Border Width="7" Height="7" Margin="0,4,8,0" VerticalAlignment="Top" Background="{StaticResource PrimaryBrush}" CornerRadius="4" />
 
-                <StackPanel Grid.Column="1">
-                    <TextBlock FontSize="12"
+                <StackPanel Grid.Column="1" ToolTip="{Binding CommandCenterStateLabel}">
+                    <TextBlock FontSize="11.5"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextPrimaryBrush}"
-                               Text="{Binding CommandCenterStateLabel}"
-                               TextTrimming="CharacterEllipsis"
-                               ToolTip="{Binding CommandCenterStateLabel}" />
-                    <TextBlock Margin="0,3,0,0"
-                               FontSize="10"
+                               Text="{Binding CommandCenterStatusTitle}"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Margin="0,2,0,0"
+                               FontSize="9.5"
                                Foreground="{DynamicResource TextSecondaryBrush}"
-                               Text="{Binding CommandCenterModelLabel}"
+                               Text="{Binding CommandCenterProjectLabel}"
                                TextTrimming="CharacterEllipsis"
                                ToolTip="{Binding CommandCenterModelLabel}" />
                 </StackPanel>
 
                 <Button Grid.Column="2"
-                        Margin="12,0,0,0"
+                        Margin="8,0,0,0"
                         VerticalAlignment="Center"
                         AutomationProperties.Name="Open full AI Studio"
                         Command="{Binding OpenFullStudioCommand}"
-                        Content="Open Studio"
+                        Content="Studio"
                         Style="{StaticResource AiAssistFlatButton}"
                         ToolTip="Open the full AI Optimization Studio." />
             </Grid>
@@ -331,7 +334,7 @@
         <!-- A single concise recommendation; details remain available in Mission. -->
         <Border Grid.Row="1"
                 Grid.Column="0"
-                Padding="14,10"
+                Padding="12,8"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1">
@@ -344,24 +347,18 @@
 
                 <Border Background="{StaticResource PrimaryBrush}" CornerRadius="2" />
 
-                <StackPanel Grid.Column="1" Margin="11,0,12,0">
+                <StackPanel Grid.Column="1" Margin="10,0,10,0" ToolTip="{Binding NextActionToolTip}">
                     <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="NEXT STEP" />
                     <TextBlock Margin="0,3,0,0"
-                               FontSize="14"
+                               FontSize="13"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextPrimaryBrush}"
-                               Text="{Binding NextAction}"
-                               TextWrapping="Wrap" />
-                    <TextBlock Margin="0,3,0,0"
-                               FontSize="10"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               Text="{Binding CurrentHint}"
-                               TextTrimming="CharacterEllipsis"
-                               ToolTip="{Binding CurrentHint}" />
+                               Text="{Binding NextActionTitle}"
+                               TextTrimming="CharacterEllipsis" />
                 </StackPanel>
 
                 <Button Grid.Column="2"
-                        Padding="11,6"
+                        Padding="10,5"
                         VerticalAlignment="Center"
                         Command="{Binding ExecutePrimaryActionCommand}"
                         Content="{Binding PrimaryActionLabel}"
@@ -376,8 +373,9 @@
                       CanContentScroll="False"
                       PanningMode="VerticalOnly"
                       PreviewMouseWheel="BodyScrollViewer_PreviewMouseWheel"
+                      ScrollChanged="BodyScrollViewer_ScrollChanged"
                       VerticalScrollBarVisibility="Auto">
-            <Grid Margin="14,12,12,14">
+            <Grid Margin="12,12,9,16">
                 <!-- Chat -->
                 <StackPanel Visibility="{Binding ChatTabVisibility}">
                     <Border Margin="0,0,0,12"
@@ -390,18 +388,18 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="VERIFIED" />
+                            <TextBlock FontSize="9.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="VERIFIED" />
                             <TextBlock Grid.Column="1"
-                                       Margin="10,0,0,0"
-                                       FontSize="11"
+                                       Margin="9,0,0,0"
+                                       FontSize="10.5"
                                        Foreground="{DynamicResource TextSecondaryBrush}"
-                                       Text="{Binding MissionRootCause}"
+                                       Text="{Binding CommandCenterStatusTitle}"
                                        TextTrimming="CharacterEllipsis"
                                        ToolTip="{Binding MissionRootCause}" />
                         </Grid>
                     </Border>
 
-                    <ItemsControl ItemsSource="{Binding ConversationMessages}">
+                    <ItemsControl x:Name="ConversationItemsControl" ItemsSource="{Binding ConversationMessages}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Margin="0,0,0,12">
@@ -421,11 +419,17 @@
                                                TextWrapping="Wrap"
                                                Visibility="{Binding StaleVisibility}" />
                                     <Border Style="{StaticResource AiAssistMessageBubble}">
-                                        <TextBlock FontSize="12"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                   LineHeight="18"
-                                                   Text="{Binding BodyPreview}"
-                                                   TextWrapping="Wrap" />
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource AiAssistBodyText}"
+                                                       Text="{Binding DisplayBody}" />
+                                            <Button Margin="0,8,0,0"
+                                                    HorizontalAlignment="Left"
+                                                    AutomationProperties.Name="Toggle full AI message"
+                                                    Command="{Binding ToggleDetailsCommand}"
+                                                    Content="{Binding DetailsToggleLabel}"
+                                                    Style="{StaticResource AiAssistFlatButton}"
+                                                    Visibility="{Binding DetailsToggleVisibility}" />
+                                        </StackPanel>
                                     </Border>
                                 </StackPanel>
                             </DataTemplate>
@@ -479,7 +483,7 @@
                                         <Border Margin="0,0,0,8" Style="{StaticResource AiAssistSurface}">
                                             <StackPanel>
                                                 <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
-                                                <TextBlock Margin="0,4,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding Description}" />
+                                                <TextBlock Margin="0,3,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding Description}" />
                                                 <TextBlock Margin="0,4,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding EvidenceLabel}" TextWrapping="Wrap" />
                                                 <Expander Margin="0,5,0,0"
                                                           Header="Review details"
@@ -730,6 +734,20 @@
             </Grid>
         </ScrollViewer>
 
+        <Button x:Name="JumpToLatestButton"
+                Grid.Row="2"
+                Grid.Column="0"
+                Margin="0,0,16,12"
+                Padding="9,5"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                AutomationProperties.Name="Jump to latest AI message"
+                Click="JumpToLatestButton_Click"
+                Content="Latest ↓"
+                Style="{StaticResource AiAssistMicroButton}"
+                ToolTip="Jump to the latest message without changing automatic reading position."
+                Visibility="Collapsed" />
+
 
         <!-- Slim vertical section rail: the distinctive navigation spine remains available
              without making the AI dock wider than Crane Properties. -->
@@ -737,7 +755,7 @@
                 Grid.Row="1"
                 Grid.Column="1"
                 Grid.RowSpan="3"
-                Width="38"
+                Width="30"
                 Background="{DynamicResource SurfaceElevatedBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1,0,0,0"
@@ -745,13 +763,13 @@
                 PreviewKeyDown="SectionRail_PreviewKeyDown"
                 PreviewMouseWheel="SectionRail_PreviewMouseWheel"
                 ToolTip="AI sections: use the labels, Up/Down keys, or mouse wheel to switch views.">
-            <Grid x:Name="SectionRailLayout" Margin="2,6">
+            <Grid x:Name="SectionRailLayout" Margin="1,5">
                 <Grid.Style>
                     <Style TargetType="Grid">
-                        <Setter Property="Margin" Value="2,6" />
+                        <Setter Property="Margin" Value="1,5" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsSectionRailExpanded, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="False">
-                                <Setter Property="Margin" Value="1,6" />
+                                <Setter Property="Margin" Value="0,5" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -889,11 +907,11 @@
                 </Grid>
 
                 <Border Margin="0,7,0,0"
-                        Padding="10,8"
+                        Padding="9,7"
                         Background="{DynamicResource SurfaceElevatedBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="8">
+                        CornerRadius="6">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -901,7 +919,7 @@
                         </Grid.ColumnDefinitions>
                         <TextBox x:Name="QuestionTextBox"
                                  Height="{Binding ComposerHeight, Mode=TwoWay}"
-                                 MinHeight="36"
+                                 MinHeight="34"
                                  MaxHeight="120"
                                  AcceptsReturn="True"
                                  Background="Transparent"
@@ -987,13 +1005,13 @@
                 <TextBlock VerticalAlignment="Center"
                            FontSize="10"
                            Foreground="{DynamicResource TextSecondaryBrush}"
-                           Text="{Binding Advisor.StatusText}"
+                           Text="{Binding CompactStatusLabel}"
                            TextTrimming="CharacterEllipsis"
                            ToolTip="{Binding Advisor.StatusText}" />
                 <StackPanel Grid.Column="1" Margin="10,0,0,0" Orientation="Horizontal">
                     <Button Margin="0,0,4,0" AutomationProperties.Name="Refresh AI context" Command="{Binding AnalyzeHereCommand}" Content="Refresh" Style="{StaticResource AiAssistFlatButton}" ToolTip="Refresh readiness and deterministic analysis." />
-                    <Button Margin="0,0,4,0" AutomationProperties.Name="Copy AI context" Command="{Binding CopyContextCommand}" Content="Copy context" Style="{StaticResource AiAssistFlatButton}" ToolTip="Copy the live AI context payload." />
-                    <Button AutomationProperties.Name="Copy latest AI answer" Command="{Binding CopyAnswerCommand}" Content="Copy answer" Style="{StaticResource AiAssistFlatButton}" ToolTip="Copy the latest AI answer." />
+                    <Button Margin="0,0,4,0" AutomationProperties.Name="Copy AI context" Command="{Binding CopyContextCommand}" Content="Context" Style="{StaticResource AiAssistFlatButton}" ToolTip="Copy the live AI context payload." />
+                    <Button AutomationProperties.Name="Copy latest AI answer" Command="{Binding CopyAnswerCommand}" Content="Copy" Style="{StaticResource AiAssistFlatButton}" ToolTip="Copy the latest AI answer." />
                 </StackPanel>
             </Grid>
         </Border>
