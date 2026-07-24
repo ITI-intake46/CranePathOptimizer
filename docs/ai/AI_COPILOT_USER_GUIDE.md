@@ -61,7 +61,7 @@ Click **Check** to retrieve available model IDs, then select or type a provider/
 
 Legacy settings that stored only `https://openrouter.ai/` are migrated to the API root automatically. Connection checks reject HTML website pages, malformed JSON, unexpected model-list schemas, and empty built-in OpenRouter/OpenAI model catalogs instead of reporting a false success. Exact model choices are persisted separately for every provider.
 
-The model selector keeps the persisted model ID visible after configuration changes, discovery refreshes, provider switches, and application restarts. Manually entered model IDs remain available even when a provider does not return them in discovery.
+The model selector keeps the persisted model ID visible after configuration changes, discovery refreshes, provider switches, and application restarts. Manually entered model IDs remain available even when a provider does not return them in discovery. Click the arrow, press `F4`, or press `Alt+Down` to open the discovered-model list; the current model is brought into view when available.
 
 ## Custom Compatible Providers
 
@@ -89,12 +89,14 @@ The deterministic advisor, readiness agent, BIM inspection tools, and rule-based
 - **Model**: selects a discovered model or accepts an exact manually entered ID.
 - **Check**: validates the selected provider and discovers models where supported. Connection tests contain no project context.
 - **Configure**: edits endpoint, authentication, key, optional headers, streaming, and model behavior.
-- **Pull**: downloads a model only when Local Ollama is selected.
 - **Benchmark**: sends a minimal context-free availability prompt to selected models.
+- **Pull**: downloads a model only when Local Ollama is selected. The control is hidden for cloud providers.
 - **Send / Stop**: submits or cancels the current request.
 - **Refresh**: refreshes deterministic result and workflow context.
 - **Copy Context**: copies the governed structured context used by AI.
 - **Export MD / Report Appendix**: exports the current advisory answer with its context and disclaimer.
+
+The provider actions remain in one compact horizontal row. The deterministic-recommendations panel remains mouse-wheel, touchpad, and keyboard scrollable while keeping its scrollbar visually hidden.
 
 ## Failure Messages
 

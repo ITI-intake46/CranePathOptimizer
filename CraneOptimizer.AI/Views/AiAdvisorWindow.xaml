@@ -143,12 +143,16 @@
                                              Text="{Binding Text, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                              Visibility="Hidden" />
 
-                                    <ToggleButton Grid.Column="1"
+                                    <ToggleButton x:Name="ModelDropDownToggle"
+                                                  Grid.Column="1"
                                                   Background="Transparent"
                                                   BorderThickness="0"
+                                                  Click="ModelDropDownToggle_Click"
                                                   ClickMode="Press"
+                                                  Cursor="Hand"
                                                   Focusable="False"
-                                                  IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                                  IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                                  ToolTip="Show discovered model IDs">
                                         <ToggleButton.Template>
                                             <ControlTemplate TargetType="ToggleButton">
                                                 <Grid Background="Transparent">
@@ -171,8 +175,10 @@
                                    Focusable="False"
                                    IsOpen="{TemplateBinding IsDropDownOpen}"
                                    Placement="Bottom"
-                                   PopupAnimation="Fade">
-                                <Border MinWidth="{Binding PlacementTarget.ActualWidth, ElementName=PART_Popup}"
+                                   PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+                                   PopupAnimation="Fade"
+                                   StaysOpen="False">
+                                <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                         MaxHeight="{TemplateBinding MaxDropDownHeight}"
                                         Margin="0,2,0,0"
                                         Background="{DynamicResource SurfaceElevatedBrush}"
@@ -206,6 +212,14 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <Style x:Key="AiProviderActionButton" TargetType="Button" BasedOn="{StaticResource ButtonSecondary}">
+            <Setter Property="MinWidth" Value="70" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
     </Window.Resources>
@@ -277,7 +291,11 @@
                         <TextBlock Margin="0,7,0,0" Foreground="{DynamicResource TextSecondaryBrush}" LineHeight="18" Text="{Binding AdvisorSummary}" TextWrapping="Wrap" />
 
                         <Expander Margin="0,12,0,0" Header="Deterministic recommendations" IsExpanded="True">
-                            <ScrollViewer MaxHeight="134" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer MaxHeight="134"
+                                          Margin="0,8,0,0"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          PanningMode="VerticalOnly"
+                                          VerticalScrollBarVisibility="Hidden">
                                 <ItemsControl ItemsSource="{Binding Recommendations}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -371,8 +389,8 @@
                             <ColumnDefinition Width="178" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="250" />
-                            <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" MinWidth="130" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" VerticalAlignment="Center" Style="{StaticResource AiSectionLabel}" Text="PROVIDER" />
                         <ComboBox Grid.Column="1" Margin="10,0,14,0" VerticalAlignment="Center"
@@ -388,12 +406,30 @@
                                   Style="{StaticResource AiEditableModelComboBox}"
                                   Text="{Binding ModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                   ToolTip="{Binding ModelName}" />
-                        <WrapPanel Grid.Column="4" VerticalAlignment="Center">
-                            <Button Margin="0,0,6,0" Command="{Binding CheckOllamaCommand}" Content="Check" Style="{StaticResource ButtonSecondary}" ToolTip="Test the selected provider and discover model IDs where supported." />
-                            <Button Margin="0,0,6,0" Command="{Binding ConfigureProviderCommand}" Content="Configure" Style="{StaticResource ButtonSecondary}" ToolTip="Configure endpoint, protected API key, model discovery, and streaming." />
-                            <Button Margin="0,0,6,0" Command="{Binding PullModelCommand}" Content="Pull" IsEnabled="{Binding CanPullModel}" Style="{StaticResource ButtonSecondary}" ToolTip="Pull the selected model into local Ollama. Cloud models are not downloaded." />
-                            <Button Command="{Binding BenchmarkModelsCommand}" Content="Benchmark" Style="{StaticResource ButtonSecondary}" ToolTip="Benchmark selected or discovered models without including project data." />
-                        </WrapPanel>
+                        <StackPanel Grid.Column="4"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal">
+                            <Button Command="{Binding CheckOllamaCommand}"
+                                    Content="Check"
+                                    Style="{StaticResource AiProviderActionButton}"
+                                    ToolTip="Test the selected provider and discover model IDs where supported." />
+                            <Button Command="{Binding ConfigureProviderCommand}"
+                                    Content="Configure"
+                                    Style="{StaticResource AiProviderActionButton}"
+                                    ToolTip="Configure endpoint, protected API key, model discovery, and streaming." />
+                            <Button Command="{Binding BenchmarkModelsCommand}"
+                                    Content="Benchmark"
+                                    Style="{StaticResource AiProviderActionButton}"
+                                    ToolTip="Benchmark selected or discovered models without including project data." />
+                            <Button Command="{Binding PullModelCommand}"
+                                    Content="Pull"
+                                    IsEnabled="{Binding CanPullModel}"
+                                    Margin="0"
+                                    Style="{StaticResource AiProviderActionButton}"
+                                    ToolTip="Pull the selected model into local Ollama. Cloud models are not downloaded."
+                                    Visibility="{Binding IsOllamaSelected, Converter={StaticResource BoolToVisibilityConverter}}" />
+                        </StackPanel>
                         <StackPanel Grid.Column="5" Margin="12,0,0,0" VerticalAlignment="Center">
                             <TextBlock HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ProviderModeLabel}" />
                             <TextBlock MaxWidth="260" Margin="0,2,0,0" HorizontalAlignment="Right" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ProviderPrivacyLabel}" TextTrimming="CharacterEllipsis" ToolTip="{Binding ProviderPrivacyLabel}" />
