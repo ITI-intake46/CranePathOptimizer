@@ -21,6 +21,7 @@ namespace CraneOptimizer.AI.Companion.Views
         private const double CollapsedSectionRailWidth = 12d;
         private const double ExpandedSectionRailWidth = 30d;
         private const double LatestMessageThreshold = 32d;
+        private const int SectionRailWheelDeltaPerStep = 120;
         private static readonly Duration SectionRailAnimationDuration = new(TimeSpan.FromMilliseconds(120));
         private static readonly string[] SectionNames = { "Chat", "Mission", "BIM", "Optimize", "Report", "AI Studio" };
 
@@ -38,6 +39,8 @@ namespace CraneOptimizer.AI.Companion.Views
         private string _activeSectionName = "Chat";
         private bool _isRestoringScrollPosition;
         private bool _followLatestContent;
+        private int _sectionRailWheelDelta;
+        private bool _focusRailSelectionAfterChange;
 
         public bool IsSectionRailExpanded
         {
@@ -75,6 +78,7 @@ namespace CraneOptimizer.AI.Companion.Views
             DataContext = _viewModel;
             _activeSectionName = _viewModel.SelectedCommandCenterTab;
             UpdateSectionRailState(animate: false);
+            UpdateSectionRailSelectionState(_activeSectionName, focusSelection: false);
 
             if (!string.IsNullOrWhiteSpace(_pendingSectionName))
             {
@@ -213,7 +217,23 @@ namespace CraneOptimizer.AI.Companion.Views
 
         private void SectionRail_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            MoveSectionSelection(e.Delta < 0 ? 1 : -1);
+            if (e.Delta == 0)
+                return;
+
+            if (_sectionRailWheelDelta != 0
+                && Math.Sign(_sectionRailWheelDelta) != Math.Sign(e.Delta))
+            {
+                _sectionRailWheelDelta = 0;
+            }
+
+            _sectionRailWheelDelta += e.Delta;
+            while (Math.Abs(_sectionRailWheelDelta) >= SectionRailWheelDeltaPerStep)
+            {
+                var direction = _sectionRailWheelDelta < 0 ? 1 : -1;
+                MoveSectionSelection(direction, focusSelection: false);
+                _sectionRailWheelDelta -= Math.Sign(_sectionRailWheelDelta) * SectionRailWheelDeltaPerStep;
+            }
+
             e.Handled = true;
         }
 
@@ -228,16 +248,16 @@ namespace CraneOptimizer.AI.Companion.Views
                     SetSectionRailExpanded(false, persist: true);
                     break;
                 case Key.Up:
-                    MoveSectionSelection(-1);
+                    MoveSectionSelection(-1, focusSelection: true);
                     break;
                 case Key.Down:
-                    MoveSectionSelection(1);
+                    MoveSectionSelection(1, focusSelection: true);
                     break;
                 case Key.Home:
-                    SelectSection(0);
+                    SelectSection(0, focusSelection: true);
                     break;
                 case Key.End:
-                    SelectSection(SectionNames.Length - 1);
+                    SelectSection(SectionNames.Length - 1, focusSelection: true);
                     break;
                 default:
                     return;
@@ -246,7 +266,7 @@ namespace CraneOptimizer.AI.Companion.Views
             e.Handled = true;
         }
 
-        private void MoveSectionSelection(int delta)
+        private void MoveSectionSelection(int delta, bool focusSelection)
         {
             if (_viewModel == null)
                 return;
@@ -258,17 +278,33 @@ namespace CraneOptimizer.AI.Companion.Views
             if (currentIndex < 0)
                 currentIndex = 0;
 
-            SelectSection(Math.Clamp(currentIndex + delta, 0, SectionNames.Length - 1));
+            SelectSection(
+                Math.Clamp(currentIndex + delta, 0, SectionNames.Length - 1),
+                focusSelection);
         }
 
-        private void SelectSection(int index)
+        private void SelectSection(int index, bool focusSelection)
         {
             if (_viewModel == null || index < 0 || index >= SectionNames.Length)
                 return;
 
             var section = SectionNames[index];
+            _focusRailSelectionAfterChange = focusSelection;
+
+            if (string.Equals(_viewModel.SelectedCommandCenterTab, section, StringComparison.OrdinalIgnoreCase))
+            {
+                UpdateSectionRailSelectionState(section, focusSelection);
+                _focusRailSelectionAfterChange = false;
+                return;
+            }
+
             if (_viewModel.SelectCommandCenterTabCommand.CanExecute(section))
+            {
                 _viewModel.SelectCommandCenterTabCommand.Execute(section);
+                return;
+            }
+
+            _focusRailSelectionAfterChange = false;
         }
 
         private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -278,7 +314,34 @@ namespace CraneOptimizer.AI.Companion.Views
 
             _sectionScrollOffsets[_activeSectionName] = BodyScrollViewer.VerticalOffset;
             _activeSectionName = _viewModel.SelectedCommandCenterTab;
+            var focusSelection = _focusRailSelectionAfterChange;
+            _focusRailSelectionAfterChange = false;
+            UpdateSectionRailSelectionState(_activeSectionName, focusSelection);
             RestoreSectionScrollPosition(_activeSectionName);
+        }
+
+        private void UpdateSectionRailSelectionState(string sectionName, bool focusSelection)
+        {
+            foreach (var (name, button) in GetSectionRailButtons())
+            {
+                var isSelected = string.Equals(name, sectionName, StringComparison.OrdinalIgnoreCase);
+                System.Windows.Automation.AutomationProperties.SetItemStatus(
+                    button,
+                    isSelected ? "Selected" : "Not selected");
+
+                if (isSelected && focusSelection)
+                    button.Focus();
+            }
+        }
+
+        private IEnumerable<(string Name, Button Button)> GetSectionRailButtons()
+        {
+            yield return ("Chat", ChatSectionButton);
+            yield return ("Mission", MissionSectionButton);
+            yield return ("BIM", BimSectionButton);
+            yield return ("Optimize", OptimizeSectionButton);
+            yield return ("Report", ReportSectionButton);
+            yield return ("AI Studio", AiStudioSectionButton);
         }
 
         private void OnComposerFocusRequested(object? sender, EventArgs e)

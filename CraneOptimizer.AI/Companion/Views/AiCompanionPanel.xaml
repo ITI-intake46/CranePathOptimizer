@@ -140,6 +140,13 @@
                                         HorizontalAlignment="Left"
                                         Background="Transparent"
                                         CornerRadius="1" />
+                                <Border x:Name="FocusRing"
+                                        Margin="2"
+                                        BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="2"
+                                        IsHitTestVisible="False"
+                                        Opacity="0" />
                                 <ContentPresenter Margin="{TemplateBinding Padding}"
                                                   HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                   VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
@@ -155,13 +162,13 @@
                             </Trigger>
                             <DataTrigger Binding="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Tag}" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
                                 <Setter TargetName="ActiveWash" Property="Opacity" Value="0.42" />
                                 <Setter TargetName="SelectionRail" Property="Background" Value="{StaticResource PrimaryBrush}" />
                                 <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
                             </DataTrigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
-                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+                                <Setter TargetName="FocusRing" Property="Opacity" Value="0.72" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter Property="Opacity" Value="0.82" />
@@ -794,7 +801,8 @@
                                         Margin="0,4,0,0"
                                         Rows="6"
                                         VerticalAlignment="Stretch">
-                    <Button AutomationProperties.Name="Open Chat section"
+                    <Button x:Name="ChatSectionButton"
+                            AutomationProperties.Name="Open Chat section"
                             Command="{Binding SelectCommandCenterTabCommand}"
                             CommandParameter="Chat"
                             Style="{StaticResource AiAssistRailButton}"
@@ -805,7 +813,8 @@
                             <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
                     </Button>
-                    <Button AutomationProperties.Name="Open Mission section"
+                    <Button x:Name="MissionSectionButton"
+                            AutomationProperties.Name="Open Mission section"
                             Command="{Binding SelectCommandCenterTabCommand}"
                             CommandParameter="Mission"
                             Style="{StaticResource AiAssistRailButton}"
@@ -816,7 +825,8 @@
                             <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
                     </Button>
-                    <Button AutomationProperties.Name="Open BIM section"
+                    <Button x:Name="BimSectionButton"
+                            AutomationProperties.Name="Open BIM section"
                             Command="{Binding SelectCommandCenterTabCommand}"
                             CommandParameter="BIM"
                             Style="{StaticResource AiAssistRailButton}"
@@ -827,7 +837,8 @@
                             <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
                     </Button>
-                    <Button AutomationProperties.Name="Open GA optimization section"
+                    <Button x:Name="OptimizeSectionButton"
+                            AutomationProperties.Name="Open GA optimization section"
                             Command="{Binding SelectCommandCenterTabCommand}"
                             CommandParameter="Optimize"
                             Style="{StaticResource AiAssistRailButton}"
@@ -838,7 +849,8 @@
                             <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
                     </Button>
-                    <Button AutomationProperties.Name="Open Report section"
+                    <Button x:Name="ReportSectionButton"
+                            AutomationProperties.Name="Open Report section"
                             Command="{Binding SelectCommandCenterTabCommand}"
                             CommandParameter="Report"
                             Style="{StaticResource AiAssistRailButton}"
@@ -849,7 +861,8 @@
                             <Border Style="{StaticResource AiAssistRailCollapsedMarker}" />
                         </Grid>
                     </Button>
-                    <Button AutomationProperties.Name="Open AI Studio section"
+                    <Button x:Name="AiStudioSectionButton"
+                            AutomationProperties.Name="Open AI Studio section"
                             Command="{Binding SelectCommandCenterTabCommand}"
                             CommandParameter="AI Studio"
                             Style="{StaticResource AiAssistRailButton}"

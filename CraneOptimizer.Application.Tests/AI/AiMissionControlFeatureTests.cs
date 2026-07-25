@@ -125,6 +125,14 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("PreviewMouseWheel=\"SectionRail_PreviewMouseWheel\"", companionXaml);
             Assert.Contains("RotateTransform Angle=\"90\"", companionXaml);
             Assert.Contains("Width=\"30\"", companionXaml);
+            Assert.Contains("x:Name=\"ChatSectionButton\"", companionXaml);
+            Assert.Contains("x:Name=\"MissionSectionButton\"", companionXaml);
+            Assert.Contains("x:Name=\"BimSectionButton\"", companionXaml);
+            Assert.Contains("x:Name=\"OptimizeSectionButton\"", companionXaml);
+            Assert.Contains("x:Name=\"ReportSectionButton\"", companionXaml);
+            Assert.Contains("x:Name=\"AiStudioSectionButton\"", companionXaml);
+            Assert.Contains("x:Name=\"FocusRing\"", companionXaml);
+            Assert.Contains("Setter TargetName=\"Chrome\" Property=\"BorderBrush\" Value=\"{StaticResource PrimaryBrush}\"", companionXaml);
             Assert.Contains("VerticalScrollBarVisibility=\"Auto\"", companionXaml);
             Assert.DoesNotContain("AiAssistNavButton", companionXaml);
             Assert.DoesNotContain("x:Name=\"SectionNavigation\"", companionXaml);
@@ -181,6 +189,12 @@ namespace CraneOptimizer.Application.Tests.AI
 
             Assert.Contains("SectionRail_PreviewKeyDown", companionCodeBehind);
             Assert.Contains("SectionRail_PreviewMouseWheel", companionCodeBehind);
+            Assert.Contains("SectionRailWheelDeltaPerStep", companionCodeBehind);
+            Assert.Contains("UpdateSectionRailSelectionState", companionCodeBehind);
+            Assert.Contains("AutomationProperties.SetItemStatus", companionCodeBehind);
+            Assert.Contains("MoveSectionSelection(direction, focusSelection: false)", companionCodeBehind);
+            Assert.Contains("MoveSectionSelection(-1, focusSelection: true)", companionCodeBehind);
+            Assert.Contains("Math.Clamp(currentIndex + delta, 0, SectionNames.Length - 1)", companionCodeBehind);
             Assert.Contains("IsSectionRailExpanded", companionCodeBehind);
             Assert.Contains("DoubleAnimation", companionCodeBehind);
             Assert.Contains("DispatcherPriority.ContextIdle", companionCodeBehind);
