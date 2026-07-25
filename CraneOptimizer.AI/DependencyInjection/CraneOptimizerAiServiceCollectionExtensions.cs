@@ -10,6 +10,8 @@ using CraneOptimizer.AI.Interfaces;
 using CraneOptimizer.AI.Knowledge;
 using CraneOptimizer.AI.Knowledge.Rag;
 using CraneOptimizer.AI.Providers.Ollama;
+using CraneOptimizer.AI.Providers.OpenAiCompatible;
+using CraneOptimizer.AI.Security.Credentials;
 using CraneOptimizer.AI.Runtime;
 using CraneOptimizer.AI.Security;
 using CraneOptimizer.AI.Services;
@@ -28,8 +30,25 @@ namespace CraneOptimizer.AI.DependencyInjection
 
             services.AddSingleton<IAiCopilotSettingsService, JsonAiCopilotSettingsService>();
 
+            services.AddSingleton<IAiCredentialStore, WindowsCredentialStore>();
             services.AddSingleton<OllamaChatService>();
             services.AddSingleton<IAiChatProvider>(sp => sp.GetRequiredService<OllamaChatService>());
+            services.AddSingleton<IAiChatProvider>(sp => new OpenAiCompatibleChatProvider(
+                AiProviderProfileSettings.OpenRouterId,
+                sp.GetRequiredService<IAiCopilotSettingsService>(),
+                sp.GetRequiredService<IAiCredentialStore>()));
+            services.AddSingleton<IAiChatProvider>(sp => new OpenAiCompatibleChatProvider(
+                AiProviderProfileSettings.OpenAiId,
+                sp.GetRequiredService<IAiCopilotSettingsService>(),
+                sp.GetRequiredService<IAiCredentialStore>()));
+            services.AddSingleton<IAiChatProvider>(sp => new OpenAiCompatibleChatProvider(
+                AiProviderProfileSettings.AzureOpenAiId,
+                sp.GetRequiredService<IAiCopilotSettingsService>(),
+                sp.GetRequiredService<IAiCredentialStore>()));
+            services.AddSingleton<IAiChatProvider>(sp => new OpenAiCompatibleChatProvider(
+                AiProviderProfileSettings.CustomOpenAiId,
+                sp.GetRequiredService<IAiCopilotSettingsService>(),
+                sp.GetRequiredService<IAiCredentialStore>()));
             services.AddSingleton<IAiProviderRegistry, AiProviderRegistry>();
             services.AddSingleton<IAiRequestPolicy, DefaultAiRequestPolicy>();
             services.AddSingleton<InMemoryAiTelemetrySink>();
@@ -41,7 +60,9 @@ namespace CraneOptimizer.AI.DependencyInjection
 
             services.AddSingleton<IAiSensitiveDataRedactor, AiSensitiveDataRedactor>();
             services.AddSingleton<AiStructuredOutputParser>();
-            services.AddSingleton<IAiModelManagementService, OllamaModelManagementService>();
+            services.AddSingleton<OllamaModelManagementService>();
+            services.AddSingleton<IAiModelManagementService>(sp => sp.GetRequiredService<OllamaModelManagementService>());
+            services.AddSingleton<IAiProviderManagementService, AiProviderManagementService>();
 
             services.AddSingleton<IAiOptimizationAdvisorService, AiOptimizationAdvisorService>();
             services.AddSingleton<IAiSoftwareContextService, StaticAiSoftwareContextService>();
