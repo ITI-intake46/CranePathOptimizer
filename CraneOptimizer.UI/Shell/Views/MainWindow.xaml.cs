@@ -5,24 +5,14 @@ using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.F10_ProjectManagement.Views;
 using CraneOptimizer.UI.Shell.ViewModels;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 
 namespace CraneOptimizer.UI.Shell.Views
 {
     public partial class MainWindow : Window
     {
-        private const double CranePropertiesMinWidth = 330;
-        private const double CranePropertiesMaxWidth = 380;
-        private const double CranePropertiesDefaultWidth = 360;
-        private const double AiAssistMinWidth = 360;
-        private const double AiAssistPreferredWidth = 380;
-        private const double AiAssistMaxWidth = 460;
-
         private readonly IProjectNavigationService _nav;
         private readonly IUiInteractionContextService _uiContext;
-        private GridLength _rightWorkspaceWidthBeforeAi = new(CranePropertiesDefaultWidth);
-        private bool _isAiAssistWidthActive;
 
         public MainWindow(
             MainViewModel vm,
@@ -148,7 +138,6 @@ namespace CraneOptimizer.UI.Shell.Views
         {
             AiAssistTab.Visibility = Visibility.Visible;
             RightWorkspaceTabs.SelectedItem = AiAssistTab;
-            ApplyAiAssistWorkspaceWidth();
             ShowAiCompanionButton.Visibility = Visibility.Collapsed;
         }
 
@@ -156,64 +145,6 @@ namespace CraneOptimizer.UI.Shell.Views
         {
             AiAssistTab.Visibility = Visibility.Collapsed;
             RightWorkspaceTabs.SelectedIndex = 0;
-            RestoreCranePropertiesWorkspaceWidth();
-        }
-
-        private void RightWorkspaceTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (!IsInitialized || !ReferenceEquals(e.Source, RightWorkspaceTabs))
-                return;
-
-            if (AiAssistTab.Visibility == Visibility.Visible
-                && ReferenceEquals(RightWorkspaceTabs.SelectedItem, AiAssistTab))
-            {
-                ApplyAiAssistWorkspaceWidth();
-                return;
-            }
-
-            RestoreCranePropertiesWorkspaceWidth();
-        }
-
-        private void ApplyAiAssistWorkspaceWidth()
-        {
-            if (!_isAiAssistWidthActive)
-            {
-                var currentWidth = RightWorkspaceColumn.ActualWidth > 0
-                    ? RightWorkspaceColumn.ActualWidth
-                    : CranePropertiesDefaultWidth;
-
-                _rightWorkspaceWidthBeforeAi = new GridLength(
-                    Math.Clamp(currentWidth, CranePropertiesMinWidth, CranePropertiesMaxWidth));
-            }
-
-            RightWorkspaceColumn.MinWidth = AiAssistMinWidth;
-            RightWorkspaceColumn.MaxWidth = AiAssistMaxWidth;
-
-            var requestedWidth = Math.Max(RightWorkspaceColumn.ActualWidth, AiAssistPreferredWidth);
-            RightWorkspaceColumn.Width = new GridLength(
-                Math.Clamp(requestedWidth, AiAssistMinWidth, AiAssistMaxWidth));
-            _isAiAssistWidthActive = true;
-        }
-
-        private void RestoreCranePropertiesWorkspaceWidth()
-        {
-            if (!_isAiAssistWidthActive)
-                return;
-
-            RightWorkspaceColumn.MinWidth = CranePropertiesMinWidth;
-            RightWorkspaceColumn.MaxWidth = CranePropertiesMaxWidth;
-
-            var restoredWidth = _rightWorkspaceWidthBeforeAi.IsAbsolute
-                ? _rightWorkspaceWidthBeforeAi.Value
-                : CranePropertiesDefaultWidth;
-            RightWorkspaceColumn.Width = new GridLength(
-                Math.Clamp(restoredWidth, CranePropertiesMinWidth, CranePropertiesMaxWidth));
-            _isAiAssistWidthActive = false;
-        }
-
-        private void AiCompanionPanel_CloseRequested(object sender, RoutedEventArgs e)
-        {
-            CloseAiAssistTab_Click(sender, e);
         }
 
         private void AiCompanionStatusStrip_AssistRequested(object sender, RoutedEventArgs e)

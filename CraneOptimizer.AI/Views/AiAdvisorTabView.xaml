@@ -57,11 +57,11 @@
                     </Button>
                     <Button
                         x:Name="AskLocalOllamaRibbonButton"
-                        AutomationProperties.Name="Ask local Ollama"
+                        AutomationProperties.Name="Ask AI model"
                         Click="OpenAdvisor_Click"
-                        Content="Ask Local Ollama"
+                        Content="Ask AI Model"
                         Style="{StaticResource RibbonMajorTrailingCommandTile}"
-                        ToolTip="Open AI Studio to ask the selected local Ollama model. If the action is unavailable, check Ollama and select an installed model in Studio."
+                        ToolTip="Open AI Studio to ask the selected local or cloud AI model. Configure and check the selected provider in Studio when unavailable."
                         ToolTipService.ShowOnDisabled="True">
                         <Button.Tag>
                             <Grid Width="24" Height="24">

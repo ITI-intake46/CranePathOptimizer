@@ -1,38 +1,28 @@
 # AI Assist and AI Studio Documentation
 
-This folder contains the maintained documentation for the local-first AI assistance layer.
+This folder contains maintained documentation for the deterministic, local-first, and BYOK cloud AI assistance layer.
 
 ## Maintained documents
 
 | Document | Purpose |
 |---|---|
-| [AI Branch Engineering Dossier](./AI_COPILOT_BRANCH_ENGINEERING_DOSSIER.md) | Canonical engineering record for the branch. Describes purpose, architecture, implementation scope, subsystem impact, validation, safety model, reproducibility, and maintenance guidance. |
-| [AI Assist and AI Studio User Guide](./AI_COPILOT_USER_GUIDE.md) | User-facing guide for the docked AI Assist panel, Studio actions, and the local Ollama-powered AI Optimization Studio. |
+| [AI Branch Engineering Dossier](./AI_COPILOT_BRANCH_ENGINEERING_DOSSIER.md) | Historical engineering record for the earlier local-only branch baseline. |
+| [AI Assist and AI Studio User Guide](./AI_COPILOT_USER_GUIDE.md) | Current user guide for the docked assistant, provider configuration, secure BYOK credentials, privacy, and Studio controls. |
 
-The filenames remain stable for existing links, but the current product architecture is **AI Assist → Studio**, not a top-level AI Copilot ribbon tab.
+The current product architecture is **AI Assist → Studio**, not a top-level AI Copilot ribbon tab.
 
-## Documentation policy
+## Current feature summary
 
-The engineering dossier is the source of truth for this branch.
+The AI layer includes:
 
-Incremental implementation notes, polish-pass notes, and temporary change reports are intentionally not kept in this folder. Their useful content has been consolidated into the canonical dossier so future contributors have a compact and accurate documentation set.
+- deterministic workflow and optimization advice that works without a model;
+- local Ollama chat and model management;
+- OpenRouter, OpenAI, Azure OpenAI, and custom OpenAI-compatible BYOK profiles;
+- Windows Credential Manager secret storage;
+- explicit cloud selection and per-provider project-context consent;
+- no automatic local/cloud fallback;
+- streaming, cancellation, model discovery, manual model IDs, and connection testing;
+- docked Chat, Mission, BIM, GA, Report, and Studio sections;
+- project RAG, prompt templates, history, context inspection, and governed actions.
 
-## Feature summary
-
-The AI layer adds local-first advisory assistance to the crane-planning workflow.
-
-The implementation includes:
-
-- local Ollama integration;
-- deterministic workflow and optimization advisory logic;
-- docked AI Assist panel with Chat, Mission, BIM, GA, Report, and Studio sections;
-- full AI Optimization Studio window;
-- Markdown response preview;
-- streaming and cancellation support;
-- prompt templates and local documentation context;
-- workflow-readiness checks;
-- safe, confirmable action proposals;
-- legacy navigation redirection from the removed AI Copilot tab to AI Assist → Studio;
-- engineering-grade branch documentation.
-
-The AI feature is advisory only. It does not automatically mutate IFC data, crane data, zones, load charts, optimization results, reports, or project state without explicit user action.
+The AI feature is advisory only. It does not automatically mutate IFC data, crane data, zones, load charts, optimization results, reports, or project state.
