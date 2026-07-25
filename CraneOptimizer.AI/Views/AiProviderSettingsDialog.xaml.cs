@@ -140,6 +140,8 @@ namespace CraneOptimizer.AI.Views
                     ApiKeyPasswordBox.Clear();
                 }
 
+                _profile = _providerManagement.GetProfile(_providerId);
+                BaseUrlTextBox.Text = _profile.BaseUrl;
                 SettingsChanged = true;
                 if (closeDialog)
                 {
@@ -215,9 +217,19 @@ namespace CraneOptimizer.AI.Views
             try
             {
                 var status = await _providerManagement.GetStatusAsync(_providerId).ConfigureAwait(true);
-                StatusText.Text = status.IsAvailable
-                    ? $"Connected to {status.DisplayName} at {status.Endpoint}. {status.Models.Count:N0} model ID(s) discovered."
-                    : $"Connection failed: {status.ErrorMessage}";
+                if (status.IsAvailable)
+                {
+                    var modelSummary = status.Models.Count == 0
+                        ? status.ErrorMessage ?? "No model IDs were returned; enter an exact model ID manually."
+                        : $"{status.Models.Count:N0} model ID(s) discovered.";
+                    StatusText.Text = $"Connected to {status.DisplayName} at {status.Endpoint}. {modelSummary}";
+                    if (status.Models.Count > 0 && !string.IsNullOrWhiteSpace(status.ErrorMessage))
+                        StatusText.Text += " " + status.ErrorMessage;
+                }
+                else
+                {
+                    StatusText.Text = $"Connection failed: {status.ErrorMessage}";
+                }
             }
             catch (Exception ex)
             {

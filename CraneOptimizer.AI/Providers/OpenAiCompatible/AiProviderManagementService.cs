@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -68,6 +69,7 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
             if (string.IsNullOrWhiteSpace(profile.Id))
                 throw new ArgumentException("The provider profile id is required.", nameof(profile));
 
+            AiProviderProfileMigrations.Apply(profile);
             _settingsService.Update(settings =>
             {
                 var existing = settings.ProviderProfiles.FirstOrDefault(item =>
@@ -83,7 +85,9 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
 
                 if (string.Equals(profile.Id, AiProviderProfileSettings.OllamaId, StringComparison.OrdinalIgnoreCase)
                     && !string.IsNullOrWhiteSpace(profile.BaseUrl))
+                {
                     settings.OllamaEndpoint = profile.BaseUrl;
+                }
             });
         }
 
@@ -145,45 +149,54 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
                 var secret = RequiresCredential(profile) ? _credentialStore.Read(profile.CredentialTarget) : string.Empty;
                 ApplyAuthentication(request, profile, secret);
                 ApplyAdditionalHeaders(request, profile);
+
                 using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
+                    return Offline(profile, BuildStatusFailureMessage(response, body));
+
+                if (!IsJsonPayload(response.Content.Headers.ContentType?.MediaType, body))
                 {
-                    return Offline(profile, response.StatusCode switch
-                    {
-                        System.Net.HttpStatusCode.Unauthorized => "The stored API key was rejected.",
-                        System.Net.HttpStatusCode.TooManyRequests => "The provider rate limited the model-list request.",
-                        _ => $"The provider returned {(int)response.StatusCode} {response.ReasonPhrase}."
-                    });
+                    return Offline(profile,
+                        $"{profile.DisplayName} returned a non-JSON response from the models endpoint. " +
+                        "Verify that the base URL points to the provider API root rather than its public website.");
                 }
 
-                var models = ParseModels(body);
-                return new AiProviderStatusDto
+                if (!TryParseModels(body, out var models, out var parseError))
                 {
-                    ProviderId = profile.Id,
-                    DisplayName = profile.DisplayName,
-                    IsAvailable = true,
-                    IsLocal = false,
-                    RequiresCredential = RequiresCredential(profile),
-                    HasCredential = !RequiresCredential(profile) || SafeHasCredential(profile),
-                    Endpoint = profile.BaseUrl?.TrimEnd('/') ?? string.Empty,
-                    Models = models
-                };
+                    return Offline(profile,
+                        $"{profile.DisplayName} returned an unexpected models response. {parseError}");
+                }
+
+                if (models.Count == 0)
+                {
+                    var emptyMessage = $"{profile.DisplayName} returned a valid model-list response, but it contained no model IDs. " +
+                                       "Verify account/model visibility or enter an exact model ID manually.";
+                    if (RequiresNonEmptyDiscoveryResult(profile))
+                        return Offline(profile, emptyMessage);
+
+                    return Available(profile, models, emptyMessage);
+                }
+
+                return Available(profile, models);
             }
-            catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                return Offline(profile, "The provider connection test timed out. " + ex.Message);
+                return Offline(profile, "The provider connection test timed out. Check the endpoint or try again.");
             }
             catch (OperationCanceledException)
             {
                 throw;
             }
+            catch (HttpRequestException ex)
+            {
+                return Offline(profile, $"Could not connect to {profile.DisplayName}. {SanitizeDiagnostic(ex.Message)}");
+            }
             catch (Exception ex)
             {
-                return Offline(profile, ex.Message);
+                return Offline(profile, SanitizeDiagnostic(ex.Message));
             }
         }
-
 
         private async Task<AiProviderStatusDto> TestConfiguredModelAsync(
             AiProviderProfileSettings profile,
@@ -212,19 +225,25 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
             }, cancellationToken).ConfigureAwait(false);
 
             return response.Success
-                ? new AiProviderStatusDto
-                {
-                    ProviderId = profile.Id,
-                    DisplayName = profile.DisplayName,
-                    IsAvailable = true,
-                    IsLocal = false,
-                    RequiresCredential = RequiresCredential(profile),
-                    HasCredential = !RequiresCredential(profile) || SafeHasCredential(profile),
-                    Endpoint = profile.BaseUrl?.TrimEnd('/') ?? string.Empty,
-                    Models = new[] { profile.DefaultModel }
-                }
+                ? Available(profile, new[] { profile.DefaultModel })
                 : Offline(profile, response.ErrorMessage ?? "The provider connection test failed.");
         }
+
+        private AiProviderStatusDto Available(
+            AiProviderProfileSettings profile,
+            IReadOnlyList<string> models,
+            string? warning = null) => new()
+        {
+            ProviderId = profile.Id,
+            DisplayName = profile.DisplayName,
+            IsAvailable = true,
+            IsLocal = profile.IsLocal,
+            RequiresCredential = RequiresCredential(profile),
+            HasCredential = !RequiresCredential(profile) || SafeHasCredential(profile),
+            Endpoint = profile.BaseUrl?.TrimEnd('/') ?? string.Empty,
+            Models = models,
+            ErrorMessage = warning
+        };
 
         private AiProviderStatusDto Offline(AiProviderProfileSettings profile, string error) => new()
         {
@@ -235,7 +254,7 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
             RequiresCredential = RequiresCredential(profile),
             HasCredential = !RequiresCredential(profile) || SafeHasCredential(profile),
             Endpoint = profile.BaseUrl?.TrimEnd('/') ?? string.Empty,
-            ErrorMessage = error
+            ErrorMessage = SanitizeDiagnostic(error)
         };
 
         private bool SafeHasCredential(AiProviderProfileSettings profile)
@@ -244,23 +263,45 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
             catch { return false; }
         }
 
-        private static IReadOnlyList<string> ParseModels(string json)
+        private static bool TryParseModels(
+            string json,
+            out IReadOnlyList<string> models,
+            out string error)
         {
+            models = Array.Empty<string>();
+            error = string.Empty;
             try
             {
                 using var document = JsonDocument.Parse(json);
                 var root = document.RootElement;
+                if (root.ValueKind == JsonValueKind.Object
+                    && root.TryGetProperty("error", out var providerError))
+                {
+                    error = ExtractProviderError(providerError);
+                    if (string.IsNullOrWhiteSpace(error))
+                        error = "The response contained a provider error object.";
+                    return false;
+                }
+
                 var data = root.ValueKind == JsonValueKind.Array
                     ? root
-                    : root.TryGetProperty("data", out var standardData) && standardData.ValueKind == JsonValueKind.Array
+                    : root.ValueKind == JsonValueKind.Object
+                      && root.TryGetProperty("data", out var standardData)
+                      && standardData.ValueKind == JsonValueKind.Array
                         ? standardData
-                        : root.TryGetProperty("models", out var modelsData) && modelsData.ValueKind == JsonValueKind.Array
+                        : root.ValueKind == JsonValueKind.Object
+                          && root.TryGetProperty("models", out var modelsData)
+                          && modelsData.ValueKind == JsonValueKind.Array
                             ? modelsData
                             : default;
-                if (data.ValueKind != JsonValueKind.Array)
-                    return Array.Empty<string>();
 
-                return data.EnumerateArray()
+                if (data.ValueKind != JsonValueKind.Array)
+                {
+                    error = "Expected a JSON array or an object containing a 'data' or 'models' array.";
+                    return false;
+                }
+
+                models = data.EnumerateArray()
                     .Select(item => item.ValueKind switch
                     {
                         JsonValueKind.String => item.GetString(),
@@ -269,16 +310,93 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
                         _ => null
                     })
                     .Where(id => !string.IsNullOrWhiteSpace(id))
-                    .Select(id => id!)
+                    .Select(id => id!.Trim())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
+                return true;
             }
             catch (JsonException)
             {
-                return Array.Empty<string>();
+                error = "The response was not valid JSON.";
+                return false;
             }
         }
+
+        private static bool IsJsonPayload(string? mediaType, string body)
+        {
+            if (string.Equals(mediaType, "text/html", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(mediaType, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(mediaType)
+                && (string.Equals(mediaType, "application/json", StringComparison.OrdinalIgnoreCase)
+                    || mediaType.EndsWith("+json", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            var trimmed = body?.TrimStart() ?? string.Empty;
+            return trimmed.StartsWith('{') || trimmed.StartsWith('[');
+        }
+
+        private static string BuildStatusFailureMessage(HttpResponseMessage response, string body)
+        {
+            var detail = IsJsonPayload(response.Content.Headers.ContentType?.MediaType, body)
+                ? ExtractErrorMessage(body)
+                : string.Empty;
+            var retryAfter = response.Headers.RetryAfter?.Delta;
+            var suffix = retryAfter.HasValue
+                ? $" Retry after approximately {Math.Ceiling(retryAfter.Value.TotalSeconds):N0} seconds."
+                : string.Empty;
+            var message = response.StatusCode switch
+            {
+                HttpStatusCode.Unauthorized => "The stored API key was rejected.",
+                HttpStatusCode.PaymentRequired => "The provider reports insufficient credits or quota.",
+                HttpStatusCode.Forbidden => "The provider denied access. Check account permissions and model policy.",
+                HttpStatusCode.NotFound => "The configured models endpoint was not found. Check the base URL and models path.",
+                HttpStatusCode.TooManyRequests => "The provider rate limited the model-list request." + suffix,
+                HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable => "The provider is temporarily unavailable." + suffix,
+                _ => $"The provider returned {(int)response.StatusCode} {response.ReasonPhrase}."
+            };
+            return string.IsNullOrWhiteSpace(detail) ? message : message + " " + detail;
+        }
+
+        private static string ExtractErrorMessage(string body)
+        {
+            if (string.IsNullOrWhiteSpace(body))
+                return string.Empty;
+            try
+            {
+                using var document = JsonDocument.Parse(body);
+                return document.RootElement.TryGetProperty("error", out var error)
+                    ? ExtractProviderError(error)
+                    : string.Empty;
+            }
+            catch (JsonException)
+            {
+                return string.Empty;
+            }
+        }
+
+        private static string ExtractProviderError(JsonElement error)
+        {
+            if (error.ValueKind == JsonValueKind.String)
+                return SanitizeDiagnostic(error.GetString());
+            if (error.ValueKind == JsonValueKind.Object
+                && error.TryGetProperty("message", out var message)
+                && message.ValueKind == JsonValueKind.String)
+            {
+                return SanitizeDiagnostic(message.GetString());
+            }
+            return string.Empty;
+        }
+
+        private static bool RequiresNonEmptyDiscoveryResult(AiProviderProfileSettings profile) =>
+            string.Equals(profile.Id, AiProviderProfileSettings.OpenRouterId, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(profile.Id, AiProviderProfileSettings.OpenAiId, StringComparison.OrdinalIgnoreCase);
 
         private static bool RequiresCredential(AiProviderProfileSettings profile) =>
             !profile.AuthenticationMode.Equals("None", StringComparison.OrdinalIgnoreCase);
@@ -312,7 +430,6 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
             }
         }
 
-
         private static bool HasCloudDestinationChanged(AiProviderProfileSettings existing, AiProviderProfileSettings updated)
         {
             if (existing.IsLocal || updated.IsLocal)
@@ -343,7 +460,6 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
             return true;
         }
 
-
         private static bool IsSensitiveHeaderName(string name)
         {
             var normalized = (name ?? string.Empty).Replace("-", string.Empty, StringComparison.Ordinal).Trim();
@@ -353,6 +469,17 @@ namespace CraneOptimizer.AI.Providers.OpenAiCompatible
                 || normalized.Contains("secret", StringComparison.OrdinalIgnoreCase)
                 || normalized.Contains("credential", StringComparison.OrdinalIgnoreCase)
                 || normalized.Equals("contenttype", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string SanitizeDiagnostic(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+            var trimmed = value.Trim();
+            if (trimmed.Length > 400)
+                trimmed = trimmed[..400] + "...";
+            return trimmed.Replace("\r", " ", StringComparison.Ordinal)
+                .Replace("\n", " ", StringComparison.Ordinal);
         }
 
         private static AiProviderProfileSettings Clone(AiProviderProfileSettings profile)

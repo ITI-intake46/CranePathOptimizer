@@ -85,7 +85,7 @@ namespace CraneOptimizer.AI.Configuration
             {
                 Id = OpenRouterId,
                 DisplayName = "OpenRouter",
-                BaseUrl = "https://openrouter.ai/api/v1/",
+                BaseUrl = AiProviderProfileMigrations.OpenRouterApiBaseUrl,
                 ChatCompletionsPath = "chat/completions",
                 ModelsPath = "models",
                 AuthenticationMode = "Bearer",
