@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using CraneOptimizer.AI.Configuration;
 using CraneOptimizer.AI.DTOs;
