@@ -546,6 +546,32 @@ namespace CraneOptimizer.Application.Tests.AI
         }
 
         [Fact]
+        public void AiStudioControls_UseInteractiveModelDropDownSingleRowActionsAndHiddenRecommendationScrollBar()
+        {
+            var root = FindRepositoryRoot();
+            Assert.NotNull(root);
+            var xaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Views", "AiAdvisorWindow.xaml"));
+            var codeBehind = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Views", "AiAdvisorWindow.xaml.cs"));
+
+            Assert.Contains("x:Name=\"ModelDropDownToggle\"", xaml);
+            Assert.Contains("Click=\"ModelDropDownToggle_Click\"", xaml);
+            Assert.Contains("StaysOpen=\"False\"", xaml);
+            Assert.Contains("private void ModelDropDownToggle_Click", codeBehind);
+            Assert.Contains("comboBox.IsDropDownOpen = toggle.IsChecked == true;", codeBehind);
+            Assert.Contains("item.BringIntoView();", codeBehind);
+
+            Assert.Contains("x:Key=\"AiProviderActionButton\"", xaml);
+            Assert.Contains("<StackPanel Grid.Column=\"4\"", xaml);
+            Assert.Contains("Orientation=\"Horizontal\"", xaml);
+            Assert.Contains("Visibility=\"{Binding IsOllamaSelected, Converter={StaticResource BoolToVisibilityConverter}}\"", xaml);
+            Assert.DoesNotContain("<WrapPanel Grid.Column=\"4\"", xaml);
+
+            Assert.Contains("Header=\"Deterministic recommendations\"", xaml);
+            Assert.Contains("VerticalScrollBarVisibility=\"Hidden\"", xaml);
+            Assert.Contains("PanningMode=\"VerticalOnly\"", xaml);
+        }
+
+        [Fact]
         public void CloudRequestPolicy_RequiresConsentForProjectContextButAllowsContextFreeTests()
         {
             var settings = CreateSettings();
