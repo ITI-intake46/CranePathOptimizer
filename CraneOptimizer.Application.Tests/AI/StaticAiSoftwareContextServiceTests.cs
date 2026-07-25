@@ -26,14 +26,17 @@ namespace CraneOptimizer.Application.Tests.AI
         }
 
         [Fact]
-        public void GetSoftwareContext_MarksHiddenOrComingSoonFeaturesExplicitly()
+        public void GetSoftwareContext_MarksHiddenFeaturesAndCompletedDxfCommandsAccurately()
         {
             var service = new StaticAiSoftwareContextService();
 
             var context = service.GetSoftwareContext();
 
             Assert.Contains(context.Tabs, tab => tab.TabName == "SETTINGS" && tab.Purpose.Contains("hidden", StringComparison.OrdinalIgnoreCase));
-            Assert.Contains(context.Tabs.Single(tab => tab.TabName == "DXF").Actions, action => action.Availability.Contains("coming soon", StringComparison.OrdinalIgnoreCase));
+            var dxfActions = context.Tabs.Single(tab => tab.TabName == "DXF").Actions;
+            Assert.DoesNotContain(dxfActions, action => action.CommandOrHandler.Contains("Coming soon", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(dxfActions, action => action.CommandOrHandler.Contains("AddAnotherDxfCommand", StringComparison.Ordinal));
+            Assert.Contains(dxfActions, action => action.CommandOrHandler.Contains("SelectAllCommand", StringComparison.Ordinal));
             Assert.Contains(context.SafetyGuardrails, guardrail => guardrail.Contains("Do not invent hidden buttons", StringComparison.OrdinalIgnoreCase));
         }
     }

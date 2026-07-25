@@ -12,12 +12,17 @@ namespace CraneOptimizer.UI.Core.Services
 
         public ObservableCollection<PrecastElement> Elements { get; } = new();
         public ObservableCollection<GreenAreaZone> Zones { get; } = new();
+        private readonly object _zoneSnapshotLock = new();
+        private readonly Dictionary<Guid, GreenAreaZone> _zonesById = new();
+        private int _zoneChangeBatchDepth;
+        private bool _hasBatchedZoneChanges;
         public ObservableCollection<SceneCrane> Cranes { get; } = new();
 
         private readonly List<PrecastElement> _selectedElements = new();
         public ObservableCollection<SceneDxf> DxfEntities { get; } = new();
 
-        public SceneDxf? SelectedDxfEntity { get; private set; }
+        private readonly List<SceneDxf> _selectedDxfEntities = new();
+        public SceneDxf? SelectedDxfEntity => _selectedDxfEntities.LastOrDefault();
         // =========================
         // ELEMENTS
         // =========================
@@ -69,6 +74,7 @@ namespace CraneOptimizer.UI.Core.Services
         public event Action<GreenAreaZone>? ZoneAdded;
         public event Action<GreenAreaZone>? ZoneRemoved;
         public event Action? ZonesCleared;
+        public event Action? ZonesChanged;
         public event Action<GreenAreaZone?>? ZoneSelected;
         public event Action<GreenAreaZone>? ZoneUpdated;
 
@@ -76,22 +82,69 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void AddZone(GreenAreaZone zone)
         {
+            lock (_zoneSnapshotLock)
+            {
+                if (_zonesById.ContainsKey(zone.ZoneId))
+                    return;
+                _zonesById[zone.ZoneId] = zone;
+            }
             Zones.Add(zone);
             ZoneAdded?.Invoke(zone);
+            NotifyZonesChanged();
         }
 
         public List<GreenAreaZone> GetZones() => Zones.ToList();
 
-        public void RemoveZone(GreenAreaZone zone)
+        public virtual IReadOnlyList<GreenAreaZone> GetZoneSnapshot()
         {
-            if (!Zones.Contains(zone)) return;
+            lock (_zoneSnapshotLock)
+                return _zonesById.Values.ToArray();
+        }
 
-            Zones.Remove(zone);
+        public void RemoveZone(GreenAreaZone zone)
+            => RemoveZoneById(zone.ZoneId);
 
-            if (SelectedZone == zone)
+        private void RemoveZoneById(Guid zoneId)
+        {
+            GreenAreaZone? indexedZone;
+            lock (_zoneSnapshotLock)
+                _zonesById.Remove(zoneId, out indexedZone);
+
+            List<GreenAreaZone> collectionZones = Zones
+                .Where(item => item.ZoneId == zoneId)
+                .ToList();
+            if (indexedZone == null && collectionZones.Count == 0)
+                return;
+
+            foreach (GreenAreaZone collectionZone in collectionZones)
+                Zones.Remove(collectionZone);
+
+            if (SelectedZone?.ZoneId == zoneId)
                 SetSelectedZone(null);
 
-            ZoneRemoved?.Invoke(zone);
+            ZoneRemoved?.Invoke(indexedZone ?? collectionZones[0]);
+            NotifyZonesChanged();
+        }
+        public void ApplyZoneChanges(IReadOnlyList<Guid> removeZoneIds, IReadOnlyList<GreenAreaZone> addZones)
+        {
+            _zoneChangeBatchDepth++;
+            try
+            {
+                foreach (Guid zoneId in removeZoneIds)
+                    RemoveZoneById(zoneId);
+
+                foreach (GreenAreaZone zone in addZones)
+                    AddZone(zone);
+            }
+            finally
+            {
+                _zoneChangeBatchDepth--;
+                if (_zoneChangeBatchDepth == 0 && _hasBatchedZoneChanges)
+                {
+                    _hasBatchedZoneChanges = false;
+                    ZonesChanged?.Invoke();
+                }
+            }
         }
         public void UpdateZone(GreenAreaZone zone)
         {
@@ -99,6 +152,7 @@ namespace CraneOptimizer.UI.Core.Services
 
             // Update the zone properties as needed
             ZoneUpdated?.Invoke(zone);
+            NotifyZonesChanged();
         }
         public void RemoveSelectedZone()
         {
@@ -108,9 +162,23 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void ClearZones()
         {
+            lock (_zoneSnapshotLock)
+                _zonesById.Clear();
             Zones.Clear();
             SetSelectedZone(null);
             ZonesCleared?.Invoke();
+            NotifyZonesChanged();
+        }
+
+        private void NotifyZonesChanged()
+        {
+            if (_zoneChangeBatchDepth > 0)
+            {
+                _hasBatchedZoneChanges = true;
+                return;
+            }
+
+            ZonesChanged?.Invoke();
         }
 
         public void SetSelectedZone(GreenAreaZone? zone)
@@ -214,7 +282,9 @@ namespace CraneOptimizer.UI.Core.Services
         public event Action<SceneDxf>? DxfEntityUpdated;
         public event Action? DxfEntitiesCleared;
         public event Action<SceneDxf?>? DxfEntitySelected;
+        public event Action<List<SceneDxf>>? DxfEntitiesSelectionChanged;
         public List<SceneDxf> GetDxfEntities() => DxfEntities.ToList();
+        public List<SceneDxf> GetSelectedDxfEntities() => _selectedDxfEntities.ToList();
 
         public void AddDxfEntity(SceneDxf entity)
         {
@@ -228,8 +298,8 @@ namespace CraneOptimizer.UI.Core.Services
 
             DxfEntities.Remove(entity);
 
-            if (SelectedDxfEntity == entity)
-                SetSelectedDxfEntity(null);
+            if (_selectedDxfEntities.Remove(entity))
+                RaiseDxfSelectionChanged();
 
             DxfEntityRemoved?.Invoke(entity);
         }
@@ -259,18 +329,40 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void SetSelectedDxfEntity(SceneDxf? entity)
         {
-            if (SelectedDxfEntity == entity) return;
+            SetSelectedDxfEntities(entity == null
+                ? new List<SceneDxf>()
+                : new List<SceneDxf> { entity });
+        }
 
-            SelectedDxfEntity = entity;
-            _selectedObject = entity;
+        public void SetSelectedDxfEntities(List<SceneDxf> entities)
+        {
+            var distinct = entities
+                .Where(DxfEntities.Contains)
+                .DistinctBy(entity => entity.Id)
+                .ToList();
 
-            DxfEntitySelected?.Invoke(entity);
-            SelectionChanged?.Invoke(entity);
+            if (_selectedDxfEntities.Select(entity => entity.Id)
+                .SequenceEqual(distinct.Select(entity => entity.Id)))
+                return;
+
+            _selectedDxfEntities.Clear();
+            _selectedDxfEntities.AddRange(distinct);
+            RaiseDxfSelectionChanged();
         }
 
         public void ClearDxfSelection()
         {
             SetSelectedDxfEntity(null);
+        }
+
+        private void RaiseDxfSelectionChanged()
+        {
+            var selected = _selectedDxfEntities.ToList();
+            var primary = selected.LastOrDefault();
+            _selectedObject = primary;
+            DxfEntitySelected?.Invoke(primary);
+            DxfEntitiesSelectionChanged?.Invoke(selected);
+            SelectionChanged?.Invoke(primary);
         }
 
         // =========================
@@ -298,12 +390,13 @@ namespace CraneOptimizer.UI.Core.Services
                 SelectedZone = null;
                 SelectedCrane = null;
                 _selectedElements.Clear();
-                SelectedDxfEntity = null;
+                _selectedDxfEntities.Clear();
                 
                 ZoneSelected?.Invoke(null);
                 CraneSelected?.Invoke(null);
                 ElementsSelectionChanged?.Invoke(new List<PrecastElement>());
                 DxfEntitySelected?.Invoke(null);
+                DxfEntitiesSelectionChanged?.Invoke(new List<SceneDxf>());
                 SelectionChanged?.Invoke(null);
             }
             else

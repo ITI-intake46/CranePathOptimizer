@@ -55,10 +55,7 @@ namespace CraneOptimizer.UI.Core.Services
             _scene.CraneUpdated += OnCraneChanged;
             _scene.CraneRemoved += OnCraneChanged;
             _scene.CranesCleared += OnCranesCleared;
-            _scene.ZoneAdded += OnZoneChanged;
-            _scene.ZoneUpdated += OnZoneChanged;
-            _scene.ZoneRemoved += OnZoneChanged;
-            _scene.ZonesCleared += ReRenderCranes;
+            _scene.ZonesChanged += OnZonesChanged;
         }
 
         public event Action<IReadOnlyList<PrecastElement>>? ElementsChanged;
@@ -461,7 +458,11 @@ namespace CraneOptimizer.UI.Core.Services
         }
 
         private void OnCraneChanged(SceneCrane _) => ReRenderCranes();
-        private void OnZoneChanged(GreenAreaZone _) => ReRenderCranes();
+        private void OnZonesChanged()
+        {
+            if (_scene.GetCranes().Count > 0)
+                ReRenderCranes();
+        }
 
         private void OnCranesCleared()
         {
@@ -483,10 +484,7 @@ namespace CraneOptimizer.UI.Core.Services
             _scene.CraneUpdated -= OnCraneChanged;
             _scene.CraneRemoved -= OnCraneChanged;
             _scene.CranesCleared -= OnCranesCleared;
-            _scene.ZoneAdded -= OnZoneChanged;
-            _scene.ZoneUpdated -= OnZoneChanged;
-            _scene.ZoneRemoved -= OnZoneChanged;
-            _scene.ZonesCleared -= ReRenderCranes;
+            _scene.ZonesChanged -= OnZonesChanged;
         }
     }
 }

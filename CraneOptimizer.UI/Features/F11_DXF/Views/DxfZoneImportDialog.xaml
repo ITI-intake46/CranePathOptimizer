@@ -2,6 +2,7 @@
     x:Class="CraneOptimizer.UI.Features.F11_DXF.Views.DxfZoneImportDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:dxfModels="clr-namespace:CraneOptimizer.UI.Features.F11_DXF.Models"
     Title="Draw Zones By Layer"
     Width="720"
     Height="430"
@@ -56,7 +57,7 @@
                     <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}" />
                     <Setter Property="Foreground" Value="White" />
                 </Trigger>
-                <DataTrigger Binding="{Binding Assignment}" Value="Allowed">
+                <DataTrigger Binding="{Binding Assignment}" Value="{x:Static dxfModels:DxfLayerZoneAssignment.Allowed}">
                     <Setter Property="Background" Value="{StaticResource SuccessBrush}" />
                     <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}" />
                     <Setter Property="Foreground" Value="White" />
@@ -74,10 +75,32 @@
                     <Setter Property="BorderBrush" Value="{StaticResource DestructiveBrush}" />
                     <Setter Property="Foreground" Value="White" />
                 </Trigger>
-                <DataTrigger Binding="{Binding Assignment}" Value="Forbidden">
+                <DataTrigger Binding="{Binding Assignment}" Value="{x:Static dxfModels:DxfLayerZoneAssignment.Forbidden}">
                     <Setter Property="Background" Value="{StaticResource DestructiveBrush}" />
                     <Setter Property="BorderBrush" Value="{StaticResource DestructiveBrush}" />
                     <Setter Property="Foreground" Value="White" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="LayerNameText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger
+                    Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                    Value="True">
+                    <Setter Property="Foreground" Value="#FF211812" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="LayerDetailText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger
+                    Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                    Value="True">
+                    <Setter Property="Foreground" Value="#FF3A281E" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -139,13 +162,20 @@
                                     FontFamily="{StaticResource FontPrimary}"
                                     FontSize="{StaticResource FontSizeBase}"
                                     FontWeight="SemiBold"
+                                    Style="{StaticResource LayerNameText}"
                                     Text="{Binding Name}" />
                                 <TextBlock
                                     Margin="0,2,0,0"
                                     FontFamily="{StaticResource FontPrimary}"
                                     FontSize="{StaticResource FontSizeXS}"
-                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    Style="{StaticResource LayerDetailText}"
                                     Text="{Binding CountsText}" />
+                                <TextBlock
+                                    Margin="0,2,0,0"
+                                    FontFamily="{StaticResource FontPrimary}"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    Style="{StaticResource LayerDetailText}"
+                                    Text="{Binding BusyText}" />
                             </StackPanel>
 
                             <Button
@@ -178,11 +208,11 @@
 
             <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                 <Button
-                    Width="150"
-                    Margin="0,0,8,0"
-                    Command="{Binding RemoveImportedZonesCommand}"
-                    Content="Remove Layer Zones"
-                    Style="{StaticResource ButtonSecondary}" />
+                      Width="170"
+                      Margin="0,0,8,0"
+                      Command="{Binding RemoveImportedZonesCommand}"
+                      Content="Remove All Layer Zones"
+                      Style="{StaticResource ButtonSecondary}" />
                 <Button
                     Width="84"
                     Click="Close_Click"

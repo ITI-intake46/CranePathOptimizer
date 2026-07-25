@@ -25,7 +25,9 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
     {
         private readonly IOsnapService _snap;
         private readonly ISceneService _scene;
-        private DxfUploader? _currentUploader;
+        private readonly Dictionary<DxfUploader, Action> _dxfUploaders = new();
+        private int _dxfCombineGeneration;
+        private int _zoneRefreshGeneration;
         private HelixViewport3D? _viewport;
         private int _ifcExtractGeneration;
         private bool _disposed;
@@ -35,11 +37,7 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             _snap  = snap  ?? throw new ArgumentNullException(nameof(snap));
             _scene = scene ?? throw new ArgumentNullException(nameof(scene));
 
-            // Subscribe to all zone mutation events
-            _scene.ZoneAdded    += OnZoneChanged;
-            _scene.ZoneRemoved  += OnZoneChanged;
-            _scene.ZoneUpdated  += OnZoneChanged;
-            _scene.ZonesCleared += OnZonesCleared;
+            _scene.ZonesChanged += RefreshZones;
 
             // Subscribe to IFC element changes
             _scene.ElementsChanged += OnElementsChanged;
@@ -62,22 +60,28 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 
         // ─── Zone geometry feed ────────────────────────────────────────────────
 
-        private void OnZoneChanged(GreenAreaZone _) => RefreshZones();
-        private void OnZonesCleared()              => RefreshZones();
-
-        private void RefreshZones()
+        private async void RefreshZones()
         {
-            var zones = _scene.GetZones();
-            var polygons = zones
-                .Where(z => z.Vertices.Count >= 2)
-                .Select(z => (
-                    Vertices: (IReadOnlyList<Point3D>)z.Vertices
-                        .Select(v => new Point3D(v.X, v.Y, 0))
-                        .ToList(),
-                    IsClosed: true))
-                .ToList();
+            int generation = Interlocked.Increment(ref _zoneRefreshGeneration);
+            IReadOnlyList<GreenAreaZone> zones = _scene.GetZoneSnapshot();
+            try
+            {
+                var polygons = await Task.Run(() => zones
+                    .Where(zone => zone.Vertices.Count >= 2)
+                    .Select(zone => (
+                        Vertices: (IReadOnlyList<Point3D>)zone.Vertices
+                            .Select(vertex => new Point3D(vertex.X, vertex.Y, vertex.Z))
+                            .ToList(),
+                        IsClosed: true))
+                    .ToList());
 
-            _snap.SetZoneGeometry(polygons);
+                if (generation == _zoneRefreshGeneration && !_disposed)
+                    _snap.SetZoneGeometry(polygons);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[OSnap] Zone geometry refresh failed: {ex.Message}");
+            }
         }
 
         // ─── IFC element feed ──────────────────────────────────────────────────
@@ -131,10 +135,7 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             {
                 System.Diagnostics.Debug.WriteLine("[OSnap] ObjectSnap enabled manually; building snap points on demand.");
                 RefreshIfcSnapGeometry();
-                if (_currentUploader != null)
-                {
-                    PushDxfSnapData(_currentUploader);
-                }
+                PushCombinedDxfSnapData();
             }
             else
             {
@@ -210,50 +211,103 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
         /// </summary>
         public void RefreshDxf(DxfUploader uploader)
         {
-            // Unsubscribe from previous uploader if any
-            if (_currentUploader != null)
-                _currentUploader.SnapDataChanged -= OnDxfSnapDataChanged;
-
-            _currentUploader = uploader;
-
-            if (!uploader.IsLoaded)
+            if (!_dxfUploaders.ContainsKey(uploader))
             {
-                _snap.SetDxfSnapPoints(
-                    Enumerable.Empty<Point3D>(),
-                    Enumerable.Empty<(Point3D, Point3D)>());
-                return;
+                Action handler = PushCombinedDxfSnapData;
+                _dxfUploaders.Add(uploader, handler);
+                uploader.SnapDataChanged += handler;
             }
 
-            // Subscribe so we auto-refresh whenever alignment changes
-            uploader.SnapDataChanged += OnDxfSnapDataChanged;
-
-            // Push current data
-            PushDxfSnapData(uploader);
+            PushCombinedDxfSnapData();
         }
 
-        private void OnDxfSnapDataChanged()
+        public void RemoveDxf(DxfUploader uploader)
         {
-            if (_currentUploader != null)
-                PushDxfSnapData(_currentUploader);
+            if (_dxfUploaders.Remove(uploader, out var handler))
+                uploader.SnapDataChanged -= handler;
+
+            PushCombinedDxfSnapData();
         }
 
-        private void PushDxfSnapData(DxfUploader uploader)
+        private async void PushCombinedDxfSnapData()
         {
-            _snap.SetDxfSnapPoints(
-                uploader.SnapPoints,
-                uploader.SnapSegments,
-                uploader.SnapCenters,
-                uploader.SnapQuadrants,
-                uploader.SnapMidpointSegments);
+            int generation = Interlocked.Increment(ref _dxfCombineGeneration);
+            var loaded = _dxfUploaders.Keys
+                .Where(uploader => uploader.IsLoaded)
+                .Select(uploader => new DxfSnapSource(
+                    uploader.SnapPoints,
+                    uploader.SnapSegments,
+                    uploader.SnapCenters,
+                    uploader.SnapQuadrants,
+                    uploader.SnapMidpointSegments))
+                .ToArray();
+            try
+            {
+                PreparedDxfSnapData prepared = await Task.Run(() => CombineDxfSnapData(loaded));
+                if (generation != _dxfCombineGeneration)
+                    return;
+                _snap.SetPreparedDxfSnapPoints(
+                    prepared.Endpoints,
+                    prepared.Segments,
+                    prepared.Centers,
+                    prepared.Quadrants,
+                    prepared.MidpointSegments);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[OSnap] DXF snap combination failed: {ex.Message}");
+            }
         }
 
         /// <summary>Clears the DXF snap data (called when DXF is unloaded).</summary>
         public void ClearDxf()
         {
-            _snap.SetDxfSnapPoints(
-                Enumerable.Empty<Point3D>(),
-                Enumerable.Empty<(Point3D, Point3D)>());
+            Interlocked.Increment(ref _dxfCombineGeneration);
+            _snap.SetPreparedDxfSnapPoints(
+                new List<Point3D>(),
+                new List<(Point3D, Point3D)>(),
+                new List<Point3D>(),
+                new List<Point3D>(),
+                new List<(Point3D, Point3D)>());
         }
+
+        private static PreparedDxfSnapData CombineDxfSnapData(IReadOnlyList<DxfSnapSource> sources)
+        {
+            var endpoints = new List<Point3D>();
+            var segments = new List<(Point3D A, Point3D B)>();
+            var centers = new List<Point3D>();
+            var quadrants = new List<Point3D>();
+            var midpoints = new List<(Point3D A, Point3D B)>();
+            foreach (DxfSnapSource source in sources)
+            {
+                endpoints.AddRange(source.Endpoints.Where(IsFinite));
+                segments.AddRange(source.Segments.Where(segment => IsFinite(segment.A) && IsFinite(segment.B)));
+                centers.AddRange(source.Centers.Where(IsFinite));
+                quadrants.AddRange(source.Quadrants.Where(IsFinite));
+                midpoints.AddRange(source.MidpointSegments.Where(segment => IsFinite(segment.A) && IsFinite(segment.B)));
+            }
+
+            return new PreparedDxfSnapData(endpoints, segments, centers, quadrants, midpoints);
+        }
+
+        private static bool IsFinite(Point3D point) =>
+            double.IsFinite(point.X) &&
+            double.IsFinite(point.Y) &&
+            double.IsFinite(point.Z);
+
+        private sealed record DxfSnapSource(
+            IReadOnlyList<Point3D> Endpoints,
+            IReadOnlyList<(Point3D A, Point3D B)> Segments,
+            IReadOnlyList<Point3D> Centers,
+            IReadOnlyList<Point3D> Quadrants,
+            IReadOnlyList<(Point3D A, Point3D B)> MidpointSegments);
+
+        private sealed record PreparedDxfSnapData(
+            List<Point3D> Endpoints,
+            List<(Point3D A, Point3D B)> Segments,
+            List<Point3D> Centers,
+            List<Point3D> Quadrants,
+            List<(Point3D A, Point3D B)> MidpointSegments);
 
         // ─── Dispose ───────────────────────────────────────────────────────────
 
@@ -262,15 +316,14 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             if (_disposed) return;
             _disposed = true;
 
-            _scene.ZoneAdded    -= OnZoneChanged;
-            _scene.ZoneRemoved  -= OnZoneChanged;
-            _scene.ZoneUpdated  -= OnZoneChanged;
-            _scene.ZonesCleared -= OnZonesCleared;
+            Interlocked.Increment(ref _zoneRefreshGeneration);
+            _scene.ZonesChanged -= RefreshZones;
             _scene.ElementsChanged -= OnElementsChanged;
             _snap.MasterEnabledChanged -= OnMasterEnabledChanged;
 
-            if (_currentUploader != null)
-                _currentUploader.SnapDataChanged -= OnDxfSnapDataChanged;
+            foreach (var (uploader, handler) in _dxfUploaders)
+                uploader.SnapDataChanged -= handler;
+            _dxfUploaders.Clear();
         }
     }
 }

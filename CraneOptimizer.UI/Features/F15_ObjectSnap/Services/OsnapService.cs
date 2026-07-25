@@ -115,6 +115,23 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             Debug.WriteLine($"[OSnap] SetDxfSnapPoints: endpoints={_dxfEndpoints.Count}, segments={_dxfSegments.Count}");
         }
 
+        public void SetPreparedDxfSnapPoints(
+            List<Point3D> endpoints,
+            List<(Point3D A, Point3D B)> segments,
+            List<Point3D> centers,
+            List<Point3D> quadrants,
+            List<(Point3D A, Point3D B)> midpointSegments)
+        {
+            _dxfEndpoints = endpoints;
+            _dxfSegments = segments;
+            _dxfMidpointSegments = midpointSegments;
+            _dxfCenters = centers;
+            _dxfQuadrants = quadrants;
+            _dxfGeometryVersion++;
+            _dxfScreenIndex = null;
+            Debug.WriteLine($"[OSnap] Applied prepared DXF snap data: endpoints={endpoints.Count}, segments={segments.Count}");
+        }
+
         public void SetIfcSnapPoints(
             IEnumerable<Point3D> vertices,
             IEnumerable<(Point3D A, Point3D B)>? segments = null)

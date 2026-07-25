@@ -14,5 +14,23 @@ namespace CraneOptimizer.Domain.Schemas
         public string Name { get; set; }
 
         public ZoneType Type { get; set; }
+
+        public double? MinimumHeight { get; set; }
+
+        public double? MaximumHeight { get; set; }
+
+        public Guid? SourceDxfId { get; set; }
+
+        public string? SourceDxfFileName { get; set; }
+
+        public string? SourceDxfFilePath { get; set; }
+
+        public string? SourceLayerName { get; set; }
+
+        public string? SourceCandidateId { get; set; }
+
+        public string? ImportMethod { get; set; }
+
+        public ZoneType? OriginalAssignmentType { get; set; }
     }
 }

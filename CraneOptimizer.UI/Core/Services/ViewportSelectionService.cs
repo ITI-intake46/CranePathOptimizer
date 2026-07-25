@@ -71,9 +71,8 @@ namespace CraneOptimizer.UI.Core.Services
                     crane));
             }
 
-            if (_scene.SelectedDxfEntity != null)
+            foreach (var dxf in _scene.GetSelectedDxfEntities())
             {
-                var dxf = _scene.SelectedDxfEntity;
                 list.Add(new SelectionTarget(
                     SelectionKind.DxfEntity,
                     dxf.Id.ToString(),
@@ -180,6 +179,55 @@ namespace CraneOptimizer.UI.Core.Services
                     currentElements.Add(element);
                 }
                 _scene.SetSelectedElements(currentElements);
+                NotifyChanged();
+            }
+            finally
+            {
+                _isUpdating = false;
+            }
+        }
+
+        public void SelectDxf(SceneDxf? dxf, bool isCtrlHeld)
+        {
+            if (_isUpdating) return;
+            _isUpdating = true;
+            try
+            {
+                if (dxf == null)
+                {
+                    if (!isCtrlHeld)
+                        _scene.SetSelectedDxfEntities(new List<SceneDxf>());
+                }
+                else if (isCtrlHeld)
+                {
+                    var selected = _scene.GetSelectedDxfEntities();
+                    var existing = selected.FirstOrDefault(entity => entity.Id == dxf.Id);
+                    if (existing == null)
+                        selected.Add(dxf);
+                    else
+                        selected.Remove(existing);
+                    _scene.SetSelectedDxfEntities(selected);
+                }
+                else
+                {
+                    _scene.SetSelectedDxfEntities(new List<SceneDxf> { dxf });
+                }
+
+                NotifyChanged();
+            }
+            finally
+            {
+                _isUpdating = false;
+            }
+        }
+
+        public void SetDxfs(IEnumerable<SceneDxf> dxfs)
+        {
+            if (_isUpdating) return;
+            _isUpdating = true;
+            try
+            {
+                _scene.SetSelectedDxfEntities(dxfs.ToList());
                 NotifyChanged();
             }
             finally
@@ -299,7 +347,7 @@ namespace CraneOptimizer.UI.Core.Services
                     _scene.ClearSelectedElements();
                     _scene.SetSelectedZone(null);
                     _scene.SetSelectedCrane(null);
-                    _scene.SetSelectedDxfEntity(dxf);
+                    _scene.SetSelectedDxfEntities(new List<SceneDxf> { dxf });
                     break;
             }
         }
@@ -307,7 +355,7 @@ namespace CraneOptimizer.UI.Core.Services
         /// <summary>
         /// Ctrl+Click: toggle the clicked target without clearing others.
         /// IFC elements support true multi-select (list).
-        /// Crane/Zone/DXF are singular — toggling ON replaces the previous one of that kind.
+        /// Crane and zone are singular; DXF overlays support multi-selection.
         /// </summary>
         private void ToggleTarget(SelectionTarget target)
         {
@@ -349,10 +397,13 @@ namespace CraneOptimizer.UI.Core.Services
 
                 case SelectionKind.DxfEntity:
                     var dxf = (SceneDxf)target.UnderlyingObject;
-                    if (_scene.SelectedDxfEntity?.Id == dxf.Id)
-                        _scene.SetSelectedDxfEntity(null);
+                    var selectedDxfs = _scene.GetSelectedDxfEntities();
+                    var selectedDxf = selectedDxfs.FirstOrDefault(entity => entity.Id == dxf.Id);
+                    if (selectedDxf != null)
+                        selectedDxfs.Remove(selectedDxf);
                     else
-                        _scene.SetSelectedDxfEntity(dxf);
+                        selectedDxfs.Add(dxf);
+                    _scene.SetSelectedDxfEntities(selectedDxfs);
                     break;
             }
         }

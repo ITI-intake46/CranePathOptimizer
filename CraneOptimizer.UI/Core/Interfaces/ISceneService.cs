@@ -24,9 +24,21 @@ namespace CraneOptimizer.UI.Core.Interfaces
         // ZONES
         // =========================
         List<GreenAreaZone> GetZones();
+        IReadOnlyList<GreenAreaZone> GetZoneSnapshot() => GetZones();
 
         void AddZone(GreenAreaZone zone);
         void RemoveZone(GreenAreaZone zone);
+        void ApplyZoneChanges(IReadOnlyList<Guid> removeZoneIds, IReadOnlyList<GreenAreaZone> addZones)
+        {
+            var removeIds = removeZoneIds.ToHashSet();
+            foreach (var zone in GetZones().Where(zone => removeIds.Contains(zone.ZoneId)).ToList())
+                RemoveZone(zone);
+            foreach (var zone in addZones)
+            {
+                if (GetZones().All(existing => existing.ZoneId != zone.ZoneId))
+                    AddZone(zone);
+            }
+        }
         void RemoveSelectedZone();
         void ClearZones();
         void UpdateZone(GreenAreaZone zone);
@@ -39,6 +51,11 @@ namespace CraneOptimizer.UI.Core.Interfaces
         event Action<GreenAreaZone>? ZoneRemoved;
         event Action<GreenAreaZone>? ZoneUpdated;
         event Action? ZonesCleared;
+        event Action? ZonesChanged
+        {
+            add { }
+            remove { }
+        }
         event Action<GreenAreaZone?>? ZoneSelected;
 
         // =========================
@@ -78,7 +95,11 @@ namespace CraneOptimizer.UI.Core.Interfaces
         void UpdateDxfEntity(SceneDxf entity);
 
         SceneDxf? SelectedDxfEntity { get; }
+        List<SceneDxf> GetSelectedDxfEntities() =>
+            SelectedDxfEntity == null ? new List<SceneDxf>() : new List<SceneDxf> { SelectedDxfEntity };
         void SetSelectedDxfEntity(SceneDxf? entity);
+        void SetSelectedDxfEntities(List<SceneDxf> entities) =>
+            SetSelectedDxfEntity(entities.LastOrDefault());
         void ClearDxfSelection();
 
         event Action<SceneDxf>? DxfEntityAdded;
@@ -86,6 +107,11 @@ namespace CraneOptimizer.UI.Core.Interfaces
         event Action<SceneDxf>? DxfEntityUpdated;
         event Action? DxfEntitiesCleared;
         event Action<SceneDxf?>? DxfEntitySelected;
+        event Action<List<SceneDxf>>? DxfEntitiesSelectionChanged
+        {
+            add { }
+            remove { }
+        }
 
         // =========================
         // GENERIC SELECTION

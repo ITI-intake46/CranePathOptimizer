@@ -97,12 +97,12 @@ namespace CraneOptimizer.AI.Services
                     PrimaryViewModel = "Dxf-related view models exposed through MainViewModel",
                     Actions = new[]
                     {
-                        Action("Upload DXF", "Dxf.UploadDxfCommand", "Select a DXF file from disk.", "Available in DXF FILES group.", "Use trusted DXF files and check scale/units."),
-                        Action("Add Another", "Coming soon", "Placeholder for future multi-DXF import.", "Currently marked as coming soon.", "Do not tell users this is fully implemented."),
-                        Action("Align", "Dxf.AlignCommand", "Open alignment dialog to position the DXF on the site.", "Use after upload.", "Alignment affects zone geometry and crane candidate regions."),
-                        Action("By Layer", "Dxf.DrawZonesByLayerCommand", "Create zones from closed DXF polylines on selected layers.", "Useful when site zones are already drafted in CAD.", "Confirm each imported zone type before optimization."),
+                        Action("Upload DXF", "Dxf.UploadDxfCommand", "Select and append a DXF file from disk.", "Available in DXF FILES group.", "Use trusted DXF files and check scale/units."),
+                        Action("Add Another", "Dxf.AddAnotherDxfCommand", "Append another independent DXF overlay without replacing loaded sources.", "Available after or before the first DXF.", "Duplicate paths require confirmation."),
+                        Action("Align", "Dxf.AlignCommand", "Open alignment for one specific DXF source.", "One source opens directly; multiple sources show a source picker.", "Only the chosen overlay transform changes."),
+                        Action("By Layer", "Dxf.DrawZonesByLayerCommand", "Toggle allowed or forbidden zones for one identified DXF source and layer.", "Clicking the active assignment again returns the layer to unassigned; Remove Layer Zones clears source-tagged zones.", "Layer creation, replacement, and removal are atomic global Undo/Redo operations."),
                         Action("Use DXF Colors", "Dxf.UseOriginalColors", "Render DXF overlay with original entity/layer colors.", "Display aid only.", "Does not alter geometry or optimization."),
-                        Action("Select / Select All / Delete", "Coming soon", "DXF entity selection/editing placeholders.", "Currently marked as coming soon.", "Do not promise completed behavior for these controls.")
+                        Action("Select / Select All / Delete", "Dxf.SelectCommand / Dxf.SelectAllCommand / Dxf.DeleteCommand", "Select complete DXF overlays in the viewport or loaded-DXF panel and delete only selected sources.", "Ctrl+click toggles multi-selection; Select All targets every loaded DXF.", "Deleting a DXF leaves zones previously generated from it in the project and supports global Undo/Redo.")
                     },
                     TypicalQuestions = new[]
                     {

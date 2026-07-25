@@ -144,6 +144,7 @@
                         Width="26"
                         Height="20"
                         Margin="0,0,1,0"
+                        x:Name="UndoButton"
                         Click="UndoBtn_Click"
                         Style="{StaticResource ToolbarButton}"
                         ToolTip="Undo (Ctrl+Z)">
@@ -165,6 +166,7 @@
                         Width="26"
                         Height="20"
                         Margin="0,0,1,0"
+                        x:Name="RedoButton"
                         Click="RedoBtn_Click"
                         Style="{StaticResource ToolbarButton}"
                         ToolTip="Redo (Ctrl+Y)">

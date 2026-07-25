@@ -13,11 +13,13 @@ using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.Domain.Units;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
+using CraneOptimizer.UI.Features.F11_DXF.Views;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Views;
 using CraneOptimizer.UI.Features.F7_Zones;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
+using CraneOptimizer.UI.Resources;
 using CraneOptimizer.UI.Shell.Interaction;
 using CraneOptimizer.UI.Shell.ViewModels;
 
@@ -50,6 +52,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private string _lastElementSceneKey = string.Empty;
         private bool _pendingWheelClipUpdate;
         private bool _isUpdatingCameraMode;
+        private bool _zoneRenderPending;
 
         private OsnapIndicator? _osnapIndicator;
         private readonly List<(MeasurementVisualData Data, Border Label)> _measurementLabels = new();
@@ -87,7 +90,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             Unloaded += OnUnloaded;
         }
 
-        private void OnLoaded(object sender, RoutedEventArgs e)
+        private async void OnLoaded(object sender, RoutedEventArgs e)
         {
             _ownerWindow = Window.GetWindow(this);
             if (_ownerWindow != null)
@@ -97,11 +100,9 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             }
 
             _sceneService.ElementsChanged += OnElementsChanged;
-            _sceneService.ZoneAdded += OnZoneAdded;
+            _sceneService.ZonesChanged += ScheduleRenderZones;
             _sceneService.ZoneSelected += OnZoneSelected;
-            _sceneService.ZoneRemoved += OnZoneChanged;
-            _sceneService.ZoneUpdated += OnZoneChanged;
-            _sceneService.ZonesCleared += OnZonesCleared;
+            ThemeService.Instance.ThemeChanged += OnThemeChanged;
             IfcViewer.CameraChanged += IfcViewer_CameraChanged;
             IfcViewer.SizeChanged += IfcViewer_SizeChanged;
             _drawingViewModel.MeasurementLabelsChanged += DrawingViewModel_MeasurementLabelsChanged;
@@ -114,10 +115,11 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                     _hitTestService,
                     _viewportSelectionService,
                     () => _cameraService.UpdateClipping(_sceneService.GetElements())));
-                vm.Dxf.Initialize(IfcViewer);
+                await vm.Dxf.InitializeAsync(IfcViewer);
                 AttachDxfSnapBridge(vm);
             }
 
+            ScheduleRenderZones();
             SetGridState(50d, 50d);
             var elements = _sceneService.GetElements();
             if (elements.Count == 0)
@@ -133,11 +135,9 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             }
 
             _sceneService.ElementsChanged -= OnElementsChanged;
-            _sceneService.ZoneAdded -= OnZoneAdded;
+            _sceneService.ZonesChanged -= ScheduleRenderZones;
             _sceneService.ZoneSelected -= OnZoneSelected;
-            _sceneService.ZoneRemoved -= OnZoneChanged;
-            _sceneService.ZoneUpdated -= OnZoneChanged;
-            _sceneService.ZonesCleared -= OnZonesCleared;
+            ThemeService.Instance.ThemeChanged -= OnThemeChanged;
             IfcViewer.CameraChanged -= IfcViewer_CameraChanged;
             IfcViewer.SizeChanged -= IfcViewer_SizeChanged;
             _drawingViewModel.MeasurementLabelsChanged -= DrawingViewModel_MeasurementLabelsChanged;
@@ -152,11 +152,15 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             {
                 DetachDxfSnapBridge();
                 _osnapDxfSource = vm;
-                vm.Dxf.DxfLoaded += _osnapBridge.RefreshDxf;
+                vm.Dxf.DxfLoaded += OnDxfLoaded;
+                vm.Dxf.DxfRemoved += OnDxfRemoved;
             }
 
-            if (vm.Dxf.CurrentUploader?.IsLoaded == true)
-                _osnapBridge.RefreshDxf(vm.Dxf.CurrentUploader);
+            foreach (var source in vm.Dxf.LoadedDxfs)
+            {
+                if (source.Uploader?.IsLoaded == true)
+                    OnDxfLoaded(source.Uploader);
+            }
         }
 
         private void DetachDxfSnapBridge()
@@ -164,8 +168,57 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             if (_osnapDxfSource == null)
                 return;
 
-            _osnapDxfSource.Dxf.DxfLoaded -= _osnapBridge.RefreshDxf;
+            foreach (var source in _osnapDxfSource.Dxf.LoadedDxfs)
+            {
+                source.Uploader?.SetZoneContrast(
+                    Array.Empty<GreenAreaZone>(),
+                    Colors.White);
+            }
+
+            _osnapDxfSource.Dxf.DxfLoaded -= OnDxfLoaded;
+            _osnapDxfSource.Dxf.DxfRemoved -= OnDxfRemoved;
             _osnapDxfSource = null;
+        }
+
+        private void OnDxfLoaded(DxfUploader uploader)
+        {
+            _osnapBridge.RefreshDxf(uploader);
+            ApplyDxfZoneContrast(uploader, _sceneService.GetZones());
+        }
+
+        private void OnDxfRemoved(DxfUploader uploader)
+        {
+            uploader.SetZoneContrast(
+                Array.Empty<GreenAreaZone>(),
+                Colors.White);
+            _osnapBridge.RemoveDxf(uploader);
+        }
+
+        private void OnThemeChanged(AppTheme _) => RefreshDxfZoneContrast();
+
+        private void RefreshDxfZoneContrast(
+            IReadOnlyList<GreenAreaZone>? zones = null)
+        {
+            if (_osnapDxfSource == null)
+                return;
+
+            IReadOnlyList<GreenAreaZone> activeZones =
+                zones ?? _sceneService.GetZones();
+            foreach (var source in _osnapDxfSource.Dxf.LoadedDxfs)
+            {
+                if (source.Uploader != null)
+                    ApplyDxfZoneContrast(source.Uploader, activeZones);
+            }
+        }
+
+        private static void ApplyDxfZoneContrast(
+            DxfUploader uploader,
+            IReadOnlyList<GreenAreaZone> zones)
+        {
+            Color contrastColor = ThemeService.Instance.CurrentTheme == AppTheme.Dark
+                ? Colors.White
+                : Colors.Black;
+            uploader.SetZoneContrast(zones, contrastColor);
         }
 
         private void OwnerWindow_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -178,14 +231,33 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _interactionService.HandleKeyDown(IfcViewer, e);
         }
 
-        private void OnZoneAdded(GreenAreaZone zone) => RenderZones();
-        private void OnZoneSelected(GreenAreaZone? zone) => RenderZones();
-        private void OnZoneChanged(GreenAreaZone zone) => RenderZones();
-        private void OnZonesCleared() => RenderZones();
+        private void OnZoneSelected(GreenAreaZone? zone) => ScheduleRenderZones();
+
+        private void ScheduleRenderZones()
+        {
+            if (_zoneRenderPending)
+                return;
+
+            _zoneRenderPending = true;
+            Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+            {
+                _zoneRenderPending = false;
+                if (IsLoaded)
+                    RenderZones();
+            }));
+        }
 
         private void RenderZones()
         {
-            _renderingService.Render(_sceneService.GetZones(), new ZoneVisualBuilder(_sceneService), "Zones");
+            List<GreenAreaZone> zones = _sceneService.GetZones();
+            RefreshDxfZoneContrast(zones);
+            if (zones.Count == 0)
+            {
+                _renderingService.ClearLayer("Zones");
+                return;
+            }
+
+            _renderingService.Render(zones, new ZoneVisualBuilder(_sceneService), "Zones");
         }
 
         private void OnElementsChanged(List<PrecastElement> elements)

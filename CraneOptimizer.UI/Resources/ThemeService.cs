@@ -22,6 +22,7 @@ namespace CraneOptimizer.UI.Resources
 
         // ── Public state ──────────────────────────────────────────────────
         public AppTheme CurrentTheme { get; private set; } = AppTheme.Dark;
+        public event Action<AppTheme>? ThemeChanged;
 
         // ── Apply ─────────────────────────────────────────────────────────
         /// <summary>
@@ -49,6 +50,8 @@ namespace CraneOptimizer.UI.Resources
             {
                 Source = new Uri(newSource, UriKind.Relative)
             });
+
+            ThemeChanged?.Invoke(theme);
         }
 
         /// <summary>Toggle between Dark and Light.</summary>

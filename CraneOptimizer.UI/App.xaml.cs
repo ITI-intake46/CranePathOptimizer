@@ -173,6 +173,8 @@ namespace CraneOptimizer.UI
             services.AddSingleton<ICraneValidationService, CraneValidationService>();
             services.AddSingleton<IElementLiftStateService, ElementLiftStateService>();
             services.AddSingleton<IDxfZoneImportService, DxfZoneImportService>();
+            services.AddSingleton<IDxfLayerZoneAssignmentService, DxfLayerZoneAssignmentService>();
+            services.AddSingleton<IProjectHistoryService, ProjectHistoryService>();
 
             // =========================
             // GA

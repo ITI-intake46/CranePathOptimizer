@@ -25,6 +25,13 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
                               IEnumerable<Point3D>? centers = null,
                               IEnumerable<Point3D>? quadrants = null,
                               IEnumerable<(Point3D A, Point3D B)>? midpointSegments = null);
+        void SetPreparedDxfSnapPoints(
+            List<Point3D> endpoints,
+            List<(Point3D A, Point3D B)> segments,
+            List<Point3D> centers,
+            List<Point3D> quadrants,
+            List<(Point3D A, Point3D B)> midpointSegments) =>
+            SetDxfSnapPoints(endpoints, segments, centers, quadrants, midpointSegments);
         void SetIfcSnapPoints(IEnumerable<Point3D> vertices,
                               IEnumerable<(Point3D A, Point3D B)>? segments = null);
         void SetIfcSnapGeometry(IEnumerable<IfcSnapGeometry> geometry);

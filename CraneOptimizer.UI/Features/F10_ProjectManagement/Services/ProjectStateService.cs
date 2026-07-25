@@ -63,7 +63,12 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
 
             await SaveIfcAsync(context, session, projectInfo.Id, state.IfcFile, state.IfcElements, cancellationToken)
                 .ConfigureAwait(false);
-            await SaveModelFilesAsync(context, session, projectInfo.Id, state.DxfFile, cancellationToken)
+            IReadOnlyList<ProjectModelFileState> dxfFiles = state.DxfFiles.Count > 0
+                ? state.DxfFiles
+                : state.DxfFile == null
+                    ? Array.Empty<ProjectModelFileState>()
+                    : new[] { state.DxfFile };
+            await SaveModelFilesAsync(context, session, projectInfo.Id, dxfFiles, cancellationToken)
                 .ConfigureAwait(false);
             await SaveZonesAsync(context, projectInfo.Id, state.Zones, cancellationToken)
                 .ConfigureAwait(false);
@@ -98,11 +103,11 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 .LastOrDefaultAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            var dxf = await context.ModelFiles
+            var dxfFiles = await context.ModelFiles
                 .AsNoTracking()
                 .Where(x => x.ProjectInfoId == projectInfo.Id && x.IsActive && x.FileType == "DXF")
                 .OrderBy(x => x.Id)
-                .LastOrDefaultAsync(cancellationToken)
+                .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             var zones = await context.SiteZones
@@ -157,7 +162,11 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 IfcFile = ToIfcState(session.ProjectFolderPath, ifc),
                 IfcElements = restoredElements,
                 RequiresIfcCacheRefresh = requiresIfcCacheRefresh,
-                DxfFile = ToModelFileState(session.ProjectFolderPath, dxf),
+                DxfFile = ToModelFileState(session.ProjectFolderPath, dxfFiles.LastOrDefault()),
+                DxfFiles = dxfFiles.Select(entity => ToModelFileState(session.ProjectFolderPath, entity)!)
+                    .Where(state => state != null)
+                    .OrderBy(state => state.LoadedOrder)
+                    .ToList(),
                 Zones = zones.Select(ToZoneState).ToList(),
                 Cranes = cranes.Select(ToCraneState).ToList(),
                 Viewport = ToViewportState(viewport)
@@ -382,37 +391,78 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             CreatedProjectDbContext context,
             ProjectSession session,
             int projectInfoId,
-            ProjectModelFileState? dxf,
+            IReadOnlyList<ProjectModelFileState> dxfFiles,
             CancellationToken cancellationToken)
         {
             var existing = await context.ModelFiles
                 .Where(x => x.ProjectInfoId == projectInfoId && x.FileType == "DXF")
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
+            var existingBySourceId = existing
+                .Select(entity => (Entity: entity, Metadata: Deserialize<ProjectDxfMetadataDto>(entity.MetadataJson)))
+                .Where(item => item.Metadata?.SourceId != null)
+                .GroupBy(item => item.Metadata!.SourceId!.Value)
+                .ToDictionary(group => group.Key, group => group.First().Entity);
 
             context.ModelFiles.RemoveRange(existing);
 
-            if (dxf == null || string.IsNullOrWhiteSpace(dxf.AbsolutePath) || !File.Exists(dxf.AbsolutePath))
-                return;
-
-            var asset = CopyAssetIntoProject(session.ProjectFolderPath, dxf.AbsolutePath, DxfFolder);
-            var metadata = ReadFileMetadata(asset.AbsolutePath);
-
-            await context.ModelFiles.AddAsync(new ProjectModelFileEntity
+            foreach (var dxf in dxfFiles.Where(dxf => !string.IsNullOrWhiteSpace(dxf.AbsolutePath)))
             {
-                ProjectInfoId = projectInfoId,
-                FileType = "DXF",
-                Role = string.IsNullOrWhiteSpace(dxf.Role) ? "SitePlan" : dxf.Role,
-                FileName = asset.FileName,
-                RelativePath = asset.RelativePath,
-                OriginalFullPath = dxf.AbsolutePath,
-                FileSizeBytes = metadata.SizeBytes,
-                LastWriteUtc = metadata.LastWriteUtc,
-                TransformJson = JsonSerializer.Serialize(dxf.TransformValues ?? Array.Empty<double>(), JsonOptions),
-                MetadataJson = dxf.MetadataJson,
-                IsActive = true,
-                ImportedAtUtc = DateTime.UtcNow
-            }, cancellationToken).ConfigureAwait(false);
+                string relativePath;
+                string fileName;
+                ProjectFileMetadata fileMetadata;
+                if (File.Exists(dxf.AbsolutePath))
+                {
+                    var asset = CopyDxfAssetIntoProject(
+                        session.ProjectFolderPath,
+                        dxf.AbsolutePath,
+                        dxf.SourceId ?? Guid.NewGuid());
+                    relativePath = asset.RelativePath;
+                    fileName = string.IsNullOrWhiteSpace(dxf.FileName) ? asset.FileName : dxf.FileName;
+                    fileMetadata = ReadFileMetadata(asset.AbsolutePath);
+                }
+                else if (dxf.SourceId is Guid sourceId &&
+                         existingBySourceId.TryGetValue(sourceId, out var prior))
+                {
+                    relativePath = prior.RelativePath;
+                    fileName = string.IsNullOrWhiteSpace(dxf.FileName) ? prior.FileName : dxf.FileName;
+                    fileMetadata = new ProjectFileMetadata(prior.FileSizeBytes, prior.LastWriteUtc);
+                }
+                else
+                {
+                    relativePath = dxf.AbsolutePath;
+                    fileName = string.IsNullOrWhiteSpace(dxf.FileName)
+                        ? Path.GetFileName(dxf.AbsolutePath)
+                        : dxf.FileName;
+                    fileMetadata = new ProjectFileMetadata(0, null);
+                }
+
+                var sourceMetadata = new ProjectDxfMetadataDto
+                {
+                    SourceId = dxf.SourceId,
+                    LoadedOrder = dxf.LoadedOrder,
+                    IsSelected = dxf.IsSelected,
+                    IsActive = dxf.IsActiveSource,
+                    HasSavedTransform = dxf.HasSavedTransform,
+                    UseDxfColors = dxf.UseDxfColors
+                };
+
+                await context.ModelFiles.AddAsync(new ProjectModelFileEntity
+                {
+                    ProjectInfoId = projectInfoId,
+                    FileType = "DXF",
+                    Role = string.IsNullOrWhiteSpace(dxf.Role) ? "SitePlan" : dxf.Role,
+                    FileName = fileName,
+                    RelativePath = relativePath,
+                    OriginalFullPath = dxf.AbsolutePath,
+                    FileSizeBytes = fileMetadata.SizeBytes,
+                    LastWriteUtc = fileMetadata.LastWriteUtc,
+                    TransformJson = JsonSerializer.Serialize(dxf.TransformValues ?? Array.Empty<double>(), JsonOptions),
+                    MetadataJson = JsonSerializer.Serialize(sourceMetadata, JsonOptions),
+                    IsActive = true,
+                    ImportedAtUtc = DateTime.UtcNow
+                }, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         private static async Task SaveZonesAsync(
@@ -439,7 +489,19 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                     ZoneType = zone.Type.ToString(),
                     Area = zone.Area,
                     SortOrder = i,
-                    VerticesJson = JsonSerializer.Serialize(zone.Vertices, JsonOptions)
+                    VerticesJson = JsonSerializer.Serialize(new ProjectZoneEnvelope
+                    {
+                        Vertices = zone.Vertices,
+                        MinimumHeight = zone.MinimumHeight,
+                        MaximumHeight = zone.MaximumHeight,
+                        SourceDxfId = zone.SourceDxfId,
+                        SourceDxfFileName = zone.SourceDxfFileName,
+                        SourceDxfFilePath = zone.SourceDxfFilePath,
+                        SourceLayerName = zone.SourceLayerName,
+                        SourceCandidateId = zone.SourceCandidateId,
+                        ImportMethod = zone.ImportMethod,
+                        OriginalAssignmentType = zone.OriginalAssignmentType
+                    }, JsonOptions)
                 }, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -587,6 +649,7 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             if (entity == null)
                 return null;
 
+            var metadata = Deserialize<ProjectDxfMetadataDto>(entity.MetadataJson);
             return new ProjectModelFileState
             {
                 FileType = entity.FileType,
@@ -594,7 +657,13 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
                 AbsolutePath = ToAbsolutePath(projectFolderPath, entity.RelativePath),
                 FileName = entity.FileName,
                 TransformValues = Deserialize<double[]>(entity.TransformJson),
-                MetadataJson = entity.MetadataJson
+                MetadataJson = entity.MetadataJson,
+                SourceId = metadata?.SourceId,
+                LoadedOrder = metadata?.LoadedOrder ?? 0,
+                IsSelected = metadata?.IsSelected ?? false,
+                IsActiveSource = metadata?.IsActive ?? false,
+                HasSavedTransform = metadata?.HasSavedTransform ?? false,
+                UseDxfColors = metadata?.UseDxfColors ?? false
             };
         }
 
@@ -603,13 +672,26 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             _ = Guid.TryParse(entity.ZoneGuid, out var zoneId);
             _ = Enum.TryParse<ZoneType>(entity.ZoneType, out var zoneType);
 
+            var envelope = Deserialize<ProjectZoneEnvelope>(entity.VerticesJson);
+            var vertices = envelope?.Vertices
+                ?? Deserialize<List<DomainPoint3D>>(entity.VerticesJson)
+                ?? new List<DomainPoint3D>();
             return new ProjectSiteZoneState
             {
                 ZoneId = zoneId == Guid.Empty ? Guid.NewGuid() : zoneId,
                 Name = entity.Name,
                 Type = zoneType,
                 Area = entity.Area,
-                Vertices = Deserialize<List<DomainPoint3D>>(entity.VerticesJson) ?? new List<DomainPoint3D>()
+                Vertices = vertices,
+                MinimumHeight = envelope?.MinimumHeight,
+                MaximumHeight = envelope?.MaximumHeight,
+                SourceDxfId = envelope?.SourceDxfId,
+                SourceDxfFileName = envelope?.SourceDxfFileName,
+                SourceDxfFilePath = envelope?.SourceDxfFilePath,
+                SourceLayerName = envelope?.SourceLayerName,
+                SourceCandidateId = envelope?.SourceCandidateId,
+                ImportMethod = envelope?.ImportMethod,
+                OriginalAssignmentType = envelope?.OriginalAssignmentType
             };
         }
 
@@ -686,6 +768,28 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             Directory.CreateDirectory(destinationFolder);
 
             var destinationPath = Path.Combine(destinationFolder, fileName);
+            if (!PathsEqual(sourceFullPath, destinationPath))
+                File.Copy(sourceFullPath, destinationPath, overwrite: true);
+
+            return new ProjectAssetPath(
+                Path.GetRelativePath(normalizedProjectFolder, destinationPath).Replace(Path.DirectorySeparatorChar, '/'),
+                destinationPath,
+                fileName);
+        }
+
+        private static ProjectAssetPath CopyDxfAssetIntoProject(
+            string projectFolderPath,
+            string sourcePath,
+            Guid sourceId)
+        {
+            var normalizedProjectFolder = Path.GetFullPath(projectFolderPath);
+            var sourceFullPath = Path.GetFullPath(sourcePath);
+            var fileName = Path.GetFileName(sourceFullPath);
+            var destinationFolder = Path.Combine(normalizedProjectFolder, DxfFolder.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(destinationFolder);
+
+            var storedFileName = $"{sourceId:N}_{fileName}";
+            var destinationPath = Path.Combine(destinationFolder, storedFileName);
             if (!PathsEqual(sourceFullPath, destinationPath))
                 File.Copy(sourceFullPath, destinationPath, overwrite: true);
 
@@ -846,6 +950,30 @@ namespace CraneOptimizer.UI.Features.F10_ProjectManagement.Services
             public double OffsetZ { get; set; }
             public double RotationDegrees { get; set; }
             public double Scale { get; set; } = 1d;
+        }
+
+        private sealed class ProjectDxfMetadataDto
+        {
+            public Guid? SourceId { get; set; }
+            public int LoadedOrder { get; set; }
+            public bool IsSelected { get; set; }
+            public bool IsActive { get; set; }
+            public bool HasSavedTransform { get; set; }
+            public bool UseDxfColors { get; set; }
+        }
+
+        private sealed class ProjectZoneEnvelope
+        {
+            public List<DomainPoint3D> Vertices { get; set; } = new();
+            public double? MinimumHeight { get; set; }
+            public double? MaximumHeight { get; set; }
+            public Guid? SourceDxfId { get; set; }
+            public string? SourceDxfFileName { get; set; }
+            public string? SourceDxfFilePath { get; set; }
+            public string? SourceLayerName { get; set; }
+            public string? SourceCandidateId { get; set; }
+            public string? ImportMethod { get; set; }
+            public ZoneType? OriginalAssignmentType { get; set; }
         }
     }
 }

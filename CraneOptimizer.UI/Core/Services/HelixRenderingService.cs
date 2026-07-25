@@ -353,12 +353,21 @@ namespace CraneOptimizer.UI.Core.Services
         // =========================
         public void ClearLayer(string layerKey)
         {
-            if (!_layers.ContainsKey(layerKey)) return;
+            if (_viewport == null)
+                return;
 
-            foreach (var visual in _layers[layerKey])
-            {
-                _viewport!.Children.Remove(visual);
-            }
+            var visuals = new HashSet<Visual3D>();
+            if (_layers.TryGetValue(layerKey, out List<Visual3D>? trackedVisuals))
+                visuals.UnionWith(trackedVisuals);
+
+            visuals.UnionWith(_viewport.Children
+                .OfType<ModelVisual3D>()
+                .Where(visual => Equals(
+                    visual.GetValue(FrameworkElement.TagProperty),
+                    layerKey)));
+
+            foreach (Visual3D visual in visuals)
+                _viewport.Children.Remove(visual);
 
             _layers.Remove(layerKey);
         }

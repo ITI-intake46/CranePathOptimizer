@@ -19,16 +19,21 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
             _geometryService = geometryService;
         }
 
-        public IReadOnlyList<DxfImportLayerSummary> GetLayerSummaries(DxfDocument document, Matrix3D transform)
+        public IReadOnlyList<DxfImportLayerSummary> GetLayerSummaries(
+            DxfDocument document,
+            Matrix3D transform,
+            CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(document);
+            cancellationToken.ThrowIfCancellationRequested();
 
-            var entityCounts = CountEntitiesByLayer(document);
+            var entityCounts = CountEntitiesByLayer(document, cancellationToken);
             var summaries = new List<DxfImportLayerSummary>();
 
             foreach (var layer in document.Layers.OrderBy(layer => layer.Name, StringComparer.OrdinalIgnoreCase))
             {
-                var candidates = GetCandidates(document, layer.Name, transform);
+                cancellationToken.ThrowIfCancellationRequested();
+                var candidates = GetCandidates(document, layer.Name, transform, cancellationToken);
                 summaries.Add(new DxfImportLayerSummary(
                     layer.Name,
                     ResolveLayerColorHex(document, layer.Name, layer.Color),
@@ -40,9 +45,14 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
             return summaries;
         }
 
-        public IReadOnlyList<DxfZoneCandidate> GetCandidates(DxfDocument document, string layerName, Matrix3D transform)
+        public IReadOnlyList<DxfZoneCandidate> GetCandidates(
+            DxfDocument document,
+            string layerName,
+            Matrix3D transform,
+            CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(document);
+            cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(layerName))
                 return Array.Empty<DxfZoneCandidate>();
 
@@ -50,38 +60,45 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
 
             foreach (var polyline in document.Entities.Polylines2D)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (!string.Equals(polyline.Layer.Name, layerName, StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                candidates.Add(BuildPolylineCandidate(polyline, transform));
+                candidates.Add(BuildPolylineCandidate(polyline, transform, cancellationToken));
             }
 
             foreach (var circle in document.Entities.Circles)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (!string.Equals(circle.Layer.Name, layerName, StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                candidates.Add(BuildCircleCandidate(circle, transform));
+                candidates.Add(BuildCircleCandidate(circle, transform, cancellationToken));
             }
 
             foreach (var ellipse in document.Entities.Ellipses)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (!string.Equals(ellipse.Layer.Name, layerName, StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                candidates.Add(BuildEllipseCandidate(ellipse, transform));
+                candidates.Add(BuildEllipseCandidate(ellipse, transform, cancellationToken));
             }
 
-            candidates.AddRange(BuildLineLoopCandidates(document, layerName, transform));
+            candidates.AddRange(BuildLineLoopCandidates(document, layerName, transform, cancellationToken));
 
             return candidates;
         }
 
-        private DxfZoneCandidate BuildPolylineCandidate(Polyline2D polyline, Matrix3D transform)
+        private DxfZoneCandidate BuildPolylineCandidate(
+            Polyline2D polyline,
+            Matrix3D transform,
+            CancellationToken cancellationToken)
         {
             var issues = new List<string>();
-            var transformed = TessellatePolyline(polyline, transform);
+            var transformed = TessellatePolyline(polyline, transform, cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             var normalized = _geometryService.NormalizeVertices(transformed);
             var area = 0.0;
             var isValid = true;
@@ -111,11 +128,15 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
                 issues);
         }
 
-        private DxfZoneCandidate BuildCircleCandidate(Circle circle, Matrix3D transform)
+        private DxfZoneCandidate BuildCircleCandidate(
+            Circle circle,
+            Matrix3D transform,
+            CancellationToken cancellationToken)
         {
             var vertices = Enumerable.Range(0, CurveSegments)
                 .Select(index =>
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     var angle = 2.0 * Math.PI * index / CurveSegments;
                     return Transform(
                         circle.Center.X + circle.Radius * Math.Cos(angle),
@@ -128,7 +149,10 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
             return BuildClosedCandidate(circle.Layer.Name, vertices, "Circle");
         }
 
-        private DxfZoneCandidate BuildEllipseCandidate(Ellipse ellipse, Matrix3D transform)
+        private DxfZoneCandidate BuildEllipseCandidate(
+            Ellipse ellipse,
+            Matrix3D transform,
+            CancellationToken cancellationToken)
         {
             if (!ellipse.IsFullEllipse)
             {
@@ -150,6 +174,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
             var vertices = Enumerable.Range(0, CurveSegments)
                 .Select(index =>
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     var angle = 2.0 * Math.PI * index / CurveSegments;
                     var localX = majorRadius * Math.Cos(angle);
                     var localY = minorRadius * Math.Sin(angle);
@@ -190,7 +215,10 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
                 issues);
         }
 
-        private static IReadOnlyList<DomainPoint3D> TessellatePolyline(Polyline2D polyline, Matrix3D transform)
+        private static IReadOnlyList<DomainPoint3D> TessellatePolyline(
+            Polyline2D polyline,
+            Matrix3D transform,
+            CancellationToken cancellationToken)
         {
             if (polyline.Vertexes.Count == 0)
                 return Array.Empty<DomainPoint3D>();
@@ -200,12 +228,19 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
 
             for (var i = 0; i < segmentCount; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var current = polyline.Vertexes[i];
                 var next = polyline.Vertexes[(i + 1) % polyline.Vertexes.Count];
 
                 vertices.Add(Transform(current.Position.X, current.Position.Y, polyline.Elevation, transform));
                 if (Math.Abs(current.Bulge) > BulgeTolerance)
-                    AddBulgePoints(vertices, current, next, polyline.Elevation, transform);
+                    AddBulgePoints(
+                        vertices,
+                        current,
+                        next,
+                        polyline.Elevation,
+                        transform,
+                        cancellationToken);
             }
 
             if (!polyline.IsClosed)
@@ -222,7 +257,8 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
             Polyline2DVertex current,
             Polyline2DVertex next,
             double elevation,
-            Matrix3D transform)
+            Matrix3D transform,
+            CancellationToken cancellationToken)
         {
             var x1 = current.Position.X;
             var y1 = current.Position.Y;
@@ -250,6 +286,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
 
             for (var step = 1; step < segments; step++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var angle = startAngle + theta * step / segments;
                 vertices.Add(Transform(
                     centerX + radius * Math.Cos(angle),
@@ -259,21 +296,31 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
             }
         }
 
-        private IReadOnlyList<DxfZoneCandidate> BuildLineLoopCandidates(DxfDocument document, string layerName, Matrix3D transform)
+        private IReadOnlyList<DxfZoneCandidate> BuildLineLoopCandidates(
+            DxfDocument document,
+            string layerName,
+            Matrix3D transform,
+            CancellationToken cancellationToken)
         {
-            var segments = document.Entities.Lines
-                .Where(line => string.Equals(line.Layer.Name, layerName, StringComparison.OrdinalIgnoreCase))
-                .Select(line => new LineSegment(
+            var segments = new List<LineSegment>();
+            foreach (var line in document.Entities.Lines)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!string.Equals(line.Layer.Name, layerName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var segment = new LineSegment(
                     Transform(line.StartPoint.X, line.StartPoint.Y, line.StartPoint.Z, transform),
-                    Transform(line.EndPoint.X, line.EndPoint.Y, line.EndPoint.Z, transform)))
-                .Where(segment => !Near(segment.Start, segment.End))
-                .ToList();
+                    Transform(line.EndPoint.X, line.EndPoint.Y, line.EndPoint.Z, transform));
+                if (!Near(segment.Start, segment.End))
+                    segments.Add(segment);
+            }
 
             var candidates = new List<DxfZoneCandidate>();
             var used = new bool[segments.Count];
 
             for (var i = 0; i < segments.Count; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (used[i]) continue;
 
                 var chain = new List<DomainPoint3D> { segments[i].Start, segments[i].End };
@@ -285,6 +332,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
                     grew = false;
                     for (var j = 0; j < segments.Count; j++)
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         if (used[j]) continue;
 
                         var end = chain[^1];
@@ -357,20 +405,28 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Services
 
         private readonly record struct LineSegment(DomainPoint3D Start, DomainPoint3D End);
 
-        private static Dictionary<string, int> CountEntitiesByLayer(DxfDocument document)
+        private static Dictionary<string, int> CountEntitiesByLayer(
+            DxfDocument document,
+            CancellationToken cancellationToken)
         {
             var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var entity in document.Entities.Lines) Inc(counts, entity.Layer.Name);
-            foreach (var entity in document.Entities.Polylines2D) Inc(counts, entity.Layer.Name);
-            foreach (var entity in document.Entities.Polylines3D) Inc(counts, entity.Layer.Name);
-            foreach (var entity in document.Entities.Circles) Inc(counts, entity.Layer.Name);
-            foreach (var entity in document.Entities.Arcs) Inc(counts, entity.Layer.Name);
-            foreach (var entity in document.Entities.Ellipses) Inc(counts, entity.Layer.Name);
-            foreach (var entity in document.Entities.Splines) Inc(counts, entity.Layer.Name);
-            foreach (var entity in document.Entities.Texts) Inc(counts, entity.Layer.Name);
-            foreach (var entity in document.Entities.MTexts) Inc(counts, entity.Layer.Name);
-            foreach (var entity in document.Entities.Inserts) Inc(counts, entity.Layer.Name);
+            void Count(string layerName)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Inc(counts, layerName);
+            }
+
+            foreach (var entity in document.Entities.Lines) Count(entity.Layer.Name);
+            foreach (var entity in document.Entities.Polylines2D) Count(entity.Layer.Name);
+            foreach (var entity in document.Entities.Polylines3D) Count(entity.Layer.Name);
+            foreach (var entity in document.Entities.Circles) Count(entity.Layer.Name);
+            foreach (var entity in document.Entities.Arcs) Count(entity.Layer.Name);
+            foreach (var entity in document.Entities.Ellipses) Count(entity.Layer.Name);
+            foreach (var entity in document.Entities.Splines) Count(entity.Layer.Name);
+            foreach (var entity in document.Entities.Texts) Count(entity.Layer.Name);
+            foreach (var entity in document.Entities.MTexts) Count(entity.Layer.Name);
+            foreach (var entity in document.Entities.Inserts) Count(entity.Layer.Name);
 
             return counts;
         }

@@ -3,6 +3,9 @@ using DxfTextAlignment = netDxf.Entities.TextAlignment;
 using netDxf;
 using netDxf.Entities;
 using netDxf.Header;
+using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.UI.Core.Models;
+using CraneOptimizer.UI.Features.F7_Zones;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,6 +20,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         private readonly HelixViewport3D _viewport;
         private readonly List<ModelVisual3D> _dxfVisuals = new();
         private readonly List<TextVisual3D> _textVisuals = new();
+        private readonly HashSet<TextVisual3D> _zoneContrastTextVisuals = new();
         private readonly Dictionary<LinesVisual3D, Color> _lineVisualColors = new();
         private readonly List<DxfTextVisualData> _rawTextItems = new();
         private readonly List<Point3D> _rawSnapPoints = new();
@@ -24,6 +28,19 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         private readonly List<(Point3D A, Point3D B)> _rawSnapMidpointSegments = new();
         private readonly List<Point3D> _rawSnapCenters = new();
         private readonly List<Point3D> _rawSnapQuadrants = new();
+        private Point3D[] _snapPointSource = Array.Empty<Point3D>();
+        private (Point3D A, Point3D B)[] _snapSegmentSource = Array.Empty<(Point3D, Point3D)>();
+        private (Point3D A, Point3D B)[] _snapMidpointSource = Array.Empty<(Point3D, Point3D)>();
+        private Point3D[] _snapCenterSource = Array.Empty<Point3D>();
+        private Point3D[] _snapQuadrantSource = Array.Empty<Point3D>();
+        private Rect _rawBounds = Rect.Empty;
+        private int _snapRefreshGeneration;
+        private int _zoneContrastRefreshGeneration;
+        private readonly SceneDxf? _selectionTarget;
+        private bool _isSelectionHighlighted;
+        private LinesVisual3D? _zoneContrastVisual;
+        private IReadOnlyList<ZoneOverlayRegion> _zoneContrastRegions =
+            Array.Empty<ZoneOverlayRegion>();
 
         // Large survey coordinates can destabilize WPF 3D projection. Rebase the
         // rendered overlay and snap data together when the final drawing is far
@@ -46,6 +63,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         public string LastLoadDiagnostic { get; private set; } = "";
 
         private bool _useDxfColors;
+        private Color _zoneContrastColor = Colors.White;
         public bool UseDxfColors
         {
             get => _useDxfColors;
@@ -53,8 +71,8 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             {
                 if (_useDxfColors == value) return;
                 _useDxfColors = value;
-                if (IsLoaded && _loadedDocument != null)
-                    RedrawLoadedDocument();
+                if (IsLoaded)
+                    RefreshDxfColors();
             }
         }
 
@@ -87,86 +105,117 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             }
         }
 
+        public void SetZoneContrast(
+            IReadOnlyList<GreenAreaZone> zones,
+            Color contrastColor)
+        {
+            List<ZoneOverlayRegion> regions =
+                ZoneOverlayGeometry.CreateRegions(zones);
+            bool geometryChanged = !ZoneOverlayGeometry.AreEquivalent(
+                _zoneContrastRegions,
+                regions);
+            bool colorChanged = _zoneContrastColor != contrastColor;
+            _zoneContrastRegions = regions;
+            _zoneContrastColor = contrastColor;
+
+            if (!IsLoaded)
+                return;
+
+            if (geometryChanged)
+                ScheduleZoneContrastRefresh();
+            else if (colorChanged)
+                RefreshOpacity();
+        }
+
         public Matrix3D AlignmentTransform { get; set; } = Matrix3D.Identity;
 
-        public DxfUploader(HelixViewport3D viewport)
+        public DxfUploader(HelixViewport3D viewport, SceneDxf? selectionTarget = null)
         {
             _viewport = viewport;
+            _selectionTarget = selectionTarget;
         }
 
-        public bool LoadDxf(string filePath, bool showText)
+        public async Task<bool> LoadDxfAsync(
+            string filePath,
+            bool showText,
+            CancellationToken cancellationToken = default)
         {
             _showText = showText;
-            return LoadDxf(filePath);
-        }
-
-        public bool LoadDxf(string filePath)
-        {
             LastLoadDiagnostic = "";
 
+            DxfLoadResult loadResult = await Task.Run(
+                () => LoadDocument(filePath, cancellationToken),
+                cancellationToken);
+            if (loadResult.Document == null)
+            {
+                LastLoadDiagnostic = loadResult.Diagnostic;
+                return false;
+            }
+
+            ClearVisualsAndSnapData();
+            LoadedFilePath = filePath;
+            _loadedDocument = loadResult.Document;
+            PreparedDxfGeometry prepared;
             try
             {
-                DxfVersion version;
-                try
-                {
-                    version = DxfDocument.CheckDxfFileVersion(filePath);
-                }
-                catch (Exception ex)
-                {
-                    LastLoadDiagnostic = $"Cannot read DXF version: {ex.Message}";
-                    return false;
-                }
-
-                Log($"DXF version detected: {version}");
-                if (version < DxfVersion.AutoCad2000)
-                {
-                    LastLoadDiagnostic =
-                        $"DXF version too old: {version}\n" +
-                        "netDxf requires AutoCad2000 or higher.\n" +
-                        "Save your file as AutoCAD 2010 DXF and try again.";
-                    Log(LastLoadDiagnostic);
-                    return false;
-                }
-
-                DxfDocument? dxf;
-                try
-                {
-                    dxf = DxfDocument.Load(filePath);
-                }
-                catch (Exception ex)
-                {
-                    LastLoadDiagnostic = $"DxfDocument.Load threw: {ex.GetType().Name}: {ex.Message}";
-                    Log(LastLoadDiagnostic);
-                    return false;
-                }
-
-                if (dxf == null)
-                {
-                    LastLoadDiagnostic = "DxfDocument.Load returned null - file may be corrupt.";
-                    Log(LastLoadDiagnostic);
-                    return false;
-                }
-
-                ClearVisualsAndSnapData();
-                LoadedFilePath = filePath;
-                _loadedDocument = dxf;
-                IsLoaded = true;
-
-                int pointCount = RenderDxf(dxf);
-                Log($"Render done. Points: {pointCount}");
-                RaiseSnapDataChanged();
-                return true;
+                prepared = await Task.Run(
+                    () => PrepareDxfGeometry(loadResult.Document),
+                    cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                _loadedDocument = null;
+                LoadedFilePath = null;
+                throw;
             }
             catch (Exception ex)
             {
-                LastLoadDiagnostic = $"Unexpected: {ex.GetType().Name}: {ex.Message}";
-                Log(LastLoadDiagnostic);
-                IsLoaded = false;
+                LastLoadDiagnostic = $"DXF geometry preparation failed: {ex.Message}";
+                _loadedDocument = null;
+                LoadedFilePath = null;
                 return false;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            CommitPreparedGeometry(prepared);
+            IsLoaded = true;
+            Log($"Render done. Points: {prepared.PointCount}");
+            RaiseSnapDataChanged();
+            return true;
+        }
+
+        private static DxfLoadResult LoadDocument(string filePath, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                DxfVersion version = DxfDocument.CheckDxfFileVersion(filePath);
+                if (version < DxfVersion.AutoCad2000)
+                {
+                    return new DxfLoadResult(
+                        null,
+                        $"DXF version too old: {version}. Save the file as AutoCAD 2010 DXF and try again.");
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+                DxfDocument? document = DxfDocument.Load(filePath);
+                return document == null
+                    ? new DxfLoadResult(null, "DxfDocument.Load returned null; the file may be corrupt.")
+                    : new DxfLoadResult(document, "");
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                return new DxfLoadResult(
+                    null,
+                    $"Cannot parse DXF: {ex.GetType().Name}: {ex.Message}");
             }
         }
 
-        private int RenderDxf(DxfDocument dxf)
+        private PreparedDxfGeometry PrepareDxfGeometry(DxfDocument dxf)
         {
             var linePointsByColor = new Dictionary<Color, Point3DCollection>();
             _dxfRebase = Matrix3D.Identity;
@@ -363,34 +412,49 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             Log($"Entities - Lines:{lineCount} Polys:{polyCount} Circles:{circleCount} Arcs:{arcCount} Ellipses:{ellipseCount} Splines:{splineCount} Text:{textCount} RenderedText:{LastRenderedTextCount}");
 
             var pointCount = linePointsByColor.Values.Sum(points => points.Count);
-            if (pointCount > 0)
+            foreach (Point3DCollection points in linePointsByColor.Values)
             {
-                byte alpha = (byte)(_opacity * 255);
-                foreach (var (baseColor, points) in linePointsByColor)
+                if (points.CanFreeze)
+                    points.Freeze();
+            }
+
+            _snapPointSource = _rawSnapPoints.ToArray();
+            _snapSegmentSource = _rawSnapSegments.ToArray();
+            _snapMidpointSource = _rawSnapMidpointSegments.ToArray();
+            _snapCenterSource = _rawSnapCenters.ToArray();
+            _snapQuadrantSource = _rawSnapQuadrants.ToArray();
+            UpdateRawBounds();
+            _currentRenderTransform = ComputeRenderTransform();
+            UpdateSnapDataFromRawTransform();
+            return new PreparedDxfGeometry(linePointsByColor, pointCount);
+        }
+
+        private void CommitPreparedGeometry(PreparedDxfGeometry prepared)
+        {
+            byte alpha = ResolveDisplayAlpha();
+            foreach ((Color baseColor, Point3DCollection points) in prepared.LinePointsByColor)
+            {
+                Color displayColor = ResolveLineDisplayColor(baseColor);
+                var dxfLines = new LinesVisual3D
                 {
-                    var dxfLines = new LinesVisual3D
-                    {
-                        Color = Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B),
-                        Thickness = 1.0,
-                        Points = points
-                    };
-                    _viewport.Children.Add(dxfLines);
-                    _dxfVisuals.Add(dxfLines);
-                    _lineVisualColors[dxfLines] = baseColor;
-                }
+                    Color = Color.FromArgb(alpha, displayColor.R, displayColor.G, displayColor.B),
+                    Thickness = _isSelectionHighlighted ? 2.5 : 1.0,
+                    Points = points,
+                    Transform = new MatrixTransform3D(_currentRenderTransform)
+                };
+                TagVisual(dxfLines);
+                _viewport.Children.Add(dxfLines);
+                _dxfVisuals.Add(dxfLines);
+                _lineVisualColors[dxfLines] = baseColor;
             }
 
             if (ShowText)
                 EnsureTextVisualsCreated();
-
-            ApplyCurrentTransform(raiseSnapChanged: false);
-
-            return pointCount;
         }
 
         private Point3DCollection GetSegmentPoints(Dictionary<Color, Point3DCollection> linePointsByColor, Color color)
         {
-            var baseColor = UseDxfColors ? color : Color.FromRgb(160, 160, 160);
+            var baseColor = color;
             if (!linePointsByColor.TryGetValue(baseColor, out var points))
             {
                 points = new Point3DCollection();
@@ -796,7 +860,8 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
 
         private void AddTextVisual(DxfTextVisualData item)
         {
-            byte alpha = (byte)(_opacity * 255);
+            byte alpha = ResolveDisplayAlpha();
+            Color textColor = ResolveTextDisplayColor();
             var visual = new TextVisual3D
             {
                 Position = item.Position,
@@ -807,13 +872,15 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                 VerticalAlignment = item.VerticalAlignment,
                 FontFamily = new FontFamily("Arial"),
                 FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromArgb(alpha, 230, 230, 230)),
+                Foreground = new SolidColorBrush(
+                    Color.FromArgb(alpha, textColor.R, textColor.G, textColor.B)),
                 Background = Brushes.Transparent,
                 IsDoubleSided = true,
                 Transform = new MatrixTransform3D(_currentRenderTransform),
                 Text = item.Text
             };
 
+            TagVisual(visual);
             _viewport.Children.Add(visual);
             _dxfVisuals.Add(visual);
             _textVisuals.Add(visual);
@@ -1093,11 +1160,148 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
 
             foreach (var visual in _dxfVisuals)
                 visual.Transform = visualTransform;
+            if (_zoneContrastVisual != null)
+                _zoneContrastVisual.Transform = visualTransform;
 
-            UpdateSnapDataFromRawTransform();
+            ScheduleZoneContrastRefresh();
+            ScheduleSnapDataRefresh(_currentRenderTransform, raiseSnapChanged);
+        }
 
-            if (raiseSnapChanged)
-                RaiseSnapDataChanged();
+        private async void ScheduleZoneContrastRefresh()
+        {
+            int generation =
+                Interlocked.Increment(ref _zoneContrastRefreshGeneration);
+            if (!IsLoaded)
+                return;
+
+            ZoneOverlayRegion[] regions = _zoneContrastRegions.ToArray();
+            if (regions.Length == 0)
+            {
+                ApplyPreparedZoneContrast(
+                    new PreparedZoneContrast(
+                        Array.Empty<Point3D>(),
+                        Array.Empty<bool>()),
+                    generation);
+                return;
+            }
+
+            (Point3D A, Point3D B)[] segments =
+                _rawSnapSegments.ToArray();
+            Point3D[] textPositions = _rawTextItems
+                .Select(item => item.Position)
+                .ToArray();
+            Matrix3D transform = _currentRenderTransform;
+            try
+            {
+                PreparedZoneContrast prepared = await Task.Run(() =>
+                    PrepareZoneContrast(
+                        segments,
+                        textPositions,
+                        transform,
+                        regions));
+                ApplyPreparedZoneContrast(prepared, generation);
+            }
+            catch (Exception exception)
+            {
+                Log($"Zone contrast preparation failed: {exception.Message}");
+            }
+        }
+
+        private static PreparedZoneContrast PrepareZoneContrast(
+            IReadOnlyList<(Point3D A, Point3D B)> segments,
+            IReadOnlyList<Point3D> textPositions,
+            Matrix3D transform,
+            IReadOnlyList<ZoneOverlayRegion> regions)
+        {
+            const double contrastDepthOffset = 0.001;
+            var linePoints = new List<Point3D>();
+            foreach ((Point3D A, Point3D B) segment in segments)
+            {
+                Point3D worldStart = transform.Transform(segment.A);
+                Point3D worldEnd = transform.Transform(segment.B);
+                if (!IsFinite(worldStart) ||
+                    !IsFinite(worldEnd) ||
+                    !ZoneOverlayGeometry.TouchesAny(
+                        worldStart,
+                        worldEnd,
+                        regions))
+                {
+                    continue;
+                }
+
+                linePoints.Add(new Point3D(
+                    segment.A.X,
+                    segment.A.Y,
+                    segment.A.Z + contrastDepthOffset));
+                linePoints.Add(new Point3D(
+                    segment.B.X,
+                    segment.B.Y,
+                    segment.B.Z + contrastDepthOffset));
+            }
+
+            var contrastedText = new bool[textPositions.Count];
+            for (int index = 0; index < textPositions.Count; index++)
+            {
+                Point3D worldPosition =
+                    transform.Transform(textPositions[index]);
+                contrastedText[index] =
+                    IsFinite(worldPosition) &&
+                    ZoneOverlayGeometry.TouchesAny(
+                        worldPosition,
+                        regions);
+            }
+
+            return new PreparedZoneContrast(
+                linePoints.ToArray(),
+                contrastedText);
+        }
+
+        private void ApplyPreparedZoneContrast(
+            PreparedZoneContrast prepared,
+            int generation)
+        {
+            if (generation != _zoneContrastRefreshGeneration ||
+                !IsLoaded)
+            {
+                return;
+            }
+
+            if (_zoneContrastVisual != null)
+            {
+                _viewport.Children.Remove(_zoneContrastVisual);
+                _zoneContrastVisual = null;
+            }
+
+            _zoneContrastTextVisuals.Clear();
+            int textCount = Math.Min(
+                prepared.ContrastedText.Length,
+                _textVisuals.Count);
+            for (int index = 0; index < textCount; index++)
+            {
+                if (prepared.ContrastedText[index])
+                    _zoneContrastTextVisuals.Add(_textVisuals[index]);
+            }
+
+            if (prepared.LinePoints.Length > 0)
+            {
+                var points = new Point3DCollection(prepared.LinePoints);
+                if (points.CanFreeze)
+                    points.Freeze();
+
+                _zoneContrastVisual = new LinesVisual3D
+                {
+                    Color = _zoneContrastColor,
+                    Thickness = _isSelectionHighlighted ? 3.0 : 1.6,
+                    Points = points,
+                    Transform = new MatrixTransform3D(
+                        _currentRenderTransform)
+                };
+                TagVisual(_zoneContrastVisual);
+                if (IsVisible)
+                    _viewport.Children.Add(_zoneContrastVisual);
+            }
+
+            RefreshOpacity();
         }
 
         private Matrix3D ComputeRenderTransform()
@@ -1122,45 +1326,25 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
 
         private bool TryGetAlignedBounds(out double minX, out double minY, out double maxX, out double maxY)
         {
-            double localMinX = double.PositiveInfinity;
-            double localMinY = double.PositiveInfinity;
-            double localMaxX = double.NegativeInfinity;
-            double localMaxY = double.NegativeInfinity;
-            bool hasPoint = false;
-
-            void IncludeRaw(Point3D rawPoint)
+            if (_rawBounds.IsEmpty)
             {
-                if (!IsFinite(rawPoint)) return;
-
-                var point = AlignmentTransform.Transform(rawPoint);
-                if (!IsFinite(point)) return;
-
-                hasPoint = true;
-                localMinX = Math.Min(localMinX, point.X);
-                localMinY = Math.Min(localMinY, point.Y);
-                localMaxX = Math.Max(localMaxX, point.X);
-                localMaxY = Math.Max(localMaxY, point.Y);
+                minX = minY = maxX = maxY = 0;
+                return false;
             }
 
-            foreach (var point in _rawSnapPoints)
-                IncludeRaw(point);
-            foreach (var point in _rawSnapCenters)
-                IncludeRaw(point);
-            foreach (var point in _rawSnapQuadrants)
-                IncludeRaw(point);
-            foreach (var segment in _rawSnapSegments)
+            Point3D[] corners =
             {
-                IncludeRaw(segment.A);
-                IncludeRaw(segment.B);
-            }
-            foreach (var text in _rawTextItems)
-                IncludeRaw(text.Position);
-
-            minX = localMinX;
-            minY = localMinY;
-            maxX = localMaxX;
-            maxY = localMaxY;
-            return hasPoint;
+                new(_rawBounds.Left, _rawBounds.Top, 0),
+                new(_rawBounds.Right, _rawBounds.Top, 0),
+                new(_rawBounds.Right, _rawBounds.Bottom, 0),
+                new(_rawBounds.Left, _rawBounds.Bottom, 0)
+            };
+            Point3D[] transformed = corners.Select(AlignmentTransform.Transform).ToArray();
+            minX = transformed.Min(point => point.X);
+            minY = transformed.Min(point => point.Y);
+            maxX = transformed.Max(point => point.X);
+            maxY = transformed.Max(point => point.Y);
+            return true;
         }
 
         private void UpdateSnapDataFromRawTransform()
@@ -1171,16 +1355,136 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             SnapCenters.Clear();
             SnapQuadrants.Clear();
 
-            foreach (var point in _rawSnapPoints)
+            foreach (var point in _snapPointSource)
                 AddTransformedPoint(SnapPoints, point);
-            foreach (var center in _rawSnapCenters)
+            foreach (var center in _snapCenterSource)
                 AddTransformedPoint(SnapCenters, center);
-            foreach (var quadrant in _rawSnapQuadrants)
+            foreach (var quadrant in _snapQuadrantSource)
                 AddTransformedPoint(SnapQuadrants, quadrant);
-            foreach (var segment in _rawSnapSegments)
+            foreach (var segment in _snapSegmentSource)
                 AddTransformedSegment(SnapSegments, segment);
-            foreach (var segment in _rawSnapMidpointSegments)
+            foreach (var segment in _snapMidpointSource)
                 AddTransformedSegment(SnapMidpointSegments, segment);
+        }
+
+        private void UpdateRawBounds()
+        {
+            double minX = double.PositiveInfinity;
+            double minY = double.PositiveInfinity;
+            double maxX = double.NegativeInfinity;
+            double maxY = double.NegativeInfinity;
+
+            void Include(Point3D point)
+            {
+                if (!IsFinite(point))
+                    return;
+                minX = Math.Min(minX, point.X);
+                minY = Math.Min(minY, point.Y);
+                maxX = Math.Max(maxX, point.X);
+                maxY = Math.Max(maxY, point.Y);
+            }
+
+            foreach (Point3D point in _snapPointSource)
+                Include(point);
+            foreach (Point3D point in _snapCenterSource)
+                Include(point);
+            foreach (Point3D point in _snapQuadrantSource)
+                Include(point);
+            foreach ((Point3D A, Point3D B) segment in _snapSegmentSource)
+            {
+                Include(segment.A);
+                Include(segment.B);
+            }
+            foreach (DxfTextVisualData text in _rawTextItems)
+                Include(text.Position);
+
+            _rawBounds = double.IsFinite(minX)
+                ? new Rect(minX, minY, Math.Max(0, maxX - minX), Math.Max(0, maxY - minY))
+                : Rect.Empty;
+        }
+
+        private async void ScheduleSnapDataRefresh(Matrix3D transform, bool raiseSnapChanged)
+        {
+            int generation = Interlocked.Increment(ref _snapRefreshGeneration);
+            Point3D[] points = _snapPointSource;
+            Point3D[] centers = _snapCenterSource;
+            Point3D[] quadrants = _snapQuadrantSource;
+            (Point3D A, Point3D B)[] segments = _snapSegmentSource;
+            (Point3D A, Point3D B)[] midpoints = _snapMidpointSource;
+            try
+            {
+                PreparedSnapData prepared = await Task.Run(() => TransformSnapData(
+                    transform,
+                    points,
+                    segments,
+                    midpoints,
+                    centers,
+                    quadrants));
+                if (generation != _snapRefreshGeneration)
+                    return;
+
+                SnapPoints = prepared.Points;
+                SnapSegments = prepared.Segments;
+                SnapMidpointSegments = prepared.MidpointSegments;
+                SnapCenters = prepared.Centers;
+                SnapQuadrants = prepared.Quadrants;
+                if (raiseSnapChanged)
+                    RaiseSnapDataChanged();
+            }
+            catch (Exception ex)
+            {
+                Log($"Snap refresh skipped: {ex.Message}");
+            }
+        }
+
+        private static PreparedSnapData TransformSnapData(
+            Matrix3D transform,
+            IReadOnlyList<Point3D> points,
+            IReadOnlyList<(Point3D A, Point3D B)> segments,
+            IReadOnlyList<(Point3D A, Point3D B)> midpoints,
+            IReadOnlyList<Point3D> centers,
+            IReadOnlyList<Point3D> quadrants)
+        {
+            List<Point3D> transformedPoints = TransformPoints(points, transform);
+            List<Point3D> transformedCenters = TransformPoints(centers, transform);
+            List<Point3D> transformedQuadrants = TransformPoints(quadrants, transform);
+            List<(Point3D A, Point3D B)> transformedSegments = TransformSegments(segments, transform);
+            List<(Point3D A, Point3D B)> transformedMidpoints = TransformSegments(midpoints, transform);
+            return new PreparedSnapData(
+                transformedPoints,
+                transformedSegments,
+                transformedMidpoints,
+                transformedCenters,
+                transformedQuadrants);
+        }
+
+        private static List<Point3D> TransformPoints(
+            IReadOnlyList<Point3D> source,
+            Matrix3D transform)
+        {
+            var result = new List<Point3D>(source.Count);
+            foreach (Point3D raw in source)
+            {
+                Point3D point = transform.Transform(raw);
+                if (IsFinite(point))
+                    result.Add(point);
+            }
+            return result;
+        }
+
+        private static List<(Point3D A, Point3D B)> TransformSegments(
+            IReadOnlyList<(Point3D A, Point3D B)> source,
+            Matrix3D transform)
+        {
+            var result = new List<(Point3D A, Point3D B)>(source.Count);
+            foreach ((Point3D A, Point3D B) raw in source)
+            {
+                Point3D a = transform.Transform(raw.A);
+                Point3D b = transform.Transform(raw.B);
+                if (IsFinite(a) && IsFinite(b))
+                    result.Add((a, b));
+            }
+            return result;
         }
 
         private void AddTransformedPoint(List<Point3D> target, Point3D rawPoint)
@@ -1220,11 +1524,24 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                     _viewport.Children.Remove(v);
                 }
             }
+
+            if (_zoneContrastVisual != null)
+            {
+                if (IsVisible)
+                {
+                    if (!_viewport.Children.Contains(_zoneContrastVisual))
+                        _viewport.Children.Add(_zoneContrastVisual);
+                }
+                else
+                {
+                    _viewport.Children.Remove(_zoneContrastVisual);
+                }
+            }
         }
 
         private void RefreshOpacity()
         {
-            byte alpha = (byte)(_opacity * 255);
+            byte alpha = ResolveDisplayAlpha();
             foreach (var visual in _dxfVisuals)
             {
                 if (visual is LinesVisual3D lines)
@@ -1232,13 +1549,55 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                     var baseColor = _lineVisualColors.TryGetValue(lines, out var color)
                         ? color
                         : Color.FromRgb(160, 160, 160);
-                    lines.Color = Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B);
+                    Color displayColor = ResolveLineDisplayColor(baseColor);
+                    lines.Color = Color.FromArgb(alpha, displayColor.R, displayColor.G, displayColor.B);
                 }
 
                 if (visual is TextVisual3D text)
-                    text.Foreground = new SolidColorBrush(Color.FromArgb(alpha, 230, 230, 230));
+                {
+                    bool hasZoneContrast =
+                        _zoneContrastTextVisuals.Contains(text);
+                    Color textColor = hasZoneContrast
+                        ? _zoneContrastColor
+                        : ResolveTextDisplayColor();
+                    byte textAlpha = hasZoneContrast
+                        ? byte.MaxValue
+                        : alpha;
+                    text.Foreground = new SolidColorBrush(
+                        Color.FromArgb(
+                            textAlpha,
+                            textColor.R,
+                            textColor.G,
+                            textColor.B));
+                }
+            }
+
+            if (_zoneContrastVisual != null)
+                _zoneContrastVisual.Color = _zoneContrastColor;
+        }
+
+        private void RefreshDxfColors()
+        {
+            byte alpha = ResolveDisplayAlpha();
+            foreach (LinesVisual3D lines in _dxfVisuals.OfType<LinesVisual3D>())
+            {
+                Color baseColor = _lineVisualColors.TryGetValue(lines, out Color color)
+                    ? color
+                    : Color.FromRgb(160, 160, 160);
+                Color displayColor = ResolveLineDisplayColor(baseColor);
+                lines.Color = Color.FromArgb(alpha, displayColor.R, displayColor.G, displayColor.B);
             }
         }
+
+        private byte ResolveDisplayAlpha() => (byte)(_opacity * 255);
+
+        private Color ResolveLineDisplayColor(Color baseColor) =>
+            _useDxfColors
+                ? baseColor
+                : Color.FromRgb(160, 160, 160);
+
+        private static Color ResolveTextDisplayColor() =>
+            Color.FromRgb(230, 230, 230);
 
         public void ReApplyTransform()
         {
@@ -1246,12 +1605,22 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             ApplyCurrentTransform();
         }
 
-        private void RedrawLoadedDocument()
+        public void SetSelectionHighlight(bool isSelected)
         {
-            if (_loadedDocument == null) return;
-            ClearVisualsAndSnapData();
-            RenderDxf(_loadedDocument);
-            RaiseSnapDataChanged();
+            if (_isSelectionHighlighted == isSelected)
+                return;
+
+            _isSelectionHighlighted = isSelected;
+            foreach (var visual in _dxfVisuals.OfType<LinesVisual3D>())
+                visual.Thickness = isSelected ? 2.5 : 1.0;
+            if (_zoneContrastVisual != null)
+                _zoneContrastVisual.Thickness = isSelected ? 3.0 : 1.6;
+        }
+
+        private void TagVisual(ModelVisual3D visual)
+        {
+            if (_selectionTarget != null)
+                visual.SetValue(FrameworkElement.TagProperty, _selectionTarget);
         }
 
         public void Clear()
@@ -1265,9 +1634,18 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
 
         private void ClearVisualsAndSnapData()
         {
+            Interlocked.Increment(ref _zoneContrastRefreshGeneration);
+            if (_zoneContrastVisual != null)
+            {
+                _viewport.Children.Remove(_zoneContrastVisual);
+                _zoneContrastVisual = null;
+            }
+
             foreach (var v in _dxfVisuals) _viewport.Children.Remove(v);
             _dxfVisuals.Clear();
             _textVisuals.Clear();
+            _zoneContrastTextVisuals.Clear();
+            _zoneContrastRegions = Array.Empty<ZoneOverlayRegion>();
             _lineVisualColors.Clear();
             _rawTextItems.Clear();
             _rawSnapPoints.Clear();
@@ -1275,6 +1653,13 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             _rawSnapMidpointSegments.Clear();
             _rawSnapCenters.Clear();
             _rawSnapQuadrants.Clear();
+            _snapPointSource = Array.Empty<Point3D>();
+            _snapSegmentSource = Array.Empty<(Point3D, Point3D)>();
+            _snapMidpointSource = Array.Empty<(Point3D, Point3D)>();
+            _snapCenterSource = Array.Empty<Point3D>();
+            _snapQuadrantSource = Array.Empty<Point3D>();
+            _rawBounds = Rect.Empty;
+            Interlocked.Increment(ref _snapRefreshGeneration);
             SnapPoints.Clear();
             SnapSegments.Clear();
             SnapMidpointSegments.Clear();
@@ -1297,6 +1682,23 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             public HorizontalAlignment HorizontalAlignment { get; set; } = HorizontalAlignment.Left;
             public VerticalAlignment VerticalAlignment { get; set; } = VerticalAlignment.Bottom;
         }
+
+        private sealed record PreparedDxfGeometry(
+            IReadOnlyDictionary<Color, Point3DCollection> LinePointsByColor,
+            int PointCount);
+
+        private sealed record DxfLoadResult(DxfDocument? Document, string Diagnostic);
+
+        private sealed record PreparedSnapData(
+            List<Point3D> Points,
+            List<(Point3D A, Point3D B)> Segments,
+            List<(Point3D A, Point3D B)> MidpointSegments,
+            List<Point3D> Centers,
+            List<Point3D> Quadrants);
+
+        private sealed record PreparedZoneContrast(
+            Point3D[] LinePoints,
+            bool[] ContrastedText);
 
         private readonly record struct Dxf2DTransform(
             double A,

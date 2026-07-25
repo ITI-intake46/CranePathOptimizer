@@ -14,10 +14,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
     public partial class MainViewModel
     {
         private readonly SemaphoreSlim _projectStateSaveLock = new(1, 1);
+        private CancellationTokenSource? _projectStateSaveDebounce;
 
         private void OnProjectStateChanged() => QueueProjectStateSave();
-
-        private void OnProjectStateZoneChanged(GreenAreaZone _) => QueueProjectStateSave();
 
         private void OnProjectStateCraneChanged(SceneCrane _) => QueueProjectStateSave();
 
@@ -26,7 +25,29 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             if (_suppressProjectStateSave || _currentProjectSession == null)
                 return;
 
-            _ = SaveCurrentProjectStateAsync();
+            var pendingSave = new CancellationTokenSource();
+            CancellationTokenSource? previousSave =
+                Interlocked.Exchange(ref _projectStateSaveDebounce, pendingSave);
+            previousSave?.Cancel();
+            _ = SaveProjectStateAfterChangesSettleAsync(pendingSave);
+        }
+
+        private async Task SaveProjectStateAfterChangesSettleAsync(CancellationTokenSource pendingSave)
+        {
+            try
+            {
+                await Task.Delay(150, pendingSave.Token);
+                await SaveCurrentProjectStateAsync();
+            }
+            catch (OperationCanceledException)
+            {
+                // A newer scene change superseded this save.
+            }
+            finally
+            {
+                Interlocked.CompareExchange(ref _projectStateSaveDebounce, null, pendingSave);
+                pendingSave.Dispose();
+            }
         }
 
         private async Task SaveCurrentProjectStateAsync()
@@ -62,6 +83,23 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             Debug.WriteLine($"[IfcSave Diagnosis] First Element COG: {(firstCOG != null ? $"({firstCOG.X:F3}, {firstCOG.Y:F3}, {firstCOG.Z:F3})" : "null")}");
             Debug.WriteLine($"[IfcSave Diagnosis] Element Count: {elements.Count}");
 
+            var dxfFiles = Dxf.GetSourceStates()
+                .Select(source => new ProjectModelFileState
+                {
+                    FileType = "DXF",
+                    Role = "SitePlan",
+                    AbsolutePath = source.FilePath,
+                    FileName = source.DisplayName ?? System.IO.Path.GetFileName(source.FilePath),
+                    TransformValues = source.TransformValues,
+                    SourceId = source.Id,
+                    LoadedOrder = source.LoadedOrder,
+                    IsSelected = source.IsSelected,
+                    IsActiveSource = source.IsActive,
+                    HasSavedTransform = source.HasSavedTransform,
+                    UseDxfColors = source.UseDxfColors
+                })
+                .ToList();
+
             return new ProjectStateSnapshot
             {
                 IfcFile = string.IsNullOrWhiteSpace(IfcViewer.LoadedIfcFilePath)
@@ -76,24 +114,25 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                         Scale = 1
                     },
                 IfcElements = elements,
-                DxfFile = string.IsNullOrWhiteSpace(Dxf.LoadedFilePath)
-                    ? null
-                    : new ProjectModelFileState
-                    {
-                        FileType = "DXF",
-                        Role = "SitePlan",
-                        AbsolutePath = Dxf.LoadedFilePath,
-                        FileName = System.IO.Path.GetFileName(Dxf.LoadedFilePath),
-                        TransformValues = Dxf.SavedTransformArray
-                    },
-                Zones = Scene.GetZones()
+                DxfFile = dxfFiles.FirstOrDefault(),
+                DxfFiles = dxfFiles,
+                Zones = Scene.GetZoneSnapshot()
                     .Select(zone => new ProjectSiteZoneState
                     {
                         ZoneId = zone.ZoneId,
                         Name = zone.Name ?? string.Empty,
                         Type = zone.Type,
                         Area = zone.Area,
-                        Vertices = zone.Vertices.ToList()
+                        Vertices = zone.Vertices.ToList(),
+                        MinimumHeight = zone.MinimumHeight,
+                        MaximumHeight = zone.MaximumHeight,
+                        SourceDxfId = zone.SourceDxfId,
+                        SourceDxfFileName = zone.SourceDxfFileName,
+                        SourceDxfFilePath = zone.SourceDxfFilePath,
+                        SourceLayerName = zone.SourceLayerName,
+                        SourceCandidateId = zone.SourceCandidateId,
+                        ImportMethod = zone.ImportMethod,
+                        OriginalAssignmentType = zone.OriginalAssignmentType
                     })
                     .ToList(),
                 Cranes = Scene.GetCranes()
@@ -189,14 +228,37 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                     Name = zone.Name,
                     Type = zone.Type,
                     Area = zone.Area,
-                    Vertices = zone.Vertices.ToList()
+                    Vertices = zone.Vertices.ToList(),
+                    MinimumHeight = zone.MinimumHeight,
+                    MaximumHeight = zone.MaximumHeight,
+                    SourceDxfId = zone.SourceDxfId,
+                    SourceDxfFileName = zone.SourceDxfFileName,
+                    SourceDxfFilePath = zone.SourceDxfFilePath,
+                    SourceLayerName = zone.SourceLayerName,
+                    SourceCandidateId = zone.SourceCandidateId,
+                    ImportMethod = zone.ImportMethod,
+                    OriginalAssignmentType = zone.OriginalAssignmentType
                 });
             }
 
             await RestoreCranesAsync(state.Cranes).ConfigureAwait(true);
 
-            if (state.DxfFile != null && System.IO.File.Exists(state.DxfFile.AbsolutePath))
-                Dxf.LoadDxfFromProject(state.DxfFile.AbsolutePath, state.DxfFile.TransformValues);
+            var dxfFiles = state.DxfFiles.Count > 0
+                ? state.DxfFiles
+                : state.DxfFile == null
+                    ? new List<ProjectModelFileState>()
+                    : new List<ProjectModelFileState> { state.DxfFile };
+            Dxf.LoadDxfsFromProject(dxfFiles.Select((file, index) =>
+                new CraneOptimizer.UI.Features.F11_DXF.DTOs.DxfSourceState(
+                    file.SourceId ?? Guid.NewGuid(),
+                    file.AbsolutePath,
+                    file.TransformValues ?? Array.Empty<double>(),
+                    file.LoadedOrder == 0 ? index : file.LoadedOrder,
+                    file.IsActiveSource || dxfFiles.Count == 1,
+                    file.IsSelected,
+                    file.HasSavedTransform || file.TransformValues?.Length >= 4,
+                    file.UseDxfColors,
+                    file.FileName)));
 
             ReRenderElements();
             ReRenderCranes();

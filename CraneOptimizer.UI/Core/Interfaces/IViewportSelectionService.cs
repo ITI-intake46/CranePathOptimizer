@@ -15,7 +15,7 @@ namespace CraneOptimizer.UI.Core.Interfaces
     ///   • Multiple IFC elements (list)
     ///   • Plus at most one crane (SceneService.SelectedCrane is singular)
     ///   • Plus at most one zone — green or red (SceneService.SelectedZone is singular)
-    ///   • Plus at most one DXF entity (SceneService.SelectedDxfEntity is singular)
+    ///   • Plus multiple complete DXF overlays
     ///
     /// Normal click (no Ctrl): clears ALL selections, then selects only the clicked target.
     /// Empty-space click (no Ctrl): clears ALL selections.
@@ -47,6 +47,12 @@ namespace CraneOptimizer.UI.Core.Interfaces
         /// Toggles a single element's selection state.
         /// </summary>
         void ToggleElement(PrecastElement element);
+
+        /// <summary>Select or toggle one complete DXF overlay without changing other object-type selections.</summary>
+        void SelectDxf(SceneDxf? dxf, bool isCtrlHeld);
+
+        /// <summary>Replace only the DXF overlay selection.</summary>
+        void SetDxfs(IEnumerable<SceneDxf> dxfs);
 
         /// <summary>
         /// Clears all selection state.
