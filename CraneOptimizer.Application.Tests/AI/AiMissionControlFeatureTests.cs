@@ -104,37 +104,32 @@ namespace CraneOptimizer.Application.Tests.AI
         }
 
         [Fact]
-        public void CompanionPanel_ExposesMissionControlSurfacesAndActionButtons()
+        public void CompanionPanel_ExposesMinimalResizableMissionControlSurfacesAndGovernedActions()
         {
             var root = FindRepositoryRoot();
             Assert.NotNull(root);
 
             var companionXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "Views", "AiCompanionPanel.xaml"));
+            var companionCodeBehind = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "Views", "AiCompanionPanel.xaml.cs"));
             var companionVm = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "ViewModels", "AiCompanionViewModel.cs"));
+            var mainWindowXaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.UI", "Shell", "Views", "MainWindow.xaml"));
+            var mainWindowCode = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.UI", "Shell", "Views", "MainWindow.xaml.cs"));
             var softwareContext = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Services", "StaticAiSoftwareContextService.cs"));
-            var settingsModel = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Configuration", "AiCopilotSettings.cs"));
 
-            Assert.Contains("AI Assist", companionXaml);
-            Assert.Contains("PRIMARY RECOMMENDATION", companionXaml);
-            Assert.Contains("AiAssistRailButton", companionXaml);
-            Assert.Contains("MinWidth=\"360\"", companionXaml);
-            Assert.Contains("x:Name=\"SectionRail\"", companionXaml);
-            Assert.Contains("x:Name=\"SectionRailToggleButton\"", companionXaml);
-            Assert.Contains("SectionRailToggleButton_Click", companionXaml);
-            Assert.Contains("IsSectionRailExpanded", companionXaml);
-            Assert.Contains("AiAssistRailVerticalLabel", companionXaml);
-            Assert.Contains("AiAssistRailCollapsedMarker", companionXaml);
-            Assert.Contains("RotateTransform Angle=\"90\"", companionXaml);
-            Assert.DoesNotContain("AiAssistRailCompactLabel", companionXaml);
-            Assert.DoesNotContain("AiAssistRailExpandedLabel", companionXaml);
-            Assert.Contains("Width=\"38\"", companionXaml);
-            Assert.Contains("PreviewKeyDown=\"SectionRail_PreviewKeyDown\"", companionXaml);
-            Assert.Contains("PreviewMouseWheel=\"SectionRail_PreviewMouseWheel\"", companionXaml);
-            Assert.Contains("VerticalScrollBarVisibility=\"Hidden\"", companionXaml);
-            Assert.DoesNotContain("Text=\"SECTION\"", companionXaml);
-            Assert.DoesNotContain("Text=\"Talk\"", companionXaml);
-            Assert.DoesNotContain("PINNED QUICK ACTIONS", companionXaml);
-            Assert.DoesNotContain("TOOL TABS", companionXaml);
+            Assert.Contains("MinWidth=\"420\"", companionXaml);
+            Assert.Contains("AiAssistNavButton", companionXaml);
+            Assert.Contains("x:Name=\"SectionNavigation\"", companionXaml);
+            Assert.Contains("Columns=\"6\"", companionXaml);
+            Assert.Contains("PreviewKeyDown=\"SectionNavigation_PreviewKeyDown\"", companionXaml);
+            Assert.Contains("VerticalScrollBarVisibility=\"Auto\"", companionXaml);
+            Assert.DoesNotContain("RotateTransform", companionXaml);
+            Assert.DoesNotContain("SectionRail", companionXaml);
+            Assert.DoesNotContain("PRIMARY RECOMMENDATION", companionXaml);
+            Assert.Contains("Text=\"NEXT STEP\"", companionXaml);
+            Assert.Contains("Text=\"VERIFIED\"", companionXaml);
+            Assert.Contains("x:Name=\"ContextToggle\"", companionXaml);
+            Assert.Contains("PopupAnimation=\"Fade\"", companionXaml);
+            Assert.Contains("Read-only tools · approval gated", companionXaml);
             Assert.Contains("CommandCenterStateLabel", companionXaml);
             Assert.Contains("CommandParameter=\"Chat\"", companionXaml);
             Assert.Contains("CommandParameter=\"Mission\"", companionXaml);
@@ -142,17 +137,15 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("CommandParameter=\"Optimize\"", companionXaml);
             Assert.Contains("CommandParameter=\"Report\"", companionXaml);
             Assert.Contains("CommandParameter=\"AI Studio\"", companionXaml);
-            Assert.Contains("AI MISSION CONTROL", companionXaml);
-            Assert.Contains("AI STUDIO", companionXaml);
-            Assert.Contains("STUDIO ACTIONS", companionXaml);
-            Assert.Contains("Open Full Studio", companionXaml);
-            Assert.Contains("Analyze Current Result", companionXaml);
-            Assert.Contains("Ask Local Ollama", companionXaml);
+            Assert.Contains("Content=\"Open Full Studio\"", companionXaml);
+            Assert.Contains("Text=\"Analyze result\"", companionXaml);
+            Assert.Contains("Text=\"Ask local model\"", companionXaml);
             Assert.Contains("Capabilities", companionXaml);
             Assert.Contains("Decision trace", companionXaml);
             Assert.Contains("Count slabs", companionXaml);
-            Assert.Contains("Category summary", companionXaml);
-            Assert.Contains("ASK CURRENT MODEL", companionXaml);
+            Assert.Contains("Content=\"Categories\"", companionXaml);
+            Assert.Contains("Copy answer", companionXaml);
+
             Assert.Contains("SelectCommandCenterTabCommand", companionVm);
             Assert.Contains("OpenFullStudioCommand", companionVm);
             Assert.Contains("PrepareLocalOllamaQuestionCommand", companionVm);
@@ -160,36 +153,30 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("SelectedCommandCenterTab = \"Chat\"", companionVm);
             Assert.DoesNotContain("SelectedCommandCenterTab = intentDecision.PreferredSection", companionVm);
             Assert.DoesNotContain("SelectedCommandCenterTab = routeDecision.PreferredSection", companionVm);
-            var companionCodeBehind = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "Views", "AiCompanionPanel.xaml.cs"));
-            Assert.Contains("SectionRail_PreviewMouseWheel", companionCodeBehind);
-            Assert.Contains("CollapsedSectionRailWidth = 14d", companionCodeBehind);
-            Assert.Contains("ExpandedSectionRailWidth = 38d", companionCodeBehind);
-            Assert.Contains("SectionRail_PreviewKeyDown", companionCodeBehind);
-            Assert.Contains("settings.IsSectionRailExpanded", companionCodeBehind);
-            Assert.Contains("!IsSectionRailExpanded", companionCodeBehind);
-            Assert.Contains("DoubleAnimation", companionCodeBehind);
-            Assert.Contains("AI Studio", companionCodeBehind);
-            Assert.Contains("DispatcherPriority.ContextIdle", companionCodeBehind);
-            Assert.Contains("SelectedCommandCenterTab, \"Chat\"", companionCodeBehind);
-            Assert.Contains("ScrollBodyToEnd();", companionCodeBehind);
-            Assert.Contains("ChatTabVisibility", companionVm);
-            Assert.Contains("IsChatSectionSelected", companionVm);
-            Assert.Contains("IsAiStudioSectionSelected", companionVm);
-            Assert.Contains("BimTabVisibility", companionVm);
-            Assert.Contains("OptimizeTabVisibility", companionVm);
             Assert.Contains("CopyRecoveryPlanCommand", companionVm);
             Assert.Contains("CopyWhatIfAdvisorCommand", companionVm);
             Assert.Contains("CopyQaEvidencePackCommand", companionVm);
             Assert.Contains("CopyAiShowcaseBriefCommand", companionVm);
             Assert.Contains("AiShowcaseService", companionVm);
             Assert.Contains("Generate BIM exporter request", companionVm);
-            Assert.Contains("IsSectionRailExpanded", settingsModel);
+
+            Assert.Contains("SectionNavigation_PreviewKeyDown", companionCodeBehind);
+            Assert.Contains("DispatcherPriority.ContextIdle", companionCodeBehind);
+            Assert.Contains("SelectedCommandCenterTab, \"Chat\"", companionCodeBehind);
+            Assert.Contains("ScrollBodyToEnd();", companionCodeBehind);
+            Assert.DoesNotContain("DoubleAnimation", companionCodeBehind);
+            Assert.DoesNotContain("IsSectionRailExpanded", companionCodeBehind);
+
+            Assert.Contains("AutomationProperties.Name=\"Resize right workspace panel\"", mainWindowXaml);
+            Assert.Contains("private const double AiAssistMinWidth = 420", mainWindowCode);
+            Assert.Contains("private const double AiAssistPreferredWidth = 540", mainWindowCode);
+            Assert.Contains("private const double AiAssistMaxWidth = 760", mainWindowCode);
+
             Assert.Contains("AI Assist / Mission Control", softwareContext);
-            Assert.Contains("vertical-label section-rail navigator", softwareContext);
-            Assert.Contains("38 px strip", softwareContext);
-            Assert.Contains("14 px navigation spine", softwareContext);
-            Assert.Contains("persists the user preference", softwareContext);
-            Assert.Contains("mouse-wheel plus keyboard section switching", softwareContext);
+            Assert.Contains("resizable, evidence-first workspace", softwareContext);
+            Assert.Contains("horizontal sections", softwareContext);
+            Assert.Contains("from 420 to 760 px", softwareContext);
+            Assert.Contains("context inspector", softwareContext);
         }
 
         private static AiWorkflowContextSnapshot BuildBlockedContext()

@@ -15,9 +15,9 @@ namespace CraneOptimizer.UI.Shell.Views
         private const double CranePropertiesMinWidth = 330;
         private const double CranePropertiesMaxWidth = 380;
         private const double CranePropertiesDefaultWidth = 360;
-        private const double AiAssistMinWidth = 360;
-        private const double AiAssistPreferredWidth = 380;
-        private const double AiAssistMaxWidth = 460;
+        private const double AiAssistMinWidth = 420;
+        private const double AiAssistPreferredWidth = 540;
+        private const double AiAssistMaxWidth = 760;
 
         private readonly IProjectNavigationService _nav;
         private readonly IUiInteractionContextService _uiContext;
@@ -209,11 +209,6 @@ namespace CraneOptimizer.UI.Shell.Views
             RightWorkspaceColumn.Width = new GridLength(
                 Math.Clamp(restoredWidth, CranePropertiesMinWidth, CranePropertiesMaxWidth));
             _isAiAssistWidthActive = false;
-        }
-
-        private void AiCompanionPanel_CloseRequested(object sender, RoutedEventArgs e)
-        {
-            CloseAiAssistTab_Click(sender, e);
         }
 
         private void AiCompanionStatusStrip_AssistRequested(object sender, RoutedEventArgs e)

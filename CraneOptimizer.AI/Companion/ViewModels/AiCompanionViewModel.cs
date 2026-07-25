@@ -60,7 +60,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         private string _showcaseNarrative = "AI capabilities will appear after live workflow context is evaluated.";
         private string _showcaseBrief = "AI showcase brief will appear after live workflow context is evaluated.";
         private double _workflowProgressValue;
-        private double _composerHeight = 34d;
+        private double _composerHeight = 40d;
         private string _selectedCommandCenterTab = "Chat";
         private string _pinnedReadinessBody = "AI Mission Control will summarize the current project once live context is evaluated.";
         private string _currentModelFingerprint = string.Empty;
@@ -500,7 +500,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         }
 
         public string CommandCenterTitle => "AI Assist";
-        public string CommandCenterSubtitle => "Slim section rail · grounded current-model answers";
+        public string CommandCenterSubtitle => "Grounded current-model answers · verified context · governed actions";
         public string CommandCenterSelectedTabLabel => SelectedCommandCenterTab.Equals("AI Studio", StringComparison.OrdinalIgnoreCase) ? "Studio" : SelectedCommandCenterTab;
         public bool IsChatSectionSelected => IsCommandCenterTab("Chat");
         public bool IsMissionSectionSelected => IsCommandCenterTab("Mission");
@@ -563,7 +563,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             get => _composerHeight;
             set
             {
-                var clamped = Math.Max(32d, Math.Min(120d, value));
+                var clamped = Math.Max(36d, Math.Min(120d, value));
                 if (Math.Abs(_composerHeight - clamped) < 0.5d) return;
                 _composerHeight = clamped;
                 OnPropertyChanged();
@@ -581,7 +581,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         public string CollapsedTitle => $"AI Assist · {WorkflowStage}";
         public string CollapsedSubText => IsQuietMode ? "Quiet mode enabled" : CurrentHint;
         public string QuietModeLabel => IsQuietMode ? "Quiet" : "Quiet mode";
-        public double PanelWidth => IsExpanded ? 460d : 320d;
+        public double PanelWidth => IsExpanded ? 620d : 420d;
         public Visibility ExpandedVisibility => IsExpanded ? Visibility.Visible : Visibility.Collapsed;
         public Visibility CollapsedVisibility => IsExpanded ? Visibility.Collapsed : Visibility.Visible;
 
@@ -1541,6 +1541,9 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         }
 
         public string Sender { get; }
+        public bool IsUserMessage => Sender.Equals("You", StringComparison.OrdinalIgnoreCase);
+        public string SenderLabel => IsUserMessage ? "You" : "AI Assist";
+        public HorizontalAlignment MessageAlignment => IsUserMessage ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         public bool IsReadinessIntro { get; }
         public string ContextFingerprint { get; } = string.Empty;
         public long ContextRevision { get; }

@@ -9,20 +9,26 @@ AI remains advisory. It does **not** replace the Genetic Algorithm, load-chart v
 ## Entry Points
 
 - **Bottom status-bar AI strip**: provides non-intrusive workflow hints and an **Assist** button.
-- **Right dock → AI ASSIST**: opens the contextual assistant beside the existing Crane Properties dock.
+- **Right dock → AI ASSIST**: opens the contextual assistant beside the existing Crane Properties dock at a comfortable default width. Drag the right workspace splitter to resize it.
 - **AI ASSIST → STUDIO**: contains the advanced AI actions formerly exposed in a separate ribbon tab.
 - **AI ASSIST close button**: returns the right dock to **CRANE PROPERTIES** without disabling the bottom AI strip.
 - **Status-bar hide button**: hides the bottom AI strip and shows a small restore button.
 
 The main ribbon intentionally ends at **REPORTS**. AI is a cross-workflow assistance layer rather than a separate crane-planning phase.
 
+## Docked AI Assist Layout
+
+The docked surface uses a minimal horizontal navigator: **Chat**, **Mission**, **BIM**, **GA**, **Report**, and **Studio**. Verified project state and one next-step recommendation remain visible while the active section scrolls independently. The composer stays fixed at the bottom, and **Context** opens the live private project payload used for the next question.
+
+The workspace can be resized from 420 to 760 pixels. Switching back to **CRANE PROPERTIES** restores the narrower properties width.
+
 ## Studio Actions
 
 Open **AI ASSIST → STUDIO** to access:
 
 - **Open Full Studio**: opens the complete AI Optimization Studio window.
-- **Analyze Current Result**: runs deterministic advisor rules against the current optimization result. This works without Ollama.
-- **Ask Local Ollama**: opens Chat and focuses the private prompt composer for the selected local model.
+- **Analyze result**: runs deterministic advisor rules against the current optimization result. This works without Ollama.
+- **Ask local model**: opens Chat and focuses the private prompt composer for the selected local model.
 
 Legacy internal navigation requests that target the former AI Copilot workspace are redirected safely to **AI ASSIST → STUDIO**.
 
