@@ -61,6 +61,8 @@ Click **Check** to retrieve available model IDs, then select or type a provider/
 
 Legacy settings that stored only `https://openrouter.ai/` are migrated to the API root automatically. Connection checks reject HTML website pages, malformed JSON, unexpected model-list schemas, and empty built-in OpenRouter/OpenAI model catalogs instead of reporting a false success. Exact model choices are persisted separately for every provider.
 
+The model selector keeps the persisted model ID visible after configuration changes, discovery refreshes, provider switches, and application restarts. Manually entered model IDs remain available even when a provider does not return them in discovery.
+
 ## Custom Compatible Providers
 
 The custom profile supports:

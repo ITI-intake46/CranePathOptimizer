@@ -51,6 +51,7 @@ namespace CraneOptimizer.AI.ViewModels
         private string _pendingLiveUiContext = string.Empty;
         private string _pendingDeterministicNextAction = string.Empty;
         private bool _pendingStrictWorkflowBlockerMode;
+        private bool _isRefreshingInstalledModels;
         private string _modelName;
         private string _selectedProviderId;
         private string _userQuestion = "Explain the current crane optimization result and recommend the next practical action.";
@@ -208,9 +209,10 @@ namespace CraneOptimizer.AI.ViewModels
 
                 _selectedProviderId = normalized;
                 var profile = GetSelectedProfile();
+                var providerModel = profile.DefaultModel;
                 _settingsService.Update(settings => settings.DefaultProviderId = _selectedProviderId);
-                _modelName = profile.DefaultModel;
-                InstalledModels.Clear();
+                ReplaceInstalledModels(Array.Empty<string>());
+                _modelName = providerModel;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(SelectedProvider));
                 OnPropertyChanged(nameof(SelectedProviderDisplayName));
@@ -220,6 +222,7 @@ namespace CraneOptimizer.AI.ViewModels
                 OnPropertyChanged(nameof(ProviderPrivacyLabel));
                 OnPropertyChanged(nameof(SelectedModelLabel));
                 OnPropertyChanged(nameof(ModelName));
+                OnPropertyChanged(nameof(SelectedDiscoveredModel));
                 OnPropertyChanged(nameof(ComposerActionToolTip));
                 OnPropertyChanged(nameof(ComposerStateText));
                 OllamaStatusText = $"{profile.DisplayName} not checked.";
@@ -247,11 +250,15 @@ namespace CraneOptimizer.AI.ViewModels
             get => _modelName;
             set
             {
+                if (_isRefreshingInstalledModels)
+                    return;
+
                 var normalized = string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
                 if (_modelName == normalized) return;
                 _modelName = normalized;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(SelectedModelLabel));
+                OnPropertyChanged(nameof(SelectedDiscoveredModel));
                 OnPropertyChanged(nameof(CanUseComposerAction));
                 OnPropertyChanged(nameof(CanPullModel));
                 _settingsService.Update(settings =>
@@ -270,6 +277,20 @@ namespace CraneOptimizer.AI.ViewModels
         public string SelectedModelLabel => string.IsNullOrWhiteSpace(ModelName)
             ? $"{SelectedProviderDisplayName} · no model selected"
             : $"{SelectedProviderDisplayName} · {ModelName}";
+
+        public string? SelectedDiscoveredModel
+        {
+            get => InstalledModels.FirstOrDefault(model =>
+                string.Equals(model, ModelName, StringComparison.OrdinalIgnoreCase));
+            set
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                    return;
+
+                ModelName = value;
+            }
+        }
+
 
         public string UserQuestion
         {
@@ -990,11 +1011,9 @@ namespace CraneOptimizer.AI.ViewModels
             try
             {
                 var status = await _providerManagementService.GetStatusAsync(SelectedProviderId).ConfigureAwait(true);
-                InstalledModels.Clear();
-                foreach (var model in status.Models)
-                    InstalledModels.Add(model);
-
+                ReplaceInstalledModels(status.Models);
                 SelectBestInstalledModel();
+                RefreshModelSelectionBindings();
 
                 if (status.IsAvailable)
                 {
@@ -1039,6 +1058,7 @@ namespace CraneOptimizer.AI.ViewModels
 
                 var profile = GetSelectedProfile();
                 ModelName = profile.DefaultModel;
+                RefreshModelSelectionBindings();
                 OnPropertyChanged(nameof(SelectedProviderDisplayName));
                 OnPropertyChanged(nameof(ProviderModeLabel));
                 OnPropertyChanged(nameof(ProviderPrivacyLabel));
@@ -1627,6 +1647,28 @@ namespace CraneOptimizer.AI.ViewModels
             if (model.Contains("gemma", StringComparison.OrdinalIgnoreCase) || model.Contains("llama", StringComparison.OrdinalIgnoreCase))
                 return $"{speed}; best for responsive workflow help and screen guidance.";
             return $"{speed}; general assistant model.";
+        }
+
+        private void RefreshModelSelectionBindings()
+        {
+            OnPropertyChanged(nameof(ModelName));
+            OnPropertyChanged(nameof(SelectedDiscoveredModel));
+            OnPropertyChanged(nameof(SelectedModelLabel));
+        }
+
+        private void ReplaceInstalledModels(IEnumerable<string> models)
+        {
+            _isRefreshingInstalledModels = true;
+            try
+            {
+                InstalledModels.Clear();
+                foreach (var model in models.Where(model => !string.IsNullOrWhiteSpace(model)))
+                    InstalledModels.Add(model.Trim());
+            }
+            finally
+            {
+                _isRefreshingInstalledModels = false;
+            }
         }
 
         private void SelectBestInstalledModel()

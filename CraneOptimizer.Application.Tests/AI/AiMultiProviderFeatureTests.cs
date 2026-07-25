@@ -526,6 +526,26 @@ namespace CraneOptimizer.Application.Tests.AI
 
 
         [Fact]
+        public void AiStudioModelSelector_UsesAuthoritativeEditableModelBinding()
+        {
+            var root = FindRepositoryRoot();
+            Assert.NotNull(root);
+            var xaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Views", "AiAdvisorWindow.xaml"));
+            var viewModel = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "ViewModels", "AiAdvisorViewModel.cs"));
+
+            Assert.Contains("x:Key=\"AiEditableModelComboBox\"", xaml);
+            Assert.Contains("x:Name=\"PART_EditableTextBox\"", xaml);
+            Assert.Contains("Text=\"{Binding Text, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}\"", xaml);
+            Assert.Contains("SelectedItem=\"{Binding SelectedDiscoveredModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}\"", xaml);
+            Assert.Contains("Text=\"{Binding ModelName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}\"", xaml);
+            Assert.Contains("public string? SelectedDiscoveredModel", viewModel);
+            Assert.Contains("RefreshModelSelectionBindings();", viewModel);
+            Assert.Contains("ReplaceInstalledModels(status.Models);", viewModel);
+            Assert.Contains("if (_isRefreshingInstalledModels)", viewModel);
+            Assert.Contains("OnPropertyChanged(nameof(SelectedDiscoveredModel));", viewModel);
+        }
+
+        [Fact]
         public void CloudRequestPolicy_RequiresConsentForProjectContextButAllowsContextFreeTests()
         {
             var settings = CreateSettings();
