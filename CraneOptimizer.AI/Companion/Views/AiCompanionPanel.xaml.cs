@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
@@ -17,8 +18,9 @@ namespace CraneOptimizer.AI.Companion.Views
 {
     public partial class AiCompanionPanel : UserControl
     {
-        private const double CollapsedSectionRailWidth = 14d;
-        private const double ExpandedSectionRailWidth = 38d;
+        private const double CollapsedSectionRailWidth = 12d;
+        private const double ExpandedSectionRailWidth = 30d;
+        private const double LatestMessageThreshold = 32d;
         private static readonly Duration SectionRailAnimationDuration = new(TimeSpan.FromMilliseconds(120));
         private static readonly string[] SectionNames = { "Chat", "Mission", "BIM", "Optimize", "Report", "AI Studio" };
 
@@ -28,9 +30,14 @@ namespace CraneOptimizer.AI.Companion.Views
             typeof(AiCompanionPanel),
             new PropertyMetadata(true, OnSectionRailExpandedChanged));
 
+        private readonly Dictionary<string, double> _sectionScrollOffsets = new(StringComparer.OrdinalIgnoreCase);
         private AiCompanionViewModel? _viewModel;
         private IAiCopilotSettingsService? _settingsService;
         private string? _pendingSectionName;
+        private AiCompanionChatMessageViewModel? _pendingPromptAnchor;
+        private string _activeSectionName = "Chat";
+        private bool _isRestoringScrollPosition;
+        private bool _followLatestContent;
 
         public bool IsSectionRailExpanded
         {
@@ -66,6 +73,7 @@ namespace CraneOptimizer.AI.Companion.Views
                 message.PropertyChanged += OnConversationMessagePropertyChanged;
 
             DataContext = _viewModel;
+            _activeSectionName = _viewModel.SelectedCommandCenterTab;
             UpdateSectionRailState(animate: false);
 
             if (!string.IsNullOrWhiteSpace(_pendingSectionName))
@@ -101,8 +109,6 @@ namespace CraneOptimizer.AI.Companion.Views
 
             if (_viewModel.SelectCommandCenterTabCommand.CanExecute(normalized))
                 _viewModel.SelectCommandCenterTabCommand.Execute(normalized);
-
-            ScrollBodyToHome();
         }
 
         private void BodyScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -112,6 +118,23 @@ namespace CraneOptimizer.AI.Companion.Views
 
             var offset = scrollViewer.VerticalOffset - (e.Delta / 4.0d);
             scrollViewer.ScrollToVerticalOffset(Math.Max(0d, Math.Min(scrollViewer.ScrollableHeight, offset)));
+            e.Handled = true;
+        }
+
+        private void BodyScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (_isRestoringScrollPosition)
+                return;
+
+            _sectionScrollOffsets[_activeSectionName] = BodyScrollViewer.VerticalOffset;
+            _followLatestContent = IsNearLatestMessage();
+            UpdateJumpToLatestVisibility();
+        }
+
+        private void JumpToLatestButton_Click(object sender, RoutedEventArgs e)
+        {
+            _followLatestContent = true;
+            ScrollBodyToEnd(force: true);
             e.Handled = true;
         }
 
@@ -250,16 +273,12 @@ namespace CraneOptimizer.AI.Companion.Views
 
         private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(AiCompanionViewModel.SelectedCommandCenterTab))
-            {
-                if (string.Equals(_viewModel?.SelectedCommandCenterTab, "Chat", StringComparison.OrdinalIgnoreCase))
-                {
-                    ScrollBodyToEnd();
-                    return;
-                }
+            if (e.PropertyName != nameof(AiCompanionViewModel.SelectedCommandCenterTab) || _viewModel == null)
+                return;
 
-                ScrollBodyToHome();
-            }
+            _sectionScrollOffsets[_activeSectionName] = BodyScrollViewer.VerticalOffset;
+            _activeSectionName = _viewModel.SelectedCommandCenterTab;
+            RestoreSectionScrollPosition(_activeSectionName);
         }
 
         private void OnComposerFocusRequested(object? sender, EventArgs e)
@@ -275,16 +294,39 @@ namespace CraneOptimizer.AI.Companion.Views
                     message.PropertyChanged -= OnConversationMessagePropertyChanged;
             }
 
+            AiCompanionChatMessageViewModel? newestUserMessage = null;
+            AiCompanionChatMessageViewModel? newestAssistantMessage = null;
             if (e.NewItems != null)
             {
                 foreach (AiCompanionChatMessageViewModel message in e.NewItems)
+                {
                     message.PropertyChanged += OnConversationMessagePropertyChanged;
+                    if (message.IsReadinessIntro)
+                        continue;
+
+                    if (message.IsUserMessage)
+                        newestUserMessage = message;
+                    else
+                        newestAssistantMessage = message;
+                }
             }
 
-            if (e.NewItems != null
-                && e.NewItems.Cast<AiCompanionChatMessageViewModel>().Any(message => !message.IsReadinessIntro))
+            if (newestUserMessage != null)
             {
-                ScrollBodyToEnd();
+                _followLatestContent = false;
+                _pendingPromptAnchor = newestUserMessage;
+                ScrollMessageToStart(newestUserMessage);
+            }
+            else if (newestAssistantMessage != null)
+            {
+                _followLatestContent = false;
+                var anchor = _pendingPromptAnchor ?? newestAssistantMessage;
+                _pendingPromptAnchor = null;
+                ScrollMessageToStart(anchor);
+            }
+            else
+            {
+                QueueUpdateJumpToLatestVisibility();
             }
         }
 
@@ -294,39 +336,135 @@ namespace CraneOptimizer.AI.Companion.Views
                 return;
 
             if (e.PropertyName is nameof(AiCompanionChatMessageViewModel.Body)
-                or nameof(AiCompanionChatMessageViewModel.Timestamp))
+                or nameof(AiCompanionChatMessageViewModel.DisplayBody)
+                or nameof(AiCompanionChatMessageViewModel.IsDetailsExpanded))
             {
-                ScrollBodyToEnd();
+                if (_followLatestContent)
+                    ScrollBodyToEnd();
+                else
+                    QueueUpdateJumpToLatestVisibility();
             }
         }
 
         private void ScrollBodyToHome()
         {
+            RestoreScrollOffset(0d, DispatcherPriority.ContextIdle);
+        }
+
+        private void RestoreSectionScrollPosition(string sectionName)
+        {
+            var offset = _sectionScrollOffsets.TryGetValue(sectionName, out var savedOffset)
+                ? savedOffset
+                : 0d;
+            RestoreScrollOffset(offset, DispatcherPriority.ContextIdle);
+        }
+
+        private void RestoreScrollOffset(double offset, DispatcherPriority priority)
+        {
             Dispatcher.BeginInvoke(
                 new Action(() =>
                 {
+                    _isRestoringScrollPosition = true;
+                    try
+                    {
+                        BodyScrollViewer.UpdateLayout();
+                        BodyScrollViewer.ScrollToVerticalOffset(Math.Max(0d, Math.Min(offset, BodyScrollViewer.ScrollableHeight)));
+                        _sectionScrollOffsets[_activeSectionName] = BodyScrollViewer.VerticalOffset;
+                    }
+                    finally
+                    {
+                        _isRestoringScrollPosition = false;
+                    }
+
+                    UpdateJumpToLatestVisibility();
+                }),
+                priority);
+        }
+
+        private void ScrollMessageToStart(AiCompanionChatMessageViewModel message)
+        {
+            QueueScrollMessageToStart(message, DispatcherPriority.Loaded);
+            QueueScrollMessageToStart(message, DispatcherPriority.ContextIdle);
+        }
+
+        private void QueueScrollMessageToStart(AiCompanionChatMessageViewModel message, DispatcherPriority priority)
+        {
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    if (!string.Equals(_activeSectionName, "Chat", StringComparison.OrdinalIgnoreCase))
+                        return;
+
                     BodyScrollViewer.UpdateLayout();
-                    BodyScrollViewer.ScrollToHome();
+                    if (ConversationItemsControl.ItemContainerGenerator.ContainerFromItem(message) is not FrameworkElement container)
+                        return;
+
+                    try
+                    {
+                        var position = container.TransformToAncestor(BodyScrollViewer).Transform(new Point(0d, 0d));
+                        var targetOffset = BodyScrollViewer.VerticalOffset + position.Y - 4d;
+                        RestoreScrollOffset(targetOffset, DispatcherPriority.Send);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // The item can be detached briefly while templates switch. The queued second pass retries.
+                    }
+                }),
+                priority);
+        }
+
+        private void ScrollBodyToEnd(bool force = false)
+        {
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    if (!force && !_followLatestContent)
+                        return;
+
+                    _isRestoringScrollPosition = true;
+                    try
+                    {
+                        BodyScrollViewer.UpdateLayout();
+                        BodyScrollViewer.ScrollToEnd();
+                        _sectionScrollOffsets[_activeSectionName] = BodyScrollViewer.VerticalOffset;
+                    }
+                    finally
+                    {
+                        _isRestoringScrollPosition = false;
+                    }
+
+                    UpdateJumpToLatestVisibility();
                 }),
                 DispatcherPriority.ContextIdle);
         }
 
-        private void ScrollBodyToEnd()
-        {
-            QueueScrollToEnd(DispatcherPriority.Background);
-            QueueScrollToEnd(DispatcherPriority.ContextIdle);
-            QueueScrollToEnd(DispatcherPriority.ApplicationIdle);
-        }
-
-        private void QueueScrollToEnd(DispatcherPriority priority)
+        private void QueueUpdateJumpToLatestVisibility()
         {
             Dispatcher.BeginInvoke(
                 new Action(() =>
                 {
                     BodyScrollViewer.UpdateLayout();
-                    BodyScrollViewer.ScrollToEnd();
+                    UpdateJumpToLatestVisibility();
                 }),
-                priority);
+                DispatcherPriority.ContextIdle);
+        }
+
+        private bool IsNearLatestMessage()
+        {
+            var distanceFromEnd = BodyScrollViewer.ScrollableHeight - BodyScrollViewer.VerticalOffset;
+            return distanceFromEnd <= LatestMessageThreshold;
+        }
+
+        private void UpdateJumpToLatestVisibility()
+        {
+            if (JumpToLatestButton == null || _viewModel == null)
+                return;
+
+            var isChat = string.Equals(_activeSectionName, "Chat", StringComparison.OrdinalIgnoreCase);
+            var hasConversation = _viewModel.ConversationMessages.Any(message => !message.IsReadinessIntro);
+            JumpToLatestButton.Visibility = isChat && hasConversation && !IsNearLatestMessage()
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         private void FocusComposer()
@@ -357,7 +495,7 @@ namespace CraneOptimizer.AI.Companion.Views
             if (_viewModel == null)
                 return;
 
-            _viewModel.ComposerHeight = Math.Max(36d, Math.Min(120d, _viewModel.ComposerHeight - e.VerticalChange));
+            _viewModel.ComposerHeight = Math.Max(34d, Math.Min(120d, _viewModel.ComposerHeight - e.VerticalChange));
         }
 
         private void QuestionTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -385,6 +523,10 @@ namespace CraneOptimizer.AI.Companion.Views
 
             _viewModel = null;
             _settingsService = null;
+            _sectionScrollOffsets.Clear();
+            _pendingPromptAnchor = null;
+            _activeSectionName = "Chat";
+            _followLatestContent = false;
             DataContext = null;
         }
     }

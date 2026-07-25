@@ -124,7 +124,7 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("PreviewKeyDown=\"SectionRail_PreviewKeyDown\"", companionXaml);
             Assert.Contains("PreviewMouseWheel=\"SectionRail_PreviewMouseWheel\"", companionXaml);
             Assert.Contains("RotateTransform Angle=\"90\"", companionXaml);
-            Assert.Contains("Width=\"38\"", companionXaml);
+            Assert.Contains("Width=\"30\"", companionXaml);
             Assert.Contains("VerticalScrollBarVisibility=\"Auto\"", companionXaml);
             Assert.DoesNotContain("AiAssistNavButton", companionXaml);
             Assert.DoesNotContain("x:Name=\"SectionNavigation\"", companionXaml);
@@ -134,7 +134,18 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("x:Name=\"ContextToggle\"", companionXaml);
             Assert.Contains("PopupAnimation=\"Fade\"", companionXaml);
             Assert.Contains("Read-only tools · approval gated", companionXaml);
-            Assert.Contains("CommandCenterStateLabel", companionXaml);
+            Assert.Contains("CommandCenterStatusTitle", companionXaml);
+            Assert.Contains("CommandCenterProjectLabel", companionXaml);
+            Assert.Contains("NextActionTitle", companionXaml);
+            Assert.Contains("x:Name=\"ConversationItemsControl\"", companionXaml);
+            Assert.Contains("x:Name=\"JumpToLatestButton\"", companionXaml);
+            Assert.Contains("ScrollChanged=\"BodyScrollViewer_ScrollChanged\"", companionXaml);
+            Assert.Contains("ToggleDetailsCommand", companionXaml);
+            Assert.Contains("DisplayBody", companionXaml);
+            Assert.Contains("Content=\"Latest ↓\"", companionXaml);
+            Assert.Contains("<Setter Property=\"LineHeight\" Value=\"19\" />", companionXaml);
+            Assert.Contains("<Setter Property=\"TextAlignment\" Value=\"Left\" />", companionXaml);
+            Assert.DoesNotContain("TextAlignment=\"Justify\"", companionXaml);
             Assert.Contains("CommandParameter=\"Chat\"", companionXaml);
             Assert.Contains("CommandParameter=\"Mission\"", companionXaml);
             Assert.Contains("CommandParameter=\"BIM\"", companionXaml);
@@ -148,7 +159,7 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("Decision trace", companionXaml);
             Assert.Contains("Count slabs", companionXaml);
             Assert.Contains("Content=\"Categories\"", companionXaml);
-            Assert.Contains("Copy answer", companionXaml);
+            Assert.Contains("AutomationProperties.Name=\"Copy latest AI answer\"", companionXaml);
 
             Assert.Contains("SelectCommandCenterTabCommand", companionVm);
             Assert.Contains("OpenFullStudioCommand", companionVm);
@@ -163,14 +174,25 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("CopyAiShowcaseBriefCommand", companionVm);
             Assert.Contains("AiShowcaseService", companionVm);
             Assert.Contains("Generate BIM exporter request", companionVm);
+            Assert.Contains("BuildCompactPreview", companionVm);
+            Assert.Contains("LimitAtReadingBoundary", companionVm);
+            Assert.Contains("DetailsToggleLabel", companionVm);
+            Assert.Contains("BuildCompactNextAction", companionVm);
 
             Assert.Contains("SectionRail_PreviewKeyDown", companionCodeBehind);
             Assert.Contains("SectionRail_PreviewMouseWheel", companionCodeBehind);
             Assert.Contains("IsSectionRailExpanded", companionCodeBehind);
             Assert.Contains("DoubleAnimation", companionCodeBehind);
             Assert.Contains("DispatcherPriority.ContextIdle", companionCodeBehind);
-            Assert.Contains("SelectedCommandCenterTab, \"Chat\"", companionCodeBehind);
-            Assert.Contains("ScrollBodyToEnd();", companionCodeBehind);
+            Assert.Contains("_activeSectionName, \"Chat\"", companionCodeBehind);
+            Assert.Contains("_pendingPromptAnchor = newestUserMessage;", companionCodeBehind);
+            Assert.Contains("var anchor = _pendingPromptAnchor ?? newestAssistantMessage;", companionCodeBehind);
+            Assert.Contains("JumpToLatestButton_Click", companionCodeBehind);
+            Assert.Contains("RestoreSectionScrollPosition", companionCodeBehind);
+            Assert.Contains("LatestMessageThreshold", companionCodeBehind);
+            Assert.Contains("_followLatestContent", companionCodeBehind);
+            Assert.Contains("IsNearLatestMessage", companionCodeBehind);
+            Assert.DoesNotContain("if (string.Equals(_viewModel?.SelectedCommandCenterTab, \"Chat\", StringComparison.OrdinalIgnoreCase))", companionCodeBehind);
 
             Assert.Contains("AutomationProperties.Name=\"Resize right workspace panel\"", mainWindowXaml);
             Assert.Contains("x:Name=\"RightWorkspaceColumn\" Width=\"360\" MinWidth=\"330\" MaxWidth=\"380\"", mainWindowXaml);
