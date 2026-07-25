@@ -132,6 +132,16 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("x:Name=\"ReportSectionButton\"", companionXaml);
             Assert.Contains("x:Name=\"AiStudioSectionButton\"", companionXaml);
             Assert.Contains("x:Name=\"FocusRing\"", companionXaml);
+            Assert.Contains("TargetType=\"RadioButton\"", companionXaml);
+            Assert.Contains("<Trigger Property=\"IsChecked\" Value=\"True\">", companionXaml);
+            Assert.Contains("GroupName=\"AiAssistSections\"", companionXaml);
+            Assert.Contains("IsChecked=\"{Binding IsChatSectionSelected, Mode=OneWay}\"", companionXaml);
+            Assert.Contains("IsChecked=\"{Binding IsMissionSectionSelected, Mode=OneWay}\"", companionXaml);
+            Assert.Contains("IsChecked=\"{Binding IsBimSectionSelected, Mode=OneWay}\"", companionXaml);
+            Assert.Contains("IsChecked=\"{Binding IsOptimizeSectionSelected, Mode=OneWay}\"", companionXaml);
+            Assert.Contains("IsChecked=\"{Binding IsReportSectionSelected, Mode=OneWay}\"", companionXaml);
+            Assert.Contains("IsChecked=\"{Binding IsAiStudioSectionSelected, Mode=OneWay}\"", companionXaml);
+            Assert.DoesNotContain("Tag=\"{Binding IsChatSectionSelected}\"", companionXaml);
             Assert.Contains("Setter TargetName=\"Chrome\" Property=\"BorderBrush\" Value=\"{StaticResource PrimaryBrush}\"", companionXaml);
             Assert.Contains("VerticalScrollBarVisibility=\"Auto\"", companionXaml);
             Assert.DoesNotContain("AiAssistNavButton", companionXaml);
@@ -174,6 +184,12 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("PrepareLocalOllamaQuestionCommand", companionVm);
             Assert.Contains("FocusChatForSubmittedPrompt", companionVm);
             Assert.Contains("SelectedCommandCenterTab = \"Chat\"", companionVm);
+            Assert.Contains("OnPropertyChanged(nameof(IsChatSectionSelected))", companionVm);
+            Assert.Contains("OnPropertyChanged(nameof(IsMissionSectionSelected))", companionVm);
+            Assert.Contains("OnPropertyChanged(nameof(IsBimSectionSelected))", companionVm);
+            Assert.Contains("OnPropertyChanged(nameof(IsOptimizeSectionSelected))", companionVm);
+            Assert.Contains("OnPropertyChanged(nameof(IsReportSectionSelected))", companionVm);
+            Assert.Contains("OnPropertyChanged(nameof(IsAiStudioSectionSelected))", companionVm);
             Assert.DoesNotContain("SelectedCommandCenterTab = intentDecision.PreferredSection", companionVm);
             Assert.DoesNotContain("SelectedCommandCenterTab = routeDecision.PreferredSection", companionVm);
             Assert.Contains("CopyRecoveryPlanCommand", companionVm);
@@ -191,6 +207,7 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("SectionRail_PreviewMouseWheel", companionCodeBehind);
             Assert.Contains("SectionRailWheelDeltaPerStep", companionCodeBehind);
             Assert.Contains("UpdateSectionRailSelectionState", companionCodeBehind);
+            Assert.Contains("IEnumerable<(string Name, RadioButton Button)>", companionCodeBehind);
             Assert.Contains("AutomationProperties.SetItemStatus", companionCodeBehind);
             Assert.Contains("MoveSectionSelection(direction, focusSelection: false)", companionCodeBehind);
             Assert.Contains("MoveSectionSelection(-1, focusSelection: true)", companionCodeBehind);
