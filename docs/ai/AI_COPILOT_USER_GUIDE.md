@@ -9,7 +9,7 @@ AI remains advisory. It does **not** replace the Genetic Algorithm, load-chart v
 ## Entry Points
 
 - **Bottom status-bar AI strip**: provides non-intrusive workflow hints and an **Assist** button.
-- **Right dock → AI ASSIST**: opens the contextual assistant beside the existing Crane Properties dock at a comfortable default width. Drag the right workspace splitter to resize it.
+- **Right dock → AI ASSIST**: opens the contextual assistant in the same slim dock used by Crane Properties. Drag the shared right-workspace splitter to resize both tabs consistently.
 - **AI ASSIST → STUDIO**: contains the advanced AI actions formerly exposed in a separate ribbon tab.
 - **AI ASSIST close button**: returns the right dock to **CRANE PROPERTIES** without disabling the bottom AI strip.
 - **Status-bar hide button**: hides the bottom AI strip and shows a small restore button.
@@ -18,9 +18,9 @@ The main ribbon intentionally ends at **REPORTS**. AI is a cross-workflow assist
 
 ## Docked AI Assist Layout
 
-The docked surface uses a minimal horizontal navigator: **Chat**, **Mission**, **BIM**, **GA**, **Report**, and **Studio**. Verified project state and one next-step recommendation remain visible while the active section scrolls independently. The composer stays fixed at the bottom, and **Context** opens the live private project payload used for the next question.
+The docked surface uses a slim rotated vertical section rail for **Chat**, **Mission**, **BIM**, **GA**, **Report**, and **Studio**. The rail can collapse to a narrow navigation spine, supports keyboard and mouse-wheel section switching, and preserves vertical space for the active content. Verified project state and one next-step recommendation remain visible while the active section scrolls independently. The composer stays fixed at the bottom, and **Context** opens the live private project payload used for the next question.
 
-The workspace can be resized from 420 to 760 pixels. Switching back to **CRANE PROPERTIES** restores the narrower properties width.
+AI Assist shares the same 330–380 pixel right dock as **CRANE PROPERTIES**. Switching tabs therefore keeps the BIM viewport stable instead of widening or shrinking the workspace.
 
 ## Studio Actions
 
