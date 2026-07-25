@@ -572,6 +572,28 @@ namespace CraneOptimizer.Application.Tests.AI
         }
 
         [Fact]
+        public void AiAssistComposer_HidesScrollBarWhilePreservingMultilineScrolling()
+        {
+            var root = FindRepositoryRoot();
+            Assert.NotNull(root);
+            var xaml = File.ReadAllText(Path.Combine(root!, "CraneOptimizer.AI", "Companion", "Views", "AiCompanionPanel.xaml"));
+
+            var composerStart = xaml.IndexOf("x:Name=\"QuestionTextBox\"", StringComparison.Ordinal);
+            Assert.True(composerStart >= 0, "AI Assist question composer was not found.");
+
+            var composerEnd = xaml.IndexOf("/>", composerStart, StringComparison.Ordinal);
+            Assert.True(composerEnd > composerStart, "AI Assist question composer declaration was incomplete.");
+
+            var composer = xaml.Substring(composerStart, composerEnd - composerStart);
+            Assert.Contains("AcceptsReturn=\"True\"", composer);
+            Assert.Contains("TextWrapping=\"Wrap\"", composer);
+            Assert.Contains("VerticalScrollBarVisibility=\"Hidden\"", composer);
+            Assert.Contains("HorizontalScrollBarVisibility=\"Disabled\"", composer);
+            Assert.Contains("ScrollViewer.PanningMode=\"VerticalOnly\"", composer);
+            Assert.DoesNotContain("VerticalScrollBarVisibility=\"Auto\"", composer);
+        }
+
+        [Fact]
         public void CloudRequestPolicy_RequiresConsentForProjectContextButAllowsContextFreeTests()
         {
             var settings = CreateSettings();

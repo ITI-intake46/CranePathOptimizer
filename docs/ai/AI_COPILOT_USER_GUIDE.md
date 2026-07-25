@@ -96,7 +96,7 @@ The deterministic advisor, readiness agent, BIM inspection tools, and rule-based
 - **Copy Context**: copies the governed structured context used by AI.
 - **Export MD / Report Appendix**: exports the current advisory answer with its context and disclaimer.
 
-The provider actions remain in one compact horizontal row. The deterministic-recommendations panel remains mouse-wheel, touchpad, and keyboard scrollable while keeping its scrollbar visually hidden.
+The provider actions remain in one compact horizontal row. The deterministic-recommendations panel remains mouse-wheel, touchpad, and keyboard scrollable while keeping its scrollbar visually hidden. The compact AI Assist prompt composer uses the same invisible-scrollbar treatment: long multiline prompts remain wheel-, touchpad-, caret-, and keyboard-scrollable without reserving visible scrollbar space.
 
 ## Failure Messages
 
