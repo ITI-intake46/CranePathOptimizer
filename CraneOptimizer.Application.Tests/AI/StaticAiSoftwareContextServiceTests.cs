@@ -21,8 +21,8 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("not a top-level ribbon tab", aiAssist.Purpose, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(aiAssist.Actions, action => action.Label == "Open Full Studio");
             Assert.Contains(aiAssist.Actions, action => action.Label == "Analyze Current Result");
-            Assert.Contains(aiAssist.Actions, action => action.Label == "Ask Local Ollama");
-            Assert.Contains(aiAssist.Actions, action => action.Label == "Check Ollama");
+            Assert.Contains(aiAssist.Actions, action => action.Label == "Ask AI Model");
+            Assert.Contains(aiAssist.Actions, action => action.Label == "Check Provider");
         }
 
         [Fact]

@@ -1,7 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.Linq;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -17,8 +18,10 @@ namespace CraneOptimizer.AI.Companion.Views
 {
     public partial class AiCompanionPanel : UserControl
     {
-        private const double CollapsedSectionRailWidth = 14d;
-        private const double ExpandedSectionRailWidth = 38d;
+        private const double CollapsedSectionRailWidth = 12d;
+        private const double ExpandedSectionRailWidth = 30d;
+        private const double LatestMessageThreshold = 32d;
+        private const int SectionRailWheelDeltaPerStep = 120;
         private static readonly Duration SectionRailAnimationDuration = new(TimeSpan.FromMilliseconds(120));
         private static readonly string[] SectionNames = { "Chat", "Mission", "BIM", "Optimize", "Report", "AI Studio" };
 
@@ -28,26 +31,21 @@ namespace CraneOptimizer.AI.Companion.Views
             typeof(AiCompanionPanel),
             new PropertyMetadata(true, OnSectionRailExpandedChanged));
 
-        public static readonly RoutedEvent CloseRequestedEvent = EventManager.RegisterRoutedEvent(
-            nameof(CloseRequested),
-            RoutingStrategy.Bubble,
-            typeof(RoutedEventHandler),
-            typeof(AiCompanionPanel));
-
+        private readonly Dictionary<string, double> _sectionScrollOffsets = new(StringComparer.OrdinalIgnoreCase);
         private AiCompanionViewModel? _viewModel;
         private IAiCopilotSettingsService? _settingsService;
         private string? _pendingSectionName;
+        private AiCompanionChatMessageViewModel? _pendingPromptAnchor;
+        private string _activeSectionName = "Chat";
+        private bool _isRestoringScrollPosition;
+        private bool _followLatestContent;
+        private int _sectionRailWheelDelta;
+        private bool _focusRailSelectionAfterChange;
 
         public bool IsSectionRailExpanded
         {
             get => (bool)GetValue(IsSectionRailExpandedProperty);
             set => SetValue(IsSectionRailExpandedProperty, value);
-        }
-
-        public event RoutedEventHandler CloseRequested
-        {
-            add => AddHandler(CloseRequestedEvent, value);
-            remove => RemoveHandler(CloseRequestedEvent, value);
         }
 
         public AiCompanionPanel()
@@ -78,7 +76,9 @@ namespace CraneOptimizer.AI.Companion.Views
                 message.PropertyChanged += OnConversationMessagePropertyChanged;
 
             DataContext = _viewModel;
+            _activeSectionName = _viewModel.SelectedCommandCenterTab;
             UpdateSectionRailState(animate: false);
+            UpdateSectionRailSelectionState(_activeSectionName, focusSelection: false);
 
             if (!string.IsNullOrWhiteSpace(_pendingSectionName))
             {
@@ -113,13 +113,32 @@ namespace CraneOptimizer.AI.Companion.Views
 
             if (_viewModel.SelectCommandCenterTabCommand.CanExecute(normalized))
                 _viewModel.SelectCommandCenterTabCommand.Execute(normalized);
-
-            ScrollBodyToHome();
         }
 
-        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        private void BodyScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            RaiseEvent(new RoutedEventArgs(CloseRequestedEvent));
+            if (sender is not ScrollViewer scrollViewer)
+                return;
+
+            var offset = scrollViewer.VerticalOffset - (e.Delta / 4.0d);
+            scrollViewer.ScrollToVerticalOffset(Math.Max(0d, Math.Min(scrollViewer.ScrollableHeight, offset)));
+            e.Handled = true;
+        }
+
+        private void BodyScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (_isRestoringScrollPosition)
+                return;
+
+            _sectionScrollOffsets[_activeSectionName] = BodyScrollViewer.VerticalOffset;
+            _followLatestContent = IsNearLatestMessage();
+            UpdateJumpToLatestVisibility();
+        }
+
+        private void JumpToLatestButton_Click(object sender, RoutedEventArgs e)
+        {
+            _followLatestContent = true;
+            ScrollBodyToEnd(force: true);
             e.Handled = true;
         }
 
@@ -162,8 +181,6 @@ namespace CraneOptimizer.AI.Companion.Views
                 SectionRailToggleButton,
                 IsSectionRailExpanded ? "Collapse AI section rail" : "Expand AI section rail");
 
-            // Collapsing is intentionally immediate so the main AI content recovers width
-            // at the same moment the user retracts the rail. Only expansion is animated.
             if (!animate || !IsSectionRailExpanded)
             {
                 SectionRail.BeginAnimation(FrameworkElement.WidthProperty, null);
@@ -198,35 +215,133 @@ namespace CraneOptimizer.AI.Companion.Views
                 HandoffBehavior.SnapshotAndReplace);
         }
 
-        private void BodyScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        private void SectionRail_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (sender is not ScrollViewer scrollViewer)
+            if (e.Delta == 0)
                 return;
 
-            var offset = scrollViewer.VerticalOffset - (e.Delta / 4.0d);
-            scrollViewer.ScrollToVerticalOffset(Math.Max(0d, Math.Min(scrollViewer.ScrollableHeight, offset)));
+            if (_sectionRailWheelDelta != 0
+                && Math.Sign(_sectionRailWheelDelta) != Math.Sign(e.Delta))
+            {
+                _sectionRailWheelDelta = 0;
+            }
+
+            _sectionRailWheelDelta += e.Delta;
+            while (Math.Abs(_sectionRailWheelDelta) >= SectionRailWheelDeltaPerStep)
+            {
+                var direction = _sectionRailWheelDelta < 0 ? 1 : -1;
+                MoveSectionSelection(direction, focusSelection: false);
+                _sectionRailWheelDelta -= Math.Sign(_sectionRailWheelDelta) * SectionRailWheelDeltaPerStep;
+            }
+
             e.Handled = true;
+        }
+
+        private void SectionRail_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            switch (e.Key)
+            {
+                case Key.Left:
+                    SetSectionRailExpanded(true, persist: true);
+                    break;
+                case Key.Right:
+                    SetSectionRailExpanded(false, persist: true);
+                    break;
+                case Key.Up:
+                    MoveSectionSelection(-1, focusSelection: true);
+                    break;
+                case Key.Down:
+                    MoveSectionSelection(1, focusSelection: true);
+                    break;
+                case Key.Home:
+                    SelectSection(0, focusSelection: true);
+                    break;
+                case Key.End:
+                    SelectSection(SectionNames.Length - 1, focusSelection: true);
+                    break;
+                default:
+                    return;
+            }
+
+            e.Handled = true;
+        }
+
+        private void MoveSectionSelection(int delta, bool focusSelection)
+        {
+            if (_viewModel == null)
+                return;
+
+            var currentIndex = Array.FindIndex(
+                SectionNames,
+                section => string.Equals(section, _viewModel.SelectedCommandCenterTab, StringComparison.OrdinalIgnoreCase));
+
+            if (currentIndex < 0)
+                currentIndex = 0;
+
+            SelectSection(
+                Math.Clamp(currentIndex + delta, 0, SectionNames.Length - 1),
+                focusSelection);
+        }
+
+        private void SelectSection(int index, bool focusSelection)
+        {
+            if (_viewModel == null || index < 0 || index >= SectionNames.Length)
+                return;
+
+            var section = SectionNames[index];
+            _focusRailSelectionAfterChange = focusSelection;
+
+            if (string.Equals(_viewModel.SelectedCommandCenterTab, section, StringComparison.OrdinalIgnoreCase))
+            {
+                UpdateSectionRailSelectionState(section, focusSelection);
+                _focusRailSelectionAfterChange = false;
+                return;
+            }
+
+            if (_viewModel.SelectCommandCenterTabCommand.CanExecute(section))
+            {
+                _viewModel.SelectCommandCenterTabCommand.Execute(section);
+                return;
+            }
+
+            _focusRailSelectionAfterChange = false;
         }
 
         private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(AiCompanionViewModel.SelectedCommandCenterTab))
-            {
-                if (string.Equals(_viewModel?.SelectedCommandCenterTab, "Chat", StringComparison.OrdinalIgnoreCase))
-                {
-                    ScrollBodyToEnd();
-                    return;
-                }
-
-                ScrollBodyToHome();
+            if (e.PropertyName != nameof(AiCompanionViewModel.SelectedCommandCenterTab) || _viewModel == null)
                 return;
-            }
 
-            if (e.PropertyName == nameof(AiCompanionViewModel.PinnedReadinessBody)
-                && string.Equals(_viewModel?.SelectedCommandCenterTab, "Chat", StringComparison.OrdinalIgnoreCase))
+            _sectionScrollOffsets[_activeSectionName] = BodyScrollViewer.VerticalOffset;
+            _activeSectionName = _viewModel.SelectedCommandCenterTab;
+            var focusSelection = _focusRailSelectionAfterChange;
+            _focusRailSelectionAfterChange = false;
+            UpdateSectionRailSelectionState(_activeSectionName, focusSelection);
+            RestoreSectionScrollPosition(_activeSectionName);
+        }
+
+        private void UpdateSectionRailSelectionState(string sectionName, bool focusSelection)
+        {
+            foreach (var (name, button) in GetSectionRailButtons())
             {
-                ScrollBodyToEnd();
+                var isSelected = string.Equals(name, sectionName, StringComparison.OrdinalIgnoreCase);
+                System.Windows.Automation.AutomationProperties.SetItemStatus(
+                    button,
+                    isSelected ? "Selected" : "Not selected");
+
+                if (isSelected && focusSelection)
+                    button.Focus();
             }
+        }
+
+        private IEnumerable<(string Name, RadioButton Button)> GetSectionRailButtons()
+        {
+            yield return ("Chat", ChatSectionButton);
+            yield return ("Mission", MissionSectionButton);
+            yield return ("BIM", BimSectionButton);
+            yield return ("Optimize", OptimizeSectionButton);
+            yield return ("Report", ReportSectionButton);
+            yield return ("AI Studio", AiStudioSectionButton);
         }
 
         private void OnComposerFocusRequested(object? sender, EventArgs e)
@@ -242,14 +357,40 @@ namespace CraneOptimizer.AI.Companion.Views
                     message.PropertyChanged -= OnConversationMessagePropertyChanged;
             }
 
+            AiCompanionChatMessageViewModel? newestUserMessage = null;
+            AiCompanionChatMessageViewModel? newestAssistantMessage = null;
             if (e.NewItems != null)
             {
                 foreach (AiCompanionChatMessageViewModel message in e.NewItems)
+                {
                     message.PropertyChanged += OnConversationMessagePropertyChanged;
+                    if (message.IsReadinessIntro)
+                        continue;
+
+                    if (message.IsUserMessage)
+                        newestUserMessage = message;
+                    else
+                        newestAssistantMessage = message;
+                }
             }
 
-            if (e.NewItems != null && e.NewItems.Cast<AiCompanionChatMessageViewModel>().Any(message => !message.IsReadinessIntro))
-                ScrollBodyToEnd();
+            if (newestUserMessage != null)
+            {
+                _followLatestContent = false;
+                _pendingPromptAnchor = newestUserMessage;
+                ScrollMessageToStart(newestUserMessage);
+            }
+            else if (newestAssistantMessage != null)
+            {
+                _followLatestContent = false;
+                var anchor = _pendingPromptAnchor ?? newestAssistantMessage;
+                _pendingPromptAnchor = null;
+                ScrollMessageToStart(anchor);
+            }
+            else
+            {
+                QueueUpdateJumpToLatestVisibility();
+            }
         }
 
         private void OnConversationMessagePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -257,37 +398,136 @@ namespace CraneOptimizer.AI.Companion.Views
             if (sender is not AiCompanionChatMessageViewModel { IsReadinessIntro: false })
                 return;
 
-            if (e.PropertyName is nameof(AiCompanionChatMessageViewModel.Body) or nameof(AiCompanionChatMessageViewModel.Timestamp))
-                ScrollBodyToEnd();
+            if (e.PropertyName is nameof(AiCompanionChatMessageViewModel.Body)
+                or nameof(AiCompanionChatMessageViewModel.DisplayBody)
+                or nameof(AiCompanionChatMessageViewModel.IsDetailsExpanded))
+            {
+                if (_followLatestContent)
+                    ScrollBodyToEnd();
+                else
+                    QueueUpdateJumpToLatestVisibility();
+            }
         }
 
         private void ScrollBodyToHome()
         {
+            RestoreScrollOffset(0d, DispatcherPriority.ContextIdle);
+        }
+
+        private void RestoreSectionScrollPosition(string sectionName)
+        {
+            var offset = _sectionScrollOffsets.TryGetValue(sectionName, out var savedOffset)
+                ? savedOffset
+                : 0d;
+            RestoreScrollOffset(offset, DispatcherPriority.ContextIdle);
+        }
+
+        private void RestoreScrollOffset(double offset, DispatcherPriority priority)
+        {
             Dispatcher.BeginInvoke(
                 new Action(() =>
                 {
+                    _isRestoringScrollPosition = true;
+                    try
+                    {
+                        BodyScrollViewer.UpdateLayout();
+                        BodyScrollViewer.ScrollToVerticalOffset(Math.Max(0d, Math.Min(offset, BodyScrollViewer.ScrollableHeight)));
+                        _sectionScrollOffsets[_activeSectionName] = BodyScrollViewer.VerticalOffset;
+                    }
+                    finally
+                    {
+                        _isRestoringScrollPosition = false;
+                    }
+
+                    UpdateJumpToLatestVisibility();
+                }),
+                priority);
+        }
+
+        private void ScrollMessageToStart(AiCompanionChatMessageViewModel message)
+        {
+            QueueScrollMessageToStart(message, DispatcherPriority.Loaded);
+            QueueScrollMessageToStart(message, DispatcherPriority.ContextIdle);
+        }
+
+        private void QueueScrollMessageToStart(AiCompanionChatMessageViewModel message, DispatcherPriority priority)
+        {
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    if (!string.Equals(_activeSectionName, "Chat", StringComparison.OrdinalIgnoreCase))
+                        return;
+
                     BodyScrollViewer.UpdateLayout();
-                    BodyScrollViewer.ScrollToHome();
+                    if (ConversationItemsControl.ItemContainerGenerator.ContainerFromItem(message) is not FrameworkElement container)
+                        return;
+
+                    try
+                    {
+                        var position = container.TransformToAncestor(BodyScrollViewer).Transform(new Point(0d, 0d));
+                        var targetOffset = BodyScrollViewer.VerticalOffset + position.Y - 4d;
+                        RestoreScrollOffset(targetOffset, DispatcherPriority.Send);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // The item can be detached briefly while templates switch. The queued second pass retries.
+                    }
+                }),
+                priority);
+        }
+
+        private void ScrollBodyToEnd(bool force = false)
+        {
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    if (!force && !_followLatestContent)
+                        return;
+
+                    _isRestoringScrollPosition = true;
+                    try
+                    {
+                        BodyScrollViewer.UpdateLayout();
+                        BodyScrollViewer.ScrollToEnd();
+                        _sectionScrollOffsets[_activeSectionName] = BodyScrollViewer.VerticalOffset;
+                    }
+                    finally
+                    {
+                        _isRestoringScrollPosition = false;
+                    }
+
+                    UpdateJumpToLatestVisibility();
                 }),
                 DispatcherPriority.ContextIdle);
         }
 
-        private void ScrollBodyToEnd()
-        {
-            QueueScrollToEnd(DispatcherPriority.Background);
-            QueueScrollToEnd(DispatcherPriority.ContextIdle);
-            QueueScrollToEnd(DispatcherPriority.ApplicationIdle);
-        }
-
-        private void QueueScrollToEnd(DispatcherPriority priority)
+        private void QueueUpdateJumpToLatestVisibility()
         {
             Dispatcher.BeginInvoke(
                 new Action(() =>
                 {
                     BodyScrollViewer.UpdateLayout();
-                    BodyScrollViewer.ScrollToEnd();
+                    UpdateJumpToLatestVisibility();
                 }),
-                priority);
+                DispatcherPriority.ContextIdle);
+        }
+
+        private bool IsNearLatestMessage()
+        {
+            var distanceFromEnd = BodyScrollViewer.ScrollableHeight - BodyScrollViewer.VerticalOffset;
+            return distanceFromEnd <= LatestMessageThreshold;
+        }
+
+        private void UpdateJumpToLatestVisibility()
+        {
+            if (JumpToLatestButton == null || _viewModel == null)
+                return;
+
+            var isChat = string.Equals(_activeSectionName, "Chat", StringComparison.OrdinalIgnoreCase);
+            var hasConversation = _viewModel.ConversationMessages.Any(message => !message.IsReadinessIntro);
+            JumpToLatestButton.Visibility = isChat && hasConversation && !IsNearLatestMessage()
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         private void FocusComposer()
@@ -313,73 +553,12 @@ namespace CraneOptimizer.AI.Companion.Views
                 priority);
         }
 
-
-        private void SectionRail_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            MoveSectionSelection(e.Delta < 0 ? 1 : -1);
-            e.Handled = true;
-        }
-
-        private void SectionRail_PreviewKeyDown(object sender, KeyEventArgs e)
-        {
-            switch (e.Key)
-            {
-                case Key.Left:
-                    SetSectionRailExpanded(true, persist: true);
-                    break;
-                case Key.Right:
-                    SetSectionRailExpanded(false, persist: true);
-                    break;
-                case Key.Up:
-                    MoveSectionSelection(-1);
-                    break;
-                case Key.Down:
-                    MoveSectionSelection(1);
-                    break;
-                case Key.Home:
-                    SelectSection(0);
-                    break;
-                case Key.End:
-                    SelectSection(SectionNames.Length - 1);
-                    break;
-                default:
-                    return;
-            }
-
-            e.Handled = true;
-        }
-
-        private void MoveSectionSelection(int delta)
-        {
-            if (_viewModel == null)
-                return;
-
-            var currentIndex = Array.FindIndex(
-                SectionNames,
-                section => string.Equals(section, _viewModel.SelectedCommandCenterTab, StringComparison.OrdinalIgnoreCase));
-
-            if (currentIndex < 0)
-                currentIndex = 0;
-
-            SelectSection(Math.Clamp(currentIndex + delta, 0, SectionNames.Length - 1));
-        }
-
-        private void SelectSection(int index)
-        {
-            if (_viewModel == null || index < 0 || index >= SectionNames.Length)
-                return;
-
-            var section = SectionNames[index];
-            if (_viewModel.SelectCommandCenterTabCommand.CanExecute(section))
-                _viewModel.SelectCommandCenterTabCommand.Execute(section);
-        }
-
         private void ComposerResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
         {
             if (_viewModel == null)
                 return;
 
-            _viewModel.ComposerHeight = Math.Max(32d, Math.Min(120d, _viewModel.ComposerHeight - e.VerticalChange));
+            _viewModel.ComposerHeight = Math.Max(34d, Math.Min(120d, _viewModel.ComposerHeight - e.VerticalChange));
         }
 
         private void QuestionTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -407,6 +586,10 @@ namespace CraneOptimizer.AI.Companion.Views
 
             _viewModel = null;
             _settingsService = null;
+            _sectionScrollOffsets.Clear();
+            _pendingPromptAnchor = null;
+            _activeSectionName = "Chat";
+            _followLatestContent = false;
             DataContext = null;
         }
     }

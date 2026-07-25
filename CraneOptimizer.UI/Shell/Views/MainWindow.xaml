@@ -339,12 +339,12 @@
                 Grid.Column="3"
                 Width="8"
                 HorizontalAlignment="Stretch"
-                AutomationProperties.Name="Resize Crane Properties panel"
+                AutomationProperties.Name="Resize right workspace panel"
                 Background="Transparent"
                 Cursor="SizeWE"
                 Focusable="True"
                 ShowsPreview="True"
-                ToolTip="Resize the Crane Properties panel">
+                ToolTip="Resize the right workspace panel">
                 <GridSplitter.Template>
                     <ControlTemplate TargetType="GridSplitter">
                         <Border
@@ -380,8 +380,7 @@
                     x:Name="RightWorkspaceTabs"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderThickness="0"
-                    SelectedIndex="0"
-                    SelectionChanged="RightWorkspaceTabs_SelectionChanged">
+                    SelectedIndex="0">
                     <TabControl.Resources>
                         <Style TargetType="{x:Type TabItem}">
                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
@@ -465,7 +464,7 @@
                                     ToolTip="Close AI Assist tab" />
                             </DockPanel>
                         </TabItem.Header>
-                        <aiCompanion:AiCompanionPanel x:Name="AiAssistPanel" CloseRequested="AiCompanionPanel_CloseRequested" />
+                        <aiCompanion:AiCompanionPanel x:Name="AiAssistPanel" />
                     </TabItem>
                 </TabControl>
             </Border>

@@ -5,14 +5,14 @@ namespace CraneOptimizer.AI.Runtime
     public sealed class AiProviderRegistry : IAiProviderRegistry
     {
         private readonly IReadOnlyDictionary<string, IAiChatProvider> _providers;
-        private readonly string _defaultProviderId;
+        private readonly IAiCopilotSettingsService _settingsService;
 
         public AiProviderRegistry(
             IEnumerable<IAiChatProvider> providers,
             IAiCopilotSettingsService settingsService)
         {
             ArgumentNullException.ThrowIfNull(providers);
-            ArgumentNullException.ThrowIfNull(settingsService);
+            _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
 
             var providerMap = new Dictionary<string, IAiChatProvider>(StringComparer.OrdinalIgnoreCase);
             foreach (var provider in providers)
@@ -31,13 +31,10 @@ namespace CraneOptimizer.AI.Runtime
                 throw new InvalidOperationException("At least one AI chat provider must be registered.");
 
             _providers = providerMap;
-            _defaultProviderId = string.IsNullOrWhiteSpace(settingsService.Current.DefaultProviderId)
-                ? providerMap.Keys.First()
-                : settingsService.Current.DefaultProviderId.Trim();
-
             Providers = providerMap.Values
                 .Select(provider => provider.Descriptor)
-                .OrderBy(descriptor => descriptor.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(descriptor => descriptor.IsLocal ? 0 : 1)
+                .ThenBy(descriptor => descriptor.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }
 
@@ -46,10 +43,11 @@ namespace CraneOptimizer.AI.Runtime
         public bool TryResolve(string? providerId, out IAiChatProvider provider)
         {
             var requestedId = string.IsNullOrWhiteSpace(providerId)
-                ? _defaultProviderId
+                ? _settingsService.Current.DefaultProviderId
                 : providerId.Trim();
 
-            if (_providers.TryGetValue(requestedId, out var resolved))
+            if (_providers.TryGetValue(requestedId, out var resolved)
+                && IsEnabled(requestedId))
             {
                 provider = resolved;
                 return true;
@@ -57,6 +55,13 @@ namespace CraneOptimizer.AI.Runtime
 
             provider = null!;
             return false;
+        }
+
+        private bool IsEnabled(string providerId)
+        {
+            var profile = _settingsService.Current.ProviderProfiles.FirstOrDefault(item =>
+                string.Equals(item.Id, providerId, StringComparison.OrdinalIgnoreCase));
+            return profile?.Enabled != false;
         }
     }
 }
