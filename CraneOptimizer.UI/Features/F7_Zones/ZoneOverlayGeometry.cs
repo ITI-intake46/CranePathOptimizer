@@ -8,6 +8,15 @@ using System.Windows.Media.Media3D;
 
 namespace CraneOptimizer.UI.Features.F7_Zones
 {
+    internal static class ZoneOverlayDepth
+    {
+        public const double AllowedFill = 0.0005;
+        public const double ForbiddenFill = 0.001;
+        public const double AllowedBorder = 0.004;
+        public const double ForbiddenBorder = 0.0045;
+        public const double DxfContrast = 0.02;
+    }
+
     internal sealed record ZoneOverlayRegion(
         ZoneType Type,
         Point3D[] Vertices,

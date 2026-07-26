@@ -56,10 +56,14 @@ namespace CraneOptimizer.UI.Features.F7_Zones
             var finalFillColor = isSelected ? Colors.Yellow : fillColor;
             var finalBorderColor = isSelected ? Colors.Yellow : borderColor;
             double fillOffset =
-                (zone.Type == ZoneType.Forbidden ? 0.001 : 0.0005) +
+                (zone.Type == ZoneType.Forbidden
+                    ? ZoneOverlayDepth.ForbiddenFill
+                    : ZoneOverlayDepth.AllowedFill) +
                 depthAdjustment;
             double borderOffset =
-                (zone.Type == ZoneType.Forbidden ? 0.0045 : 0.004) +
+                (zone.Type == ZoneType.Forbidden
+                    ? ZoneOverlayDepth.ForbiddenBorder
+                    : ZoneOverlayDepth.AllowedBorder) +
                 depthAdjustment;
 
             var border = new LinesVisual3D
@@ -171,8 +175,10 @@ namespace CraneOptimizer.UI.Features.F7_Zones
                     .Select(item => item.Zone));
 
             var container = new ModelVisual3D();
+            // Transparent WPF 3D content is painted in child order. Keep forbidden
+            // zones last so red wins when zooming quantizes nearby surfaces together.
             foreach (ZoneRenderItem item in prepared
-                         .OrderBy(item => item.Zone.Type == ZoneType.Forbidden ? 0 : 1)
+                         .OrderBy(item => item.Zone.Type == ZoneType.Forbidden ? 1 : 0)
                          .ThenByDescending(item => item.Area)
                          .ThenBy(item => item.SourceIndex))
             {

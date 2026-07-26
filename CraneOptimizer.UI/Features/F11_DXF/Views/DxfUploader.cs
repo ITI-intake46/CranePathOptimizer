@@ -1213,7 +1213,6 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             Matrix3D transform,
             IReadOnlyList<ZoneOverlayRegion> regions)
         {
-            const double contrastDepthOffset = 0.001;
             var linePoints = new List<Point3D>();
             foreach ((Point3D A, Point3D B) segment in segments)
             {
@@ -1232,11 +1231,11 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                 linePoints.Add(new Point3D(
                     segment.A.X,
                     segment.A.Y,
-                    segment.A.Z + contrastDepthOffset));
+                    segment.A.Z + ZoneOverlayDepth.DxfContrast));
                 linePoints.Add(new Point3D(
                     segment.B.X,
                     segment.B.Y,
-                    segment.B.Z + contrastDepthOffset));
+                    segment.B.Z + ZoneOverlayDepth.DxfContrast));
             }
 
             var contrastedText = new bool[textPositions.Count];
@@ -1273,12 +1272,22 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             }
 
             _zoneContrastTextVisuals.Clear();
-            int textCount = Math.Min(
-                prepared.ContrastedText.Length,
-                _textVisuals.Count);
+            int textCount = Math.Min(_rawTextItems.Count, _textVisuals.Count);
             for (int index = 0; index < textCount; index++)
             {
-                if (prepared.ContrastedText[index])
+                bool hasContrast =
+                    index < prepared.ContrastedText.Length &&
+                    prepared.ContrastedText[index];
+                DxfTextVisualData source = _rawTextItems[index];
+                _textVisuals[index].Position = hasContrast
+                    ? new Point3D(
+                        source.Position.X,
+                        source.Position.Y,
+                        Math.Max(
+                            source.Position.Z,
+                            ZoneOverlayDepth.DxfContrast))
+                    : source.Position;
+                if (hasContrast)
                     _zoneContrastTextVisuals.Add(_textVisuals[index]);
             }
 

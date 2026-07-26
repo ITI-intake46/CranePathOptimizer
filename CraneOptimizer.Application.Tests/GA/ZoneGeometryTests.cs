@@ -310,7 +310,7 @@ namespace CraneOptimizer.Application.Tests
         }
 
         [Fact]
-        public void ForbiddenZones_RenderFirstAboveAllowedZonesWithReadableOpacity()
+        public void ForbiddenZones_RenderAfterAllowedZonesWithStableDepthPriority()
         {
             RunOnSta(() =>
             {
@@ -341,12 +341,14 @@ namespace CraneOptimizer.Application.Tests
 
                 var batch = Assert.IsType<ModelVisual3D>(
                     builder.BuildBatch(new[] { forbidden, allowed }));
-                var forbiddenVisual = Assert.IsType<ModelVisual3D>(batch.Children[0]);
-                var allowedVisual = Assert.IsType<ModelVisual3D>(batch.Children[1]);
+                var allowedVisual = Assert.IsType<ModelVisual3D>(batch.Children[0]);
+                var forbiddenVisual = Assert.IsType<ModelVisual3D>(batch.Children[1]);
                 var allowedModel = Assert.IsType<GeometryModel3D>(allowedVisual.Content);
                 var forbiddenModel = Assert.IsType<GeometryModel3D>(forbiddenVisual.Content);
                 var allowedMesh = Assert.IsType<MeshGeometry3D>(allowedModel.Geometry);
                 var forbiddenMesh = Assert.IsType<MeshGeometry3D>(forbiddenModel.Geometry);
+                var forbiddenBorder = Assert.IsType<LinesVisual3D>(
+                    Assert.Single(forbiddenVisual.Children));
                 var forbiddenBrush = Assert.IsType<SolidColorBrush>(
                     Assert.IsType<DiffuseMaterial>(forbiddenModel.Material).Brush);
 
@@ -356,6 +358,10 @@ namespace CraneOptimizer.Application.Tests
                 Assert.Equal(Color.FromRgb(176, 42, 52), forbiddenBrush.Color);
                 Assert.Equal(0.72, forbiddenBrush.Opacity);
                 Assert.True(forbiddenMesh.Positions[0].Z < 0.002);
+                Assert.All(
+                    forbiddenBorder.Points,
+                    point => Assert.True(
+                        point.Z < ZoneOverlayDepth.DxfContrast));
             });
         }
 
