@@ -36,50 +36,6 @@
 
             <Rectangle Style="{StaticResource RibbonSep}" />
 
-            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="CRANE CATALOG">
-                <Button
-                    Click="AllCranesInDatabase_Click"
-                    Content="All Cranes in Database"
-                    Width="{StaticResource RibbonMajorLongCommandWidth}"
-                    Style="{StaticResource RibbonMajorCommandTile}"
-                    ToolTip="All cranes in the catalog â€” brand, model, capacity range, boom range, outrigger config">
-                    <Button.Tag>
-                        <TextBlock Text="🗂" />
-                    </Button.Tag>
-                </Button>
-            </ContentControl>
-
-            <Rectangle Style="{StaticResource RibbonSep}" />
-
-            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="COMPARE">
-                <Button Click="Compare2Cranes_Click" Style="{StaticResource RibbonMajorCommandTile}" ToolTip="Pick 2 cranes â†’ side-by-side specs + coverage over this building">
-                    <Button.Tag>
-                        <TextBlock FontSize="26" Foreground="{StaticResource PrimaryBrush}" Text="⚖" />
-                    </Button.Tag>
-                    <Button.ContentTemplate>
-                        <DataTemplate>
-                            <ContentPresenter Content="{Binding}" />
-                        </DataTemplate>
-                    </Button.ContentTemplate>
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            FontSize="9"
-                            FontWeight="Bold"
-                            Foreground="{StaticResource PrimaryBrush}"
-                            Text="Compare" />
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            Margin="0,2,0,0"
-                            FontSize="9"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text="2 Cranes" />
-                    </StackPanel>
-                </Button>
-            </ContentControl>
-
-            <Rectangle Style="{StaticResource RibbonSep}" />
-
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="PROJECT">
                 <StackPanel Orientation="Horizontal">
                     <Button

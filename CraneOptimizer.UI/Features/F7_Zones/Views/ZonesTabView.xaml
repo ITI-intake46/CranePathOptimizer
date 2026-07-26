@@ -100,30 +100,11 @@
 
                 <Rectangle Style="{StaticResource RibbonSep}" />
 
-                <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="MEASURE">
-                    <Button
-                        Command="{Binding StartMeasureCommand}"
-                        Content="Measure"
-                        FontSize="{StaticResource FontSizeXS}"
-                        Style="{StaticResource RibbonMajorCommandTile}">
-                        <Button.Tag>
-                            <TextBlock FontSize="40" Text="📏" />
-                        </Button.Tag>
-                    </Button>
-                </ContentControl>
-
-                <Rectangle Style="{StaticResource RibbonSep}" />
-
                 <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="ACTIONS">
                 <StackPanel Orientation="Horizontal">
                         <Button Command="{Binding FinishCommand}" Content="Finish Zone" Style="{StaticResource RibbonMajorLeadingCommandTile}">
                             <Button.Tag>
                                 <TextBlock Text="✔" />
-                            </Button.Tag>
-                        </Button>
-                        <Button Command="{Binding UndoCommand}" Content="Undo Vertex" Style="{StaticResource RibbonMajorMiddleCommandTile}">
-                            <Button.Tag>
-                                <TextBlock Text="↩" />
                             </Button.Tag>
                         </Button>
                         <Button Command="{Binding CancelCommand}" Content="Cancel" Style="{StaticResource RibbonMajorTrailingCommandTile}">
