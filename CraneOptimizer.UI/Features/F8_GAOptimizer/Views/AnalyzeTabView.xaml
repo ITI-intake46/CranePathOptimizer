@@ -8,9 +8,29 @@
         <StackPanel Margin="6,0" Orientation="Horizontal">
 
             <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="OPTIMIZE">
-                <Button Command="{Binding OptimizeCommand}" Content="Run Optimizer" Style="{StaticResource RibbonAnalyzeAccentCommandTile}">
+                <Button
+                    AutomationProperties.Name="Run Optimizer"
+                    Command="{Binding OptimizeCommand}"
+                    ContentTemplate="{x:Null}"
+                    Style="{StaticResource RibbonMajorCommandTile}"
+                    ToolTip="Run Optimizer">
+                    <Button.Content>
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                Foreground="{StaticResource PrimaryBrush}"
+                                Text="Run" />
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Optimizer" />
+                        </StackPanel>
+                    </Button.Content>
                     <Button.Tag>
-                        <TextBlock FontSize="22" Text="⚡" />
+                        <TextBlock
+                            FontSize="22"
+                            Foreground="{StaticResource PrimaryBrush}"
+                            Text="⚡" />
                     </Button.Tag>
                 </Button>
             </ContentControl>
