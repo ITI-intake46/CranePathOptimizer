@@ -61,27 +61,16 @@
 
             <Rectangle Style="{StaticResource RibbonSep}" />
 
-            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="ANALYSIS">
-                <StackPanel Orientation="Horizontal">
-                    <Button
-                        Command="{Binding ShowDiagnosticsCommand}"
-                        Content="GA Diagnostics"
-                        Style="{StaticResource RibbonMajorLeadingCommandTile}"
-                        ToolTip="GA convergence graph and generation statistics">
-                        <Button.Tag>
-                            <TextBlock Text="📈" />
-                        </Button.Tag>
-                    </Button>
-                    <Button
-                        Command="{Binding ShowResultsCommand}"
-                        Content="View Results"
-                        Style="{StaticResource RibbonMajorTrailingCommandTile}"
-                        ToolTip="Open the optimization results window">
-                        <Button.Tag>
-                            <TextBlock Text="📊" />
-                        </Button.Tag>
-                    </Button>
-                </StackPanel>
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="RESULTS">
+                <Button
+                    Command="{Binding ShowResultsCommand}"
+                    Content="View Results"
+                    Style="{StaticResource RibbonMajorCommandTile}"
+                    ToolTip="Open the optimization results window">
+                    <Button.Tag>
+                        <TextBlock Text="📊" />
+                    </Button.Tag>
+                </Button>
             </ContentControl>
 
         </StackPanel>

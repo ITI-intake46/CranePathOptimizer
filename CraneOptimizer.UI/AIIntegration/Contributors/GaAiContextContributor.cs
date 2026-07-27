@@ -56,7 +56,7 @@ namespace CraneOptimizer.UI.AIIntegration.Contributors
                     "Optimization",
                     $"Latest coverage is {result.CoverageRatio:P2}; {failureTotal:N0} unresolved lift status records are present.",
                     BuildFailureRecommendation(dominantFailure),
-                    "ANALYZE → GA Diagnostics",
+                    "ANALYZE → Lift Summary",
                     failureTotal));
             }
 
@@ -80,7 +80,7 @@ namespace CraneOptimizer.UI.AIIntegration.Contributors
                     "Reachability",
                     $"{stats.OutOfRadius:N0} element(s) are outside the working radius of the evaluated setup(s).",
                     "Review allowed zones, crane reach, candidate placement coverage, and whether more setup positions are needed.",
-                    "ANALYZE → GA Diagnostics",
+                    "ANALYZE → Lift Summary",
                     stats.OutOfRadius));
             }
 
@@ -110,7 +110,7 @@ namespace CraneOptimizer.UI.AIIntegration.Contributors
                 Issues = issues,
                 ActionHints = new[]
                 {
-                    AiContextContributorHelpers.Hint("Open GA diagnostics", "ANALYZE", "Review deterministic run diagnostics and unresolved element groups."),
+                    AiContextContributorHelpers.Hint("Open Lift Summary", "ANALYZE", "Review the lifting result, utilization evidence, alternatives, and recommended action."),
                     AiContextContributorHelpers.Hint("Open reports", "REPORTS", "Generate reports only after unresolved assumptions are reviewed."),
                     AiContextContributorHelpers.Hint("Review load chart", "CRANES", "Investigate not-charted or overweight failures at the crane/load-chart source.")
                 },

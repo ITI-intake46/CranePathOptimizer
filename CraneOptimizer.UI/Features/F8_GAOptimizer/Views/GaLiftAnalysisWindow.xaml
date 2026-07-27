@@ -1,0 +1,553 @@
+<Window
+    x:Class="CraneOptimizer.UI.Features.F8_GAOptimizer.Views.GaLiftAnalysisWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:behaviors="clr-namespace:CraneOptimizer.UI.Shared.Behaviors"
+    Title="Lift Performance Summary"
+    Width="1080"
+    Height="780"
+    MinWidth="860"
+    MinHeight="620"
+    Background="{DynamicResource SurfaceBrush}"
+    FontFamily="{DynamicResource FontPrimary}"
+    WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <Style x:Key="SummaryCard" TargetType="Border">
+            <Setter Property="Margin" Value="0,0,0,14" />
+            <Setter Property="Padding" Value="18" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="17" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style x:Key="MetricLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="MetricValue" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,4,0,0" />
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="FailureMetricTile" TargetType="Border">
+            <Setter Property="Width" Value="218" />
+            <Setter Property="MinHeight" Value="76" />
+            <Setter Property="Margin" Value="0,0,10,10" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style x:Key="TableHeader" TargetType="TextBlock">
+            <Setter Property="Margin" Value="6,5" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="TableCell" TargetType="TextBlock">
+            <Setter Property="Margin" Value="6,8" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer
+            Margin="22,22,22,8"
+            behaviors:SmoothScrollBehavior.IsEnabled="True"
+            CanContentScroll="False"
+            HorizontalScrollBarVisibility="Disabled"
+            IsDeferredScrollingEnabled="False"
+            PanningMode="VerticalOnly"
+            VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Border
+                    Padding="18"
+                    Background="{DynamicResource SurfaceElevatedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Visibility="{Binding IsPreparing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            Text="Preparing Lift Summary…" />
+                        <ProgressBar
+                            Height="7"
+                            Margin="0,13,0,0"
+                            Maximum="100"
+                            Value="{Binding ProgressPercent, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Padding="18"
+                    Background="{DynamicResource SurfaceElevatedBrush}"
+                    BorderBrush="{DynamicResource ErrorBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Visibility="{Binding HasGenerationError, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Foreground="{DynamicResource ErrorBrush}"
+                            Text="Lift Summary could not be generated." />
+                        <TextBlock
+                            Margin="0,7,0,0"
+                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            Text="The same completed optimizer run can be tried again without changing its inputs."
+                            TextWrapping="Wrap" />
+                        <Button
+                            Width="100"
+                            Margin="0,14,0,0"
+                            HorizontalAlignment="Left"
+                            Command="{Binding TryAgainCommand}"
+                            Content="Try Again" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Visibility="{Binding IsSummaryVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Border Style="{StaticResource SummaryCard}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                FontSize="25"
+                                FontWeight="SemiBold"
+                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                Text="Lift Performance Summary" />
+                            <Border
+                                Grid.Column="1"
+                                MaxWidth="390"
+                                Margin="18,0,0,0"
+                                Padding="10,5"
+                                Background="{DynamicResource PrimaryMutedBrush}"
+                                CornerRadius="12">
+                                <TextBlock
+                                    Foreground="{DynamicResource TextPrimaryBrush}"
+                                    Text="{Binding Summary.SummaryStatusText}"
+                                    TextWrapping="Wrap" />
+                            </Border>
+                            <Grid Grid.Row="1" Grid.ColumnSpan="2" Margin="0,15,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="1.5*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,14,0">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="PROJECT" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.ProjectName}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="0,0,14,0">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="CRANE" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.CraneName}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Margin="0,0,14,0">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="RUN DATE" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.RunDateText}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Margin="0,0,14,0">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="RUN REF" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.RunReferenceText}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="LIFT COVERAGE" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.CoverageText}" />
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <Border Style="{StaticResource SummaryCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Executive Summary" />
+                            <TextBlock
+                                Margin="0,10,0,0"
+                                FontSize="15"
+                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                LineHeight="23"
+                                Text="{Binding Summary.ExecutiveSummaryText}"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SummaryCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Lift Result" />
+                            <UniformGrid Margin="0,14,0,0" Columns="4">
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Total Lifts" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.TotalLiftsText}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Completed Lifts" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.CompletedLiftsText}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Unresolved Lifts" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.UnresolvedLiftsText}" />
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Lift Coverage" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.CoverageText}" />
+                                </StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SummaryCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Capacity Use" />
+                            <UniformGrid Margin="0,14,0,0" Columns="4">
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Highest Capacity Use" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.HighestCapacityUseText}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Average Capacity Use" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.AverageCapacityUseText}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Smallest Capacity Reserve" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.SmallestCapacityReserveText}" />
+                                </StackPanel>
+                                <StackPanel ToolTip="{Binding Summary.NearCapacityLimitTooltip}">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Lifts Near Capacity Limit" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.NearCapacityLimitText}" />
+                                </StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SummaryCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Failure Reasons" />
+                            <WrapPanel Margin="0,14,0,0">
+                                <Border
+                                    Style="{StaticResource FailureMetricTile}"
+                                    Visibility="{Binding Summary.HasCapacityFailures, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource MetricLabel}" Text="Capacity Failures" />
+                                        <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.CapacityFailuresText}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border
+                                    Style="{StaticResource FailureMetricTile}"
+                                    Visibility="{Binding Summary.HasRadiusFailures, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource MetricLabel}" Text="Radius Failures" />
+                                        <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.RadiusFailuresText}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border
+                                    Style="{StaticResource FailureMetricTile}"
+                                    Visibility="{Binding Summary.HasBoomHeightFailures, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource MetricLabel}" Text="Boom or Height Failures" />
+                                        <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.BoomHeightFailuresText}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border
+                                    Style="{StaticResource FailureMetricTile}"
+                                    Visibility="{Binding Summary.HasLoadChartFailures, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource MetricLabel}" Text="Load Chart Failures" />
+                                        <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.LoadChartFailuresText}" />
+                                    </StackPanel>
+                                </Border>
+                            </WrapPanel>
+                            <Grid
+                                Margin="0,2,0,0"
+                                Visibility="{Binding Summary.HasInputDataIssues, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock FontWeight="SemiBold" Text="Input Data Issues" />
+                                <TextBlock Grid.Column="1" Margin="10,0,0,0" FontWeight="SemiBold" Text="{Binding Summary.InputDataIssuesText}" />
+                                <TextBlock Grid.Column="2" Margin="14,0,0,0" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Summary.InputDataIssueDescription}" TextWrapping="Wrap" />
+                            </Grid>
+                            <Grid
+                                Margin="0,7,0,0"
+                                Visibility="{Binding Summary.HasOtherUnresolvedIssues, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock FontWeight="SemiBold" Text="Other Unresolved Issues" />
+                                <TextBlock Grid.Column="1" Margin="10,0,0,0" FontWeight="SemiBold" Text="{Binding Summary.OtherUnresolvedIssuesText}" />
+                            </Grid>
+                            <Separator Margin="0,15" />
+                            <TextBlock
+                                FontWeight="SemiBold"
+                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                Text="{Binding Summary.DominantFailureTitleText}"
+                                TextWrapping="Wrap" />
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="{Binding Summary.DominantFailureExplanationText}"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SummaryCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Engineering Inputs" />
+                            <UniformGrid Margin="0,14,0,0" Columns="3">
+                                <StackPanel Margin="0,0,12,14" ToolTip="Additional capacity multiplier configured for this optimizer run.">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Safety Factor" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.SafetyFactorText}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,14" ToolTip="Configured reduction applied to the crane’s load-chart capacity for this optimizer run.">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Derating Ratio" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.DeratingRatioText}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,14" ToolTip="Wire length saved with this optimizer run.">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Wire Length" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.WireLengthText}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,0" ToolTip="Hook and rigging weight saved with this optimizer run.">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Hook Weight" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.HookWeightText}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,0" ToolTip="Total lifting-accessory weight saved with this optimizer run.">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Lifting Accessories" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.AccessoriesWeightText}" />
+                                </StackPanel>
+                                <StackPanel
+                                    Visibility="{Binding Summary.HasOperatingMode, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    ToolTip="Operating mode saved with this optimizer run.">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Operating Mode" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.OperatingModeText}" />
+                                </StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SummaryCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Search &amp; Placement Summary" />
+                            <UniformGrid Margin="0,14,0,0" Columns="3">
+                                <StackPanel Margin="0,0,12,14" ToolTip="The total crane-position candidates produced for evaluation.">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Candidate Points Generated" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.CandidatePointsGeneratedText}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,14" ToolTip="Candidates that passed the applicable geometry, zone, and initial feasibility filters.">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Valid Candidate Points" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.ValidCandidatePointsText}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,0,14" ToolTip="Generated candidates excluded by the saved optimizer workflow.">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Rejected Candidate Points" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.RejectedCandidatePointsText}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,0" ToolTip="Setup positions retained in the completed optimizer result.">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Selected Crane Positions" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.SelectedCranePositionsText}" />
+                                </StackPanel>
+                                <StackPanel
+                                    Visibility="{Binding Summary.HasOptimizationTime, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    ToolTip="Reliable saved duration for the completed optimizer run.">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Optimization Time" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.OptimizationTimeText}" />
+                                </StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SummaryCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Recommended Action" />
+                            <Border
+                                Margin="0,12,0,0"
+                                Padding="14"
+                                Background="{DynamicResource PrimaryMutedBrush}"
+                                CornerRadius="7">
+                                <TextBlock
+                                    FontSize="16"
+                                    FontWeight="SemiBold"
+                                    Foreground="{DynamicResource TextPrimaryBrush}"
+                                    Text="{Binding Summary.PrimaryRecommendationText}"
+                                    TextWrapping="Wrap" />
+                            </Border>
+                            <ItemsControl
+                                Margin="0,9,0,0"
+                                ItemsSource="{Binding Summary.SecondaryRecommendations}"
+                                Visibility="{Binding Summary.HasSecondaryRecommendations, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock
+                                            Margin="2,4,0,0"
+                                            Foreground="{DynamicResource TextSecondaryBrush}"
+                                            Text="{Binding StringFormat=• {0}}"
+                                            TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                        Style="{StaticResource SummaryCard}"
+                        Visibility="{Binding Summary.HasAlternativesSection, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="Crane Alternatives" />
+                            <TextBlock
+                                Margin="0,10,0,0"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="{Binding Summary.AlternativesMessage}"
+                                TextWrapping="Wrap"
+                                Visibility="{Binding Summary.HasAlternativesMessage, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <Grid
+                                Margin="0,12,0,0"
+                                Grid.IsSharedSizeScope="True"
+                                Visibility="{Binding Summary.HasAlternativeRows, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <Grid Background="{DynamicResource SurfaceBrush}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.5*" />
+                                            <ColumnDefinition Width="0.8*" />
+                                            <ColumnDefinition Width="1.1*" />
+                                            <ColumnDefinition Width="0.9*" />
+                                            <ColumnDefinition Width="1.4*" />
+                                            <ColumnDefinition Width="1.8*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource TableHeader}" Text="CANDIDATE CRANE" />
+                                        <TextBlock Grid.Column="1" Style="{StaticResource TableHeader}" Text="RATED CAPACITY" />
+                                        <TextBlock Grid.Column="2" Style="{StaticResource TableHeader}" Text="CURRENT SUCCESSFUL PLAN PRESERVED" />
+                                        <TextBlock Grid.Column="3" Style="{StaticResource TableHeader}" Text="FAILED LIFTS RECOVERED" />
+                                        <TextBlock Grid.Column="4" Style="{StaticResource TableHeader}" Text="RESULT" />
+                                        <TextBlock Grid.Column="5" Style="{StaticResource TableHeader}" Text="RECOMMENDED NEXT STEP" />
+                                    </Grid>
+                                    <ItemsControl ItemsSource="{Binding Summary.AlternativeRows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="1.5*" />
+                                                            <ColumnDefinition Width="0.8*" />
+                                                            <ColumnDefinition Width="1.1*" />
+                                                            <ColumnDefinition Width="0.9*" />
+                                                            <ColumnDefinition Width="1.4*" />
+                                                            <ColumnDefinition Width="1.8*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Style="{StaticResource TableCell}" FontWeight="SemiBold" Text="{Binding Candidate}" />
+                                                        <TextBlock Grid.Column="1" Style="{StaticResource TableCell}" Text="{Binding RatedCapacity}" />
+                                                        <TextBlock Grid.Column="2" Style="{StaticResource TableCell}" Text="{Binding SuccessfulPlanPreserved}" />
+                                                        <TextBlock Grid.Column="3" Style="{StaticResource TableCell}" Text="{Binding FailedLiftsRecovered}" />
+                                                        <TextBlock Grid.Column="4" Style="{StaticResource TableCell}" Text="{Binding Result}" />
+                                                        <TextBlock Grid.Column="5" Style="{StaticResource TableCell}" Text="{Binding Recommendation}" />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SummaryCard}">
+                        <Expander IsExpanded="False">
+                            <Expander.Header>
+                                <TextBlock Style="{StaticResource SectionTitle}" Text="Limitations &amp; Safety Notes" />
+                            </Expander.Header>
+                            <StackPanel Margin="0,12,0,0">
+                                <ItemsControl ItemsSource="{Binding Summary.Limitations}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock
+                                                Margin="0,3"
+                                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                                Text="{Binding StringFormat=• {0}}"
+                                                TextWrapping="Wrap" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Border
+                                    Margin="0,12,0,0"
+                                    Padding="12"
+                                    Background="{DynamicResource SurfaceBrush}"
+                                    CornerRadius="6">
+                                    <TextBlock
+                                        Foreground="{DynamicResource TextPrimaryBrush}"
+                                        Text="{Binding Summary.SafetyNotice}"
+                                        TextWrapping="Wrap" />
+                                </Border>
+                            </StackPanel>
+                        </Expander>
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border
+            Grid.Row="1"
+            Padding="22,12"
+            Background="{DynamicResource SurfaceElevatedBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                    VerticalAlignment="Center"
+                    Foreground="{DynamicResource SuccessBrush}"
+                    Text="{Binding FeedbackText}"
+                    Visibility="{Binding HasFeedback, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button
+                        MinWidth="100"
+                        Margin="0,0,8,0"
+                        Command="{Binding OpenFolderCommand}"
+                        Content="Open Folder"
+                        ToolTip="Open the folder containing this run’s saved Lift Summary." />
+                    <Button
+                        MinWidth="110"
+                        Margin="0,0,8,0"
+                        Command="{Binding CopySummaryCommand}"
+                        Content="Copy Summary"
+                        ToolTip="Copy the lifting result, utilization evidence, and recommended next action." />
+                    <Button
+                        MinWidth="80"
+                        Command="{Binding CloseCommand}"
+                        Content="Close"
+                        ToolTip="Close Lift Summary." />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

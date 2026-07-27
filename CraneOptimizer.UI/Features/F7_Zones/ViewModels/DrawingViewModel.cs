@@ -6,10 +6,16 @@ using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.UI.Features.F7_Zones.Views;
+using System.Collections.Immutable;
 using System.Globalization;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Media3D;
 using System.Windows.Threading;
 
 namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
@@ -41,6 +47,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         private readonly ZoneListViewModel _zoneList;
         private readonly IZoneGeometryService _geometryService;
         private readonly IUnitSettingsService? _unitSettings;
+        private readonly IOsnapService? _osnapService;
 
         // ── Timers ───────────────────────────────────────────────────────────
         private readonly DispatcherTimer _inlineWarningTimer;
@@ -61,8 +68,16 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         public event EventHandler? MeasurementLabelsChanged;
 
         // ── Snap ─────────────────────────────────────────────────────────────
-        private readonly SnapSystem _snap = new();
-        private bool _isGridEnabled; // off by default; point snap + ortho always active
+        private CancellationTokenSource? _transientUpdateCancellation;
+        private Task _transientUpdateTask = Task.CompletedTask;
+        private ImmutableList<Point3D> _transientSnapVertices =
+            ImmutableList<Point3D>.Empty;
+        private long _drawingSessionVersion;
+        private CancellationTokenSource? _sceneScaleCancellation;
+        private int _sceneScaleGeneration;
+        private double _sceneSize = 10.0;
+        private int _pendingPointResolutionCount;
+        private FinishReason? _deferredFinishReason;
 
         // ── Layer names ──────────────────────────────────────────────────────
         private const string PreviewLayer = "Preview";
@@ -85,7 +100,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             IViewportInteractionService interaction,
             IViewportHitTestService hitTest,
             IZoneGeometryService geometryService,
-            IUnitSettingsService? unitSettings = null)
+            IUnitSettingsService? unitSettings = null,
+            IOsnapService? osnapService = null)
         {
             _drawing = drawing;
             _scene = scene;
@@ -94,10 +110,20 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             _hitTest = hitTest;
             _geometryService = geometryService;
             _unitSettings = unitSettings;
+            _osnapService = osnapService;
             _zoneList = new ZoneListViewModel(scene);
 
             if (_unitSettings != null)
                 _unitSettings.SettingsChanged += OnUnitSettingsChanged;
+            if (_osnapService != null)
+                _osnapService.MasterEnabledChanged += OnOsnapMasterEnabledChanged;
+            _scene.ElementsChanged += OnSceneElementsChanged;
+            IReadOnlyList<CraneOptimizer.Domain.Schemas.PrecastElement>
+                initialElements = _scene.GetElementSnapshot();
+            if (initialElements.Count > 0)
+            {
+                QueueSceneScaleUpdate(initialElements);
+            }
 
             // Commands
             StartAllowedCommand = new RelayCommand(StartAllowed);
@@ -142,6 +168,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         }
 
         public int PointCount => _drawing.GetPoints().Count;
+        public long DrawingSessionVersion =>
+            Interlocked.Read(ref _drawingSessionVersion);
         public bool IsHintVisible => IsDrawing;
 
         private string _hintText = string.Empty;
@@ -229,8 +257,71 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         public void HandleViewportLeftClick(DomainPoint3D rawPoint, bool shiftDown = false)
         {
             bool shift = shiftDown || IsShiftDown;
-            if (IsDrawing) { AddPoint(rawPoint, shift); return; }
+            if (IsDrawing)
+            {
+                CommitResolvedPoint(rawPoint, shift, acceptedSnap: null);
+                return;
+            }
             if (IsMeasuring) { HandleMeasureClick(rawPoint); }
+        }
+
+        /// <summary>
+        /// Commits the point resolved by the authoritative viewport pipeline.
+        /// Modifier state is captured before any await and is never re-read here.
+        /// </summary>
+        public bool CommitResolvedPoint(
+            DomainPoint3D rawPoint,
+            bool capturedShift,
+            OsnapResult? acceptedSnap)
+        {
+            if (!IsDrawing)
+                return false;
+
+            DomainPoint3D point = ResolveDrawingPoint(
+                rawPoint,
+                capturedShift,
+                acceptedSnap);
+            return AddResolvedPoint(point);
+        }
+
+        /// <summary>
+        /// Pins a drawing session while the authoritative viewport resolves a
+        /// click asynchronously. Finish requests are deferred until that click
+        /// has either committed or been rejected; cancellation/replacement still
+        /// ends the session immediately.
+        /// </summary>
+        public bool BeginPointResolution(long drawingSessionVersion)
+        {
+            if (!IsDrawing ||
+                drawingSessionVersion != DrawingSessionVersion)
+            {
+                return false;
+            }
+
+            _pendingPointResolutionCount++;
+            return true;
+        }
+
+        public void CompletePointResolution(long drawingSessionVersion)
+        {
+            if (!IsDrawing ||
+                drawingSessionVersion != DrawingSessionVersion)
+            {
+                return;
+            }
+
+            if (_pendingPointResolutionCount > 0)
+                _pendingPointResolutionCount--;
+
+            if (_pendingPointResolutionCount != 0 ||
+                !_deferredFinishReason.HasValue)
+            {
+                return;
+            }
+
+            FinishReason reason = _deferredFinishReason.Value;
+            _deferredFinishReason = null;
+            FinishDrawingFromUserAction(reason);
         }
 
         /// <summary>Entry point for right-click from the viewport.</summary>
@@ -248,22 +339,32 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         /// AND handle measure hover — DrawingInteractionMode calls this for all MouseMove events,
         /// so both modes are served from the same entry point.
         /// </summary>
-        public void SetHoverPoint(DomainPoint3D rawPoint, bool shiftDown = false)
+        public void SetHoverPoint(
+            DomainPoint3D rawPoint,
+            bool shiftDown = false,
+            OsnapResult? acceptedSnap = null)
         {
             bool shift = shiftDown || IsShiftDown;
+            SetResolvedHoverPoint(rawPoint, shift, acceptedSnap);
+        }
 
+        public void SetResolvedHoverPoint(
+            DomainPoint3D rawPoint,
+            bool capturedShift,
+            OsnapResult? acceptedSnap)
+        {
             if (IsDrawing)
             {
-                _snap.UpdateScale(GetSceneSize());
-                var snap = _snap.Snap(rawPoint, GetAllSnapTargets(), LastDrawnPoint(), shift, _isGridEnabled);
-                _currentHover = snap.Point;
+                _currentHover = ResolveDrawingPoint(
+                    rawPoint,
+                    capturedShift,
+                    acceptedSnap);
                 RenderPreview();
-                RenderSnapIndicator(snap);
             }
 
             if (IsMeasuring)
             {
-                SetMeasureHoverPoint(rawPoint, shift);
+                SetMeasureHoverPoint(rawPoint, capturedShift);
             }
         }
 
@@ -356,12 +457,22 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         public void Start()
         {
             StopMeasureMode();
+            if (IsDrawing)
+                _interaction.PopMode();
             _interaction.PushMode(new Interaction.DrawingInteractionMode(this, _hitTest, _interaction));
+            long sessionVersion =
+                Interlocked.Increment(ref _drawingSessionVersion);
             _drawing.Start();
+            _transientSnapVertices =
+                ImmutableList<Point3D>.Empty;
+            _pendingPointResolutionCount = 0;
+            _deferredFinishReason = null;
             _currentHover = null;
             _render.ClearLayer(PreviewLayer);
             _render.ClearLayer(SnapIndicatorLayer);
             IsDrawing = true;
+            _osnapService?.ClearTransientZoneGeometry(sessionVersion);
+            QueueTransientSnapGeometry();
             _escPendingConfirmation = false;
             _escConfirmTimer.Stop();
             HideInlineWarning();
@@ -384,22 +495,23 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             Start();
         }
 
-        private void AddPoint(DomainPoint3D rawPoint, bool shiftDown = false)
+        private bool AddResolvedPoint(DomainPoint3D point)
         {
-            if (!IsDrawing) return;
-
-            _snap.UpdateScale(GetSceneSize());
-            var lastPt = LastDrawnPoint();
-            var snap = _snap.Snap(rawPoint, GetAllSnapTargets(), lastPt, shiftDown, _isGridEnabled);
-            var point = snap.Point;
+            if (!IsDrawing)
+                return false;
 
             if (!_drawing.TryAddPoint(point))
-                return;
+                return false;
 
+            _transientSnapVertices =
+                _transientSnapVertices.Add(
+                    new Point3D(point.X, point.Y, point.Z));
             _currentHover = null;
             _render.ClearLayer(SnapIndicatorLayer);
+            QueueTransientSnapGeometry();
             OnPointCollectionChanged();
             RenderPreview();
+            return true;
         }
 
         public void Finish() => FinishDrawingFromUserAction(FinishReason.ToolbarFinishButton);
@@ -407,6 +519,11 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         public void FinishDrawingFromUserAction(FinishReason reason)
         {
             if (!IsDrawing) return;
+            if (_pendingPointResolutionCount > 0)
+            {
+                _deferredFinishReason = reason;
+                return;
+            }
 
             var rawPoints = _drawing.GetPoints();
             var uniquePoints = _geometryService.NormalizeVertices(rawPoints);
@@ -506,6 +623,13 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
                 return;
             }
             pts.RemoveAt(pts.Count - 1);
+            if (_transientSnapVertices.Count > 0)
+            {
+                _transientSnapVertices =
+                    _transientSnapVertices.RemoveAt(
+                        _transientSnapVertices.Count - 1);
+            }
+            QueueTransientSnapGeometry();
             OnPointCollectionChanged();
             RenderPreview();
         }
@@ -657,20 +781,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         // Snap indicator
         // ════════════════════════════════════════════════════════════════════
 
-        private void RenderSnapIndicator(SnapResult snap)
-        {
-            if (!snap.Snapped)
-            {
-                _render.ClearLayer(SnapIndicatorLayer);
-                return;
-            }
-
-            _render.Render(
-                new[] { new SnapIndicatorData(snap.Point, snap.Type) },
-                new SnapIndicatorBuilder(),
-                SnapIndicatorLayer);
-        }
-
         private void RenderMeasurementPickMarker(DomainPoint3D point)
         {
             _render.Render(
@@ -775,7 +885,16 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         private void EndDrawingSession()
         {
             if (IsDrawing) _interaction.PopMode();
+            _pendingPointResolutionCount = 0;
+            _deferredFinishReason = null;
+            CancelTransientUpdate();
+            long closedSessionVersion =
+                Interlocked.Increment(ref _drawingSessionVersion);
+            _osnapService?.ClearTransientZoneGeometry(
+                closedSessionVersion);
             _drawing.Start();
+            _transientSnapVertices =
+                ImmutableList<Point3D>.Empty;
             _render.ClearLayer(PreviewLayer);
             _render.ClearLayer(SnapIndicatorLayer);
             IsDrawing = false;
@@ -804,27 +923,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         // Snap target collection
         // ════════════════════════════════════════════════════════════════════
 
-        private IEnumerable<DomainPoint3D> GetAllSnapTargets()
-        {
-            // Existing zone vertices
-            foreach (var zone in _scene.GetZones())
-                foreach (var v in zone.Vertices)
-                    yield return v;
-
-            // Current measure points
-            foreach (var mp in _measurePoints)
-                yield return mp;
-
-            // Current drawing points (excluding the very last to allow undo)
-            var drawPts = _drawing.GetPoints();
-            for (int i = 0; i < drawPts.Count - 1; i++)
-                yield return drawPts[i];
-
-            // First drawing point (to enable close-polygon snap)
-            if (drawPts.Count >= 3)
-                yield return drawPts[0];
-        }
-
         // ════════════════════════════════════════════════════════════════════
         // Geometry helpers
         // ════════════════════════════════════════════════════════════════════
@@ -846,24 +944,302 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             var dy = first.Y - h.Y;
             var dz = first.Z - h.Z;
             var dist = System.Math.Sqrt(dx * dx + dy * dy + dz * dz);
-            return dist <= GetSceneSize() * SnapToFirstThresholdPercent;
+            return dist <= PreviewClosureThreshold();
         }
 
-        private double GetSceneSize()
+        private DomainPoint3D ResolveDrawingPoint(
+            DomainPoint3D rawPoint,
+            bool capturedShift,
+            OsnapResult? acceptedSnap)
         {
-            var elements = _scene.GetElements();
-            if (elements.Count == 0) return 10.0;
+            if (acceptedSnap != null &&
+                (_osnapService?.Settings.MasterEnabled ?? true))
+            {
+                Point3D snapped = acceptedSnap.WorldPoint;
+                return new DomainPoint3D(
+                    snapped.X,
+                    snapped.Y,
+                    snapped.Z);
+            }
 
-            var minX = elements.Min(e => e.ElementCOG.X);
-            var maxX = elements.Max(e => e.ElementCOG.X);
-            var minY = elements.Min(e => e.ElementCOG.Y);
-            var maxY = elements.Max(e => e.ElementCOG.Y);
-            var minZ = elements.Min(e => e.ElementCOG.Z);
-            var maxZ = elements.Max(e => e.ElementCOG.Z);
+            if (TryResolveFirstPointClosure(
+                    rawPoint,
+                    out DomainPoint3D closedPoint))
+            {
+                return closedPoint;
+            }
 
-            return System.Math.Max(
+            DomainPoint3D? lastPoint = LastDrawnPoint();
+            if (capturedShift && lastPoint != null)
+                return ApplyOrthogonalConstraint(rawPoint, lastPoint);
+
+            return rawPoint;
+        }
+
+        private bool TryResolveFirstPointClosure(
+            DomainPoint3D rawPoint,
+            out DomainPoint3D firstPoint)
+        {
+            List<DomainPoint3D> points = _drawing.GetPoints();
+            if (points.Count < 3)
+            {
+                firstPoint = rawPoint;
+                return false;
+            }
+
+            firstPoint = points[0];
+            double deltaX = firstPoint.X - rawPoint.X;
+            double deltaY = firstPoint.Y - rawPoint.Y;
+            double deltaZ = firstPoint.Z - rawPoint.Z;
+            double distanceSquared =
+                deltaX * deltaX +
+                deltaY * deltaY +
+                deltaZ * deltaZ;
+            double threshold = FirstPointClosureThreshold();
+            return distanceSquared <= threshold * threshold;
+        }
+
+        private double PreviewClosureThreshold()
+        {
+            double sceneScale = Volatile.Read(ref _sceneSize);
+            return sceneScale * SnapToFirstThresholdPercent;
+        }
+
+        private double FirstPointClosureThreshold()
+        {
+            double sceneScale = Volatile.Read(ref _sceneSize);
+            return Math.Max(
+                0.25,
+                sceneScale * 0.018);
+        }
+
+        private void OnSceneElementsChanged(
+            List<CraneOptimizer.Domain.Schemas.PrecastElement> elements)
+            => QueueSceneScaleUpdate(elements);
+
+        private void QueueSceneScaleUpdate(
+            IReadOnlyList<CraneOptimizer.Domain.Schemas.PrecastElement> elements)
+        {
+            int generation =
+                Interlocked.Increment(ref _sceneScaleGeneration);
+            var cancellation = new CancellationTokenSource();
+            CancellationTokenSource? superseded =
+                Interlocked.Exchange(
+                    ref _sceneScaleCancellation,
+                    cancellation);
+            try
+            {
+                superseded?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+
+            _ = UpdateSceneScaleAsync(
+                elements,
+                generation,
+                cancellation);
+        }
+
+        private async Task UpdateSceneScaleAsync(
+            IReadOnlyList<CraneOptimizer.Domain.Schemas.PrecastElement> elements,
+            int generation,
+            CancellationTokenSource cancellation)
+        {
+            try
+            {
+                double sceneSize = await Task.Run(
+                        () => ComputeSceneSize(
+                            elements,
+                            cancellation.Token),
+                        cancellation.Token)
+                    .ConfigureAwait(false);
+                if (generation ==
+                        Volatile.Read(ref _sceneScaleGeneration) &&
+                    !cancellation.IsCancellationRequested)
+                {
+                    Volatile.Write(ref _sceneSize, sceneSize);
+                }
+            }
+            catch (OperationCanceledException)
+                when (cancellation.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[Drawing] Scene scale update failed: " +
+                    exception.Message);
+            }
+            finally
+            {
+                Interlocked.CompareExchange(
+                    ref _sceneScaleCancellation,
+                    null,
+                    cancellation);
+                cancellation.Dispose();
+            }
+        }
+
+        private static double ComputeSceneSize(
+            IReadOnlyList<CraneOptimizer.Domain.Schemas.PrecastElement> elements,
+            CancellationToken cancellationToken)
+        {
+            double minX = double.PositiveInfinity;
+            double minY = double.PositiveInfinity;
+            double minZ = double.PositiveInfinity;
+            double maxX = double.NegativeInfinity;
+            double maxY = double.NegativeInfinity;
+            double maxZ = double.NegativeInfinity;
+            for (int index = 0; index < elements.Count; index++)
+            {
+                if ((index & 255) == 0)
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                DomainPoint3D? center = elements[index].ElementCOG;
+                if (center == null)
+                    continue;
+
+                minX = Math.Min(minX, center.X);
+                minY = Math.Min(minY, center.Y);
+                minZ = Math.Min(minZ, center.Z);
+                maxX = Math.Max(maxX, center.X);
+                maxY = Math.Max(maxY, center.Y);
+                maxZ = Math.Max(maxZ, center.Z);
+            }
+
+            if (!double.IsFinite(minX))
+                return 10.0;
+
+            return Math.Max(
                 1.0,
-                System.Math.Max(maxX - minX, System.Math.Max(maxY - minY, maxZ - minZ)));
+                Math.Max(
+                    maxX - minX,
+                    Math.Max(maxY - minY, maxZ - minZ)));
+        }
+
+        private static DomainPoint3D ApplyOrthogonalConstraint(
+            DomainPoint3D rawPoint,
+            DomainPoint3D anchor)
+        {
+            double deltaX = Math.Abs(rawPoint.X - anchor.X);
+            double deltaY = Math.Abs(rawPoint.Y - anchor.Y);
+            return deltaX >= deltaY
+                ? new DomainPoint3D(
+                    rawPoint.X,
+                    anchor.Y,
+                    anchor.Z)
+                : new DomainPoint3D(
+                    anchor.X,
+                    rawPoint.Y,
+                    anchor.Z);
+        }
+
+        private void QueueTransientSnapGeometry()
+        {
+            IOsnapService? service = _osnapService;
+            if (service == null)
+                return;
+
+            CancelTransientUpdate();
+            long sessionVersion = DrawingSessionVersion;
+            if (!IsDrawing || !service.Settings.MasterEnabled)
+            {
+                service.ClearTransientZoneGeometry(sessionVersion);
+                return;
+            }
+
+            ImmutableList<Point3D> snapshot =
+                _transientSnapVertices;
+
+            var cancellation = new CancellationTokenSource();
+            Interlocked.Exchange(
+                ref _transientUpdateCancellation,
+                cancellation);
+            _transientUpdateTask = PublishTransientSnapGeometryAsync(
+                service,
+                sessionVersion,
+                snapshot,
+                cancellation);
+        }
+
+        private async Task PublishTransientSnapGeometryAsync(
+            IOsnapService service,
+            long sessionVersion,
+            IReadOnlyList<Point3D> snapshot,
+            CancellationTokenSource cancellation)
+        {
+            try
+            {
+                await service.SetTransientZoneGeometryAsync(
+                        sessionVersion,
+                        snapshot,
+                        cancellation.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+                when (cancellation.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[OSnap] Active-zone index refresh failed: " +
+                    exception.Message);
+            }
+            finally
+            {
+                Interlocked.CompareExchange(
+                    ref _transientUpdateCancellation,
+                    null,
+                    cancellation);
+                cancellation.Dispose();
+            }
+        }
+
+        private void CancelTransientUpdate()
+        {
+            CancellationTokenSource? cancellation =
+                Interlocked.Exchange(
+                    ref _transientUpdateCancellation,
+                    null);
+            if (cancellation == null)
+                return;
+
+            try
+            {
+                cancellation.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The completed worker won the exchange and disposed its token.
+            }
+        }
+
+        private void OnOsnapMasterEnabledChanged(bool enabled)
+        {
+            Dispatcher? dispatcher =
+                System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.BeginInvoke(
+                    DispatcherPriority.DataBind,
+                    new Action(
+                        () => OnOsnapMasterEnabledChanged(enabled)));
+                return;
+            }
+
+            if (!IsDrawing)
+                return;
+
+            if (enabled)
+                QueueTransientSnapGeometry();
+            else
+            {
+                CancelTransientUpdate();
+                _osnapService?.ClearTransientZoneGeometry(
+                    DrawingSessionVersion);
+            }
         }
 
         // ════════════════════════════════════════════════════════════════════

@@ -37,12 +37,14 @@
 
             <Rectangle Style="{StaticResource RibbonSep}" />
 
-            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="REPORTS">
-                <StackPanel Orientation="Horizontal">
-                    <Button Content="Export Analysis" Style="{StaticResource RibbonMajorLeadingCommandTile}" Tag="📄" />
-                    <Button Content="Export Zones (JSON)" Style="{StaticResource RibbonMajorMiddleCommandTile}" Tag="📤" ToolTip="Export Zones (JSON)" />
-                    <Button Command="{Binding ShowDiagnosticsCommand}" Content="GA Diagnostics" Style="{StaticResource RibbonMajorTrailingCommandTile}" Tag="📈" />
-                </StackPanel>
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="SUMMARY">
+                <Button
+                    AutomationProperties.Name="Lift Summary"
+                    Command="{Binding ShowLiftAnalysisCommand}"
+                    Content="Lift Summary"
+                    Style="{StaticResource RibbonMajorCommandTile}"
+                    Tag="📈"
+                    ToolTip="Open the saved Lift Summary for the selected optimizer run." />
             </ContentControl>
 
             <Rectangle Style="{StaticResource RibbonSep}" />

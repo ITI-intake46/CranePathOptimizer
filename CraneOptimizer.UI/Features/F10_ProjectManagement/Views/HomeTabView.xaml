@@ -7,36 +7,20 @@
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
         <StackPanel Margin="6,0" Orientation="Horizontal">
 
-            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="PROJECT">
-                <StackPanel Orientation="Horizontal">
-                    <Button
-                        Command="{Binding NewProjectCommand}"
-                        Content="New"
-                        FontSize="{StaticResource FontSizeXS}"
-                        Style="{StaticResource RibbonMajorLeadingCommandTile}">
-                        <Button.Tag>
-                            <TextBlock FontSize="26" Text="🆕" />
-                        </Button.Tag>
-                    </Button>
-                    <Button
-                        Command="{Binding OpenProjectCommand}"
-                        Content="Open"
-                        FontSize="{StaticResource FontSizeXS}"
-                        Style="{StaticResource RibbonMajorMiddleCommandTile}">
-                        <Button.Tag>
-                            <TextBlock FontSize="26" Text="📂" />
-                        </Button.Tag>
-                    </Button>
-                    <Button
-                        Command="{Binding SaveProjectCommand}"
-                        Content="Save"
-                        FontSize="{StaticResource FontSizeXS}"
-                        Style="{StaticResource RibbonMajorTrailingCommandTile}">
-                        <Button.Tag>
-                            <TextBlock FontSize="26" Text="💾" />
-                        </Button.Tag>
-                    </Button>
-                </StackPanel>
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="PROJECT">
+                <Button
+                    Command="{Binding OpenProjectFolderCommand}"
+                    ContentTemplate="{x:Null}"
+                    Style="{StaticResource RibbonMajorCommandTile}"
+                    ToolTip="Open the active project folder in Windows File Explorer">
+                    <Button.Tag>
+                        <TextBlock FontSize="26" Text="📂" />
+                    </Button.Tag>
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock HorizontalAlignment="Center" Text="Open Folder" />
+                        <TextBlock HorizontalAlignment="Center" Text="Location" />
+                    </StackPanel>
+                </Button>
             </ContentControl>
 
             <Rectangle Style="{StaticResource RibbonSep}" />

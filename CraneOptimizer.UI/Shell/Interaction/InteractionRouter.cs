@@ -79,6 +79,11 @@ namespace CraneOptimizer.UI.Shell.Interaction
             var drawingVm = _vm.Drawing;
             if (drawingVm != null && (drawingVm.IsDrawing || drawingVm.IsMeasuring))
             {
+                // IfcViewerControl owns asynchronous zone click resolution so
+                // the canonical IOsnapService result is committed exactly once.
+                if (drawingVm.IsDrawing)
+                    return;
+
                 HandleDrawingInteraction(viewport, e, drawingVm);
                 return;
             }
@@ -140,15 +145,7 @@ namespace CraneOptimizer.UI.Shell.Interaction
                 return;
             }
 
-            var drawingVm = _vm.Drawing;
-            if (drawingVm != null && drawingVm.IsDrawing)
-            {
-                var screen = e.GetPosition(viewport);
-                if (!_hitTest.TryGetWorldPoint(viewport, screen, out var world))
-                    return;
-
-                drawingVm.SetHoverPoint(new DomainPoint3D(world.X, world.Y, world.Z));
-            }
+            // IfcViewerControl owns asynchronous zone hover resolution.
         }
 
         public void OnMouseUp(HelixViewport3D viewport, MouseButtonEventArgs e)

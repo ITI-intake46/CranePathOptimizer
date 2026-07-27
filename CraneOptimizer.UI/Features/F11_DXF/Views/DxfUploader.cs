@@ -12,12 +12,14 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
+using System.Windows.Threading;
 
 namespace CraneOptimizer.UI.Features.F11_DXF.Views
 {
     public class DxfUploader
     {
         private readonly HelixViewport3D _viewport;
+        private readonly Dispatcher _uiDispatcher;
         private readonly List<ModelVisual3D> _dxfVisuals = new();
         private readonly List<TextVisual3D> _textVisuals = new();
         private readonly HashSet<TextVisual3D> _zoneContrastTextVisuals = new();
@@ -33,8 +35,11 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         private (Point3D A, Point3D B)[] _snapMidpointSource = Array.Empty<(Point3D, Point3D)>();
         private Point3D[] _snapCenterSource = Array.Empty<Point3D>();
         private Point3D[] _snapQuadrantSource = Array.Empty<Point3D>();
+        private DxfSnapDataSnapshot _snapDataSnapshot =
+            DxfSnapDataSnapshot.Empty;
         private Rect _rawBounds = Rect.Empty;
         private int _snapRefreshGeneration;
+        private CancellationTokenSource? _snapRefreshCancellation;
         private int _zoneContrastRefreshGeneration;
         private readonly SceneDxf? _selectionTarget;
         private bool _isSelectionHighlighted;
@@ -50,11 +55,19 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         private Matrix3D _currentRenderTransform = Matrix3D.Identity;
         private DxfDocument? _loadedDocument;
 
-        public List<Point3D> SnapPoints { get; private set; } = new();
-        public List<(Point3D A, Point3D B)> SnapSegments { get; private set; } = new();
-        public List<(Point3D A, Point3D B)> SnapMidpointSegments { get; private set; } = new();
-        public List<Point3D> SnapCenters { get; private set; } = new();
-        public List<Point3D> SnapQuadrants { get; private set; } = new();
+        public IReadOnlyList<Point3D> SnapPoints { get; private set; } =
+            Array.Empty<Point3D>();
+        public IReadOnlyList<(Point3D A, Point3D B)> SnapSegments { get; private set; } =
+            Array.Empty<(Point3D, Point3D)>();
+        public IReadOnlyList<(Point3D A, Point3D B)> SnapMidpointSegments { get; private set; } =
+            Array.Empty<(Point3D, Point3D)>();
+        public IReadOnlyList<Point3D> SnapCenters { get; private set; } =
+            Array.Empty<Point3D>();
+        public IReadOnlyList<Point3D> SnapQuadrants { get; private set; } =
+            Array.Empty<Point3D>();
+
+        public DxfSnapDataSnapshot GetSnapDataSnapshot() =>
+            Volatile.Read(ref _snapDataSnapshot);
 
         public bool IsLoaded { get; private set; }
         public string? LoadedFilePath { get; private set; }
@@ -132,6 +145,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         public DxfUploader(HelixViewport3D viewport, SceneDxf? selectionTarget = null)
         {
             _viewport = viewport;
+            _uiDispatcher = viewport.Dispatcher;
             _selectionTarget = selectionTarget;
         }
 
@@ -140,6 +154,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             bool showText,
             CancellationToken cancellationToken = default)
         {
+            _uiDispatcher.VerifyAccess();
             _showText = showText;
             LastLoadDiagnostic = "";
 
@@ -159,25 +174,31 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             try
             {
                 prepared = await Task.Run(
-                    () => PrepareDxfGeometry(loadResult.Document),
+                    () => PrepareDxfGeometry(
+                        loadResult.Document,
+                        cancellationToken),
+                    cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                await CommitPreparedGeometryAsync(
+                    prepared,
                     cancellationToken);
             }
             catch (OperationCanceledException)
             {
+                ClearVisualsAndSnapData();
                 _loadedDocument = null;
                 LoadedFilePath = null;
                 throw;
             }
             catch (Exception ex)
             {
+                ClearVisualsAndSnapData();
                 LastLoadDiagnostic = $"DXF geometry preparation failed: {ex.Message}";
                 _loadedDocument = null;
                 LoadedFilePath = null;
                 return false;
             }
 
-            cancellationToken.ThrowIfCancellationRequested();
-            CommitPreparedGeometry(prepared);
             IsLoaded = true;
             Log($"Render done. Points: {prepared.PointCount}");
             RaiseSnapDataChanged();
@@ -215,9 +236,13 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             }
         }
 
-        private PreparedDxfGeometry PrepareDxfGeometry(DxfDocument dxf)
+        private PreparedDxfGeometry PrepareDxfGeometry(
+            DxfDocument dxf,
+            CancellationToken cancellationToken)
         {
-            var linePointsByColor = new Dictionary<Color, Point3DCollection>();
+            cancellationToken.ThrowIfCancellationRequested();
+            var linePointsByColor =
+                new Dictionary<Color, List<Point3D>>();
             _dxfRebase = Matrix3D.Identity;
             _currentRenderTransform = Matrix3D.Identity;
             _rawTextItems.Clear();
@@ -229,6 +254,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             {
                 foreach (var line in dxf.Entities.Lines)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     try
                     {
                         var points = GetSegmentPoints(linePointsByColor, ResolveColor(line.Color, line.Layer));
@@ -242,12 +268,16 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                     catch { }
                 }
             }
-            catch (Exception ex) { Log($"Lines collection error: {ex.Message}"); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log($"Lines collection error: {ex.Message}");
+            }
 
             try
             {
                 foreach (var poly in dxf.Entities.Polylines2D)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     try
                     {
                         var points = GetSegmentPoints(linePointsByColor, ResolveColor(poly.Color, poly.Layer));
@@ -267,12 +297,16 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                     catch { }
                 }
             }
-            catch (Exception ex) { Log($"Polylines2D collection error: {ex.Message}"); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log($"Polylines2D collection error: {ex.Message}");
+            }
 
             try
             {
                 foreach (var circle in dxf.Entities.Circles)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     try
                     {
                         var points = GetSegmentPoints(linePointsByColor, ResolveColor(circle.Color, circle.Layer));
@@ -300,12 +334,16 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                     catch { }
                 }
             }
-            catch (Exception ex) { Log($"Circles collection error: {ex.Message}"); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log($"Circles collection error: {ex.Message}");
+            }
 
             try
             {
                 foreach (var arc in dxf.Entities.Arcs)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     try
                     {
                         var points = GetSegmentPoints(linePointsByColor, ResolveColor(arc.Color, arc.Layer));
@@ -350,12 +388,16 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                     catch { }
                 }
             }
-            catch (Exception ex) { Log($"Arcs collection error: {ex.Message}"); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log($"Arcs collection error: {ex.Message}");
+            }
 
             try
             {
                 foreach (var ellipse in dxf.Entities.Ellipses)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     try
                     {
                         if (!ellipse.IsVisible) continue;
@@ -365,12 +407,16 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                     catch { }
                 }
             }
-            catch (Exception ex) { Log($"Ellipses collection error: {ex.Message}"); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log($"Ellipses collection error: {ex.Message}");
+            }
 
             try
             {
                 foreach (var spline in dxf.Entities.Splines)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     try
                     {
                         var points = GetSegmentPoints(linePointsByColor, ResolveColor(spline.Color, spline.Layer));
@@ -403,19 +449,30 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                     catch { }
                 }
             }
-            catch (Exception ex) { Log($"Splines collection error: {ex.Message}"); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log($"Splines collection error: {ex.Message}");
+            }
 
+            cancellationToken.ThrowIfCancellationRequested();
             textCount = CollectTextVisuals(dxf, _rawTextItems);
+            cancellationToken.ThrowIfCancellationRequested();
             LastTextEntityCount = textCount;
             LastRenderedTextCount = ShowText ? _rawTextItems.Count : 0;
 
             Log($"Entities - Lines:{lineCount} Polys:{polyCount} Circles:{circleCount} Arcs:{arcCount} Ellipses:{ellipseCount} Splines:{splineCount} Text:{textCount} RenderedText:{LastRenderedTextCount}");
 
-            var pointCount = linePointsByColor.Values.Sum(points => points.Count);
-            foreach (Point3DCollection points in linePointsByColor.Values)
+            var preparedLinePoints =
+                new Dictionary<Color, Point3D[]>(
+                    linePointsByColor.Count);
+            int pointCount = 0;
+            foreach ((Color color, List<Point3D> points) in
+                     linePointsByColor)
             {
-                if (points.CanFreeze)
-                    points.Freeze();
+                cancellationToken.ThrowIfCancellationRequested();
+                Point3D[] pointSnapshot = points.ToArray();
+                preparedLinePoints[color] = pointSnapshot;
+                pointCount += pointSnapshot.Length;
             }
 
             _snapPointSource = _rawSnapPoints.ToArray();
@@ -425,15 +482,39 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             _snapQuadrantSource = _rawSnapQuadrants.ToArray();
             UpdateRawBounds();
             _currentRenderTransform = ComputeRenderTransform();
-            UpdateSnapDataFromRawTransform();
-            return new PreparedDxfGeometry(linePointsByColor, pointCount);
+            UpdateSnapDataFromRawTransform(cancellationToken);
+            return new PreparedDxfGeometry(
+                preparedLinePoints,
+                pointCount);
         }
 
-        private void CommitPreparedGeometry(PreparedDxfGeometry prepared)
+        private async Task CommitPreparedGeometryAsync(
+            PreparedDxfGeometry prepared,
+            CancellationToken cancellationToken)
         {
             byte alpha = ResolveDisplayAlpha();
-            foreach ((Color baseColor, Point3DCollection points) in prepared.LinePointsByColor)
+            foreach ((Color baseColor, Point3D[] pointSnapshot) in
+                     prepared.LinePointsByColor)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                var points =
+                    new Point3DCollection(pointSnapshot.Length);
+                for (int index = 0;
+                     index < pointSnapshot.Length;
+                     index++)
+                {
+                    points.Add(pointSnapshot[index]);
+                    if ((index & 1023) == 1023)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        await Dispatcher.Yield(
+                            DispatcherPriority.Background);
+                    }
+                }
+
+                if (points.CanFreeze)
+                    points.Freeze();
+
                 Color displayColor = ResolveLineDisplayColor(baseColor);
                 var dxfLines = new LinesVisual3D
                 {
@@ -452,12 +533,14 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                 EnsureTextVisualsCreated();
         }
 
-        private Point3DCollection GetSegmentPoints(Dictionary<Color, Point3DCollection> linePointsByColor, Color color)
+        private List<Point3D> GetSegmentPoints(
+            Dictionary<Color, List<Point3D>> linePointsByColor,
+            Color color)
         {
             var baseColor = color;
             if (!linePointsByColor.TryGetValue(baseColor, out var points))
             {
-                points = new Point3DCollection();
+                points = new List<Point3D>();
                 linePointsByColor[baseColor] = points;
             }
 
@@ -482,7 +565,11 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         private Point3D TransformPoint(double x, double y, double z = 0.002)
             => new(x, y, z);
 
-        private void AddSegment(Point3DCollection? points, Point3D a, Point3D b, bool includeMidpointSnap)
+        private void AddSegment(
+            List<Point3D>? points,
+            Point3D a,
+            Point3D b,
+            bool includeMidpointSnap)
         {
             if (!IsFinite(a) || !IsFinite(b)) return;
 
@@ -493,7 +580,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                 _rawSnapMidpointSegments.Add((a, b));
         }
 
-        private void AddEllipse(Point3DCollection? points, Ellipse ellipse)
+        private void AddEllipse(List<Point3D>? points, Ellipse ellipse)
         {
             double majorRadius = Math.Abs(ellipse.MajorAxis) / 2.0;
             double minorRadius = Math.Abs(ellipse.MinorAxis) / 2.0;
@@ -886,7 +973,9 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             _textVisuals.Add(visual);
         }
 
-        private static void NormalizeTextHeights(List<DxfTextVisualData> textItems, Point3DCollection linePoints)
+        private static void NormalizeTextHeights(
+            List<DxfTextVisualData> textItems,
+            IReadOnlyList<Point3D> linePoints)
         {
             if (textItems.Count == 0)
                 return;
@@ -1003,68 +1092,6 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         {
             var direction = new Vector3D(x, y, 0);
             return IsFinite(direction) ? direction.Length : 1.0;
-        }
-
-        private void RebaseFarFromOrigin(Point3DCollection points, List<DxfTextVisualData> textItems)
-        {
-            if (points.Count == 0 && textItems.Count == 0) return;
-
-            try
-            {
-                double minX = double.PositiveInfinity;
-                double minY = double.PositiveInfinity;
-                double maxX = double.NegativeInfinity;
-                double maxY = double.NegativeInfinity;
-
-                void Include(Point3D p)
-                {
-                    if (!IsFinite(p)) return;
-                    if (p.X < minX) minX = p.X;
-                    if (p.Y < minY) minY = p.Y;
-                    if (p.X > maxX) maxX = p.X;
-                    if (p.Y > maxY) maxY = p.Y;
-                }
-
-                foreach (var p in points)
-                    Include(p);
-                foreach (var text in textItems)
-                    Include(text.Position);
-
-                if (!double.IsFinite(minX) || !double.IsFinite(minY) ||
-                    !double.IsFinite(maxX) || !double.IsFinite(maxY))
-                {
-                    return;
-                }
-
-                double centerX = (minX + maxX) / 2.0;
-                double centerY = (minY + maxY) / 2.0;
-                if (Math.Max(Math.Abs(centerX), Math.Abs(centerY)) <= FarCoordinateRebaseThreshold)
-                    return;
-
-                _dxfRebase = Matrix3D.Identity;
-                _dxfRebase.Translate(new Vector3D(-centerX, -centerY, 0));
-
-                for (int i = 0; i < points.Count; i++)
-                    points[i] = _dxfRebase.Transform(points[i]);
-                for (int i = 0; i < SnapPoints.Count; i++)
-                    SnapPoints[i] = _dxfRebase.Transform(SnapPoints[i]);
-                for (int i = 0; i < SnapCenters.Count; i++)
-                    SnapCenters[i] = _dxfRebase.Transform(SnapCenters[i]);
-                for (int i = 0; i < SnapQuadrants.Count; i++)
-                    SnapQuadrants[i] = _dxfRebase.Transform(SnapQuadrants[i]);
-                for (int i = 0; i < SnapSegments.Count; i++)
-                    SnapSegments[i] = (_dxfRebase.Transform(SnapSegments[i].A), _dxfRebase.Transform(SnapSegments[i].B));
-                for (int i = 0; i < SnapMidpointSegments.Count; i++)
-                    SnapMidpointSegments[i] = (_dxfRebase.Transform(SnapMidpointSegments[i].A), _dxfRebase.Transform(SnapMidpointSegments[i].B));
-                for (int i = 0; i < textItems.Count; i++)
-                    textItems[i].Position = _dxfRebase.Transform(textItems[i].Position);
-
-                Log($"Rebased DXF near origin. Center=({centerX:F2}, {centerY:F2})");
-            }
-            catch (Exception ex)
-            {
-                Log($"Rebase skipped: {ex.Message}");
-            }
         }
 
         private static bool IsFinite(Point3D point)
@@ -1356,24 +1383,17 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             return true;
         }
 
-        private void UpdateSnapDataFromRawTransform()
+        private void UpdateSnapDataFromRawTransform(
+            CancellationToken cancellationToken)
         {
-            SnapPoints.Clear();
-            SnapSegments.Clear();
-            SnapMidpointSegments.Clear();
-            SnapCenters.Clear();
-            SnapQuadrants.Clear();
-
-            foreach (var point in _snapPointSource)
-                AddTransformedPoint(SnapPoints, point);
-            foreach (var center in _snapCenterSource)
-                AddTransformedPoint(SnapCenters, center);
-            foreach (var quadrant in _snapQuadrantSource)
-                AddTransformedPoint(SnapQuadrants, quadrant);
-            foreach (var segment in _snapSegmentSource)
-                AddTransformedSegment(SnapSegments, segment);
-            foreach (var segment in _snapMidpointSource)
-                AddTransformedSegment(SnapMidpointSegments, segment);
+            PublishSnapData(TransformSnapData(
+                _currentRenderTransform,
+                _snapPointSource,
+                _snapSegmentSource,
+                _snapMidpointSource,
+                _snapCenterSource,
+                _snapQuadrantSource,
+                cancellationToken));
         }
 
         private void UpdateRawBounds()
@@ -1415,6 +1435,12 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         private async void ScheduleSnapDataRefresh(Matrix3D transform, bool raiseSnapChanged)
         {
             int generation = Interlocked.Increment(ref _snapRefreshGeneration);
+            var cancellation = new CancellationTokenSource();
+            CancellationTokenSource? superseded =
+                Interlocked.Exchange(
+                    ref _snapRefreshCancellation,
+                    cancellation);
+            CancelRefresh(superseded);
             Point3D[] points = _snapPointSource;
             Point3D[] centers = _snapCenterSource;
             Point3D[] quadrants = _snapQuadrantSource;
@@ -1422,27 +1448,39 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             (Point3D A, Point3D B)[] midpoints = _snapMidpointSource;
             try
             {
-                PreparedSnapData prepared = await Task.Run(() => TransformSnapData(
-                    transform,
-                    points,
-                    segments,
-                    midpoints,
-                    centers,
-                    quadrants));
-                if (generation != _snapRefreshGeneration)
+                PreparedSnapData prepared = await Task.Run(
+                    () => TransformSnapData(
+                        transform,
+                        points,
+                        segments,
+                        midpoints,
+                        centers,
+                        quadrants,
+                        cancellation.Token),
+                    cancellation.Token);
+                if (generation != _snapRefreshGeneration ||
+                    cancellation.IsCancellationRequested)
                     return;
 
-                SnapPoints = prepared.Points;
-                SnapSegments = prepared.Segments;
-                SnapMidpointSegments = prepared.MidpointSegments;
-                SnapCenters = prepared.Centers;
-                SnapQuadrants = prepared.Quadrants;
+                PublishSnapData(prepared);
                 if (raiseSnapChanged)
                     RaiseSnapDataChanged();
+            }
+            catch (OperationCanceledException)
+                when (cancellation.IsCancellationRequested)
+            {
             }
             catch (Exception ex)
             {
                 Log($"Snap refresh skipped: {ex.Message}");
+            }
+            finally
+            {
+                Interlocked.CompareExchange(
+                    ref _snapRefreshCancellation,
+                    null,
+                    cancellation);
+                cancellation.Dispose();
             }
         }
 
@@ -1452,13 +1490,25 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             IReadOnlyList<(Point3D A, Point3D B)> segments,
             IReadOnlyList<(Point3D A, Point3D B)> midpoints,
             IReadOnlyList<Point3D> centers,
-            IReadOnlyList<Point3D> quadrants)
+            IReadOnlyList<Point3D> quadrants,
+            CancellationToken cancellationToken)
         {
-            List<Point3D> transformedPoints = TransformPoints(points, transform);
-            List<Point3D> transformedCenters = TransformPoints(centers, transform);
-            List<Point3D> transformedQuadrants = TransformPoints(quadrants, transform);
-            List<(Point3D A, Point3D B)> transformedSegments = TransformSegments(segments, transform);
-            List<(Point3D A, Point3D B)> transformedMidpoints = TransformSegments(midpoints, transform);
+            Point3D[] transformedPoints =
+                TransformPoints(points, transform, cancellationToken);
+            Point3D[] transformedCenters =
+                TransformPoints(centers, transform, cancellationToken);
+            Point3D[] transformedQuadrants =
+                TransformPoints(quadrants, transform, cancellationToken);
+            (Point3D A, Point3D B)[] transformedSegments =
+                TransformSegments(
+                    segments,
+                    transform,
+                    cancellationToken);
+            (Point3D A, Point3D B)[] transformedMidpoints =
+                TransformSegments(
+                    midpoints,
+                    transform,
+                    cancellationToken);
             return new PreparedSnapData(
                 transformedPoints,
                 transformedSegments,
@@ -1467,48 +1517,60 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
                 transformedQuadrants);
         }
 
-        private static List<Point3D> TransformPoints(
+        private static Point3D[] TransformPoints(
             IReadOnlyList<Point3D> source,
-            Matrix3D transform)
+            Matrix3D transform,
+            CancellationToken cancellationToken)
         {
             var result = new List<Point3D>(source.Count);
-            foreach (Point3D raw in source)
+            for (int index = 0; index < source.Count; index++)
             {
+                if ((index & 1023) == 0)
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                Point3D raw = source[index];
                 Point3D point = transform.Transform(raw);
                 if (IsFinite(point))
                     result.Add(point);
             }
-            return result;
+            return result.ToArray();
         }
 
-        private static List<(Point3D A, Point3D B)> TransformSegments(
+        private static (Point3D A, Point3D B)[] TransformSegments(
             IReadOnlyList<(Point3D A, Point3D B)> source,
-            Matrix3D transform)
+            Matrix3D transform,
+            CancellationToken cancellationToken)
         {
             var result = new List<(Point3D A, Point3D B)>(source.Count);
-            foreach ((Point3D A, Point3D B) raw in source)
+            for (int index = 0; index < source.Count; index++)
             {
+                if ((index & 1023) == 0)
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                (Point3D A, Point3D B) raw = source[index];
                 Point3D a = transform.Transform(raw.A);
                 Point3D b = transform.Transform(raw.B);
                 if (IsFinite(a) && IsFinite(b))
                     result.Add((a, b));
             }
-            return result;
+            return result.ToArray();
         }
 
-        private void AddTransformedPoint(List<Point3D> target, Point3D rawPoint)
+        private void PublishSnapData(PreparedSnapData prepared)
         {
-            var point = _currentRenderTransform.Transform(rawPoint);
-            if (IsFinite(point))
-                target.Add(point);
-        }
-
-        private void AddTransformedSegment(List<(Point3D A, Point3D B)> target, (Point3D A, Point3D B) rawSegment)
-        {
-            var a = _currentRenderTransform.Transform(rawSegment.A);
-            var b = _currentRenderTransform.Transform(rawSegment.B);
-            if (IsFinite(a) && IsFinite(b))
-                target.Add((a, b));
+            SnapPoints = prepared.Points;
+            SnapSegments = prepared.Segments;
+            SnapMidpointSegments = prepared.MidpointSegments;
+            SnapCenters = prepared.Centers;
+            SnapQuadrants = prepared.Quadrants;
+            Volatile.Write(
+                ref _snapDataSnapshot,
+                new DxfSnapDataSnapshot(
+                    prepared.Points,
+                    prepared.Segments,
+                    prepared.Centers,
+                    prepared.Quadrants,
+                    prepared.MidpointSegments));
         }
 
         private void RaiseSnapDataChanged() => SnapDataChanged?.Invoke();
@@ -1669,13 +1731,32 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
             _snapQuadrantSource = Array.Empty<Point3D>();
             _rawBounds = Rect.Empty;
             Interlocked.Increment(ref _snapRefreshGeneration);
-            SnapPoints.Clear();
-            SnapSegments.Clear();
-            SnapMidpointSegments.Clear();
-            SnapCenters.Clear();
-            SnapQuadrants.Clear();
+            CancelRefresh(Interlocked.Exchange(
+                    ref _snapRefreshCancellation,
+                    null));
+            PublishSnapData(PreparedSnapData.Empty);
             _dxfRebase = Matrix3D.Identity;
             _currentRenderTransform = Matrix3D.Identity;
+        }
+
+        private static void CancelRefresh(
+            CancellationTokenSource? cancellation)
+        {
+            if (cancellation == null)
+                return;
+
+            try
+            {
+                cancellation.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The completed refresh won the exchange and disposed its token.
+            }
+            catch (AggregateException exception)
+            {
+                Log($"Snap refresh cancellation callback failed: {exception.Message}");
+            }
         }
 
         private static void Log(string msg)
@@ -1693,17 +1774,57 @@ namespace CraneOptimizer.UI.Features.F11_DXF.Views
         }
 
         private sealed record PreparedDxfGeometry(
-            IReadOnlyDictionary<Color, Point3DCollection> LinePointsByColor,
+            IReadOnlyDictionary<Color, Point3D[]> LinePointsByColor,
             int PointCount);
 
         private sealed record DxfLoadResult(DxfDocument? Document, string Diagnostic);
 
+        public sealed class DxfSnapDataSnapshot
+        {
+            internal static DxfSnapDataSnapshot Empty { get; } =
+                new(
+                    Array.Empty<Point3D>(),
+                    Array.Empty<(Point3D, Point3D)>(),
+                    Array.Empty<Point3D>(),
+                    Array.Empty<Point3D>(),
+                    Array.Empty<(Point3D, Point3D)>());
+
+            internal DxfSnapDataSnapshot(
+                Point3D[] endpoints,
+                (Point3D A, Point3D B)[] segments,
+                Point3D[] centers,
+                Point3D[] quadrants,
+                (Point3D A, Point3D B)[] midpointSegments)
+            {
+                Endpoints = endpoints;
+                Segments = segments;
+                Centers = centers;
+                Quadrants = quadrants;
+                MidpointSegments = midpointSegments;
+            }
+
+            public ReadOnlyMemory<Point3D> Endpoints { get; }
+            public ReadOnlyMemory<(Point3D A, Point3D B)> Segments { get; }
+            public ReadOnlyMemory<Point3D> Centers { get; }
+            public ReadOnlyMemory<Point3D> Quadrants { get; }
+            public ReadOnlyMemory<(Point3D A, Point3D B)> MidpointSegments { get; }
+        }
+
         private sealed record PreparedSnapData(
-            List<Point3D> Points,
-            List<(Point3D A, Point3D B)> Segments,
-            List<(Point3D A, Point3D B)> MidpointSegments,
-            List<Point3D> Centers,
-            List<Point3D> Quadrants);
+            Point3D[] Points,
+            (Point3D A, Point3D B)[] Segments,
+            (Point3D A, Point3D B)[] MidpointSegments,
+            Point3D[] Centers,
+            Point3D[] Quadrants)
+        {
+            public static PreparedSnapData Empty { get; } =
+                new(
+                    Array.Empty<Point3D>(),
+                    Array.Empty<(Point3D, Point3D)>(),
+                    Array.Empty<(Point3D, Point3D)>(),
+                    Array.Empty<Point3D>(),
+                    Array.Empty<Point3D>());
+        }
 
         private sealed record PreparedZoneContrast(
             Point3D[] LinePoints,

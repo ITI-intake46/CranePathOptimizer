@@ -10,6 +10,7 @@ namespace CraneOptimizer.UI.Core.Interfaces
         // ELEMENTS
         // =========================
         List<PrecastElement> GetElements();
+        IReadOnlyList<PrecastElement> GetElementSnapshot() => GetElements();
         void SetElements(List<PrecastElement> elements);
         void ClearElements();
 

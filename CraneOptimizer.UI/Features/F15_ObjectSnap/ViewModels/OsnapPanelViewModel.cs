@@ -3,6 +3,7 @@ using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels
 {
@@ -26,6 +27,7 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels
 
             // Sync initial UI state from the already-loaded settings
             SyncFromSettings();
+            _isPreparing = _snapService.IsPreparing;
 
             ToggleMasterCommand     = new RelayCommand(ToggleMaster);
             ResetToDefaultsCommand  = new RelayCommand(ResetToDefaults);
@@ -41,6 +43,7 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels
                     OnPropertyChanged(nameof(IsAnySnapActive));
                 }
             };
+            _snapService.PreparingChanged += OnPreparingChanged;
         }
 
         // ─── Commands ──────────────────────────────────────────────────────────
@@ -129,14 +132,14 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels
         public bool SnapToDxf
         {
             get => _snapToDxf;
-            set { _snapToDxf = value; _snapService.Settings.SnapToDxf = value; OnPropertyChanged(); }
+            set { _snapToDxf = value; _snapService.SetSourceEnabled(OsnapSource.Dxf, value); OnPropertyChanged(); }
         }
 
         private bool _snapToIfc;
         public bool SnapToIfc
         {
             get => _snapToIfc;
-            set { _snapToIfc = value; _snapService.Settings.SnapToIfc = value; OnPropertyChanged(); }
+            set { _snapToIfc = value; _snapService.SetSourceEnabled(OsnapSource.Ifc, value); OnPropertyChanged(); }
         }
 
         // ─── Derived UI helpers ────────────────────────────────────────────────
@@ -146,19 +149,33 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels
             (SnapEndpoint || SnapMidpoint || SnapIntersection ||
              SnapCenter || SnapQuadrant);
 
+        private bool _isPreparing;
+        public bool IsPreparing
+        {
+            get => _isPreparing;
+            private set
+            {
+                if (_isPreparing == value)
+                    return;
+
+                _isPreparing = value;
+                OnPropertyChanged();
+            }
+        }
+
         // ─── Tuning ────────────────────────────────────────────────────────────
         private double _snapRadiusPx;
         public double SnapRadiusPx
         {
             get => _snapRadiusPx;
-            set { _snapRadiusPx = value; _snapService.Settings.SnapRadiusPx = value; OnPropertyChanged(); }
+            set { _snapRadiusPx = value; _snapService.SetSnapRadius(value); OnPropertyChanged(); }
         }
 
         private double _gridSpacing;
         public double GridSpacing
         {
             get => _gridSpacing;
-            set { _gridSpacing = value; _snapService.Settings.GridSpacing = value; OnPropertyChanged(); }
+            set { _gridSpacing = value; _snapService.SetGridSpacing(value); OnPropertyChanged(); }
         }
 
         // ─── Private helpers ───────────────────────────────────────────────────
@@ -179,6 +196,22 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels
         }
 
         private void ToggleMaster() => MasterEnabled = !MasterEnabled;
+
+        private void OnPreparingChanged(bool preparing)
+        {
+            Dispatcher? dispatcher =
+                System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+            {
+                IsPreparing = preparing;
+                return;
+            }
+
+            _ = dispatcher.BeginInvoke(
+                DispatcherPriority.DataBind,
+                new System.Action(() =>
+                    IsPreparing = preparing));
+        }
 
         private void ResetToDefaults()
         {

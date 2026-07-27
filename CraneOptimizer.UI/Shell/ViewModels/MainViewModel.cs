@@ -148,6 +148,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             AddMobileCraneCommand = new RelayCommand(AddMobileCraneAndStartPlacement, CanAddCrane);
             RemoveSelectedCraneCommand = new RelayCommand(RemoveSelectedCrane, CanRemoveSelectedCrane);
             RemoveAllCranesCommand = new RelayCommand(RemoveAllCranes, () => Scene.GetCranes().Count > 0);
+            OpenProjectFolderCommand = new RelayCommand(OpenProjectFolder, CanOpenProjectFolder);
 
             _ = LoadCranesAsync();
 
@@ -175,6 +176,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         public ICommand AddMobileCraneCommand { get; }
         public ICommand RemoveSelectedCraneCommand { get; }
         public ICommand RemoveAllCranesCommand { get; }
+        public ICommand OpenProjectFolderCommand { get; }
 
         public Guid? CurrentProjectId
         {

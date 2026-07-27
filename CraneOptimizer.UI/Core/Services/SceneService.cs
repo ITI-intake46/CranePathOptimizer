@@ -1,6 +1,7 @@
 using CraneOptimizer.Domain.Schemas;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
+using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using CraneOptimizer.Domain.Entities;
 
@@ -11,9 +12,14 @@ namespace CraneOptimizer.UI.Core.Services
         private object? _selectedObject;
 
         public ObservableCollection<PrecastElement> Elements { get; } = new();
+        private readonly object _elementSnapshotLock = new();
+        private IReadOnlyList<PrecastElement> _elementSnapshot =
+            Array.Empty<PrecastElement>();
         public ObservableCollection<GreenAreaZone> Zones { get; } = new();
         private readonly object _zoneSnapshotLock = new();
         private readonly Dictionary<Guid, GreenAreaZone> _zonesById = new();
+        private ImmutableList<GreenAreaZone> _zoneSnapshot =
+            ImmutableList<GreenAreaZone>.Empty;
         private int _zoneChangeBatchDepth;
         private bool _hasBatchedZoneChanges;
         public ObservableCollection<SceneCrane> Cranes { get; } = new();
@@ -31,6 +37,8 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void SetElements(List<PrecastElement> elements)
         {
+            lock (_elementSnapshotLock)
+                _elementSnapshot = elements.AsReadOnly();
             Elements.Clear();
             Elements.AddRange(elements);
             ElementsChanged?.Invoke(elements);
@@ -38,8 +46,16 @@ namespace CraneOptimizer.UI.Core.Services
 
         public List<PrecastElement> GetElements() => Elements.ToList();
 
+        public IReadOnlyList<PrecastElement> GetElementSnapshot()
+        {
+            lock (_elementSnapshotLock)
+                return _elementSnapshot;
+        }
+
         public void ClearElements()
         {
+            lock (_elementSnapshotLock)
+                _elementSnapshot = Array.Empty<PrecastElement>();
             Elements.Clear();
             ElementsChanged?.Invoke(new List<PrecastElement>());
         }
@@ -87,6 +103,7 @@ namespace CraneOptimizer.UI.Core.Services
                 if (_zonesById.ContainsKey(zone.ZoneId))
                     return;
                 _zonesById[zone.ZoneId] = zone;
+                _zoneSnapshot = _zoneSnapshot.Add(zone);
             }
             Zones.Add(zone);
             ZoneAdded?.Invoke(zone);
@@ -98,7 +115,7 @@ namespace CraneOptimizer.UI.Core.Services
         public virtual IReadOnlyList<GreenAreaZone> GetZoneSnapshot()
         {
             lock (_zoneSnapshotLock)
-                return _zonesById.Values.ToArray();
+                return _zoneSnapshot;
         }
 
         public void RemoveZone(GreenAreaZone zone)
@@ -108,7 +125,11 @@ namespace CraneOptimizer.UI.Core.Services
         {
             GreenAreaZone? indexedZone;
             lock (_zoneSnapshotLock)
+            {
                 _zonesById.Remove(zoneId, out indexedZone);
+                _zoneSnapshot = _zoneSnapshot.RemoveAll(
+                    zone => zone.ZoneId == zoneId);
+            }
 
             List<GreenAreaZone> collectionZones = Zones
                 .Where(item => item.ZoneId == zoneId)
@@ -163,7 +184,11 @@ namespace CraneOptimizer.UI.Core.Services
         public void ClearZones()
         {
             lock (_zoneSnapshotLock)
+            {
                 _zonesById.Clear();
+                _zoneSnapshot =
+                    ImmutableList<GreenAreaZone>.Empty;
+            }
             Zones.Clear();
             SetSelectedZone(null);
             ZonesCleared?.Invoke();

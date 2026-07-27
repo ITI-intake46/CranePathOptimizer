@@ -161,6 +161,16 @@
             </StackPanel>
         </Button>
 
+        <TextBlock
+            Margin="6,0,0,0"
+            VerticalAlignment="Center"
+            FontFamily="{StaticResource FontPrimary}"
+            FontSize="{StaticResource FontSizeXS}"
+            Foreground="{DynamicResource TextDisabledBrush}"
+            IsHitTestVisible="False"
+            Text="Preparing object snap…"
+            Visibility="{Binding IsPreparing, Converter={StaticResource BoolToVisibilityConverter}}" />
+
         <!-- ── Popup: placed above the OSN button ────────────────────── -->
         <Popup x:Name="OsnapPopup"
                AllowsTransparency="True"

@@ -57,6 +57,7 @@ namespace CraneOptimizer.AI.Services
                         Action("Save", "SaveProjectCommand", "Save the current project state.", "Available when project state is loaded.", "Save before long optimization or report-generation workflows."),
                         Action("Load IFC Model", "IfcViewer.LoadIfcCommand", "Import the primary BIM/IFC model into the viewer.", "Available from HOME quick access and IFC MODEL tab.", "Check model units and coordinate alignment after import."),
                         Action("Filter", "ElementManagement.ShowFilterDialogCommand", "Open the element filter dialog.", "Available from the HOME view group after an IFC model is loaded.", "Filters can change visibility and optimization scope."),
+                        Action("Measure", "Drawing.StartMeasureCommand", "Measure distances in the scene.", "Available from the HOME view group alongside Filter.", "Measurement display is advisory; verify project coordinate units."),
                         Action("Add Crane", "AddMobileCraneCommand", "Start adding a mobile crane to the 3D scene.", "Quick access route to the CRANES workflow.", "Crane placement must still be validated against site constraints and manufacturer data."),
                         Action("Draw Zones", "StartDrawingCommand", "Start drawing site zones used by placement constraints.", "Quick access route to the ZONES workflow.", "Allowed/forbidden zones strongly affect GA candidate points.")
                     },
@@ -121,10 +122,6 @@ namespace CraneOptimizer.AI.Services
                     {
                         Action("MOBILE CRANE", "AddMobileCraneCommand", "Place a mobile crane in the scene.", "Use before manual crane setup or optimization.", "Placement must respect site zones, outriggers, and working radius."),
                         Action("Remove Selected Crane", "RemoveSelectedCraneCommand", "Remove the selected crane from the scene.", "Use when changing crane selection.", "Removing a crane can invalidate previous lifting result visuals."),
-                        Action("Remove All Cranes", "RemoveAllCranesCommand", "Clear all crane instances.", "Use for reset workflows.", "Previous optimization assumptions may no longer apply."),
-                        Action("Unlock Position", "CraneSetup.UnlockPositionCommand", "Unlock a fixed crane position for editing.", "Use when manual placement needs adjustment.", "Re-run checks after moving a crane."),
-                        Action("Show Swing Radius", "UI toggle", "Display crane swing/radius visualization.", "Visual aid for reach inspection.", "Visualization is not a substitute for load chart validation."),
-                        Action("Run Optimizer", "OptimizeCommand", "Launch the GA crane placement optimizer.", "Also available in ANALYZE tab.", "Review inputs, zones, crane model, and load chart before accepting results."),
                         Action("Import Load Chart...", "ImportLoadChart_Click", "Import manufacturer/load-chart capacity data.", "Use before capacity-based optimization.", "Validate units, boom/radius rows, operating condition, and number of lines."),
                         Action("View Saved Charts", "ViewSavedCharts_Click", "Inspect load charts saved in the catalog/database.", "Use for QA and reuse.", "Do not assume saved charts are correct without provenance checks."),
                         Action("Crane Catalog...", "CraneCatalog_Click", "Open crane catalog browsing/management.", "Use to review crane models and specs.", "Catalog values must match manufacturer data used by the project.")
@@ -147,9 +144,7 @@ namespace CraneOptimizer.AI.Services
                     {
                         Action("Allowed Zone", "StartAllowedCommand", "Start drawing an allowed crane placement area.", "Use to define where cranes may be positioned.", "A missing or too-small allowed zone can make candidate generation fail."),
                         Action("Forbidden Zone", "StartForbiddenCommand", "Start drawing an exclusion area.", "Use for obstacles, no-go zones, protected areas, or unavailable ground.", "Overly broad forbidden zones can eliminate valid setup points."),
-                        Action("Measure", "StartMeasureCommand", "Measure distances in the scene.", "Use for quick layout checks.", "Measurement display is advisory; verify project coordinate units."),
                         Action("Finish Zone", "FinishCommand", "Complete the current zone polygon.", "Use after placing vertices.", "Closed geometry is required for reliable zone constraints."),
-                        Action("Undo Vertex", "UndoCommand", "Remove the last drawn zone vertex.", "Use during drawing corrections.", "Check final polygon shape before optimization."),
                         Action("Cancel", "CancelCommand", "Cancel the current drawing operation.", "Use when abandoning a zone draw.", "Canceled zones will not constrain optimization."),
                         Action("Delete Selected", "DeleteZoneCommand", "Delete selected zone.", "Use in MANAGE group.", "Deleting zones changes placement constraints."),
                         Action("Delete All", "DeleteAllCommand", "Delete all zones.", "Use carefully for reset.", "Optimization without zones may produce invalid site placements."),
@@ -171,15 +166,14 @@ namespace CraneOptimizer.AI.Services
                     Actions = new[]
                     {
                         Action("Run Optimizer", "OptimizeCommand", "Open/run the crane placement optimization workflow.", "Use after IFC, crane, load chart, and zones are ready.", "GA output is only as valid as input model, zones, crane specs, and load charts."),
-                        Action("Export Analysis", "UI action", "Export analysis information.", "Use after results are available.", "Review output for completeness."),
-                        Action("Export Zones (JSON)", "UI action", "Export site zones as JSON from analysis area.", "Use for audit and debugging.", "Zone exports should match the active project state."),
-                        Action("GA Diagnostics", "ShowDiagnosticsCommand", "Open GA convergence/generation diagnostics.", "Use after an optimizer run.", "Diagnostics help distinguish convergence issues from input feasibility issues."),
-                        Action("View Results", "ShowResultsCommand", "Open optimization result window.", "Use after an optimizer run.", "Confirm lifted/unresolved elements and crane positions before reporting.")
+                        Action("Lift Summary", "ShowLiftAnalysisCommand", "Open the saved lifting result, utilization evidence, and recommended action.", "Use after a completed optimizer run.", "The summary is read-only and advisory."),
+                        Action("View Results", "ShowResultsCommand", "Open optimization result window.", "Use after an optimizer run.", "Confirm lifted/unresolved elements and crane positions before reporting."),
+                        Action("Open Folder", "OpenFolderCommand", "Open the folder containing the selected run's saved Lift Summary.", "Available when a Lift Summary is ready.", "Opens the exact selected run folder.")
                     },
                     TypicalQuestions = new[]
                     {
                         "How do I run the optimizer?",
-                        "Where do I see GA diagnostics?",
+                        "Where do I see Lift Summary?",
                         "How do I interpret low coverage?",
                         "Where can I view optimization results?"
                     }
@@ -194,11 +188,9 @@ namespace CraneOptimizer.AI.Services
                     {
                         Action("All Elements List", "OpenAllElementsReportCommand", "Build/export a report of elements.", "Use after IFC import and filtering.", "Confirm whether weights are imported, estimated, or missing."),
                         Action("Lifting Summary Report", "OpenLiftingSummaryReportCommand", "Build/export lifting result summary.", "Use after optimization.", "Report is advisory and must be checked by qualified personnel."),
-                        Action("All Cranes in Database", "AllCranesInDatabase_Click", "Report catalog cranes and key specs.", "Use for catalog review.", "Verify catalog provenance."),
-                        Action("Compare 2 Cranes", "Compare2Cranes_Click", "Compare two crane models/specs and likely coverage.", "Use for alternative selection.", "Comparison depends on current project/model assumptions."),
                         Action("Project Overview", "ProjectOverview_Click", "Report project metadata and imported IFC files.", "Use for documentation.", "Check project paths before sharing."),
                         Action("Site Zones Report", "SiteZonesReport_Click", "Report site zones and vertex coordinates.", "Use for QA and audit.", "Coordinates depend on project coordinate setup."),
-                        Action("GA Diagnostics", "ShowDiagnosticsCommand", "Open diagnostics from the report tab.", "Use after optimization.", "Interpret diagnostics alongside failure categories."),
+                        Action("GA Diagnostics", "ShowDiagnosticsCommand", "Open GA convergence graph and generation statistics.", "Use after optimization.", "Diagnostics are advisory."),
                         Action("View Results", "ShowResultsCommand", "Open optimization results from the report tab.", "Use after optimization.", "Do not report stale results after changing inputs.")
                     },
                     TypicalQuestions = new[]
@@ -287,7 +279,7 @@ namespace CraneOptimizer.AI.Services
                         "ZONES → Draw allowed and forbidden zones or import zones from DXF layers.",
                         "CRANES → Add/select mobile crane, import/check load chart, and review crane catalog data.",
                         "ANALYZE → Run Optimizer.",
-                        "ANALYZE or REPORTS → Open GA Diagnostics and View Results.",
+                        "ANALYZE → Open Lift Summary and View Results.",
                         "AI ASSIST → STUDIO → Analyze Current Result, then optionally use Ask Local Ollama to explain recommended next actions.",
                         "REPORTS → Generate lifting summary, elements list, project overview, site zones, or crane comparison reports."
                     }
@@ -300,7 +292,7 @@ namespace CraneOptimizer.AI.Services
                     Steps = new[]
                     {
                         "AI ASSIST → STUDIO → Analyze Current Result to identify dominant failure categories.",
-                        "ANALYZE → Open GA Diagnostics to check convergence and candidate behavior.",
+                        "ANALYZE → Open Lift Summary to review utilization, failures, and meaningful alternatives.",
                         "If failures are OutOfRadius, inspect ZONES and CRANES setup radius/allowed positions.",
                         "If failures are Overweight, inspect IFC element weights, rigging additional weight, derating, safety factor, and crane capacity.",
                         "If failures are NotCharted, inspect load chart import, boom/radius rows, operating condition, and number of lines.",
@@ -315,7 +307,7 @@ namespace CraneOptimizer.AI.Services
                     RelatedTabs = new[] { "ANALYZE", "AI ASSIST", "REPORTS" },
                     Steps = new[]
                     {
-                        "ANALYZE → View Results and GA Diagnostics.",
+                        "ANALYZE → View Results and Lift Summary.",
                         "AI ASSIST → STUDIO or CHAT → Generate or request a natural-language explanation using the current structured context.",
                         "REPORTS → Generate Lifting Summary Report for optimization outcome.",
                         "REPORTS → Generate All Elements List, Project Overview, and Site Zones Report as needed.",
