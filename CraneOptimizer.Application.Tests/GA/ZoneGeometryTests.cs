@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
@@ -308,9 +309,216 @@ namespace CraneOptimizer.Application.Tests
             });
         }
 
+        [Fact]
+        public void ForbiddenZones_RenderAfterAllowedZonesWithStableDepthPriority()
+        {
+            RunOnSta(() =>
+            {
+                var scene = new MockSceneService();
+                var builder = new ZoneVisualBuilder(scene, _geometry);
+                List<DomainPoint3D> vertices = new()
+                {
+                    new DomainPoint3D(0, 0, 0),
+                    new DomainPoint3D(10, 0, 0),
+                    new DomainPoint3D(10, 10, 0),
+                    new DomainPoint3D(0, 10, 0)
+                };
+                var forbidden = new GreenAreaZone
+                {
+                    Type = ZoneType.Forbidden,
+                    Vertices = vertices.ToList()
+                };
+                var allowed = new GreenAreaZone
+                {
+                    Type = ZoneType.Allowed,
+                    Vertices = vertices
+                        .Select(point => new DomainPoint3D(
+                            point.X + 20,
+                            point.Y,
+                            point.Z))
+                        .ToList()
+                };
+
+                var batch = Assert.IsType<ModelVisual3D>(
+                    builder.BuildBatch(new[] { forbidden, allowed }));
+                var allowedVisual = Assert.IsType<ModelVisual3D>(batch.Children[0]);
+                var forbiddenVisual = Assert.IsType<ModelVisual3D>(batch.Children[1]);
+                var allowedModel = Assert.IsType<GeometryModel3D>(allowedVisual.Content);
+                var forbiddenModel = Assert.IsType<GeometryModel3D>(forbiddenVisual.Content);
+                var allowedMesh = Assert.IsType<MeshGeometry3D>(allowedModel.Geometry);
+                var forbiddenMesh = Assert.IsType<MeshGeometry3D>(forbiddenModel.Geometry);
+                var forbiddenBorder = Assert.IsType<LinesVisual3D>(
+                    Assert.Single(forbiddenVisual.Children));
+                var forbiddenBrush = Assert.IsType<SolidColorBrush>(
+                    Assert.IsType<DiffuseMaterial>(forbiddenModel.Material).Brush);
+
+                Assert.Same(allowed, allowedVisual.GetValue(FrameworkElement.TagProperty));
+                Assert.Same(forbidden, forbiddenVisual.GetValue(FrameworkElement.TagProperty));
+                Assert.True(forbiddenMesh.Positions[0].Z > allowedMesh.Positions[0].Z);
+                Assert.Equal(Color.FromRgb(176, 42, 52), forbiddenBrush.Color);
+                Assert.Equal(0.72, forbiddenBrush.Opacity);
+                Assert.True(forbiddenMesh.Positions[0].Z < 0.002);
+                Assert.All(
+                    forbiddenBorder.Points,
+                    point => Assert.True(
+                        point.Z < ZoneOverlayDepth.DxfContrast));
+            });
+        }
+
+        [Fact]
+        public void ContainedSameTypeZone_RendersBoundaryWithoutDuplicateFill()
+        {
+            RunOnSta(() =>
+            {
+                var scene = new MockSceneService();
+                var builder = new ZoneVisualBuilder(scene, _geometry);
+                var outer = new GreenAreaZone
+                {
+                    Type = ZoneType.Allowed,
+                    Vertices = new List<DomainPoint3D>
+                    {
+                        new DomainPoint3D(0, 0, 0),
+                        new DomainPoint3D(20, 0, 0),
+                        new DomainPoint3D(20, 20, 0),
+                        new DomainPoint3D(0, 20, 0)
+                    }
+                };
+                var inner = new GreenAreaZone
+                {
+                    Type = ZoneType.Allowed,
+                    Vertices = new List<DomainPoint3D>
+                    {
+                        new DomainPoint3D(5, 5, 0),
+                        new DomainPoint3D(10, 5, 0),
+                        new DomainPoint3D(10, 10, 0),
+                        new DomainPoint3D(5, 10, 0)
+                    }
+                };
+
+                var batch = Assert.IsType<ModelVisual3D>(
+                    builder.BuildBatch(new[] { outer, inner }));
+                var outerVisual = Assert.IsType<ModelVisual3D>(batch.Children[0]);
+                var innerVisual = Assert.IsType<ModelVisual3D>(batch.Children[1]);
+
+                Assert.NotNull(outerVisual.Content);
+                Assert.Null(innerVisual.Content);
+                Assert.Single(innerVisual.Children.OfType<LinesVisual3D>());
+            });
+        }
+
+        [Fact]
+        public void ForbiddenZone_SuppressesContainedAllowedFillAndBoundary()
+        {
+            RunOnSta(() =>
+            {
+                var scene = new MockSceneService();
+                var builder = new ZoneVisualBuilder(scene, _geometry);
+                var forbidden = new GreenAreaZone
+                {
+                    Type = ZoneType.Forbidden,
+                    Vertices = new List<DomainPoint3D>
+                    {
+                        new DomainPoint3D(0, 0, 0),
+                        new DomainPoint3D(20, 0, 0),
+                        new DomainPoint3D(20, 20, 0),
+                        new DomainPoint3D(0, 20, 0)
+                    }
+                };
+                var allowed = new GreenAreaZone
+                {
+                    Type = ZoneType.Allowed,
+                    Vertices = new List<DomainPoint3D>
+                    {
+                        new DomainPoint3D(5, 5, 0),
+                        new DomainPoint3D(10, 5, 0),
+                        new DomainPoint3D(10, 10, 0),
+                        new DomainPoint3D(5, 10, 0)
+                    }
+                };
+
+                var batch = Assert.IsType<ModelVisual3D>(
+                    builder.BuildBatch(new[] { allowed, forbidden }));
+                ModelVisual3D allowedVisual = batch.Children
+                    .OfType<ModelVisual3D>()
+                    .Single(visual => ReferenceEquals(
+                        visual.GetValue(FrameworkElement.TagProperty),
+                        allowed));
+
+                Assert.Null(allowedVisual.Content);
+                Assert.Empty(allowedVisual.Children);
+            });
+        }
+
         // ════════════════════════════════════════════════════════════════════
         // Finish Behavior Tests
         // ════════════════════════════════════════════════════════════════════
+
+        [Fact]
+        public void ZoneOverlayGeometry_ContrastsOnlyTouchingSegmentsAndText()
+        {
+            var zone = new GreenAreaZone
+            {
+                Type = ZoneType.Forbidden,
+                Vertices = new List<DomainPoint3D>
+                {
+                    new DomainPoint3D(0, 0, 0),
+                    new DomainPoint3D(10, 0, 0),
+                    new DomainPoint3D(10, 10, 0),
+                    new DomainPoint3D(0, 10, 0)
+                }
+            };
+            List<ZoneOverlayRegion> regions =
+                ZoneOverlayGeometry.CreateRegions(new[] { zone });
+
+            Assert.True(ZoneOverlayGeometry.TouchesAny(
+                new Point3D(-5, 5, 0.002),
+                new Point3D(5, 5, 0.002),
+                regions));
+            Assert.False(ZoneOverlayGeometry.TouchesAny(
+                new Point3D(12, 5, 0.002),
+                new Point3D(18, 5, 0.002),
+                regions));
+            Assert.True(ZoneOverlayGeometry.TouchesAny(
+                new Point3D(5, 5, 0.006),
+                regions));
+            Assert.False(ZoneOverlayGeometry.TouchesAny(
+                new Point3D(15, 5, 0.006),
+                regions));
+        }
+
+        [Fact]
+        public void ZoneOverlayGeometry_ClipsAllowedBoundaryUnderForbiddenArea()
+        {
+            var forbidden = new GreenAreaZone
+            {
+                Type = ZoneType.Forbidden,
+                Vertices = new List<DomainPoint3D>
+                {
+                    new DomainPoint3D(0, 0, 0),
+                    new DomainPoint3D(10, 0, 0),
+                    new DomainPoint3D(10, 10, 0),
+                    new DomainPoint3D(0, 10, 0)
+                }
+            };
+            List<ZoneOverlayRegion> regions =
+                ZoneOverlayGeometry.CreateRegions(new[] { forbidden });
+
+            List<(Point3D A, Point3D B)> visible =
+                ZoneOverlayGeometry.ClipOutsideForbidden(
+                    new Point3D(-5, 5, 0),
+                    new Point3D(15, 5, 0),
+                    regions);
+
+            Assert.Equal(2, visible.Count);
+            Assert.Equal(-5, visible[0].A.X, 6);
+            Assert.Equal(0, visible[0].B.X, 6);
+            Assert.Equal(10, visible[1].A.X, 6);
+            Assert.Equal(15, visible[1].B.X, 6);
+            Assert.Empty(ZoneOverlayGeometry.ClipOutsideForbidden(
+                new Point3D(0, 0, 0),
+                new Point3D(10, 0, 0),
+                regions));
+        }
 
         [Fact]
         public void RightClick_FinishesDrawing_WhenThreeOrMorePoints()

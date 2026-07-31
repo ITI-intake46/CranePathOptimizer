@@ -378,6 +378,62 @@ public sealed class ReportBuilderViewModelFlowTests
     }
 
     [Fact]
+    public void ResultsWindow_InitialPaint_DoesNotRebuildOrMoveLiveScene()
+    {
+        var scene = new TestSceneService();
+        var sceneCrane = new SceneCrane
+        {
+            Position = new DomainPoint3D(1, 2, 3)
+        };
+        scene.AddCrane(sceneCrane);
+        var result = new UiCranePlacementResult
+        {
+            Positions =
+            [
+                new UiCranePositionResult
+                {
+                    X = 10,
+                    Y = 20,
+                    Z = 0,
+                    ElementResults =
+                    [
+                        new UiElementLiftResult
+                        {
+                            ElementId = "E-1",
+                            ElementMark = "M-1",
+                            Status = LiftStatus.Liftable,
+                            IsFinalAssignedToPoint = true
+                        }
+                    ]
+                },
+                new UiCranePositionResult { X = 30, Y = 40, Z = 0 }
+            ]
+        };
+        var liveSelectionNotifications = 0;
+        var viewModel = new GAResultsWindowViewModel(
+            result,
+            new TestRenderingService(),
+            scene,
+            _ => liveSelectionNotifications++,
+            _ => { },
+            GAViewMode.FinalAssignment,
+            new TestProjectCoordinateTransformService());
+
+        viewModel.OnLoaded();
+
+        Assert.Equal(0, liveSelectionNotifications);
+        Assert.Equal(0, scene.UpdateCraneCount);
+        Assert.Equal(1, sceneCrane.Position.X);
+        Assert.Single(viewModel.AssignedElements);
+
+        viewModel.SelectedPoint = viewModel.Positions[1];
+
+        Assert.Equal(1, liveSelectionNotifications);
+        Assert.Equal(1, scene.UpdateCraneCount);
+        Assert.Equal(30, sceneCrane.Position.X);
+    }
+
+    [Fact]
     public void AnalyzeTab_ProductionSavedRunsPanel_DoesNotExposeRefreshButton()
     {
         var xamlPath = FindRepositoryFile(

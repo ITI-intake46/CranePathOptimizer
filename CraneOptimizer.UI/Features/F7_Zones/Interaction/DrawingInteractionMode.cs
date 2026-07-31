@@ -69,16 +69,14 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Interaction
             if (e.ChangedButton != MouseButton.Left)
                 return;
 
+            // Zone drawing pointer input is resolved asynchronously by
+            // IfcViewerControl. Measurement remains on this synchronous path.
+            if (_vm.IsDrawing)
+                return;
+
             Point screen = e.GetPosition(viewport);
             if (!TryGetInteractionPoint(viewport, screen, out Point3D world))
                 return;
-
-            if (_vm.IsDrawing && e.ClickCount > 1)
-            {
-                _vm.HandleDoubleClick();
-                e.Handled = true;
-                return;
-            }
 
             _vm.HandleViewportLeftClick(new DomainPoint3D(world.X, world.Y, world.Z));
             e.Handled = true;
@@ -86,6 +84,9 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Interaction
 
         public void OnMouseMove(HelixViewport3D viewport, MouseEventArgs e)
         {
+            if (_vm.IsDrawing)
+                return;
+
             Point screen = e.GetPosition(viewport);
             if (!TryGetInteractionPoint(viewport, screen, out Point3D world))
             {

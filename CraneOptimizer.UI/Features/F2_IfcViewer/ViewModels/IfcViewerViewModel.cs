@@ -29,6 +29,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly IViewportHitTestService _hitTest;
         private readonly IElementVisibilityFilterService _filterService;
         private readonly IIfcSceneOperationService _ifcSceneOperations;
+        private readonly IIfcVisibilityOptionsService _visibilityOptionsService;
         private readonly IIfcDiagnosticAuditService _auditService;
         private readonly IProjectWorkspaceService? _workspaceService;
         private readonly IIfcNormalizationDecisionService _normalizationService;
@@ -43,10 +44,12 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         public ICommand CancelPlacementCommand { get; }
         public ICommand MoveIfcCommand { get; }
         public ICommand DeleteIfcCommand { get; }
+        public ICommand ShowIfcDisplayOptionsCommand { get; }
 
         public event Action? IfcModelChanged;
 
         public string? LoadedIfcFilePath { get; private set; }
+        public bool HasIfcModel => _ifcSceneOperations.HasIfcModel;
 
         private bool _isLoading;
         public bool IsLoading
@@ -109,7 +112,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IProjectWorkspaceService? workspaceService,
             IIfcNormalizationDecisionService normalizationService,
             IProjectCoordinateTransformService? transformService = null,
-            IProjectMaterialSettingsService? materialSettingsService = null)
+            IProjectMaterialSettingsService? materialSettingsService = null,
+            IIfcVisibilityOptionsService? visibilityOptionsService = null)
         {
             _ifcReader = ifcReader;
             _scene = scene;
@@ -119,6 +123,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _hitTest = hitTest;
             _filterService = filterService;
             _ifcSceneOperations = ifcSceneOperations;
+            _visibilityOptionsService = visibilityOptionsService ?? new IfcVisibilityOptionsService(filterService);
             _auditService = auditService;
             _workspaceService = workspaceService;
             _normalizationService = normalizationService;
@@ -130,6 +135,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             CancelPlacementCommand = new RelayCommand(CancelPlacement, () => IsPlacementMode);
             MoveIfcCommand = new RelayCommand(StartMoveIfc, CanMoveIfc);
             DeleteIfcCommand = new RelayCommand(DeleteIfc, CanEditPlacedIfc);
+            ShowIfcDisplayOptionsCommand = new RelayCommand(ShowIfcDisplayOptions, CanEditPlacedIfc);
             if (_scene != null)
             {
                 _scene.ElementsChanged += OnSceneElementsChanged;
@@ -174,7 +180,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     }
                 });
 
-                var readingOptions = await GetCurrentIfcReadingOptionsAsync(filter.HideGrids);
+                var readingOptions = await GetCurrentIfcReadingOptionsAsync();
                 var all = await Task.Run(() =>
                     _ifcReader.ReadElements(path, progress, readingOptions));
 
@@ -197,7 +203,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 {
                     try
                     {
-                        var auditOptions = await GetCurrentIfcReadingOptionsAsync(filter.HideGrids);
+                        var auditOptions = await GetCurrentIfcReadingOptionsAsync();
                         var auditResult = await _auditService.RunAuditAsync(auditPath, auditOptions);
                         var projectFolder = _workspaceService?.CurrentSession?.ProjectFolderPath;
                         await _auditService.GenerateReportsAsync(auditResult, projectFolder);
@@ -221,6 +227,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     PendingPlacementPoint = new Point3D(0, 0, 0);
                     DateTime viewportStartedUtc = DateTime.UtcNow;
                     var viewportTimer = Stopwatch.StartNew();
+                    _visibilityOptionsService.ApplyOptions(filter);
                     _ifcSceneOperations.ReplaceIfcModel(placedElements);
                     viewportTimer.Stop();
                     IfcImportProfiler.Record(
@@ -233,9 +240,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                         "ElementsCount",
                         placedElements.Count,
                         true);
-                    if (_pendingFilterOptions != null)
-                        _filterService.ApplyLoadOptions(_pendingFilterOptions);
-
                     _pendingIfcElements = null;
                     _pendingFilterOptions = null;
                     _isMovingExistingIfc = false;
@@ -295,9 +299,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             Debug.WriteLine($"[IfcImport Z-Preservation Diagnosis] Vertical Normalization Occurred: False (Preserved original coordinates)");
 
             Debug.WriteLine($"IFC Origin Placed At: {insertionPoint.X:F3}, {insertionPoint.Y:F3}, {insertionPoint.Z:F3}");
-            _ifcSceneOperations.ReplaceIfcModel(placedElements);
             if (_pendingFilterOptions != null)
-                _filterService.ApplyLoadOptions(_pendingFilterOptions);
+                _visibilityOptionsService.ApplyOptions(_pendingFilterOptions);
+            _ifcSceneOperations.ReplaceIfcModel(placedElements);
 
             _pendingIfcElements = null;
             _pendingFilterOptions = null;
@@ -473,6 +477,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                 DateTime viewportStartedUtc = DateTime.UtcNow;
                 var viewportTimer = Stopwatch.StartNew();
+                _visibilityOptionsService.ApplyOptions(_visibilityOptionsService.GetCurrentOptions());
                 _ifcSceneOperations.ReplaceIfcModel(placedElements);
                 viewportTimer.Stop();
                 IfcImportProfiler.Record(
@@ -639,22 +644,35 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IfcModelChanged?.Invoke();
         }
 
+        private void ShowIfcDisplayOptions()
+        {
+            if (!CanEditPlacedIfc())
+                return;
+
+            var appliedOptions = _dialogService.ShowDisplayOptions(LoadedIfcFilePath);
+            if (appliedOptions == null)
+                return;
+
+            _visibilityOptionsService.ApplyOptions(appliedOptions);
+            Status = $"Showing {_filterService.ShowingCount} of {_filterService.TotalCount} elements after IFC display options.";
+        }
+
         private void ShowMergeIfcPlaceholder()
         {
             Status = "Merge IFC is available in the ribbon for multi-building workflow, but shared multi-model geometry loading is not implemented yet.";
         }
 
-        private async Task<IfcReadingOptions> GetCurrentIfcReadingOptionsAsync(bool hideGrids = false)
+        private async Task<IfcReadingOptions> GetCurrentIfcReadingOptionsAsync()
         {
             var session = _workspaceService?.CurrentSession;
             if (session == null || _materialSettingsService == null)
-                return new IfcReadingOptions(ProjectMaterialSettingsService.DefaultConcreteDensityKgPerM3, hideGrids);
+                return new IfcReadingOptions(ProjectMaterialSettingsService.DefaultConcreteDensityKgPerM3);
 
             var density = await _materialSettingsService
                 .GetConcreteDensityKgPerM3Async(session.ProjectId)
                 .ConfigureAwait(false);
 
-            return new IfcReadingOptions(density, hideGrids);
+            return new IfcReadingOptions(density);
         }
 
         private bool CanEditPlacedIfc() => !IsLoading && !IsPlacementMode && _ifcSceneOperations.HasIfcModel;
@@ -674,27 +692,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
         private void OnSceneElementsChanged(List<PrecastElement> elements)
         {
+            OnPropertyChanged(nameof(HasIfcModel));
             CommandManager.InvalidateRequerySuggested();
-        }
-
-        private static List<PrecastElement> ApplyFilter(
-            List<PrecastElement> elements,
-            IfcLoadOptionsDto options)
-        {
-            return elements.Where(e =>
-            {
-                var t = e.ElementType ?? "";
-
-                if (options.HideGrids && t.Contains("IfcGrid", StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideLevels && t.Contains("IfcBuildingStorey", StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideAnnotations && t.Contains("IfcAnnotation", StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideSite && t.Contains("IfcSite", StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideSpaces && t.Contains("IfcSpace", StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideOpenings && t.Contains("IfcOpeningElement", StringComparison.OrdinalIgnoreCase)) return false;
-                if (options.HideVirtualElements && t.Contains("IfcVirtualElement", StringComparison.OrdinalIgnoreCase)) return false;
-
-                return true;
-            }).ToList();
         }
 
         private Point3D CalculatePlacementOffset(

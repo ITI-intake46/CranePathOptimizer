@@ -263,27 +263,6 @@
         <Setter Property="Margin" Value="{StaticResource RibbonMajorCommandTrailingTileMargin}" />
     </Style>
 
-    <Style x:Key="RibbonAnalyzeAccentCommandTile"
-           TargetType="Button"
-           BasedOn="{StaticResource RibbonMajorCommandTile}">
-        <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
-        <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}" />
-        <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{StaticResource PrimaryHoverBrush}" />
-                <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}" />
-            </Trigger>
-            <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Background" Value="{StaticResource PrimaryPressedBrush}" />
-                <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}" />
-            </Trigger>
-            <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}" />
-                <Setter Property="Opacity" Value="0.4" />
-            </Trigger>
-        </Style.Triggers>
-    </Style>
-
     <Style x:Key="RibbonMajorPrimaryCommandTile"
            TargetType="Button"
            BasedOn="{StaticResource RibbonMajorCommandTile}">

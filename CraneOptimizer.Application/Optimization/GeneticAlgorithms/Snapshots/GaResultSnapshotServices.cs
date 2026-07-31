@@ -526,13 +526,14 @@ public sealed class GaResultSnapshotMapper : IGaResultSnapshotMapper
         var outcomes = BuildFinalOutcomes(liftUnits, positions, input, best).ToList();
         var modelFingerprint = input.CanonicalPayloadHash;
         var loadChartFingerprint = ComputeLoadChartFingerprint(input.CraneSpec?.LoadChart);
+        var optimizationInputFingerprint = GaOptimizationInputFingerprint.Build(input, effective);
         var evaluationCount = positions.Sum(position => position.Evaluations.Count);
         var hasReachability = best.ReachabilityDiagnostics != null;
         var hasSurvey = false;
 
         var snapshot = new GaResultSnapshotDto
         {
-            SchemaVersion = 2,
+            SchemaVersion = 3,
             CanonicalSnapshotId = input.CanonicalSnapshotId,
             CanonicalPayloadHash = input.CanonicalPayloadHash,
             ApplicationVersion = context.ApplicationVersion,
@@ -549,7 +550,7 @@ public sealed class GaResultSnapshotMapper : IGaResultSnapshotMapper
                 TerminationReason = execution.TerminationReason,
                 ApplicationVersion = context.ApplicationVersion,
                 GitCommitHash = context.GitCommitHash,
-                SnapshotSchemaVersion = 2,
+                SnapshotSchemaVersion = 3,
                 DiagnosticsSchemaVersion = "1.0"
             },
             Project = new GaProjectSnapshotDto
@@ -564,7 +565,9 @@ public sealed class GaResultSnapshotMapper : IGaResultSnapshotMapper
                 CanonicalSnapshotId = input.CanonicalSnapshotId,
                 CanonicalPayloadHash = input.CanonicalPayloadHash,
                 ModelFingerprint = modelFingerprint,
-                OptimizationInputFingerprint = ComputeOptimizationInputFingerprint(input, loadChartFingerprint, effective),
+                OptimizationInputFingerprint = optimizationInputFingerprint.Aggregate,
+                OptimizationInputFingerprintVersion = optimizationInputFingerprint.Version,
+                OptimizationInputFingerprintComponents = optimizationInputFingerprint.Components,
                 IfcFileName = input.IfcFileName,
                 IfcProjectRelativePath = BuildProjectRelativeIfcPath(context.ProjectRoot, context.IfcFilePath),
                 IfcSha256 = TryHashFile(context.IfcFilePath, cancellationToken),
@@ -1074,21 +1077,6 @@ public sealed class GaResultSnapshotMapper : IGaResultSnapshotMapper
         return HashText(string.Join("\n", projection));
     }
 
-    private static string ComputeOptimizationInputFingerprint(PlacementInput input, string loadChartFingerprint, GASettings settings)
-    {
-        var projection = string.Join("\n",
-            ComputeModelFingerprint(input.Elements),
-            string.Join(";", input.Elements.Select(element => element.ElementID).OrderBy(id => id, StringComparer.Ordinal)),
-            loadChartFingerprint,
-            settings.EnableGroupedLifts,
-            settings.MaxCranePositions,
-            settings.RelocationWeight,
-            settings.UseHungarianAssignment,
-            settings.LoadChartNumberOfLinesConstraint,
-            settings.LoadChartOperatingConditionConstraint);
-        return HashText(projection);
-    }
-
     private static string ComputeLoadChartFingerprint(IEnumerable<Domain.Entities.TargetPoint>? points)
     {
         var projection = (points ?? Array.Empty<Domain.Entities.TargetPoint>())
@@ -1222,7 +1210,7 @@ public sealed class GaResultSnapshotValidator : IGaResultSnapshotValidator
         var errors = new List<string>();
         var warnings = new List<string>();
 
-        if (snapshot.SchemaVersion is not (1 or 2))
+        if (snapshot.SchemaVersion is not (1 or 2 or 3))
             errors.Add("Unsupported SchemaVersion.");
         if (snapshot.SnapshotType != "CraneOptimizer.GaResult")
             errors.Add("Invalid SnapshotType.");
@@ -1332,6 +1320,24 @@ public sealed class GaResultSnapshotValidator : IGaResultSnapshotValidator
                     var expectedHash = CanonicalLiftUnitSnapshotBuilder.ComputeSharedDataHash(unit);
                     if (!string.Equals(unit.SharedDataHash, expectedHash, StringComparison.Ordinal))
                         errors.Add($"Schema v2 LiftUnit '{unit.LiftUnitId}' SharedDataHash does not match its shared fields.");
+                }
+            }
+        }
+
+        if (snapshot.SchemaVersion >= 3)
+        {
+            if (snapshot.Run.SnapshotSchemaVersion != snapshot.SchemaVersion)
+                errors.Add("Run.SnapshotSchemaVersion must match SchemaVersion.");
+            if (snapshot.Model.OptimizationInputFingerprintVersion != GaOptimizationInputFingerprint.CurrentVersion)
+                errors.Add($"Schema v3 requires OptimizationInputFingerprintVersion {GaOptimizationInputFingerprint.CurrentVersion}.");
+            if (string.IsNullOrWhiteSpace(snapshot.Model.OptimizationInputFingerprint))
+                errors.Add("Schema v3 requires OptimizationInputFingerprint.");
+            foreach (var componentName in GaOptimizationInputFingerprint.RequiredComponentNames)
+            {
+                if (!snapshot.Model.OptimizationInputFingerprintComponents.TryGetValue(componentName, out var value)
+                    || string.IsNullOrWhiteSpace(value))
+                {
+                    errors.Add($"Schema v3 requires OptimizationInputFingerprintComponents.{componentName}.");
                 }
             }
         }

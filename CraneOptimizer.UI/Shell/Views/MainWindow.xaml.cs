@@ -1,6 +1,8 @@
 using CraneOptimizer.AI.Host;
 using CraneOptimizer.UI.AIIntegration;
 using CraneOptimizer.UI.Core.Helpers;
+using CraneOptimizer.UI.Core.Interfaces;
+using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.F10_ProjectManagement.Views;
 using CraneOptimizer.UI.Shell.ViewModels;
@@ -13,24 +15,34 @@ namespace CraneOptimizer.UI.Shell.Views
     {
         private readonly IProjectNavigationService _nav;
         private readonly IUiInteractionContextService _uiContext;
+        private readonly IProjectHistoryService _history;
+        private GridLength _rightWorkspaceWidthBeforeAi = new(CranePropertiesDefaultWidth);
+        private bool _isAiAssistWidthActive;
 
         public MainWindow(
             MainViewModel vm,
             IProjectNavigationService nav,
             AiHostContextBridge aiContextBridge,
-            IUiInteractionContextService uiContext)
+            IUiInteractionContextService uiContext,
+            OsnapPanelViewModel osnapViewModel,
+            IProjectHistoryService history)
         {
             InitializeComponent();
             DataContext = vm;
+            ShellOsnapPanel.DataContext = osnapViewModel;
             _nav = nav;
             _uiContext = uiContext ?? throw new ArgumentNullException(nameof(uiContext));
+            _history = history ?? throw new ArgumentNullException(nameof(history));
             _uiContext.ActionRequested += OnAiActionRequested;
+            _history.StateChanged += OnHistoryStateChanged;
             Closed += OnClosed;
             aiContextBridge.Attach(vm);
             AddHandler(
                 HomeTabView.ProjectSettingsRequestedEvent,
                 new RoutedEventHandler(OnProjectSettingsRequested));
             MaximizeTaskbarHelper.Attach(this, MaximizeButton);
+            OnHistoryStateChanged();
+            PreviewKeyDown += MainWindow_PreviewKeyDown;
             // Apply initial maximize after source is initialized
             Loaded += (_, _) => MaximizeTaskbarHelper.ToggleMaximize(this, MaximizeButton);
         }
@@ -38,6 +50,8 @@ namespace CraneOptimizer.UI.Shell.Views
         private void OnClosed(object? sender, EventArgs e)
         {
             _uiContext.ActionRequested -= OnAiActionRequested;
+            _history.StateChanged -= OnHistoryStateChanged;
+            PreviewKeyDown -= MainWindow_PreviewKeyDown;
         }
 
         private void OnAiActionRequested(object? sender, AiUiActionRequestedEventArgs e)
@@ -128,12 +142,41 @@ namespace CraneOptimizer.UI.Shell.Views
         // â”€â”€ Stub handlers (wired in XAML) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private void SaveProject_Click(object sender, RoutedEventArgs e) { }
-        private void UndoBtn_Click(object sender, RoutedEventArgs e) { }
-        private void RedoBtn_Click(object sender, RoutedEventArgs e) { }
-        private void ClearHistory_Click(object sender, RoutedEventArgs e) { }
+        private void UndoBtn_Click(object sender, RoutedEventArgs e) => _history.Undo();
+        private void RedoBtn_Click(object sender, RoutedEventArgs e) => _history.Redo();
+        private void ClearHistory_Click(object sender, RoutedEventArgs e) => _history.Clear();
         private void BtnDimensionTool_Click(object sender, RoutedEventArgs e) { }
-        private void ShowCommandPanel_Click(object sender, RoutedEventArgs e) { }
-        private void ShowLogsPanel_Click(object sender, RoutedEventArgs e) { }
+
+        private void OnHistoryStateChanged()
+        {
+            UndoButton.IsEnabled = _history.CanUndo;
+            RedoButton.IsEnabled = _history.CanRedo;
+            if (DataContext is MainViewModel viewModel)
+                viewModel.HistoryBreadcrumb = _history.Breadcrumb;
+        }
+
+        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (Keyboard.Modifiers != ModifierKeys.Control)
+                return;
+
+            if (e.Key == Key.Z && _history.CanUndo)
+            {
+                _history.Undo();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Y && _history.CanRedo)
+            {
+                _history.Redo();
+                e.Handled = true;
+            }
+        }
+        private void RenderQualityCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is ComboBox { SelectedItem: ComboBoxItem item })
+                IfcViewerHost.ApplyRenderQualitySelection(item.Tag?.ToString());
+        }
+
         private void OpenAiAssistTab()
         {
             AiAssistTab.Visibility = Visibility.Visible;

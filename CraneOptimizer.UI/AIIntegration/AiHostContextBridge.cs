@@ -339,10 +339,7 @@ namespace CraneOptimizer.UI.AIIntegration
             shell.PropertyChanged += OnShellPropertyChanged;
             shell.Scene.ElementsChanged += OnSceneElementsChanged;
             shell.Scene.ElementsSelectionChanged += OnSceneSelectionChanged;
-            shell.Scene.ZoneAdded += OnSceneZoneChanged;
-            shell.Scene.ZoneRemoved += OnSceneZoneChanged;
-            shell.Scene.ZoneUpdated += OnSceneZoneChanged;
-            shell.Scene.ZonesCleared += OnNonModelSceneChanged;
+            shell.Scene.ZonesChanged += OnNonModelSceneChanged;
             shell.Scene.CraneAdded += OnSceneCraneChanged;
             shell.Scene.CraneRemoved += OnSceneCraneChanged;
             shell.Scene.CraneMoved += OnSceneCraneChanged;
@@ -361,10 +358,7 @@ namespace CraneOptimizer.UI.AIIntegration
             shell.PropertyChanged -= OnShellPropertyChanged;
             shell.Scene.ElementsChanged -= OnSceneElementsChanged;
             shell.Scene.ElementsSelectionChanged -= OnSceneSelectionChanged;
-            shell.Scene.ZoneAdded -= OnSceneZoneChanged;
-            shell.Scene.ZoneRemoved -= OnSceneZoneChanged;
-            shell.Scene.ZoneUpdated -= OnSceneZoneChanged;
-            shell.Scene.ZonesCleared -= OnNonModelSceneChanged;
+            shell.Scene.ZonesChanged -= OnNonModelSceneChanged;
             shell.Scene.CraneAdded -= OnSceneCraneChanged;
             shell.Scene.CraneRemoved -= OnSceneCraneChanged;
             shell.Scene.CraneMoved -= OnSceneCraneChanged;
@@ -406,7 +400,6 @@ namespace CraneOptimizer.UI.AIIntegration
         }
 
         private void OnSceneSelectionChanged(List<PrecastElement> _) => RaiseContextChanged();
-        private void OnSceneZoneChanged(GreenAreaZone _) => RaiseContextChanged();
         private void OnSceneCraneChanged(SceneCrane _) => RaiseContextChanged();
 
         private void RaiseContextChanged() => ContextChanged?.Invoke(this, EventArgs.Empty);

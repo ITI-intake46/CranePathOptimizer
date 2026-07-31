@@ -4,7 +4,6 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:helix="http://helix-toolkit.org/wpf"
-             xmlns:osnap="clr-namespace:CraneOptimizer.UI.Features.F15_ObjectSnap.Views"
              mc:Ignorable="d" 
              d:DesignHeight="600" d:DesignWidth="800">
     <UserControl.Resources>
@@ -24,13 +23,8 @@
 
     <Border Background="{DynamicResource BackgroundBrush}">
         <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-
             <!--  Viewport stack  -->
-            <Grid Grid.Row="0" ClipToBounds="True">
+            <Grid ClipToBounds="True">
 
                 <!--  3D VIEW  -->
                 <helix:HelixViewport3D
@@ -192,56 +186,6 @@
                 </Border>
 
             </Grid>
-
-            <Border
-                Grid.Row="1"
-                Padding="8,2"
-                Background="{DynamicResource SurfaceElevatedBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,1,0,0">
-                <DockPanel LastChildFill="False">
-                    <StackPanel
-                        Margin="2,0,0,0"
-                        VerticalAlignment="Center"
-                        DockPanel.Dock="Left"
-                        Orientation="Horizontal">
-                        <TextBlock
-                            Margin="0,0,6,0"
-                            VerticalAlignment="Center"
-                            FontFamily="{StaticResource FontPrimary}"
-                            FontSize="{StaticResource FontSizeXS}"
-                            FontWeight="SemiBold"
-                            Foreground="{DynamicResource TextSecondaryBrush}"
-                            Text="Render Quality" />
-                        <ComboBox
-                            x:Name="RenderQualityCombo"
-                            Width="112"
-                            Height="24"
-                            VerticalAlignment="Center"
-                            ItemContainerStyle="{StaticResource DarkComboBoxItem}"
-                            SelectedIndex="1"
-                            SelectionChanged="RenderQualityCombo_SelectionChanged"
-                            Style="{StaticResource DarkComboBox}"
-                            ToolTip="High: detailed IFC meshes. Medium: simplified meshes. Low: batched boxes for large models.">
-                            <ComboBoxItem Content="High" Tag="High" ToolTip="Full detailed IFC meshes with best visual quality." />
-                            <ComboBoxItem Content="Medium" Tag="Medium" ToolTip="Simplified IFC meshes with reduced geometry complexity." />
-                            <ComboBoxItem Content="Low" Tag="Low" ToolTip="Lightweight batched bounding boxes for maximum performance." />
-                        </ComboBox>
-                    </StackPanel>
-
-                    <Rectangle
-                        Width="1"
-                        Height="12"
-                        Margin="8,0"
-                        DockPanel.Dock="Left"
-                        Fill="{DynamicResource BorderBrush}" />
-
-                    <osnap:OsnapStatusPanel
-                        x:Name="OsnapPanel"
-                        VerticalAlignment="Center"
-                        DockPanel.Dock="Left" />
-                </DockPanel>
-            </Border>
         </Grid>
     </Border>
 </UserControl>

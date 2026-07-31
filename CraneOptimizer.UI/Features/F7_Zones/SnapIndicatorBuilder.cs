@@ -6,6 +6,14 @@ using System.Windows.Media.Media3D;
 
 namespace CraneOptimizer.UI.Features.F7_Zones
 {
+    public enum SnapType
+    {
+        None,
+        Point,
+        Orthogonal,
+        Grid
+    }
+
     public record SnapIndicatorData(
         DomainPoint3D Point,
         SnapType Type,

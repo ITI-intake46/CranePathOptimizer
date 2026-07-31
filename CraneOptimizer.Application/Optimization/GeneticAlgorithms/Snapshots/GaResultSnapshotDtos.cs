@@ -4,7 +4,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 
 public sealed class GaResultSnapshotDto
 {
-    public int SchemaVersion { get; init; } = 2;
+    public int SchemaVersion { get; init; } = 3;
     public string SnapshotType { get; init; } = "CraneOptimizer.GaResult";
     public string ApplicationVersion { get; init; } = string.Empty;
     public string? GitCommitHash { get; init; }
@@ -44,7 +44,7 @@ public sealed class GaRunIdentitySnapshotDto
     public string? TerminationReason { get; init; }
     public string ApplicationVersion { get; init; } = string.Empty;
     public string? GitCommitHash { get; init; }
-    public int SnapshotSchemaVersion { get; init; } = 2;
+    public int SnapshotSchemaVersion { get; init; } = 3;
     public string? DiagnosticsSchemaVersion { get; init; }
 }
 
@@ -63,6 +63,9 @@ public sealed class GaModelSnapshotDto
     public string CanonicalPayloadHash { get; init; } = string.Empty;
     public string ModelFingerprint { get; init; } = string.Empty;
     public string OptimizationInputFingerprint { get; init; } = string.Empty;
+    public int OptimizationInputFingerprintVersion { get; init; }
+    public IReadOnlyDictionary<string, string> OptimizationInputFingerprintComponents { get; init; }
+        = new Dictionary<string, string>(StringComparer.Ordinal);
     public string? ModelRevision { get; init; }
     public string? IfcFileName { get; init; }
     public string? IfcProjectRelativePath { get; init; }

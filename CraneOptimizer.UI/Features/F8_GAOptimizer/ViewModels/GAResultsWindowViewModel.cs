@@ -8,7 +8,6 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
@@ -171,6 +170,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         private readonly CranePlacementResult _result = null!;
         private readonly IProjectCoordinateTransformService _transformService;
         private readonly List<CranePositionPresentationDto> _positions = new();
+        private IReadOnlyList<ElementLiftResultRowDto> _assignedElements =
+            Array.Empty<ElementLiftResultRowDto>();
         private CranePositionPresentationDto? _selectedPoint;
         private ElementLiftResultRowDto? _selectedElement;
         private GAViewMode _currentGAViewMode;
@@ -264,7 +265,15 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         public string CounterWeightDisplay => _result.CounterWeight > 0 ? _result.CounterWeight.ToString("F1") + " t" : "-";
 
         // ── Assigned elements collection (DataGrid items source) ─────────────
-        public ObservableCollection<ElementLiftResultRowDto> AssignedElements { get; } = new();
+        public IReadOnlyList<ElementLiftResultRowDto> AssignedElements
+        {
+            get => _assignedElements;
+            private set
+            {
+                _assignedElements = value;
+                OnPropertyChanged();
+            }
+        }
 
         /// <summary>
         /// Currently selected element in the DataGrid.
@@ -510,10 +519,12 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
             if (_isLoaded)
                 return;
 
-            _isLoaded = true;
-
             if (SelectedPoint == null && _positions.Any())
                 SelectedPoint = _positions[0];
+
+            // The initial setup is presentation-only. Do not trigger the expensive
+            // main-scene rebuild while WPF is trying to paint this window.
+            _isLoaded = true;
         }
 
         /// <summary>
@@ -521,12 +532,14 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
         /// </summary>
         private void RebuildAssignedElements()
         {
-            AssignedElements.Clear();
             _selectedElement = null;
             OnPropertyChanged(nameof(SelectedElement));
 
             if (SelectedPoint == null)
+            {
+                AssignedElements = Array.Empty<ElementLiftResultRowDto>();
                 return;
+            }
 
             IEnumerable<ElementLiftResult> filtered;
             if (CurrentGAViewMode == GAViewMode.FinalAssignment)
@@ -540,8 +553,10 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
                     .Where(er => er.Status == LiftStatus.Liftable);
             }
 
-            foreach (var er in filtered.OrderBy(e => e.ElementMark))
-                AssignedElements.Add(new ElementLiftResultRowDto(er));
+            AssignedElements = filtered
+                .OrderBy(element => element.ElementMark, StringComparer.CurrentCulture)
+                .Select(element => new ElementLiftResultRowDto(element))
+                .ToArray();
         }
 
         public void OnClosing()

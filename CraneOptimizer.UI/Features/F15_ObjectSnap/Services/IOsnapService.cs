@@ -1,7 +1,8 @@
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
-using HelixToolkit.Wpf;
+using System;
 using System.Collections.Generic;
-using System.Windows;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Media.Media3D;
 
 namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
@@ -10,6 +11,15 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
     {
         OsnapSettings Settings { get; }
         event Action<bool>? MasterEnabledChanged;
+        event Action<long>? GeometryVersionChanged;
+        event Action<long>? SettingsVersionChanged;
+        event Action<bool>? PreparingChanged;
+
+        OsnapGeometryVersionState GeometryVersions { get; }
+        long SettingsVersion { get; }
+        OsnapModeMask EnabledModes { get; }
+        bool IsPreparing { get; }
+        double SceneScale { get; }
 
         int SnapCacheBuiltCount { get; }
         int SnapPointCount { get; }
@@ -18,21 +28,40 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 
         void SetMasterEnabled(bool enabled);
         void SetSnapEnabled(OsnapType type, bool enabled);
+        void SetSourceEnabled(OsnapSource source, bool enabled);
+        void SetSnapRadius(double radiusPixels);
+        void SetGridSpacing(double spacing);
 
-        void SetZoneGeometry(IEnumerable<(IReadOnlyList<Point3D> Vertices, bool IsClosed)> polygons);
-        void SetDxfSnapPoints(IEnumerable<Point3D> endpoints,
-                              IEnumerable<(Point3D A, Point3D B)> segments,
-                              IEnumerable<Point3D>? centers = null,
-                              IEnumerable<Point3D>? quadrants = null,
-                              IEnumerable<(Point3D A, Point3D B)>? midpointSegments = null);
-        void SetIfcSnapPoints(IEnumerable<Point3D> vertices,
-                              IEnumerable<(Point3D A, Point3D B)>? segments = null);
-        void SetIfcSnapGeometry(IEnumerable<IfcSnapGeometry> geometry);
+        Task SetCompletedZoneGeometryAsync(
+            IReadOnlyList<OsnapZoneGeometry> polygons,
+            CancellationToken cancellationToken = default);
 
-        /// <summary>
-        /// Returns the best snap result for the given screen-space cursor position,
-        /// or null when nothing is within the snap aperture (SnapRadiusPx pixels).
-        /// </summary>
-        OsnapResult? Snap(Point screenCursor, HelixViewport3D viewport);
+        Task SetDxfSnapPointsAsync(
+            IReadOnlyList<Point3D> endpoints,
+            IReadOnlyList<(Point3D A, Point3D B)> segments,
+            IReadOnlyList<Point3D> centers,
+            IReadOnlyList<Point3D> quadrants,
+            IReadOnlyList<(Point3D A, Point3D B)> midpointSegments,
+            CancellationToken cancellationToken = default);
+
+        Task SetIfcSnapGeometryAsync(
+            IReadOnlyList<IfcSnapGeometry> geometry,
+            CancellationToken cancellationToken = default);
+
+        Task SetTransientZoneGeometryAsync(
+            long drawingSessionVersion,
+            IReadOnlyList<Point3D> vertices,
+            CancellationToken cancellationToken = default);
+
+        void ClearTransientZoneGeometry(long drawingSessionVersion);
+        void CancelPendingQueries();
+        void BeginGeometryPreparation() { }
+        void EndGeometryPreparation() { }
+
+        Task<OsnapResult?> SnapAsync(
+            OsnapQuery query,
+            CancellationToken cancellationToken);
+
+        OsnapDiagnosticsSnapshot GetDiagnostics();
     }
 }

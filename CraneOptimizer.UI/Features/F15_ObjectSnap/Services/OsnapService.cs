@@ -1,9 +1,9 @@
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
-using HelixToolkit.Wpf;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media.Media3D;
 
@@ -11,627 +11,1407 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 {
     public sealed class OsnapService : IOsnapService
     {
+        private const int MaxPointCandidatesPerSource = 48;
+        private const int QueryLatencySampleCapacity = 256;
+        private const double DistanceTieTolerancePx = 0.75;
+        private const double DepthTieTolerance = 1e-6;
+
+        private static readonly object CompatibilityDiagnosticsGate = new();
+        private readonly object _buildGate = new();
+        private readonly object _queryGate = new();
+        private readonly object _diagnosticsGate = new();
+        private readonly object _geometryEventGate = new();
+        private readonly BuildSlot _ifcBuild = new();
+        private readonly BuildSlot _dxfBuild = new();
+        private readonly BuildSlot _zoneBuild = new();
+        private readonly BuildSlot _activeZoneBuild = new();
+        private readonly double[] _queryLatencySamples =
+            new double[QueryLatencySampleCapacity];
+
+        private IndexSet _indexes = IndexSet.Empty;
+        private CancellationTokenSource _queryEpochCts = new();
+        private long _settingsVersion = 1;
+        private long _activeDrawingSessionVersion;
+        private long _activeZoneMutationVersion;
+        private int _isMasterEnabled;
+        private int _preparingCount;
+        private int _queryLatencySampleCount;
+        private int _queryLatencySampleCursor;
+
+        private long _indexBuildCount;
+        private long _lastNotifiedGeometryVersion;
+        private long _queryCount;
+        private long _cancelledQueryCount;
+        private long _rejectedStaleQueryCount;
+        private int _lastIfcBuildThreadId;
+        private int _lastDxfBuildThreadId;
+        private int _lastZoneBuildThreadId;
+        private int _lastActiveZoneBuildThreadId;
+        private int _lastQueryThreadId;
+        private int _lastIntersectionThreadId;
+        private int _lastIfcBuildHadSynchronizationContext;
+        private int _lastDxfBuildHadSynchronizationContext;
+        private int _lastZoneBuildHadSynchronizationContext;
+        private int _lastActiveZoneBuildHadSynchronizationContext;
+        private int _lastQueryHadSynchronizationContext;
+        private int _lastPointCandidateCount;
+        private int _lastSegmentCandidateCount;
+        private double _lastQueryMilliseconds;
+
+        public OsnapService(OsnapSettings settings)
+        {
+            Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _isMasterEnabled = settings.MasterEnabled ? 1 : 0;
+            if (!settings.MasterEnabled)
+                _queryEpochCts.Cancel();
+        }
+
+        public OsnapSettings Settings { get; }
+
+        public event Action<bool>? MasterEnabledChanged;
+        public event Action<long>? GeometryVersionChanged;
+        public event Action<long>? SettingsVersionChanged;
+        public event Action<bool>? PreparingChanged;
+
+        public OsnapGeometryVersionState GeometryVersions
+        {
+            get
+            {
+                IndexSet indexes = Volatile.Read(ref _indexes);
+                return new OsnapGeometryVersionState(
+                    indexes.AggregateVersion,
+                    indexes.SourceVersions);
+            }
+        }
+
+        public long SettingsVersion => Interlocked.Read(ref _settingsVersion);
+
+        public OsnapModeMask EnabledModes
+        {
+            get
+            {
+                if (Volatile.Read(ref _isMasterEnabled) == 0)
+                    return OsnapModeMask.None;
+
+                OsnapModeMask result = OsnapModeMask.None;
+                if (Settings.SnapEndpoint)
+                    result |= OsnapModeMask.Endpoint;
+                if (Settings.SnapIntersection)
+                    result |= OsnapModeMask.Intersection;
+                if (Settings.SnapMidpoint)
+                    result |= OsnapModeMask.Midpoint;
+                if (Settings.SnapCenter)
+                    result |= OsnapModeMask.Center;
+                if (Settings.SnapQuadrant)
+                    result |= OsnapModeMask.Quadrant;
+                return result;
+            }
+        }
+
+        public bool IsPreparing => Volatile.Read(ref _preparingCount) > 0;
+
+        public double SceneScale
+        {
+            get
+            {
+                double extent = Volatile.Read(ref _indexes).Bounds.MaxExtent;
+                return extent > 0 && double.IsFinite(extent) ? extent : 10.0;
+            }
+        }
+
+        public int SnapCacheBuiltCount
+        {
+            get
+            {
+                IndexSet indexes = Volatile.Read(ref _indexes);
+                int count = 0;
+                if (HasGeometry(indexes.Ifc))
+                    count++;
+                if (HasGeometry(indexes.Dxf))
+                    count++;
+                if (HasGeometry(indexes.CompletedZones))
+                    count++;
+                if (HasGeometry(indexes.ActiveZone))
+                    count++;
+                return count;
+            }
+        }
+
+        public int SnapPointCount
+        {
+            get
+            {
+                IndexSet indexes = Volatile.Read(ref _indexes);
+                return indexes.Ifc.PointCount +
+                       indexes.Dxf.PointCount +
+                       indexes.CompletedZones.PointCount +
+                       indexes.ActiveZone.PointCount;
+            }
+        }
+
+        public double SnapBuildDurationMs { get; private set; }
+        public double SnapMemoryDeltaMB { get; private set; }
+
+        // Kept as compatibility diagnostics for the opt-in legacy benchmark.
         public static int SnapRebuildCount { get; private set; }
         public static double SnapRebuildTotalMs { get; private set; }
         public static double SnapRebuildMaxMs { get; private set; }
         public static int LastRebuildVerticesCount { get; private set; }
         public static int LastRebuildSegmentsCount { get; private set; }
-        public static bool UseLegacyKeyComparison { get; set; } = false;
 
         public static void ResetSnapDiagnostics()
         {
-            SnapRebuildCount = 0;
-            SnapRebuildTotalMs = 0;
-            SnapRebuildMaxMs = 0;
-            LastRebuildVerticesCount = 0;
-            LastRebuildSegmentsCount = 0;
+            lock (CompatibilityDiagnosticsGate)
+            {
+                SnapRebuildCount = 0;
+                SnapRebuildTotalMs = 0;
+                SnapRebuildMaxMs = 0;
+                LastRebuildVerticesCount = 0;
+                LastRebuildSegmentsCount = 0;
+            }
         }
-
-        public OsnapSettings Settings { get; }
-
-        private List<Point3D> _zoneVertices = new();
-        private List<(Point3D A, Point3D B)> _zoneEdges = new();
-
-        private List<Point3D> _dxfEndpoints = new();
-        private List<(Point3D A, Point3D B)> _dxfSegments = new();
-        private List<(Point3D A, Point3D B)> _dxfMidpointSegments = new();
-        private List<Point3D> _dxfCenters = new();
-        private List<Point3D> _dxfQuadrants = new();
-        private DxfSnapScreenIndex? _dxfScreenIndex;
-        private int _dxfGeometryVersion;
-
-        private List<Point3D> _ifcVertices = new();
-        private List<(Point3D A, Point3D B)> _ifcSegments = new();
-        private Dictionary<string, IfcSnapGeometry> _ifcGeometryByElementId = new(StringComparer.Ordinal);
-        private IfcSnapScreenIndex? _ifcScreenIndex;
-        private int _ifcGeometryVersion;
-        private int _snapCallCount;
-
-        public event Action<bool>? MasterEnabledChanged;
-
-        public int SnapCacheBuiltCount => _ifcGeometryByElementId.Count;
-        public int SnapPointCount => _ifcVertices.Count + _ifcSegments.Count;
-        public double SnapBuildDurationMs { get; private set; }
-        public double SnapMemoryDeltaMB { get; private set; }
-
-        public OsnapService(OsnapSettings settings)
-            => Settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
         public void SetMasterEnabled(bool enabled)
         {
-            if (Settings.MasterEnabled == enabled) return;
+            bool wasEnabled =
+                Interlocked.Exchange(
+                    ref _isMasterEnabled,
+                    enabled ? 1 : 0) != 0;
+            if (wasEnabled == enabled)
+                return;
+
             Settings.MasterEnabled = enabled;
+            IncrementSettingsVersionAndResetQueries(enabled);
+            if (!enabled)
+            {
+                CancelAllBuilds();
+                PublishAllEmpty();
+            }
+
             MasterEnabledChanged?.Invoke(enabled);
         }
 
         public void SetSnapEnabled(OsnapType type, bool enabled)
         {
-            switch (type)
+            bool changed = type switch
             {
-                case OsnapType.Endpoint: Settings.SnapEndpoint = enabled; break;
-                case OsnapType.Midpoint: Settings.SnapMidpoint = enabled; break;
-                case OsnapType.Intersection: Settings.SnapIntersection = enabled; break;
-                case OsnapType.Perpendicular: Settings.SnapPerpendicular = false; break;
-                case OsnapType.Nearest: Settings.SnapNearest = false; break;
-                case OsnapType.Grid: Settings.SnapGrid = false; break;
-                case OsnapType.Center: Settings.SnapCenter = enabled; break;
-                case OsnapType.Quadrant: Settings.SnapQuadrant = enabled; break;
-            }
+                OsnapType.Endpoint => SetIfChanged(
+                    Settings.SnapEndpoint,
+                    enabled,
+                    value => Settings.SnapEndpoint = value),
+                OsnapType.Midpoint => SetIfChanged(
+                    Settings.SnapMidpoint,
+                    enabled,
+                    value => Settings.SnapMidpoint = value),
+                OsnapType.Intersection => SetIfChanged(
+                    Settings.SnapIntersection,
+                    enabled,
+                    value => Settings.SnapIntersection = value),
+                OsnapType.Center => SetIfChanged(
+                    Settings.SnapCenter,
+                    enabled,
+                    value => Settings.SnapCenter = value),
+                OsnapType.Quadrant => SetIfChanged(
+                    Settings.SnapQuadrant,
+                    enabled,
+                    value => Settings.SnapQuadrant = value),
+                OsnapType.Perpendicular => SetIfChanged(
+                    Settings.SnapPerpendicular,
+                    false,
+                    value => Settings.SnapPerpendicular = value),
+                OsnapType.Nearest => SetIfChanged(
+                    Settings.SnapNearest,
+                    false,
+                    value => Settings.SnapNearest = value),
+                OsnapType.Grid => SetIfChanged(
+                    Settings.SnapGrid,
+                    false,
+                    value => Settings.SnapGrid = value),
+                _ => false
+            };
+
+            if (changed)
+                IncrementSettingsVersionAndResetQueries(IsMasterEnabled);
         }
 
-        public void SetZoneGeometry(IEnumerable<(IReadOnlyList<Point3D> Vertices, bool IsClosed)> polygons)
+        public void SetSourceEnabled(OsnapSource source, bool enabled)
         {
-            _zoneVertices.Clear();
-            _zoneEdges.Clear();
-
-            foreach (var (vertices, isClosed) in polygons)
+            bool changed = source switch
             {
-                if (vertices.Count == 0)
-                    continue;
+                OsnapSource.Dxf => SetIfChanged(
+                    Settings.SnapToDxf,
+                    enabled,
+                    value => Settings.SnapToDxf = value),
+                OsnapSource.Ifc => SetIfChanged(
+                    Settings.SnapToIfc,
+                    enabled,
+                    value => Settings.SnapToIfc = value),
+                _ => false
+            };
 
-                _zoneVertices.AddRange(vertices);
-                int edgeCount = isClosed ? vertices.Count : vertices.Count - 1;
-                for (int i = 0; i < edgeCount; i++)
-                    _zoneEdges.Add((vertices[i], vertices[(i + 1) % vertices.Count]));
-            }
+            if (changed)
+                IncrementSettingsVersionAndResetQueries(IsMasterEnabled);
         }
 
-        public void SetDxfSnapPoints(
-            IEnumerable<Point3D> endpoints,
-            IEnumerable<(Point3D A, Point3D B)> segments,
-            IEnumerable<Point3D>? centers = null,
-            IEnumerable<Point3D>? quadrants = null,
-            IEnumerable<(Point3D A, Point3D B)>? midpointSegments = null)
+        public void SetSnapRadius(double radiusPixels)
         {
-            _dxfEndpoints = endpoints?.Where(IsFinite).ToList() ?? new();
-            _dxfSegments = segments?.Where(s => IsFinite(s.A) && IsFinite(s.B)).ToList() ?? new();
-            _dxfMidpointSegments = midpointSegments?.Where(s => IsFinite(s.A) && IsFinite(s.B)).ToList()
-                                   ?? _dxfSegments;
-            _dxfCenters = centers?.Where(IsFinite).ToList() ?? new();
-            _dxfQuadrants = quadrants?.Where(IsFinite).ToList() ?? new();
-            _dxfGeometryVersion++;
-            _dxfScreenIndex = null;
+            double safeRadius =
+                double.IsFinite(radiusPixels) && radiusPixels > 0
+                    ? radiusPixels
+                    : Settings.SnapRadiusPx;
+            if (Math.Abs(Settings.SnapRadiusPx - safeRadius) < 1e-9)
+                return;
 
-            Debug.WriteLine($"[OSnap] SetDxfSnapPoints: endpoints={_dxfEndpoints.Count}, segments={_dxfSegments.Count}");
+            Settings.SnapRadiusPx = safeRadius;
+            IncrementSettingsVersionAndResetQueries(IsMasterEnabled);
         }
 
-        public void SetIfcSnapPoints(
-            IEnumerable<Point3D> vertices,
-            IEnumerable<(Point3D A, Point3D B)>? segments = null)
+        public void SetGridSpacing(double spacing)
         {
-            _ifcVertices = vertices?.Where(IsFinite).ToList() ?? new();
-            _ifcSegments = segments?.Where(s => IsFinite(s.A) && IsFinite(s.B)).ToList() ?? new();
-            _ifcGeometryByElementId.Clear();
-            _ifcGeometryVersion++;
-            _ifcScreenIndex = null;
-
-            Debug.WriteLine($"[OSnap] SetIfcSnapPoints: vertices={_ifcVertices.Count}, segments={_ifcSegments.Count}");
-        }
-
-        public void SetIfcSnapGeometry(IEnumerable<IfcSnapGeometry> geometry)
-        {
-            var sw = Stopwatch.StartNew();
-            long memBefore = GC.GetTotalMemory(false);
-
-            var items = geometry?.Where(g => !string.IsNullOrWhiteSpace(g.ElementId)).ToList() ?? new();
-            _ifcGeometryByElementId = items
-                .GroupBy(g => g.ElementId, StringComparer.Ordinal)
-                .ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
-
-            _ifcVertices = items.SelectMany(g => g.Vertices).Where(IsFinite).ToList();
-            _ifcSegments = items.SelectMany(g => g.Segments).Where(s => IsFinite(s.A) && IsFinite(s.B)).ToList();
-            _ifcGeometryVersion++;
-            _ifcScreenIndex = null;
-
-            sw.Stop();
-            long memAfter = GC.GetTotalMemory(false);
-
-            SnapBuildDurationMs = sw.Elapsed.TotalMilliseconds;
-            SnapMemoryDeltaMB = Math.Max(0.0, (double)(memAfter - memBefore) / (1024.0 * 1024.0));
-
-            Debug.WriteLine(
-                $"[OSnap] SetIfcSnapGeometry: elements={_ifcGeometryByElementId.Count}, " +
-                $"vertices={_ifcVertices.Count}, segments={_ifcSegments.Count}, Duration={SnapBuildDurationMs:F2}ms, " +
-                $"MemoryDelta={SnapMemoryDeltaMB:F2}MB");
-        }
-
-        private System.Windows.Threading.DispatcherTimer? _debounceTimer;
-        private HelixViewport3D? _lastViewport;
-
-        private void ResetDebounceTimer(HelixViewport3D viewport)
-        {
-            if (!viewport.Dispatcher.CheckAccess())
+            if (!double.IsFinite(spacing) ||
+                spacing <= 0 ||
+                Math.Abs(Settings.GridSpacing - spacing) < 1e-9)
             {
-                viewport.Dispatcher.BeginInvoke(new Action(() => ResetDebounceTimer(viewport)));
                 return;
             }
 
-            if (_debounceTimer == null)
+            Settings.GridSpacing = spacing;
+            IncrementSettingsVersionAndResetQueries(IsMasterEnabled);
+        }
+
+        public Task SetCompletedZoneGeometryAsync(
+            IReadOnlyList<OsnapZoneGeometry> polygons,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(polygons);
+            return BuildAndPublishAsync(
+                BuildKind.CompletedZones,
+                _zoneBuild,
+                token => OsnapGeometryIndex.BuildZones(polygons, token),
+                static () => true,
+                cancellationToken);
+        }
+
+        public Task SetDxfSnapPointsAsync(
+            IReadOnlyList<Point3D> endpoints,
+            IReadOnlyList<(Point3D A, Point3D B)> segments,
+            IReadOnlyList<Point3D> centers,
+            IReadOnlyList<Point3D> quadrants,
+            IReadOnlyList<(Point3D A, Point3D B)> midpointSegments,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(endpoints);
+            ArgumentNullException.ThrowIfNull(segments);
+            ArgumentNullException.ThrowIfNull(centers);
+            ArgumentNullException.ThrowIfNull(quadrants);
+            ArgumentNullException.ThrowIfNull(midpointSegments);
+            return BuildAndPublishAsync(
+                BuildKind.Dxf,
+                _dxfBuild,
+                token => OsnapGeometryIndex.BuildDxf(
+                    endpoints,
+                    segments,
+                    centers,
+                    quadrants,
+                    midpointSegments,
+                    token),
+                static () => true,
+                cancellationToken);
+        }
+
+        public Task SetIfcSnapGeometryAsync(
+            IReadOnlyList<IfcSnapGeometry> geometry,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(geometry);
+            return BuildAndPublishAsync(
+                BuildKind.Ifc,
+                _ifcBuild,
+                token => OsnapGeometryIndex.BuildIfc(geometry, token),
+                static () => true,
+                cancellationToken);
+        }
+
+        public Task SetTransientZoneGeometryAsync(
+            long drawingSessionVersion,
+            IReadOnlyList<Point3D> vertices,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(vertices);
+            long mutationVersion;
+            lock (_buildGate)
             {
-                _debounceTimer = new System.Windows.Threading.DispatcherTimer(
-                    System.Windows.Threading.DispatcherPriority.Background,
-                    viewport.Dispatcher)
+                if (drawingSessionVersion < _activeDrawingSessionVersion)
+                    return Task.CompletedTask;
+
+                _activeDrawingSessionVersion = drawingSessionVersion;
+                mutationVersion = ++_activeZoneMutationVersion;
+            }
+
+            var polygon = new OsnapZoneGeometry(vertices, IsClosed: false);
+            IReadOnlyList<OsnapZoneGeometry> polygons =
+                new[] { polygon };
+            return BuildAndPublishAsync(
+                BuildKind.ActiveZone,
+                _activeZoneBuild,
+                token => OsnapGeometryIndex.BuildZones(polygons, token),
+                () => drawingSessionVersion ==
+                          Interlocked.Read(
+                              ref _activeDrawingSessionVersion) &&
+                      mutationVersion ==
+                          Interlocked.Read(
+                              ref _activeZoneMutationVersion),
+                cancellationToken);
+        }
+
+        public void ClearTransientZoneGeometry(long drawingSessionVersion)
+        {
+            IndexSet next;
+            lock (_buildGate)
+            {
+                if (drawingSessionVersion < _activeDrawingSessionVersion)
+                    return;
+
+                _activeDrawingSessionVersion = drawingSessionVersion;
+                _activeZoneMutationVersion++;
+                CancelSlotNoLock(_activeZoneBuild);
+                IndexSet current = Volatile.Read(ref _indexes);
+                next = current.Replace(
+                    BuildKind.ActiveZone,
+                    OsnapGeometryIndex.Empty(OsnapSource.Zone));
+                Interlocked.Exchange(ref _indexes, next);
+            }
+
+            RaiseGeometryVersionChanged(next.AggregateVersion);
+        }
+
+        public void CancelPendingQueries()
+        {
+            ResetQueryEpoch(IsMasterEnabled);
+        }
+
+        public void BeginGeometryPreparation() => BeginPreparing();
+
+        public void EndGeometryPreparation() => EndPreparing();
+
+        public async Task<OsnapResult?> SnapAsync(
+            OsnapQuery query,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(query);
+            ArgumentNullException.ThrowIfNull(query.Viewport);
+            if (!IsMasterEnabled ||
+                !query.Viewport.IsValid ||
+                query.Viewport.EnabledModes == OsnapModeMask.None)
+            {
+                return null;
+            }
+
+            CancellationTokenSource linked;
+            lock (_queryGate)
+            {
+                linked = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken,
+                    _queryEpochCts.Token);
+            }
+
+            using (linked)
+            try
+            {
+                return await Task.Run(
+                        () => ResolveSnap(query, linked.Token),
+                        linked.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                Interlocked.Increment(ref _cancelledQueryCount);
+                throw;
+            }
+        }
+
+        public OsnapDiagnosticsSnapshot GetDiagnostics()
+        {
+            double mean;
+            double p95;
+            lock (_diagnosticsGate)
+            {
+                int count = Math.Min(
+                    _queryLatencySampleCount,
+                    QueryLatencySampleCapacity);
+                if (count == 0)
                 {
-                    Interval = TimeSpan.FromMilliseconds(100)
-                };
-                _debounceTimer.Tick += (s, e) =>
+                    mean = 0;
+                    p95 = 0;
+                }
+                else
                 {
-                    _debounceTimer.Stop();
-                    _ifcScreenIndex = null;
-                    _dxfScreenIndex = null;
-                    Debug.WriteLine("[OSnap] Camera settled (debounce). Invalidated snap screen indexes to ensure 100% accuracy.");
-                    try
-                    {
-                        if (_lastViewport != null)
+                    var samples = new double[count];
+                    Array.Copy(_queryLatencySamples, samples, count);
+                    double total = 0;
+                    for (int index = 0; index < count; index++)
+                        total += samples[index];
+
+                    mean = total / count;
+                    Array.Sort(samples);
+                    int p95Index = Math.Clamp(
+                        (int)Math.Ceiling(count * 0.95) - 1,
+                        0,
+                        count - 1);
+                    p95 = samples[p95Index];
+                }
+            }
+
+            return new OsnapDiagnosticsSnapshot(
+                Interlocked.Read(ref _indexBuildCount),
+                Interlocked.Read(ref _queryCount),
+                Interlocked.Read(ref _cancelledQueryCount),
+                Interlocked.Read(ref _rejectedStaleQueryCount),
+                Volatile.Read(ref _lastIfcBuildThreadId),
+                Volatile.Read(ref _lastDxfBuildThreadId),
+                Volatile.Read(ref _lastZoneBuildThreadId),
+                Volatile.Read(ref _lastActiveZoneBuildThreadId),
+                Volatile.Read(ref _lastQueryThreadId),
+                Volatile.Read(ref _lastIntersectionThreadId),
+                Volatile.Read(ref _lastIfcBuildHadSynchronizationContext) != 0,
+                Volatile.Read(ref _lastDxfBuildHadSynchronizationContext) != 0,
+                Volatile.Read(ref _lastZoneBuildHadSynchronizationContext) != 0,
+                Volatile.Read(ref _lastActiveZoneBuildHadSynchronizationContext) != 0,
+                Volatile.Read(ref _lastQueryHadSynchronizationContext) != 0,
+                Volatile.Read(ref _lastPointCandidateCount),
+                Volatile.Read(ref _lastSegmentCandidateCount),
+                Volatile.Read(ref _lastQueryMilliseconds),
+                mean,
+                p95);
+        }
+
+        private bool IsMasterEnabled =>
+            Volatile.Read(ref _isMasterEnabled) != 0;
+
+        private async Task BuildAndPublishAsync(
+            BuildKind kind,
+            BuildSlot slot,
+            Func<CancellationToken, OsnapGeometryIndex> builder,
+            Func<bool> canPublish,
+            CancellationToken cancellationToken)
+        {
+            if (!IsMasterEnabled)
+                return;
+
+            CancellationTokenSource linked;
+            long generation;
+            lock (_buildGate)
+            {
+                if (!IsMasterEnabled || !canPublish())
+                    return;
+
+                CancelSlotNoLock(slot);
+                linked = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken);
+                slot.Cancellation = linked;
+                generation = ++slot.Generation;
+            }
+
+            BeginPreparing();
+            try
+            {
+                BuildResult build = await Task.Run(
+                        () =>
                         {
-                            _lastViewport.InvalidateVisual();
-                        }
+                            RecordBuildThread(kind);
+                            long memoryBefore =
+                                GC.GetTotalMemory(false);
+                            var stopwatch = Stopwatch.StartNew();
+                            OsnapGeometryIndex index =
+                                builder(linked.Token);
+                            stopwatch.Stop();
+                            long memoryAfter =
+                                GC.GetTotalMemory(false);
+                            return new BuildResult(
+                                index,
+                                stopwatch.Elapsed,
+                                Math.Max(
+                                    0.0,
+                                    (memoryAfter - memoryBefore) /
+                                    (1024.0 * 1024.0)));
+                        },
+                        linked.Token)
+                    .ConfigureAwait(false);
+                linked.Token.ThrowIfCancellationRequested();
+
+                if (!TryPublishCurrent(
+                        kind,
+                        slot,
+                        linked,
+                        generation,
+                        build.Index,
+                        canPublish,
+                        out long publishedVersion))
+                {
+                    return;
+                }
+
+                SnapBuildDurationMs =
+                    build.Elapsed.TotalMilliseconds;
+                SnapMemoryDeltaMB = build.MemoryDeltaMegabytes;
+                Interlocked.Increment(ref _indexBuildCount);
+                RecordCompatibilityBuildDiagnostics(
+                    build.Index,
+                    build.Elapsed);
+                RaiseGeometryVersionChanged(publishedVersion);
+            }
+            catch (OperationCanceledException)
+                when (linked.IsCancellationRequested ||
+                      cancellationToken.IsCancellationRequested)
+            {
+                // Superseded geometry preparation is expected.
+            }
+            finally
+            {
+                lock (_buildGate)
+                {
+                    if (ReferenceEquals(slot.Cancellation, linked))
+                        slot.Cancellation = null;
+                }
+
+                linked.Dispose();
+                EndPreparing();
+            }
+        }
+
+        private OsnapResult? ResolveSnap(
+            OsnapQuery query,
+            CancellationToken cancellationToken)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            Interlocked.Increment(ref _queryCount);
+            Volatile.Write(
+                ref _lastQueryThreadId,
+                Environment.CurrentManagedThreadId);
+            Volatile.Write(
+                ref _lastQueryHadSynchronizationContext,
+                SynchronizationContext.Current == null ? 0 : 1);
+
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                IndexSet indexes = Volatile.Read(ref _indexes);
+                if (!IsQueryCurrent(query.Viewport, indexes))
+                {
+                    Interlocked.Increment(ref _rejectedStaleQueryCount);
+                    return null;
+                }
+
+                if (!OsnapProjectionMath.TryCreateCursorRay(
+                        query.Viewport,
+                        out OsnapRay ray))
+                {
+                    return null;
+                }
+
+                var accumulator = new CandidateAccumulator(query.Viewport);
+                int pointCandidateCount = 0;
+                QueryPoints(
+                    indexes.CompletedZones,
+                    query.Viewport,
+                    ray,
+                    accumulator,
+                    ref pointCandidateCount,
+                    cancellationToken);
+                QueryPoints(
+                    indexes.ActiveZone,
+                    query.Viewport,
+                    ray,
+                    accumulator,
+                    ref pointCandidateCount,
+                    cancellationToken);
+                if (query.Viewport.SnapToDxf)
+                {
+                    QueryPoints(
+                        indexes.Dxf,
+                        query.Viewport,
+                        ray,
+                        accumulator,
+                        ref pointCandidateCount,
+                        cancellationToken);
+                }
+
+                if (query.Viewport.SnapToIfc)
+                {
+                    QueryPoints(
+                        indexes.Ifc,
+                        query.Viewport,
+                        ray,
+                        accumulator,
+                        ref pointCandidateCount,
+                        cancellationToken);
+                }
+
+                int segmentCandidateCount = 0;
+                if ((query.Viewport.EnabledModes &
+                     OsnapModeMask.Intersection) != 0)
+                {
+                    QueryIntersections(
+                        indexes,
+                        query.Viewport,
+                        ray,
+                        accumulator,
+                        ref segmentCandidateCount,
+                        cancellationToken);
+                }
+
+                Volatile.Write(
+                    ref _lastPointCandidateCount,
+                    pointCandidateCount);
+                Volatile.Write(
+                    ref _lastSegmentCandidateCount,
+                    segmentCandidateCount);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!IsQueryCurrent(
+                        query.Viewport,
+                        Volatile.Read(ref _indexes)))
+                {
+                    Interlocked.Increment(ref _rejectedStaleQueryCount);
+                    return null;
+                }
+
+                return accumulator.ToResult();
+            }
+            finally
+            {
+                stopwatch.Stop();
+                RecordQueryLatency(stopwatch.Elapsed.TotalMilliseconds);
+            }
+        }
+
+        private static void QueryPoints(
+            OsnapGeometryIndex index,
+            OsnapViewportSnapshot snapshot,
+            OsnapRay ray,
+            CandidateAccumulator accumulator,
+            ref int candidateCount,
+            CancellationToken cancellationToken)
+        {
+            IReadOnlyList<OsnapPointCandidate> candidates =
+                index.QueryPoints(
+                    snapshot,
+                    ray,
+                    MaxPointCandidatesPerSource,
+                    cancellationToken);
+            candidateCount += candidates.Count;
+            for (int indexValue = 0;
+                 indexValue < candidates.Count;
+                 indexValue++)
+            {
+                if ((indexValue & 31) == 0)
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                OsnapPointCandidate candidate = candidates[indexValue];
+                if (!OsnapProjectionMath.TryProject(
+                        snapshot,
+                        candidate.World,
+                        out Point screen,
+                        out double depth))
+                {
+                    continue;
+                }
+
+                accumulator.TryCandidate(
+                    candidate.World,
+                    screen,
+                    depth,
+                    candidate.Type,
+                    candidate.Source);
+            }
+        }
+
+        private void QueryIntersections(
+            IndexSet indexes,
+            OsnapViewportSnapshot snapshot,
+            OsnapRay ray,
+            CandidateAccumulator accumulator,
+            ref int candidateCount,
+            CancellationToken cancellationToken)
+        {
+            int limit = Math.Clamp(
+                snapshot.MaxIntersectionCandidates,
+                24,
+                64);
+            var projected = new List<ProjectedSegment>(limit * 2);
+            AddProjectedSegments(
+                indexes.CompletedZones,
+                snapshot,
+                ray,
+                projected,
+                limit,
+                cancellationToken);
+            AddProjectedSegments(
+                indexes.ActiveZone,
+                snapshot,
+                ray,
+                projected,
+                limit,
+                cancellationToken);
+            if (snapshot.SnapToDxf)
+            {
+                AddProjectedSegments(
+                    indexes.Dxf,
+                    snapshot,
+                    ray,
+                    projected,
+                    limit,
+                    cancellationToken);
+            }
+
+            if (snapshot.SnapToIfc)
+            {
+                AddProjectedSegments(
+                    indexes.Ifc,
+                    snapshot,
+                    ray,
+                    projected,
+                    limit,
+                    cancellationToken);
+            }
+
+            projected.Sort(static (first, second) =>
+                first.ScreenDistance.CompareTo(second.ScreenDistance));
+            if (projected.Count > limit)
+                projected.RemoveRange(limit, projected.Count - limit);
+
+            candidateCount = projected.Count;
+            Volatile.Write(
+                ref _lastIntersectionThreadId,
+                Environment.CurrentManagedThreadId);
+            int pairCounter = 0;
+            for (int firstIndex = 0;
+                 firstIndex < projected.Count;
+                 firstIndex++)
+            {
+                for (int secondIndex = firstIndex + 1;
+                     secondIndex < projected.Count;
+                     secondIndex++)
+                {
+                    if ((++pairCounter & 31) == 0)
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                    ProjectedSegment first = projected[firstIndex];
+                    ProjectedSegment second = projected[secondIndex];
+                    if (first.Id == second.Id ||
+                        ShareEndpoint(first, second) ||
+                        !TrySegmentIntersection3D(
+                            first,
+                            second,
+                            out Point3D world))
+                    {
+                        continue;
                     }
-                    catch { }
-                };
-            }
-            else
-            {
-                _debounceTimer.Stop();
-            }
 
-            _lastViewport = viewport;
-            _debounceTimer.Start();
+                    if (!OsnapProjectionMath.TryProject(
+                            snapshot,
+                            world,
+                            out Point screen,
+                            out double depth))
+                    {
+                        continue;
+                    }
+
+                    accumulator.TryCandidate(
+                        world,
+                        screen,
+                        depth,
+                        OsnapType.Intersection,
+                        ResolveIntersectionSource(
+                            first.Source,
+                            second.Source));
+                }
+            }
         }
 
-        private static bool HasCameraMovedAtAll(CameraSnapshot current, CameraSnapshot? cached)
+        private static void AddProjectedSegments(
+            OsnapGeometryIndex index,
+            OsnapViewportSnapshot snapshot,
+            OsnapRay ray,
+            List<ProjectedSegment> sink,
+            int limit,
+            CancellationToken cancellationToken)
         {
-            if (cached == null)
+            IReadOnlyList<OsnapSegmentCandidate> candidates =
+                index.QuerySegments(
+                    snapshot,
+                    ray,
+                    limit,
+                    cancellationToken);
+            double searchRadius = Math.Max(
+                snapshot.SnapRadiusPx * 2.5,
+                snapshot.SnapRadiusPx + 24.0);
+            for (int candidateIndex = 0;
+                 candidateIndex < candidates.Count;
+                 candidateIndex++)
+            {
+                OsnapSegmentCandidate candidate = candidates[candidateIndex];
+                if (!OsnapProjectionMath.TryProject(
+                        snapshot,
+                        candidate.A,
+                        out Point screenA,
+                        out _) ||
+                    !OsnapProjectionMath.TryProject(
+                        snapshot,
+                        candidate.B,
+                        out Point screenB,
+                        out _))
+                {
+                    continue;
+                }
+
+                double distance =
+                    OsnapProjectionMath.DistanceToScreenSegment(
+                        snapshot.CursorScreenPoint,
+                        screenA,
+                        screenB);
+                if (distance > searchRadius)
+                    continue;
+
+                sink.Add(new ProjectedSegment(
+                    candidate.Id,
+                    candidate.A,
+                    candidate.B,
+                    screenA,
+                    screenB,
+                    candidate.Source,
+                    distance));
+            }
+        }
+
+        private bool IsQueryCurrent(
+            OsnapViewportSnapshot snapshot,
+            IndexSet indexes)
+        {
+            return IsMasterEnabled &&
+                   snapshot.GeometryVersion == indexes.AggregateVersion &&
+                   snapshot.SourceVersions == indexes.SourceVersions &&
+                   snapshot.SettingsVersion == SettingsVersion;
+        }
+
+        private bool TryPublishCurrent(
+            BuildKind kind,
+            BuildSlot slot,
+            CancellationTokenSource cancellation,
+            long generation,
+            OsnapGeometryIndex index,
+            Func<bool> canPublish,
+            out long publishedVersion)
+        {
+            lock (_buildGate)
+            {
+                if (!ReferenceEquals(slot.Cancellation, cancellation) ||
+                    slot.Generation != generation ||
+                    !IsMasterEnabled ||
+                    !canPublish())
+                {
+                    publishedVersion = 0;
+                    return false;
+                }
+
+                IndexSet current = Volatile.Read(ref _indexes);
+                IndexSet next = current.Replace(kind, index);
+                Interlocked.Exchange(ref _indexes, next);
+                publishedVersion = next.AggregateVersion;
                 return true;
-
-            return current.Position != cached.Position ||
-                   current.LookDirection != cached.LookDirection ||
-                   current.UpDirection != cached.UpDirection ||
-                   current.FovOrWidth != cached.FovOrWidth ||
-                   current.ViewportWidth != cached.ViewportWidth ||
-                   current.ViewportHeight != cached.ViewportHeight;
+            }
         }
 
-        public OsnapResult? Snap(Point screenCursor, HelixViewport3D viewport)
+        private void PublishAllEmpty()
         {
-            if (!Settings.MasterEnabled)
-                return null;
-
-            var enabled = Settings.EnabledTypes;
-            if (enabled.Count == 0)
-                return null;
-
-            // Debounce check for any camera changes
-            if (!UseLegacyKeyComparison)
+            IndexSet next;
+            lock (_buildGate)
             {
-                var currentSnap = new CameraSnapshot(viewport, Settings.SnapToIfc ? _ifcGeometryVersion : _dxfGeometryVersion);
-                bool cameraMovedSlightly = false;
-                
-                if (Settings.SnapToIfc && _ifcScreenIndex != null && HasCameraMovedAtAll(currentSnap, _ifcScreenIndex.Snapshot))
+                IndexSet current = Volatile.Read(ref _indexes);
+                next = current.ClearAll();
+                Interlocked.Exchange(ref _indexes, next);
+            }
+
+            RaiseGeometryVersionChanged(next.AggregateVersion);
+        }
+
+        private void CancelAllBuilds()
+        {
+            lock (_buildGate)
+            {
+                CancelSlotNoLock(_ifcBuild);
+                CancelSlotNoLock(_dxfBuild);
+                CancelSlotNoLock(_zoneBuild);
+                CancelSlotNoLock(_activeZoneBuild);
+            }
+        }
+
+        private static void CancelSlotNoLock(BuildSlot slot)
+        {
+            slot.Generation++;
+            slot.Cancellation?.Cancel();
+        }
+
+        private void IncrementSettingsVersionAndResetQueries(bool keepEnabled)
+        {
+            long version = Interlocked.Increment(ref _settingsVersion);
+            ResetQueryEpoch(keepEnabled);
+            SettingsVersionChanged?.Invoke(version);
+        }
+
+        private void ResetQueryEpoch(bool keepEnabled)
+        {
+            var replacement = new CancellationTokenSource();
+            if (!keepEnabled)
+                replacement.Cancel();
+
+            CancellationTokenSource old;
+            lock (_queryGate)
+            {
+                old = _queryEpochCts;
+                _queryEpochCts = replacement;
+            }
+
+            old.Cancel();
+            old.Dispose();
+        }
+
+        private void BeginPreparing()
+        {
+            if (Interlocked.Increment(ref _preparingCount) == 1)
+                PreparingChanged?.Invoke(true);
+        }
+
+        private void RaiseGeometryVersionChanged(long version)
+        {
+            lock (_geometryEventGate)
+            {
+                if (version <= _lastNotifiedGeometryVersion)
+                    return;
+
+                _lastNotifiedGeometryVersion = version;
+                GeometryVersionChanged?.Invoke(version);
+            }
+        }
+
+        private void EndPreparing()
+        {
+            if (Interlocked.Decrement(ref _preparingCount) == 0)
+                PreparingChanged?.Invoke(false);
+        }
+
+        private void RecordBuildThread(BuildKind kind)
+        {
+            int threadId = Environment.CurrentManagedThreadId;
+            int hasContext = SynchronizationContext.Current == null ? 0 : 1;
+            switch (kind)
+            {
+                case BuildKind.Ifc:
+                    Volatile.Write(ref _lastIfcBuildThreadId, threadId);
+                    Volatile.Write(
+                        ref _lastIfcBuildHadSynchronizationContext,
+                        hasContext);
+                    break;
+                case BuildKind.Dxf:
+                    Volatile.Write(ref _lastDxfBuildThreadId, threadId);
+                    Volatile.Write(
+                        ref _lastDxfBuildHadSynchronizationContext,
+                        hasContext);
+                    break;
+                case BuildKind.CompletedZones:
+                    Volatile.Write(ref _lastZoneBuildThreadId, threadId);
+                    Volatile.Write(
+                        ref _lastZoneBuildHadSynchronizationContext,
+                        hasContext);
+                    break;
+                case BuildKind.ActiveZone:
+                    Volatile.Write(
+                        ref _lastActiveZoneBuildThreadId,
+                        threadId);
+                    Volatile.Write(
+                        ref _lastActiveZoneBuildHadSynchronizationContext,
+                        hasContext);
+                    break;
+            }
+        }
+
+        private void RecordQueryLatency(double milliseconds)
+        {
+            Volatile.Write(ref _lastQueryMilliseconds, milliseconds);
+            lock (_diagnosticsGate)
+            {
+                _queryLatencySamples[_queryLatencySampleCursor] =
+                    milliseconds;
+                _queryLatencySampleCursor =
+                    (_queryLatencySampleCursor + 1) %
+                    QueryLatencySampleCapacity;
+                if (_queryLatencySampleCount <
+                    QueryLatencySampleCapacity)
                 {
-                    cameraMovedSlightly = true;
-                }
-                else if (Settings.SnapToDxf && _dxfScreenIndex != null && HasCameraMovedAtAll(currentSnap, _dxfScreenIndex.Snapshot))
-                {
-                    cameraMovedSlightly = true;
-                }
-
-                if (cameraMovedSlightly)
-                {
-                    ResetDebounceTimer(viewport);
+                    _queryLatencySampleCount++;
                 }
             }
-
-            var snap = new SnapAccumulator(screenCursor, viewport, Settings.SnapRadiusPx);
-            bool logThisFrame = ShouldLogFrame(screenCursor);
-            var dxfIndex = Settings.SnapToDxf ? GetDxfScreenIndex(viewport) : null;
-            var ifcIndex = Settings.SnapToIfc ? GetIfcScreenIndex(viewport) : null;
-
-            if (enabled.Contains(OsnapType.Endpoint))
-            {
-                foreach (var vertex in _zoneVertices)
-                    snap.TryVertex(vertex, OsnapSource.Zone, OsnapType.Endpoint);
-
-                if (dxfIndex != null)
-                    DxfSnapResolver.TryEndpoints(snap, dxfIndex);
-
-                if (ifcIndex != null)
-                    IfcSnapResolver.TryEndpoints(snap, ifcIndex);
-            }
-
-            if (enabled.Contains(OsnapType.Midpoint))
-            {
-                foreach (var (a, b) in _zoneEdges)
-                    snap.TryVertex(MidPoint(a, b), OsnapSource.Zone, OsnapType.Midpoint);
-
-                if (dxfIndex != null)
-                    DxfSnapResolver.TryMidpoints(snap, dxfIndex);
-
-                if (ifcIndex != null)
-                    IfcSnapResolver.TryMidpoints(snap, ifcIndex);
-            }
-
-            if (enabled.Contains(OsnapType.Center) && dxfIndex != null)
-                DxfSnapResolver.TryCenters(snap, dxfIndex);
-
-            if (enabled.Contains(OsnapType.Quadrant) && dxfIndex != null)
-                DxfSnapResolver.TryQuadrants(snap, dxfIndex);
-
-            if (enabled.Contains(OsnapType.Intersection))
-                TryIntersections(snap, viewport, dxfIndex);
-
-            var result = snap.ToResult();
-            if (logThisFrame)
-            {
-                Debug.WriteLine(result == null
-                    ? "[OSnap]   Result: NO MATCH"
-                    : $"[OSnap]   Result: {result.SnapType} source={result.Source} dist={snap.BestDistance:F1}px");
-            }
-
-            return result;
         }
 
-        private DxfSnapScreenIndex? GetDxfScreenIndex(HelixViewport3D viewport)
+        private static void RecordCompatibilityBuildDiagnostics(
+            OsnapGeometryIndex index,
+            TimeSpan elapsed)
         {
-            if (_dxfEndpoints.Count == 0 &&
-                _dxfSegments.Count == 0 &&
-                _dxfCenters.Count == 0 &&
-                _dxfQuadrants.Count == 0)
+            lock (CompatibilityDiagnosticsGate)
             {
-                return null;
+                SnapRebuildCount++;
+                SnapRebuildTotalMs += elapsed.TotalMilliseconds;
+                SnapRebuildMaxMs = Math.Max(
+                    SnapRebuildMaxMs,
+                    elapsed.TotalMilliseconds);
+                LastRebuildVerticesCount = index.PointCount;
+                LastRebuildSegmentsCount = index.SegmentCount;
             }
-
-            if (UseLegacyKeyComparison)
-            {
-                string key = DxfSnapScreenIndex.BuildKey(viewport, _dxfGeometryVersion);
-                if (_dxfScreenIndex != null && string.Equals(_dxfScreenIndex.Key, key, StringComparison.Ordinal))
-                    return _dxfScreenIndex;
-            }
-            else
-            {
-                var currentSnap = new CameraSnapshot(viewport, _dxfGeometryVersion);
-                if (_dxfScreenIndex != null && !CameraSnapshot.IsThresholdExceeded(currentSnap, _dxfScreenIndex.Snapshot))
-                    return _dxfScreenIndex;
-            }
-
-            var sw = Stopwatch.StartNew();
-            _dxfScreenIndex = DxfSnapScreenIndex.Build(
-                viewport,
-                _dxfEndpoints,
-                _dxfSegments,
-                _dxfMidpointSegments,
-                _dxfCenters,
-                _dxfQuadrants,
-                _dxfGeometryVersion);
-            sw.Stop();
-
-            SnapRebuildCount++;
-            var duration = sw.Elapsed.TotalMilliseconds;
-            SnapRebuildTotalMs += duration;
-            SnapRebuildMaxMs = Math.Max(SnapRebuildMaxMs, duration);
-            LastRebuildVerticesCount = _dxfEndpoints.Count + _dxfCenters.Count + _dxfQuadrants.Count;
-            LastRebuildSegmentsCount = _dxfSegments.Count;
-
-            Debug.WriteLine($"[OSnap] Rebuilt DXF screen index in {duration:F2}ms. Vertices={LastRebuildVerticesCount}, Segments={LastRebuildSegmentsCount}. Rebuild count={SnapRebuildCount}.");
-
-            return _dxfScreenIndex;
         }
 
-        private IfcSnapScreenIndex? GetIfcScreenIndex(HelixViewport3D viewport)
+        private static bool SetIfChanged(
+            bool current,
+            bool next,
+            Action<bool> setter)
         {
-            if (_ifcGeometryByElementId.Count == 0)
-                return null;
-
-            if (UseLegacyKeyComparison)
-            {
-                string key = IfcSnapScreenIndex.BuildKey(viewport, _ifcGeometryVersion);
-                if (_ifcScreenIndex != null && string.Equals(_ifcScreenIndex.Key, key, StringComparison.Ordinal))
-                    return _ifcScreenIndex;
-            }
-            else
-            {
-                var currentSnap = new CameraSnapshot(viewport, _ifcGeometryVersion);
-                if (_ifcScreenIndex != null && !CameraSnapshot.IsThresholdExceeded(currentSnap, _ifcScreenIndex.Snapshot))
-                    return _ifcScreenIndex;
-            }
-
-            var sw = Stopwatch.StartNew();
-            _ifcScreenIndex = IfcSnapScreenIndex.Build(viewport, _ifcGeometryByElementId, _ifcGeometryVersion);
-            sw.Stop();
-
-            SnapRebuildCount++;
-            var duration = sw.Elapsed.TotalMilliseconds;
-            SnapRebuildTotalMs += duration;
-            SnapRebuildMaxMs = Math.Max(SnapRebuildMaxMs, duration);
-            LastRebuildVerticesCount = _ifcVertices.Count;
-            LastRebuildSegmentsCount = _ifcSegments.Count;
-
-            Debug.WriteLine($"[OSnap] Rebuilt IFC screen index in {duration:F2}ms. Vertices={LastRebuildVerticesCount}, Segments={LastRebuildSegmentsCount}. Rebuild count={SnapRebuildCount}.");
-
-            return _ifcScreenIndex;
-        }
-
-        private bool ShouldLogFrame(Point screenCursor)
-        {
-            _snapCallCount++;
-            bool logThisFrame = (_snapCallCount % 200) == 1;
-            if (!logThisFrame)
+            if (current == next)
                 return false;
 
-            Debug.WriteLine(
-                $"[OSnap] cursor=({screenCursor.X:F0},{screenCursor.Y:F0}) " +
-                $"dxf={_dxfEndpoints.Count}/{_dxfSegments.Count} " +
-                $"ifc={_ifcVertices.Count}/{_ifcSegments.Count} R={Settings.SnapRadiusPx}");
-
+            setter(next);
             return true;
         }
 
-        private void TryIntersections(
-            SnapAccumulator snap,
-            HelixViewport3D viewport,
-            DxfSnapScreenIndex? dxfIndex)
+        private static bool HasGeometry(OsnapGeometryIndex index) =>
+            index.PointCount > 0 || index.SegmentCount > 0;
+
+        private static bool ShareEndpoint(
+            ProjectedSegment first,
+            ProjectedSegment second) =>
+            SamePoint(first.A, second.A) ||
+            SamePoint(first.A, second.B) ||
+            SamePoint(first.B, second.A) ||
+            SamePoint(first.B, second.B);
+
+        private static bool SamePoint(Point3D first, Point3D second)
         {
-            var candidates = new List<ProjectedSegment>();
-            double intersectionSearchRadius = Math.Max(Settings.SnapRadiusPx * 2.5, Settings.SnapRadiusPx + 24.0);
-            AddProjectedSegments(candidates, viewport, snap, _zoneEdges, OsnapSource.Zone, intersectionSearchRadius);
-
-            if (dxfIndex != null)
-                AddDxfProjectedSegments(candidates, snap, dxfIndex, intersectionSearchRadius);
-
-            if (candidates.Count < 2)
-                return;
-
-            if (candidates.Count > Settings.MaxEdgesForIntersection)
-            {
-                candidates = candidates
-                    .OrderBy(segment => DistanceToScreenSegment(snap.ScreenCursor, segment.ScreenA, segment.ScreenB))
-                    .Take(Settings.MaxEdgesForIntersection)
-                    .ToList();
-            }
-
-            for (int i = 0; i < candidates.Count; i++)
-            {
-                for (int j = i + 1; j < candidates.Count; j++)
-                {
-                    if (ShareEndpoint(candidates[i], candidates[j]))
-                        continue;
-
-                    var source = ResolveIntersectionSource(candidates[i].Source, candidates[j].Source);
-                    if (TryScreenIntersection(candidates[i], candidates[j], out var screenIntersection, out double tOnFirst))
-                    {
-                        var screenWorld = Lerp(candidates[i].WorldA, candidates[i].WorldB, tOnFirst);
-                        snap.TryKnownScreenPoint(screenWorld, screenIntersection, source, OsnapType.Intersection);
-                    }
-
-                    if (!TryWorldIntersection(candidates[i], candidates[j], out var world))
-                        continue;
-
-                    if (!ProjectForSource(viewport, source, world, out var screen))
-                        continue;
-
-                    snap.TryKnownScreenPoint(world, screen, source, OsnapType.Intersection);
-                }
-            }
+            const double tolerance = 1e-6;
+            return Math.Abs(first.X - second.X) <= tolerance &&
+                   Math.Abs(first.Y - second.Y) <= tolerance &&
+                   Math.Abs(first.Z - second.Z) <= tolerance;
         }
 
-        private static bool ShareEndpoint(ProjectedSegment a, ProjectedSegment b)
-            => SamePoint(a.WorldA, b.WorldA) ||
-               SamePoint(a.WorldA, b.WorldB) ||
-               SamePoint(a.WorldB, b.WorldA) ||
-               SamePoint(a.WorldB, b.WorldB);
-
-        private static bool SamePoint(Point3D a, Point3D b)
-        {
-            const double tolerance = 0.001;
-            return Math.Abs(a.X - b.X) <= tolerance &&
-                   Math.Abs(a.Y - b.Y) <= tolerance &&
-                   Math.Abs(a.Z - b.Z) <= tolerance;
-        }
-
-        private static void AddDxfProjectedSegments(
-            List<ProjectedSegment> sink,
-            SnapAccumulator snap,
-            DxfSnapScreenIndex index,
-            double radius)
-        {
-            foreach (var segment in index.QuerySegments(snap.ScreenCursor, radius))
-            {
-                sink.Add(new ProjectedSegment(
-                    segment.WorldA,
-                    segment.WorldB,
-                    segment.ScreenA,
-                    segment.ScreenB,
-                    OsnapSource.Dxf));
-            }
-        }
-
-        private void AddProjectedSegments(
-            List<ProjectedSegment> sink,
-            HelixViewport3D viewport,
-            SnapAccumulator snap,
-            IEnumerable<(Point3D A, Point3D B)> segments,
-            OsnapSource source,
-            double radius)
-        {
-            foreach (var (a, b) in segments)
-            {
-                if (!ProjectForSource(viewport, source, a, out var sa) ||
-                    !ProjectForSource(viewport, source, b, out var sb))
-                {
-                    continue;
-                }
-
-                if (!ScreenBoundsTouchesCursor(sa, sb, snap.ScreenCursor, radius))
-                    continue;
-
-                if (DistanceToScreenSegment(snap.ScreenCursor, sa, sb) > radius)
-                    continue;
-
-                sink.Add(new ProjectedSegment(a, b, sa, sb, source));
-            }
-        }
-
-        private static bool ProjectForSource(
-            HelixViewport3D viewport,
-            OsnapSource source,
-            Point3D world,
-            out Point screen)
-            => OsnapProjection.TryProject(viewport, world, out screen);
-
-        private static bool ScreenBoundsTouchesCursor(Point a, Point b, Point cursor, double radius)
-        {
-            double minX = Math.Min(a.X, b.X) - radius;
-            double maxX = Math.Max(a.X, b.X) + radius;
-            double minY = Math.Min(a.Y, b.Y) - radius;
-            double maxY = Math.Max(a.Y, b.Y) + radius;
-            return cursor.X >= minX && cursor.X <= maxX && cursor.Y >= minY && cursor.Y <= maxY;
-        }
-
-        private static double DistanceToScreenSegment(Point p, Point a, Point b)
-        {
-            double dx = b.X - a.X;
-            double dy = b.Y - a.Y;
-            double lenSq = dx * dx + dy * dy;
-            if (lenSq < 1e-6)
-                return SnapAccumulator.PixelDistance(p, a);
-
-            double t = Math.Clamp(((p.X - a.X) * dx + (p.Y - a.Y) * dy) / lenSq, 0, 1);
-            var closest = new Point(a.X + t * dx, a.Y + t * dy);
-            return SnapAccumulator.PixelDistance(p, closest);
-        }
-
-        private static bool TryWorldIntersection(
+        private static bool TrySegmentIntersection3D(
             ProjectedSegment first,
             ProjectedSegment second,
             out Point3D world)
         {
             world = default;
+            Vector3D firstDirection = first.B - first.A;
+            Vector3D secondDirection = second.B - second.A;
+            Vector3D betweenStarts = first.A - second.A;
+            double firstLengthSquared = firstDirection.LengthSquared;
+            double secondLengthSquared = secondDirection.LengthSquared;
+            if (firstLengthSquared < 1e-12 ||
+                secondLengthSquared < 1e-12)
+            {
+                return false;
+            }
 
-            double x1 = first.WorldA.X;
-            double y1 = first.WorldA.Y;
-            double x2 = first.WorldB.X;
-            double y2 = first.WorldB.Y;
-            double x3 = second.WorldA.X;
-            double y3 = second.WorldA.Y;
-            double x4 = second.WorldB.X;
-            double y4 = second.WorldB.Y;
+            double cross = Vector3D.DotProduct(
+                firstDirection,
+                secondDirection);
+            double firstOffset = Vector3D.DotProduct(
+                firstDirection,
+                betweenStarts);
+            double secondOffset = Vector3D.DotProduct(
+                secondDirection,
+                betweenStarts);
+            double denominator =
+                firstLengthSquared * secondLengthSquared -
+                cross * cross;
+            double lengthProduct =
+                firstLengthSquared * secondLengthSquared;
+            if (!double.IsFinite(denominator) ||
+                denominator <= lengthProduct * 1e-12)
+            {
+                // Parallel and near-parallel segments do not define a unique
+                // intersection. Treating their nearest points as an
+                // intersection creates false positives at large scene scales.
+                return false;
+            }
 
-            double d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-            if (Math.Abs(d) < 1e-9)
+            double firstParameter =
+                (cross * secondOffset -
+                 secondLengthSquared * firstOffset) /
+                denominator;
+            double secondParameter =
+                (firstLengthSquared * secondOffset -
+                 cross * firstOffset) /
+                denominator;
+            const double parameterTolerance = 1e-9;
+            if (!double.IsFinite(firstParameter) ||
+                !double.IsFinite(secondParameter) ||
+                firstParameter < -parameterTolerance ||
+                firstParameter > 1.0 + parameterTolerance ||
+                secondParameter < -parameterTolerance ||
+                secondParameter > 1.0 + parameterTolerance)
+            {
+                return false;
+            }
+
+            firstParameter = Math.Clamp(firstParameter, 0.0, 1.0);
+            secondParameter = Math.Clamp(secondParameter, 0.0, 1.0);
+
+            Point3D firstPoint =
+                first.A + firstDirection * firstParameter;
+            Point3D secondPoint =
+                second.A + secondDirection * secondParameter;
+            double tolerance = Math.Max(
+                1e-6,
+                Math.Max(
+                    Math.Sqrt(firstLengthSquared),
+                    Math.Sqrt(secondLengthSquared)) * 1e-9);
+            if ((firstPoint - secondPoint).Length > tolerance)
                 return false;
 
-            double t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / d;
-            double u = ((x1 - x3) * (y1 - y2) - (y1 - y3) * (x1 - x2)) / d;
-
-            const double epsilon = 1e-9;
-            if (t < -epsilon || t > 1 + epsilon || u < -epsilon || u > 1 + epsilon)
-                return false;
-
-            t = Math.Clamp(t, 0.0, 1.0);
-            world = Lerp(first.WorldA, first.WorldB, t);
+            world = new Point3D(
+                (firstPoint.X + secondPoint.X) / 2.0,
+                (firstPoint.Y + secondPoint.Y) / 2.0,
+                (firstPoint.Z + secondPoint.Z) / 2.0);
             return true;
         }
 
-        private static bool TryScreenIntersection(
-            ProjectedSegment first,
-            ProjectedSegment second,
-            out Point screen,
-            out double tOnFirst)
+        private static OsnapSource ResolveIntersectionSource(
+            OsnapSource first,
+            OsnapSource second)
         {
-            screen = default;
-            tOnFirst = default;
-
-            double x1 = first.ScreenA.X;
-            double y1 = first.ScreenA.Y;
-            double x2 = first.ScreenB.X;
-            double y2 = first.ScreenB.Y;
-            double x3 = second.ScreenA.X;
-            double y3 = second.ScreenA.Y;
-            double x4 = second.ScreenB.X;
-            double y4 = second.ScreenB.Y;
-
-            double d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-            if (Math.Abs(d) < 1e-6)
-                return false;
-
-            double t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / d;
-            double u = ((x1 - x3) * (y1 - y2) - (y1 - y3) * (x1 - x2)) / d;
-            const double endpointTolerance = 0.02;
-            if (t < -endpointTolerance || t > 1 + endpointTolerance ||
-                u < -endpointTolerance || u > 1 + endpointTolerance)
-                return false;
-
-            t = Math.Clamp(t, 0.0, 1.0);
-            screen = new Point(x1 + t * (x2 - x1), y1 + t * (y2 - y1));
-            tOnFirst = t;
-            return true;
-        }
-
-        private static OsnapSource ResolveIntersectionSource(OsnapSource a, OsnapSource b)
-        {
-            if (a == b)
-                return a;
-
-            if (a == OsnapSource.Ifc || b == OsnapSource.Ifc)
+            if (first == second)
+                return first;
+            if (first == OsnapSource.Ifc || second == OsnapSource.Ifc)
                 return OsnapSource.Ifc;
-
-            if (a == OsnapSource.Dxf || b == OsnapSource.Dxf)
+            if (first == OsnapSource.Dxf || second == OsnapSource.Dxf)
                 return OsnapSource.Dxf;
-
             return OsnapSource.Zone;
         }
 
-        private void TryGridSnap(SnapAccumulator snap, HelixViewport3D viewport, Point screenCursor)
+        private enum BuildKind
         {
-            if (!OsnapProjection.TryUnprojectZ0(viewport, screenCursor, out var worldPt))
-                return;
-
-            double spacing = Settings.GridSpacing;
-            if (spacing <= 0)
-                return;
-
-            double gx = Math.Round(worldPt.X / spacing) * spacing;
-            double gy = Math.Round(worldPt.Y / spacing) * spacing;
-            snap.TryVertex(new Point3D(gx, gy, 0), OsnapSource.Grid, OsnapType.Grid);
+            Ifc,
+            Dxf,
+            CompletedZones,
+            ActiveZone
         }
 
-        private static Point3D MidPoint(Point3D a, Point3D b)
-            => new((a.X + b.X) / 2.0, (a.Y + b.Y) / 2.0, (a.Z + b.Z) / 2.0);
+        private sealed class BuildSlot
+        {
+            public long Generation;
+            public CancellationTokenSource? Cancellation;
+        }
 
-        private static Point3D Lerp(Point3D a, Point3D b, double t)
-            => new(
-                a.X + t * (b.X - a.X),
-                a.Y + t * (b.Y - a.Y),
-                a.Z + t * (b.Z - a.Z));
+        private readonly record struct BuildResult(
+            OsnapGeometryIndex Index,
+            TimeSpan Elapsed,
+            double MemoryDeltaMegabytes);
 
-        private static bool IsFinite(Point3D point)
-            => double.IsFinite(point.X) && double.IsFinite(point.Y) && double.IsFinite(point.Z);
+        private sealed record IndexSet(
+            OsnapGeometryIndex Ifc,
+            OsnapGeometryIndex Dxf,
+            OsnapGeometryIndex CompletedZones,
+            OsnapGeometryIndex ActiveZone,
+            long AggregateVersion,
+            OsnapSourceVersionSnapshot SourceVersions,
+            OsnapWorldBounds Bounds)
+        {
+            public static IndexSet Empty { get; } = Create(
+                OsnapGeometryIndex.Empty(OsnapSource.Ifc),
+                OsnapGeometryIndex.Empty(OsnapSource.Dxf),
+                OsnapGeometryIndex.Empty(OsnapSource.Zone),
+                OsnapGeometryIndex.Empty(OsnapSource.Zone),
+                0,
+                new OsnapSourceVersionSnapshot(0, 0, 0, 0));
+
+            public IndexSet Replace(
+                BuildKind kind,
+                OsnapGeometryIndex index)
+            {
+                OsnapGeometryIndex ifc =
+                    kind == BuildKind.Ifc ? index : Ifc;
+                OsnapGeometryIndex dxf =
+                    kind == BuildKind.Dxf ? index : Dxf;
+                OsnapGeometryIndex zones =
+                    kind == BuildKind.CompletedZones
+                        ? index
+                        : CompletedZones;
+                OsnapGeometryIndex active =
+                    kind == BuildKind.ActiveZone ? index : ActiveZone;
+                OsnapSourceVersionSnapshot versions = kind switch
+                {
+                    BuildKind.Ifc => SourceVersions with
+                    {
+                        Ifc = SourceVersions.Ifc + 1
+                    },
+                    BuildKind.Dxf => SourceVersions with
+                    {
+                        Dxf = SourceVersions.Dxf + 1
+                    },
+                    BuildKind.CompletedZones => SourceVersions with
+                    {
+                        CompletedZones =
+                            SourceVersions.CompletedZones + 1
+                    },
+                    BuildKind.ActiveZone => SourceVersions with
+                    {
+                        ActiveZone = SourceVersions.ActiveZone + 1
+                    },
+                    _ => SourceVersions
+                };
+                return Create(
+                    ifc,
+                    dxf,
+                    zones,
+                    active,
+                    AggregateVersion + 1,
+                    versions);
+            }
+
+            public IndexSet ClearAll()
+            {
+                var versions = new OsnapSourceVersionSnapshot(
+                    SourceVersions.Ifc + 1,
+                    SourceVersions.Dxf + 1,
+                    SourceVersions.CompletedZones + 1,
+                    SourceVersions.ActiveZone + 1);
+                return Create(
+                    OsnapGeometryIndex.Empty(OsnapSource.Ifc),
+                    OsnapGeometryIndex.Empty(OsnapSource.Dxf),
+                    OsnapGeometryIndex.Empty(OsnapSource.Zone),
+                    OsnapGeometryIndex.Empty(OsnapSource.Zone),
+                    AggregateVersion + 1,
+                    versions);
+            }
+
+            private static IndexSet Create(
+                OsnapGeometryIndex ifc,
+                OsnapGeometryIndex dxf,
+                OsnapGeometryIndex completedZones,
+                OsnapGeometryIndex activeZone,
+                long aggregateVersion,
+                OsnapSourceVersionSnapshot sourceVersions)
+            {
+                OsnapWorldBounds bounds = OsnapWorldBounds.Empty
+                    .Include(ifc.Bounds)
+                    .Include(dxf.Bounds)
+                    .Include(completedZones.Bounds)
+                    .Include(activeZone.Bounds);
+                return new IndexSet(
+                    ifc,
+                    dxf,
+                    completedZones,
+                    activeZone,
+                    aggregateVersion,
+                    sourceVersions,
+                    bounds);
+            }
+        }
 
         private readonly record struct ProjectedSegment(
-            Point3D WorldA,
-            Point3D WorldB,
+            long Id,
+            Point3D A,
+            Point3D B,
             Point ScreenA,
             Point ScreenB,
-            OsnapSource Source);
+            OsnapSource Source,
+            double ScreenDistance);
+
+        private sealed class CandidateAccumulator
+        {
+            private readonly OsnapViewportSnapshot _snapshot;
+            private Point3D? _bestWorld;
+            private Point? _bestScreen;
+            private double _bestDepth = double.PositiveInfinity;
+            private double _bestDistanceSquared = double.PositiveInfinity;
+            private OsnapType _bestType;
+            private OsnapSource _bestSource;
+
+            public CandidateAccumulator(OsnapViewportSnapshot snapshot)
+            {
+                _snapshot = snapshot;
+            }
+
+            public void TryCandidate(
+                Point3D world,
+                Point screen,
+                double depth,
+                OsnapType type,
+                OsnapSource source)
+            {
+                double distanceSquared =
+                    OsnapProjectionMath.PixelDistanceSquared(
+                        _snapshot.CursorScreenPoint,
+                        screen);
+                double radiusSquared =
+                    _snapshot.SnapRadiusPx *
+                    _snapshot.SnapRadiusPx;
+                if (distanceSquared > radiusSquared)
+                    return;
+
+                if (_bestWorld.HasValue &&
+                    !IsBetter(distanceSquared, depth, type, source, world))
+                {
+                    return;
+                }
+
+                _bestWorld = world;
+                _bestScreen = screen;
+                _bestDepth = depth;
+                _bestDistanceSquared = distanceSquared;
+                _bestType = type;
+                _bestSource = source;
+            }
+
+            public OsnapResult? ToResult()
+            {
+                return _bestWorld.HasValue
+                    ? new OsnapResult(
+                        _bestType,
+                        _bestWorld.Value,
+                        _bestScreen,
+                        _bestSource)
+                    : null;
+            }
+
+            private bool IsBetter(
+                double distanceSquared,
+                double depth,
+                OsnapType type,
+                OsnapSource source,
+                Point3D world)
+            {
+                double bestDistance = Math.Sqrt(_bestDistanceSquared);
+                double distance = Math.Sqrt(distanceSquared);
+                if (distance < bestDistance - DistanceTieTolerancePx)
+                    return true;
+                if (distance > bestDistance + DistanceTieTolerancePx)
+                    return false;
+                if (depth < _bestDepth - DepthTieTolerance)
+                    return true;
+                if (depth > _bestDepth + DepthTieTolerance)
+                    return false;
+                if (type != _bestType)
+                    return type < _bestType;
+                if (source != _bestSource)
+                    return source < _bestSource;
+                if (!_bestWorld.HasValue)
+                    return true;
+
+                Point3D best = _bestWorld.Value;
+                int x = world.X.CompareTo(best.X);
+                if (x != 0)
+                    return x < 0;
+                int y = world.Y.CompareTo(best.Y);
+                return y != 0
+                    ? y < 0
+                    : world.Z.CompareTo(best.Z) < 0;
+            }
+        }
     }
 }

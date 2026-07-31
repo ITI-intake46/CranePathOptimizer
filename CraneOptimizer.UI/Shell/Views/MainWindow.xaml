@@ -5,6 +5,7 @@
     xmlns:f5="clr-namespace:CraneOptimizer.UI.Features.F5_ElementManagement.Views"
     xmlns:f1="clr-namespace:CraneOptimizer.UI.Features.F1_IfcViewerControl.Views"
     xmlns:f3="clr-namespace:CraneOptimizer.UI.Features.F3_CraneSetup.Views"
+    xmlns:osnap="clr-namespace:CraneOptimizer.UI.Features.F15_ObjectSnap.Views"
     xmlns:aiCompanion="clr-namespace:CraneOptimizer.AI.Companion.Views;assembly=CraneOptimizer.AI"
     xmlns:nav="clr-namespace:CraneOptimizer.UI.Shared.Layouts"
     Title="IFC Building Analyzer — Crane Planner Edition"
@@ -143,6 +144,7 @@
                         Width="26"
                         Height="20"
                         Margin="0,0,1,0"
+                        x:Name="UndoButton"
                         Click="UndoBtn_Click"
                         Style="{StaticResource ToolbarButton}"
                         ToolTip="Undo (Ctrl+Z)">
@@ -164,6 +166,7 @@
                         Width="26"
                         Height="20"
                         Margin="0,0,1,0"
+                        x:Name="RedoButton"
                         Click="RedoBtn_Click"
                         Style="{StaticResource ToolbarButton}"
                         ToolTip="Redo (Ctrl+Y)">
@@ -482,201 +485,168 @@
             Background="{DynamicResource SurfaceElevatedBrush}"
             BorderBrush="{DynamicResource BorderBrush}"
             BorderThickness="0,1,0,0">
-            <Grid>
+            <Grid ClipToBounds="True">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <!--  Col 0: Ready / crane status  -->
-                    <ColumnDefinition Width="Auto" />
-                    <!--  Col 1: Separator  -->
-                    <ColumnDefinition Width="Auto" />
-                    <!--  Col 2: X / Y coordinates  -->
+                    <ColumnDefinition Width="390" />
+                    <!--  Col 0: Fixed X / Y / Z coordinates  -->
                     <ColumnDefinition Width="*" />
-                    <!--  Col 3: Spacer  -->
-                    <ColumnDefinition Width="Auto" />
-                    <!--  Col 4: Render Quality btn  -->
-                    <ColumnDefinition Width="Auto" />
-                    <!--  Col 5: Separator  -->
-                    <ColumnDefinition Width="Auto" />
-                    <!--  Col 6: OSnap button  -->
-                    <ColumnDefinition Width="Auto" />
-                    <!--  Col 7: Separator  -->
-                    <ColumnDefinition Width="Auto" />
-                    <!--  Col 8: Elements count  -->
-                    <ColumnDefinition Width="Auto" />
-                    <!--  Col 9: Separator  -->
-                    <ColumnDefinition Width="Auto" />
-                    <!--  Col 10: Command / Logs btns  -->
+                    <!--  Col 1: Centered viewport settings  -->
+                    <ColumnDefinition Width="360" />
+                    <!--  Col 2: AI companion notification  -->
                 </Grid.ColumnDefinitions>
 
-                <!--  Col 0: Status indicator — ✅ NOW BOUND TO VIEWMODEL  -->
-                <StackPanel
-                    Grid.Column="0"
-                    VerticalAlignment="Center"
-                    Orientation="Horizontal">
-                    <Ellipse
-                        Width="6"
-                        Height="6"
-                        Margin="0,0,6,0"
-                        VerticalAlignment="Center"
-                        Fill="{StaticResource SuccessBrush}" />
-                    <TextBlock
-                        x:Name="StatusText"
-                        MaxWidth="220"
-                        VerticalAlignment="Center"
-                        FontFamily="{StaticResource FontPrimary}"
-                        FontSize="{StaticResource FontSizeXS}"
-                        FontWeight="SemiBold"
-                        Foreground="{DynamicResource TextPrimaryBrush}"
-                        Text="{Binding StatusText, FallbackValue='IDLE'}"
-                        TextTrimming="CharacterEllipsis"
-                        ToolTip="{Binding StatusText}" />
-                </StackPanel>
+                <!--  Col 0: X / Y / Z coordinates  -->
+                <Grid Grid.Column="0" Width="390" Margin="10,0" ClipToBounds="True">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="130" />
+                    </Grid.ColumnDefinitions>
 
-                <!--  Col 1: Separator  -->
-                <Rectangle
+                    <Grid Grid.Column="0" Margin="0,0,8,0" ClipToBounds="True">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            Margin="0,0,3,0"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            Style="{StaticResource CoordLabel}"
+                            Text="X:" />
+                        <TextBlock
+                            x:Name="TxtCoordX"
+                            Grid.Column="1"
+                            Style="{StaticResource CoordLabel}"
+                            Text="{Binding CoordX, FallbackValue='0.00M'}"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="NoWrap"
+                            ToolTip="{Binding CoordX}" />
+                    </Grid>
+
+                    <Grid Grid.Column="1" Margin="0,0,8,0" ClipToBounds="True">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            Margin="0,0,3,0"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            Style="{StaticResource CoordLabel}"
+                            Text="Y:" />
+                        <TextBlock
+                            x:Name="TxtCoordY"
+                            Grid.Column="1"
+                            Style="{StaticResource CoordLabel}"
+                            Text="{Binding CoordY, FallbackValue='0.00M'}"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="NoWrap"
+                            ToolTip="{Binding CoordY}" />
+                    </Grid>
+
+                    <Grid Grid.Column="2" ClipToBounds="True">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            Margin="0,0,3,0"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            Style="{StaticResource CoordLabel}"
+                            Text="Z:" />
+                        <TextBlock
+                            x:Name="TxtCoordZ"
+                            Grid.Column="1"
+                            Style="{StaticResource CoordLabel}"
+                            Text="{Binding CoordZ, FallbackValue='0.00M'}"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="NoWrap"
+                            ToolTip="{Binding CoordZ}" />
+                    </Grid>
+                </Grid>
+
+                <!--  Col 1: Render Quality and Object Snap  -->
+                <Grid
                     Grid.Column="1"
-                    Width="1"
-                    Height="12"
-                    Margin="10,0"
-                    Fill="{DynamicResource BorderBrush}" />
-
-                <!--  Col 2: X / Y coordinates — ✅ NOW BOUND TO VIEWMODEL  -->
-                <StackPanel
-                    Grid.Column="2"
-                    VerticalAlignment="Center"
-                    Orientation="Horizontal">
-                    <TextBlock
-                        Margin="0,0,3,0"
-                        Foreground="{DynamicResource TextPrimaryBrush}"
-                        Style="{StaticResource CoordLabel}"
-                        Text="X:" />
-                    <TextBlock
-                        x:Name="TxtCoordX"
-                        MaxWidth="220"
-                        Margin="0,0,12,0"
-                        Style="{StaticResource CoordLabel}"
-                        Text="{Binding CoordX, FallbackValue='0.00M'}"
-                        TextTrimming="CharacterEllipsis"
-                        ToolTip="{Binding CoordX}" />
-                    <TextBlock
-                        Margin="0,0,3,0"
-                        Foreground="{DynamicResource TextPrimaryBrush}"
-                        Style="{StaticResource CoordLabel}"
-                        Text="Y:" />
-                    <TextBlock
-                        x:Name="TxtCoordY"
-                        MaxWidth="360"
-                        Style="{StaticResource CoordLabel}"
-                        Text="{Binding CoordY, FallbackValue='0.00M'}"
-                        TextTrimming="CharacterEllipsis"
-                        ToolTip="{Binding CoordY}" />
-                </StackPanel>
-
-                <!--  Col 8: Element count — already bound via Elements.Count  -->
-                <StackPanel
-                    Grid.Column="4"
-                    VerticalAlignment="Center"
-                    Orientation="Horizontal"
-                    Visibility="{Binding Selection.HasSelection, Converter={StaticResource BoolToVisibilityConverter}}">
-                    <TextBlock
-                        VerticalAlignment="Center"
-                        FontFamily="{StaticResource FontPrimary}"
-                        FontSize="{StaticResource FontSizeXS}"
-                        FontWeight="SemiBold"
-                        Foreground="{StaticResource PrimaryBrush}"
-                        Text="{Binding Selection.StatusText}"
-                        ToolTip="{Binding Selection.StatusText}" />
-                </StackPanel>
-
-                <Rectangle
-                    Grid.Column="5"
-                    Width="1"
-                    Height="12"
-                    Margin="8,0"
-                    Fill="{DynamicResource BorderBrush}"
-                    Visibility="{Binding Selection.HasSelection, Converter={StaticResource BoolToVisibilityConverter}}" />
-
-                <!--  Col 3: AI companion status strip. Sits inside the shell instead of overlaying the workspace.  -->
-                <aiCompanion:AiCompanionStatusStrip
-                    x:Name="AiCompanionStrip"
-                    Grid.Column="3"
-                    Margin="12,0"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
-                    AssistRequested="AiCompanionStatusStrip_AssistRequested"
-                    HideRequested="AiCompanionStatusStrip_HideRequested" />
+                    ClipToBounds="True">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="1" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                <Button
-                    x:Name="ShowAiCompanionButton"
-                    Grid.Column="3"
-                    MinWidth="70"
-                    Height="18"
-                    Margin="12,0"
-                    Padding="7,0"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    Click="ShowAiCompanionButton_Click"
-                    Content="AI Assist"
-                    FontSize="{StaticResource FontSizeXS}"
-                    Style="{StaticResource ToolbarButton}"
-                    ToolTip="Show AI Companion in the status bar"
-                    Visibility="Collapsed" />
-
-                <StackPanel
-                    Grid.Column="8"
-                    VerticalAlignment="Center"
-                    Orientation="Horizontal">
                     <TextBlock
+                        Grid.Column="0"
+                        Margin="0,0,6,0"
                         VerticalAlignment="Center"
                         FontFamily="{StaticResource FontPrimary}"
                         FontSize="{StaticResource FontSizeXS}"
                         FontWeight="SemiBold"
-                        Foreground="{DynamicResource TextPrimaryBrush}"
-                        Text="MODEL ELEMENTS: "
-                        ToolTip="Total elements in the loaded model" />
-                    <TextBlock
+                        Foreground="{DynamicResource TextSecondaryBrush}"
+                        Text="Render Quality" />
+                    <ComboBox
+                        x:Name="ShellRenderQualityCombo"
+                        Grid.Column="1"
+                        Width="112"
+                        Height="20"
                         VerticalAlignment="Center"
-                        FontFamily="{StaticResource FontPrimary}"
-                        FontSize="{StaticResource FontSizeXS}"
-                        FontWeight="Bold"
-                        Foreground="{DynamicResource TextPrimaryBrush}"
-                        Text="{Binding Elements.Count, FallbackValue='0'}"
-                        ToolTip="{Binding Elements.Count, StringFormat='{}{0} model elements'}" />
-                </StackPanel>
+                        ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                        SelectedIndex="1"
+                        SelectionChanged="RenderQualityCombo_SelectionChanged"
+                        Style="{StaticResource DarkComboBox}"
+                        ToolTip="High: detailed IFC meshes. Medium: simplified meshes. Low: batched boxes for large models.">
+                        <ComboBoxItem Content="High" Tag="High" ToolTip="Full detailed IFC meshes with best visual quality." />
+                        <ComboBoxItem Content="Medium" Tag="Medium" ToolTip="Simplified IFC meshes with reduced geometry complexity." />
+                        <ComboBoxItem Content="Low" Tag="Low" ToolTip="Lightweight batched bounding boxes for maximum performance." />
+                    </ComboBox>
 
-                <!--  Col 9: Separator  -->
-                <Rectangle
-                    Grid.Column="9"
-                    Width="1"
-                    Height="12"
-                    Margin="8,0"
-                    Fill="{DynamicResource BorderBrush}" />
+                    <Rectangle
+                        Grid.Column="2"
+                        Width="1"
+                        Height="12"
+                        Margin="10,0"
+                        Fill="{DynamicResource BorderBrush}" />
 
-                <!--  Col 10: Command / Logs buttons  -->
-                <StackPanel
-                    Grid.Column="10"
-                    VerticalAlignment="Center"
-                    Orientation="Horizontal">
+                    <osnap:OsnapStatusPanel
+                        x:Name="ShellOsnapPanel"
+                        Grid.Column="3"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center" />
+                </Grid>
+
+                <!--  Col 2: AI companion notification  -->
+                <Grid
+                    Grid.Column="2"
+                    Width="360"
+                    ClipToBounds="True">
+                    <aiCompanion:AiCompanionStatusStrip
+                        x:Name="AiCompanionStrip"
+                        Width="360"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        ClipToBounds="True"
+                        AssistRequested="AiCompanionStatusStrip_AssistRequested"
+                        HideRequested="AiCompanionStatusStrip_HideRequested" />
+
                     <Button
-                        Margin="0,0,3,0"
-                        Padding="6,2"
-                        Click="ShowCommandPanel_Click"
-                        Content="Command"
-                        FontFamily="{StaticResource FontPrimary}"
+                        x:Name="ShowAiCompanionButton"
+                        MinWidth="70"
+                        Height="18"
+                        Padding="7,0"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Click="ShowAiCompanionButton_Click"
+                        Content="AI Assist"
                         FontSize="{StaticResource FontSizeXS}"
-                        FontWeight="SemiBold"
                         Style="{StaticResource ToolbarButton}"
-                        ToolTip="Open the command panel" />
-                    <Button
-                        Padding="6,2"
-                        Click="ShowLogsPanel_Click"
-                        Content="Logs"
-                        FontFamily="{StaticResource FontPrimary}"
-                        FontSize="{StaticResource FontSizeXS}"
-                        FontWeight="SemiBold"
-                        Style="{StaticResource ToolbarButton}"
-                        ToolTip="Open application logs" />
-                </StackPanel>
+                        ToolTip="Show AI Companion in the status bar"
+                        Visibility="Collapsed" />
+                </Grid>
             </Grid>
         </Border>
 

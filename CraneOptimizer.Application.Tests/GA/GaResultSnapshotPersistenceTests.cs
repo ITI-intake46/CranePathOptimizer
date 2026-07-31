@@ -4,6 +4,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Models;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
+using CraneOptimizer.Application.GAAnalysis;
 using CraneOptimizer.Application.Reports.Services;
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Diagnostics;
@@ -27,8 +28,10 @@ public sealed class GaResultSnapshotPersistenceTests
 
         var validation = validator.Validate(snapshot);
         Assert.True(validation.IsValid, string.Join(Environment.NewLine, validation.Errors));
-        Assert.Equal(2, snapshot.SchemaVersion);
-        Assert.Equal(2, snapshot.Run.SnapshotSchemaVersion);
+        Assert.Equal(3, snapshot.SchemaVersion);
+        Assert.Equal(3, snapshot.Run.SnapshotSchemaVersion);
+        Assert.Equal(2, snapshot.Model.OptimizationInputFingerprintVersion);
+        Assert.Equal(GaOptimizationInputFingerprint.RequiredComponentNames, snapshot.Model.OptimizationInputFingerprintComponents.Keys);
 
         await store.SaveAsync(snapshot);
         var snapshotPath = Path.Combine(root, "Reports", "GA", "run-roundtrip", JsonGaResultSnapshotStore.SnapshotFileName);
@@ -43,7 +46,7 @@ public sealed class GaResultSnapshotPersistenceTests
         var loaded = await store.LoadAsync(snapshotPath);
         Assert.NotNull(loaded);
         Assert.Equal("run-roundtrip", loaded.Run.OptimizationRunId);
-        Assert.Equal(2, loaded.SchemaVersion);
+        Assert.Equal(3, loaded.SchemaVersion);
         Assert.Equal(2, loaded.LiftUnits.Count);
         Assert.Equal(2, loaded.Positions.Count);
         Assert.All(loaded.Positions, position => Assert.Equal(2, position.Evaluations.Count));
@@ -527,6 +530,80 @@ public sealed class GaResultSnapshotPersistenceTests
             evaluation => Assert.Equal(0.0, evaluation.HookRiggingWeightTon));
     }
 
+    [Fact]
+    public void Version_two_input_fingerprint_is_componentized_and_sensitive_to_engineering_changes()
+    {
+        var settings = CreateSettings("fingerprint-run", "stage-1", 1, grouped: false);
+        var input = CreateInput(settings, grouped: false);
+        var baseline = GaOptimizationInputFingerprint.Build(input, settings);
+
+        settings.SafetyFactor -= 0.05;
+        var safetyChanged = GaOptimizationInputFingerprint.Build(input, settings);
+
+        Assert.NotEqual(baseline.Aggregate, safetyChanged.Aggregate);
+        Assert.NotEqual(
+            baseline.Components["CapacityFactors"],
+            safetyChanged.Components["CapacityFactors"]);
+        Assert.All(
+            baseline.Components.Keys.Where(key => key != "CapacityFactors"),
+            key => Assert.Equal(baseline.Components[key], safetyChanged.Components[key]));
+
+        input.Zones.Add(new GreenAreaZone
+        {
+            ZoneId = Guid.Parse("659bd7ee-35e7-4b75-9686-4a60e1b5142d"),
+            Name = "Engineering zone",
+            Vertices =
+            [
+                new DomainPoint3D(0, 0, 0),
+                new DomainPoint3D(10, 0, 0),
+                new DomainPoint3D(10, 10, 0)
+            ]
+        });
+        var zoneChanged = GaOptimizationInputFingerprint.Build(input, settings);
+
+        Assert.NotEqual(safetyChanged.Aggregate, zoneChanged.Aggregate);
+        Assert.NotEqual(safetyChanged.Components["Zones"], zoneChanged.Components["Zones"]);
+        Assert.All(
+            safetyChanged.Components.Keys.Where(key => key != "Zones"),
+            key => Assert.Equal(safetyChanged.Components[key], zoneChanged.Components[key]));
+    }
+
+    [Fact]
+    public async Task Lift_analysis_keeps_adequacy_right_sizing_and_screening_as_independent_dimensions()
+    {
+        var root = CreateTestRoot();
+        var snapshot = await MapAsync(
+            CreateExecution("analysis-inadequate", grouped: false, coverage: 0.5),
+            root);
+        var service = new GaLiftAnalysisService(new StubAlternativeScreeningService());
+
+        var result = await service.AnalyzeAsync(new GaLiftAnalysisRequest
+        {
+            Snapshot = snapshot,
+            RunAlternativeScreening = false
+        });
+
+        Assert.Equal(CurrentCraneAdequacy.Inadequate, result.CurrentCraneAdequacy);
+        Assert.Equal(RightSizingAssessment.NotEvaluated, result.RightSizingAssessment);
+        Assert.Equal(AlternativeScreeningOutcome.NotRun, result.AlternativeScreeningOutcome);
+        Assert.Equal(1, result.Metrics.ReliableCraneLimitFailureCount);
+        Assert.StartsWith("rev_", result.RevisionId);
+        Assert.Equal("RunSettingsSharedOffsets", result.GeometrySource);
+    }
+
+    private sealed class StubAlternativeScreeningService : IGaAlternativeScreeningService
+    {
+        public Task<GaAlternativeScreeningResult> ScreenAsync(
+            GaResultSnapshotDto snapshot,
+            CurrentCraneAdequacy adequacy,
+            IReadOnlyList<GaCraneCandidate> candidates,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new GaAlternativeScreeningResult
+            {
+                Outcome = AlternativeScreeningOutcome.NoValidatedAlternative
+            });
+    }
+
     private static async Task<GaResultSnapshotDto> MapAsync(GaExecutionResult execution, string root)
     {
         var mapper = new GaResultSnapshotMapper();
@@ -956,13 +1033,20 @@ public sealed class GaResultSnapshotPersistenceTests
     {
         ApplicationVersion = snapshot.ApplicationVersion,
         SchemaVersion = snapshot.SchemaVersion,
+        SnapshotType = snapshot.SnapshotType,
+        CanonicalSnapshotId = snapshot.CanonicalSnapshotId,
+        CanonicalPayloadHash = snapshot.CanonicalPayloadHash,
         GitCommitHash = snapshot.GitCommitHash,
         Run = snapshot.Run,
         Project = snapshot.Project,
         Model = new GaModelSnapshotDto
         {
+            CanonicalSnapshotId = snapshot.Model.CanonicalSnapshotId,
+            CanonicalPayloadHash = snapshot.Model.CanonicalPayloadHash,
             ModelFingerprint = modelFingerprint,
             OptimizationInputFingerprint = snapshot.Model.OptimizationInputFingerprint,
+            OptimizationInputFingerprintVersion = snapshot.Model.OptimizationInputFingerprintVersion,
+            OptimizationInputFingerprintComponents = snapshot.Model.OptimizationInputFingerprintComponents,
             IfcFileName = snapshot.Model.IfcFileName,
             IfcProjectRelativePath = snapshot.Model.IfcProjectRelativePath,
             IfcSha256 = snapshot.Model.IfcSha256,

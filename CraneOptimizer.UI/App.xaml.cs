@@ -4,6 +4,7 @@ using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.GeneticOptimization;
+using CraneOptimizer.Application.GAAnalysis;
 using CraneOptimizer.Application.Reports.Builders;
 using CraneOptimizer.Application.Reports.Inputs;
 using CraneOptimizer.Application.Reports.Interfaces;
@@ -22,6 +23,7 @@ using CraneOptimizer.Infrastructure.Reports.Csv;
 using CraneOptimizer.Infrastructure.Reports.Pdf;
 using CraneOptimizer.Infrastructure.Reports.UserFacing;
 using CraneOptimizer.Infrastructure.Optimization.GeneticAlgorithms.Snapshots;
+using CraneOptimizer.Infrastructure.GAAnalysis;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Services;
@@ -40,6 +42,7 @@ using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
 using CraneOptimizer.UI.Features.F12_Reports.Services;
 using CraneOptimizer.UI.Features.F12_Reports.ViewModels;
 using CraneOptimizer.UI.Features.F5_ElementManagement.ViewModels;
@@ -126,6 +129,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<ISceneGridSizingService, SceneGridSizingService>();
             services.AddSingleton<IElementVisibilityFilterService, ElementVisibilityFilterService>();
             services.AddSingleton<IIfcSceneOperationService, IfcSceneOperationService>();
+            services.AddSingleton<IIfcVisibilityOptionsService, IfcVisibilityOptionsService>();
             services.AddSingleton<IImportReadinessService, ImportReadinessService>();
 
             // =========================
@@ -152,6 +156,7 @@ namespace CraneOptimizer.UI
             services.AddSingleton<IGaResultSnapshotStore, JsonGaResultSnapshotStore>();
             services.AddSingleton<IGaLegacyCsvSnapshotAdapter, LegacyCsvGaSnapshotAdapter>();
             services.AddSingleton<IGaResultSnapshotProvider, GaResultSnapshotProvider>();
+            services.AddGaLiftAnalysisFeature();
 
             services.AddTransient<SplashScreenViewModel>();
             services.AddTransient<ProjectManagementViewModel>();
@@ -172,6 +177,8 @@ namespace CraneOptimizer.UI
             services.AddSingleton<ICraneValidationService, CraneValidationService>();
             services.AddSingleton<IElementLiftStateService, ElementLiftStateService>();
             services.AddSingleton<IDxfZoneImportService, DxfZoneImportService>();
+            services.AddSingleton<IDxfLayerZoneAssignmentService, DxfLayerZoneAssignmentService>();
+            services.AddSingleton<IProjectHistoryService, ProjectHistoryService>();
 
             // =========================
             // GA
@@ -383,6 +390,15 @@ namespace CraneOptimizer.UI
 
         protected override void OnExit(ExitEventArgs e)
         {
+            try
+            {
+                ServiceProvider?.GetService<IGaLiftAnalysisJobCoordinator>()?.CancelAll();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Lift analysis shutdown cancellation error: {ex}");
+            }
+
             Dispatcher.InvokeShutdown();
 
             try

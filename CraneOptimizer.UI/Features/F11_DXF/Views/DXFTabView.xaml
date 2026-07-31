@@ -20,11 +20,11 @@
                         </Button.Tag>
                     </Button>
                     <Button
+                        Command="{Binding Dxf.AddAnotherDxfCommand}"
                         Content="Add Another"
                         FontSize="{StaticResource FontSizeXS}"
-                        IsEnabled="False"
                         Style="{StaticResource RibbonMajorTrailingCommandTile}"
-                        ToolTip="Add another DXF (coming soon)">
+                        ToolTip="Load another independent DXF overlay">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="➕" />
                         </Button.Tag>
@@ -83,37 +83,170 @@
             <Rectangle Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="SELECTION">
-                <StackPanel Orientation="Horizontal">
+                <Grid>
+                    <StackPanel Orientation="Horizontal">
                     <Button
+                        x:Name="SelectDxfButton"
+                        Command="{Binding Dxf.SelectCommand}"
                         Content="Select"
-                        IsEnabled="False"
                         Style="{StaticResource RibbonMajorLeadingCommandTile}"
-                        ToolTip="Select DXF entities (coming soon)">
+                        ToolTip="Select complete DXF overlays">
                         <Button.Tag>
                             <TextBlock Text="⬚" />
                         </Button.Tag>
                     </Button>
                     <Button
+                        Command="{Binding Dxf.SelectAllCommand}"
                         Content="Select All"
-                        IsEnabled="False"
                         Style="{StaticResource RibbonMajorTrailingCommandTile}"
-                        ToolTip="Select all DXF entities (coming soon)">
+                        ToolTip="Select every loaded DXF overlay">
                         <Button.Tag>
                             <TextBlock Text="⬛" />
                         </Button.Tag>
                     </Button>
-                </StackPanel>
+                    </StackPanel>
+                    <Popup
+                    Width="330"
+                    AllowsTransparency="True"
+                    IsOpen="{Binding Dxf.IsSelectionPanelOpen, Mode=TwoWay}"
+                    Placement="Bottom"
+                    PlacementTarget="{Binding ElementName=SelectDxfButton}"
+                    DataContext="{Binding DataContext, ElementName=SelectDxfButton}"
+                    StaysOpen="False">
+                    <Border
+                        Margin="0,4,0,0"
+                        Padding="12"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource PrimaryBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    FontFamily="{StaticResource FontPrimary}"
+                                    FontSize="{StaticResource FontSizeSM}"
+                                    FontWeight="SemiBold"
+                                    Foreground="{DynamicResource TextPrimaryBrush}"
+                                    Text="Loaded DXFs" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    FontFamily="{StaticResource FontPrimary}"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    Text="{Binding Dxf.SelectionSummary}" />
+                            </Grid>
+                            <ScrollViewer
+                                Grid.Row="1"
+                                MaxHeight="250"
+                                Margin="0,8,0,8"
+                                HorizontalScrollBarVisibility="Disabled"
+                                VerticalScrollBarVisibility="Auto">
+                                <ItemsControl
+                                    ItemsSource="{Binding Dxf.LoadedDxfs}"
+                                    Tag="{Binding Dxf.ToggleSourceSelectionCommand}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border
+                                                Margin="0,0,0,4"
+                                                Padding="7"
+                                                BorderBrush="{DynamicResource PrimaryBrush}"
+                                                CornerRadius="3"
+                                                ToolTip="{Binding FilePath}">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="BorderThickness" Value="0" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                <Setter Property="BorderThickness" Value="1" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <CheckBox
+                                                        Margin="0,0,8,0"
+                                                        VerticalAlignment="Center"
+                                                        Command="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                                        ToolTip="Toggle DXF selection" />
+                                                    <StackPanel Grid.Column="1">
+                                                        <TextBlock
+                                                            MaxWidth="205"
+                                                            FontFamily="{StaticResource FontPrimary}"
+                                                            FontSize="{StaticResource FontSizeSM}"
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{DynamicResource TextPrimaryBrush}"
+                                                            Text="{Binding DisplayName}"
+                                                            TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock
+                                                            Margin="0,2,0,0"
+                                                            FontFamily="{StaticResource FontPrimary}"
+                                                            FontSize="{StaticResource FontSizeXS}"
+                                                            Foreground="{DynamicResource TextSecondaryBrush}"
+                                                            Text="{Binding AlignmentStatus}" />
+                                                    </StackPanel>
+                                                    <TextBlock
+                                                        Grid.Column="2"
+                                                        Margin="8,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        FontFamily="{StaticResource FontPrimary}"
+                                                        FontSize="{StaticResource FontSizeXS}"
+                                                        Foreground="{DynamicResource PrimaryBrush}"
+                                                        Text="Active">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                            <TextBlock
+                                Grid.Row="2"
+                                FontFamily="{StaticResource FontPrimary}"
+                                FontSize="{StaticResource FontSizeXS}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Click a DXF in the viewport or select it from this list."
+                                TextWrapping="Wrap" />
+                        </Grid>
+                    </Border>
+                    </Popup>
+                </Grid>
             </ContentControl>
 
             <Rectangle Style="{StaticResource RibbonSep}" />
 
             <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="EDIT">
                 <Button
+                    Command="{Binding Dxf.DeleteCommand}"
                     Content="Delete"
                     FontSize="{StaticResource FontSizeXS}"
-                    IsEnabled="False"
                     Style="{StaticResource RibbonMajorCommandTile}"
-                    ToolTip="Delete selected DXF entities (coming soon)">
+                    ToolTip="Delete selected DXF overlays">
                     <Button.Tag>
                         <TextBlock FontSize="26" Text="🗑" />
                     </Button.Tag>
@@ -123,6 +256,7 @@
             <Rectangle Style="{StaticResource RibbonSep}" />
 
             <Border
+                Width="220"
                 Height="{StaticResource RibbonCommandGroupHeight}"
                 Padding="12,0"
                 VerticalAlignment="Top">
@@ -132,13 +266,16 @@
                         FontSize="{StaticResource FontSizeXS}"
                         FontWeight="SemiBold"
                         Foreground="{DynamicResource TextSecondaryBrush}"
-                        Text="{Binding Dxf.StatusMessage, FallbackValue='No DXF loaded'}" />
+                        Text="{Binding Dxf.StatusMessage, FallbackValue='No DXF loaded'}"
+                        TextTrimming="CharacterEllipsis"
+                        ToolTip="{Binding Dxf.StatusMessage}" />
                     <TextBlock
                         Margin="0,2,0,0"
                         FontFamily="{StaticResource FontPrimary}"
                         FontSize="{StaticResource FontSizeXS}"
                         Foreground="{StaticResource PrimaryBrush}"
                         Text="{Binding Dxf.LoadedFileName}"
+                        TextTrimming="CharacterEllipsis"
                         Visibility="{Binding Dxf.HasDxfLoaded, Converter={StaticResource BoolToVisibilityConverter}}" />
                 </StackPanel>
             </Border>

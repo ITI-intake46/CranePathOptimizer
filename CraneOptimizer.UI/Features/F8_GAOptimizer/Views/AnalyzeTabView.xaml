@@ -8,21 +8,43 @@
         <StackPanel Margin="6,0" Orientation="Horizontal">
 
             <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="OPTIMIZE">
-                <Button Command="{Binding OptimizeCommand}" Content="Run Optimizer" Style="{StaticResource RibbonAnalyzeAccentCommandTile}">
+                <Button
+                    AutomationProperties.Name="Run Optimizer"
+                    Command="{Binding OptimizeCommand}"
+                    ContentTemplate="{x:Null}"
+                    Style="{StaticResource RibbonMajorCommandTile}"
+                    ToolTip="Run Optimizer">
+                    <Button.Content>
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                Foreground="{StaticResource PrimaryBrush}"
+                                Text="Run" />
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="Optimizer" />
+                        </StackPanel>
+                    </Button.Content>
                     <Button.Tag>
-                        <TextBlock FontSize="22" Text="⚡" />
+                        <TextBlock
+                            FontSize="22"
+                            Foreground="{StaticResource PrimaryBrush}"
+                            Text="⚡" />
                     </Button.Tag>
                 </Button>
             </ContentControl>
 
             <Rectangle Style="{StaticResource RibbonSep}" />
 
-            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="REPORTS">
-                <StackPanel Orientation="Horizontal">
-                    <Button Content="Export Analysis" Style="{StaticResource RibbonMajorLeadingCommandTile}" Tag="📄" />
-                    <Button Content="Export Zones (JSON)" Style="{StaticResource RibbonMajorMiddleCommandTile}" Tag="📤" ToolTip="Export Zones (JSON)" />
-                    <Button Command="{Binding ShowDiagnosticsCommand}" Content="GA Diagnostics" Style="{StaticResource RibbonMajorTrailingCommandTile}" Tag="📈" />
-                </StackPanel>
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="SUMMARY">
+                <Button
+                    AutomationProperties.Name="Lift Summary"
+                    Command="{Binding ShowLiftAnalysisCommand}"
+                    Content="Lift Summary"
+                    Style="{StaticResource RibbonMajorCommandTile}"
+                    Tag="📈"
+                    ToolTip="Open the saved Lift Summary for the selected optimizer run." />
             </ContentControl>
 
             <Rectangle Style="{StaticResource RibbonSep}" />

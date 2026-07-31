@@ -3,6 +3,7 @@ using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Infrastructure.Repositories;
 using CraneOptimizer.UI.Core.Converters;
 using CraneOptimizer.UI.Features.F2_IfcViewer.DTOs;
+using CraneOptimizer.UI.Features.F2_IfcViewer.Services;
 using Xbim.Ifc4.Interfaces;
 
 namespace CraneOptimizer.UI.Features.F16_Filter.Services
@@ -21,6 +22,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         private readonly Dictionary<string, string> _storeyByElementId = new(StringComparer.Ordinal);
         private readonly IIfcReaderRepository _ifcReader;
         private HashSet<string>? _includedElementIds;
+        private IfcLoadOptionsDto? _activeIfcVisibilityOptions;
 
         public ElementVisibilityFilterService(IIfcReaderRepository ifcReader)
         {
@@ -186,33 +188,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
 
         public void ApplyLoadOptions(IfcLoadOptionsDto options)
         {
-            ResetFilters();
-
-            if (options.HideGrids)
-            {
-                foreach (var grid in _allElements.Where(element =>
-                             element.RawIfcType.Equals("IfcGrid", StringComparison.OrdinalIgnoreCase)))
-                {
-                    if (!string.IsNullOrWhiteSpace(grid.ElementID))
-                        _excludedElementIds.Add(grid.ElementID);
-                }
-            }
-
-            foreach (var type in ElementTypes)
-            {
-                var enabled = true;
-                if (options.HideGrids && type.Contains("IfcGrid", StringComparison.OrdinalIgnoreCase)) enabled = false;
-                if (options.HideLevels && type.Contains("IfcBuildingStorey", StringComparison.OrdinalIgnoreCase)) enabled = false;
-                if (options.HideAnnotations && type.Contains("IfcAnnotation", StringComparison.OrdinalIgnoreCase)) enabled = false;
-                if (options.HideSite && type.Contains("IfcSite", StringComparison.OrdinalIgnoreCase)) enabled = false;
-                if (options.HideSpaces && type.Contains("IfcSpace", StringComparison.OrdinalIgnoreCase)) enabled = false;
-                if (options.HideOpenings && type.Contains("IfcOpeningElement", StringComparison.OrdinalIgnoreCase)) enabled = false;
-                if (options.HideVirtualElements && type.Contains("IfcVirtualElement", StringComparison.OrdinalIgnoreCase)) enabled = false;
-
-                if (!enabled)
-                    _enabledTypes.Remove(type);
-            }
-
+            _activeIfcVisibilityOptions = options;
             Recalculate();
         }
 
@@ -252,6 +228,10 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         private bool IsVisible(PrecastElement element)
         {
             var id = element.ElementID ?? string.Empty;
+
+            if (_activeIfcVisibilityOptions != null &&
+                IfcVisibilityOptionsCatalog.IsHiddenByOptions(_activeIfcVisibilityOptions, element))
+                return false;
 
             if (_hiddenElementIds.Contains(id))
                 return false;
