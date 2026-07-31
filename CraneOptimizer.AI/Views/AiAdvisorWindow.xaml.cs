@@ -1,5 +1,8 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Threading;
 using CraneOptimizer.AI.Configuration;
 using CraneOptimizer.AI.ViewModels;
 
@@ -45,6 +48,30 @@ namespace CraneOptimizer.AI.Views
                 e.Handled = true;
                 _viewModel.ToggleOllamaCommand.Execute(null);
             }
+        }
+
+        private void ModelDropDownToggle_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not ToggleButton toggle ||
+                toggle.TemplatedParent is not ComboBox comboBox ||
+                !comboBox.IsEnabled)
+            {
+                return;
+            }
+
+            comboBox.IsDropDownOpen = toggle.IsChecked == true;
+
+            if (!comboBox.IsDropDownOpen || comboBox.SelectedItem == null)
+                return;
+
+            comboBox.Dispatcher.BeginInvoke(
+                DispatcherPriority.Loaded,
+                new System.Action(() =>
+                {
+                    comboBox.UpdateLayout();
+                    if (comboBox.ItemContainerGenerator.ContainerFromItem(comboBox.SelectedItem) is ComboBoxItem item)
+                        item.BringIntoView();
+                }));
         }
 
         private void FitInitialSizeToCurrentWorkArea()
