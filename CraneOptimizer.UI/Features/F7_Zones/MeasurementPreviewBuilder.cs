@@ -10,31 +10,24 @@ namespace CraneOptimizer.UI.Features.F7_Zones
 
     public class MeasurementPreviewBuilder : IVisualBuilder<MeasurementLineData>
     {
+        private readonly double _visualScale;
+
+        public MeasurementPreviewBuilder(double visualScale = 1d)
+        {
+            _visualScale = System.Math.Clamp(visualScale, 0.85d, 1.2d);
+        }
+
         public Visual3D Build(MeasurementLineData data)
         {
             var container = new ModelVisual3D();
-
-            var line = new LinesVisual3D
-            {
-                Color = Colors.Cyan,
-                Thickness = 3
-            };
-            line.Points.Add(new Point3D(data.Start.X, data.Start.Y, data.Start.Z));
-            line.Points.Add(new Point3D(data.End.X, data.End.Y, data.End.Z));
-            container.Children.Add(line);
-
-            var startOutline = new PointsVisual3D
-            {
-                Color = Colors.White,
-                Size = 15
-            };
-            startOutline.Points.Add(new Point3D(data.Start.X, data.Start.Y, data.Start.Z));
-            container.Children.Add(startOutline);
+            Color measurementColor =
+                ((SolidColorBrush)System.Windows.Application.Current.FindResource(
+                    "PrimaryBrush")).Color;
 
             var startPoint = new PointsVisual3D
             {
-                Color = Colors.Gold,
-                Size = 10
+                Color = measurementColor,
+                Size = 7 * _visualScale
             };
             startPoint.Points.Add(new Point3D(data.Start.X, data.Start.Y, data.Start.Z));
             container.Children.Add(startPoint);
@@ -46,8 +39,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones
             {
                 var hoverPoint = new PointsVisual3D
                 {
-                    Color = Colors.Magenta,
-                    Size = 10
+                    Color = measurementColor,
+                    Size = 7 * _visualScale
                 };
                 hoverPoint.Points.Add(new Point3D(data.End.X, data.End.Y, data.End.Z));
                 container.Children.Add(hoverPoint);

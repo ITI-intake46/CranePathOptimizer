@@ -7,45 +7,205 @@
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
         <StackPanel Margin="6,0" Orientation="Horizontal">
 
-            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="PROJECT">
-                <Button
-                    Command="{Binding OpenProjectFolderCommand}"
-                    ContentTemplate="{x:Null}"
-                    Style="{StaticResource RibbonMajorCommandTile}"
-                    ToolTip="Open the active project folder in Windows File Explorer">
-                    <Button.Tag>
-                        <TextBlock FontSize="26" Text="📂" />
-                    </Button.Tag>
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <TextBlock HorizontalAlignment="Center" Text="Open Folder" />
-                        <TextBlock HorizontalAlignment="Center" Text="Location" />
-                    </StackPanel>
-                </Button>
-            </ContentControl>
-
-            <Rectangle Style="{StaticResource RibbonSep}" />
-
-            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="SETTINGS">
+            <!--  IMPORT  -->
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="IMPORT">
                 <StackPanel Orientation="Horizontal">
                     <Button
-                        Click="ProjectSettings_Click"
-                        ContentTemplate="{x:Null}"
+                        Command="{Binding IfcViewer.LoadIfcCommand}"
+                        Content="Load IFC"
                         FontSize="{StaticResource FontSizeXS}"
-                        Style="{StaticResource RibbonMajorCommandTile}">
+                        Style="{StaticResource RibbonMajorLeadingCommandTile}"
+                        ToolTip="Open an IFC file and import it into the 3D view.">
                         <Button.Tag>
-                            <TextBlock FontSize="26" Text="⚙️" />
+                            <TextBlock FontSize="26" Text="&#x1F4E6;" />
                         </Button.Tag>
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock HorizontalAlignment="Center" Text="Project" />
-                            <TextBlock HorizontalAlignment="Center" Text="Settings" />
-                        </StackPanel>
+                    </Button>
+                    <Button
+                        Command="{Binding Dxf.UploadDxfCommand}"
+                        Content="Load DXF"
+                        FontSize="{StaticResource FontSizeXS}"
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}"
+                        ToolTip="Select a DXF file from disk">
+                        <Button.Tag>
+                            <TextBlock FontSize="26" Text="&#x1F4C2;" />
+                        </Button.Tag>
                     </Button>
                 </StackPanel>
             </ContentControl>
 
             <Rectangle Style="{StaticResource RibbonSep}" />
 
-            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="VIEW">
+            <!--  CRANE DATA  -->
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="CRANE DATA">
+                <StackPanel Orientation="Horizontal">
+                    <Button
+                        Click="ImportLoadChart_Click"
+                        Content="Import Load Chart"
+                        Style="{StaticResource RibbonMajorLeadingCommandTile}"
+                        ToolTip="Import Load Chart">
+                        <Button.Tag>
+                            <Path
+                                Data="M3,7 H9 L11,10 H21 V20 H3 Z M12,3 V14 M8,10 L12,14 L16,10"
+                                Fill="Transparent"
+                                Stroke="{DynamicResource TextSecondaryBrush}"
+                                StrokeLineJoin="Round"
+                                StrokeThickness="1.5" />
+                        </Button.Tag>
+                    </Button>
+                    <Button
+                        Click="CraneCatalog_Click"
+                        Content="Crane Catalog"
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}"
+                        ToolTip="Crane Catalog">
+                        <Button.Tag>
+                            <Path
+                                Data="M3,4 C7,3 10,4 12,6 V21 C10,19 7,18 3,19 Z M21,4 C17,3 14,4 12,6 V21 C14,19 17,18 21,19 Z"
+                                Fill="Transparent"
+                                Stroke="{DynamicResource TextSecondaryBrush}"
+                                StrokeLineJoin="Round"
+                                StrokeThickness="1.5" />
+                        </Button.Tag>
+                    </Button>
+                </StackPanel>
+            </ContentControl>
+
+            <Rectangle Style="{StaticResource RibbonSep}" />
+
+            <!--  ZONES  -->
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="ZONES">
+                <StackPanel Orientation="Horizontal">
+                    <Border>
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Drawing.ActiveDrawingMode}" Value="Allowed">
+                                        <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}" />
+                                        <Setter Property="BorderThickness" Value="4,0,0,0" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <Button
+                            Command="{Binding Drawing.StartAllowedCommand}"
+                            ContentTemplate="{x:Null}"
+                            Style="{StaticResource RibbonMajorLeadingCommandTile}">
+                            <Button.Tag>
+                                <Image
+                                    Width="32"
+                                    Height="32"
+                                    Opacity="0.8"
+                                    RenderOptions.BitmapScalingMode="HighQuality"
+                                    Source="/CraneOptimizer.UI;component/Resources/Icons/map-pin-check (1)_white.png" />
+                            </Button.Tag>
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontSize="{StaticResource FontSizeSM}"
+                                    FontWeight="SemiBold"
+                                    Text="Allowed" />
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    Margin="0,2,0,0"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    Opacity="0.85"
+                                    Text="Zones" />
+                            </StackPanel>
+                        </Button>
+                    </Border>
+                    <Border>
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Drawing.ActiveDrawingMode}" Value="Forbidden">
+                                        <Setter Property="BorderBrush" Value="{StaticResource DestructiveBrush}" />
+                                        <Setter Property="BorderThickness" Value="4,0,0,0" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <Button
+                            Command="{Binding Drawing.StartForbiddenCommand}"
+                            ContentTemplate="{x:Null}"
+                            Style="{StaticResource RibbonMajorTrailingCommandTile}">
+                            <Button.Tag>
+                                <Image
+                                    Width="32"
+                                    Height="32"
+                                    Opacity="0.8"
+                                    RenderOptions.BitmapScalingMode="HighQuality"
+                                    Source="/CraneOptimizer.UI;component/Resources/Icons/map-pin-x (1)_white.png" />
+                            </Button.Tag>
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontSize="{StaticResource FontSizeSM}"
+                                    FontWeight="SemiBold"
+                                    Text="Forbidden" />
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    Margin="0,2,0,0"
+                                    FontSize="{StaticResource FontSizeXS}"
+                                    Opacity="0.85"
+                                    Text="Zones" />
+                            </StackPanel>
+                        </Button>
+                    </Border>
+                </StackPanel>
+            </ContentControl>
+
+            <Rectangle Style="{StaticResource RibbonSep}" />
+
+            <!--  ANALYSIS  -->
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="ANALYSIS">
+                <StackPanel Orientation="Horizontal">
+                    <Button
+                        AutomationProperties.Name="Run Optimizer"
+                        Command="{Binding CranePlacement.OptimizeCommand}"
+                        ContentTemplate="{x:Null}"
+                        Style="{StaticResource RibbonMajorLeadingCommandTile}"
+                        ToolTip="Run Optimizer">
+                        <Button.Content>
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    Foreground="{StaticResource PrimaryBrush}"
+                                    Text="Run" />
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    Text="Optimizer" />
+                            </StackPanel>
+                        </Button.Content>
+                        <Button.Tag>
+                            <TextBlock
+                                FontSize="22"
+                                Foreground="{StaticResource PrimaryBrush}"
+                                Text="&#x2699;" />
+                        </Button.Tag>
+                    </Button>
+                    <Button
+                        Command="{Binding CranePlacement.ShowResultsCommand}"
+                        Content="View Results"
+                        Style="{StaticResource RibbonMajorMiddleCommandTile}"
+                        Tag="&#x1F4CA;" />
+                    <Button
+                        AutomationProperties.Name="Lift Summary"
+                        Command="{Binding CranePlacement.ShowLiftAnalysisCommand}"
+                        Content="Lift Summary"
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}"
+                        Tag="&#x1F4C8;"
+                        ToolTip="Open the saved Lift Summary for the selected optimizer run." />
+                </StackPanel>
+            </ContentControl>
+
+            <Rectangle Style="{StaticResource RibbonSep}" />
+
+            <!--  TOOLS  -->
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="TOOLS">
                 <StackPanel Orientation="Horizontal">
                     <Button
                         Command="{Binding ElementManagement.ShowFilterDialogCommand}"
@@ -53,11 +213,9 @@
                         FontSize="{StaticResource FontSizeXS}"
                         IsEnabled="{Binding IfcViewer.HasIfcModel}"
                         Style="{StaticResource RibbonMajorLeadingCommandTile}"
-                        ToolTip="Filter">
+                        ToolTip="Choose which IFC elements are visible in the 3D view.">
                         <Button.Tag>
-                            <Viewbox
-                                Width="26"
-                                Height="26">
+                            <Viewbox Width="26" Height="26">
                                 <Canvas Width="24" Height="24">
                                     <Polygon Fill="{StaticResource PrimaryBrush}" Points="2,3 22,3 14,13 14,21 10,21 10,13" />
                                     <Ellipse
@@ -75,10 +233,20 @@
                         Command="{Binding Drawing.StartMeasureCommand}"
                         Content="Measure"
                         FontSize="{StaticResource FontSizeXS}"
-                        Style="{StaticResource RibbonMajorTrailingCommandTile}"
-                        ToolTip="Measure distances in the scene">
+                        ToolTip="Measure distances and points in the 3D view.">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource RibbonMajorTrailingCommandTile}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Drawing.IsMeasuring}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource PrimaryMutedBrush}" />
+                                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                                        <Setter Property="BorderThickness" Value="1" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
                         <Button.Tag>
-                            <TextBlock FontSize="40" Text="📏" />
+                            <TextBlock FontSize="40" Text="&#x1F4CF;" />
                         </Button.Tag>
                     </Button>
                 </StackPanel>
@@ -86,31 +254,35 @@
 
             <Rectangle Style="{StaticResource RibbonSep}" />
 
-            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="QUICK ACCESS">
+            <!--  PROJECT  -->
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="PROJECT">
                 <StackPanel Orientation="Horizontal">
                     <Button
-                        Command="{Binding IfcViewer.LoadIfcCommand}"
-                        Content="Load IFC Model"
+                        Command="{Binding OpenProjectFolderCommand}"
+                        ContentTemplate="{x:Null}"
                         Style="{StaticResource RibbonMajorLeadingCommandTile}"
-                        ToolTip="Load IFC Model">
+                        ToolTip="Open the active project folder in Windows File Explorer.">
                         <Button.Tag>
-                            <TextBlock Text="📦" />
+                            <TextBlock FontSize="26" Text="&#x1F4C2;" />
                         </Button.Tag>
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock HorizontalAlignment="Center" Text="Open Folder" />
+                            <TextBlock HorizontalAlignment="Center" Text="Location" />
+                        </StackPanel>
                     </Button>
                     <Button
-                        Content="Add Crane"
-                        Style="{StaticResource RibbonMajorMiddleCommandTile}">
+                        Click="ProjectSettings_Click"
+                        ContentTemplate="{x:Null}"
+                        FontSize="{StaticResource FontSizeXS}"
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}"
+                        ToolTip="Configure project display units and viewer-grid settings.">
                         <Button.Tag>
-                            <TextBlock Text="🏗" />
+                            <TextBlock FontSize="26" Text="&#x2699;&#xFE0F;" />
                         </Button.Tag>
-                    </Button>
-                    <Button
-                        Command="{Binding StartDrawingCommand}"
-                        Content="Draw Zones"
-                        Style="{StaticResource RibbonMajorTrailingCommandTile}">
-                        <Button.Tag>
-                            <TextBlock Text="🗺" />
-                        </Button.Tag>
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock HorizontalAlignment="Center" Text="Project" />
+                            <TextBlock HorizontalAlignment="Center" Text="Settings" />
+                        </StackPanel>
                     </Button>
                 </StackPanel>
             </ContentControl>

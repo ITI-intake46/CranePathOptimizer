@@ -28,6 +28,12 @@ namespace CraneOptimizer.AI.Companion.Views
             typeof(AiCompanionPanel),
             new PropertyMetadata(true, OnSectionRailExpandedChanged));
 
+        public static readonly DependencyProperty ShowHeaderProperty = DependencyProperty.Register(
+            nameof(ShowHeader),
+            typeof(bool),
+            typeof(AiCompanionPanel),
+            new PropertyMetadata(true));
+
         public static readonly RoutedEvent CloseRequestedEvent = EventManager.RegisterRoutedEvent(
             nameof(CloseRequested),
             RoutingStrategy.Bubble,
@@ -42,6 +48,12 @@ namespace CraneOptimizer.AI.Companion.Views
         {
             get => (bool)GetValue(IsSectionRailExpandedProperty);
             set => SetValue(IsSectionRailExpandedProperty, value);
+        }
+
+        public bool ShowHeader
+        {
+            get => (bool)GetValue(ShowHeaderProperty);
+            set => SetValue(ShowHeaderProperty, value);
         }
 
         public event RoutedEventHandler CloseRequested

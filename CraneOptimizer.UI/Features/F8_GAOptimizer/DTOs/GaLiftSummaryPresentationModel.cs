@@ -35,8 +35,7 @@ public sealed record GaLiftSummaryPresentationModel
     public string SafetyFactorText { get; init; } = string.Empty;
     public string DeratingRatioText { get; init; } = string.Empty;
     public string WireLengthText { get; init; } = string.Empty;
-    public string HookWeightText { get; init; } = string.Empty;
-    public string AccessoriesWeightText { get; init; } = string.Empty;
+    public string LiftingAccessoriesWeightText { get; init; } = string.Empty;
     public string OperatingModeText { get; init; } = string.Empty;
     public bool HasOperatingMode { get; init; }
     public string CandidatePointsGeneratedText { get; init; } = string.Empty;

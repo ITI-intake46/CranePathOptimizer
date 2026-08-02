@@ -14,6 +14,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace CraneOptimizer.UI.Features.F16_Filter.Views
 {
@@ -35,6 +36,8 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
         private FilterScope _filterScope;
         private bool _isInitializing = true;
         private bool _isIsolated;
+        // 200ms debounce — prevents hierarchy rebuild on every keystroke
+        private DispatcherTimer? _searchDebounce;
         private static readonly string[] StructuralTypeKeywords =
         [
             "IfcColumn", "IfcBeam", "IfcSlab", "IfcWall", "IfcStair",
@@ -98,6 +101,8 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             if (_selectionService != null)
                 _selectionService.SelectionChanged -= OnSelectionChanged;
 
+            _searchDebounce?.Stop();
+            _searchDebounce = null;
             Closed -= ElementFilterDialog_Closed;
         }
 
@@ -303,7 +308,45 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                 TxtCheckedCount.Text = $"{_checkedElementIds.Count:N0} checked";
         }
 
-        private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e) => ApplyHierarchyFilters();
+        private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            // Toggle the clear-search button visibility
+            if (BtnClearSearch != null)
+                BtnClearSearch.Visibility = string.IsNullOrEmpty(TxtSearch?.Text)
+                    ? Visibility.Collapsed
+                    : Visibility.Visible;
+
+            // Debounce: wait 200ms of idle typing before rebuilding the hierarchy.
+            // This keeps the UI thread free while the user is still typing.
+            if (_searchDebounce == null)
+            {
+                _searchDebounce = new DispatcherTimer(DispatcherPriority.Background)
+                {
+                    Interval = TimeSpan.FromMilliseconds(200)
+                };
+                _searchDebounce.Tick += (_, _) =>
+                {
+                    _searchDebounce.Stop();
+                    ApplyHierarchyFilters();
+                };
+            }
+
+            _searchDebounce.Stop();
+            _searchDebounce.Start();
+        }
+
+        private void BtnClearSearch_Click(object sender, RoutedEventArgs e)
+        {
+            if (TxtSearch == null)
+                return;
+
+            _searchDebounce?.Stop();
+            TxtSearch.Text = string.Empty;
+            if (BtnClearSearch != null)
+                BtnClearSearch.Visibility = Visibility.Collapsed;
+            TxtSearch.Focus();
+            ApplyHierarchyFilters();
+        }
         private void FilterOption_Changed(object sender, RoutedEventArgs e) => ApplyHierarchyFilters();
         private void HierarchyOption_Changed(object sender, RoutedEventArgs e) => OnHierarchyOptionChanged(sender);
         private void OptionSearch_Changed(object sender, TextChangedEventArgs e) => RefreshOptionViews();
@@ -558,6 +601,37 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             UpdatePreviewCount();
             UpdateVisibilityActionButtons();
             UpdateScopeButtons();
+            UpdateEmptyState();
+        }
+
+        /// <summary>
+        /// Shows/hides the empty-state overlay based on whether the hierarchy has any roots.
+        /// Also surfaces a "Clear Search" action when a search term is active.
+        /// Does not touch 3D visibility or engineering data.
+        /// </summary>
+        private void UpdateEmptyState()
+        {
+            if (BdrEmptyState == null)
+                return;
+
+            var hasItems = _hierarchyRoots.Count > 0;
+            BdrEmptyState.Visibility = hasItems ? Visibility.Collapsed : Visibility.Visible;
+
+            if (hasItems)
+                return;
+
+            var hasSearch = !string.IsNullOrWhiteSpace(TxtSearch?.Text);
+            var hasScopeElements = _allElements.Count > 0;
+
+            if (TxtEmptyStateMessage != null)
+            {
+                TxtEmptyStateMessage.Text = hasScopeElements
+                    ? "No IFC elements match the current search and filters."
+                    : "No IFC elements are available in the selected scope.";
+            }
+
+            if (BtnEmptyClearSearch != null)
+                BtnEmptyClearSearch.Visibility = hasSearch ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void UpdateWeightControlsForCurrentScope()

@@ -14,32 +14,24 @@ namespace CraneOptimizer.UI.Features.F7_Zones
 
     public class MeasurementFinalBuilder : IVisualBuilder<MeasurementVisualData>
     {
+        private readonly double _visualScale;
+
+        public MeasurementFinalBuilder(double visualScale = 1d)
+        {
+            _visualScale = System.Math.Clamp(visualScale, 0.85d, 1.2d);
+        }
+
         public Visual3D Build(MeasurementVisualData data)
         {
             var container = new ModelVisual3D();
-
-            var line = new LinesVisual3D
-            {
-                Color = Colors.Orange,
-                Thickness = 3
-            };
-            line.Points.Add(new Point3D(data.Start.X, data.Start.Y, data.Start.Z));
-            line.Points.Add(new Point3D(data.End.X, data.End.Y, data.End.Z));
-            container.Children.Add(line);
-
-            var endpointOutlines = new PointsVisual3D
-            {
-                Color = Colors.White,
-                Size = 15
-            };
-            endpointOutlines.Points.Add(new Point3D(data.Start.X, data.Start.Y, data.Start.Z));
-            endpointOutlines.Points.Add(new Point3D(data.End.X, data.End.Y, data.End.Z));
-            container.Children.Add(endpointOutlines);
+            Color measurementColor =
+                ((SolidColorBrush)System.Windows.Application.Current.FindResource(
+                    "PrimaryBrush")).Color;
 
             var endpoints = new PointsVisual3D
             {
-                Color = Colors.OrangeRed,
-                Size = 10
+                Color = measurementColor,
+                Size = 7 * _visualScale
             };
             endpoints.Points.Add(new Point3D(data.Start.X, data.Start.Y, data.Start.Z));
             endpoints.Points.Add(new Point3D(data.End.X, data.End.Y, data.End.Z));

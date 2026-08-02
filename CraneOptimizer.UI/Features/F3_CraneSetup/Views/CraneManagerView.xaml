@@ -8,44 +8,21 @@
         <!-- Keep the dense engineering panel on one local, uniform type size. -->
         <sys:Double x:Key="CranePanelTextSize">9</sys:Double>
 
-        <Style x:Key="CraneSummaryBorder" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}"/>
-            <Setter Property="Padding" Value="10,8"/>
-        </Style>
+        <Style x:Key="CraneSummaryBorder"
+               TargetType="Border"
+               BasedOn="{StaticResource InspectorSummaryBorderStyle}"/>
 
-        <Style x:Key="CraneSummaryLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="{StaticResource CranePanelTextSize}"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-            <Setter Property="Margin" Value="0,1"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-        </Style>
+        <Style x:Key="CraneSummaryLabel"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource InspectorPropertyLabelStyle}"/>
 
-        <Style x:Key="CraneSummaryValue" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="{StaticResource CranePanelTextSize}"/>
-            <Setter Property="FontWeight" Value="Normal"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="Margin" Value="0,1"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-        </Style>
+        <Style x:Key="CraneSummaryValue"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource InspectorPropertyValueStyle}"/>
 
         <Style x:Key="CraneNumericTextBox"
-               BasedOn="{StaticResource {x:Type TextBox}}"
-               TargetType="TextBox">
-            <Setter Property="Height" Value="{StaticResource InputHeight}"/>
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="{StaticResource InputPadding}"/>
-            <Setter Property="FontSize" Value="{StaticResource CranePanelTextSize}"/>
-            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="TextAlignment" Value="Center"/>
-        </Style>
+               BasedOn="{StaticResource InspectorNumericTextBoxStyle}"
+               TargetType="TextBox"/>
 
         <Style x:Key="CraneSliderValue" TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center"/>
@@ -56,12 +33,9 @@
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         </Style>
 
-        <Style x:Key="CraneSectionHeading" TargetType="TextBlock">
-            <Setter Property="Margin" Value="0,14,0,8"/>
-            <Setter Property="FontSize" Value="{StaticResource CranePanelTextSize}"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-        </Style>
+        <Style x:Key="CraneSectionHeading"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource InspectorSectionHeadingStyle}"/>
 
         <Style x:Key="CraneSliderLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="{StaticResource CranePanelTextSize}"/>
@@ -146,57 +120,8 @@
     </UserControl.Resources>
 
     <Grid TextElement.FontSize="{StaticResource CranePanelTextSize}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="38"/>   <!-- Header -->
-            <RowDefinition Height="*"/>    <!-- Content -->
-        </Grid.RowDefinitions>
-
-        <!-- ── HEADER ──────────────────────────────────────────────────── -->
-        <Border Grid.Row="0"
-                Background="{DynamicResource SurfaceElevatedBrush}"
-                BorderBrush="{DynamicResource BackgroundBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="8,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0"
-                           Text="&lt;"
-                           FontSize="{StaticResource CranePanelTextSize}"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Margin="0,0,8,0"
-                           VerticalAlignment="Center"
-                           Cursor="Hand"/>
-                <TextBlock Grid.Column="1"
-                           Text="Mobile Crane 1"
-                           ToolTip="Mobile Crane 1"
-                           TextTrimming="CharacterEllipsis"
-                           FontSize="{StaticResource CranePanelTextSize}"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           VerticalAlignment="Center"/>
-                <Button Grid.Column="2"
-                        HorizontalAlignment="Right" VerticalAlignment="Center"
-                        Style="{StaticResource ToolbarButton}"
-                         Padding="6,2"
-                         FontSize="{StaticResource CranePanelTextSize}"
-                         Command="{Binding RemoveSelectedCraneCommand}"
-                         AutomationProperties.Name="Remove selected crane"
-                         ToolTip="Remove the selected crane from the scene. Confirmation is required."
-                         ToolTipService.ShowOnDisabled="True">
-                    <TextBlock Text="&#x00D7;"
-                               FontSize="{StaticResource CranePanelTextSize}"
-                               Foreground="{DynamicResource TextPrimaryBrush}"/>
-                </Button>
-            </Grid>
-        </Border>
-
         <!-- ── NO CRANE PLACEHOLDER ──────────────────────────────────── -->
-        <Border Grid.Row="1" Margin="20" VerticalAlignment="Center">
+        <Border Margin="20" VerticalAlignment="Center">
             <Border.Style>
                 <Style TargetType="Border">
                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -231,8 +156,7 @@
         </Border>
 
         <!-- ── PROPERTIES PANEL ──────────────────────────────────────── -->
-        <ScrollViewer Grid.Row="1"
-                      VerticalScrollBarVisibility="Auto"
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <ScrollViewer.Style>
                 <Style BasedOn="{StaticResource SharedScrollViewerStyle}" TargetType="ScrollViewer">

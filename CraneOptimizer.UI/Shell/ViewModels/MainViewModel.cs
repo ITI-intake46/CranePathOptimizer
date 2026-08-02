@@ -26,6 +26,12 @@ using System.Windows.Input;
 
 namespace CraneOptimizer.UI.Shell.ViewModels
 {
+    public enum RightWorkspaceTab
+    {
+        CraneManager,
+        AiAssistant
+    }
+
     public partial class MainViewModel : ViewModelBase, IDisposable
     {
         private readonly IIfcReaderRepository _ifcReader;
@@ -54,6 +60,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private string? _currentProjectIfcPath;
         private string _currentProjectFolderPath = string.Empty;
         private string _currentProjectDatabasePath = string.Empty;
+        private RightWorkspaceTab _selectedRightWorkspaceTab = RightWorkspaceTab.CraneManager;
 
         public MainViewModel(
             ISceneService scene,
@@ -149,6 +156,7 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             RemoveSelectedCraneCommand = new RelayCommand(RemoveSelectedCrane, CanRemoveSelectedCrane);
             RemoveAllCranesCommand = new RelayCommand(RemoveAllCranes, () => Scene.GetCranes().Count > 0);
             OpenProjectFolderCommand = new RelayCommand(OpenProjectFolder, CanOpenProjectFolder);
+            SelectRightWorkspaceTabCommand = new RelayCommand<RightWorkspaceTab>(SelectRightWorkspaceTab);
 
             _ = LoadCranesAsync();
 
@@ -177,6 +185,33 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         public ICommand RemoveSelectedCraneCommand { get; }
         public ICommand RemoveAllCranesCommand { get; }
         public ICommand OpenProjectFolderCommand { get; }
+        public ICommand SelectRightWorkspaceTabCommand { get; }
+
+        public RightWorkspaceTab SelectedRightWorkspaceTab
+        {
+            get => _selectedRightWorkspaceTab;
+            set
+            {
+                if (_selectedRightWorkspaceTab == value)
+                    return;
+
+                _selectedRightWorkspaceTab = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsCraneManagerWorkspaceTabSelected));
+                OnPropertyChanged(nameof(IsAiAssistantWorkspaceTabSelected));
+            }
+        }
+
+        public bool IsCraneManagerWorkspaceTabSelected =>
+            SelectedRightWorkspaceTab == RightWorkspaceTab.CraneManager;
+
+        public bool IsAiAssistantWorkspaceTabSelected =>
+            SelectedRightWorkspaceTab == RightWorkspaceTab.AiAssistant;
+
+        private void SelectRightWorkspaceTab(RightWorkspaceTab tab)
+        {
+            SelectedRightWorkspaceTab = tab;
+        }
 
         public Guid? CurrentProjectId
         {

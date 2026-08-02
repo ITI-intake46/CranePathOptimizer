@@ -333,17 +333,13 @@
                                     <TextBlock Style="{StaticResource MetricLabel}" Text="Derating Ratio" />
                                     <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.DeratingRatioText}" />
                                 </StackPanel>
-                                <StackPanel Margin="0,0,0,14" ToolTip="Wire length saved with this optimizer run.">
+                                <StackPanel Margin="0,0,0,14" ToolTip="Wire-rope length used in the saved lifting calculation.">
                                     <TextBlock Style="{StaticResource MetricLabel}" Text="Wire Length" />
                                     <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.WireLengthText}" />
                                 </StackPanel>
-                                <StackPanel Margin="0,0,12,0" ToolTip="Hook and rigging weight saved with this optimizer run.">
-                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Hook Weight" />
-                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.HookWeightText}" />
-                                </StackPanel>
-                                <StackPanel Margin="0,0,12,0" ToolTip="Total lifting-accessory weight saved with this optimizer run.">
-                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Lifting Accessories" />
-                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.AccessoriesWeightText}" />
+                                <StackPanel Margin="0,0,12,0" ToolTip="Additional lifting-accessory and rigging weight included in the saved lift demand.">
+                                    <TextBlock Style="{StaticResource MetricLabel}" Text="Lifting Accessories Weight" />
+                                    <TextBlock Style="{StaticResource MetricValue}" Text="{Binding Summary.LiftingAccessoriesWeightText}" />
                                 </StackPanel>
                                 <StackPanel
                                     Visibility="{Binding Summary.HasOperatingMode, Converter={StaticResource BooleanToVisibilityConverter}}"
@@ -481,30 +477,34 @@
                     <Border Style="{StaticResource SummaryCard}">
                         <Expander IsExpanded="False">
                             <Expander.Header>
-                                <TextBlock Style="{StaticResource SectionTitle}" Text="Limitations &amp; Safety Notes" />
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SectionTitle}" Text="Limitations &amp; Safety Notes" />
+                                    <TextBlock
+                                        Margin="0,4,20,0"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        Text="Review the assumptions and safety limitations used by this Lift Summary."
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
                             </Expander.Header>
-                            <StackPanel Margin="0,12,0,0">
+                            <StackPanel Margin="0,10,0,0">
                                 <ItemsControl ItemsSource="{Binding Summary.Limitations}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <TextBlock
                                                 Margin="0,3"
                                                 Foreground="{DynamicResource TextSecondaryBrush}"
+                                                LineHeight="19"
                                                 Text="{Binding StringFormat=• {0}}"
                                                 TextWrapping="Wrap" />
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <Border
-                                    Margin="0,12,0,0"
-                                    Padding="12"
-                                    Background="{DynamicResource SurfaceBrush}"
-                                    CornerRadius="6">
-                                    <TextBlock
-                                        Foreground="{DynamicResource TextPrimaryBrush}"
-                                        Text="{Binding Summary.SafetyNotice}"
-                                        TextWrapping="Wrap" />
-                                </Border>
+                                <TextBlock
+                                    Margin="0,9,0,0"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    LineHeight="19"
+                                    Text="{Binding Summary.SafetyNotice}"
+                                    TextWrapping="Wrap" />
                             </StackPanel>
                         </Expander>
                     </Border>

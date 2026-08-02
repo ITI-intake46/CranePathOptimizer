@@ -1,16 +1,16 @@
-﻿<Window x:Class="CraneOptimizer.UI.Features.F2_IfcViewer.Views.IFCLoadOptionsDialog"
+<Window x:Class="CraneOptimizer.UI.Features.F2_IfcViewer.Views.IFCLoadOptionsDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:config="clr-namespace:CraneOptimizer.UI.Core.Configuration"
         Title="{Binding DialogTitle}"
         Icon="pack://application:,,,/CraneOptimizer.UI;component/Resources/Images/CraneIcon.png"
-        Width="420" SizeToContent="Height"
+        Width="520" MinWidth="480" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent">
-    
+
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
     </Window.Resources>
@@ -20,12 +20,12 @@
             BorderThickness="1" CornerRadius="6">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="40"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="56"/>
+                <RowDefinition Height="40"/>   <!-- Title bar -->
+                <RowDefinition Height="*"/>    <!-- Content -->
+                <RowDefinition Height="56"/>   <!-- Footer -->
             </Grid.RowDefinitions>
 
-            <!-- Title bar -->
+            <!-- ── Title bar ──────────────────────────────────────── -->
             <Border Grid.Row="0"
                     Background="{DynamicResource SurfaceElevatedBrush}"
                     CornerRadius="6,6,0,0"
@@ -50,35 +50,63 @@
                 </Grid>
             </Border>
 
-            <!-- Options content -->
+            <!-- ── Content ──────────────────────────────────────────── -->
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                <StackPanel Margin="16,8,16,8">
+                <StackPanel Margin="16,10,16,10">
 
-                    <!-- File path display -->
+                    <!-- File path display (shown when loading a new IFC) -->
                     <Border x:Name="FilePathPanel"
                             Background="{DynamicResource SurfaceElevatedBrush}"
                             BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1" CornerRadius="4"
-                            Padding="10,8" Margin="0,4,0,0"
+                            Padding="10,7" Margin="0,0,0,10"
                             Visibility="{Binding FilePathVisibility}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="File: "
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="File: "
                                        FontSize="{StaticResource FontSizeBase}"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
-                            <TextBlock x:Name="TxtFilePath" Text="{Binding FilePath}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtFilePath"
+                                       Grid.Column="1"
+                                       Text="{Binding FilePath}"
                                        FontSize="{StaticResource FontSizeXS}"
                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                        TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"
+                                       ToolTip="{Binding FilePath}"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Helper note: "checked = hidden" semantic -->
+                    <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="0,0,0,0" CornerRadius="4"
+                            Padding="10,7" Margin="0,0,0,6">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="ℹ "
+                                       FontSize="{StaticResource FontSizeBase}"
+                                       Foreground="{StaticResource PrimaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="Checked items are hidden in the 3D view. All elements remain available in the element list."
+                                       FontSize="{StaticResource FontSizeXS}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
                                        VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
 
+                    <!-- Coordinate Reference (conditionally visible) -->
                     <!-- Temporarily hidden by product decision. Keep logic intact for future re-enable. -->
                     <StackPanel x:Name="CoordinateReferencePanel"
                                 Visibility="{Binding Source={x:Static config:AppFeatureFlags.ShowCoordinateReferenceUi}, Converter={StaticResource BoolToVisibilityConverter}}">
                         <TextBlock Style="{StaticResource PanelSectionHeader}"
                                    Text="COORDINATE REFERENCE"
-                                   Margin="0,12,0,4"/>
+                                   Margin="0,10,0,6"/>
                         <Border Background="{DynamicResource SurfaceElevatedBrush}"
                                 BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1" CornerRadius="4" Padding="12,10">
@@ -117,57 +145,62 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- Annotation & Reference -->
+                    <!-- ── Annotation & Reference ────────────────────── -->
                     <TextBlock Style="{StaticResource PanelSectionHeader}"
-                               Text="ANNOTATION &amp; REFERENCE OBJECTS"/>
+                               Text="ANNOTATION &amp; REFERENCE OBJECTS"
+                               Margin="0,10,0,6"/>
                     <Border Background="{DynamicResource SurfaceElevatedBrush}"
                             BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1" CornerRadius="4" Padding="12,10">
                         <StackPanel>
                             <CheckBox x:Name="ChkHideGrids"
                                       IsChecked="{Binding HideGrids, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,5,0,0">
+                                      Margin="0,4,0,0"
+                                      ToolTip="Hide IfcGrid — structural reference grid lines.">
                                 <StackPanel>
                                     <TextBlock Text="Hide Grids  (IfcGrid)"
                                                FontSize="{StaticResource FontSizeBase}"
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Structural reference grid lines"
+                                    <TextBlock Text="Structural grid lines."
                                                FontSize="{StaticResource FontSizeXS}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 </StackPanel>
                             </CheckBox>
                             <CheckBox x:Name="ChkHideLevels"
                                       IsChecked="{Binding HideLevels, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,5,0,0">
+                                      Margin="0,6,0,0"
+                                      ToolTip="Hide IfcBuildingStorey — floor level markers and elevation planes.">
                                 <StackPanel>
                                     <TextBlock Text="Hide Levels / Storeys  (IfcBuildingStorey)"
                                                FontSize="{StaticResource FontSizeBase}"
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Floor level markers and elevation planes"
+                                    <TextBlock Text="Floor-level markers and elevation planes."
                                                FontSize="{StaticResource FontSizeXS}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 </StackPanel>
                             </CheckBox>
                             <CheckBox x:Name="ChkHideAnnotations"
                                       IsChecked="{Binding HideAnnotations, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,5,0,0">
+                                      Margin="0,6,0,0"
+                                      ToolTip="Hide IfcAnnotation — text labels, dimension marks, symbols.">
                                 <StackPanel>
                                     <TextBlock Text="Hide Annotations  (IfcAnnotation)"
                                                FontSize="{StaticResource FontSizeBase}"
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Text labels, dimension marks, symbols"
+                                    <TextBlock Text="Text labels, dimensions, and symbols."
                                                FontSize="{StaticResource FontSizeXS}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 </StackPanel>
                             </CheckBox>
                             <CheckBox x:Name="ChkHideSite"
                                       IsChecked="{Binding HideSite, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,5,0,0">
+                                      Margin="0,6,0,0"
+                                      ToolTip="Hide IfcSite — site terrain and boundary geometry.">
                                 <StackPanel>
                                     <TextBlock Text="Hide Site  (IfcSite)"
                                                FontSize="{StaticResource FontSizeBase}"
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Site terrain and boundary geometry"
+                                    <TextBlock Text="Site terrain and boundary geometry."
                                                FontSize="{StaticResource FontSizeXS}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 </StackPanel>
@@ -175,45 +208,49 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Spatial & Volume -->
+                    <!-- ── Spatial & Volume ──────────────────────────── -->
                     <TextBlock Style="{StaticResource PanelSectionHeader}"
-                               Text="SPATIAL &amp; VOLUME OBJECTS"/>
+                               Text="SPATIAL &amp; VOLUME OBJECTS"
+                               Margin="0,12,0,6"/>
                     <Border Background="{DynamicResource SurfaceElevatedBrush}"
                             BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1" CornerRadius="4" Padding="12,10">
                         <StackPanel>
                             <CheckBox x:Name="ChkHideSpaces"
                                       IsChecked="{Binding HideSpaces, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,5,0,0">
+                                      Margin="0,4,0,0"
+                                      ToolTip="Hide IfcSpace — room and area volume boxes.">
                                 <StackPanel>
                                     <TextBlock Text="Hide Spaces / Rooms  (IfcSpace)"
                                                FontSize="{StaticResource FontSizeBase}"
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Room and area volume boxes"
+                                    <TextBlock Text="Room and area volumes."
                                                FontSize="{StaticResource FontSizeXS}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 </StackPanel>
                             </CheckBox>
                             <CheckBox x:Name="ChkHideOpenings"
                                       IsChecked="{Binding HideOpenings, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,5,0,0">
+                                      Margin="0,6,0,0"
+                                      ToolTip="Hide IfcOpeningElement — door/window cutout voids.">
                                 <StackPanel>
                                     <TextBlock Text="Hide Opening Elements  (IfcOpeningElement)"
                                                FontSize="{StaticResource FontSizeBase}"
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Door/window cutout voids"
+                                    <TextBlock Text="Door and window cutout volumes."
                                                FontSize="{StaticResource FontSizeXS}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 </StackPanel>
                             </CheckBox>
                             <CheckBox x:Name="ChkHideVirtualElements"
                                       IsChecked="{Binding HideVirtualElements, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,5,0,0">
+                                      Margin="0,6,0,0"
+                                      ToolTip="Hide IfcVirtualElement — invisible boundary/placeholder elements.">
                                 <StackPanel>
                                     <TextBlock Text="Hide Virtual Elements  (IfcVirtualElement)"
                                                FontSize="{StaticResource FontSizeBase}"
                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Invisible boundary/placeholder elements"
+                                    <TextBlock Text="Invisible boundary and placeholder elements."
                                                FontSize="{StaticResource FontSizeXS}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 </StackPanel>
@@ -221,35 +258,29 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Note -->
-                    <Border Background="{DynamicResource SurfaceElevatedBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="4"
-                            Padding="10,8" Margin="0,10,0,4">
-                        <TextBlock Text="These settings only affect 3D rendering. All elements remain available in the element list."
-                                   FontSize="{StaticResource FontSizeXS}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   TextWrapping="Wrap"/>
-                    </Border>
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- Footer buttons -->
+            <!-- ── Footer ───────────────────────────────────────────── -->
             <Border Grid.Row="2"
                     Background="{DynamicResource SurfaceElevatedBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,1,0,0" CornerRadius="0,0,6,6">
                 <Grid Margin="16,0">
+                    <!-- Left: Hide All / Show All -->
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Left" VerticalAlignment="Center">
-                        <Button Content="Select All" Width="80" Height="28"
+                        <Button Content="Hide All" Width="80" Height="28"
                                 Style="{StaticResource ButtonSecondary}"
-                                Click="BtnSelectAll_Click"/>
-                        <Button Content="Clear All"  Width="80" Height="28"
+                                Click="BtnSelectAll_Click"
+                                ToolTip="Check all object types — all will be hidden."/>
+                        <Button Content="Show All" Width="80" Height="28"
                                 Margin="8,0,0,0"
                                 Style="{StaticResource ButtonSecondary}"
-                                Click="BtnClearAll_Click"/>
+                                Click="BtnClearAll_Click"
+                                ToolTip="Uncheck all object types — all will be shown."/>
                     </StackPanel>
+                    <!-- Right: Cancel / Apply -->
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right" VerticalAlignment="Center">
                         <Button Content="Cancel" Width="80" Height="32"

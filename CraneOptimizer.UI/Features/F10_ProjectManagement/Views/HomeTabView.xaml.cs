@@ -1,3 +1,5 @@
+using CraneOptimizer.UI.Features.F3_CraneSetup.Views;
+using CraneOptimizer.UI.Shell.ViewModels;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -27,5 +29,15 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
 
         private void ProjectSettings_Click(object sender, RoutedEventArgs e)
             => RaiseEvent(new RoutedEventArgs(ProjectSettingsRequestedEvent, this));
+
+        private async void ImportLoadChart_Click(object sender, RoutedEventArgs e)
+            => await CranesTabView.OpenLoadChartImportAsync(
+                this,
+                DataContext as MainViewModel);
+
+        private async void CraneCatalog_Click(object sender, RoutedEventArgs e)
+            => await CranesTabView.OpenCraneCatalogAsync(
+                this,
+                DataContext as MainViewModel);
     }
 }

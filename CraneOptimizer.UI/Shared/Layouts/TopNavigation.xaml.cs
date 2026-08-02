@@ -44,8 +44,8 @@ namespace CraneOptimizer.UI.Shared.Layouts
             else if (normalized.Contains("DXF")) TabDXF.IsChecked = true;
             else if (normalized.Contains("CRANE")) TabCranes.IsChecked = true;
             else if (normalized.Contains("ZONE")) TabZones.IsChecked = true;
-            else if (normalized.Contains("ANALYZE")) TabAnalyze.IsChecked = true;
-            else if (normalized.Contains("REPORT")) TabReports.IsChecked = true;
+            else if (normalized.Contains("ANALY")) TabAnalyze.IsChecked = true;
+            else if (normalized.Contains("REPORT")) TabAnalyze.IsChecked = true;
             else if (IsLegacyAiWorkspaceTarget(normalized)) return;
             else if (normalized.Contains("SETTING")) TabSettings.IsChecked = true;
             else if (normalized.Contains("COORDINATE")) TabCoordinateReference.IsChecked = true;
@@ -75,7 +75,6 @@ namespace CraneOptimizer.UI.Shared.Layouts
             PanelCranes.Visibility  = Visibility.Collapsed;
             PanelZones.Visibility   = Visibility.Collapsed;
             PanelAnalyze.Visibility = Visibility.Collapsed;
-            PanelReports.Visibility  = Visibility.Collapsed;
             PanelSettings.Visibility = Visibility.Collapsed;
             PanelCoordinateReference.Visibility = Visibility.Collapsed;
 
@@ -108,12 +107,7 @@ namespace CraneOptimizer.UI.Shared.Layouts
             if (sender == TabAnalyze)
             {
                 PanelAnalyze.Visibility = Visibility.Visible;
-                _uiContext?.SetActiveTab("ANALYZE", "AnalyzeTabView");
-            }
-            if (sender == TabReports)
-            {
-                PanelReports.Visibility = Visibility.Visible;
-                _uiContext?.SetActiveTab("REPORTS", "ReportsTabView");
+                _uiContext?.SetActiveTab("ANALYSIS", "AnalyzeTabView");
             }
             if (sender == TabSettings)
             {

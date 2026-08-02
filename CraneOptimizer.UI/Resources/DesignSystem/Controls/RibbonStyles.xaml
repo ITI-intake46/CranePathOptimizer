@@ -14,7 +14,7 @@
     <!-- Major-command geometry follows the approved Compare tile. -->
     <sys:Double x:Key="RibbonMajorCommandHeight">78</sys:Double>
     <sys:Double x:Key="RibbonMajorCommandContentHeight">72</sys:Double>
-    <sys:Double x:Key="RibbonCommandGroupHeight">103</sys:Double>
+    <sys:Double x:Key="RibbonCommandGroupHeight">107</sys:Double>
     <sys:Double x:Key="RibbonMajorCommandWidth">104</sys:Double>
     <sys:Double x:Key="RibbonMajorLongCommandWidth">120</sys:Double>
     <sys:Double x:Key="RibbonMajorCommandIconSlotSize">38</sys:Double>
@@ -516,7 +516,9 @@
         <Setter Property="FontSize"            Value="9"/>
         <Setter Property="FontWeight"          Value="SemiBold"/>
         <Setter Property="HorizontalAlignment" Value="Center"/>
-        <Setter Property="Margin"              Value="0"/>
+        <Setter Property="Padding"             Value="0,2"/>
+        <!-- Preserve the established caption offset and space above the separator. -->
+        <Setter Property="Margin"              Value="0,-5,0,5"/>
         <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
     </Style>
 

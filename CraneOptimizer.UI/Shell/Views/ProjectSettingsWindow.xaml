@@ -4,7 +4,8 @@
         Title="Project Settings"
         Icon="pack://application:,,,/CraneOptimizer.UI;component/Resources/Images/CraneIcon.png"
         Width="430"
-        Height="390"
+        MinWidth="380"
+        SizeToContent="Height"
         AllowsTransparency="True"
         Background="Transparent"
         FontFamily="{StaticResource FontPrimary}"
@@ -22,11 +23,14 @@
             CornerRadius="{StaticResource CardCornerRadius}">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="40" />
-                <RowDefinition Height="*" />
+                <RowDefinition Height="40" />   <!-- Header -->
+                <RowDefinition Height="*" />    <!-- Content -->
+                <RowDefinition Height="Auto" /> <!-- Footer -->
             </Grid.RowDefinitions>
 
-            <Border Background="{DynamicResource SurfaceElevatedBrush}"
+            <!-- ── Header ─────────────────────────────────────────── -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SurfaceElevatedBrush}"
                     CornerRadius="6,6,0,0"
                     MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <Grid Margin="12,0">
@@ -52,128 +56,124 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" Margin="18" Background="{DynamicResource BackgroundBrush}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+            <!-- ── Content ────────────────────────────────────────── -->
+            <!-- NOTE: No repeated "Project Settings" heading — the header already carries it -->
+            <StackPanel Grid.Row="1" Margin="16,14,16,14">
 
-        <TextBlock Style="{StaticResource TextTitle}" Text="Project Settings" />
-
-        <StackPanel Grid.Row="1" Margin="0,14,0,14">
-            <Border Padding="14"
-                    Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="{StaticResource CardCornerRadius}">
-                <StackPanel>
-                    <TextBlock Margin="0,0,0,10"
-                               Style="{StaticResource PanelSectionHeader}"
-                               Text="UNITS" />
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="110" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock VerticalAlignment="Center"
-                                   Style="{StaticResource PropertyLabel}"
-                                   Text="Display Length Unit" />
-                        <ComboBox x:Name="UnitSelector"
-                                  Grid.Column="1"
-                                  ItemContainerStyle="{StaticResource DarkComboBoxItem}"
-                                  ItemsSource="{Binding AvailableUnits}"
-                                  SelectedItem="{Binding SelectedUnit, Mode=TwoWay}"
-                                  SelectionChanged="UnitSelector_SelectionChanged"
-                                  Style="{StaticResource DarkComboBox}" />
-                    </Grid>
-                </StackPanel>
-            </Border>
-
-            <Border Margin="0,12,0,0"
-                    Padding="14"
-                    Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="{StaticResource CardCornerRadius}">
-                <StackPanel>
-                    <TextBlock Margin="0,0,0,10"
-                               Style="{StaticResource PanelSectionHeader}"
-                               Text="VIEWER GRID" />
-
-                    <CheckBox x:Name="ShowGridCheckBox"
-                              Margin="0,0,0,12"
-                              Checked="ShowGridCheckBox_Changed"
-                              Content="Show Grid"
-                              Unchecked="ShowGridCheckBox_Changed" />
-
-                    <TextBlock Margin="0,0,0,6"
+                <!-- UNITS section -->
+                <TextBlock Margin="0,0,0,8"
+                           Style="{StaticResource PanelSectionHeader}"
+                           Text="UNITS" />
+                <Grid Margin="0,0,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="110" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock VerticalAlignment="Center"
                                Style="{StaticResource PropertyLabel}"
-                               Text="Grid Size" />
+                               Text="Display Length Unit" />
+                    <ComboBox x:Name="UnitSelector"
+                              Grid.Column="1"
+                              ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                              ItemsSource="{Binding AvailableUnits}"
+                              SelectedItem="{Binding SelectedUnit, Mode=TwoWay}"
+                              SelectionChanged="UnitSelector_SelectionChanged"
+                              Style="{StaticResource DarkComboBox}"
+                              ToolTip="Choose the unit used to display all length measurements." />
+                </Grid>
 
-                    <Grid Margin="0,0,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="100" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="18" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="100" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+                <!-- Divider -->
+                <Rectangle Height="1"
+                           Margin="0,0,0,14"
+                           Fill="{DynamicResource BorderBrush}" />
 
-                        <TextBlock Margin="0,0,6,0"
-                                   VerticalAlignment="Center"
-                                   Style="{StaticResource PropertyLabel}"
-                                   Text="X:" />
-                        <TextBox x:Name="GridSizeXTextBox"
-                                 Grid.Column="1"
-                                 VerticalContentAlignment="Center" />
-                        <TextBlock x:Name="GridUnitXLabel"
-                                   Grid.Column="2"
-                                   Margin="6,0,0,0"
-                                   VerticalAlignment="Center"
-                                   Style="{StaticResource PropertyLabel}" />
+                <!-- VIEWER GRID section -->
+                <TextBlock Margin="0,0,0,10"
+                           Style="{StaticResource PanelSectionHeader}"
+                           Text="VIEWER GRID" />
 
-                        <TextBlock Grid.Column="4"
-                                   Margin="0,0,6,0"
-                                   VerticalAlignment="Center"
-                                   Style="{StaticResource PropertyLabel}"
-                                   Text="Y:" />
-                        <TextBox x:Name="GridSizeYTextBox"
-                                 Grid.Column="5"
-                                 VerticalContentAlignment="Center" />
-                        <TextBlock x:Name="GridUnitYLabel"
-                                   Grid.Column="6"
-                                   Margin="6,0,0,0"
-                                   VerticalAlignment="Center"
-                                   Style="{StaticResource PropertyLabel}" />
-                    </Grid>
+                <CheckBox x:Name="ShowGridCheckBox"
+                          Margin="0,0,0,12"
+                          Checked="ShowGridCheckBox_Changed"
+                          Content="Show Grid"
+                          ToolTip="Toggle the reference grid in the 3D viewport."
+                          Unchecked="ShowGridCheckBox_Changed" />
 
-                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                        <Button Padding="12,6"
-                                Click="ApplyGridSize_Click"
-                                Content="Apply Grid Size"
-                                Style="{StaticResource ButtonPrimary}" />
-                        <Button Margin="8,0,0,0"
-                                Padding="12,6"
-                                Click="AutoGridSize_Click"
-                                Content="Auto Size"
-                                Style="{StaticResource ButtonSecondary}" />
-                    </StackPanel>
+                <TextBlock Margin="0,0,0,6"
+                           Style="{StaticResource PropertyLabel}"
+                           Text="Grid Size" />
+
+                <!-- X / Y grid size inputs — equal widths, aligned unit labels -->
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="24" />  <!-- X label -->
+                        <ColumnDefinition Width="*" />   <!-- X input -->
+                        <ColumnDefinition Width="Auto" /> <!-- X unit -->
+                        <ColumnDefinition Width="16" />  <!-- gap -->
+                        <ColumnDefinition Width="24" />  <!-- Y label -->
+                        <ColumnDefinition Width="*" />   <!-- Y input -->
+                        <ColumnDefinition Width="Auto" /> <!-- Y unit -->
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource PropertyLabel}"
+                               Text="X" />
+                    <TextBox x:Name="GridSizeXTextBox"
+                             Grid.Column="1"
+                             VerticalContentAlignment="Center"
+                             ToolTip="Grid cell width along the X axis." />
+                    <TextBlock x:Name="GridUnitXLabel"
+                               Grid.Column="2"
+                               Margin="6,0,0,0"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource PropertyLabel}" />
+
+                    <TextBlock Grid.Column="4"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource PropertyLabel}"
+                               Text="Y" />
+                    <TextBox x:Name="GridSizeYTextBox"
+                             Grid.Column="5"
+                             VerticalContentAlignment="Center"
+                             ToolTip="Grid cell height along the Y axis." />
+                    <TextBlock x:Name="GridUnitYLabel"
+                               Grid.Column="6"
+                               Margin="6,0,0,0"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource PropertyLabel}" />
+                </Grid>
+
+                <!-- Grid-size actions: Apply (primary) and Auto Size (secondary) -->
+                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                    <Button Padding="12,6"
+                            Click="ApplyGridSize_Click"
+                            Content="Apply Grid Size"
+                            Style="{StaticResource ButtonPrimary}"
+                            ToolTip="Apply the entered X and Y grid cell sizes to the 3D viewport." />
+                    <Button Margin="8,0,0,0"
+                            Padding="12,6"
+                            Click="AutoGridSize_Click"
+                            Content="Auto Size"
+                            Style="{StaticResource ButtonSecondary}"
+                            ToolTip="Automatically fit the grid to the bounding box of the loaded IFC model." />
                 </StackPanel>
-            </Border>
-        </StackPanel>
+            </StackPanel>
 
-        <Button Grid.Row="2"
-                MinWidth="78"
-                Padding="12,6"
-                HorizontalAlignment="Right"
-                Click="Close_Click"
-                Content="Close"
-                IsCancel="True"
-                Style="{StaticResource ButtonSecondary}" />
-            </Grid>
+            <!-- ── Footer ─────────────────────────────────────────── -->
+            <Border Grid.Row="2"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="16,10">
+                <Button MinWidth="78"
+                        Padding="12,6"
+                        HorizontalAlignment="Right"
+                        Click="Close_Click"
+                        Content="Close"
+                        IsCancel="True"
+                        Style="{StaticResource ButtonSecondary}"
+                        ToolTip="Close this dialog." />
+            </Border>
         </Grid>
     </Border>
 </Window>
