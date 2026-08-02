@@ -80,8 +80,15 @@ namespace CraneOptimizer.UI.Core.Services
 
         public void ClearSelectedElements()
         {
+            bool clearedGenericSelection =
+                _selectedObject is PrecastElement ||
+                _selectedObject is List<PrecastElement>;
             _selectedElements.Clear();
+            if (clearedGenericSelection)
+                _selectedObject = null;
             ElementsSelectionChanged?.Invoke(new List<PrecastElement>());
+            if (clearedGenericSelection)
+                SelectionChanged?.Invoke(null);
         }
 
         // =========================

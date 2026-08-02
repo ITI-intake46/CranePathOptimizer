@@ -37,18 +37,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Views
 
         private void Confirm_Click(object sender, RoutedEventArgs e)
         {
-            ErrorLabel.Text = string.Empty;
-            if (!double.TryParse(TxtMinHeight.Text, out double min) ||
-                !double.TryParse(TxtMaxHeight.Text, out double max) ||
-                min >= max)
-            {
-                ErrorLabel.Text = "Invalid height range. Min must be less than Max.";
-                return;
-            }
-
             ZoneName = TxtZoneName.Text.Trim();
-            MinHeightValue = min;
-            MaxHeightValue = max;
             ZoneType = RadioAllowed.IsChecked == true ? "Allowed" : "Forbidden";
             DialogResult = true;
             Close();

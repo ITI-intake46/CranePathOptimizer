@@ -5,7 +5,7 @@
     Title="Finalize Zone"
         Icon="pack://application:,,,/CraneOptimizer.UI;component/Resources/Images/CraneIcon.png"
     Width="380"
-    Height="340"
+    Height="280"
     Background="{DynamicResource BackgroundBrush}"
     FontFamily="{StaticResource FontPrimary}"
     Foreground="{DynamicResource TextPrimaryBrush}"
@@ -22,10 +22,6 @@
             <!--  Name label  -->
             <RowDefinition Height="Auto" />
             <!--  Name input  -->
-            <RowDefinition Height="Auto" />
-            <!--  Height range  -->
-            <RowDefinition Height="*" />
-            <!--  Error  -->
             <RowDefinition Height="Auto" />
             <!--  Buttons  -->
         </Grid.RowDefinitions>
@@ -99,42 +95,8 @@
                 Text="e.g. Pedestrian Area, Power Lines" />
         </Grid>
 
-        <!--  Height Range  -->
-        <Grid Grid.Row="4" Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition />
-                <ColumnDefinition Width="12" />
-                <ColumnDefinition />
-            </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0">
-                <TextBlock
-                    Margin="0,0,0,4"
-                    FontSize="{StaticResource FontSizeSM}"
-                    Foreground="{DynamicResource TextSecondaryBrush}"
-                    Text="Min Height (m):" />
-                <TextBox x:Name="TxtMinHeight" Text="0.0" />
-            </StackPanel>
-            <StackPanel Grid.Column="2">
-                <TextBlock
-                    Margin="0,0,0,4"
-                    FontSize="{StaticResource FontSizeSM}"
-                    Foreground="{DynamicResource TextSecondaryBrush}"
-                    Text="Max Height (m):" />
-                <TextBox x:Name="TxtMaxHeight" Text="999.0" />
-            </StackPanel>
-        </Grid>
-
-        <!--  Error label  -->
-        <TextBlock
-            x:Name="ErrorLabel"
-            Grid.Row="5"
-            Margin="0,0,0,4"
-            VerticalAlignment="Bottom"
-            FontSize="{StaticResource FontSizeSM}"
-            Foreground="{StaticResource WarningBrush}" />
-
         <!--  Action Buttons  -->
-        <Grid Grid.Row="6">
+        <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition />
                 <ColumnDefinition Width="8" />

@@ -292,6 +292,9 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
         private void OwnerWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (Keyboard.FocusedElement is TextBox)
+                return;
+
             UpdateSelectionHandlerEnabled();
             _selectionHandler.OnKeyDown(IfcViewer, e);
             if (e.Handled)

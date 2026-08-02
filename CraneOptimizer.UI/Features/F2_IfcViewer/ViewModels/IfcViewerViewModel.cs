@@ -25,6 +25,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly ISceneService _scene;
         private readonly IIfcOptionsDialogService _dialogService;
         private readonly IDialogService _dialog;
+        private readonly IDeleteConfirmationService _deleteConfirmation;
         private readonly IViewportInteractionService _interaction;
         private readonly IViewportHitTestService _hitTest;
         private readonly IElementVisibilityFilterService _filterService;
@@ -38,6 +39,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private List<PrecastElement>? _pendingIfcElements;
         private IfcLoadOptionsDto? _pendingFilterOptions;
         private bool _isMovingExistingIfc;
+        private readonly object _ifcLoadSync = new();
+        private readonly SemaphoreSlim _ifcLoadGate = new(1, 1);
+        private CancellationTokenSource? _activeIfcLoadCancellation;
+        private CancellationTokenSource? _backgroundSessionCancellation;
+        private Task _backgroundSessionTask = Task.CompletedTask;
 
         public ICommand LoadIfcCommand { get; }
         public ICommand MergeIfcCommand { get; }
@@ -113,7 +119,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             IIfcNormalizationDecisionService normalizationService,
             IProjectCoordinateTransformService? transformService = null,
             IProjectMaterialSettingsService? materialSettingsService = null,
-            IIfcVisibilityOptionsService? visibilityOptionsService = null)
+            IIfcVisibilityOptionsService? visibilityOptionsService = null,
+            IDeleteConfirmationService? deleteConfirmation = null)
         {
             _ifcReader = ifcReader;
             _scene = scene;
@@ -129,6 +136,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             _normalizationService = normalizationService;
             _transformService = transformService ?? App.ServiceProvider?.GetService<IProjectCoordinateTransformService>();
             _materialSettingsService = materialSettingsService;
+            _deleteConfirmation = deleteConfirmation
+                ?? new CraneOptimizer.UI.Core.Services.DeleteConfirmationService();
 
             LoadIfcCommand = new RelayCommand(async () => await LoadIfcAsync(), () => !IsLoading && !IsPlacementMode);
             MergeIfcCommand = new RelayCommand(ShowMergeIfcPlaceholder, () => !IsLoading && !IsPlacementMode);
@@ -145,6 +154,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private async Task LoadIfcAsync()
         {
             string lastStatus = "Selecting file...";
+            CancellationTokenSource? loadRequest = null;
+            bool loadGateEntered = false;
+            bool replacementStarted = false;
             try
             {
                 var osnap = App.ServiceProvider?.GetService<IOsnapService>();
@@ -181,13 +193,25 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 });
 
                 var readingOptions = await GetCurrentIfcReadingOptionsAsync();
+                loadRequest = BeginIfcLoadRequest();
+                await _ifcLoadGate.WaitAsync(loadRequest.Token);
+                loadGateEntered = true;
+                await PrepareForIfcReplacementAsync(loadRequest.Token);
+                replacementStarted = true;
                 var all = await Task.Run(() =>
-                    _ifcReader.ReadElements(path, progress, readingOptions));
+                    _ifcReader.ReadElements(
+                        path,
+                        progress,
+                        readingOptions,
+                        loadRequest.Token),
+                    loadRequest.Token);
+                loadRequest.Token.ThrowIfCancellationRequested();
 
                 Debug.WriteLine("IFC Loaded: " + (all?.Count ?? 0));
 
                 if (all == null || !all.Any())
                 {
+                    await CleanupFailedIfcReplacementAsync();
                     _dialog.ShowMessage("No elements found.");
                     return;
                 }
@@ -227,8 +251,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     PendingPlacementPoint = new Point3D(0, 0, 0);
                     DateTime viewportStartedUtc = DateTime.UtcNow;
                     var viewportTimer = Stopwatch.StartNew();
-                    _visibilityOptionsService.ApplyOptions(filter);
-                    _ifcSceneOperations.ReplaceIfcModel(placedElements);
+                    await RunOnUiThreadAsync(() =>
+                    {
+                        _visibilityOptionsService.ApplyOptions(filter);
+                        _ifcSceneOperations.ReplaceIfcModel(placedElements);
+                    });
                     viewportTimer.Stop();
                     IfcImportProfiler.Record(
                         "PreparingViewport",
@@ -264,14 +291,26 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     Status = $"Loaded {all.Count} elements. Click to place IFC origin.";
                 }
             }
+            catch (OperationCanceledException)
+            {
+                if (replacementStarted)
+                    await CleanupFailedIfcReplacementAsync();
+                Status = "IFC load cancelled";
+            }
             catch (Exception ex)
             {
+                if (replacementStarted)
+                    await CleanupFailedIfcReplacementAsync();
                 Debug.WriteLine($"[IFC-PERF] IFC load failed: {ex}");
                 _dialog.ShowMessage(ex.Message);
             }
             finally
             {
-                IsLoading = false;
+                bool isCurrentRequest =
+                    loadRequest == null || IsCurrentIfcLoadRequest(loadRequest);
+                CompleteIfcLoadRequest(loadRequest, loadGateEntered);
+                if (isCurrentRequest)
+                    IsLoading = false;
                 Debug.WriteLine($"[IFC-PERF] Last UI status completed: {lastStatus}");
             }
         }
@@ -325,14 +364,21 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             }
 
             string lastStatus = "Restoring IFC...";
+            CancellationTokenSource? loadRequest = BeginIfcLoadRequest();
+            bool loadGateEntered = false;
+            bool replacementStarted = false;
             try
             {
+                await _ifcLoadGate.WaitAsync(loadRequest.Token);
+                loadGateEntered = true;
                 var osnap = App.ServiceProvider?.GetService<IOsnapService>();
                 osnap?.SetMasterEnabled(false);
 
                 IsLoading = true;
                 Progress = 0;
                 Status = "Restoring IFC...";
+                await PrepareForIfcReplacementAsync(loadRequest.Token);
+                replacementStarted = true;
 
                 List<PrecastElement>? elements = null;
                 bool usedCache = false;
@@ -344,27 +390,6 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     Debug.WriteLine("[IfcRestore] Diagnostic: Cached restore used DB elements. Full extraction skipped.");
                     Status = $"Restored {elements.Count} elements from database cache. Initializing background render session...";
                     lastStatus = "Restoring from database cache";
-                    
-                    // Start only the xBIM model session/context in the background for detailed mesh rendering
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            Debug.WriteLine("[IfcRestore] Background session: Initializing render-only xBIM session.");
-                            await _ifcReader.InitializeSessionForRenderingAsync(filePath);
-                            Debug.WriteLine("[IfcRestore] Background session: Render-only xBIM session initialized. Real mesh re-render triggered.");
-                            
-                            System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
-                            {
-                                TryApplyIfcGeoreferencing();
-                                IfcModelChanged?.Invoke();
-                            });
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.WriteLine($"[IfcRestore] Background session: Failed to initialize xBIM session for rendering: {ex.Message}");
-                        }
-                    });
                 }
                 else
                 {
@@ -393,7 +418,13 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     });
 
                     var readingOptions = await GetCurrentIfcReadingOptionsAsync();
-                    elements = await Task.Run(() => _ifcReader.ReadElements(filePath, progress, readingOptions));
+                    elements = await Task.Run(
+                        () => _ifcReader.ReadElements(
+                            filePath,
+                            progress,
+                            readingOptions,
+                            loadRequest.Token),
+                        loadRequest.Token);
 
                     if (elements != null && elements.Count > 0)
                     {
@@ -425,9 +456,11 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                 if (elements == null || elements.Count == 0)
                 {
+                    await CleanupFailedIfcReplacementAsync();
                     Status = "Saved IFC contains no elements.";
                     return false;
                 }
+                loadRequest.Token.ThrowIfCancellationRequested();
 
                 var beforeFirstCOG = elements.FirstOrDefault()?.ElementCOG;
 
@@ -477,8 +510,12 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                 DateTime viewportStartedUtc = DateTime.UtcNow;
                 var viewportTimer = Stopwatch.StartNew();
-                _visibilityOptionsService.ApplyOptions(_visibilityOptionsService.GetCurrentOptions());
-                _ifcSceneOperations.ReplaceIfcModel(placedElements);
+                await RunOnUiThreadAsync(() =>
+                {
+                    _visibilityOptionsService.ApplyOptions(
+                        _visibilityOptionsService.GetCurrentOptions());
+                    _ifcSceneOperations.ReplaceIfcModel(placedElements);
+                });
                 viewportTimer.Stop();
                 IfcImportProfiler.Record(
                     "PreparingViewport",
@@ -492,6 +529,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                     true);
                 LoadedIfcFilePath = filePath;
                 PendingPlacementPoint = insertionOffset;
+                if (usedCache)
+                    StartBackgroundRenderingSession(filePath);
 
                 var originalBounds = CalculateBounds(elements);
                 var finalBounds = CalculateBounds(placedElements);
@@ -522,17 +561,220 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                 return true;
             }
+            catch (OperationCanceledException)
+            {
+                if (replacementStarted)
+                    await CleanupFailedIfcReplacementAsync();
+                Status = "IFC restore cancelled";
+                return false;
+            }
             catch (Exception ex)
             {
+                if (replacementStarted)
+                    await CleanupFailedIfcReplacementAsync();
                 Debug.WriteLine($"[IFC-PERF] IFC restore failed: {ex}");
                 Status = $"IFC restore failed: {ex.Message}";
                 return false;
             }
             finally
             {
-                IsLoading = false;
+                bool isCurrentRequest = IsCurrentIfcLoadRequest(loadRequest);
+                CompleteIfcLoadRequest(loadRequest, loadGateEntered);
+                if (isCurrentRequest)
+                    IsLoading = false;
                 Debug.WriteLine($"[IFC-PERF] Last UI status completed: {lastStatus}");
             }
+        }
+
+        private CancellationTokenSource BeginIfcLoadRequest()
+        {
+            var request = new CancellationTokenSource();
+            CancellationTokenSource? superseded;
+            lock (_ifcLoadSync)
+            {
+                superseded = _activeIfcLoadCancellation;
+                _activeIfcLoadCancellation = request;
+            }
+
+            if (superseded != null)
+            {
+                try
+                {
+                    superseded.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The superseded operation completed between hand-off steps.
+                }
+            }
+            return request;
+        }
+
+        private bool IsCurrentIfcLoadRequest(CancellationTokenSource request)
+        {
+            lock (_ifcLoadSync)
+                return ReferenceEquals(_activeIfcLoadCancellation, request);
+        }
+
+        private void CompleteIfcLoadRequest(
+            CancellationTokenSource? request,
+            bool loadGateEntered)
+        {
+            if (loadGateEntered)
+                _ifcLoadGate.Release();
+            if (request == null)
+                return;
+
+            lock (_ifcLoadSync)
+            {
+                if (ReferenceEquals(_activeIfcLoadCancellation, request))
+                    _activeIfcLoadCancellation = null;
+            }
+
+            request.Dispose();
+        }
+
+        private async Task PrepareForIfcReplacementAsync(
+            CancellationToken cancellationToken)
+        {
+            await CancelBackgroundRenderingSessionAsync();
+            cancellationToken.ThrowIfCancellationRequested();
+            await RunOnUiThreadAsync(() =>
+            {
+                if (IsPlacementMode)
+                {
+                    _interaction.PopMode();
+                    CancelPlacement();
+                }
+
+                _pendingIfcElements = null;
+                _pendingFilterOptions = null;
+                _isMovingExistingIfc = false;
+                PendingPlacementPoint = null;
+                LoadedIfcFilePath = null;
+
+                // Scene events synchronously remove viewport visuals, hit-test
+                // geometry, selection, and IFC snap data before xBIM is disposed.
+                _ifcSceneOperations.DeleteIfcModel();
+                IfcModelChanged?.Invoke();
+            });
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        private Task CleanupFailedIfcReplacementAsync() =>
+            RunOnUiThreadAsync(() =>
+            {
+                if (IsPlacementMode)
+                {
+                    _interaction.PopMode();
+                    CancelPlacement();
+                }
+
+                _pendingIfcElements = null;
+                _pendingFilterOptions = null;
+                _isMovingExistingIfc = false;
+                PendingPlacementPoint = null;
+                LoadedIfcFilePath = null;
+                _ifcSceneOperations.DeleteIfcModel();
+                IfcModelChanged?.Invoke();
+            });
+
+        private async Task CancelBackgroundRenderingSessionAsync()
+        {
+            CancellationTokenSource? cancellation;
+            Task task;
+            lock (_ifcLoadSync)
+            {
+                cancellation = _backgroundSessionCancellation;
+                task = _backgroundSessionTask;
+                _backgroundSessionCancellation = null;
+                _backgroundSessionTask = Task.CompletedTask;
+            }
+
+            if (cancellation == null)
+                return;
+
+            cancellation.Cancel();
+            try
+            {
+                await task;
+            }
+            catch (OperationCanceledException)
+            {
+                // Cancellation is the expected hand-off between IFC sessions.
+            }
+            finally
+            {
+                cancellation.Dispose();
+            }
+        }
+
+        private void StartBackgroundRenderingSession(string filePath)
+        {
+            var cancellation = new CancellationTokenSource();
+            Task task = InitializeBackgroundRenderingSessionAsync(
+                filePath,
+                cancellation);
+            lock (_ifcLoadSync)
+            {
+                _backgroundSessionCancellation = cancellation;
+                _backgroundSessionTask = task;
+            }
+        }
+
+        private async Task InitializeBackgroundRenderingSessionAsync(
+            string filePath,
+            CancellationTokenSource cancellation)
+        {
+            try
+            {
+                Debug.WriteLine(
+                    "[IfcRestore] Background session: Initializing render-only xBIM session.");
+                await _ifcReader.InitializeSessionForRenderingAsync(
+                    filePath,
+                    cancellation.Token);
+                cancellation.Token.ThrowIfCancellationRequested();
+
+                await RunOnUiThreadAsync(() =>
+                {
+                    if (cancellation.IsCancellationRequested ||
+                        !string.Equals(
+                            LoadedIfcFilePath,
+                            filePath,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        return;
+                    }
+
+                    TryApplyIfcGeoreferencing();
+                    IfcModelChanged?.Invoke();
+                });
+                Debug.WriteLine(
+                    "[IfcRestore] Background session: Render-only xBIM session initialized. Real mesh re-render triggered.");
+            }
+            catch (OperationCanceledException)
+                when (cancellation.IsCancellationRequested)
+            {
+                Debug.WriteLine(
+                    "[IfcRestore] Background session: Initialization cancelled for IFC replacement.");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(
+                    $"[IfcRestore] Background session: Failed to initialize xBIM session for rendering: {ex.Message}");
+            }
+        }
+
+        private static Task RunOnUiThreadAsync(Action action)
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+            {
+                action();
+                return Task.CompletedTask;
+            }
+
+            return dispatcher.InvokeAsync(action).Task;
         }
 
         public bool MovePlacedIfc(Point3D insertionPoint)
@@ -629,6 +871,14 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         {
             if (!CanEditPlacedIfc())
                 return;
+
+            if (!_deleteConfirmation.ConfirmDelete(
+                    "Remove IFC Model",
+                    "Are you sure you want to remove the current IFC model from this project?",
+                    "Remove"))
+            {
+                return;
+            }
 
             _pendingIfcElements = null;
             _pendingFilterOptions = null;

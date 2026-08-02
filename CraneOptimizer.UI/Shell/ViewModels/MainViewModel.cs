@@ -32,12 +32,19 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         AiAssistant
     }
 
+    public enum LeftWorkspaceTab
+    {
+        ElementProperties,
+        ZoneManager
+    }
+
     public partial class MainViewModel : ViewModelBase, IDisposable
     {
         private readonly IIfcReaderRepository _ifcReader;
         private readonly IRenderingService _render;
         private readonly ICraneRepository _craneRepo;
         private readonly IDialogService _dialog;
+        private readonly IDeleteConfirmationService _deleteConfirmation;
         private readonly ICranePlacementService _cranePlacementService;
         private readonly ISceneRenderingManager _sceneRendering;
         private readonly IStatusService _status;
@@ -60,6 +67,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private string? _currentProjectIfcPath;
         private string _currentProjectFolderPath = string.Empty;
         private string _currentProjectDatabasePath = string.Empty;
+        private LeftWorkspaceTab _selectedLeftWorkspaceTab =
+            LeftWorkspaceTab.ElementProperties;
         private RightWorkspaceTab _selectedRightWorkspaceTab = RightWorkspaceTab.CraneManager;
 
         public MainViewModel(
@@ -87,7 +96,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel coordinateReference,
             IProjectCoordinateTransformService transformService,
             IImportReadinessService readinessService,
-            IGaModelIdentityService gaModelIdentityService)
+            IGaModelIdentityService gaModelIdentityService,
+            IDeleteConfirmationService? deleteConfirmation = null)
         {
             Scene = scene;
             Drawing = drawing;
@@ -105,6 +115,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _render = render;
             _craneRepo = craneRepo;
             _dialog = dialog;
+            _deleteConfirmation = deleteConfirmation
+                ?? new CraneOptimizer.UI.Core.Services.DeleteConfirmationService();
             _cranePlacementService = cranePlacementService;
             _sceneRendering = sceneRendering;
             _status = status;
@@ -156,6 +168,8 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             RemoveSelectedCraneCommand = new RelayCommand(RemoveSelectedCrane, CanRemoveSelectedCrane);
             RemoveAllCranesCommand = new RelayCommand(RemoveAllCranes, () => Scene.GetCranes().Count > 0);
             OpenProjectFolderCommand = new RelayCommand(OpenProjectFolder, CanOpenProjectFolder);
+            SelectLeftWorkspaceTabCommand =
+                new RelayCommand<LeftWorkspaceTab>(SelectLeftWorkspaceTab);
             SelectRightWorkspaceTabCommand = new RelayCommand<RightWorkspaceTab>(SelectRightWorkspaceTab);
 
             _ = LoadCranesAsync();
@@ -185,7 +199,29 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         public ICommand RemoveSelectedCraneCommand { get; }
         public ICommand RemoveAllCranesCommand { get; }
         public ICommand OpenProjectFolderCommand { get; }
+        public ICommand SelectLeftWorkspaceTabCommand { get; }
         public ICommand SelectRightWorkspaceTabCommand { get; }
+
+        public LeftWorkspaceTab SelectedLeftWorkspaceTab
+        {
+            get => _selectedLeftWorkspaceTab;
+            set
+            {
+                if (_selectedLeftWorkspaceTab == value)
+                    return;
+
+                _selectedLeftWorkspaceTab = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsElementPropertiesWorkspaceTabSelected));
+                OnPropertyChanged(nameof(IsZoneManagerWorkspaceTabSelected));
+            }
+        }
+
+        public bool IsElementPropertiesWorkspaceTabSelected =>
+            SelectedLeftWorkspaceTab == LeftWorkspaceTab.ElementProperties;
+
+        public bool IsZoneManagerWorkspaceTabSelected =>
+            SelectedLeftWorkspaceTab == LeftWorkspaceTab.ZoneManager;
 
         public RightWorkspaceTab SelectedRightWorkspaceTab
         {
@@ -211,6 +247,11 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private void SelectRightWorkspaceTab(RightWorkspaceTab tab)
         {
             SelectedRightWorkspaceTab = tab;
+        }
+
+        private void SelectLeftWorkspaceTab(LeftWorkspaceTab tab)
+        {
+            SelectedLeftWorkspaceTab = tab;
         }
 
         public Guid? CurrentProjectId

@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:f5="clr-namespace:CraneOptimizer.UI.Features.F5_ElementManagement.Views"
+    xmlns:f7="clr-namespace:CraneOptimizer.UI.Features.F7_Zones.Views"
     xmlns:f1="clr-namespace:CraneOptimizer.UI.Features.F1_IfcViewerControl.Views"
     xmlns:f3="clr-namespace:CraneOptimizer.UI.Features.F3_CraneSetup.Views"
     xmlns:osnap="clr-namespace:CraneOptimizer.UI.Features.F15_ObjectSnap.Views"
@@ -294,8 +295,78 @@
                 <!--  Col 4: Permanent Crane Manager / AI Assistant workspace  -->
             </Grid.ColumnDefinitions>
 
-            <!--  أ¢â€‌â‚¬أ¢â€‌â‚¬ Col 0: Elements list + Properties (F5 module) أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬  -->
-            <f5:ElementManagementPanel Grid.Column="0" DataContext="{Binding ElementManagement}" />
+            <!--  Col 0: Existing left workspace, shared by element and zone inspectors.  -->
+            <Border Grid.Column="0" Style="{StaticResource MainWorkspacePanelStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Style="{StaticResource RightWorkspaceTabHeaderStyle}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <RadioButton
+                                Grid.Column="0"
+                                AutomationProperties.Name="Element Properties workspace tab"
+                                Command="{Binding SelectLeftWorkspaceTabCommand}"
+                                CommandParameter="{x:Static shellVm:LeftWorkspaceTab.ElementProperties}"
+                                Content="ELEMENT PROPERTIES"
+                                GroupName="LeftWorkspaceTabs"
+                                IsChecked="{Binding IsElementPropertiesWorkspaceTabSelected, Mode=OneWay}"
+                                Style="{StaticResource RightWorkspaceTabStyle}" />
+
+                            <RadioButton
+                                Grid.Column="1"
+                                AutomationProperties.Name="Zone Manager workspace tab"
+                                Command="{Binding SelectLeftWorkspaceTabCommand}"
+                                CommandParameter="{x:Static shellVm:LeftWorkspaceTab.ZoneManager}"
+                                Content="ZONE MANAGER"
+                                GroupName="LeftWorkspaceTabs"
+                                IsChecked="{Binding IsZoneManagerWorkspaceTabSelected, Mode=OneWay}"
+                                Style="{StaticResource RightWorkspaceTabStyle}" />
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="1" Style="{StaticResource MainWorkspacePanelBodyStyle}">
+                        <Grid>
+                            <f5:ElementManagementPanel DataContext="{Binding ElementManagement}">
+                                <f5:ElementManagementPanel.Style>
+                                    <Style TargetType="{x:Type f5:ElementManagementPanel}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger
+                                                Binding="{Binding DataContext.SelectedLeftWorkspaceTab, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                Value="{x:Static shellVm:LeftWorkspaceTab.ZoneManager}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </f5:ElementManagementPanel.Style>
+                            </f5:ElementManagementPanel>
+
+                            <f7:ZoneListView DataContext="{Binding Drawing.ZoneList}">
+                                <f7:ZoneListView.Style>
+                                    <Style TargetType="{x:Type f7:ZoneListView}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger
+                                                Binding="{Binding DataContext.SelectedLeftWorkspaceTab, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                Value="{x:Static shellVm:LeftWorkspaceTab.ZoneManager}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </f7:ZoneListView.Style>
+                            </f7:ZoneListView>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
 
             <!--  أ¢â€‌â‚¬أ¢â€‌â‚¬ Col 1: Vertical splitter أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬أ¢â€‌â‚¬  -->
             <GridSplitter

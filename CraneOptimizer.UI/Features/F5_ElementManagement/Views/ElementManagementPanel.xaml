@@ -106,23 +106,13 @@
         </Style>
     </UserControl.Resources>
 
-    <Border Style="{StaticResource MainWorkspacePanelStyle}">
+    <Border Style="{StaticResource MainWorkspacePanelBodyStyle}">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" MinHeight="60" />
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Style="{StaticResource RightWorkspaceTabHeaderStyle}">
-                <RadioButton
-                    Content="ELEMENT PROPERTIES"
-                    Focusable="False"
-                    IsChecked="True"
-                    IsHitTestVisible="False"
-                    Style="{StaticResource RightWorkspaceTabStyle}" />
-            </Border>
-
-            <Border Grid.Row="1" Style="{StaticResource MainWorkspacePanelBodyStyle}">
+            <Border Grid.Row="0" Style="{StaticResource MainWorkspacePanelBodyStyle}">
                 <Grid>
                     <ScrollViewer
                         HorizontalScrollBarVisibility="Disabled"

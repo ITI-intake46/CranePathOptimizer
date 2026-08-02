@@ -28,6 +28,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
         private readonly IViewportInteractionService _interaction;
         private readonly IViewportSelectionService _selection;
         private readonly IProjectHistoryService _history;
+        private readonly IDeleteConfirmationService _deleteConfirmation;
         private HelixViewport3D? _viewport;
         private DxfSourceSession? _activeDxf;
         private DxfAlignmentDialog? _openAlignmentDialog;
@@ -46,7 +47,8 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
             IViewportInteractionService interaction,
             IViewportSelectionService selection,
             IProjectHistoryService history,
-            IDxfLayerZoneAssignmentService layerAssignmentService)
+            IDxfLayerZoneAssignmentService layerAssignmentService,
+            IDeleteConfirmationService? deleteConfirmation = null)
         {
             _zoneImportService = zoneImportService;
             _layerAssignmentService = layerAssignmentService;
@@ -54,6 +56,7 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
             _interaction = interaction;
             _selection = selection;
             _history = history;
+            _deleteConfirmation = deleteConfirmation ?? new DeleteConfirmationService();
 
             UploadDxfCommand = new AsyncRelayCommand(ExecuteUploadDxfAsync);
             AddAnotherDxfCommand = new AsyncRelayCommand(ExecuteUploadDxfAsync);
@@ -688,13 +691,13 @@ namespace CraneOptimizer.UI.Features.F11_DXF.ViewModels
             if (selected.Count == 0)
                 return;
 
-            var names = string.Join("\n", selected.Take(6).Select(source => $"\u2022 {source.DisplayName}"));
-            if (selected.Count > 6)
-                names += $"\n\u2022 and {selected.Count - 6} more";
-            var prompt = selected.Count == 1
-                ? $"Delete {selected[0].DisplayName}?\n\nZones previously generated from this DXF will remain in the project."
-                : $"Delete {selected.Count} selected DXFs?\n\n{names}\n\nZones previously generated from these DXFs will remain in the project.";
-            if (MessageBox.Show(prompt, "Delete DXF", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            string title = selected.Count == 1
+                ? "Remove DXF Model"
+                : "Remove DXF Models";
+            string message = selected.Count == 1
+                ? $"Are you sure you want to remove \"{selected[0].DisplayName}\" from this project?\n\nZones previously generated from this DXF will remain in the project."
+                : $"Are you sure you want to remove {selected.Count} selected DXF models from this project?\n\nZones previously generated from these DXFs will remain in the project.";
+            if (!_deleteConfirmation.ConfirmDelete(title, message, "Remove"))
                 return;
 
             DeleteSources(selected);
