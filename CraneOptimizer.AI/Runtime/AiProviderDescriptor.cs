@@ -5,5 +5,8 @@ namespace CraneOptimizer.AI.Runtime
         string DisplayName,
         AiProviderCapabilities Capabilities,
         bool IsLocal,
-        string? Endpoint = null);
+        string? Endpoint = null)
+    {
+        public override string ToString() => DisplayName;
+    }
 }
