@@ -43,6 +43,7 @@ namespace CraneOptimizer.AI.Companion.Views
             typeof(RoutedEventHandler),
             typeof(AiCompanionPanel));
 
+        private readonly Dictionary<string, double> _sectionScrollOffsets = new(StringComparer.OrdinalIgnoreCase);
         private AiCompanionViewModel? _viewModel;
         private IAiCopilotSettingsService? _settingsService;
         private string? _pendingSectionName;
