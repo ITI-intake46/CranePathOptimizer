@@ -3,135 +3,199 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             Background="{DynamicResource SurfaceBrush}"
              mc:Ignorable="d">
 
     <UserControl.Resources>
-        <Style x:Key="PropertyCellText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="{StaticResource FontSizeXS}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-            <Setter Property="Padding" Value="8,0,6,0" />
-        </Style>
-
-        <Style x:Key="PropertyLabelText"
-               BasedOn="{StaticResource PropertyCellText}"
-               TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-        </Style>
-
-        <Style x:Key="PropertyValueText"
-               BasedOn="{StaticResource PropertyCellText}"
-               TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-        </Style>
-
         <DataTemplate x:Key="PropertyRowTemplate">
-            <Border MinHeight="25"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="0,0,0,1">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="112" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+            <Grid MinHeight="22">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="104" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Column="0"
-                               Style="{StaticResource PropertyLabelText}"
-                               Text="{Binding Name}"
-                               ToolTip="{Binding Name}" />
+                <TextBlock Grid.Column="0"
+                           Style="{StaticResource InspectorPropertyLabelStyle}"
+                           Text="{Binding Name}"
+                           ToolTip="{Binding Name}" />
 
-                    <TextBlock Grid.Column="1"
-                               Style="{StaticResource PropertyValueText}"
-                               Text="{Binding Value}"
-                               ToolTip="{Binding Value}" />
-                </Grid>
-            </Border>
+                <TextBlock Grid.Column="1"
+                           Style="{StaticResource InspectorPropertyValueStyle}"
+                           Text="{Binding Value}"
+                           ToolTip="{Binding Value}" />
+            </Grid>
         </DataTemplate>
+
+        <Style x:Key="ElementPropertySectionStyle" TargetType="Expander">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Expander">
+                        <StackPanel>
+                            <ToggleButton
+                                x:Name="HeaderButton"
+                                Content="{TemplateBinding Header}"
+                                Cursor="Hand"
+                                FocusVisualStyle="{x:Null}"
+                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Grid Margin="0,14,0,8" Background="Transparent">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ContentPresenter
+                                                VerticalAlignment="Center"
+                                                ContentSource="Content"
+                                                RecognizesAccessKey="True"
+                                                TextElement.FontFamily="{StaticResource FontPrimary}"
+                                                TextElement.FontSize="{StaticResource FontSizeXS}"
+                                                TextElement.FontWeight="SemiBold" />
+                                            <Path
+                                                x:Name="Chevron"
+                                                Grid.Column="1"
+                                                Width="8"
+                                                Height="4"
+                                                Margin="8,0,1,0"
+                                                Data="M 0,0 L 4,4 L 8,0"
+                                                RenderTransformOrigin="0.5,0.5"
+                                                Stroke="{DynamicResource TextSecondaryBrush}"
+                                                StrokeEndLineCap="Round"
+                                                StrokeLineJoin="Round"
+                                                StrokeThickness="1.2">
+                                                <Path.RenderTransform>
+                                                    <RotateTransform Angle="-90" />
+                                                </Path.RenderTransform>
+                                            </Path>
+                                        </Grid>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="Chevron" Property="RenderTransform">
+                                                    <Setter.Value>
+                                                        <RotateTransform Angle="0" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+                                                <Setter TargetName="Chevron" Property="Stroke" Value="{StaticResource PrimaryBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+
+                            <ContentPresenter
+                                x:Name="ExpandedContent"
+                                ContentSource="Content"
+                                HorizontalAlignment="Stretch"
+                                Visibility="Collapsed" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="True">
+                                <Setter TargetName="ExpandedContent" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
-    <Border Background="{DynamicResource SurfaceBrush}"
-            BorderBrush="{DynamicResource BorderBrush}"
-            BorderThickness="0,0,1,0">
+    <Border Style="{StaticResource MainWorkspacePanelBodyStyle}">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
+                <RowDefinition Height="*" MinHeight="60" />
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0"
-                    Padding="8,6"
-                    Background="{DynamicResource SurfaceElevatedBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="0,1,0,1">
-                <TextBlock VerticalAlignment="Center"
-                           FontSize="{StaticResource FontSizeXS}"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Text="{Binding SelectedElementName}" />
-            </Border>
+            <Border Grid.Row="0" Style="{StaticResource MainWorkspacePanelBodyStyle}">
+                <Grid>
+                    <ScrollViewer
+                        HorizontalScrollBarVisibility="Disabled"
+                        Style="{StaticResource SharedScrollViewerStyle}"
+                        VerticalScrollBarVisibility="Auto">
+                        <Border Padding="14,10,14,18">
+                            <StackPanel>
+                                <TextBlock
+                                    Margin="0"
+                                    Text="{Binding SelectedElementName}"
+                                    ToolTip="{Binding SelectedElementName}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource InspectorSelectedItemTitleStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedElement}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
 
-            <Grid Grid.Row="1">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding ElementProperties}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Expander Margin="0"
-                                          Background="{DynamicResource SurfaceBrush}"
-                                          BorderBrush="{DynamicResource BorderBrush}"
-                                          BorderThickness="0,0,0,1"
-                                          HorizontalContentAlignment="Stretch"
-                                          IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
-                                    <Expander.Header>
-                                        <Grid MinHeight="30" VerticalAlignment="Center">
-                                            <TextBlock VerticalAlignment="Center"
-                                                       FontSize="{StaticResource FontSizeXS}"
-                                                       FontWeight="Bold"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                                       Text="{Binding Name}"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       ToolTip="{Binding Name, StringFormat='{}{0} properties'}" />
-                                        </Grid>
-                                    </Expander.Header>
+                                <ItemsControl ItemsSource="{Binding ElementProperties}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Expander
+                                                Header="{Binding Name}"
+                                                IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                                                Style="{StaticResource ElementPropertySectionStyle}">
+                                                <Border Style="{StaticResource InspectorSummaryBorderStyle}">
+                                                    <ItemsControl
+                                                        ItemTemplate="{StaticResource PropertyRowTemplate}"
+                                                        ItemsSource="{Binding Children}" />
+                                                </Border>
+                                            </Expander>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </ScrollViewer>
 
-                                    <Grid Background="{DynamicResource SurfaceElevatedBrush}">
-                                        <ItemsControl ItemTemplate="{StaticResource PropertyRowTemplate}"
-                                                      ItemsSource="{Binding Children}" />
-                                    </Grid>
-                                </Expander>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-
-                <Border Margin="18,48"
-                        HorizontalAlignment="Stretch"
-                        VerticalAlignment="Top"
-                        Background="{DynamicResource SurfaceBrush}">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedElement}" Value="{x:Null}">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <StackPanel>
-                        <TextBlock HorizontalAlignment="Center"
-                                   FontSize="{StaticResource FontSizeSM}"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   Text="No Element Selected" />
-                        <TextBlock Margin="0,6,0,0"
-                                   HorizontalAlignment="Center"
-                                   FontSize="{StaticResource FontSizeXS}"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   Text="Select an element to inspect its BIM properties."
-                                   TextAlignment="Center" />
+                    <StackPanel
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedElement}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <Viewbox Width="30" Height="30" HorizontalAlignment="Center" Stretch="Uniform">
+                            <Path
+                                Data="M 4,7 L 12,3 L 20,7 L 12,11 Z M 4,7 V 17 L 12,21 V 11 M 20,7 V 17 L 12,21"
+                                Stroke="{DynamicResource TextSecondaryBrush}"
+                                StrokeEndLineCap="Round"
+                                StrokeLineJoin="Round"
+                                StrokeStartLineCap="Round"
+                                StrokeThickness="1.5" />
+                        </Viewbox>
+                        <TextBlock
+                            Margin="0,10,0,4"
+                            HorizontalAlignment="Center"
+                            FontFamily="{StaticResource FontPrimary}"
+                            FontSize="{StaticResource FontSizeXS}"
+                            FontWeight="SemiBold"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            Text="No element selected" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontFamily="{StaticResource FontPrimary}"
+                            FontSize="{StaticResource FontSizeXS}"
+                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            Text="Select an element to view its properties."
+                            TextAlignment="Center"
+                            TextWrapping="Wrap" />
                     </StackPanel>
-                </Border>
-            </Grid>
+                </Grid>
+            </Border>
         </Grid>
     </Border>
 </UserControl>

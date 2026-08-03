@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
     x:Class="CraneOptimizer.UI.Features.F2_IfcViewer.Views.IfcTabView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -7,26 +7,31 @@
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
         <StackPanel Margin="4,0" Orientation="Horizontal">
 
-            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="LOAD MODEL">
-                <StackPanel Orientation="Horizontal">
-                    <Button Command="{Binding IfcViewer.LoadIfcCommand}" Content="Load IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorCommandTile}">
-                        <Button.Tag>
-                            <TextBlock FontSize="26" Text="📦" />
-                        </Button.Tag>
-                    </Button>
-                </StackPanel>
+            <!-- ── LOAD MODEL ────────────────────────────────────────── -->
+            <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="LOAD MODEL">
+                <Button Command="{Binding IfcViewer.LoadIfcCommand}"
+                        Content="Load IFC"
+                        FontSize="{StaticResource FontSizeXS}"
+                        Style="{StaticResource RibbonMajorCommandTile}"
+                        ToolTip="Open an IFC file and import it into the 3D view.">
+                    <Button.Tag>
+                        <TextBlock FontSize="26" Text="📦" />
+                    </Button.Tag>
+                </Button>
             </ContentControl>
 
             <Rectangle Style="{StaticResource RibbonSep}" />
 
+            <!-- ── MODEL MANAGEMENT ──────────────────────────────────── -->
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="MODEL MANAGEMENT">
                 <StackPanel Orientation="Horizontal">
-                    <Button Command="{Binding IfcViewer.MoveIfcCommand}" Content="Move IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorLeadingCommandTile}">
+                    <Button Command="{Binding IfcViewer.MoveIfcCommand}"
+                            Content="Move IFC"
+                            FontSize="{StaticResource FontSizeXS}"
+                            Style="{StaticResource RibbonMajorLeadingCommandTile}"
+                            ToolTip="Move the loaded IFC model to a new origin location in the 3D view.">
                         <Button.Tag>
-                            <Viewbox
-                                Width="30"
-                                Height="30"
-                                Stretch="Uniform">
+                            <Viewbox Width="30" Height="30" Stretch="Uniform">
                                 <Canvas Width="32" Height="32">
                                     <Path
                                         Data="M16,3 L16,29 M16,3 L9,10 M16,3 L23,10 M16,29 L9,22 M16,29 L23,22 M3,16 L29,16 M3,16 L10,9 M3,16 L10,23 M29,16 L22,9 M29,16 L22,23"
@@ -39,7 +44,11 @@
                             </Viewbox>
                         </Button.Tag>
                     </Button>
-                    <Button Command="{Binding IfcViewer.DeleteIfcCommand}" Content="Delete IFC" FontSize="{StaticResource FontSizeXS}" Style="{StaticResource RibbonMajorMiddleCommandTile}">
+                    <Button Command="{Binding IfcViewer.DeleteIfcCommand}"
+                            Content="Delete IFC"
+                            FontSize="{StaticResource FontSizeXS}"
+                            Style="{StaticResource RibbonMajorMiddleCommandTile}"
+                            ToolTip="Remove the loaded IFC model from the 3D view.">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="🗑" />
                         </Button.Tag>
@@ -50,7 +59,7 @@
                         FontSize="{StaticResource FontSizeXS}"
                         IsEnabled="{Binding IfcViewer.HasIfcModel}"
                         Style="{StaticResource RibbonMajorTrailingCommandTile}"
-                        ToolTip="IFC Display Options">
+                        ToolTip="Choose which IFC reference and spatial objects are hidden in the 3D view.">
                         <Button.Tag>
                             <TextBlock FontSize="26" Text="⚙" />
                         </Button.Tag>
@@ -64,6 +73,7 @@
 
             <Rectangle Style="{StaticResource RibbonSep}" />
 
+            <!-- ── FILTER ────────────────────────────────────────────── -->
             <ContentControl Style="{StaticResource RibbonSingleCommandGroup}" Tag="FILTER">
                 <Button
                     Command="{Binding ElementManagement.ShowFilterDialogCommand}"
@@ -71,11 +81,9 @@
                     FontSize="{StaticResource FontSizeXS}"
                     IsEnabled="{Binding IfcViewer.HasIfcModel}"
                     Style="{StaticResource RibbonMajorCommandTile}"
-                    ToolTip="Filter">
+                    ToolTip="Choose which IFC elements are visible in the 3D view.">
                     <Button.Tag>
-                        <Viewbox
-                            Width="26"
-                            Height="26">
+                        <Viewbox Width="26" Height="26">
                             <Canvas Width="24" Height="24">
                                 <Polygon Fill="{StaticResource PrimaryBrush}" Points="2,3 22,3 14,13 14,21 10,21 10,13" />
                                 <Ellipse

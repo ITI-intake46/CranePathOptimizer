@@ -69,8 +69,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Interaction
             if (e.ChangedButton != MouseButton.Left)
                 return;
 
-            // Zone drawing pointer input is resolved asynchronously by
-            // IfcViewerControl. Measurement remains on this synchronous path.
+            // Authoritative drawing and measurement clicks are resolved
+            // asynchronously by IfcViewerControl.
             if (_vm.IsDrawing)
                 return;
 
@@ -104,9 +104,10 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Interaction
 
         public void OnKeyDown(HelixViewport3D viewport, KeyEventArgs e)
         {
+            bool wasToolActive = _vm.IsDrawing || _vm.IsMeasuring;
             _vm.HandleKeyDown(e);
 
-            if (!_vm.IsDrawing && !_vm.IsMeasuring)
+            if (!wasToolActive && !_vm.IsDrawing && !_vm.IsMeasuring)
                 _interactionService.PopMode();
         }
 
@@ -120,7 +121,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Interaction
                 : _hitTest.TryGetWorldPoint(viewport, screen, out world);
         }
 
-        private static bool TryResolveMeasurementPoint(
+        internal static bool TryResolveMeasurementPoint(
             HelixViewport3D viewport,
             Point screen,
             out Point3D world)
@@ -158,7 +159,17 @@ namespace CraneOptimizer.UI.Features.F7_Zones.Interaction
             out Point3D world)
         {
             world = default;
-            IList<PointHitResult> hits = viewport.Viewport.FindHits(probe);
+            Point innerProbe;
+            try
+            {
+                innerProbe = viewport.TranslatePoint(probe, viewport.Viewport);
+            }
+            catch
+            {
+                innerProbe = probe;
+            }
+
+            IList<PointHitResult> hits = viewport.Viewport.FindHits(innerProbe);
             foreach (PointHitResult hit in hits)
             {
                 if (hit.Visual == null || IsIgnoredMeasurementVisual(hit.Visual))

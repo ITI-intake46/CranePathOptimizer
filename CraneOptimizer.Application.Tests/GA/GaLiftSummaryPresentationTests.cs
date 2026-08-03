@@ -28,7 +28,9 @@ public sealed class GaLiftSummaryPresentationTests
         Assert.Equal("62.5%", summary.AverageCapacityUseText);
         Assert.Equal("0.06 t", summary.SmallestCapacityReserveText);
         Assert.Equal("2", summary.NearCapacityLimitText);
-        Assert.Contains("90%", summary.NearCapacityLimitTooltip, StringComparison.Ordinal);
+        Assert.Equal(
+            "Completed lifts operating at or above the configured capacity-use advisory threshold.",
+            summary.NearCapacityLimitTooltip);
     }
 
     [Fact]
@@ -138,6 +140,31 @@ public sealed class GaLiftSummaryPresentationTests
     }
 
     [Fact]
+    public void Canonical_failure_category_wins_over_conflicting_secondary_evidence()
+    {
+        GaLiftAnalysisResult source = CreateAnalysis(["Overweight"]);
+        GaLiftAnalysisItem canonicalOutcome = new()
+        {
+            LiftUnitId = "hidden-lift",
+            IsLifted = false,
+            FailureCategory = "Overweight",
+            LiftStatus = "OutOfRadius",
+            FailureReason = "HeightFail"
+        };
+        GaLiftAnalysisResult analysis = CopyWithMetricsAndLifts(
+            source,
+            source.Metrics,
+            source.LiftResults.Where(item => item.IsLifted).Append(canonicalOutcome).ToArray());
+
+        GaLiftSummaryPresentationModel summary =
+            new GaLiftSummaryPresentationMapper().Map(analysis);
+
+        Assert.Equal("1", summary.CapacityFailuresText);
+        Assert.Equal("0", summary.RadiusFailuresText);
+        Assert.Equal("0", summary.BoomHeightFailuresText);
+    }
+
+    [Fact]
     public void Missing_outcome_records_are_reconciled_as_other_and_raise_a_coded_warning()
     {
         GaLiftAnalysisResult analysis = CreateAnalysis(["Overweight"]);
@@ -221,9 +248,44 @@ public sealed class GaLiftSummaryPresentationTests
         Assert.Equal("0.95", summary.SafetyFactorText);
         Assert.Equal("0.90", summary.DeratingRatioText);
         Assert.Equal("2.0 m", summary.WireLengthText);
-        Assert.Equal("0.20 t", summary.HookWeightText);
-        Assert.Equal("0.35 t", summary.AccessoriesWeightText);
+        Assert.Equal("0.35 t", summary.LiftingAccessoriesWeightText);
         Assert.Equal("Grouped Lifts", summary.OperatingModeText);
+    }
+
+    [Fact]
+    public void Historical_accessory_weight_uses_saved_aggregate_rigging_when_total_is_absent()
+    {
+        GaLiftAnalysisResult source = CreateAnalysis(["Overweight"]);
+        GaLiftAnalysisResult analysis = CopyWithRunContext(
+            source,
+            new GaAnalysisRunContext
+            {
+                ProjectName = source.RunContext.ProjectName,
+                CraneName = source.RunContext.CraneName,
+                OptimizerCompletedAtUtc = source.RunContext.OptimizerCompletedAtUtc,
+                SafetyFactor = source.RunContext.SafetyFactor,
+                DeratingRatio = source.RunContext.DeratingRatio,
+                WireRopeLengthM = source.RunContext.WireRopeLengthM,
+                HookRiggingWeightTon = 0.2,
+                TotalLiftingAccessoriesWeightTon = 0,
+                OperatingMode = source.RunContext.OperatingMode
+            });
+
+        GaLiftSummaryPresentationModel summary =
+            new GaLiftSummaryPresentationMapper().Map(analysis);
+
+        Assert.Equal("0.20 t", summary.LiftingAccessoriesWeightText);
+    }
+
+    [Fact]
+    public void Completed_run_uses_the_final_success_status_wording()
+    {
+        GaLiftSummaryPresentationModel summary =
+            new GaLiftSummaryPresentationMapper().Map(CreateAnalysis([]));
+
+        Assert.Equal(
+            "The current crane completed all evaluated lifts.",
+            summary.SummaryStatusText);
     }
 
     [Fact]
@@ -287,6 +349,11 @@ public sealed class GaLiftSummaryPresentationTests
         Assert.Contains("Highest capacity use:", summary.CopyText, StringComparison.Ordinal);
         Assert.Contains("Average capacity use:", summary.CopyText, StringComparison.Ordinal);
         Assert.Contains("Safety factor: 0.95", summary.CopyText, StringComparison.Ordinal);
+        Assert.Contains("Wire length: 2.0 m", summary.CopyText, StringComparison.Ordinal);
+        Assert.Contains(
+            "Lifting accessories weight: 0.35 t",
+            summary.CopyText,
+            StringComparison.Ordinal);
         Assert.Contains("Candidate points generated: 150", summary.CopyText, StringComparison.Ordinal);
         Assert.DoesNotContain("P95", summary.CopyText, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("percentile", summary.CopyText, StringComparison.OrdinalIgnoreCase);
@@ -307,6 +374,15 @@ public sealed class GaLiftSummaryPresentationTests
         Assert.DoesNotContain(
             summary.Limitations,
             text => text.Contains("RunSettingsSharedOffsets", StringComparison.Ordinal));
+        Assert.Contains(
+            summary.Limitations,
+            text => text.Contains("existing crane setup positions", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            summary.Limitations,
+            text => text.Contains("ground bearing", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            summary.Limitations,
+            text => text.Contains("does not automatically approve", StringComparison.OrdinalIgnoreCase));
         Assert.StartsWith("This summary is an application-generated advisory assessment", summary.SafetyNotice);
         Assert.Contains("qualified engineering review", summary.SafetyNotice, StringComparison.OrdinalIgnoreCase);
     }
@@ -480,6 +556,25 @@ public sealed class GaLiftSummaryPresentationTests
             Thresholds = source.Thresholds,
             Metrics = source.Metrics,
             Performance = performance,
+            CandidateResults = source.CandidateResults,
+            LiftResults = source.LiftResults,
+            GeometrySource = source.GeometrySource
+        };
+
+    private static GaLiftAnalysisResult CopyWithRunContext(
+        GaLiftAnalysisResult source,
+        GaAnalysisRunContext runContext) =>
+        new()
+        {
+            ProjectGuid = source.ProjectGuid,
+            OptimizationRunId = source.OptimizationRunId,
+            GeneratedAtUtc = source.GeneratedAtUtc,
+            RunContext = runContext,
+            AlternativeScreeningOutcome = source.AlternativeScreeningOutcome,
+            Confidence = source.Confidence,
+            Thresholds = source.Thresholds,
+            Metrics = source.Metrics,
+            Performance = source.Performance,
             CandidateResults = source.CandidateResults,
             LiftResults = source.LiftResults,
             GeometrySource = source.GeometrySource

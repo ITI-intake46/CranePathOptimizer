@@ -11,6 +11,7 @@ using CraneOptimizer.UI.Features.F8_GAOptimizer.Services;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Xml.Linq;
 
 namespace CraneOptimizer.Application.Tests.GA;
 
@@ -102,11 +103,12 @@ public sealed class GaLiftAnalysisDependencyGraphTests
             "Text=\"Safety Factor\"",
             "Text=\"Derating Ratio\"",
             "Text=\"Wire Length\"",
-            "Text=\"Hook Weight\"",
-            "Text=\"Lifting Accessories\"",
+            "Text=\"Lifting Accessories Weight\"",
             "Text=\"Operating Mode\"",
             "Summary.SafetyFactorText",
             "Summary.DeratingRatioText",
+            "Summary.WireLengthText",
+            "Summary.LiftingAccessoriesWeightText",
             "Text=\"Candidate Points Generated\"",
             "Text=\"Valid Candidate Points\"",
             "Text=\"Rejected Candidate Points\"",
@@ -119,6 +121,7 @@ public sealed class GaLiftAnalysisDependencyGraphTests
             "FailedLiftsRecovered",
             "Summary.Limitations",
             "Summary.SafetyNotice",
+            "Review the assumptions and safety limitations used by this Lift Summary.",
             "FontFamily=\"{DynamicResource FontPrimary}\"",
             "Background=\"{DynamicResource SurfaceBrush}\"",
             "CornerRadius=\"8\""
@@ -162,6 +165,9 @@ public sealed class GaLiftAnalysisDependencyGraphTests
             "Content=\"Save\"",
             "Open Analysis Folder",
             "Copy Executive Summary",
+            "Text=\"Hook Weight\"",
+            "Summary.HookWeightText",
+            "Summary.AccessoriesWeightText",
             "<DataGrid"
         };
         foreach (var token in forbidden)
@@ -179,6 +185,31 @@ public sealed class GaLiftAnalysisDependencyGraphTests
             Assert.Contains(token, window, StringComparison.OrdinalIgnoreCase);
         else
             Assert.DoesNotContain(token, window, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Safety_disclaimer_is_normal_text_without_a_nested_container()
+    {
+        string path = GetRepoFile(
+            "CraneOptimizer.UI/Features/F8_GAOptimizer/Views/GaLiftAnalysisWindow.xaml");
+        XDocument document = XDocument.Load(path);
+        XElement safetyText = Assert.Single(
+            document.Descendants()
+                .Where(element =>
+                    element.Name.LocalName == "TextBlock" &&
+                    string.Equals(
+                        (string?)element.Attribute("Text"),
+                        "{Binding Summary.SafetyNotice}",
+                        StringComparison.Ordinal)));
+
+        Assert.Equal("StackPanel", safetyText.Parent?.Name.LocalName);
+        Assert.Null(safetyText.Attribute("Background"));
+        Assert.Null(safetyText.Attribute("BorderBrush"));
+        Assert.Null(safetyText.Attribute("CornerRadius"));
+        Assert.Equal("Wrap", (string?)safetyText.Attribute("TextWrapping"));
+        Assert.Equal(
+            "{DynamicResource TextSecondaryBrush}",
+            (string?)safetyText.Attribute("Foreground"));
     }
 
     [Fact]

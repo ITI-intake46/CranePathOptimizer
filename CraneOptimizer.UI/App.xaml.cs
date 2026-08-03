@@ -75,6 +75,7 @@ namespace CraneOptimizer.UI
         protected override void OnStartup(StartupEventArgs e)
         {
             SmoothScrollBehavior.Initialize();
+            CraneOptimizer.UI.Resources.NativeTitleBarTheme.Initialize();
 
             // Initialize transitional static holder
             ZoneGeometryServiceHolder.Instance = new CraneOptimizer.Domain.Services.ZoneGeometryService();
@@ -125,6 +126,7 @@ namespace CraneOptimizer.UI
             // Core Services
             // =========================
             services.AddSingleton<IDialogService, DialogService>();
+            services.AddSingleton<IDeleteConfirmationService, DeleteConfirmationService>();
             services.AddSingleton<IStatusService, StatusService>();
             services.AddSingleton<ISceneGridSizingService, SceneGridSizingService>();
             services.AddSingleton<IElementVisibilityFilterService, ElementVisibilityFilterService>();

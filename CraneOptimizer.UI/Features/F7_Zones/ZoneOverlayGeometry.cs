@@ -14,6 +14,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones
         public const double ForbiddenFill = 0.001;
         public const double AllowedBorder = 0.004;
         public const double ForbiddenBorder = 0.0045;
+        public const double LivePreview = 0.008;
         public const double DxfContrast = 0.02;
     }
 

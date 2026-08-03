@@ -16,14 +16,21 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Views
         }
 
         private async void ImportLoadChart_Click(object sender, RoutedEventArgs e)
+            => await OpenLoadChartImportAsync(
+                this,
+                DataContext as MainViewModel);
+
+        public static async Task OpenLoadChartImportAsync(
+            FrameworkElement ownerElement,
+            MainViewModel? viewModel)
         {
             var dialog = new LoadChartImportDialog
             {
-                Owner = Window.GetWindow(this)
+                Owner = Window.GetWindow(ownerElement)
             };
 
             if (dialog.ShowDialog() == true)
-                await RefreshCranesAsync();
+                await RefreshCranesAsync(viewModel);
         }
 
         private async void ViewSavedCharts_Click(object sender, RoutedEventArgs e)
@@ -38,21 +45,31 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Views
         }
 
         private async void CraneCatalog_Click(object sender, RoutedEventArgs e)
+            => await OpenCraneCatalogAsync(
+                this,
+                DataContext as MainViewModel);
+
+        public static async Task OpenCraneCatalogAsync(
+            FrameworkElement ownerElement,
+            MainViewModel? viewModel)
         {
             var dialog = new CraneCatalogBrowserDialog(
                 isReadOnlyView: false,
-                onCraneUpdated: _ => RefreshCranesAsync())
+                onCraneUpdated: _ => RefreshCranesAsync(viewModel))
             {
-                Owner = Window.GetWindow(this)
+                Owner = Window.GetWindow(ownerElement)
             };
 
             dialog.ShowDialog();
-            await RefreshCranesAsync();
+            await RefreshCranesAsync(viewModel);
         }
 
-        private async Task RefreshCranesAsync()
+        private Task RefreshCranesAsync()
+            => RefreshCranesAsync(DataContext as MainViewModel);
+
+        private static async Task RefreshCranesAsync(MainViewModel? vm)
         {
-            if (DataContext is not MainViewModel vm)
+            if (vm == null)
                 return;
 
             await vm.ReloadCranesAsync();

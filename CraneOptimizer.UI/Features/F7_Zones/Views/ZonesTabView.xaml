@@ -143,8 +143,8 @@
                             AutomationProperties.Name="Delete all zones"
                             Command="{Binding DeleteAllCommand}"
                             Content="Delete All"
-                            Style="{StaticResource RibbonMajorMiddleCommandTile}"
-                            ToolTip="Deletes every zone from the scene. Requires at least one zone and no active drawing or measurement. Press Delete All again to confirm; this action cannot be undone."
+                            Style="{StaticResource RibbonMajorTrailingCommandTile}"
+                            ToolTip="Deletes every zone from the scene after confirmation. Requires at least one zone and no active drawing or measurement. This action cannot be undone."
                             ToolTipService.ShowOnDisabled="True">
                             <Button.Tag>
                                 <Grid Width="24" Height="24">
@@ -155,11 +155,6 @@
                                           StrokeStartLineCap="Round"
                                           StrokeThickness="1.6" />
                                 </Grid>
-                            </Button.Tag>
-                        </Button>
-                        <Button Command="{Binding ZoneList.ExportZonesCommand}" Content="Export JSON" Style="{StaticResource RibbonMajorTrailingCommandTile}">
-                            <Button.Tag>
-                                <TextBlock Text="📤" />
                             </Button.Tag>
                         </Button>
                 </StackPanel>

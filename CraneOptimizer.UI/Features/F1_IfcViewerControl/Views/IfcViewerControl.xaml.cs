@@ -22,6 +22,7 @@ using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Views;
 using CraneOptimizer.UI.Features.F7_Zones;
+using CraneOptimizer.UI.Features.F7_Zones.Interaction;
 using CraneOptimizer.UI.Features.F7_Zones.ViewModels;
 using CraneOptimizer.UI.Resources;
 using CraneOptimizer.UI.Shell.Interaction;
@@ -69,6 +70,15 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private bool _zoneClickPending;
         private int _loadGeneration;
         private readonly List<(MeasurementVisualData Data, Border Label)> _measurementLabels = new();
+        private readonly List<(MeasurementVisualData Data, System.Windows.Shapes.Line Line)> _measurementLines = new();
+        private readonly List<(MeasurementVisualData Data, System.Windows.Shapes.Ellipse Start, System.Windows.Shapes.Ellipse End)> _measurementEndpointMarkers = new();
+        private System.Windows.Shapes.Line? _measurementPreviewLine;
+        private System.Windows.Shapes.Ellipse? _measurementPreviewStartMarker;
+        private System.Windows.Shapes.Ellipse? _measurementPreviewEndMarker;
+        private FrameworkElement? _measurementPickMarker;
+        private static readonly double MeasurementLineThickness = Math.Clamp(2.25d, 1.5d, 3d);
+        private const double MeasurementEndpointSize = 7d;
+        private const double MeasurementPickMarkerSize = 16d;
 
         public IfcViewerControl()
         {
@@ -138,6 +148,8 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 DrawingViewModel_PropertyChanged;
             _drawingViewModel.MeasurementLabelsChanged -= DrawingViewModel_MeasurementLabelsChanged;
             _drawingViewModel.MeasurementLabelsChanged += DrawingViewModel_MeasurementLabelsChanged;
+            _drawingViewModel.MeasurementPreviewChanged -= DrawingViewModel_MeasurementPreviewChanged;
+            _drawingViewModel.MeasurementPreviewChanged += DrawingViewModel_MeasurementPreviewChanged;
             RebuildMeasurementLabels();
 
             if (DataContext is MainViewModel vm)
@@ -186,8 +198,15 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _drawingViewModel.PropertyChanged -=
                 DrawingViewModel_PropertyChanged;
             _drawingViewModel.MeasurementLabelsChanged -= DrawingViewModel_MeasurementLabelsChanged;
+            _drawingViewModel.MeasurementPreviewChanged -= DrawingViewModel_MeasurementPreviewChanged;
             MeasurementOverlayCanvas.Children.Clear();
             _measurementLabels.Clear();
+            _measurementLines.Clear();
+            _measurementEndpointMarkers.Clear();
+            _measurementPreviewLine = null;
+            _measurementPreviewStartMarker = null;
+            _measurementPreviewEndMarker = null;
+            _measurementPickMarker = null;
             DetachDxfSnapBridge();
             DisposeOsnapPointerPipeline();
         }
@@ -273,6 +292,9 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
         private void OwnerWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (Keyboard.FocusedElement is TextBox)
+                return;
+
             UpdateSelectionHandlerEnabled();
             _selectionHandler.OnKeyDown(IfcViewer, e);
             if (e.Handled)
@@ -344,7 +366,11 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             if (sender is HelixViewport3D viewport)
             {
                 if (_selectionHandler.IsClickOnViewCubeOrOverlay(viewport, e))
+                {
+                    if (_drawingViewModel.IsMeasuring)
+                        _drawingViewModel.StopMeasureMode();
                     return;
+                }
 
                 UpdateSelectionHandlerEnabled();
                 _selectionHandler.OnPreviewMouseDown(viewport, e);
@@ -365,14 +391,22 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             Point screen = e.GetPosition(viewport);
             bool capturedShift =
                 (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
-            DomainPoint3D? rawDrawingPoint = null;
+            DomainPoint3D? rawToolPoint = null;
             if (_drawingViewModel.IsDrawing &&
                 TryResolveRawDrawingPoint(
                     viewport,
                     screen,
                     out DomainPoint3D point))
             {
-                rawDrawingPoint = point;
+                rawToolPoint = point;
+            }
+            else if (_drawingViewModel.IsMeasuring &&
+                     DrawingInteractionMode.TryResolveMeasurementPoint(
+                         viewport,
+                         screen,
+                         out Point3D measurementPoint))
+            {
+                rawToolPoint = ToDomainPoint(measurementPoint);
             }
 
             if (IsCameraOrDragMouseMove(e))
@@ -389,7 +423,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 _latestHoverRequestId = query.RequestId;
                 _latestHoverContext = new HoverRequestContext(
                     query.RequestId,
-                    rawDrawingPoint,
+                    rawToolPoint,
                     capturedShift);
                 try
                 {
@@ -403,11 +437,12 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             else
             {
                 InvalidateOsnapHover();
-                if (_drawingViewModel.IsDrawing &&
-                    rawDrawingPoint != null)
+                if ((_drawingViewModel.IsDrawing ||
+                     _drawingViewModel.IsMeasuring) &&
+                    rawToolPoint != null)
                 {
                     _drawingViewModel.SetResolvedHoverPoint(
-                        rawDrawingPoint,
+                        rawToolPoint,
                         capturedShift,
                         acceptedSnap: null);
                 }
@@ -415,12 +450,12 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
             if (DataContext is MainViewModel vm)
             {
-                if (_drawingViewModel.IsDrawing && rawDrawingPoint != null)
+                if (_drawingViewModel.IsDrawing && rawToolPoint != null)
                 {
                     vm.SetCoordinates(
-                        rawDrawingPoint.X,
-                        rawDrawingPoint.Y,
-                        rawDrawingPoint.Z,
+                        rawToolPoint.X,
+                        rawToolPoint.Y,
+                        rawToolPoint.Z,
                         isReferencePlane: true);
                 }
                 else if (TryResolveMouseCoordinatePoint(
@@ -616,7 +651,13 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             object? sender,
             System.ComponentModel.PropertyChangedEventArgs e)
         {
+            if (e.PropertyName == nameof(DrawingViewModel.IsMeasuring))
+            {
+                UpdateMeasurementOverlayPositions();
+            }
+
             if (e.PropertyName == nameof(DrawingViewModel.IsDrawing) ||
+                e.PropertyName == nameof(DrawingViewModel.IsMeasuring) ||
                 e.PropertyName == nameof(DrawingViewModel.PointCount))
             {
                 Interlocked.Increment(
@@ -678,7 +719,8 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             OsnapResult? accepted = completion.SnapResult;
             _osnapIndicator?.Update(accepted);
 
-            if (!_drawingViewModel.IsDrawing)
+            if (!_drawingViewModel.IsDrawing &&
+                !_drawingViewModel.IsMeasuring)
                 return;
 
             DomainPoint3D? rawPoint = context.RawPoint;
@@ -693,10 +735,11 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             }
         }
 
-        private async Task ResolveAndCommitZoneClickAsync(
+        private async Task ResolveAndCommitToolClickAsync(
             HelixViewport3D viewport,
             Point screen,
-            bool capturedShift)
+            bool capturedShift,
+            bool isDrawingClick)
         {
             CancellationTokenSource? lifetime = _osnapLifetime;
             OsnapPointerCoordinator? coordinator = _osnapCoordinator;
@@ -710,20 +753,33 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 Interlocked.Read(ref _osnapDrawingStateVersion);
             long clickDrawingSessionVersion =
                 _drawingViewModel.DrawingSessionVersion;
-            DomainPoint3D? rawPoint =
-                TryResolveRawDrawingPoint(
+            DomainPoint3D? rawPoint;
+            if (isDrawingClick)
+            {
+                rawPoint = TryResolveRawDrawingPoint(
                     viewport,
                     screen,
                     out DomainPoint3D resolvedRaw)
                     ? resolvedRaw
                     : null;
+            }
+            else
+            {
+                rawPoint = DrawingInteractionMode.TryResolveMeasurementPoint(
+                    viewport,
+                    screen,
+                    out Point3D resolvedRaw)
+                    ? ToDomainPoint(resolvedRaw)
+                    : null;
+            }
             const int maximumAttempts = 2;
             for (int attempt = 0;
                  attempt < maximumAttempts;
                  attempt++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!IsOriginalZoneClickStateCurrent(
+                if (!IsOriginalToolClickStateCurrent(
+                        isDrawingClick,
                         clickCameraVersion,
                         clickDrawingStateVersion,
                         clickDrawingSessionVersion))
@@ -738,9 +794,10 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                         out OsnapQuery query))
                 {
                     _osnapIndicator?.Hide();
-                    CommitRawZoneClickIfCurrent(
+                    CommitRawToolClickIfCurrent(
                         rawPoint,
                         capturedShift,
+                        isDrawingClick,
                         clickCameraVersion,
                         clickDrawingStateVersion,
                         clickDrawingSessionVersion);
@@ -776,18 +833,20 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 {
                     _osnapIndicator?.Hide();
                     System.Diagnostics.Debug.WriteLine(
-                        $"[OSnap] Zone click resolution failed: " +
+                        $"[OSnap] Viewport tool click resolution failed: " +
                         exception.Message);
-                    CommitRawZoneClickIfCurrent(
+                    CommitRawToolClickIfCurrent(
                         rawPoint,
                         capturedShift,
+                        isDrawingClick,
                         clickCameraVersion,
                         clickDrawingStateVersion,
                         clickDrawingSessionVersion);
                     return;
                 }
 
-                if (!IsOriginalZoneClickStateCurrent(
+                if (!IsOriginalToolClickStateCurrent(
+                        isDrawingClick,
                         clickCameraVersion,
                         clickDrawingStateVersion,
                         clickDrawingSessionVersion))
@@ -808,10 +867,19 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 }
 
                 _osnapIndicator?.Update(accepted);
-                _drawingViewModel.CommitResolvedPoint(
-                    rawPoint,
-                    capturedShift,
-                    accepted);
+                if (isDrawingClick)
+                {
+                    _drawingViewModel.CommitResolvedPoint(
+                        rawPoint,
+                        capturedShift,
+                        accepted);
+                }
+                else
+                {
+                    _drawingViewModel.CommitResolvedMeasurementPoint(
+                        rawPoint,
+                        accepted);
+                }
                 return;
             }
 
@@ -819,36 +887,42 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             // result. Commit only the raw point captured by this exact click,
             // and only if its camera and drawing session never changed.
             _osnapIndicator?.Hide();
-            CommitRawZoneClickIfCurrent(
+            CommitRawToolClickIfCurrent(
                 rawPoint,
                 capturedShift,
+                isDrawingClick,
                 clickCameraVersion,
                 clickDrawingStateVersion,
                 clickDrawingSessionVersion);
         }
 
-        private bool IsOriginalZoneClickStateCurrent(
+        private bool IsOriginalToolClickStateCurrent(
+            bool isDrawingClick,
             long cameraVersion,
             long drawingStateVersion,
             long drawingSessionVersion) =>
             _osnapLifetime is { IsCancellationRequested: false } &&
-            _drawingViewModel.IsDrawing &&
             cameraVersion ==
                 Interlocked.Read(ref _osnapCameraVersion) &&
             drawingStateVersion ==
                 Interlocked.Read(ref _osnapDrawingStateVersion) &&
-            drawingSessionVersion ==
-                _drawingViewModel.DrawingSessionVersion;
+            (isDrawingClick
+                ? _drawingViewModel.IsDrawing &&
+                  drawingSessionVersion ==
+                      _drawingViewModel.DrawingSessionVersion
+                : _drawingViewModel.IsMeasuring);
 
-        private void CommitRawZoneClickIfCurrent(
+        private void CommitRawToolClickIfCurrent(
             DomainPoint3D? rawPoint,
             bool capturedShift,
+            bool isDrawingClick,
             long cameraVersion,
             long drawingStateVersion,
             long drawingSessionVersion)
         {
             if (rawPoint == null ||
-                !IsOriginalZoneClickStateCurrent(
+                !IsOriginalToolClickStateCurrent(
+                    isDrawingClick,
                     cameraVersion,
                     drawingStateVersion,
                     drawingSessionVersion))
@@ -856,10 +930,19 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 return;
             }
 
-            _drawingViewModel.CommitResolvedPoint(
-                rawPoint,
-                capturedShift,
-                acceptedSnap: null);
+            if (isDrawingClick)
+            {
+                _drawingViewModel.CommitResolvedPoint(
+                    rawPoint,
+                    capturedShift,
+                    acceptedSnap: null);
+            }
+            else
+            {
+                _drawingViewModel.CommitResolvedMeasurementPoint(
+                    rawPoint,
+                    acceptedSnap: null);
+            }
         }
 
         private bool TryCreateOsnapQuery(
@@ -1053,11 +1136,12 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             if (sender is not HelixViewport3D viewport)
                 return;
 
-            if (_drawingViewModel.IsDrawing &&
+            bool isDrawingClick = _drawingViewModel.IsDrawing;
+            if ((isDrawingClick || _drawingViewModel.IsMeasuring) &&
                 e.ChangedButton == MouseButton.Left)
             {
                 e.Handled = true;
-                if (e.ClickCount > 1)
+                if (isDrawingClick && e.ClickCount > 1)
                 {
                     _drawingViewModel.HandleDoubleClick();
                     return;
@@ -1068,7 +1152,8 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
 
                 long drawingSessionVersion =
                     _drawingViewModel.DrawingSessionVersion;
-                if (!_drawingViewModel.BeginPointResolution(
+                if (isDrawingClick &&
+                    !_drawingViewModel.BeginPointResolution(
                         drawingSessionVersion))
                 {
                     return;
@@ -1080,10 +1165,11 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                     (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
                 try
                 {
-                    await ResolveAndCommitZoneClickAsync(
+                    await ResolveAndCommitToolClickAsync(
                         viewport,
                         screen,
-                        capturedShift);
+                        capturedShift,
+                        isDrawingClick);
                 }
                 catch (OperationCanceledException)
                 {
@@ -1098,14 +1184,17 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 {
                     _osnapIndicator?.Hide();
                     System.Diagnostics.Debug.WriteLine(
-                        $"[OSnap] Zone click resolution failed: " +
+                        $"[OSnap] Viewport tool click resolution failed: " +
                         exception.Message);
                 }
                 finally
                 {
                     _zoneClickPending = false;
-                    _drawingViewModel.CompletePointResolution(
-                        drawingSessionVersion);
+                    if (isDrawingClick)
+                    {
+                        _drawingViewModel.CompletePointResolution(
+                            drawingSessionVersion);
+                    }
                 }
 
                 return;
@@ -1184,45 +1273,323 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private void DrawingViewModel_MeasurementLabelsChanged(object? sender, EventArgs e)
             => RebuildMeasurementLabels();
 
+        private void DrawingViewModel_MeasurementPreviewChanged(object? sender, EventArgs e)
+            => UpdateMeasurementTransientVisuals();
+
         private void IfcViewer_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             AdvanceOsnapCameraVersion();
-            UpdateMeasurementLabelPositions();
+            UpdateMeasurementOverlayPositions();
         }
 
         private void RebuildMeasurementLabels()
         {
             MeasurementOverlayCanvas.Children.Clear();
             _measurementLabels.Clear();
+            _measurementLines.Clear();
+            _measurementEndpointMarkers.Clear();
+
+            _measurementPreviewLine = CreateMeasurementLine();
+            MeasurementOverlayCanvas.Children.Add(_measurementPreviewLine);
+            _measurementPreviewStartMarker = CreateMeasurementEndpointMarker();
+            MeasurementOverlayCanvas.Children.Add(_measurementPreviewStartMarker);
+            _measurementPreviewEndMarker = CreateMeasurementEndpointMarker();
+            MeasurementOverlayCanvas.Children.Add(_measurementPreviewEndMarker);
 
             foreach (MeasurementVisualData measurement in _drawingViewModel.MeasurementSegments)
             {
+                System.Windows.Shapes.Line line = CreateMeasurementLine();
+                MeasurementOverlayCanvas.Children.Add(line);
+                _measurementLines.Add((measurement, line));
+
+                System.Windows.Shapes.Ellipse startMarker =
+                    CreateMeasurementEndpointMarker();
+                System.Windows.Shapes.Ellipse endMarker =
+                    CreateMeasurementEndpointMarker();
+                MeasurementOverlayCanvas.Children.Add(startMarker);
+                MeasurementOverlayCanvas.Children.Add(endMarker);
+                _measurementEndpointMarkers.Add(
+                    (measurement, startMarker, endMarker));
+
                 var text = new TextBlock
                 {
                     Text = measurement.LabelText,
-                    FontFamily = new FontFamily("Segoe UI"),
-                    FontSize = 14,
+                    FontSize = (double)FindResource("FontSizeXS"),
                     FontWeight = FontWeights.SemiBold,
-                    Foreground = Brushes.WhiteSmoke
                 };
+                text.SetResourceReference(
+                    TextBlock.FontFamilyProperty,
+                    "FontPrimary");
+                text.SetResourceReference(
+                    TextBlock.ForegroundProperty,
+                    "TextPrimaryBrush");
                 var label = new Border
                 {
                     Child = text,
-                    Padding = new Thickness(5, 2.5, 5, 2.5),
-                    Background = new SolidColorBrush(Color.FromArgb(205, 28, 30, 33)),
-                    BorderBrush = new SolidColorBrush(Color.FromArgb(140, 145, 155, 163)),
-                    BorderThickness = new Thickness(0.6),
+                    Padding = new Thickness(4, 1, 4, 1),
+                    BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(2),
                     IsHitTestVisible = false,
                     SnapsToDevicePixels = true,
                     Visibility = Visibility.Collapsed
                 };
+                label.SetResourceReference(
+                    Border.BackgroundProperty,
+                    "SurfaceElevatedBrush");
+                label.SetResourceReference(
+                    Border.BorderBrushProperty,
+                    "PrimaryBrush");
 
                 MeasurementOverlayCanvas.Children.Add(label);
                 _measurementLabels.Add((measurement, label));
             }
 
+            _measurementPickMarker = CreateMeasurementPickMarker();
+            MeasurementOverlayCanvas.Children.Add(_measurementPickMarker);
+
+            UpdateMeasurementOverlayPositions();
+        }
+
+        private static System.Windows.Shapes.Line CreateMeasurementLine()
+        {
+            var line = new System.Windows.Shapes.Line
+            {
+                StrokeThickness = MeasurementLineThickness,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                IsHitTestVisible = false,
+                SnapsToDevicePixels = true,
+                Visibility = Visibility.Collapsed
+            };
+            line.SetResourceReference(
+                System.Windows.Shapes.Shape.StrokeProperty,
+                "PrimaryBrush");
+            return line;
+        }
+
+        private static System.Windows.Shapes.Ellipse CreateMeasurementEndpointMarker()
+        {
+            var marker = new System.Windows.Shapes.Ellipse
+            {
+                Width = MeasurementEndpointSize,
+                Height = MeasurementEndpointSize,
+                IsHitTestVisible = false,
+                SnapsToDevicePixels = true,
+                Visibility = Visibility.Collapsed
+            };
+            marker.SetResourceReference(
+                System.Windows.Shapes.Shape.FillProperty,
+                "PrimaryBrush");
+            return marker;
+        }
+
+        private static FrameworkElement CreateMeasurementPickMarker()
+        {
+            var marker = new Grid
+            {
+                Width = MeasurementPickMarkerSize,
+                Height = MeasurementPickMarkerSize,
+                IsHitTestVisible = false,
+                Visibility = Visibility.Collapsed
+            };
+
+            var horizontal = new System.Windows.Shapes.Line
+            {
+                X1 = 1,
+                Y1 = MeasurementPickMarkerSize / 2d,
+                X2 = MeasurementPickMarkerSize - 1,
+                Y2 = MeasurementPickMarkerSize / 2d,
+                StrokeThickness = 1.25d,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round
+            };
+            horizontal.SetResourceReference(
+                System.Windows.Shapes.Shape.StrokeProperty,
+                "PrimaryBrush");
+            marker.Children.Add(horizontal);
+
+            var vertical = new System.Windows.Shapes.Line
+            {
+                X1 = MeasurementPickMarkerSize / 2d,
+                Y1 = 1,
+                X2 = MeasurementPickMarkerSize / 2d,
+                Y2 = MeasurementPickMarkerSize - 1,
+                StrokeThickness = 1.25d,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round
+            };
+            vertical.SetResourceReference(
+                System.Windows.Shapes.Shape.StrokeProperty,
+                "PrimaryBrush");
+            marker.Children.Add(vertical);
+
+            var ring = new System.Windows.Shapes.Ellipse
+            {
+                Width = 7d,
+                Height = 7d,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                StrokeThickness = 1.25d
+            };
+            ring.SetResourceReference(
+                System.Windows.Shapes.Shape.StrokeProperty,
+                "PrimaryBrush");
+            marker.Children.Add(ring);
+
+            var center = new System.Windows.Shapes.Ellipse
+            {
+                Width = 2.5d,
+                Height = 2.5d,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            center.SetResourceReference(
+                System.Windows.Shapes.Shape.FillProperty,
+                "PrimaryBrush");
+            marker.Children.Add(center);
+
+            return marker;
+        }
+
+        private void UpdateMeasurementOverlayPositions()
+        {
+            UpdateMeasurementLinePositions();
+            UpdateMeasurementEndpointPositions();
             UpdateMeasurementLabelPositions();
+            UpdateMeasurementPickMarker();
+        }
+
+        private void UpdateMeasurementLinePositions()
+        {
+            UpdateMeasurementPreviewLine();
+            foreach ((MeasurementVisualData data, System.Windows.Shapes.Line line) in _measurementLines)
+                UpdateMeasurementLine(line, data.Start, data.End);
+        }
+
+        private void UpdateMeasurementEndpointPositions()
+        {
+            UpdateMeasurementPreviewMarkers();
+            foreach ((MeasurementVisualData data, System.Windows.Shapes.Ellipse start, System.Windows.Shapes.Ellipse end) in _measurementEndpointMarkers)
+            {
+                UpdateMeasurementMarker(start, data.Start);
+                UpdateMeasurementMarker(end, data.End);
+            }
+        }
+
+        private void UpdateMeasurementTransientVisuals()
+        {
+            UpdateMeasurementPreviewLine();
+            UpdateMeasurementPreviewMarkers();
+            UpdateMeasurementPickMarker();
+        }
+
+        private void UpdateMeasurementPreviewLine()
+        {
+            if (_measurementPreviewLine == null)
+                return;
+
+            MeasurementLineData? preview = _drawingViewModel.MeasurementPreview;
+            if (preview == null)
+            {
+                _measurementPreviewLine.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            UpdateMeasurementLine(
+                _measurementPreviewLine,
+                preview.Start,
+                preview.End);
+        }
+
+        private void UpdateMeasurementPreviewMarkers()
+        {
+            if (_measurementPreviewStartMarker == null ||
+                _measurementPreviewEndMarker == null)
+            {
+                return;
+            }
+
+            MeasurementLineData? preview = _drawingViewModel.MeasurementPreview;
+            if (preview == null)
+            {
+                _measurementPreviewStartMarker.Visibility = Visibility.Collapsed;
+                _measurementPreviewEndMarker.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            UpdateMeasurementMarker(_measurementPreviewStartMarker, preview.Start);
+            double dx = preview.End.X - preview.Start.X;
+            double dy = preview.End.Y - preview.Start.Y;
+            double dz = preview.End.Z - preview.Start.Z;
+            if (dx * dx + dy * dy + dz * dz <= 1e-12d)
+            {
+                _measurementPreviewEndMarker.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            UpdateMeasurementMarker(_measurementPreviewEndMarker, preview.End);
+        }
+
+        private void UpdateMeasurementPickMarker()
+        {
+            if (_measurementPickMarker == null)
+                return;
+
+            DomainPoint3D? point = _drawingViewModel.MeasurementMarkerPoint;
+            if (!_drawingViewModel.IsMeasuring || point == null)
+            {
+                _measurementPickMarker.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            UpdateMeasurementMarker(_measurementPickMarker, point);
+        }
+
+        private void UpdateMeasurementMarker(
+            FrameworkElement marker,
+            DomainPoint3D point)
+        {
+            if (!TryProjectToOverlay(
+                    IfcViewer,
+                    new Point3D(point.X, point.Y, point.Z),
+                    out Point screen,
+                    out double depth) ||
+                depth <= 0)
+            {
+                marker.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            Canvas.SetLeft(marker, screen.X - marker.Width / 2d);
+            Canvas.SetTop(marker, screen.Y - marker.Height / 2d);
+            marker.Visibility = Visibility.Visible;
+        }
+
+        private void UpdateMeasurementLine(
+            System.Windows.Shapes.Line line,
+            DomainPoint3D start,
+            DomainPoint3D end)
+        {
+            if (!TryProjectToOverlay(
+                    IfcViewer,
+                    new Point3D(start.X, start.Y, start.Z),
+                    out Point screenStart,
+                    out _) ||
+                !TryProjectToOverlay(
+                    IfcViewer,
+                    new Point3D(end.X, end.Y, end.Z),
+                    out Point screenEnd,
+                    out _))
+            {
+                line.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            line.X1 = screenStart.X;
+            line.Y1 = screenStart.Y;
+            line.X2 = screenEnd.X;
+            line.Y2 = screenEnd.Y;
+            line.Visibility = Visibility.Visible;
         }
 
         private void UpdateMeasurementLabelPositions()
@@ -1265,7 +1632,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                     0,
                     Math.Max(0, viewportWidth - labelSize.Width));
                 double top = Math.Clamp(
-                    screen.Y - labelSize.Height - 10,
+                    screen.Y - labelSize.Height - 6,
                     0,
                     Math.Max(0, viewportHeight - labelSize.Height));
 
@@ -1318,7 +1685,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private void IfcViewer_CameraChanged(object sender, RoutedEventArgs e)
         {
             AdvanceOsnapCameraVersion();
-            UpdateMeasurementLabelPositions();
+            UpdateMeasurementOverlayPositions();
 
             if (_isUpdatingCameraMode)
                 return;

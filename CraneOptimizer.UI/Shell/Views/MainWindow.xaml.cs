@@ -6,8 +6,11 @@ using CraneOptimizer.UI.Features.F15_ObjectSnap.ViewModels;
 using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using CraneOptimizer.UI.F10_ProjectManagement.Views;
 using CraneOptimizer.UI.Shell.ViewModels;
+using HelixToolkit.Wpf;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Media3D;
 
 namespace CraneOptimizer.UI.Shell.Views
 {
@@ -16,8 +19,6 @@ namespace CraneOptimizer.UI.Shell.Views
         private readonly IProjectNavigationService _nav;
         private readonly IUiInteractionContextService _uiContext;
         private readonly IProjectHistoryService _history;
-        private GridLength _rightWorkspaceWidthBeforeAi = new(CranePropertiesDefaultWidth);
-        private bool _isAiAssistWidthActive;
 
         public MainWindow(
             MainViewModel vm,
@@ -43,6 +44,7 @@ namespace CraneOptimizer.UI.Shell.Views
             MaximizeTaskbarHelper.Attach(this, MaximizeButton);
             OnHistoryStateChanged();
             PreviewKeyDown += MainWindow_PreviewKeyDown;
+            PreviewMouseDown += MainWindow_PreviewMouseDown;
             // Apply initial maximize after source is initialized
             Loaded += (_, _) => MaximizeTaskbarHelper.ToggleMaximize(this, MaximizeButton);
         }
@@ -52,17 +54,20 @@ namespace CraneOptimizer.UI.Shell.Views
             _uiContext.ActionRequested -= OnAiActionRequested;
             _history.StateChanged -= OnHistoryStateChanged;
             PreviewKeyDown -= MainWindow_PreviewKeyDown;
+            PreviewMouseDown -= MainWindow_PreviewMouseDown;
         }
 
         private void OnAiActionRequested(object? sender, AiUiActionRequestedEventArgs e)
         {
+            _ = Dispatcher.InvokeAsync(StopMeasurementIfActive);
+
             if (!string.Equals(e.ActionType, "NavigateTab", StringComparison.OrdinalIgnoreCase)
                 || !IsLegacyAiWorkspaceTarget(e.Target))
             {
                 return;
             }
 
-            Dispatcher.Invoke(OpenAiAssistStudio);
+            _ = Dispatcher.InvokeAsync(OpenAiAssistStudio);
         }
 
         private static bool IsLegacyAiWorkspaceTarget(string? target)
@@ -145,7 +150,6 @@ namespace CraneOptimizer.UI.Shell.Views
         private void UndoBtn_Click(object sender, RoutedEventArgs e) => _history.Undo();
         private void RedoBtn_Click(object sender, RoutedEventArgs e) => _history.Redo();
         private void ClearHistory_Click(object sender, RoutedEventArgs e) => _history.Clear();
-        private void BtnDimensionTool_Click(object sender, RoutedEventArgs e) { }
 
         private void OnHistoryStateChanged()
         {
@@ -157,6 +161,8 @@ namespace CraneOptimizer.UI.Shell.Views
 
         private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            StopMeasurementIfActive();
+
             if (Keyboard.Modifiers != ModifierKeys.Control)
                 return;
 
@@ -171,6 +177,42 @@ namespace CraneOptimizer.UI.Shell.Views
                 e.Handled = true;
             }
         }
+
+        private void MainWindow_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (DataContext is not MainViewModel { Drawing.IsMeasuring: true })
+                return;
+
+            bool isMeasurementPointPlacement =
+                e.ChangedButton == MouseButton.Left &&
+                FindVisualAncestor<HelixViewport3D>(
+                    e.OriginalSource as DependencyObject) != null;
+            if (!isMeasurementPointPlacement)
+                StopMeasurementIfActive();
+        }
+
+        private void StopMeasurementIfActive()
+        {
+            if (DataContext is MainViewModel { Drawing.IsMeasuring: true } viewModel)
+                viewModel.Drawing.StopMeasureMode();
+        }
+
+        private static T? FindVisualAncestor<T>(DependencyObject? current)
+            where T : DependencyObject
+        {
+            while (current != null)
+            {
+                if (current is T match)
+                    return match;
+
+                current = current is Visual || current is Visual3D
+                    ? VisualTreeHelper.GetParent(current)
+                    : LogicalTreeHelper.GetParent(current);
+            }
+
+            return null;
+        }
+
         private void RenderQualityCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (sender is ComboBox { SelectedItem: ComboBoxItem item })
@@ -179,15 +221,10 @@ namespace CraneOptimizer.UI.Shell.Views
 
         private void OpenAiAssistTab()
         {
-            AiAssistTab.Visibility = Visibility.Visible;
-            RightWorkspaceTabs.SelectedItem = AiAssistTab;
-            ShowAiCompanionButton.Visibility = Visibility.Collapsed;
-        }
+            if (DataContext is MainViewModel viewModel)
+                viewModel.SelectedRightWorkspaceTab = RightWorkspaceTab.AiAssistant;
 
-        private void CloseAiAssistTab_Click(object sender, RoutedEventArgs e)
-        {
-            AiAssistTab.Visibility = Visibility.Collapsed;
-            RightWorkspaceTabs.SelectedIndex = 0;
+            ShowAiCompanionButton.Visibility = Visibility.Collapsed;
         }
 
         private void AiCompanionStatusStrip_AssistRequested(object sender, RoutedEventArgs e)

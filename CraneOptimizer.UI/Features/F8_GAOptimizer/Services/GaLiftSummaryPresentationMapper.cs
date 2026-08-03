@@ -120,7 +120,7 @@ public sealed class GaLiftSummaryPresentationMapper : IGaLiftSummaryPresentation
             SmallestCapacityReserveText = Tonnes(smallestReserve),
             NearCapacityLimitText = Number(nearLimitCount),
             NearCapacityLimitTooltip =
-                $"Completed lifts operating at or above the configured {nearLimitThreshold:P0} capacity-use advisory threshold.",
+                "Completed lifts operating at or above the configured capacity-use advisory threshold.",
             CapacityFailuresText = Number(failures.Capacity),
             RadiusFailuresText = Number(failures.Radius),
             BoomHeightFailuresText = Number(failures.BoomHeight),
@@ -139,8 +139,8 @@ public sealed class GaLiftSummaryPresentationMapper : IGaLiftSummaryPresentation
             SafetyFactorText = Ratio(analysis.RunContext.SafetyFactor),
             DeratingRatioText = Ratio(analysis.RunContext.DeratingRatio),
             WireLengthText = Meters(analysis.RunContext.WireRopeLengthM),
-            HookWeightText = Tonnes(analysis.RunContext.HookRiggingWeightTon),
-            AccessoriesWeightText = Tonnes(analysis.RunContext.TotalLiftingAccessoriesWeightTon),
+            LiftingAccessoriesWeightText =
+                Tonnes(SavedLiftingAccessoriesWeight(analysis.RunContext)),
             OperatingModeText = operatingMode,
             HasOperatingMode = !string.IsNullOrWhiteSpace(operatingMode),
             CandidatePointsGeneratedText = OptionalNumber(analysis.Performance.CandidatePointsGenerated),
@@ -347,7 +347,7 @@ public sealed class GaLiftSummaryPresentationMapper : IGaLiftSummaryPresentation
         if (hasConsistencyWarning)
             return "The saved lift outcomes require review.";
         if (unresolved == 0)
-            return "The current crane can complete the evaluated plan.";
+            return "The current crane completed all evaluated lifts.";
         if (failures.ProvenCraneFailures > 0 && failures.HasInputOrOther)
             return "Some lifts exceed the evaluated crane limits, while others require corrected input information.";
         if (failures.ProvenCraneFailures > 0 && failures.ChartEvidence > 0)
@@ -355,7 +355,7 @@ public sealed class GaLiftSummaryPresentationMapper : IGaLiftSummaryPresentation
         if (failures.ProvenCraneFailures > 0)
             return "The current crane cannot complete all evaluated lifts.";
         if (failures.ChartEvidence > 0)
-            return "Crane suitability cannot be confirmed because the selected load-chart data is incomplete.";
+            return "Crane suitability cannot be confirmed because the selected load-chart information is incomplete.";
         return "Crane suitability cannot be confirmed until the missing lift information is corrected.";
     }
 
@@ -381,9 +381,9 @@ public sealed class GaLiftSummaryPresentationMapper : IGaLiftSummaryPresentation
         if (unresolved == 0)
             return "Proceed to qualified engineering review and verify the plan against manufacturer data.";
         if (failures.ProvenCraneFailures > 0 && failures.HasInputOrOther)
-            return "Correct incomplete lift information first, then review the proven crane-limit failures and rerun the optimizer.";
+            return "Correct incomplete lift information first, then review the confirmed crane-limit failures and rerun the optimizer.";
         if (failures.ProvenCraneFailures > 0 && failures.ChartEvidence > 0)
-            return "Correct the incomplete load-chart information first, then review the proven crane-limit failures and rerun the optimizer.";
+            return "Correct the incomplete load-chart information first, then review the confirmed crane-limit failures and rerun the optimizer.";
         return failures.Dominant switch
         {
             FailureKind.Capacity =>
@@ -493,6 +493,11 @@ public sealed class GaLiftSummaryPresentationMapper : IGaLiftSummaryPresentation
             yield return "Lift geometry reflects the assumptions saved with the completed optimizer run.";
         }
 
+        if (analysis.AlternativeScreeningOutcome != AlternativeScreeningOutcome.NotRun)
+            yield return "Candidate screening used the existing crane setup positions.";
+        yield return "Crane footprint, site access, ground bearing, outrigger reactions, collision paths, and manufacturer approval were not revalidated.";
+        yield return "This advisory result does not automatically approve or change the selected crane.";
+
         if (analysis.Confidence == GaLiftAnalysisConfidence.Low)
             yield return "The available evidence supports only a low-confidence summary.";
         if (hasConsistencyWarning)
@@ -530,6 +535,8 @@ public sealed class GaLiftSummaryPresentationMapper : IGaLiftSummaryPresentation
         lines.Add($"Dominant failure: {model.DominantFailureExplanationText}");
         lines.Add($"Safety factor: {model.SafetyFactorText}");
         lines.Add($"Derating ratio: {model.DeratingRatioText}");
+        lines.Add($"Wire length: {model.WireLengthText}");
+        lines.Add($"Lifting accessories weight: {model.LiftingAccessoriesWeightText}");
         lines.Add($"Candidate points generated: {model.CandidatePointsGeneratedText}");
         lines.Add($"Valid candidate points: {model.ValidCandidatePointsText}");
         lines.Add($"Rejected candidate points: {model.RejectedCandidatePointsText}");
@@ -569,9 +576,9 @@ public sealed class GaLiftSummaryPresentationMapper : IGaLiftSummaryPresentation
             FailureKind.Radius =>
                 "Most unresolved lifts are outside the usable working radius from the evaluated crane setup positions.",
             FailureKind.BoomHeight =>
-                "Most unresolved lifts require a boom configuration or vertical reach outside the crane's supported evaluated range.",
+                "Most unresolved lifts require a boom configuration or vertical reach outside the crane's evaluated range.",
             FailureKind.LoadChartEnvelope or FailureKind.LoadChartEvidence =>
-                "Most unresolved lifts could not be validated within the selected crane's available load-chart data.",
+                "Most unresolved lifts could not be validated using the available selected load-chart data.",
             FailureKind.InputWeight or FailureKind.InputCenterOfGravity or FailureKind.InputGeometry
                 or FailureKind.InputSetup =>
                 "Required lifting information is incomplete or unreliable, so crane suitability cannot be confirmed for these lifts.",
@@ -637,6 +644,15 @@ public sealed class GaLiftSummaryPresentationMapper : IGaLiftSummaryPresentation
 
     private static bool IsGreaterThanOne(double? value) =>
         Valid(value) is { } valid && valid > 1.0;
+
+    private static double? SavedLiftingAccessoriesWeight(GaAnalysisRunContext context)
+    {
+        double? total = ValidFinite(context.TotalLiftingAccessoriesWeightTon);
+        double? aggregateRigging = ValidFinite(context.HookRiggingWeightTon);
+        return total is > 0 || aggregateRigging is null or <= 0
+            ? total
+            : aggregateRigging;
+    }
 
     private static double? Valid(double? value) =>
         value.HasValue && double.IsFinite(value.Value) && value.Value >= 0 ? value : null;

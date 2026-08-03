@@ -28,6 +28,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         CtrlEnter,
         CKey,
         DoubleClick,
+        FirstPointClick,
         ToolbarFinishButton
     }
 
@@ -48,24 +49,25 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         private readonly IZoneGeometryService _geometryService;
         private readonly IUnitSettingsService? _unitSettings;
         private readonly IOsnapService? _osnapService;
+        private readonly IDeleteConfirmationService _deleteConfirmation;
 
         // ── Timers ───────────────────────────────────────────────────────────
         private readonly DispatcherTimer _inlineWarningTimer;
         private readonly DispatcherTimer _escConfirmTimer;
-        private readonly DispatcherTimer _deleteAllConfirmTimer;
 
         // ── Drawing state ────────────────────────────────────────────────────
         private DomainPoint3D? _currentHover;
         private bool _escPendingConfirmation;
-        private bool _deleteAllPendingConfirmation;
         private ZoneType _currentType = ZoneType.Allowed;
 
         // ── Measurement state ────────────────────────────────────────────────
         private readonly List<DomainPoint3D> _measurePoints = new();
         private readonly List<MeasurementVisualData> _measureSegments = new();
         private DomainPoint3D? _measureHoverPoint;
+        private DomainPoint3D? _measurementMarkerPoint;
 
         public event EventHandler? MeasurementLabelsChanged;
+        public event EventHandler? MeasurementPreviewChanged;
 
         // ── Snap ─────────────────────────────────────────────────────────────
         private CancellationTokenSource? _transientUpdateCancellation;
@@ -87,7 +89,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 
         // ── Geometry constants ───────────────────────────────────────────────
         private const double PointEqualityTolerance = 0.001;
-        private const double SnapToFirstThresholdPercent = 0.005;
         private const double MeasurementDistanceTolerance = 1e-6;
 
         // ════════════════════════════════════════════════════════════════════
@@ -101,7 +102,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             IViewportHitTestService hitTest,
             IZoneGeometryService geometryService,
             IUnitSettingsService? unitSettings = null,
-            IOsnapService? osnapService = null)
+            IOsnapService? osnapService = null,
+            IDeleteConfirmationService? deleteConfirmation = null)
         {
             _drawing = drawing;
             _scene = scene;
@@ -111,7 +113,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             _geometryService = geometryService;
             _unitSettings = unitSettings;
             _osnapService = osnapService;
-            _zoneList = new ZoneListViewModel(scene);
+            _deleteConfirmation = deleteConfirmation ?? new DeleteConfirmationService();
+            _zoneList = new ZoneListViewModel(scene, unitSettings, _deleteConfirmation);
 
             if (_unitSettings != null)
                 _unitSettings.SettingsChanged += OnUnitSettingsChanged;
@@ -142,9 +145,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 
             _escConfirmTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             _escConfirmTimer.Tick += EscConfirmTimer_Tick;
-
-            _deleteAllConfirmTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-            _deleteAllConfirmTimer.Tick += DeleteAllConfirmTimer_Tick;
 
             RefreshHintText();
         }
@@ -229,6 +229,11 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 
         public bool IsMeasureOverlayVisible => IsMeasuring;
         public IReadOnlyList<MeasurementVisualData> MeasurementSegments => _measureSegments;
+        public DomainPoint3D? MeasurementMarkerPoint => _measurementMarkerPoint;
+        public MeasurementLineData? MeasurementPreview =>
+            _measurePoints.Count == 1 && _measureHoverPoint != null
+                ? new MeasurementLineData(_measurePoints[0], _measureHoverPoint)
+                : null;
 
         // ── Commands ──────────────────────────────────────────────────────────
         public ICommand StartAllowedCommand { get; }
@@ -282,6 +287,22 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
                 capturedShift,
                 acceptedSnap);
             return AddResolvedPoint(point);
+        }
+
+        public bool CommitResolvedMeasurementPoint(
+            DomainPoint3D rawPoint,
+            OsnapResult? acceptedSnap)
+        {
+            if (!IsMeasuring)
+                return false;
+
+            DomainPoint3D point = TryResolveObjectSnapPoint(
+                acceptedSnap,
+                out DomainPoint3D snappedPoint)
+                ? snappedPoint
+                : rawPoint;
+            HandleMeasureClick(point);
+            return true;
         }
 
         /// <summary>
@@ -364,7 +385,12 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 
             if (IsMeasuring)
             {
-                SetMeasureHoverPoint(rawPoint, capturedShift);
+                DomainPoint3D point = TryResolveObjectSnapPoint(
+                    acceptedSnap,
+                    out DomainPoint3D snappedPoint)
+                    ? snappedPoint
+                    : rawPoint;
+                SetMeasureHoverPoint(point, capturedShift);
             }
         }
 
@@ -374,8 +400,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             if (!IsMeasuring) return;
 
             _measureHoverPoint = rawPoint;
-            RenderMeasurePreview();
-            RenderMeasurementPickMarker(rawPoint);
+            SetMeasurementPickMarker(rawPoint);
+            MeasurementPreviewChanged?.Invoke(this, EventArgs.Empty);
         }
 
         public void ClearMeasureHoverPoint()
@@ -383,8 +409,10 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             if (!IsMeasuring) return;
 
             _measureHoverPoint = null;
+            _measurementMarkerPoint = null;
             _render.ClearLayer(MeasurePreviewLayer);
             _render.ClearLayer(SnapIndicatorLayer);
+            MeasurementPreviewChanged?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>Key-down forwarded from PreviewKeyDown in the View.</summary>
@@ -499,6 +527,12 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         {
             if (!IsDrawing)
                 return false;
+
+            if (TryResolveFirstPointClosure(point, out _))
+            {
+                FinishDrawingFromUserAction(FinishReason.FirstPointClick);
+                return true;
+            }
 
             if (!_drawing.TryAddPoint(point))
                 return false;
@@ -641,15 +675,20 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         private void StartMeasure()
         {
             if (IsDrawing) Cancel();
+            if (IsMeasuring)
+                StopMeasureMode();
 
             _interaction.PushMode(new Interaction.DrawingInteractionMode(this, _hitTest, _interaction));
             IsMeasuring = true;
             ResetMeasurement();
         }
 
-        private void StopMeasureMode()
+        public void StopMeasureMode()
         {
-            if (IsMeasuring) _interaction.PopMode();
+            if (!IsMeasuring)
+                return;
+
+            _interaction.PopMode();
             IsMeasuring = false;
             ResetMeasurement();
         }
@@ -659,10 +698,12 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             _measurePoints.Clear();
             _measureSegments.Clear();
             _measureHoverPoint = null;
+            _measurementMarkerPoint = null;
             MeasureText = "Click first point to start measuring";
             _render.ClearLayer(MeasurePreviewLayer);
             _render.ClearLayer(MeasureFinalLayer);
             _render.ClearLayer(SnapIndicatorLayer);
+            MeasurementPreviewChanged?.Invoke(this, EventArgs.Empty);
             MeasurementLabelsChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -673,8 +714,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
                 _measurePoints.Add(point);
                 _measureHoverPoint = point;
                 MeasureText = "Point A set - click Point B";
-                RenderMeasurePreview();
-                RenderMeasurementPickMarker(point);
+                SetMeasurementPickMarker(point);
+                MeasurementPreviewChanged?.Invoke(this, EventArgs.Empty);
                 return;
             }
 
@@ -688,8 +729,8 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             {
                 MeasureText = "Point B must differ from Point A";
                 _measureHoverPoint = point;
-                RenderMeasurePreview();
-                RenderMeasurementPickMarker(point);
+                SetMeasurementPickMarker(point);
+                MeasurementPreviewChanged?.Invoke(this, EventArgs.Empty);
                 return;
             }
 
@@ -699,35 +740,9 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             _measureHoverPoint = null;
             MeasureText = $"{labelText} - click a new Point A";
             _render.ClearLayer(MeasurePreviewLayer);
-            RenderMeasurementPickMarker(point);
-            RenderAllMeasureSegments();
+            SetMeasurementPickMarker(point);
+            MeasurementPreviewChanged?.Invoke(this, EventArgs.Empty);
             MeasurementLabelsChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        private void RenderMeasurePreview()
-        {
-            if (_measurePoints.Count != 1 || _measureHoverPoint == null)
-            {
-                _render.ClearLayer(MeasurePreviewLayer);
-                return;
-            }
-
-            _render.Render(
-                new[] { new MeasurementLineData(_measurePoints[0], _measureHoverPoint) },
-                new MeasurementPreviewBuilder(),
-                MeasurePreviewLayer);
-        }
-
-        private void RenderAllMeasureSegments()
-        {
-            _render.ClearLayer(MeasureFinalLayer);
-            if (_measureSegments.Count > 0)
-            {
-                _render.Render(
-                    _measureSegments,
-                    new MeasurementFinalBuilder(),
-                    MeasureFinalLayer);
-            }
         }
 
         private string FormatMeasurementDistance(double distanceMeters)
@@ -759,6 +774,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
 
         private void OnUnitSettingsChanged(object? sender, UnitSettings settings)
         {
+            _zoneList.RefreshAreaDisplay(settings);
             for (int index = 0; index < _measureSegments.Count; index++)
             {
                 MeasurementVisualData measurement = _measureSegments[index];
@@ -773,7 +789,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             if (_measureSegments.Count > 0)
                 MeasureText = $"{_measureSegments[^1].LabelText} - click a new Point A";
 
-            RenderAllMeasureSegments();
             MeasurementLabelsChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -781,12 +796,9 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         // Snap indicator
         // ════════════════════════════════════════════════════════════════════
 
-        private void RenderMeasurementPickMarker(DomainPoint3D point)
+        private void SetMeasurementPickMarker(DomainPoint3D point)
         {
-            _render.Render(
-                new[] { new SnapIndicatorData(point, SnapType.Point, IsMeasurement: true) },
-                new SnapIndicatorBuilder(),
-                SnapIndicatorLayer);
+            _measurementMarkerPoint = point;
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -804,11 +816,20 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
                 return;
             }
 
-            var color = IsHoverNearFirstPoint() ? Colors.Cyan : Colors.Yellow;
+            bool isClosureCandidate = IsHoverNearFirstPoint();
+            string brushKey = _currentType == ZoneType.Forbidden
+                ? "DestructiveBrush"
+                : "SuccessBrush";
+            Color color =
+                (System.Windows.Application.Current.TryFindResource(brushKey)
+                    as SolidColorBrush)?.Color ??
+                (_currentType == ZoneType.Forbidden
+                    ? Color.FromRgb(245, 79, 88)
+                    : Color.FromRgb(67, 203, 103));
 
             _render.Render(
                 new[] { previewPoints },
-                new PreviewLinesBuilder(color),
+                new PreviewLinesBuilder(color, isClosureCandidate),
                 PreviewLayer);
         }
 
@@ -832,24 +853,33 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
                     .FirstOrDefault(zone => zone.ZoneId == _zoneList.SelectedZone.ZoneData.ZoneId);
             }
 
-            if (selected != null) _scene.RemoveZone(selected);
+            if (selected == null)
+                return;
+
+            string zoneName = _zoneList.Zones
+                .FirstOrDefault(zone => zone.ZoneData?.ZoneId == selected.ZoneId)
+                ?.Name
+                ?? selected.Name;
+            string message = string.IsNullOrWhiteSpace(zoneName)
+                ? "Are you sure you want to delete the selected zone?"
+                : $"Are you sure you want to delete \"{zoneName}\"?";
+            if (!_deleteConfirmation.ConfirmDelete("Delete Zone", message, "Delete"))
+                return;
+
+            _scene.RemoveZone(selected);
         }
 
         private void DeleteAllZones()
         {
-            if (!_deleteAllPendingConfirmation)
+            if (!_deleteConfirmation.ConfirmDelete(
+                    "Delete All Zones",
+                    "Are you sure you want to delete all zones? This action cannot be undone.",
+                    "Delete"))
             {
-                _deleteAllPendingConfirmation = true;
-                _deleteAllConfirmTimer.Stop();
-                _deleteAllConfirmTimer.Start();
-                ShowInlineWarning("⚠ Press Delete All again to confirm", TimeSpan.FromSeconds(3));
                 return;
             }
 
-            _deleteAllPendingConfirmation = false;
-            _deleteAllConfirmTimer.Stop();
             _scene.ClearZones();
-            HideInlineWarning();
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -936,7 +966,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         private bool IsHoverNearFirstPoint()
         {
             var points = _drawing.GetPoints();
-            if (_currentHover == null || points.Count == 0) return false;
+            if (_currentHover == null || points.Count < 3) return false;
 
             var first = points[0];
             var h = _currentHover;
@@ -944,7 +974,7 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             var dy = first.Y - h.Y;
             var dz = first.Z - h.Z;
             var dist = System.Math.Sqrt(dx * dx + dy * dy + dz * dz);
-            return dist <= PreviewClosureThreshold();
+            return dist <= FirstPointClosureThreshold();
         }
 
         private DomainPoint3D ResolveDrawingPoint(
@@ -952,16 +982,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
             bool capturedShift,
             OsnapResult? acceptedSnap)
         {
-            if (acceptedSnap != null &&
-                (_osnapService?.Settings.MasterEnabled ?? true))
-            {
-                Point3D snapped = acceptedSnap.WorldPoint;
-                return new DomainPoint3D(
-                    snapped.X,
-                    snapped.Y,
-                    snapped.Z);
-            }
-
             if (TryResolveFirstPointClosure(
                     rawPoint,
                     out DomainPoint3D closedPoint))
@@ -969,11 +989,35 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
                 return closedPoint;
             }
 
+            if (TryResolveObjectSnapPoint(
+                    acceptedSnap,
+                    out DomainPoint3D snappedPoint))
+                return snappedPoint;
+
             DomainPoint3D? lastPoint = LastDrawnPoint();
             if (capturedShift && lastPoint != null)
                 return ApplyOrthogonalConstraint(rawPoint, lastPoint);
 
             return rawPoint;
+        }
+
+        private bool TryResolveObjectSnapPoint(
+            OsnapResult? acceptedSnap,
+            out DomainPoint3D point)
+        {
+            point = null!;
+            if (acceptedSnap == null ||
+                !(_osnapService?.Settings.MasterEnabled ?? true))
+            {
+                return false;
+            }
+
+            Point3D snapped = acceptedSnap.WorldPoint;
+            point = new DomainPoint3D(
+                snapped.X,
+                snapped.Y,
+                snapped.Z);
+            return true;
         }
 
         private bool TryResolveFirstPointClosure(
@@ -997,12 +1041,6 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
                 deltaZ * deltaZ;
             double threshold = FirstPointClosureThreshold();
             return distanceSquared <= threshold * threshold;
-        }
-
-        private double PreviewClosureThreshold()
-        {
-            double sceneScale = Volatile.Read(ref _sceneSize);
-            return sceneScale * SnapToFirstThresholdPercent;
         }
 
         private double FirstPointClosureThreshold()
@@ -1265,6 +1303,5 @@ namespace CraneOptimizer.UI.Features.F7_Zones.ViewModels
         // ── Timer ticks ───────────────────────────────────────────────────────
         private void InlineWarningTimer_Tick(object? sender, EventArgs e) => HideInlineWarning();
         private void EscConfirmTimer_Tick(object? sender, EventArgs e) { _escConfirmTimer.Stop(); _escPendingConfirmation = false; }
-        private void DeleteAllConfirmTimer_Tick(object? sender, EventArgs e) { _deleteAllConfirmTimer.Stop(); _deleteAllPendingConfirmation = false; }
     }
 }

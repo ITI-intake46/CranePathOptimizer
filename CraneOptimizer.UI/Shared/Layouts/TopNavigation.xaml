@@ -10,13 +10,12 @@
     xmlns:ZonesViews="clr-namespace:CraneOptimizer.UI.Features.F7_Zones.Views"
     xmlns:F18Views="clr-namespace:CraneOptimizer.UI.Features.F18_CoordinateReference.Views"
     xmlns:project="clr-namespace:CraneOptimizer.UI.F10_ProjectManagement.Views"
-    xmlns:ReportViews="clr-namespace:CraneOptimizer.UI.Features.F12_Reports.Views"
     xmlns:config="clr-namespace:CraneOptimizer.UI.Core.Configuration">
 
     <Border
         Background="{DynamicResource SurfaceBrush}"
-        BorderBrush="{DynamicResource BorderBrush}"
-        BorderThickness="0,0,0,1">
+        BorderBrush="{StaticResource PrimaryBrush}"
+        BorderThickness="0,0,0,2">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="28" />
@@ -72,16 +71,10 @@
                     <RadioButton
                         x:Name="TabAnalyze"
                         Checked="Tab_Checked"
-                        Content="ANALYZE"
+                        Content="ANALYSIS"
                         GroupName="RibbonTabs"
                         Style="{StaticResource RibbonTabBtn}" />
 
-                    <RadioButton
-                        x:Name="TabReports"
-                        Checked="Tab_Checked"
-                        Content="REPORTS"
-                        GroupName="RibbonTabs"
-                        Style="{StaticResource RibbonTabBtn}" />
                     <!-- Temporarily hidden by product decision. Keep logic intact for future re-enable. -->
                     <RadioButton
                         x:Name="TabSettings"
@@ -141,19 +134,13 @@
                     VerticalAlignment="Stretch"
                     Visibility="Collapsed" />
 
-                <!--  â”€â”€ ANALYZE tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
+                <!--  ANALYSIS tab  -->
                 <AnalyzeViews:AnalyzeTabView
                     x:Name="PanelAnalyze"
                     DataContext="{Binding CranePlacement}"
                     VerticalAlignment="Stretch"
                     Visibility="Collapsed" />
 
-                <!--  â”€â”€ REPORTS tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  -->
-                <ReportViews:ReportsTabView
-                    x:Name="PanelReports"
-                    DataContext="{Binding CranePlacement}"
-                    VerticalAlignment="Stretch"
-                    Visibility="Collapsed" />
                 <!-- Temporarily hidden by product decision. Keep logic intact for future re-enable. -->
                 <F9Views:UserSettingsView
                     x:Name="PanelSettings"

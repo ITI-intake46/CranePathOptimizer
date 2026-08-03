@@ -86,6 +86,32 @@
                 </StackPanel>
             </ContentControl>
 
+            <Rectangle Style="{StaticResource RibbonSep}" />
+
+            <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="REPORT">
+                <StackPanel Orientation="Horizontal">
+                    <Button
+                        Command="{Binding OpenAllElementsReportCommand}"
+                        Content="All Elements List Report"
+                        Style="{StaticResource RibbonMajorLeadingCommandTile}"
+                        ToolTip="Build an element list report">
+                        <Button.Tag>
+                            <TextBlock Text="📋" />
+                        </Button.Tag>
+                    </Button>
+                    <Button
+                        Width="{StaticResource RibbonMajorLongCommandWidth}"
+                        Command="{Binding OpenLiftingSummaryReportCommand}"
+                        Content="Lifting Summary Report"
+                        Style="{StaticResource RibbonMajorTrailingCommandTile}"
+                        ToolTip="Build a lifting summary report">
+                        <Button.Tag>
+                            <TextBlock Text="⛓" />
+                        </Button.Tag>
+                    </Button>
+                </StackPanel>
+            </ContentControl>
+
         </StackPanel>
     </ScrollViewer>
 </UserControl>

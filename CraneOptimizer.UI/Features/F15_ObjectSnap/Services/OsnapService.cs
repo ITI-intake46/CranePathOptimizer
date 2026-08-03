@@ -402,7 +402,8 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
             ArgumentNullException.ThrowIfNull(query.Viewport);
             if (!IsMasterEnabled ||
                 !query.Viewport.IsValid ||
-                query.Viewport.EnabledModes == OsnapModeMask.None)
+                query.Viewport.EnabledModes == OsnapModeMask.None ||
+                (!query.Viewport.SnapToDxf && !query.Viewport.SnapToIfc))
             {
                 return null;
             }
@@ -611,20 +612,6 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
 
                 var accumulator = new CandidateAccumulator(query.Viewport);
                 int pointCandidateCount = 0;
-                QueryPoints(
-                    indexes.CompletedZones,
-                    query.Viewport,
-                    ray,
-                    accumulator,
-                    ref pointCandidateCount,
-                    cancellationToken);
-                QueryPoints(
-                    indexes.ActiveZone,
-                    query.Viewport,
-                    ray,
-                    accumulator,
-                    ref pointCandidateCount,
-                    cancellationToken);
                 if (query.Viewport.SnapToDxf)
                 {
                     QueryPoints(
@@ -738,20 +725,6 @@ namespace CraneOptimizer.UI.Features.F15_ObjectSnap.Services
                 24,
                 64);
             var projected = new List<ProjectedSegment>(limit * 2);
-            AddProjectedSegments(
-                indexes.CompletedZones,
-                snapshot,
-                ray,
-                projected,
-                limit,
-                cancellationToken);
-            AddProjectedSegments(
-                indexes.ActiveZone,
-                snapshot,
-                ray,
-                projected,
-                limit,
-                cancellationToken);
             if (snapshot.SnapToDxf)
             {
                 AddProjectedSegments(

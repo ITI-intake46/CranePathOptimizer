@@ -59,8 +59,8 @@ namespace CraneOptimizer.UI.Core.Services
 
             if (clearReaderData)
             {
-                _ifcReader.ClearData();
                 ElementVisualBuilder.ClearMeshCache("IFC unloaded");
+                _ifcReader.ClearData();
             }
         }
 
