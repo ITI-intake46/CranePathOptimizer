@@ -27,6 +27,7 @@ namespace CraneOptimizer.AI.Services
             new("Beam", new[] { "beam", "beams", "ifcbeam" }, false, "beams"),
             new("Column", new[] { "column", "columns", "ifccolumn", "pillar", "pillars" }, false, "columns"),
             new("Wall", new[] { "wall", "walls", "ifcwall", "ifcwallstandardcase" }, false, "walls"),
+            new("Roof", new[] { "roof", "roofs", "ifcroof" }, false, "roofs"),
             new("Unknown", new[] { "unknown", "unclassified", "uncategorized", "uncategorised", "not categorized", "not categorised" }, false, "unknown/unclassified elements"),
             new("Assembly", new[] { "assembly", "assemblies", "element assembly", "element assemblies", "lift unit", "lift units", "grouped lift", "grouped lifts" }, false, "assemblies or lift units"),
             new("Reinforcement", new[] { "reinforcement", "reinforcing", "rebar", "rebars", "reinforcing bar", "reinforcing bars", "ifcreinforcingbar" }, false, "reinforcement/rebar elements"),
@@ -46,6 +47,17 @@ namespace CraneOptimizer.AI.Services
             if (ContainsAny(normalized, "building usage", "building type", "metadata", "property set", "classification"))
                 return false;
 
+            if (ContainsAny(
+                    normalized,
+                    "what does unknown mean",
+                    "explain unknown",
+                    "why are elements unknown",
+                    "why is unknown so high",
+                    "unknown category meaning"))
+            {
+                return true;
+            }
+
             var asksForCount = ContainsAny(normalized,
                 "how many", "count", "number of", "quantity of", "quantities of", "total", "breakdown", "summarize categories", "summarise categories");
 
@@ -54,7 +66,7 @@ namespace CraneOptimizer.AI.Services
 
             if (ContainsAny(normalized,
                     "element", "elements", "ifc", "bim", "model", "slab", "slabs", "beam", "beams", "column", "columns",
-                    "wall", "walls", "window", "windows", "door", "doors", "stair", "stairs", "footing", "footings", "foundation", "foundations", "unknown", "assembly", "assemblies", "rebar", "reinforcing", "candidate", "candidates",
+                    "wall", "walls", "roof", "roofs", "window", "windows", "door", "doors", "stair", "stairs", "footing", "footings", "foundation", "foundations", "unknown", "assembly", "assemblies", "rebar", "reinforcing", "candidate", "candidates",
                     "lift unit", "lift units", "weight", "kg", "ton", "tonne", "over", "above", ">"))
             {
                 return true;
@@ -100,6 +112,18 @@ namespace CraneOptimizer.AI.Services
             if (TryBuildSceneInputSummaryAnswer(context, visibleQuestion, activeScreen, out answer))
             {
                 source = "Deterministic BIM object and zone count answer produced locally from live project facts.";
+                return true;
+            }
+
+            if (TryBuildUnknownCategoryExplanation(context, visibleQuestion, activeScreen, out answer))
+            {
+                source = "Deterministic explanation of the Unknown BIM category produced locally from live model facts.";
+                return true;
+            }
+
+            if (TryBuildVisibleElementAnswer(context, visibleQuestion, activeScreen, out answer))
+            {
+                source = "Deterministic visible-element scope answer produced locally from live project facts.";
                 return true;
             }
 
@@ -160,6 +184,156 @@ namespace CraneOptimizer.AI.Services
             builder.AppendLine();
             builder.AppendLine("## Confidence");
             builder.AppendLine("High — both counts come directly from the same captured live project snapshot.");
+            answer = builder.ToString().Trim();
+            return true;
+        }
+
+        private static bool TryBuildUnknownCategoryExplanation(
+            AiWorkflowContextSnapshot context,
+            string question,
+            string? activeScreen,
+            out string answer)
+        {
+            answer = string.Empty;
+            var text = NormalizeQuestion(question);
+            if (!ContainsAny(
+                    text,
+                    "what does unknown mean",
+                    "explain unknown",
+                    "why are elements unknown",
+                    "why is unknown so high",
+                    "unknown category meaning"))
+            {
+                return false;
+            }
+
+            var facts = MergeFacts(context);
+            var sceneCounts = BuildCountMap(
+                facts,
+                AiWorkflowFactKeys.ResolvedCategoryCounts,
+                AiWorkflowFactKeys.TopResolvedCategories);
+            var planningCounts = BuildCountMap(
+                facts,
+                AiWorkflowFactKeys.PlanningCategoryCounts,
+                AiWorkflowFactKeys.TopPlanningCategories,
+                AiWorkflowFactKeys.FilterableCategoryCounts,
+                AiWorkflowFactKeys.TopFilterableCategories);
+            var rawCounts = BuildCountMap(
+                facts,
+                AiWorkflowFactKeys.RawIfcTypeCounts,
+                AiWorkflowFactKeys.TopRawIfcTypes);
+
+            sceneCounts.TryGetValue("Unknown", out var sceneUnknown);
+            planningCounts.TryGetValue("Unknown", out var planningUnknown);
+
+            var builder = new StringBuilder();
+            builder.AppendLine("## Answer");
+            builder.AppendLine("`Unknown` means the application could not resolve that scene object to a supported planning category from the available IFC identity, hierarchy, and mapping evidence. It does not mean the IFC object is missing or invalid.");
+            builder.AppendLine();
+            builder.AppendLine("## Current counts");
+            if (planningCounts.Count > 0)
+                builder.AppendLine($"- Planning/filterable Unknown elements: {planningUnknown:N0}");
+            else
+                builder.AppendLine("- Planning/filterable Unknown count: not exposed in the current AI context.");
+
+            if (sceneCounts.Count > 0)
+            {
+                builder.AppendLine($"- Complete-scene Unknown objects: {sceneUnknown:N0}");
+                if (context.ElementCount > 0)
+                {
+                    var percentage = sceneUnknown * 100d / context.ElementCount;
+                    builder.AppendLine($"- Complete-scene unresolved share: {percentage:F1}% of {context.ElementCount:N0} BIM/model objects.");
+                }
+            }
+
+            builder.AppendLine();
+            builder.AppendLine("## Why the number can be high");
+            if (HasAssemblyAndPartStructure(rawCounts, out var assemblyCount, out var partCount))
+            {
+                builder.AppendLine($"- The captured IFC contains {assemblyCount:N0} IfcElementAssembly object(s) and {partCount:N0} IfcBuildingElementPart object(s). Child parts can remain Unknown even when their parent assembly has a resolved planning category.");
+            }
+            else
+            {
+                builder.AppendLine("- Child parts, reinforcement, grids/reference geometry, accessories, and unsupported IFC classes can remain unresolved even when their parent assembly is usable for planning.");
+            }
+            builder.AppendLine("- Unknown should therefore be reviewed by object role and parent/child relationship, not treated as one physical lift category.");
+            builder.AppendLine();
+            builder.AppendLine("## Evidence");
+            AppendModelEvidence(builder, context, activeScreen);
+            AppendPlanningCategoryEvidence(builder, facts);
+            AppendFactIfPresent(builder, context, AiWorkflowFactKeys.TopRawIfcTypes, "Top IFC classes");
+            builder.AppendLine();
+            builder.AppendLine("## Next Click");
+            builder.AppendLine("IFC MODEL → Export Element List / inspect raw IFC type, resolved category, role, parent assembly, and IncludeInGa fields");
+            builder.AppendLine();
+            builder.AppendLine("## Confidence");
+            builder.AppendLine("High for the meaning and reported counts; the exact reason for each Unknown object requires row-level IFC/export evidence.");
+
+            answer = builder.ToString().Trim();
+            return true;
+        }
+
+        private static bool TryBuildVisibleElementAnswer(
+            AiWorkflowContextSnapshot context,
+            string question,
+            string? activeScreen,
+            out string answer)
+        {
+            answer = string.Empty;
+            var text = NormalizeQuestion(question);
+            var asksVisible = ContainsAny(
+                                  text,
+                                  "currently visible",
+                                  "visible elements",
+                                  "elements visible",
+                                  "shown elements",
+                                  "elements shown",
+                                  "visible now")
+                              && ContainsAny(text, "element", "elements", "bim", "model", "table", "filter");
+            if (!asksVisible)
+                return false;
+
+            var facts = MergeFacts(context);
+            var filterableTotal = GetFirstInt(facts, AiWorkflowFactKeys.FilterableElementCount);
+            var visibleFilterable = GetFirstInt(facts, AiWorkflowFactKeys.VisibleFilterableElementCount);
+
+            var builder = new StringBuilder();
+            builder.AppendLine("## Answer");
+            if (visibleFilterable.HasValue)
+            {
+                var denominator = filterableTotal.HasValue
+                    ? $" of {filterableTotal.Value:N0} filterable planning element(s)"
+                    : " filterable planning element(s)";
+                builder.AppendLine($"The engineering filter currently exposes {visibleFilterable.Value:N0}{denominator} as visible.");
+            }
+            else if (context.ElementTableTotalCount > 0)
+            {
+                builder.AppendLine($"The live AI context currently exposes {context.ElementTableVisibleCount:N0} visible element-table item(s) of {context.ElementTableTotalCount:N0}.");
+                builder.AppendLine("The 3D/filter-dialog visible count is not exposed to the AI, so I will not treat the table count as the filterable planning count.");
+            }
+            else
+            {
+                builder.AppendLine("The current AI context does not expose a deterministic visible-element count.");
+            }
+
+            builder.AppendLine();
+            builder.AppendLine("## Evidence");
+            AppendModelEvidence(builder, context, activeScreen);
+            AppendPlanningCategoryEvidence(builder, facts);
+            builder.AppendLine();
+            builder.AppendLine("## Scope warning");
+            builder.AppendLine("Scene BIM objects, element-table rows, and filterable planning elements are distinct scopes and must not be used interchangeably.");
+            builder.AppendLine();
+            builder.AppendLine("## Next Click");
+            builder.AppendLine(visibleFilterable.HasValue
+                ? "HOME → Filter / verify the live filter scope and visible count"
+                : "HOME → Filter / inspect the authoritative 3D planning-filter count");
+            builder.AppendLine();
+            builder.AppendLine("## Confidence");
+            builder.AppendLine(visibleFilterable.HasValue
+                ? "High — the host exposed an explicit filterable visibility count."
+                : "High for the table count; unavailable for the 3D/filter-dialog count because that fact is not present in the AI context.");
+
             answer = builder.ToString().Trim();
             return true;
         }
@@ -282,8 +456,20 @@ namespace CraneOptimizer.AI.Services
             answer = string.Empty;
             var text = NormalizeQuestion(question);
             var facts = MergeFacts(context);
-            var resolvedCounts = BuildCountMap(facts, AiWorkflowFactKeys.ResolvedCategoryCounts, AiWorkflowFactKeys.TopResolvedCategories);
-            var rawCounts = BuildCountMap(facts, AiWorkflowFactKeys.RawIfcTypeCounts, AiWorkflowFactKeys.TopRawIfcTypes);
+            var planningCounts = BuildCountMap(
+                facts,
+                AiWorkflowFactKeys.PlanningCategoryCounts,
+                AiWorkflowFactKeys.TopPlanningCategories,
+                AiWorkflowFactKeys.FilterableCategoryCounts,
+                AiWorkflowFactKeys.TopFilterableCategories);
+            var resolvedCounts = BuildCountMap(
+                facts,
+                AiWorkflowFactKeys.ResolvedCategoryCounts,
+                AiWorkflowFactKeys.TopResolvedCategories);
+            var rawCounts = BuildCountMap(
+                facts,
+                AiWorkflowFactKeys.RawIfcTypeCounts,
+                AiWorkflowFactKeys.TopRawIfcTypes);
             var preferRaw = ContainsAny(text, "raw ifc", "ifc class", "ifc entity", "raw class", "raw type", "ifctype", "ifc type");
 
             foreach (var target in CategoryTargets)
@@ -291,9 +477,36 @@ namespace CraneOptimizer.AI.Services
                 if (!ContainsAny(text, target.Aliases))
                     continue;
 
+                var planningMatch = FindCount(planningCounts, target);
+                if (planningMatch != null)
+                {
+                    planningMatch = planningMatch with
+                    {
+                        Label = $"filterable planning element(s) categorized as {target.CanonicalLabel}",
+                        Source = "planning/filterable BIM category summary",
+                        Caveat = "This is the engineering planning/filter scope, which can intentionally exclude child parts, reinforcement, reference geometry, and other complete-scene objects."
+                    };
+                }
+
+                var sceneMatch = FindCount(resolvedCounts, target);
+                var rawMatch = FindCount(rawCounts, target);
+
+                if (!preferRaw && planningMatch != null)
+                {
+                    answer = BuildScopedCategoryCountAnswer(
+                        context,
+                        activeScreen,
+                        planningMatch,
+                        sceneMatch,
+                        rawCounts,
+                        facts,
+                        target.CanonicalLabel);
+                    return true;
+                }
+
                 var match = preferRaw
-                    ? FindCount(rawCounts, target) ?? FindCount(resolvedCounts, target)
-                    : FindCount(resolvedCounts, target) ?? FindCount(rawCounts, target);
+                    ? rawMatch ?? sceneMatch
+                    : sceneMatch ?? rawMatch;
 
                 if (match == null)
                 {
@@ -301,7 +514,15 @@ namespace CraneOptimizer.AI.Services
                     return true;
                 }
 
-                answer = BuildCountAnswer(context, activeScreen, question, match, "IFC MODEL → Export Element List / verify category mapping");
+                answer = preferRaw
+                    ? BuildCountAnswer(context, activeScreen, question, match, "IFC MODEL → Export Element List / verify raw IFC class")
+                    : BuildSceneOnlyCategoryCountAnswer(
+                        context,
+                        activeScreen,
+                        match,
+                        rawCounts,
+                        facts,
+                        target.CanonicalLabel);
                 return true;
             }
 
@@ -311,27 +532,183 @@ namespace CraneOptimizer.AI.Services
                 builder.AppendLine("## Answer");
                 builder.AppendLine("Here is the deterministic BIM category breakdown from the captured project snapshot:");
                 builder.AppendLine();
-                builder.AppendLine("## Resolved categories");
-                if (resolvedCounts.Count == 0)
-                    builder.AppendLine("- No resolved category counts are exposed in the current AI context.");
+                if (planningCounts.Count > 0)
+                {
+                    builder.AppendLine("## Planning/filterable categories");
+                    foreach (var item in planningCounts.OrderByDescending(pair => pair.Value).ThenBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase).Take(20))
+                        builder.AppendLine($"- {item.Key}: {item.Value:N0}");
+
+                    builder.AppendLine();
+                    builder.AppendLine("## Resolved categories — complete IFC scene");
+                }
                 else
                 {
+                    builder.AppendLine("## Resolved categories — complete IFC scene");
+                    builder.AppendLine("- Planning/filterable category counts are not exposed in the current AI context.");
+                }
+
+                if (resolvedCounts.Count == 0)
+                    builder.AppendLine("- No complete-scene resolved category counts are exposed in the current AI context.");
+                else
                     foreach (var item in resolvedCounts.OrderByDescending(pair => pair.Value).ThenBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase).Take(20))
                         builder.AppendLine($"- {item.Key}: {item.Value:N0}");
-                }
+
+                AppendUnknownCoverage(builder, context, resolvedCounts);
                 builder.AppendLine();
                 builder.AppendLine("## Evidence");
                 AppendModelEvidence(builder, context, activeScreen);
                 builder.AppendLine("- Source: captured IFC category contributor facts.");
                 AppendCountScopeEvidence(builder, context);
+                AppendPlanningCategoryEvidence(builder, facts);
                 builder.AppendLine();
                 builder.AppendLine("## Caveat");
-                builder.AppendLine("Resolved categories are the application/BIM mapping used for planning review; raw IFC entity counts can differ.");
+                if (planningCounts.Count > 0)
+                {
+                    builder.AppendLine("Planning/filterable counts are the primary engineering scope. Complete-scene resolved counts can be higher because parent assemblies and child parts are separate IFC objects.");
+                }
+                else
+                {
+                    builder.AppendLine("These are complete-scene resolved counts, not authoritative planning/filter counts. The host must expose planning-category facts before the AI can safely use them as the default engineering answer.");
+                }
                 answer = builder.ToString().Trim();
                 return true;
             }
 
             return false;
+        }
+
+        private static string BuildScopedCategoryCountAnswer(
+            AiWorkflowContextSnapshot context,
+            string? activeScreen,
+            CountMatch planningMatch,
+            CountMatch? sceneMatch,
+            IReadOnlyDictionary<string, int> rawCounts,
+            IReadOnlyDictionary<string, string> facts,
+            string categoryLabel)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine("## Answer");
+            builder.AppendLine($"There are {planningMatch.Count:N0} {planningMatch.Label}.");
+
+            if (sceneMatch != null && sceneMatch.Count != planningMatch.Count)
+            {
+                builder.AppendLine($"The complete IFC scene separately contains {sceneMatch.Count:N0} object(s) resolved as {categoryLabel}.");
+                builder.AppendLine("The values differ because the complete scene can count parent assemblies and child/component objects, while the planning/filter scope represents the engineering elements exposed for filtering and lift review.");
+            }
+
+            builder.AppendLine();
+            builder.AppendLine("## Evidence");
+            AppendModelEvidence(builder, context, activeScreen);
+            builder.AppendLine($"- Primary source: {planningMatch.Source}.");
+            if (sceneMatch != null)
+                builder.AppendLine($"- Complete-scene resolved source: {sceneMatch.Source} ({sceneMatch.Count:N0}).");
+            AppendPlanningCategoryEvidence(builder, facts);
+            AppendCountScopeEvidence(builder, context);
+
+            if (HasAssemblyAndPartStructure(rawCounts, out var assemblyCount, out var partCount))
+                builder.AppendLine($"- IFC hierarchy evidence: {assemblyCount:N0} assembly object(s); {partCount:N0} building-element part object(s).");
+
+            builder.AppendLine();
+            builder.AppendLine("## Caveat");
+            builder.AppendLine(planningMatch.Caveat);
+            builder.AppendLine();
+            builder.AppendLine("## Next Click");
+            builder.AppendLine("HOME → Filter / verify the planning scope, or IFC MODEL → Export Element List / inspect parent-child category mapping");
+            builder.AppendLine();
+            builder.AppendLine("## Confidence");
+            builder.AppendLine(sceneMatch != null
+                ? "High — both planning/filterable and complete-scene values came from explicit deterministic host facts."
+                : "High for the planning/filterable count; no separate complete-scene value was exposed for comparison.");
+            return builder.ToString().Trim();
+        }
+
+        private static string BuildSceneOnlyCategoryCountAnswer(
+            AiWorkflowContextSnapshot context,
+            string? activeScreen,
+            CountMatch sceneMatch,
+            IReadOnlyDictionary<string, int> rawCounts,
+            IReadOnlyDictionary<string, string> facts,
+            string categoryLabel)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine("## Answer");
+            builder.AppendLine($"There are {sceneMatch.Count:N0} complete-scene BIM/model object(s) resolved as {categoryLabel} in the captured imported model context.");
+            builder.AppendLine("The planning/filterable count for this category is not exposed in the current AI context, so this scene value must not be presented as the authoritative planning count.");
+            builder.AppendLine();
+            builder.AppendLine("## Evidence");
+            AppendModelEvidence(builder, context, activeScreen);
+            builder.AppendLine($"- Source: {sceneMatch.Source}.");
+            AppendPlanningCategoryEvidence(builder, facts);
+            AppendCountScopeEvidence(builder, context);
+
+            if (HasAssemblyAndPartStructure(rawCounts, out var assemblyCount, out var partCount))
+            {
+                builder.AppendLine($"- IFC hierarchy evidence: {assemblyCount:N0} IfcElementAssembly object(s) and {partCount:N0} IfcBuildingElementPart object(s).");
+            }
+
+            builder.AppendLine();
+            builder.AppendLine("## Caveat");
+            builder.AppendLine("Complete-scene category counts can include both top-level assemblies and categorized child parts. The engineering filter may therefore show a lower count for the same label.");
+            builder.AppendLine();
+            builder.AppendLine("## Next Click");
+            builder.AppendLine("HOME → Filter / inspect the authoritative filterable planning count, or IFC MODEL → Export Element List / compare parent and child identifiers");
+            builder.AppendLine();
+            builder.AppendLine("## Confidence");
+            builder.AppendLine("High — the complete-scene count came from deterministic live project facts, and no unavailable planning count was invented.");
+            return builder.ToString().Trim();
+        }
+
+        private static void AppendUnknownCoverage(
+            StringBuilder builder,
+            AiWorkflowContextSnapshot context,
+            IReadOnlyDictionary<string, int> resolvedCounts)
+        {
+            if (!resolvedCounts.TryGetValue("Unknown", out var unknownCount) || context.ElementCount <= 0)
+                return;
+
+            var percentage = unknownCount * 100d / context.ElementCount;
+            builder.AppendLine();
+            builder.AppendLine("## Classification coverage");
+            builder.AppendLine($"- Unknown/unresolved complete-scene objects: {unknownCount:N0} ({percentage:F1}% of {context.ElementCount:N0}).");
+            builder.AppendLine("- A high Unknown share can be normal for child parts, reinforcement, accessories, grids/reference objects, or unsupported mappings, but it limits broad category-based conclusions.");
+        }
+
+        private static void AppendPlanningCategoryEvidence(
+            StringBuilder builder,
+            IReadOnlyDictionary<string, string> facts)
+        {
+            var filterableTotal = GetFirstInt(facts, AiWorkflowFactKeys.FilterableElementCount);
+            var visibleFilterable = GetFirstInt(facts, AiWorkflowFactKeys.VisibleFilterableElementCount);
+
+            if (filterableTotal.HasValue)
+                builder.AppendLine($"- Filterable planning elements: {filterableTotal.Value:N0}");
+            if (visibleFilterable.HasValue)
+                builder.AppendLine($"- Currently visible filterable planning elements: {visibleFilterable.Value:N0}");
+            if (facts.TryGetValue(AiWorkflowFactKeys.CategoryCountScopeNote, out var scopeNote)
+                && !string.IsNullOrWhiteSpace(scopeNote))
+            {
+                builder.AppendLine($"- Category scope note: {scopeNote.Trim()}");
+            }
+        }
+
+        private static bool HasAssemblyAndPartStructure(
+            IReadOnlyDictionary<string, int> rawCounts,
+            out int assemblyCount,
+            out int partCount)
+        {
+            assemblyCount = 0;
+            partCount = 0;
+
+            foreach (var pair in rawCounts)
+            {
+                var key = NormalizeKey(pair.Key);
+                if (key.Equals(NormalizeKey("IfcElementAssembly"), StringComparison.OrdinalIgnoreCase))
+                    assemblyCount = pair.Value;
+                else if (key.Equals(NormalizeKey("IfcBuildingElementPart"), StringComparison.OrdinalIgnoreCase))
+                    partCount = pair.Value;
+            }
+
+            return assemblyCount > 0 && partCount > 0;
         }
 
         private static string BuildCountAnswer(AiWorkflowContextSnapshot context, string? activeScreen, string question, CountMatch match, string nextClick)
@@ -559,13 +936,18 @@ namespace CraneOptimizer.AI.Services
                 .ToDictionary(group => group.Key, group => group.First().Value, StringComparer.OrdinalIgnoreCase);
         }
 
-        private static IReadOnlyDictionary<string, int> BuildCountMap(IReadOnlyDictionary<string, string> facts, string countFactKey, string topFactKey)
+        private static IReadOnlyDictionary<string, int> BuildCountMap(
+            IReadOnlyDictionary<string, string> facts,
+            params string[] factKeys)
         {
             var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            if (facts.TryGetValue(countFactKey, out var allCounts))
-                ParseDelimitedCounts(allCounts, map);
-            if (facts.TryGetValue(topFactKey, out var topCounts))
-                ParseDelimitedCounts(topCounts, map);
+
+            foreach (var factKey in factKeys)
+            {
+                if (facts.TryGetValue(factKey, out var value))
+                    ParseDelimitedCounts(value, map);
+            }
+
             return map;
         }
 

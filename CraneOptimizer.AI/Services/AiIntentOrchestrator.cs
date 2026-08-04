@@ -1331,7 +1331,11 @@ namespace CraneOptimizer.AI.Services
                 ThresholdMassUnit = "kg",
                 DensityUnit = "kg/m³",
                 HasOptimizationResult = context.OptimizationResult.HasResult,
-                TopCategories = GetFact(facts, "TopResolvedCategories"),
+                TopCategories = GetFirstFact(
+                    facts,
+                    AiWorkflowFactKeys.TopPlanningCategories,
+                    AiWorkflowFactKeys.TopFilterableCategories,
+                    AiWorkflowFactKeys.TopResolvedCategories),
                 TopRawIfcTypes = GetFact(facts, "TopRawIfcTypes")
             };
         }
@@ -1500,6 +1504,17 @@ namespace CraneOptimizer.AI.Services
         private static string GetFact(IReadOnlyDictionary<string, string> facts, string key)
         {
             return facts.TryGetValue(key, out var value) ? value : string.Empty;
+        }
+
+        private static string GetFirstFact(IReadOnlyDictionary<string, string> facts, params string[] keys)
+        {
+            foreach (var key in keys)
+            {
+                if (facts.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                    return value;
+            }
+
+            return string.Empty;
         }
 
         private static int? GetInt(IReadOnlyDictionary<string, string> facts, string key)

@@ -39,6 +39,23 @@ namespace CraneOptimizer.AI.Host
 
         public const string ResolvedCategoryCounts = nameof(ResolvedCategoryCounts);
         public const string TopResolvedCategories = nameof(TopResolvedCategories);
+        /// <summary>
+        /// Host-provided category counts for the planning/filterable element scope.
+        /// This scope should match the element set exposed by the application's
+        /// engineering filter rather than the complete IFC scene graph.
+        /// </summary>
+        public const string PlanningCategoryCounts = nameof(PlanningCategoryCounts);
+        public const string TopPlanningCategories = nameof(TopPlanningCategories);
+
+        /// <summary>
+        /// Optional alias for hosts that expose the engineering-filter scope by its
+        /// UI name. The AI treats this as equivalent to PlanningCategoryCounts.
+        /// </summary>
+        public const string FilterableCategoryCounts = nameof(FilterableCategoryCounts);
+        public const string TopFilterableCategories = nameof(TopFilterableCategories);
+        public const string FilterableElementCount = nameof(FilterableElementCount);
+        public const string VisibleFilterableElementCount = nameof(VisibleFilterableElementCount);
+        public const string CategoryCountScopeNote = nameof(CategoryCountScopeNote);
         public const string RawIfcTypeCounts = nameof(RawIfcTypeCounts);
         public const string TopRawIfcTypes = nameof(TopRawIfcTypes);
         public const string ElementTypeCounts = nameof(ElementTypeCounts);
