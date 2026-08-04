@@ -23,6 +23,9 @@ namespace CraneOptimizer.AI.Companion.ViewModels
     /// </summary>
     public sealed class AiCompanionViewModel : ViewModelBase, IDisposable
     {
+        private const string DeterministicResponseLabel = "Application facts · deterministic";
+        private const string ReadOnlyAgentResponseLabel = "Read-only agent";
+
         private readonly IAiWorkflowContextProvider _workflowContextProvider;
         private readonly AiAdvisorViewModel _advisor;
         private readonly IAiAdvisorWindowService _windowService;
@@ -67,6 +70,7 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         private string _currentModelFingerprint = string.Empty;
         private long _currentModelRevision;
         private AiCompanionChatMessageViewModel? _liveAssistantMessage;
+        private string _lastResponseModeLabel = string.Empty;
 
         public AiCompanionViewModel(
             IAiWorkflowContextProvider workflowContextProvider,
@@ -610,8 +614,10 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             : Advisor.HasError
                 ? "Needs attention"
                 : IsProjectReadinessAgentQuestion
-                    ? "Read-only agent"
-                    : Advisor.ProviderModeLabel;
+                    ? ReadOnlyAgentResponseLabel
+                    : !string.IsNullOrWhiteSpace(_lastResponseModeLabel)
+                        ? _lastResponseModeLabel
+                        : Advisor.ProviderModeLabel;
 
         public string CollapsedTitle => $"AI Assist · {WorkflowStage}";
         public string CollapsedSubText => IsQuietMode ? "Quiet mode enabled" : CurrentHint;
@@ -619,6 +625,16 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         public double PanelWidth => IsExpanded ? 620d : 420d;
         public Visibility ExpandedVisibility => IsExpanded ? Visibility.Visible : Visibility.Collapsed;
         public Visibility CollapsedVisibility => IsExpanded ? Visibility.Collapsed : Visibility.Visible;
+
+        private void SetLastResponseMode(string label)
+        {
+            var normalized = label?.Trim() ?? string.Empty;
+            if (_lastResponseModeLabel == normalized)
+                return;
+
+            _lastResponseModeLabel = normalized;
+            OnPropertyChanged(nameof(CompactStatusLabel));
+        }
 
         private void NotifyCommandCenterSummaryChanged()
         {
@@ -708,9 +724,15 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             var hasResult = liveContext.OptimizationResult.HasResult;
 
             ProjectInsight = hasProject ? $"Project · {liveContext.CurrentProjectName}" : "Project · not opened";
-            DataInsight = liveContext.ElementTableTotalCount > 0
-                ? $"{elementCount} BIM objects · {liveContext.ElementTableVisibleCount}/{liveContext.ElementTableTotalCount} table items visible · {zoneCount} zones · {BuildCraneInsight(craneCount)}"
-                : $"{elementCount} BIM objects · {zoneCount} zones · {BuildCraneInsight(craneCount)}";
+            var filterableCount = GetWorkflowFactInt(liveContext, AiWorkflowFactKeys.FilterableElementCount);
+            var visibleFilterableCount = GetWorkflowFactInt(liveContext, AiWorkflowFactKeys.VisibleFilterableElementCount);
+            DataInsight = filterableCount.HasValue
+                ? visibleFilterableCount.HasValue
+                    ? $"{visibleFilterableCount.Value:N0}/{filterableCount.Value:N0} planning/filter elements visible · {elementCount:N0} complete-scene objects · {zoneCount:N0} zones · {BuildCraneInsight(craneCount)}"
+                    : $"{filterableCount.Value:N0} planning/filter elements · {elementCount:N0} complete-scene objects · {zoneCount:N0} zones · {BuildCraneInsight(craneCount)}"
+                : liveContext.ElementTableTotalCount > 0
+                    ? $"{elementCount:N0} BIM objects · {liveContext.ElementTableVisibleCount:N0}/{liveContext.ElementTableTotalCount:N0} table items visible · {zoneCount:N0} zones · {BuildCraneInsight(craneCount)}"
+                    : $"{elementCount:N0} BIM objects · {zoneCount:N0} zones · {BuildCraneInsight(craneCount)}";
             ResultInsight = BuildResultInsight(liveContext.OptimizationResult);
             RiskInsight = snapshot.MissingCriticalCount == 0
                 ? "No critical readiness gaps"
@@ -724,6 +746,23 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             NotifyCommandCenterSummaryChanged();
         }
 
+
+        private static int? GetWorkflowFactInt(AiWorkflowContextSnapshot context, string key)
+        {
+            foreach (var screen in context.ScreenContexts ?? Array.Empty<AiScreenContextSnapshot>())
+            {
+                if (screen.Facts == null
+                    || !screen.Facts.TryGetValue(key, out var value)
+                    || !int.TryParse(value, out var parsed))
+                {
+                    continue;
+                }
+
+                return parsed;
+            }
+
+            return null;
+        }
 
         private void UpdateConversationFreshness(AiWorkflowContextSnapshot liveContext)
         {
@@ -1287,7 +1326,11 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                     visibleQuestion,
                     activeScreenAtSend,
                     nextActionAtSend).ConfigureAwait(true);
-                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(Advisor.AiAnswer, liveContext));
+                SetLastResponseMode(ReadOnlyAgentResponseLabel);
+                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(
+                    Advisor.AiAnswer,
+                    liveContext,
+                    ReadOnlyAgentResponseLabel));
                 FocusChatForSubmittedPrompt();
                 return;
             }
@@ -1306,7 +1349,11 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                     out _))
             {
                 Advisor.RecordDeterministicCompanionAnswer(visibleQuestion, routedAnswer, routedSource);
-                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(routedAnswer, liveContext));
+                SetLastResponseMode(DeterministicResponseLabel);
+                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(
+                    routedAnswer,
+                    liveContext,
+                    DeterministicResponseLabel));
                 FocusChatForSubmittedPrompt();
                 return;
             }
@@ -1314,7 +1361,11 @@ namespace CraneOptimizer.AI.Companion.ViewModels
             if (AiBimProjectQuestionService.TryBuildAnswer(liveContext, visibleQuestion, activeScreenAtSend, out var bimAnswer, out var bimSource))
             {
                 Advisor.RecordDeterministicCompanionAnswer(visibleQuestion, bimAnswer, bimSource);
-                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(bimAnswer, liveContext));
+                SetLastResponseMode(DeterministicResponseLabel);
+                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(
+                    bimAnswer,
+                    liveContext,
+                    DeterministicResponseLabel));
                 FocusChatForSubmittedPrompt();
                 return;
             }
@@ -1331,7 +1382,11 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                     metadataAnswer,
                     "Deterministic IFC metadata guidance produced locally; no generative provider was required for this evidence-routing answer.");
 
-                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(metadataAnswer, liveContext));
+                SetLastResponseMode(DeterministicResponseLabel);
+                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(
+                    metadataAnswer,
+                    liveContext,
+                    DeterministicResponseLabel));
                 FocusChatForSubmittedPrompt();
                 return;
             }
@@ -1349,12 +1404,21 @@ namespace CraneOptimizer.AI.Companion.ViewModels
                     deterministicAnswer,
                     "Deterministic blocker guidance produced locally; no generative provider was required for this safety-critical next-step answer.");
 
-                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(deterministicAnswer, liveContext));
+                SetLastResponseMode(DeterministicResponseLabel);
+                ConversationMessages.Add(AiCompanionChatMessageViewModel.Assistant(
+                    deterministicAnswer,
+                    liveContext,
+                    DeterministicResponseLabel));
                 FocusChatForSubmittedPrompt();
                 return;
             }
 
-            _liveAssistantMessage = AiCompanionChatMessageViewModel.Assistant($"Generating with {Advisor.SelectedProviderDisplayName}… live response will appear here as it streams.", liveContext);
+            var providerResponseLabel = $"AI model · {Advisor.SelectedProviderDisplayName}";
+            SetLastResponseMode(providerResponseLabel);
+            _liveAssistantMessage = AiCompanionChatMessageViewModel.Assistant(
+                $"Generating with {Advisor.SelectedProviderDisplayName}… live response will appear here as it streams.",
+                liveContext,
+                providerResponseLabel);
             ConversationMessages.Add(_liveAssistantMessage);
             FocusChatForSubmittedPrompt();
 
@@ -1614,11 +1678,17 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         private bool _isDetailsExpanded;
         private string _staleContextLabel = string.Empty;
 
-        private AiCompanionChatMessageViewModel(string sender, string body, bool isReadinessIntro, AiWorkflowContextSnapshot? context)
+        private AiCompanionChatMessageViewModel(
+            string sender,
+            string body,
+            bool isReadinessIntro,
+            AiWorkflowContextSnapshot? context,
+            string? responseSourceLabel)
         {
             Sender = sender;
             _body = body;
             IsReadinessIntro = isReadinessIntro;
+            ResponseSourceLabel = responseSourceLabel?.Trim() ?? string.Empty;
             ToggleDetailsCommand = new RelayCommand(ToggleDetails);
             if (context != null)
             {
@@ -1635,6 +1705,10 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         public string SenderLabel => IsUserMessage ? "You" : "AI Assist";
         public HorizontalAlignment MessageAlignment => IsUserMessage ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         public bool IsReadinessIntro { get; }
+        public string ResponseSourceLabel { get; }
+        public Visibility ResponseSourceVisibility => !IsUserMessage && !string.IsNullOrWhiteSpace(ResponseSourceLabel)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         public string ContextFingerprint { get; } = string.Empty;
         public long ContextRevision { get; }
         public int ContextElementCount { get; }
@@ -1878,12 +1952,15 @@ namespace CraneOptimizer.AI.Companion.ViewModels
         }
 
         public static AiCompanionChatMessageViewModel ReadinessIntro(string body)
-            => new("AI", body, true, null);
+            => new("AI", body, true, null, null);
 
         public static AiCompanionChatMessageViewModel User(string body, AiWorkflowContextSnapshot? context = null)
-            => new("You", body, false, context);
+            => new("You", body, false, context, null);
 
-        public static AiCompanionChatMessageViewModel Assistant(string body, AiWorkflowContextSnapshot? context = null)
-            => new("AI", body, false, context);
+        public static AiCompanionChatMessageViewModel Assistant(
+            string body,
+            AiWorkflowContextSnapshot? context = null,
+            string? responseSourceLabel = null)
+            => new("AI", body, false, context, responseSourceLabel);
     }
 }

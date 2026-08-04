@@ -57,6 +57,44 @@ namespace CraneOptimizer.Application.Tests.AI
         }
 
         [Fact]
+        public void DeterministicAssistantMessage_ExposesApplicationFactsSourceBadge()
+        {
+            var message = AiCompanionChatMessageViewModel.Assistant(
+                "There are 50 filterable planning slabs.",
+                responseSourceLabel: "Application facts · deterministic");
+
+            Assert.Equal("Application facts · deterministic", message.ResponseSourceLabel);
+            Assert.Equal(System.Windows.Visibility.Visible, message.ResponseSourceVisibility);
+        }
+
+        [Fact]
+        public void UserMessage_DoesNotExposeAResponseSourceBadge()
+        {
+            var message = AiCompanionChatMessageViewModel.User("How many slabs are there?");
+
+            Assert.Equal(string.Empty, message.ResponseSourceLabel);
+            Assert.Equal(System.Windows.Visibility.Collapsed, message.ResponseSourceVisibility);
+        }
+
+        [Fact]
+        public void BimQuickPromptsAreUserFacingAndResponseSourceIsVisibleInTheChatTemplate()
+        {
+            var root = FindRepositoryRoot();
+            var xaml = File.ReadAllText(Path.Combine(
+                root,
+                "CraneOptimizer.AI",
+                "Companion",
+                "Views",
+                "AiCompanionPanel.xaml"));
+
+            Assert.Contains("How many slabs are there, and how does the planning/filter count compare", xaml);
+            Assert.Contains("ResponseSourceLabel", xaml);
+            Assert.Contains("ResponseSourceVisibility", xaml);
+            Assert.DoesNotContain("do not use a model provider", xaml, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Use host-confirmed values", xaml, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public void ShortAnswer_RemainsFullyVisibleWithoutDetailsToggle()
         {
             const string answer = "Answer\nThere are 60 elements categorized as Slab in the captured model context.";
@@ -66,6 +104,20 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.False(message.HasHiddenDetails);
             Assert.Equal(message.FullBodyPreview, message.DisplayBody);
             Assert.Equal(System.Windows.Visibility.Collapsed, message.DetailsToggleVisibility);
+        }
+
+        private static string FindRepositoryRoot()
+        {
+            var directory = new DirectoryInfo(AppContext.BaseDirectory);
+            while (directory != null)
+            {
+                if (File.Exists(Path.Combine(directory.FullName, "CraneOptimizer.sln")))
+                    return directory.FullName;
+
+                directory = directory.Parent;
+            }
+
+            throw new InvalidOperationException("Could not locate CraneOptimizer.sln from the test output directory.");
         }
     }
 }

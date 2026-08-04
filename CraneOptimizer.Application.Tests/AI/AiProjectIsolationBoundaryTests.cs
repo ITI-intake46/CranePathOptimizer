@@ -54,6 +54,11 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Equal("ReadinessElementCount", AiWorkflowFactKeys.ReadinessElementCount);
             Assert.Equal("ReferenceGeometryExcludedCount", AiWorkflowFactKeys.ReferenceGeometryExcludedCount);
             Assert.Equal("ElementCountScopeNote", AiWorkflowFactKeys.ElementCountScopeNote);
+            Assert.Equal("PlanningCategoryCounts", AiWorkflowFactKeys.PlanningCategoryCounts);
+            Assert.Equal("FilterableCategoryCounts", AiWorkflowFactKeys.FilterableCategoryCounts);
+            Assert.Equal("FilterableElementCount", AiWorkflowFactKeys.FilterableElementCount);
+            Assert.Equal("VisibleFilterableElementCount", AiWorkflowFactKeys.VisibleFilterableElementCount);
+            Assert.Equal("CategoryCountScopeNote", AiWorkflowFactKeys.CategoryCountScopeNote);
         }
 
 

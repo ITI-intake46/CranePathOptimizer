@@ -1,5 +1,4 @@
 using CraneOptimizer.Domain.Schemas;
-using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.UI.Core.Converters;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
@@ -115,7 +114,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             try
             {
                 var gaElements = elements
-                    .Where(e => e.Role == IfcElementRole.LiftAssembly && e.IncludeInGa)
+                    .Where(ElementFilterScopeRules.IsPlanningFilterable)
                     .ToList();
 
                 _allSceneElements = gaElements;
@@ -751,7 +750,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                 ? e => string.IsNullOrWhiteSpace(e.ElementMaterial) ? "N/A" : e.ElementMaterial.Trim()
                 : mode.StartsWith("Storey", StringComparison.OrdinalIgnoreCase)
                     ? e => _visibilityFilter?.GetStorey(e) ?? "Unassigned"
-                    : e => string.IsNullOrWhiteSpace(e.ElementType) ? "Unknown type" : e.ElementType.Trim();
+                    : ElementFilterScopeRules.GetTypeLabel;
             var elementSort = GetElementSortKey();
             var sortDescending = RbSortDescending?.IsChecked == true;
 
@@ -864,7 +863,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
         private void LoadTypeOptions(IEnumerable<PrecastElement> elements)
         {
             _allTypeOptions = elements
-                .Select(e => string.IsNullOrWhiteSpace(e.ElementType) ? "Unknown type" : e.ElementType.Trim())
+                .Select(ElementFilterScopeRules.GetTypeLabel)
                 .GroupBy(type => type, StringComparer.OrdinalIgnoreCase)
                 .OrderBy(g => g.Key)
                 .Select(g => new FilterDialogOption(g.Key, g.Count(), IsTypeChecked(g.Key)))
