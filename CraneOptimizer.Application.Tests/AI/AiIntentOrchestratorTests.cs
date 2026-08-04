@@ -41,6 +41,20 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Empty(source);
         }
 
+        [Theory]
+        [InlineData("Are there 50 or 116 slabs?")]
+        [InlineData("Which slab count should I use for lift planning?")]
+        [InlineData("Compare the slab and beam counts in both scopes.")]
+        [InlineData("Why does the Filter show 999 slabs while BIM contains 116?")]
+        public void BimCategoryCountBoundaryNeverRequestsModelProvider(string question)
+        {
+            var decision = AiIntentOrchestrator.Classify(BuildContext(), question, "IFC MODEL");
+
+            Assert.Equal(AiIntentOrchestrator.AiIntentFamily.ProjectFact, decision.Intent);
+            Assert.False(decision.NeedsOllama);
+            Assert.Equal("current_project_bim", decision.Scope);
+        }
+
         [Fact]
         public void PromptContractForOpenEndedQuestionForbidsMemorizedQaAndDocumentationSummaries()
         {

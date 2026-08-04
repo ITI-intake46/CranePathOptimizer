@@ -44,6 +44,23 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("IncludeInGa=true", facts[AiWorkflowFactKeys.CategoryCountScopeNote]);
         }
 
+        [Fact]
+        public void RebuildingFactsAfterVisibilityChangesPublishesTheCurrentVisibleCount()
+        {
+            var scene = CreateElements("Slab", 50, IfcElementRole.LiftAssembly, includeInGa: true)
+                .Concat(CreateElements("Beam", 40, IfcElementRole.LiftAssembly, includeInGa: true))
+                .ToList();
+
+            var allVisibleFacts = PlanningFilterAiFactBuilder.Build(scene, scene);
+            var slabsHidden = scene.Where(element => !element.ElementType.Equals("Slab", StringComparison.OrdinalIgnoreCase)).ToList();
+            var slabsHiddenFacts = PlanningFilterAiFactBuilder.Build(scene, slabsHidden);
+            var restoredFacts = PlanningFilterAiFactBuilder.Build(scene, scene);
+
+            Assert.Equal("90", allVisibleFacts[AiWorkflowFactKeys.VisibleFilterableElementCount]);
+            Assert.Equal("40", slabsHiddenFacts[AiWorkflowFactKeys.VisibleFilterableElementCount]);
+            Assert.Equal("90", restoredFacts[AiWorkflowFactKeys.VisibleFilterableElementCount]);
+        }
+
         [Theory]
         [InlineData(IfcElementRole.LiftAssembly, true, true)]
         [InlineData(IfcElementRole.LiftAssembly, false, false)]

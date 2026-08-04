@@ -261,6 +261,82 @@ namespace CraneOptimizer.Application.Tests.AI
         }
 
         [Fact]
+        public void AmbiguousAlternativeCategoryCountsStayDeterministicAndExplainBothScopes()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "Are there 50 or 116 slabs?",
+                "IFC MODEL",
+                out var answer,
+                out var source);
+
+            Assert.True(handled);
+            Assert.Contains("Both numbers are correct for different scopes", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Planning/filterable Slab elements: **50**", answer);
+            Assert.Contains("Complete IFC scene Slab elements: **116**", answer);
+            Assert.DoesNotContain("2,383 slabs", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("count-scope comparison", source, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void ConflictingUserReportedCountIsExplicitlyCorrectedByHostFacts()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "Why does the Filter show 999 slabs while BIM contains 116?",
+                "IFC MODEL",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("planning/filter value of 999 conflicts", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("host-confirmed value of 50", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("host fact is authoritative", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Planning/filterable Slab elements: **50**", answer);
+        }
+
+        [Fact]
+        public void LiftPlanningQuestionDirectlyRecommendsPlanningScope()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "Which slab count should I use for lift planning?",
+                "IFC MODEL",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("Use the planning/filterable count for lift planning: **50 Slab elements**", answer);
+            Assert.Contains("not as the lift-planning quantity", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("no model provider was invoked", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void MultiCategoryComparisonIncludesEveryRequestedCategory()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "Compare the slab and beam counts in both scopes.",
+                "IFC MODEL",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("Slab: **50 planning/filterable**; **116 complete scene**", answer);
+            Assert.Contains("Beam: **40 planning/filterable**; **80 complete scene**", answer);
+            Assert.Contains("Use planning/filterable counts for engineering filtering and lift-planning quantities", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("no model provider was invoked", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public void ChatMessageMarksPreviousModelAnswersAsStale()
         {
             var oldContext = BuildModelContext(elementCount: 2483, modelRevision: 7);
@@ -309,6 +385,9 @@ namespace CraneOptimizer.Application.Tests.AI
         {
             Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("How many slabs are there?"));
             Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("Show the BIM category breakdown."));
+            Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("Are there 50 or 116 slabs?"));
+            Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("Which slab count should I use for lift planning?"));
+            Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("Compare the slab and beam counts in both scopes."));
             Assert.False(AiBimProjectQuestionService.IsLiveBimDataQuestion("Are you able to extract the type of building or usage of the building?"));
         }
 
