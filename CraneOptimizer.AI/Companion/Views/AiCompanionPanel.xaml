@@ -602,9 +602,9 @@
                     <TextBlock Margin="0,4,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ModelSessionLabel}" />
                     <TextBlock Margin="0,12,0,0" Style="{StaticResource AiAssistBodyText}" Text="{Binding DataInsight}" />
                     <WrapPanel Margin="0,12,0,0">
-                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="Compare the planning/filterable and complete IFC-scene slab counts." Content="Count slabs" />
-                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="Compare the planning/filterable and complete IFC-scene beam counts." Content="Count beams" />
-                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="Show the planning/filterable category breakdown and compare it with the complete IFC-scene breakdown." Content="Categories" />
+                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="Explain the available slab count scopes. Use host-confirmed values, clearly label any unavailable planning/filter facts, and do not use a model provider for internal BIM count semantics." Content="Count slabs" />
+                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="Explain the available beam count scopes. Use host-confirmed values, clearly label any unavailable planning/filter facts, and do not use a model provider for internal BIM count semantics." Content="Count beams" />
+                        <Button Margin="0,0,7,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="Show the available BIM category counts by scope. Clearly separate planning/filterable facts from complete-scene facts and label unavailable scopes." Content="Categories" />
                         <Button Margin="0,0,0,7" Style="{StaticResource AiAssistMicroButton}" Command="{Binding SetQuestionCommand}" CommandParameter="What does Unknown mean in the BIM category breakdown?" Content="Explain unknown" />
                     </WrapPanel>
                     <Expander Header="Evidence cards" IsExpanded="False" Style="{StaticResource AiAssistInlineExpander}">

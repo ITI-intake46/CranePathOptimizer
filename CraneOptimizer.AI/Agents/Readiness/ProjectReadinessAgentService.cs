@@ -3,6 +3,7 @@ using System.Text;
 using CraneOptimizer.AI.Agents.Contracts;
 using CraneOptimizer.AI.Host;
 using CraneOptimizer.AI.Knowledge.Rag;
+using CraneOptimizer.AI.Services;
 using CraneOptimizer.AI.Workflow;
 
 namespace CraneOptimizer.AI.Agents.Readiness
@@ -42,6 +43,9 @@ namespace CraneOptimizer.AI.Agents.Readiness
         public bool CanHandle(string? question)
         {
             if (string.IsNullOrWhiteSpace(question))
+                return false;
+
+            if (AiBimProjectQuestionService.IsLiveBimDataQuestion(question))
                 return false;
 
             var normalized = question.Trim().ToLowerInvariant();

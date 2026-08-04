@@ -15,6 +15,8 @@ namespace CraneOptimizer.AI.Services
     {
         private sealed record CountMatch(string Label, int Count, string Source, string Caveat);
 
+        private sealed record ReportedScopeCount(int Count, string Provenance);
+
         private sealed record QueryTarget(
             string CanonicalLabel,
             string[] Aliases,
@@ -44,8 +46,11 @@ namespace CraneOptimizer.AI.Services
                 return false;
 
             var normalized = NormalizeQuestion(question);
-            if (ContainsAny(normalized, "building usage", "building type", "metadata", "property set", "classification"))
+            if (ContainsAny(normalized, "building usage", "building type", "metadata", "property set"))
                 return false;
+
+            if (IsCountScopeDiscrepancyQuestion(normalized))
+                return true;
 
             if (ContainsAny(
                     normalized,
@@ -65,7 +70,7 @@ namespace CraneOptimizer.AI.Services
                 return false;
 
             if (ContainsAny(normalized,
-                    "element", "elements", "ifc", "bim", "model", "slab", "slabs", "beam", "beams", "column", "columns",
+                    "element", "elements", "ifc", "bim", "model object", "model objects", "slab", "slabs", "beam", "beams", "column", "columns",
                     "wall", "walls", "roof", "roofs", "window", "windows", "door", "doors", "stair", "stairs", "footing", "footings", "foundation", "foundations", "unknown", "assembly", "assemblies", "rebar", "reinforcing", "candidate", "candidates",
                     "lift unit", "lift units", "weight", "kg", "ton", "tonne", "over", "above", ">"))
             {
@@ -106,6 +111,12 @@ namespace CraneOptimizer.AI.Services
             if (TryDetectStaleScreenFacts(context, activeScreen, out answer))
             {
                 source = "Deterministic BIM data question blocked because explicit host revision/fingerprint facts did not match the captured live model snapshot.";
+                return true;
+            }
+
+            if (TryBuildCountScopeDiscrepancyAnswer(context, visibleQuestion, activeScreen, out answer))
+            {
+                source = "Deterministic BIM count-scope comparison produced locally from host-confirmed facts and explicitly labelled user-reported values.";
                 return true;
             }
 
@@ -184,6 +195,130 @@ namespace CraneOptimizer.AI.Services
             builder.AppendLine();
             builder.AppendLine("## Confidence");
             builder.AppendLine("High — both counts come directly from the same captured live project snapshot.");
+            answer = builder.ToString().Trim();
+            return true;
+        }
+
+        private static bool TryBuildCountScopeDiscrepancyAnswer(
+            AiWorkflowContextSnapshot context,
+            string question,
+            string? activeScreen,
+            out string answer)
+        {
+            answer = string.Empty;
+            var text = NormalizeQuestion(question);
+            if (!IsCountScopeDiscrepancyQuestion(text))
+                return false;
+
+            var facts = MergeFacts(context);
+            var target = FindCategoryTarget(text);
+            var categoryLabel = target?.CanonicalLabel;
+            var categoryPhrase = string.IsNullOrWhiteSpace(categoryLabel)
+                ? "elements"
+                : $"{categoryLabel} elements";
+
+            var planningCounts = BuildCountMap(
+                facts,
+                AiWorkflowFactKeys.PlanningCategoryCounts,
+                AiWorkflowFactKeys.TopPlanningCategories,
+                AiWorkflowFactKeys.FilterableCategoryCounts,
+                AiWorkflowFactKeys.TopFilterableCategories);
+            var sceneCounts = BuildCountMap(
+                facts,
+                AiWorkflowFactKeys.ResolvedCategoryCounts,
+                AiWorkflowFactKeys.TopResolvedCategories);
+            var rawCounts = BuildCountMap(
+                facts,
+                AiWorkflowFactKeys.RawIfcTypeCounts,
+                AiWorkflowFactKeys.TopRawIfcTypes);
+
+            int? hostPlanningCount = target == null
+                ? GetFirstInt(facts, AiWorkflowFactKeys.FilterableElementCount)
+                : FindCount(planningCounts, target)?.Count;
+            int? hostSceneCount = target == null
+                ? context.ElementCount
+                : FindCount(sceneCounts, target)?.Count;
+
+            var reportedPlanning = TryExtractReportedScopeCount(text, planningScope: true, target);
+            var reportedScene = TryExtractReportedScopeCount(text, planningScope: false, target);
+
+            var builder = new StringBuilder();
+            builder.AppendLine("## Answer");
+            builder.AppendLine("The values use different count scopes and must not be treated as interchangeable.");
+            builder.AppendLine();
+            builder.AppendLine("## Count comparison");
+            AppendScopeCountLine(
+                builder,
+                "Planning/filterable",
+                categoryPhrase,
+                hostPlanningCount,
+                reportedPlanning,
+                "the engineering Filter/lift-review scope");
+            AppendScopeCountLine(
+                builder,
+                "Complete IFC scene",
+                categoryPhrase,
+                hostSceneCount,
+                reportedScene,
+                "the complete-scene classification scope");
+
+            var comparisonPlanning = hostPlanningCount ?? reportedPlanning?.Count;
+            var comparisonScene = hostSceneCount ?? reportedScene?.Count;
+            if (comparisonPlanning.HasValue && comparisonScene.HasValue)
+            {
+                var delta = comparisonScene.Value - comparisonPlanning.Value;
+                var provenance = hostPlanningCount.HasValue && hostSceneCount.HasValue
+                    ? "Both values are host-confirmed."
+                    : "The arithmetic uses at least one value reported in the question; that value is not independently confirmed by the current AI evidence.";
+
+                if (delta > 0)
+                    builder.AppendLine($"- Difference: **{delta:N0} more complete-scene object(s)**. {provenance}");
+                else if (delta < 0)
+                    builder.AppendLine($"- Difference: **{Math.Abs(delta):N0} fewer complete-scene object(s)**. {provenance}");
+                else
+                    builder.AppendLine($"- Difference: **0**. {provenance}");
+            }
+
+            AppendReportedMismatchWarning(builder, "planning/filterable", hostPlanningCount, reportedPlanning);
+            AppendReportedMismatchWarning(builder, "complete-scene", hostSceneCount, reportedScene);
+
+            builder.AppendLine();
+            builder.AppendLine("## Why the scopes can differ");
+            builder.AppendLine("- Planning/filterable counts represent the top-level engineering elements exposed for filtering and lift review.");
+            builder.AppendLine("- Complete-scene counts include every scene object resolved to the category and can therefore include parent assemblies plus categorized child/component objects.");
+            builder.AppendLine("- A complete-scene value is not an authoritative planning count unless the host supplies the corresponding planning/filter fact.");
+
+            if (HasAssemblyAndPartStructure(rawCounts, out var assemblyCount, out var partCount))
+                builder.AppendLine($"- Current IFC hierarchy evidence: {assemblyCount:N0} assembly object(s) and {partCount:N0} building-element part object(s).");
+
+            if (facts.TryGetValue(AiWorkflowFactKeys.CategoryCountScopeNote, out var categoryScopeNote)
+                && !string.IsNullOrWhiteSpace(categoryScopeNote))
+            {
+                builder.AppendLine($"- Host scope note: {categoryScopeNote.Trim()}");
+            }
+            else if (facts.TryGetValue(AiWorkflowFactKeys.ElementCountScopeNote, out var elementScopeNote)
+                     && !string.IsNullOrWhiteSpace(elementScopeNote))
+            {
+                builder.AppendLine($"- Host scope note: {elementScopeNote.Trim()}");
+            }
+
+            builder.AppendLine();
+            builder.AppendLine("## Evidence");
+            AppendModelEvidence(builder, context, activeScreen);
+            builder.AppendLine($"- Planning/filterable provenance: {BuildScopeProvenance(hostPlanningCount, reportedPlanning)}");
+            builder.AppendLine($"- Complete-scene provenance: {BuildScopeProvenance(hostSceneCount, reportedScene)}");
+            AppendPlanningCategoryEvidence(builder, facts);
+            builder.AppendLine();
+            builder.AppendLine("## Next Click");
+            builder.AppendLine(hostPlanningCount.HasValue
+                ? "HOME → Filter / verify the active scope, or IFC MODEL → Export Element List / inspect parent-child identifiers"
+                : "HOME → Filter / verify the planning value; a host context adapter is required before AI can independently confirm that Filter count");
+            builder.AppendLine();
+            builder.AppendLine("## Confidence");
+            builder.AppendLine(hostPlanningCount.HasValue && hostSceneCount.HasValue
+                ? "High — both compared values came from deterministic live project facts; no model provider was invoked."
+                : "High for host-confirmed values and scope semantics; limited for any user-reported Filter value because it is not present in the AI evidence snapshot. No model provider was invoked.");
+
             answer = builder.ToString().Trim();
             return true;
         }
@@ -588,17 +723,21 @@ namespace CraneOptimizer.AI.Services
         {
             var builder = new StringBuilder();
             builder.AppendLine("## Answer");
-            builder.AppendLine($"There are {planningMatch.Count:N0} {planningMatch.Label}.");
+            builder.AppendLine($"There are {planningMatch.Count:N0} filterable planning elements classified as {categoryLabel}.");
 
             if (sceneMatch != null && sceneMatch.Count != planningMatch.Count)
             {
-                builder.AppendLine($"The complete IFC scene separately contains {sceneMatch.Count:N0} object(s) resolved as {categoryLabel}.");
-                builder.AppendLine("The values differ because the complete scene can count parent assemblies and child/component objects, while the planning/filter scope represents the engineering elements exposed for filtering and lift review.");
+                var delta = sceneMatch.Count - planningMatch.Count;
+                builder.AppendLine($"The complete IFC scene separately contains {sceneMatch.Count:N0} objects classified as {categoryLabel}.");
+                builder.AppendLine(delta > 0
+                    ? $"That is {delta:N0} additional complete-scene objects. The complete scene can include parent assemblies and categorized child/component objects, while the planning/filter scope represents the top-level engineering elements exposed for filtering and lift review."
+                    : "The scopes are different even though the complete-scene value is not higher. Review the host category mapping before treating either count as interchangeable.");
             }
 
             builder.AppendLine();
             builder.AppendLine("## Evidence");
             AppendModelEvidence(builder, context, activeScreen);
+            builder.AppendLine("- Count scope: planning/filterable is primary; complete scene is the comparison scope.");
             builder.AppendLine($"- Primary source: {planningMatch.Source}.");
             if (sceneMatch != null)
                 builder.AppendLine($"- Complete-scene resolved source: {sceneMatch.Source} ({sceneMatch.Count:N0}).");
@@ -632,11 +771,13 @@ namespace CraneOptimizer.AI.Services
         {
             var builder = new StringBuilder();
             builder.AppendLine("## Answer");
-            builder.AppendLine($"There are {sceneMatch.Count:N0} complete-scene BIM/model object(s) resolved as {categoryLabel} in the captured imported model context.");
-            builder.AppendLine("The planning/filterable count for this category is not exposed in the current AI context, so this scene value must not be presented as the authoritative planning count.");
+            builder.AppendLine($"There are {sceneMatch.Count:N0} objects classified as {categoryLabel} in the complete IFC scene.");
+            builder.AppendLine($"The Filter dialog's planning count for {categoryLabel} is not available to AI, so {sceneMatch.Count:N0} is not the planning/filter count.");
             builder.AppendLine();
             builder.AppendLine("## Evidence");
             AppendModelEvidence(builder, context, activeScreen);
+            builder.AppendLine("- Count scope: complete IFC scene.");
+            builder.AppendLine("- Planning/filterable category count: not exposed in the current AI context.");
             builder.AppendLine($"- Source: {sceneMatch.Source}.");
             AppendPlanningCategoryEvidence(builder, facts);
             AppendCountScopeEvidence(builder, context);
@@ -654,7 +795,7 @@ namespace CraneOptimizer.AI.Services
             builder.AppendLine("HOME → Filter / inspect the authoritative filterable planning count, or IFC MODEL → Export Element List / compare parent and child identifiers");
             builder.AppendLine();
             builder.AppendLine("## Confidence");
-            builder.AppendLine("High — the complete-scene count came from deterministic live project facts, and no unavailable planning count was invented.");
+            builder.AppendLine("High — the complete-scene count came from deterministic live project facts, no unavailable planning count was invented, and no model provider was invoked.");
             return builder.ToString().Trim();
         }
 
@@ -841,11 +982,11 @@ namespace CraneOptimizer.AI.Services
 
         private static void AppendModelEvidence(StringBuilder builder, AiWorkflowContextSnapshot context, string? activeScreen)
         {
-            builder.AppendLine($"- Active screen at send time: {NormalizeInline(activeScreen, "unknown")}");
-            builder.AppendLine($"- Model context: {BuildModelContextLabel(context)}");
-            builder.AppendLine($"- Model revision captured at send time: {context.ModelRevision:N0}");
-            builder.AppendLine($"- Model fingerprint captured at send time: {ShortFingerprint(context.ModelFingerprint)}");
-            builder.AppendLine($"- Total scene BIM/model objects: {context.ElementCount:N0}");
+            builder.AppendLine($"- Active workflow area: {NormalizeInline(activeScreen, "unknown")}");
+            builder.AppendLine($"- Model: {BuildModelContextLabel(context)}");
+            builder.AppendLine($"- Model revision: {context.ModelRevision:N0}");
+            builder.AppendLine($"- Model fingerprint: {ShortFingerprint(context.ModelFingerprint)}");
+            builder.AppendLine($"- Complete-scene BIM/model objects: {context.ElementCount:N0}");
             if (context.ElementTableTotalCount > 0)
             {
                 builder.AppendLine($"- Element table items: {context.ElementTableTotalCount:N0}");
@@ -884,7 +1025,7 @@ namespace CraneOptimizer.AI.Services
                 return "not provided";
 
             var trimmed = fingerprint.Trim();
-            return trimmed.Length <= 96 ? trimmed : trimmed[..96] + "…";
+            return trimmed.Length <= 32 ? trimmed : trimmed[..32] + "…";
         }
 
         private static CountMatch? FindCount(IReadOnlyDictionary<string, int> counts, QueryTarget target)
@@ -1020,6 +1161,210 @@ namespace CraneOptimizer.AI.Services
             var facts = MergeFacts(context);
             if (facts.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
                 builder.AppendLine($"- {label}: {value}");
+        }
+
+        private static bool IsCountScopeDiscrepancyQuestion(string normalizedQuestion)
+        {
+            if (string.IsNullOrWhiteSpace(normalizedQuestion))
+                return false;
+
+            var target = FindCategoryTarget(normalizedQuestion);
+            var hasCountSubject = target != null || ContainsAny(
+                normalizedQuestion,
+                "category", "categories", "element", "elements", "object", "objects", "bim", "ifc");
+            if (!hasCountSubject)
+                return false;
+
+            var hasPlanningScope = ContainsAny(
+                normalizedQuestion,
+                "ifc element filter", "filter dialog", "filterable", "planning", "planning count", "filter count", "the filter", "filter shows", "filter show");
+            var hasSceneScope = ContainsAny(
+                normalizedQuestion,
+                "complete-scene", "complete scene", "ifc-scene", "ifc scene", "bim context", "scene count", "scene counts", "scene object", "scene objects");
+            var hasComparisonLanguage = ContainsAny(
+                normalizedQuestion,
+                "compare", "comparison", "difference", "different", "differ", "discrepancy", "mismatch", "versus", " vs ", "while", "why does", "why do", "why is", "why are", "twice as many", "more than", "less than");
+            var numericCount = Regex.Matches(normalizedQuestion, @"\b\d[\d,]*\b").Count;
+
+            if (hasPlanningScope && hasSceneScope && (hasComparisonLanguage || numericCount >= 2 || normalizedQuestion.Contains("count", StringComparison.OrdinalIgnoreCase)))
+                return true;
+
+            if (target != null
+                && hasComparisonLanguage
+                && (hasPlanningScope || hasSceneScope)
+                && ContainsAny(normalizedQuestion, "twice as many", "more than", "less than", "different", "differ", "why"))
+            {
+                return true;
+            }
+
+            if (target != null && ContainsAny(normalizedQuestion, "count scope", "count scopes"))
+                return true;
+
+            return ContainsAny(
+                       normalizedQuestion,
+                       "why do planning and scene counts differ",
+                       "why are planning and scene counts different",
+                       "explain the count scopes",
+                       "explain count scopes",
+                       "count-scope discrepancy",
+                       "count scope discrepancy")
+                   || (ContainsAny(normalizedQuestion, "count scope", "count scopes") && hasComparisonLanguage);
+        }
+
+        private static QueryTarget? FindCategoryTarget(string normalizedQuestion)
+        {
+            foreach (var target in CategoryTargets)
+            {
+                if (target.Aliases.Any(alias => ContainsAlias(normalizedQuestion, alias)))
+                    return target;
+            }
+
+            return null;
+        }
+
+        private static bool ContainsAlias(string text, string alias)
+        {
+            if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(alias))
+                return false;
+
+            return Regex.IsMatch(
+                text,
+                $@"(?<![a-z0-9]){Regex.Escape(alias.ToLowerInvariant())}(?![a-z0-9])",
+                RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        }
+
+        private static ReportedScopeCount? TryExtractReportedScopeCount(
+            string normalizedQuestion,
+            bool planningScope,
+            QueryTarget? target)
+        {
+            var planningTerms = new[]
+            {
+                "ifc element filter", "filter dialog", "filterable", "planning", "the filter", "filter"
+            };
+            var sceneTerms = new[]
+            {
+                "complete ifc scene", "complete-scene", "complete scene", "ifc-scene", "ifc scene", "bim context", "scene context", "scene", "bim"
+            };
+
+            foreach (Match numberMatch in Regex.Matches(normalizedQuestion, @"\b\d[\d,]*\b"))
+            {
+                if (!int.TryParse(CleanNumber(numberMatch.Value), out var count))
+                    continue;
+
+                var prefixStart = Math.Max(0, numberMatch.Index - 120);
+                var prefix = normalizedQuestion[prefixStart..numberMatch.Index];
+                var planningBefore = LastIndexOfAny(prefix, planningTerms);
+                var sceneBefore = LastIndexOfAny(prefix, sceneTerms);
+                bool? assignedToPlanning = null;
+
+                if (planningBefore >= 0 || sceneBefore >= 0)
+                    assignedToPlanning = planningBefore > sceneBefore;
+
+                if (!assignedToPlanning.HasValue)
+                {
+                    var suffixLength = Math.Min(60, normalizedQuestion.Length - (numberMatch.Index + numberMatch.Length));
+                    var suffix = normalizedQuestion.Substring(numberMatch.Index + numberMatch.Length, suffixLength);
+                    var nextNumber = Regex.Match(suffix, @"\b\d[\d,]*\b");
+                    if (nextNumber.Success)
+                        suffix = suffix[..nextNumber.Index];
+
+                    var planningAfter = IndexOfAny(suffix, planningTerms);
+                    var sceneAfter = IndexOfAny(suffix, sceneTerms);
+                    var hasCountSubjectAfter = target != null
+                        ? target.Aliases.Any(alias => ContainsAlias(suffix, alias))
+                        : ContainsAny(suffix, "element", "elements", "object", "objects", "category", "categories", "count", "total");
+
+                    if (hasCountSubjectAfter && (planningAfter >= 0 || sceneAfter >= 0))
+                    {
+                        assignedToPlanning = planningAfter >= 0
+                                             && (sceneAfter < 0 || planningAfter < sceneAfter);
+                    }
+                }
+
+                if (assignedToPlanning.HasValue && assignedToPlanning.Value == planningScope)
+                {
+                    return new ReportedScopeCount(
+                        count,
+                        planningScope
+                            ? "reported in the user question as a Filter/planning value"
+                            : "reported in the user question as a complete-scene/BIM value");
+                }
+            }
+
+            return null;
+        }
+
+        private static int LastIndexOfAny(string text, IEnumerable<string> terms)
+        {
+            var result = -1;
+            foreach (var term in terms)
+                result = Math.Max(result, text.LastIndexOf(term, StringComparison.OrdinalIgnoreCase));
+            return result;
+        }
+
+        private static int IndexOfAny(string text, IEnumerable<string> terms)
+        {
+            var result = -1;
+            foreach (var term in terms)
+            {
+                var index = text.IndexOf(term, StringComparison.OrdinalIgnoreCase);
+                if (index >= 0 && (result < 0 || index < result))
+                    result = index;
+            }
+            return result;
+        }
+
+        private static void AppendScopeCountLine(
+            StringBuilder builder,
+            string scopeLabel,
+            string categoryPhrase,
+            int? hostCount,
+            ReportedScopeCount? reportedCount,
+            string scopeDescription)
+        {
+            if (hostCount.HasValue)
+            {
+                builder.AppendLine($"- {scopeLabel} {categoryPhrase}: **{hostCount.Value:N0}** (host-confirmed from {scopeDescription}).");
+                return;
+            }
+
+            if (reportedCount != null)
+            {
+                builder.AppendLine($"- {scopeLabel} {categoryPhrase}: **{reportedCount.Count:N0}** ({reportedCount.Provenance}; not independently confirmed by AI evidence).");
+                return;
+            }
+
+            builder.AppendLine($"- {scopeLabel} {categoryPhrase}: **not exposed to AI**.");
+        }
+
+        private static void AppendReportedMismatchWarning(
+            StringBuilder builder,
+            string scopeLabel,
+            int? hostCount,
+            ReportedScopeCount? reportedCount)
+        {
+            if (!hostCount.HasValue || reportedCount == null || hostCount.Value == reportedCount.Count)
+                return;
+
+            builder.AppendLine($"- Provenance warning: the user-reported {scopeLabel} value is {reportedCount.Count:N0}, but the host-confirmed value is {hostCount.Value:N0}. The host fact is authoritative for this answer snapshot.");
+        }
+
+        private static string BuildScopeProvenance(int? hostCount, ReportedScopeCount? reportedCount)
+        {
+            if (hostCount.HasValue)
+            {
+                if (reportedCount == null)
+                    return "host-confirmed deterministic fact";
+
+                return hostCount.Value == reportedCount.Count
+                    ? "host-confirmed deterministic fact; the user-reported value agrees"
+                    : $"host-confirmed deterministic fact; user reported {reportedCount.Count:N0}, which conflicts";
+            }
+
+            return reportedCount == null
+                ? "not exposed in the current AI context"
+                : $"{reportedCount.Provenance}; not host-confirmed";
         }
 
         private static bool ContainsAny(string text, params string[] terms)
