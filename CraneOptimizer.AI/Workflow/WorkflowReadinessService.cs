@@ -84,7 +84,7 @@ namespace CraneOptimizer.AI.Workflow
                     hasNoGaCandidateBlocker
                         ? "Resolve import/lift-unit readiness first; keep the optimizer gate closed until trusted lift-unit evidence is available."
                         : "Run the GA optimizer after IFC, zones, crane, and load chart inputs are ready.",
-                    hasNoGaCandidateBlocker ? "IFC MODEL → Export Element List / trusted weight-source review" : "ANALYZE → Run Optimizer"),
+                    hasNoGaCandidateBlocker ? "IFC MODEL → Export Element List / trusted weight-source review" : "ANALYSIS → Run Optimizer"),
 
                 Item(
                     "Diagnostics available",
@@ -93,7 +93,7 @@ namespace CraneOptimizer.AI.Workflow
                     hasDiagnostics ? "OK" : "Info",
                     hasDiagnostics ? $"Diagnostics path: {result.DiagnosticsPath}" : "No diagnostics path is attached to the latest result.",
                     "Use diagnostics to distinguish geometry/reachability issues from GA convergence issues.",
-                    "ANALYZE → GA Diagnostics"),
+                    "ANALYSIS → Lift Summary"),
 
                 Item(
                     "Report readiness",
@@ -102,7 +102,7 @@ namespace CraneOptimizer.AI.Workflow
                     resultIsReportReady ? "OK" : hasResult ? "Warning" : "Info",
                     hasResult ? $"Coverage is {result.CoverageRatio:P2}." : "No result is available for report generation.",
                     hasResult ? "Review unresolved elements and assumptions before generating final reports." : "Generate reports after a completed optimization run.",
-                    "REPORTS → Lifting Summary Report")
+                    "ANALYSIS → Lifting Summary Report")
             };
 
             items.AddRange(BuildScreenContextEvidenceItems(context));
@@ -166,7 +166,7 @@ namespace CraneOptimizer.AI.Workflow
                     Finding = "Workflow prerequisites look complete",
                     Evidence = snapshot.Summary,
                     Recommendation = "Proceed with engineering review, diagnostics inspection, and report generation.",
-                    NextClick = "REPORTS → Lifting Summary Report",
+                    NextClick = "ANALYSIS → Lifting Summary Report",
                     Risk = "AI guidance remains advisory and does not certify crane-planning safety.",
                     Confidence = "High"
                 }

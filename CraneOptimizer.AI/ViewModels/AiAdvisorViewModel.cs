@@ -1539,7 +1539,7 @@ namespace CraneOptimizer.AI.ViewModels
                     ? $"{context.LiftedElementCount}/{context.TotalElementCount} elements lifted"
                     : workflowState != null && !workflowState.CanRunOptimizerNow
                         ? workflowState.RootCause + " Next: " + workflowState.RecommendedAction
-                        : "Run ANALYZE -> Run Optimizer only after readiness is complete."
+                        : "Run ANALYSIS -> Run Optimizer only after readiness is complete."
             });
             ContextCards.Add(new AiContextCardViewModel
             {
@@ -1898,7 +1898,7 @@ namespace CraneOptimizer.AI.ViewModels
                 builder.AppendLine($"AI integration: {softwareContext.Framework.AiIntegrationMode}");
                 builder.AppendLine();
 
-                builder.AppendLine("VISIBLE SOFTWARE TABS AND ACTIONS");
+                builder.AppendLine("SOFTWARE WORKFLOW AREAS AND ACTIONS");
                 foreach (var tab in softwareContext.Tabs)
                 {
                     builder.AppendLine($"- {tab.TabName}: {tab.Purpose}");
@@ -1942,7 +1942,7 @@ namespace CraneOptimizer.AI.ViewModels
                     }
                     else
                     {
-                        builder.AppendLine("No completed optimization result is currently available. For result-specific questions, tell the user to run ANALYZE -> Run Optimizer first, then open AI ASSIST -> STUDIO.");
+                        builder.AppendLine("No completed optimization result is currently available. For result-specific questions, tell the user to run ANALYSIS -> Run Optimizer first, then open AI ASSIST -> STUDIO.");
                     }
                 }
                 else
@@ -2054,7 +2054,7 @@ namespace CraneOptimizer.AI.ViewModels
             builder.AppendLine($"- Architecture: {context.Framework.Architecture}");
             builder.AppendLine($"- AI mode: {context.Framework.AiIntegrationMode}");
             builder.AppendLine();
-            builder.AppendLine("Tabs and buttons");
+            builder.AppendLine("Workflow areas and actions");
 
             foreach (var tab in context.Tabs)
             {

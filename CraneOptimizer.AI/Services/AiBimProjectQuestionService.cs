@@ -229,7 +229,7 @@ namespace CraneOptimizer.AI.Services
             builder.AppendLine("Raw candidate-like element counts are not the same as trusted grouped lift units. The optimizer may still block GA when grouping, trusted-weight, COG, or role evidence is insufficient.");
             builder.AppendLine();
             builder.AppendLine("## Next Click");
-            builder.AppendLine(trusted.GetValueOrDefault() > 0 ? "ANALYZE → Run Optimizer after zones, crane, and load-chart evidence are complete" : "IFC MODEL → Export Element List / trusted weight-source review");
+            builder.AppendLine(trusted.GetValueOrDefault() > 0 ? "ANALYSIS → Run Optimizer after zones, crane, and load-chart evidence are complete" : "IFC MODEL → Export Element List / trusted weight-source review");
             builder.AppendLine();
             builder.AppendLine("## Confidence");
             builder.AppendLine(trusted.HasValue ? "High — this answer used deterministic readiness facts." : "Medium — total element context exists, but trusted lift-unit facts were not exposed.");
