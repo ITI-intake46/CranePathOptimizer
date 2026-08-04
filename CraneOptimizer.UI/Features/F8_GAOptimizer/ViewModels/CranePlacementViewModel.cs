@@ -600,7 +600,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels
                     if (!result.IsReadOnlyRestoredResult)
                     {
                         SelectedPosition = point;
-                        RenderElementsWithCurrentStatus?.Invoke();
                     }
                 },
                 viewMode =>

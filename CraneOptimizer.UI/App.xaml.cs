@@ -192,6 +192,7 @@ namespace CraneOptimizer.UI
             services.AddScoped<IOptimizationScopeEngine, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.OptimizationScope.OptimizationScopeEngine>();
             services.AddScoped<ICranePlacementService, CranePlacementService>();
             services.AddSingleton<ICraneOptimizerDialogService, CraneOptimizerDialogService>();
+            services.AddSingleton<IOptimizationViewportHighlightService, OptimizationViewportHighlightService>();
             services.AddSingleton<IGAResultsWindowService, GAResultsWindowService>();
             services.AddSingleton<IGaSnapshotToUiResultMapper, GaSnapshotToUiResultMapper>();
             services.AddSingleton<CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces.IGADiagnosticsReaderService, CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services.GADiagnosticsReaderService>();
