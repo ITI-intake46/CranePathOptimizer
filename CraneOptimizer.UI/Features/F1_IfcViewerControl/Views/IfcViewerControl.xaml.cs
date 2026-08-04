@@ -18,6 +18,7 @@ using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F11_DXF.Views;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
+using CraneOptimizer.UI.Features.F2_IfcViewer.Interaction;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Models;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Services;
 using CraneOptimizer.UI.Features.F15_ObjectSnap.Views;
@@ -68,6 +69,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         private long _osnapRequestId;
         private long _latestHoverRequestId;
         private bool _zoneClickPending;
+        private bool _ifcMoveClickPending;
         private int _loadGeneration;
         private readonly List<(MeasurementVisualData Data, Border Label)> _measurementLabels = new();
         private readonly List<(MeasurementVisualData Data, System.Windows.Shapes.Line Line)> _measurementLines = new();
@@ -301,6 +303,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                 return;
 
             _interactionService.HandleKeyDown(IfcViewer, e);
+            UpdateIfcMoveOverlay();
         }
 
         private void OnZoneSelected(GreenAreaZone? zone) => ScheduleRenderZones();
@@ -472,6 +475,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             _selectionHandler.OnMouseMove(viewport, e);
             if (!_drawingViewModel.IsDrawing)
                 _interactionService.HandleMouseMove(viewport, e);
+            UpdateIfcMoveOverlay();
         }
 
         private void IfcViewer_PreviewMouseMove(object sender, MouseEventArgs e)
@@ -717,6 +721,13 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             }
 
             OsnapResult? accepted = completion.SnapResult;
+            if (_interactionService.CurrentMode is IfcMoveMode ifcMoveMode)
+            {
+                accepted = ifcMoveMode.FilterSnapResult(accepted);
+                ifcMoveMode.UpdateSnapPreview(accepted);
+                UpdateIfcMoveOverlay();
+            }
+
             _osnapIndicator?.Update(accepted);
 
             if (!_drawingViewModel.IsDrawing &&
@@ -733,6 +744,87 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
                     context.CapturedShift,
                     accepted);
             }
+        }
+
+        private async Task ResolveAndCommitIfcMoveClickAsync(
+            HelixViewport3D viewport,
+            Point screen,
+            IfcMoveMode moveMode)
+        {
+            Point3D? rawPoint = moveMode.TryCaptureRawClick(
+                viewport,
+                screen,
+                out Point3D capturedRawPoint)
+                ? capturedRawPoint
+                : null;
+
+            OsnapResult? accepted = null;
+            CancellationTokenSource? lifetime = _osnapLifetime;
+            OsnapPointerCoordinator? coordinator = _osnapCoordinator;
+            if (lifetime != null && coordinator != null)
+            {
+                const int maximumAttempts = 2;
+                for (int attempt = 0; attempt < maximumAttempts; attempt++)
+                {
+                    lifetime.Token.ThrowIfCancellationRequested();
+                    if (!ReferenceEquals(_interactionService.CurrentMode, moveMode))
+                        return;
+
+                    if (!TryCreateOsnapQuery(
+                            viewport,
+                            screen,
+                            isClick: true,
+                            out OsnapQuery query))
+                    {
+                        break;
+                    }
+
+                    try
+                    {
+                        OsnapQueryCompletion completion =
+                            await coordinator.ResolveClickAsync(
+                                query,
+                                hoverCursorTolerancePixels: 3.0,
+                                lifetime.Token);
+                        if (!ReferenceEquals(
+                                _interactionService.CurrentMode,
+                                moveMode))
+                        {
+                            return;
+                        }
+
+                        if (!IsSnapshotCurrent(completion.Query.Viewport))
+                            continue;
+
+                        accepted = completion.SnapResult;
+                        break;
+                    }
+                    catch (OperationCanceledException)
+                        when (!lifetime.IsCancellationRequested)
+                    {
+                        // A snap epoch changed. Recapture once against the
+                        // current settings and geometry.
+                    }
+                    catch (Exception exception)
+                        when (exception is not OperationCanceledException &&
+                              exception is not ObjectDisposedException)
+                    {
+                        System.Diagnostics.Debug.WriteLine(
+                            $"[OSnap] IFC movement click fell back to raw picking: " +
+                            exception.Message);
+                        break;
+                    }
+                }
+            }
+
+            if (!ReferenceEquals(_interactionService.CurrentMode, moveMode))
+                return;
+
+            accepted = moveMode.FilterSnapResult(accepted);
+            _osnapIndicator?.Update(accepted);
+            moveMode.CommitResolvedClick(rawPoint, accepted);
+            if (!ReferenceEquals(_interactionService.CurrentMode, moveMode))
+                _osnapIndicator?.Hide();
         }
 
         private async Task ResolveAndCommitToolClickAsync(
@@ -1136,6 +1228,46 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             if (sender is not HelixViewport3D viewport)
                 return;
 
+            if (_interactionService.CurrentMode is IfcMoveMode ifcMoveMode &&
+                e.ChangedButton == MouseButton.Left)
+            {
+                e.Handled = true;
+                if (_ifcMoveClickPending)
+                    return;
+
+                _ifcMoveClickPending = true;
+                Point screen = e.GetPosition(viewport);
+                try
+                {
+                    await ResolveAndCommitIfcMoveClickAsync(
+                        viewport,
+                        screen,
+                        ifcMoveMode);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Cancellation is expected when the command, camera,
+                    // Object Snap settings, or geometry is superseded.
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The control or snap coordinator was unloaded mid-click.
+                }
+                catch (Exception exception)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[OSnap] IFC movement click resolution failed: " +
+                        exception.Message);
+                }
+                finally
+                {
+                    _ifcMoveClickPending = false;
+                    UpdateIfcMoveOverlay();
+                }
+
+                return;
+            }
+
             bool isDrawingClick = _drawingViewModel.IsDrawing;
             if ((isDrawingClick || _drawingViewModel.IsMeasuring) &&
                 e.ChangedButton == MouseButton.Left)
@@ -1203,6 +1335,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
             UpdateSelectionHandlerEnabled();
             _selectionHandler.OnMouseDown(viewport, e);
             _interactionService.HandleMouseDown(viewport, e);
+            UpdateIfcMoveOverlay();
         }
 
         private void IfcViewer_MouseUp(object sender, MouseButtonEventArgs e)
@@ -1280,6 +1413,64 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         {
             AdvanceOsnapCameraVersion();
             UpdateMeasurementOverlayPositions();
+            UpdateIfcMoveOverlay();
+        }
+
+        private void UpdateIfcMoveOverlay()
+        {
+            if (DataContext is not MainViewModel mainViewModel ||
+                mainViewModel.IfcViewer.ActiveIfcMoveMethod !=
+                    IfcMoveMethod.PickedPoint ||
+                mainViewModel.IfcViewer.IfcMoveStep !=
+                    IfcMoveStep.SelectDestination ||
+                !mainViewModel.IfcViewer.SelectedIfcBasePoint.HasValue)
+            {
+                IfcMoveBaseMarker.Visibility = Visibility.Collapsed;
+                IfcMovePreviewLine.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            Point3D basePoint =
+                mainViewModel.IfcViewer.SelectedIfcBasePoint.Value;
+            if (!TryProjectToOverlay(
+                    IfcViewer,
+                    basePoint,
+                    out Point baseScreen,
+                    out double baseDepth) ||
+                baseDepth <= 0)
+            {
+                IfcMoveBaseMarker.Visibility = Visibility.Collapsed;
+                IfcMovePreviewLine.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            Canvas.SetLeft(
+                IfcMoveBaseMarker,
+                baseScreen.X - IfcMoveBaseMarker.Width / 2d);
+            Canvas.SetTop(
+                IfcMoveBaseMarker,
+                baseScreen.Y - IfcMoveBaseMarker.Height / 2d);
+            IfcMoveBaseMarker.Visibility = Visibility.Visible;
+
+            Point3D? previewPoint =
+                mainViewModel.IfcViewer.IfcMovePreviewPoint;
+            if (!previewPoint.HasValue ||
+                !TryProjectToOverlay(
+                    IfcViewer,
+                    previewPoint.Value,
+                    out Point previewScreen,
+                    out double previewDepth) ||
+                previewDepth <= 0)
+            {
+                IfcMovePreviewLine.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            IfcMovePreviewLine.X1 = baseScreen.X;
+            IfcMovePreviewLine.Y1 = baseScreen.Y;
+            IfcMovePreviewLine.X2 = previewScreen.X;
+            IfcMovePreviewLine.Y2 = previewScreen.Y;
+            IfcMovePreviewLine.Visibility = Visibility.Visible;
         }
 
         private void RebuildMeasurementLabels()
@@ -1686,6 +1877,7 @@ namespace CraneOptimizer.UI.Features.F1_IfcViewerControl.Views
         {
             AdvanceOsnapCameraVersion();
             UpdateMeasurementOverlayPositions();
+            UpdateIfcMoveOverlay();
 
             if (_isUpdatingCameraMode)
                 return;

@@ -139,6 +139,24 @@
                         Background="Transparent"
                         ClipToBounds="True"/>
 
+                <Canvas x:Name="IfcMoveOverlayCanvas"
+                        IsHitTestVisible="False"
+                        Background="Transparent"
+                        ClipToBounds="True">
+                    <Line x:Name="IfcMovePreviewLine"
+                          Stroke="{DynamicResource PrimaryBrush}"
+                          StrokeDashArray="3,2"
+                          StrokeThickness="2"
+                          Visibility="Collapsed" />
+                    <Ellipse x:Name="IfcMoveBaseMarker"
+                             Width="12"
+                             Height="12"
+                             Fill="{DynamicResource SurfaceBrush}"
+                             Stroke="{DynamicResource PrimaryBrush}"
+                             StrokeThickness="2"
+                             Visibility="Collapsed" />
+                </Canvas>
+
                 <Canvas x:Name="OsnapOverlayCanvas"
                         IsHitTestVisible="False"
                         Background="Transparent"

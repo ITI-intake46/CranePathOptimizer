@@ -13,6 +13,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
         Selected,
         SpecialCase,
         ChartDataIssue,
-        AssignedToOtherPoint
+        AssignedToOtherPoint,
+        NotLiftable
     }
 }

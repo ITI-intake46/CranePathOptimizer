@@ -16,6 +16,7 @@ using CraneOptimizer.UI.Features.F10_ProjectManagement.Services;
 using System.Diagnostics;
 using System.Windows.Input;
 using System.Windows.Media.Media3D;
+using CraneOptimizer.UI.Features.F2_IfcViewer.Interaction;
 
 namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 {
@@ -38,7 +39,10 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         private readonly IProjectCoordinateTransformService? _transformService;
         private List<PrecastElement>? _pendingIfcElements;
         private IfcLoadOptionsDto? _pendingFilterOptions;
-        private bool _isMovingExistingIfc;
+        private IfcMoveMethod? _activeIfcMoveMethod;
+        private IfcMoveStep _ifcMoveStep;
+        private Point3D? _selectedIfcBasePoint;
+        private Point3D? _ifcMovePreviewPoint;
         private readonly object _ifcLoadSync = new();
         private readonly SemaphoreSlim _ifcLoadGate = new(1, 1);
         private CancellationTokenSource? _activeIfcLoadCancellation;
@@ -49,6 +53,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
         public ICommand MergeIfcCommand { get; }
         public ICommand CancelPlacementCommand { get; }
         public ICommand MoveIfcCommand { get; }
+        public ICommand MoveIfcByOriginCommand { get; }
+        public ICommand MoveIfcByPickedPointCommand { get; }
         public ICommand DeleteIfcCommand { get; }
         public ICommand ShowIfcDisplayOptionsCommand { get; }
 
@@ -90,9 +96,58 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             }
         }
 
-        public string PlacementPrompt => _isMovingExistingIfc
-            ? "Click the new IFC origin location. Press Esc to cancel."
-            : "Click to place IFC origin. Press Esc to cancel.";
+        public IfcMoveMethod? ActiveIfcMoveMethod
+        {
+            get => _activeIfcMoveMethod;
+            private set
+            {
+                _activeIfcMoveMethod = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlacementPrompt));
+            }
+        }
+
+        public IfcMoveStep IfcMoveStep
+        {
+            get => _ifcMoveStep;
+            private set
+            {
+                _ifcMoveStep = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlacementPrompt));
+            }
+        }
+
+        public Point3D? SelectedIfcBasePoint
+        {
+            get => _selectedIfcBasePoint;
+            private set
+            {
+                _selectedIfcBasePoint = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public Point3D? IfcMovePreviewPoint
+        {
+            get => _ifcMovePreviewPoint;
+            private set
+            {
+                _ifcMovePreviewPoint = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string PlacementPrompt => (ActiveIfcMoveMethod, IfcMoveStep) switch
+        {
+            (IfcMoveMethod.Origin, _) =>
+                "Select the new IFC origin location. Object Snap is available. Press Esc to cancel.",
+            (IfcMoveMethod.PickedPoint, IfcMoveStep.SelectBasePoint) =>
+                "Select a base point on the IFC model. Object Snap is available. Press Esc to cancel.",
+            (IfcMoveMethod.PickedPoint, IfcMoveStep.SelectDestination) =>
+                "Select the destination point. Object Snap is available. Press Esc to cancel.",
+            _ => "Click to place IFC origin. Press Esc to cancel."
+        };
 
         private Point3D? _pendingPlacementPoint;
         public Point3D? PendingPlacementPoint
@@ -142,7 +197,13 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             LoadIfcCommand = new RelayCommand(async () => await LoadIfcAsync(), () => !IsLoading && !IsPlacementMode);
             MergeIfcCommand = new RelayCommand(ShowMergeIfcPlaceholder, () => !IsLoading && !IsPlacementMode);
             CancelPlacementCommand = new RelayCommand(CancelPlacement, () => IsPlacementMode);
-            MoveIfcCommand = new RelayCommand(StartMoveIfc, CanMoveIfc);
+            MoveIfcCommand = new RelayCommand(() => { }, CanMoveIfc);
+            MoveIfcByOriginCommand = new RelayCommand(
+                () => StartMoveIfc(IfcMoveMethod.Origin),
+                CanMoveIfc);
+            MoveIfcByPickedPointCommand = new RelayCommand(
+                () => StartMoveIfc(IfcMoveMethod.PickedPoint),
+                CanMoveIfc);
             DeleteIfcCommand = new RelayCommand(DeleteIfc, CanEditPlacedIfc);
             ShowIfcDisplayOptionsCommand = new RelayCommand(ShowIfcDisplayOptions, CanEditPlacedIfc);
             if (_scene != null)
@@ -269,7 +330,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                         true);
                     _pendingIfcElements = null;
                     _pendingFilterOptions = null;
-                    _isMovingExistingIfc = false;
+                    ClearIfcMoveState();
                     IsPlacementMode = false;
                     OnPropertyChanged(nameof(PlacementPrompt));
                     Status = $"Placed {_filterService.ShowingCount} of {placedElements.Count} elements using IFC Origin Mapping.";
@@ -277,7 +338,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
                 }
                 else
                 {
-                    _isMovingExistingIfc = false;
+                    ClearIfcMoveState();
                     PendingPlacementPoint = null;
                     IsPlacementMode = true;
                     OnPropertyChanged(nameof(PlacementPrompt));
@@ -344,7 +405,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
             _pendingIfcElements = null;
             _pendingFilterOptions = null;
-            _isMovingExistingIfc = false;
+            ClearIfcMoveState();
             IsPlacementMode = false;
             OnPropertyChanged(nameof(PlacementPrompt));
             Status = $"Placed {_filterService.ShowingCount} of {placedElements.Count} elements";
@@ -649,7 +710,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                 _pendingIfcElements = null;
                 _pendingFilterOptions = null;
-                _isMovingExistingIfc = false;
+                ClearIfcMoveState();
                 PendingPlacementPoint = null;
                 LoadedIfcFilePath = null;
 
@@ -672,7 +733,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
                 _pendingIfcElements = null;
                 _pendingFilterOptions = null;
-                _isMovingExistingIfc = false;
+                ClearIfcMoveState();
                 PendingPlacementPoint = null;
                 LoadedIfcFilePath = null;
                 _ifcSceneOperations.DeleteIfcModel();
@@ -779,27 +840,87 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
         public bool MovePlacedIfc(Point3D insertionPoint)
         {
-            if (!IsPlacementMode || !_isMovingExistingIfc)
+            if (!IsPlacementMode)
                 return false;
 
             var elements = _ifcSceneOperations.GetElements();
             if (elements.Count == 0)
                 return false;
 
-            var firstEl = elements.FirstOrDefault();
-            var beforeCOG = firstEl?.ElementCOG;
-
-            var originalBounds = CalculateBounds(elements);
             var currentOffset = PendingPlacementPoint ?? new Point3D(0, 0, 0);
-            var delta = new Point3D(
+            var delta = new Vector3D(
                 insertionPoint.X - currentOffset.X,
                 insertionPoint.Y - currentOffset.Y,
                 insertionPoint.Z - currentOffset.Z);
 
-            var newOffset = new Point3D(
-                currentOffset.X + delta.X,
-                currentOffset.Y + delta.Y,
-                currentOffset.Z + delta.Z);
+            return ApplyIfcMoveDelta(
+                elements,
+                currentOffset,
+                delta,
+                $"Moved IFC origin to {insertionPoint.X:F2}, {insertionPoint.Y:F2}, {insertionPoint.Z:F2}");
+        }
+
+        public bool SetIfcMoveBasePoint(Point3D basePoint)
+        {
+            if (!IsPlacementMode ||
+                ActiveIfcMoveMethod != IfcMoveMethod.PickedPoint ||
+                IfcMoveStep != IfcMoveStep.SelectBasePoint)
+            {
+                return false;
+            }
+
+            SelectedIfcBasePoint = basePoint;
+            IfcMovePreviewPoint = basePoint;
+            IfcMoveStep = IfcMoveStep.SelectDestination;
+            Status = "Select the destination point for the IFC base point.";
+            return true;
+        }
+
+        public void SetIfcMovePreviewPoint(Point3D previewPoint)
+        {
+            if (IsPlacementMode &&
+                ActiveIfcMoveMethod == IfcMoveMethod.PickedPoint &&
+                IfcMoveStep == IfcMoveStep.SelectDestination)
+            {
+                IfcMovePreviewPoint = previewPoint;
+            }
+        }
+
+        public bool MovePlacedIfcFromPoint(Point3D sourcePoint, Point3D destinationPoint)
+        {
+            if (!IsPlacementMode ||
+                ActiveIfcMoveMethod != IfcMoveMethod.PickedPoint ||
+                IfcMoveStep != IfcMoveStep.SelectDestination ||
+                !SelectedIfcBasePoint.HasValue ||
+                SelectedIfcBasePoint.Value != sourcePoint)
+            {
+                return false;
+            }
+
+            var elements = _ifcSceneOperations.GetElements();
+            if (elements.Count == 0)
+                return false;
+
+            var currentOffset = PendingPlacementPoint ?? new Point3D(0, 0, 0);
+            Vector3D delta = destinationPoint - sourcePoint;
+
+            return ApplyIfcMoveDelta(
+                elements,
+                currentOffset,
+                delta,
+                $"Moved IFC point to {destinationPoint.X:F2}, {destinationPoint.Y:F2}, {destinationPoint.Z:F2}");
+        }
+
+        private bool ApplyIfcMoveDelta(
+            List<PrecastElement> elements,
+            Point3D currentOffset,
+            Vector3D delta,
+            string completionStatus)
+        {
+            PrecastElement? firstElement = elements.FirstOrDefault();
+            DomainPoint3D? beforeCog = firstElement?.ElementCOG;
+            var originalBounds = CalculateBounds(elements);
+            Point3D newOffset = currentOffset + delta;
 
             // CRITICAL rendering sync fix: Set PendingPlacementPoint BEFORE calling MoveIfcModel,
             // so that ReRenderElements triggered synchronously inside MoveIfcModel reads the new offset correctly!
@@ -807,8 +928,8 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
             _ifcSceneOperations.MoveIfcModel(new DomainPoint3D(delta.X, delta.Y, delta.Z));
 
-            var movedElements = _ifcSceneOperations.GetElements();
-            var afterCOG = movedElements.FirstOrDefault()?.ElementCOG;
+            List<PrecastElement> movedElements = _ifcSceneOperations.GetElements();
+            DomainPoint3D? afterCog = movedElements.FirstOrDefault()?.ElementCOG;
             var finalBounds = CalculateBounds(movedElements);
 
             // Log [IfcMove Z-Preservation Diagnosis] as strictly requested in safeguards
@@ -821,50 +942,77 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
             Debug.WriteLine($"[IfcMove Diagnosis] Old Offset: ({currentOffset.X:F3}, {currentOffset.Y:F3}, {currentOffset.Z:F3})");
             Debug.WriteLine($"[IfcMove Diagnosis] New Offset: ({newOffset.X:F3}, {newOffset.Y:F3}, {newOffset.Z:F3})");
             Debug.WriteLine($"[IfcMove Diagnosis] Move Delta: ({delta.X:F3}, {delta.Y:F3}, {delta.Z:F3})");
-            Debug.WriteLine($"[IfcMove Diagnosis] First Element COG Before: {(beforeCOG != null ? $"({beforeCOG.X:F3}, {beforeCOG.Y:F3}, {beforeCOG.Z:F3})" : "null")}");
-            Debug.WriteLine($"[IfcMove Diagnosis] First Element COG After: {(afterCOG != null ? $"({afterCOG.X:F3}, {afterCOG.Y:F3}, {afterCOG.Z:F3})" : "null")}");
+            Debug.WriteLine($"[IfcMove Diagnosis] First Element COG Before: {(beforeCog != null ? $"({beforeCog.X:F3}, {beforeCog.Y:F3}, {beforeCog.Z:F3})" : "null")}");
+            Debug.WriteLine($"[IfcMove Diagnosis] First Element COG After: {(afterCog != null ? $"({afterCog.X:F3}, {afterCog.Y:F3}, {afterCog.Z:F3})" : "null")}");
 
-            _isMovingExistingIfc = false;
+            ClearIfcMoveState();
             IsPlacementMode = false;
-            OnPropertyChanged(nameof(PlacementPrompt));
-            Status = $"Moved IFC origin to {insertionPoint.X:F2}, {insertionPoint.Y:F2}, {insertionPoint.Z:F2}";
+            Status = completionStatus;
             IfcModelChanged?.Invoke();
             return true;
         }
 
         private void CancelPlacement()
         {
+            bool wasMovingIfc = ActiveIfcMoveMethod.HasValue;
+            if (wasMovingIfc &&
+                _interaction.CurrentMode is Interaction.IfcMoveMode)
+            {
+                _interaction.PopMode();
+            }
+
             _pendingIfcElements = null;
             _pendingFilterOptions = null;
-            if (!_isMovingExistingIfc)
+            if (!wasMovingIfc)
             {
                 PendingPlacementPoint = null;
                 LoadedIfcFilePath = null;
             }
-            _isMovingExistingIfc = false;
+            ClearIfcMoveState();
             IsPlacementMode = false;
-            OnPropertyChanged(nameof(PlacementPrompt));
             Progress = 0;
-            Status = "IFC placement cancelled";
+            Status = wasMovingIfc
+                ? "IFC movement cancelled."
+                : "IFC placement cancelled";
         }
 
-        private void StartMoveIfc()
+        public void CancelIfcMovement()
         {
-            if (!CanEditPlacedIfc())
+            if (ActiveIfcMoveMethod.HasValue)
+                CancelPlacement();
+        }
+
+        private void StartMoveIfc(IfcMoveMethod method)
+        {
+            if (!CanMoveIfc())
                 return;
 
             _pendingIfcElements = null;
             _pendingFilterOptions = null;
-            _isMovingExistingIfc = true;
+            ActiveIfcMoveMethod = method;
+            IfcMoveStep = method == IfcMoveMethod.PickedPoint
+                ? IfcMoveStep.SelectBasePoint
+                : IfcMoveStep.None;
+            SelectedIfcBasePoint = null;
+            IfcMovePreviewPoint = null;
             IsPlacementMode = true;
-            OnPropertyChanged(nameof(PlacementPrompt));
 
             _interaction.PushMode(new Interaction.IfcMoveMode(
                 this,
                 _hitTest,
                 _interaction));
 
-            Status = "Click a new origin location for the IFC model.";
+            Status = method == IfcMoveMethod.Origin
+                ? "Select the new IFC origin location."
+                : "Select a base point on the IFC model.";
+        }
+
+        private void ClearIfcMoveState()
+        {
+            ActiveIfcMoveMethod = null;
+            IfcMoveStep = IfcMoveStep.None;
+            SelectedIfcBasePoint = null;
+            IfcMovePreviewPoint = null;
         }
 
         private void DeleteIfc()
@@ -882,10 +1030,9 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels
 
             _pendingIfcElements = null;
             _pendingFilterOptions = null;
-            _isMovingExistingIfc = false;
+            ClearIfcMoveState();
             PendingPlacementPoint = null;
             IsPlacementMode = false;
-            OnPropertyChanged(nameof(PlacementPrompt));
 
             _ifcSceneOperations.DeleteIfcModel();
             LoadedIfcFilePath = null;
