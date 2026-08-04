@@ -1186,7 +1186,12 @@ namespace CraneOptimizer.AI.Services
                 "compare", "comparison", "difference", "different", "differ", "discrepancy", "mismatch", "versus", " vs ", "while", "why does", "why do", "why is", "why are", "twice as many", "more than", "less than");
             var numericCount = Regex.Matches(normalizedQuestion, @"\b\d[\d,]*\b").Count;
 
-            if (hasPlanningScope && hasSceneScope && (hasComparisonLanguage || numericCount >= 2 || normalizedQuestion.Contains("count", StringComparison.OrdinalIgnoreCase)))
+            // Mentioning both scopes is not by itself a discrepancy request. A scoped
+            // category-breakdown prompt such as "show the category counts for the
+            // planning/filter scope and the complete IFC scene" must continue to the
+            // category-breakdown handler. Treat it as a comparison only when the user
+            // supplies comparison language or two explicit numeric values.
+            if (hasPlanningScope && hasSceneScope && (hasComparisonLanguage || numericCount >= 2))
                 return true;
 
             if (target != null
