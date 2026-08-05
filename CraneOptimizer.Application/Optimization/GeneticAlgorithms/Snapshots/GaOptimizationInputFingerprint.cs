@@ -16,7 +16,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Snapshots;
 /// </summary>
 public static class GaOptimizationInputFingerprint
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     public static readonly IReadOnlyList<string> RequiredComponentNames =
     [
@@ -134,6 +134,7 @@ public static class GaOptimizationInputFingerprint
         settings.MaxCranePositions,
         Number(settings.GridStep),
         Number(settings.CraneFootprintRadius),
+        Number(settings.RenderedOperatingEnvelopeRadius),
         Number(settings.MinimumRelocationDistance),
         Number(settings.DuplicatePositionDistance),
         Number(settings.MutationExplorationMultiplier),

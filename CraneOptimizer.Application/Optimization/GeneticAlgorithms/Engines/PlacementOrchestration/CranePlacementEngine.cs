@@ -12,6 +12,7 @@ using System.Linq;
 using System.Threading;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Constraints;
 using CraneOptimizer.Application.Services.Identity;
 
 using CraneOptimizer.Domain.Diagnostics;
@@ -25,6 +26,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
         private readonly ICraneConfigurationEngine _configEngine;
         private readonly IGACsvDiagnosticsService _diagnosticsService;
         private readonly IReachabilityMapService? _reachabilityMapService;
+        private readonly IConstraintEngine _constraintEngine;
 
         public CranePlacementEngine(
             IGeneticAlgorithmEngine gaEngine,
@@ -32,7 +34,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
             ICoverageEngine coverageEngine,
             ICraneConfigurationEngine configEngine,
             IGACsvDiagnosticsService diagnosticsService)
-            : this(gaEngine, assignmentService, coverageEngine, configEngine, diagnosticsService, null)
+            : this(gaEngine, assignmentService, coverageEngine, configEngine, diagnosticsService, null, null)
         {
         }
 
@@ -42,7 +44,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
             ICoverageEngine coverageEngine,
             ICraneConfigurationEngine configEngine,
             IGACsvDiagnosticsService diagnosticsService,
-            IReachabilityMapService? reachabilityMapService)
+            IReachabilityMapService? reachabilityMapService,
+            IConstraintEngine? constraintEngine = null)
         {
             _gaEngine = gaEngine;
             _assignmentService = assignmentService;
@@ -50,6 +53,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
             _configEngine = configEngine;
             _diagnosticsService = diagnosticsService;
             _reachabilityMapService = reachabilityMapService;
+            _constraintEngine = constraintEngine ?? new ConstraintEngine();
         }
 
         public PlacementResult RunOptimization(
@@ -241,6 +245,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                     .OrderByDescending(position => position.NewLiftableCount)
                     .ToList();
 
+                ApplyFinalZoneSafetyGate(finalResult, input, allElements.Count);
+
                 // Resolve final unique assignments
                 AssignmentPolicy.ResolveFinalAssignments(finalResult.Positions, allElements, input.CraneSpec!, input.Settings);
 
@@ -267,6 +273,8 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 finalResult.Positions = finalResult.Positions
                     .Where(p => p.NewLiftableCount > 0)
                     .ToList();
+
+                ApplyFinalZoneSafetyGate(finalResult, input, allElements.Count);
 
                 if (GAProfiler.Enabled)
                 {
@@ -392,6 +400,115 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Plac
                 return finalResult;
             }
         }
+
+        private void ApplyFinalZoneSafetyGate(PlacementResult result, PlacementInput input, int totalElementCount)
+        {
+            var validPositions = new List<CranePositionResult>();
+            bool removedInvalidPosition = false;
+
+            foreach (var position in result.Positions)
+            {
+                var point = new DomainPoint3D(position.X, position.Y, position.Z);
+                var validation = GetSetupPointValidation(point, input.Zones, input.ForbiddenZones, input.Settings);
+                var footprint = ResolvePhysicalFootprintDiagnostics(input);
+
+                Debug.WriteLine(
+                    "[GA_ZONE_FINAL_CHECK] " +
+                    $"CranePosition=({point.X:F4},{point.Y:F4},{point.Z:F4}) " +
+                    "CoordinateFrame=ProjectLocalMeters " +
+                    $"VehicleLength={FormatNullable(footprint.VehicleLength)} " +
+                    $"VehicleWidth={FormatNullable(footprint.VehicleWidth)} " +
+                    $"OutriggerLength={FormatNullable(footprint.OutriggerLength)} " +
+                    $"OutriggerWidth={FormatNullable(footprint.OutriggerWidth)} " +
+                    $"SelectedFootprintLength={footprint.SelectedFootprintLength:F4} " +
+                    $"SelectedFootprintWidth={footprint.SelectedFootprintWidth:F4} " +
+                    $"GroundFootprintRadius={validation.GroundFootprintRadius:F4} " +
+                    $"MinimumAllowedBoundaryDistance={FormatDistance(validation.MinimumAllowedBoundaryDistance)} " +
+                    $"InsideAllowed={validation.InsideAllowed} " +
+                    $"ForbiddenOverlap={validation.ForbiddenOverlap} " +
+                    $"Valid={validation.IsValid} " +
+                    $"AllowedZoneId={(validation.AllowedZoneId.HasValue ? validation.AllowedZoneId.Value.ToString() : string.Empty)}");
+
+                if (validation.IsValid)
+                {
+                    validPositions.Add(position);
+                    continue;
+                }
+
+                removedInvalidPosition = true;
+            }
+
+            if (!removedInvalidPosition)
+                return;
+
+            result.Positions = validPositions;
+            _coverageEngine.RecalculateCoverage(result, totalElementCount);
+
+            throw new InvalidOperationException(
+                "Optimization produced one or more crane setup positions whose complete physical ground footprint does not fit inside a single allowed zone or overlaps a forbidden zone.");
+        }
+
+        private SetupPointValidationResult GetSetupPointValidation(
+            DomainPoint3D point,
+            IReadOnlyList<GreenAreaZone> allowedZones,
+            IReadOnlyList<GreenAreaZone> forbiddenZones,
+            GASettings settings)
+        {
+            return _constraintEngine is ConstraintEngine constraintEngine
+                ? constraintEngine.ValidateSetupPointDetailed(point, allowedZones, forbiddenZones, settings)
+                : new SetupPointValidationResult(
+                    _constraintEngine.IsValidSetupPoint(point, allowedZones, forbiddenZones, settings),
+                    _constraintEngine.IsValidSetupPoint(point, allowedZones, Array.Empty<GreenAreaZone>(), settings),
+                    !_constraintEngine.IsValidSetupPoint(point, allowedZones, forbiddenZones, settings)
+                        && _constraintEngine.IsValidSetupPoint(point, allowedZones, Array.Empty<GreenAreaZone>(), settings),
+                    null);
+        }
+
+        private static string FormatDistance(double distance) =>
+            double.IsInfinity(distance) ? "Infinity" : distance.ToString("F4");
+
+        private static PhysicalFootprintDiagnostics ResolvePhysicalFootprintDiagnostics(PlacementInput input)
+        {
+            var crane = input.CraneSpec?.Crane;
+            double vehicleLength = crane?.VehicleLength ?? 0.0;
+            double vehicleWidth = crane?.VehicleWidth ?? 0.0;
+            double? outriggerLength = crane?.OutriggerLength;
+            double? outriggerWidth = crane?.OutriggerWidth;
+            string configuration = input.CraneSpec?.OutriggerConfig?.Trim() ?? string.Empty;
+            bool isOnRubber = string.Equals(configuration, "On Rubber", StringComparison.OrdinalIgnoreCase);
+
+            double selectedLength = !isOnRubber && IsPositiveFinite(outriggerLength)
+                ? outriggerLength!.Value
+                : vehicleLength;
+            double selectedWidth = !isOnRubber && IsPositiveFinite(outriggerWidth)
+                ? outriggerWidth!.Value
+                : vehicleWidth;
+
+            return new PhysicalFootprintDiagnostics(
+                vehicleLength,
+                vehicleWidth,
+                outriggerLength,
+                outriggerWidth,
+                selectedLength,
+                selectedWidth);
+        }
+
+        private static string FormatNullable(double? value) =>
+            value.HasValue ? value.Value.ToString("F4") : "null";
+
+        private static bool IsPositiveFinite(double? value) =>
+            value.HasValue
+            && value.Value > 0.0
+            && !double.IsNaN(value.Value)
+            && !double.IsInfinity(value.Value);
+
+        private sealed record PhysicalFootprintDiagnostics(
+            double VehicleLength,
+            double VehicleWidth,
+            double? OutriggerLength,
+            double? OutriggerWidth,
+            double SelectedFootprintLength,
+            double SelectedFootprintWidth);
 
         private PlacementResult MapResult(
             CraneSolution solution,

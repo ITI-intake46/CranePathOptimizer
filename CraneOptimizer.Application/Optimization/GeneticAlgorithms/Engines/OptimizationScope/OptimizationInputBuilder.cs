@@ -9,6 +9,7 @@ using CraneOptimizer.Domain.Schemas.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 
 namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.OptimizationScope
 {
@@ -93,7 +94,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
                 settings.DeratingRatio = craneSpec.DeratingRatio.Value;
             }
 
-            settings.CraneFootprintRadius = CalculateCraneFootprintRadius(crane);
+            settings.CraneFootprintRadius = CalculateCraneFootprintRadius(crane, craneSpec);
+            settings.RenderedOperatingEnvelopeRadius =
+                CraneEnvelopeContainmentRadiusResolver.ResolveRenderedOperatingEnvelopeRadius(craneSpec.MaxRadius);
 
             return new PlacementInput
             {
@@ -254,15 +257,53 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Opti
             }
         }
 
-        private double CalculateCraneFootprintRadius(Crane selectedCrane)
+        private double CalculateCraneFootprintRadius(Crane selectedCrane, CraneSpecification selectedSpecification)
         {
-            double maxBodyDimension = Math.Max(selectedCrane.VehicleLength, selectedCrane.VehicleWidth);
-            double maxOutriggerDimension = Math.Max(
-                selectedCrane.OutriggerLength ?? 0,
-                selectedCrane.OutriggerWidth ?? 0);
+            double vehicleLength = selectedCrane.VehicleLength;
+            double vehicleWidth = selectedCrane.VehicleWidth;
+            double? outriggerLength = selectedCrane.OutriggerLength;
+            double? outriggerWidth = selectedCrane.OutriggerWidth;
+            string configuration = selectedSpecification.OutriggerConfig?.Trim() ?? string.Empty;
+            bool isOnRubber = string.Equals(configuration, "On Rubber", StringComparison.OrdinalIgnoreCase);
 
-            double footprintDiameterMeters = Math.Max(maxBodyDimension, maxOutriggerDimension);
-            return footprintDiameterMeters / 2.0;
+            ValidatePositiveFinite(vehicleLength, "VehicleLength");
+            ValidatePositiveFinite(vehicleWidth, "VehicleWidth");
+
+            double footprintLength = !isOnRubber && IsPositiveFinite(outriggerLength)
+                ? outriggerLength!.Value
+                : vehicleLength;
+            double footprintWidth = !isOnRubber && IsPositiveFinite(outriggerWidth)
+                ? outriggerWidth!.Value
+                : vehicleWidth;
+
+            double radius = 0.5 * Math.Sqrt((footprintLength * footprintLength) + (footprintWidth * footprintWidth));
+            ValidatePositiveFinite(radius, "CraneFootprintRadius");
+
+            System.Diagnostics.Debug.WriteLine(
+                "[GA_FOOTPRINT] " +
+                $"Configuration='{(string.IsNullOrWhiteSpace(configuration) ? "Unspecified" : configuration)}', " +
+                $"VehicleLength={vehicleLength:F4}, VehicleWidth={vehicleWidth:F4}, " +
+                $"OutriggerLength={(outriggerLength.HasValue ? outriggerLength.Value.ToString("F4") : "null")}, " +
+                $"OutriggerWidth={(outriggerWidth.HasValue ? outriggerWidth.Value.ToString("F4") : "null")}, " +
+                $"SelectedFootprintLength={footprintLength:F4}, SelectedFootprintWidth={footprintWidth:F4}, " +
+                $"CraneFootprintRadius={radius:F4}, " +
+                $"GroundFootprintHalfDiagonal={radius:F4}");
+
+            return radius;
+        }
+
+        private static void ValidatePositiveFinite(double value, string name)
+        {
+            if (!IsPositiveFinite(value))
+                throw new InvalidOperationException($"Crane specification contains invalid {name}: {value}.");
+        }
+
+        private static bool IsPositiveFinite(double? value)
+        {
+            return value.HasValue
+                && value.Value > 0
+                && !double.IsNaN(value.Value)
+                && !double.IsInfinity(value.Value);
         }
 
         private static HashSet<string>? CreateElementTypeSet(IReadOnlyCollection<string>? elementTypes)

@@ -161,6 +161,7 @@ namespace CraneOptimizer.Application.Tests
             {
                 EnableConcurrentOptimization = true,
                 CraneFootprintRadius = 1.0,
+                RenderedOperatingEnvelopeRadius = 15.0,
                 MinimumRelocationDistance = 3.0,
                 WireLength = 2.0,
                 DeratingRatio = 1.0,
@@ -220,6 +221,95 @@ namespace CraneOptimizer.Application.Tests
             Assert.Equal(1.1, result.Positions[0].X);
             Assert.Equal(1.1, result.Positions[0].Y);
             Assert.Equal(2, result.Positions[0].NewLiftableCount);
+        }
+
+        [Fact]
+        public void RunOptimization_RejectsInvalidFinalFootprintPositionBeforeReturningResult()
+        {
+            var solution = new CraneSolution
+            {
+                Chromosome = new CraneChromosome
+                {
+                    CranePositions = new List<DomainPoint3D>
+                    {
+                        new DomainPoint3D(0.25, 5.0, 0),
+                        new DomainPoint3D(5.0, 5.0, 0)
+                    }
+                },
+                Fitness = 0.8,
+                CoverageRatio = 1.0
+            };
+
+            var configEngine = new CraneConfigurationEngine();
+            var liftingEngine = new LiftingCalculationEngine(configEngine);
+            var assignmentService = new ElementAssignmentService(liftingEngine, configEngine);
+            var placementEngine = new CranePlacementEngine(
+                new StubGAEngine(solution),
+                assignmentService,
+                new CoverageEngine(),
+                configEngine,
+                new StubDiagnosticsService());
+
+            var settings = new GASettings
+            {
+                EnableConcurrentOptimization = true,
+                CraneFootprintRadius = 1.0,
+                MinimumRelocationDistance = 1.0,
+                DuplicatePositionDistance = 1.0,
+                WireLength = 0.0,
+                DeratingRatio = 1.0,
+                SafetyFactor = 1.0,
+                MaxCranePositions = 2,
+                MaxRadiusForNormalisation = 20
+            };
+
+            var elements = new List<PrecastElement>
+            {
+                new PrecastElement
+                {
+                    ElementID = "EL-FINAL-1",
+                    ElementCOG = new DomainPoint3D(5, 5, 0),
+                    ElementHeight = 1.0,
+                    ElementWT = 10.0
+                }
+            };
+
+            var input = new PlacementInput
+            {
+                Zones = new List<GreenAreaZone> { CreateSquare(0, 0, 10, 10) },
+                ForbiddenZones = new List<GreenAreaZone>(),
+                Elements = elements,
+                Assignment = new Dictionary<int, List<string>>(),
+                CraneSpec = new CraneSpecification
+                {
+                    MaxRadius = 20,
+                    MaxBoomLength = 30,
+                    LoadChart = new List<TargetPoint>
+                    {
+                        new TargetPoint { Radius = 1, BoomLength = 1, Capacity = 100 }
+                    }
+                },
+                Settings = settings,
+                TotalElementsCount = elements.Count
+            };
+
+            var exception = Assert.Throws<InvalidOperationException>(() => placementEngine.RunOptimization(input));
+
+            Assert.Contains("physical ground footprint", exception.Message);
+        }
+
+        private static GreenAreaZone CreateSquare(double minX, double minY, double maxX, double maxY)
+        {
+            return new GreenAreaZone
+            {
+                Vertices = new List<DomainPoint3D>
+                {
+                    new DomainPoint3D(minX, minY, 0),
+                    new DomainPoint3D(maxX, minY, 0),
+                    new DomainPoint3D(maxX, maxY, 0),
+                    new DomainPoint3D(minX, maxY, 0)
+                }
+            };
         }
     }
 }

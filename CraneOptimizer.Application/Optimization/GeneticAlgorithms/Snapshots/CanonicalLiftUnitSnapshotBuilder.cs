@@ -546,7 +546,7 @@ public static class CanonicalLiftUnitSnapshotBuilder
 
     private static bool HasTrustedPositiveWeight(PrecastElement element) =>
         element.WeightTons is > 0
-        && element.WeightTrustLevel is IfcWeightTrustLevel.ExplicitQuantity or IfcWeightTrustLevel.ExplicitProperty;
+        && CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(element.WeightTrustLevel);
 
     private static bool IsReinforcement(PrecastElement element)
     {

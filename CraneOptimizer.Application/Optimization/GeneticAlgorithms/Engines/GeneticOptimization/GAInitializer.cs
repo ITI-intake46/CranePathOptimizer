@@ -437,10 +437,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             }
 
             // Case 3: find the closest zone and sample inside it
-            var sampled = GenerateRandomPointInsideZone(closestZone, forbiddenZones, settings);
-            return _constraintEngine.IsMeaningfullySeparated(sampled, existingPoints, settings)
-                ? sampled
-                : GenerateDiversePointInsideZones(zones, forbiddenZones, existingPoints, settings);
+            if (TryGenerateRandomPointInsideZone(closestZone, forbiddenZones, settings, out var sampled)
+                && _constraintEngine.IsMeaningfullySeparated(sampled, existingPoints, settings))
+            {
+                return sampled;
+            }
+
+            return GenerateDiversePointInsideZones(zones, forbiddenZones, existingPoints, settings);
         }
 
         private DomainPoint3D ProjectPointToZoneBoundary(DomainPoint3D point, GreenAreaZone zone)
@@ -523,7 +526,9 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             for (int i = 0; i < attempts; i++)
             {
                 var zone = zones[Rng.Next(zones.Count)];
-                var candidate = GenerateRandomPointInsideZone(zone, forbiddenZones, settings);
+                if (!TryGenerateRandomPointInsideZone(zone, forbiddenZones, settings, out var candidate))
+                    continue;
+
                 double nearestDistance = existingPoints.Count == 0
                     ? double.MaxValue
                     : existingPoints.Min(point => SpatialMath.Distance2D(point, candidate));
@@ -538,7 +543,16 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 }
             }
 
-            return bestCandidate ?? GenerateRandomPointInsideZone(zones[Rng.Next(zones.Count)], forbiddenZones, settings);
+            if (bestCandidate != null)
+                return bestCandidate;
+
+            foreach (var zone in zones)
+            {
+                if (TryGenerateRandomPointInsideZone(zone, forbiddenZones, settings, out var candidate))
+                    return candidate;
+            }
+
+            throw new InvalidOperationException("No valid crane setup point has a complete physical ground footprint inside an allowed zone without overlapping forbidden zones.");
         }
 
         /// <summary>
@@ -550,6 +564,17 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
             List<GreenAreaZone> forbiddenZones,
             GASettings settings)
         {
+            return TryGenerateRandomPointInsideZone(zone, forbiddenZones, settings, out var point)
+                ? point
+                : throw new InvalidOperationException($"No valid crane setup point fits inside allowed zone '{zone.Name}'.");
+        }
+
+        private bool TryGenerateRandomPointInsideZone(
+            GreenAreaZone zone,
+            List<GreenAreaZone> forbiddenZones,
+            GASettings settings,
+            out DomainPoint3D point)
+        {
             var bbox = SpatialMath.BoundingBox(zone.Vertices);
 
             int attempts = Math.Max(1, settings.PositionSamplingAttempts);
@@ -558,18 +583,57 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
                 double x = bbox.minX + Rng.NextDouble() * (bbox.maxX - bbox.minX);
                 double y = bbox.minY + Rng.NextDouble() * (bbox.maxY - bbox.minY);
 
-                var point = SnapPointToGrid(new DomainPoint3D(x, y, GetZoneElevation(zone)), settings.GridStep);
+                var candidatePoint = SnapPointToGrid(new DomainPoint3D(x, y, GetZoneElevation(zone)), settings.GridStep);
 
-                if (IsValidSetupPointWithTracking(point, new[] { zone }, forbiddenZones, settings))
-                    return point;
+                if (IsValidSetupPointWithTracking(candidatePoint, new[] { zone }, forbiddenZones, settings))
+                {
+                    point = candidatePoint;
+                    return true;
+                }
             }
 
-            var fallback = new DomainPoint3D(
-                zone.Vertices.Average(v => v.X),
-                zone.Vertices.Average(v => v.Y),
-                GetZoneElevation(zone));
+            if (TryFindFirstValidGridPoint(zone, forbiddenZones, settings, out point))
+                return true;
 
-            return SnapPointToGrid(fallback, settings.GridStep);
+            point = new DomainPoint3D();
+            return false;
+        }
+
+        private bool TryFindFirstValidGridPoint(
+            GreenAreaZone zone,
+            List<GreenAreaZone> forbiddenZones,
+            GASettings settings,
+            out DomainPoint3D point)
+        {
+            var bbox = SpatialMath.BoundingBox(zone.Vertices);
+            int divisions = Math.Max(4, settings.PositionSamplingAttempts);
+            double stepX = (bbox.maxX - bbox.minX) / divisions;
+            double stepY = (bbox.maxY - bbox.minY) / divisions;
+
+            if (stepX <= 0 || stepY <= 0)
+            {
+                point = new DomainPoint3D();
+                return false;
+            }
+
+            for (int ix = 0; ix <= divisions; ix++)
+            {
+                for (int iy = 0; iy <= divisions; iy++)
+                {
+                    var candidate = SnapPointToGrid(
+                        new DomainPoint3D(bbox.minX + (ix * stepX), bbox.minY + (iy * stepY), GetZoneElevation(zone)),
+                        settings.GridStep);
+
+                    if (IsValidSetupPointWithTracking(candidate, new[] { zone }, forbiddenZones, settings))
+                    {
+                        point = candidate;
+                        return true;
+                    }
+                }
+            }
+
+            point = new DomainPoint3D();
+            return false;
         }
 
         private DomainPoint3D SnapPointToGrid(DomainPoint3D point, double gridStep)

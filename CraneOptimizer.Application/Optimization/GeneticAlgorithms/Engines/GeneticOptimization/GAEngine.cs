@@ -241,7 +241,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
         }
 
         /// <summary>
-        /// Finds a simple valid fallback point from allowed-zone centroids.
+        /// Finds a valid fallback point from allowed zones.
         /// This keeps GA children evaluable if crossover or mutation removes every point.
         /// </summary>
         private DomainPoint3D? FindFirstValidZoneCentroid(
@@ -261,9 +261,50 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Gene
 
                 if (_constraintEngine.IsValidSetupPoint(candidate, zones, forbiddenZones, settings))
                     return candidate;
+
+                if (TryFindFirstValidGridPoint(zone, forbiddenZones, settings, out var gridCandidate))
+                    return gridCandidate;
             }
 
             return null;
+        }
+
+        private bool TryFindFirstValidGridPoint(
+            GreenAreaZone zone,
+            IReadOnlyList<GreenAreaZone> forbiddenZones,
+            GASettings settings,
+            out DomainPoint3D point)
+        {
+            var bbox = SpatialMath.BoundingBox(zone.Vertices);
+            int divisions = Math.Max(4, settings.PositionSamplingAttempts);
+            double stepX = (bbox.maxX - bbox.minX) / divisions;
+            double stepY = (bbox.maxY - bbox.minY) / divisions;
+
+            if (stepX <= 0 || stepY <= 0)
+            {
+                point = new DomainPoint3D();
+                return false;
+            }
+
+            for (int ix = 0; ix <= divisions; ix++)
+            {
+                for (int iy = 0; iy <= divisions; iy++)
+                {
+                    var candidate = new DomainPoint3D(
+                        bbox.minX + (ix * stepX),
+                        bbox.minY + (iy * stepY),
+                        zone.Vertices.Average(vertex => vertex.Z));
+
+                    if (_constraintEngine.IsValidSetupPoint(candidate, new[] { zone }, forbiddenZones, settings))
+                    {
+                        point = candidate;
+                        return true;
+                    }
+                }
+            }
+
+            point = new DomainPoint3D();
+            return false;
         }
 
         private void EvaluateSolution(

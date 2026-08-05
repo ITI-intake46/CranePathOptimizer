@@ -71,7 +71,8 @@ namespace CraneOptimizer.Application.Tests.GA
                 GridStep = 1.0,
                 DeratingRatio = 1.0,
                 SafetyFactor = 1.0,
-                CraneFootprintRadius = 0.1
+                CraneFootprintRadius = 0.1,
+                RenderedOperatingEnvelopeRadius = 1.0
             };
 
             var hotSpots = _service.ComputeHotSpots(
@@ -130,7 +131,8 @@ namespace CraneOptimizer.Application.Tests.GA
             var settings = new GASettings
             {
                 GridStep = 1.0,
-                CraneFootprintRadius = 0.1
+                CraneFootprintRadius = 0.1,
+                RenderedOperatingEnvelopeRadius = 0.1
             };
 
             var hotSpots = _service.ComputeHotSpots(
@@ -187,7 +189,8 @@ namespace CraneOptimizer.Application.Tests.GA
             var settings = new GASettings
             {
                 GridStep = 1.0,
-                CraneFootprintRadius = 0.05
+                CraneFootprintRadius = 0.05,
+                RenderedOperatingEnvelopeRadius = 0.05
             };
 
             int topN = 3;
@@ -200,6 +203,64 @@ namespace CraneOptimizer.Application.Tests.GA
                 topN: topN);
 
             Assert.Equal(topN, hotSpots.Count);
+        }
+
+        [Fact]
+        public void ComputeHotSpots_ReturnsOnlyGroundFootprintValidCoordinates()
+        {
+            var elements = new List<PrecastElement>
+            {
+                new PrecastElement
+                {
+                    ElementID = "EL-1",
+                    ElementCOG = new DomainPoint3D(6, 6, 0),
+                    ElementHeight = 1.0,
+                    ElementWT = 5.0
+                }
+            };
+            var allowedZone = new GreenAreaZone
+            {
+                Name = "Zone1",
+                Vertices = new List<DomainPoint3D>
+                {
+                    new DomainPoint3D(0, 0, 0),
+                    new DomainPoint3D(12, 0, 0),
+                    new DomainPoint3D(12, 12, 0),
+                    new DomainPoint3D(0, 12, 0)
+                }
+            };
+            var craneSpec = new CraneSpecification
+            {
+                Id = 1,
+                MaxRadius = 20.0,
+                MaxBoomLength = 30.0,
+                LoadChart = new List<TargetPoint>
+                {
+                    new TargetPoint { Radius = 10.0, BoomLength = 15.0, Capacity = 10.0 }
+                }
+            };
+            var settings = new GASettings
+            {
+                GridStep = 1.0,
+                CraneFootprintRadius = 0.5,
+                RenderedOperatingEnvelopeRadius = 3.0
+            };
+
+            var hotSpots = _service.ComputeHotSpots(
+                elements,
+                new[] { allowedZone },
+                Enumerable.Empty<GreenAreaZone>(),
+                craneSpec,
+                settings,
+                topN: 20);
+
+            Assert.NotEmpty(hotSpots);
+            Assert.All(hotSpots, hotSpot =>
+                Assert.True(_constraintEngine.IsValidSetupPoint(
+                    new DomainPoint3D(hotSpot.X, hotSpot.Y, 0),
+                    new[] { allowedZone },
+                    Enumerable.Empty<GreenAreaZone>().ToArray(),
+                    settings)));
         }
     }
 }

@@ -236,7 +236,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 
         public static bool HasTrustedPositiveWeight(PrecastElement element) =>
             element.WeightTons is > 0
-            && element.WeightTrustLevel is IfcWeightTrustLevel.ExplicitQuantity or IfcWeightTrustLevel.ExplicitProperty;
+            && CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(element.WeightTrustLevel);
 
         private static bool IsReinforcementAssembly(
             PrecastElement parent,

@@ -1,6 +1,7 @@
 using CraneOptimizer.Domain.Common;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
 using System;
@@ -11,6 +12,8 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Services
 {
     public class CraneValidationService : ICraneValidationService
     {
+        private const double GeometryTolerance = 1e-6;
+
         private sealed class ZoneCache
         {
             public required GreenAreaZone Zone { get; init; }
@@ -35,45 +38,27 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Services
             EnsureCache(zones);
 
             var center = crane.Position;
-            bool isOnRubber = string.Equals(
-                crane.ActiveSpecification?.OutriggerConfig?.Trim(),
-                "On Rubber",
-                StringComparison.OrdinalIgnoreCase);
-            double footprintLength = !isOnRubber && crane.CraneDefinition.OutriggerLength is > 0d
-                ? crane.CraneDefinition.OutriggerLength.Value
-                : crane.CraneDefinition.VehicleLength;
-            double footprintWidth = !isOnRubber && crane.CraneDefinition.OutriggerWidth is > 0d
-                ? crane.CraneDefinition.OutriggerWidth.Value
-                : crane.CraneDefinition.VehicleWidth;
-            var halfL = footprintLength / 2.0;
-            var halfW = footprintWidth / 2.0;
+            double radius = CalculateConservativeFootprintRadius(crane);
+            var allowedZones = _cache.Values.Where(zone => zone.Zone.Type == ZoneType.Allowed).ToList();
+            var forbiddenZones = _cache.Values.Where(zone => zone.Zone.Type == ZoneType.Forbidden).ToList();
 
-            var footprint = new[]
-            {
-                RotateAndTranslate(-halfL, -halfW, crane.Rotation, center),
-                RotateAndTranslate( halfL, -halfW, crane.Rotation, center),
-                RotateAndTranslate( halfL,  halfW, crane.Rotation, center),
-                RotateAndTranslate(-halfL,  halfW, crane.Rotation, center)
-            };
+            if (allowedZones.Count == 0)
+                return false;
 
-            var radius = crane.ActiveSpecification?.MaxRadius ?? 0;
-
-            foreach (var zone in _cache.Values)
+            bool insideAllowed = false;
+            foreach (var zone in allowedZones)
             {
                 if (!IsPointInBounds(center, zone.Bounds))
                     continue;
 
-                var allFootprintInside = footprint.All(p => _geometryService.PointInPolygon(p, zone.Vertices));
-                if (!allFootprintInside)
-                    continue;
-
-                if (radius > 0 && !IsCircleInsidePolygonFast(center, radius, zone))
-                    continue;
-
-                return true;
+                if (IsCircleInsidePolygonFast(center, radius, zone))
+                {
+                    insideAllowed = true;
+                    break;
+                }
             }
 
-            return false;
+            return insideAllowed && !forbiddenZones.Any(zone => DoesCircleOverlapPolygon(center, radius, zone));
         }
 
         public LiftFeasibilityResult ValidateLiftFeasibility(SceneCrane crane, PrecastElement element)
@@ -126,6 +111,32 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Services
             return coverage;
         }
 
+        private static double CalculateConservativeFootprintRadius(SceneCrane crane)
+        {
+            bool isOnRubber = string.Equals(
+                crane.ActiveSpecification?.OutriggerConfig?.Trim(),
+                "On Rubber",
+                StringComparison.OrdinalIgnoreCase);
+            double footprintLength = !isOnRubber && crane.CraneDefinition.OutriggerLength is > 0d
+                ? crane.CraneDefinition.OutriggerLength.Value
+                : crane.CraneDefinition.VehicleLength;
+            double footprintWidth = !isOnRubber && crane.CraneDefinition.OutriggerWidth is > 0d
+                ? crane.CraneDefinition.OutriggerWidth.Value
+                : crane.CraneDefinition.VehicleWidth;
+
+            if (footprintLength <= 0
+                || footprintWidth <= 0
+                || double.IsNaN(footprintLength)
+                || double.IsNaN(footprintWidth)
+                || double.IsInfinity(footprintLength)
+                || double.IsInfinity(footprintWidth))
+            {
+                return double.PositiveInfinity;
+            }
+
+            return 0.5 * Math.Sqrt((footprintLength * footprintLength) + (footprintWidth * footprintWidth));
+        }
+
         private void EnsureCache(IReadOnlyList<GreenAreaZone> zones)
         {
             _cache.Clear();
@@ -162,17 +173,32 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Services
         private bool IsCircleInsidePolygonFast(DomainPoint3D center, double radius, ZoneCache zone)
         {
             // Must be inside and at least radius away from every edge
-            if (!_geometryService.PointInPolygon(center, zone.Vertices))
+            if (!IsPointInsideOrOnPolygon(center, zone.Vertices))
                 return false;
 
             foreach (var (a, b) in zone.Edges)
             {
                 var dist = DistancePointToSegment2D(center, a, b);
-                if (dist < radius)
+                if (dist + GeometryTolerance < radius)
                     return false;
             }
 
             return true;
+        }
+
+        private bool DoesCircleOverlapPolygon(DomainPoint3D center, double radius, ZoneCache zone)
+        {
+            if (IsPointInsideOrOnPolygon(center, zone.Vertices))
+                return true;
+
+            foreach (var (a, b) in zone.Edges)
+            {
+                double dist = DistancePointToSegment2D(center, a, b);
+                if (dist <= radius + GeometryTolerance)
+                    return true;
+            }
+
+            return false;
         }
 
         private static double DistancePointToSegment2D(DomainPoint3D p, DomainPoint3D a, DomainPoint3D b)
@@ -200,15 +226,20 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup.Services
         private static bool IsPointInBounds(DomainPoint3D p, (double MinX, double MinY, double MaxX, double MaxY) b)
             => p.X >= b.MinX && p.X <= b.MaxX && p.Y >= b.MinY && p.Y <= b.MaxY;
 
-        private static DomainPoint3D RotateAndTranslate(double x, double y, double angleDeg, DomainPoint3D c)
+        private bool IsPointInsideOrOnPolygon(DomainPoint3D point, IReadOnlyList<DomainPoint3D> polygon)
         {
-            var a = angleDeg * Math.PI / 180.0;
-            var cos = Math.Cos(a);
-            var sin = Math.Sin(a);
-            var rx = x * cos - y * sin;
-            var ry = x * sin + y * cos;
+            if (polygon == null || polygon.Count < 3)
+                return false;
 
-            return new DomainPoint3D(c.X + rx, c.Y + ry, c.Z);
+            for (int i = 0; i < polygon.Count; i++)
+            {
+                var a = polygon[i];
+                var b = polygon[(i + 1) % polygon.Count];
+                if (DistancePointToSegment2D(point, a, b) <= GeometryTolerance)
+                    return true;
+            }
+
+            return _geometryService.PointInPolygon(point, polygon);
         }
     }
 }

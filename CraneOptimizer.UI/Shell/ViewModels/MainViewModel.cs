@@ -9,6 +9,7 @@ using CraneOptimizer.UI.Core.Base;
 using CraneOptimizer.UI.Core.Commands;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.Application.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 using CraneOptimizer.UI.Features.F11_DXF.ViewModels;
 using CraneOptimizer.UI.Features.F2_IfcViewer.ViewModels;
 using CraneOptimizer.UI.Features.F3_CraneSetup;
@@ -55,7 +56,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
         private readonly IProjectStateService _projectStateService;
         private readonly IProjectCoordinateTransformService _transformService;
         private readonly IImportReadinessService _readinessService;
+        private readonly IOptimizationScopeEngine _scopeEngine;
         private readonly IGaModelIdentityService _gaModelIdentityService;
+        private readonly ICraneValidationService _craneValidation;
 
         private Crane? _selectedCrane;
         private bool _disposed;
@@ -96,7 +99,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             CraneOptimizer.UI.Features.F18_CoordinateReference.ViewModels.CoordinateReferenceViewModel coordinateReference,
             IProjectCoordinateTransformService transformService,
             IImportReadinessService readinessService,
+            IOptimizationScopeEngine scopeEngine,
             IGaModelIdentityService gaModelIdentityService,
+            ICraneValidationService craneValidation,
             IDeleteConfirmationService? deleteConfirmation = null)
         {
             Scene = scene;
@@ -126,7 +131,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
             _craneVisualBuilder = craneVisualBuilder;
             _projectStateService = projectStateService;
             _readinessService = readinessService;
+            _scopeEngine = scopeEngine;
             _gaModelIdentityService = gaModelIdentityService;
+            _craneValidation = craneValidation;
 
             _transformService.ReferenceChanged += OnReferenceChanged;
 

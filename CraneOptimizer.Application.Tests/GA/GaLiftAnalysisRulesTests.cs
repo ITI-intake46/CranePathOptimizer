@@ -250,7 +250,7 @@ public sealed class GaLiftAnalysisRulesTests
             {
                 ModelFingerprint = "model",
                 OptimizationInputFingerprint = "input",
-                OptimizationInputFingerprintVersion = 2,
+                OptimizationInputFingerprintVersion = 3,
                 OptimizationInputFingerprintComponents = GaOptimizationInputFingerprint.RequiredComponentNames
                     .ToDictionary(name => name, _ => "hash", StringComparer.Ordinal)
             },

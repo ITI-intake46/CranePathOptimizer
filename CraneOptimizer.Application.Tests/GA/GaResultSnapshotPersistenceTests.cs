@@ -30,7 +30,7 @@ public sealed class GaResultSnapshotPersistenceTests
         Assert.True(validation.IsValid, string.Join(Environment.NewLine, validation.Errors));
         Assert.Equal(3, snapshot.SchemaVersion);
         Assert.Equal(3, snapshot.Run.SnapshotSchemaVersion);
-        Assert.Equal(2, snapshot.Model.OptimizationInputFingerprintVersion);
+        Assert.Equal(3, snapshot.Model.OptimizationInputFingerprintVersion);
         Assert.Equal(GaOptimizationInputFingerprint.RequiredComponentNames, snapshot.Model.OptimizationInputFingerprintComponents.Keys);
 
         await store.SaveAsync(snapshot);
@@ -709,6 +709,7 @@ public sealed class GaResultSnapshotPersistenceTests
         RandomSeed = 1234 + stageIndex,
         GridStep = 1.0,
         CraneFootprintRadius = 4.0,
+        RenderedOperatingEnvelopeRadius = 60.0,
         MinimumRelocationDistance = 6.0,
         DuplicatePositionDistance = 2.0,
         MutationExplorationMultiplier = 1.5,

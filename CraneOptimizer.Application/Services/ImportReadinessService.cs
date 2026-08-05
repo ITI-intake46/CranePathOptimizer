@@ -135,8 +135,7 @@ namespace CraneOptimizer.Application.Services
                     estimatedWeightIds.Add(el.ElementID);
                 }
                 
-                var isWeightTrusted = el.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
-                                      el.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+                var isWeightTrusted = CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(el.WeightTrustLevel);
                 if (!isWeightTrusted)
                 {
                     missingTrustedWeightIds.Add(el.ElementID);
@@ -366,9 +365,7 @@ namespace CraneOptimizer.Application.Services
             }
             else
             {
-                var hasExplicitTrustedWeight =
-                    element.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
-                    element.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+                var hasExplicitTrustedWeight = CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(element.WeightTrustLevel);
 
                 if (!hasExplicitTrustedWeight)
                     blockingReasons.Add($"Weight is not from an explicit trusted source: {element.WeightTrustLevel}.");
@@ -380,8 +377,7 @@ namespace CraneOptimizer.Application.Services
                     (parentElement.Role == IfcElementRole.LiftAssembly ||
                      parentElement.Role == IfcElementRole.LiftableElement))
                 {
-                    var parentWeightTrusted = parentElement.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
-                                              parentElement.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+                    var parentWeightTrusted = CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(parentElement.WeightTrustLevel);
                     if (parentWeightTrusted)
                     {
                         blockingReasons.Add("Parent-child double-counting risk: child component is enabled alongside its parent assembly.");

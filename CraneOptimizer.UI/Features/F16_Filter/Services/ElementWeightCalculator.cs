@@ -49,8 +49,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
             UnitSystem.FromTons(GetWeightTons(element), MassUnit.Kilogram);
 
         public static bool IsEstimated(PrecastElement element) =>
-            element.WeightTrustLevel != IfcWeightTrustLevel.ExplicitQuantity &&
-            element.WeightTrustLevel != IfcWeightTrustLevel.ExplicitProperty;
+            !CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(element.WeightTrustLevel);
 
         public static string FormatWeight(PrecastElement element, CultureInfo? culture = null)
         {

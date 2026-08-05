@@ -1130,8 +1130,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services
 
         private static bool IsTrustedWeight(PrecastElement element)
         {
-            return element.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity
-                || element.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+            return CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(element.WeightTrustLevel);
         }
 
         private static double? GetElementHeight(PrecastElement element)

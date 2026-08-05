@@ -4,6 +4,7 @@ using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.Views;
 using CraneOptimizer.Application.Services;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
 
 namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
 {
@@ -17,6 +18,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
         private readonly CraneSetupViewModel _craneSetup;
         private readonly ISceneRenderingManager _sceneRenderingManager;
         private readonly IImportReadinessService _readinessService;
+        private readonly IOptimizationScopeEngine _scopeEngine;
+        private readonly ICraneValidationService _craneValidation;
 
         public CraneOptimizerDialogService(
             ICranePlacementService placementService,
@@ -26,7 +29,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             ISceneService sceneService,
             CraneSetupViewModel craneSetup,
             ISceneRenderingManager sceneRenderingManager,
-            IImportReadinessService readinessService)
+            IImportReadinessService readinessService,
+            IOptimizationScopeEngine scopeEngine,
+            ICraneValidationService craneValidation)
         {
             _placementService = placementService;
             _renderingService = renderingService;
@@ -36,6 +41,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
             _craneSetup = craneSetup;
             _sceneRenderingManager = sceneRenderingManager;
             _readinessService = readinessService;
+            _scopeEngine = scopeEngine;
+            _craneValidation = craneValidation;
         }
 
         public CraneOptimizerDialogOutcome? ShowDialog()
@@ -48,7 +55,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                 _sceneService,
                 _craneSetup,
                 _sceneRenderingManager,
-                _readinessService);
+                _readinessService,
+                _scopeEngine,
+                _craneValidation);
 
             if (System.Windows.Application.Current?.MainWindow != null)
                 dialog.Owner = System.Windows.Application.Current.MainWindow;

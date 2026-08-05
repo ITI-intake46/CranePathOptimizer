@@ -68,6 +68,7 @@ namespace CraneOptimizer.Domain.Schemas
         public string WeightSource { get; set; } = "Missing";
         public IfcWeightTrustLevel WeightTrustLevel { get; set; } = IfcWeightTrustLevel.Missing;
         public double? VolumeM3 { get; set; }
+        public IfcVolumeEvidenceKind VolumeEvidence { get; set; } = IfcVolumeEvidenceKind.Missing;
         public DomainPoint3D COG_M { get; set; } = new();
         public DomainPoint3D BoundingBox_M { get; set; } = new();
         public double? DensityKgPerM3 { get; set; }

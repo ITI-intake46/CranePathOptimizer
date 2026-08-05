@@ -249,24 +249,90 @@ namespace CraneOptimizer.Application.Tests
             Assert.DoesNotContain(input.Elements, e => e.ElementID == "PARENT-1");
         }
 
+        [Fact]
+        public void Build_OnRubberUsesVehicleHalfDiagonalForCraneFootprintRadius()
+        {
+            var builder = new OptimizationInputBuilder();
+            var settings = new GASettings();
+
+            builder.Build(
+                settings,
+                CreateCrane("On Rubber", outriggerLength: 20, outriggerWidth: 12),
+                new List<PrecastElement> { CreateElement("ELEM-1", includeInGa: true) },
+                new List<GreenAreaZone> { CreateAllowedZone() });
+
+            Assert.Equal(0.5 * Math.Sqrt((10 * 10) + (4 * 4)), settings.CraneFootprintRadius, 6);
+        }
+
+        [Fact]
+        public void Build_OutriggerSetupUsesOutriggerHalfDiagonalForCraneFootprintRadius()
+        {
+            var builder = new OptimizationInputBuilder();
+            var settings = new GASettings();
+
+            builder.Build(
+                settings,
+                CreateCrane("100%", outriggerLength: 20, outriggerWidth: 12),
+                new List<PrecastElement> { CreateElement("ELEM-1", includeInGa: true) },
+                new List<GreenAreaZone> { CreateAllowedZone() });
+
+            Assert.Equal(0.5 * Math.Sqrt((20 * 20) + (12 * 12)), settings.CraneFootprintRadius, 6);
+        }
+
+        [Fact]
+        public void Build_OutriggerSetupFallsBackToVehicleDimensionsWhenOutriggersAreInvalid()
+        {
+            var builder = new OptimizationInputBuilder();
+            var settings = new GASettings();
+
+            builder.Build(
+                settings,
+                CreateCrane("100%", outriggerLength: null, outriggerWidth: null),
+                new List<PrecastElement> { CreateElement("ELEM-1", includeInGa: true) },
+                new List<GreenAreaZone> { CreateAllowedZone() });
+
+            Assert.Equal(0.5 * Math.Sqrt((10 * 10) + (4 * 4)), settings.CraneFootprintRadius, 6);
+        }
+
+        [Fact]
+        public void Build_SetsRenderedOperatingEnvelopeRadiusFromSameMaxRadiusUsedByViewport()
+        {
+            var builder = new OptimizationInputBuilder();
+            var settings = new GASettings();
+
+            builder.Build(
+                settings,
+                CreateCrane(),
+                new List<PrecastElement> { CreateElement("ELEM-1", includeInGa: true) },
+                new List<GreenAreaZone> { CreateAllowedZone() });
+
+            Assert.Equal(40.0, settings.RenderedOperatingEnvelopeRadius, 6);
+        }
+
 
         // ====================================================================
         // Helpers
         // ====================================================================
 
-        private static Crane CreateCrane()
+        private static Crane CreateCrane(
+            string? outriggerConfiguration = null,
+            double? outriggerLength = null,
+            double? outriggerWidth = null)
         {
             return new Crane
             {
                 Name = "Test Crane",
                 VehicleLength = 10,
                 VehicleWidth = 4,
+                OutriggerLength = outriggerLength,
+                OutriggerWidth = outriggerWidth,
                 Specifications = new List<CraneSpecification>
                 {
                     new()
                     {
                         MaxRadius = 40,
                         MaxBoomLength = 50,
+                        OutriggerConfig = outriggerConfiguration,
                         LoadChart = new List<TargetPoint>
                         {
                             new() { Radius = 10, BoomLength = 20, Capacity = 50 }

@@ -1,4 +1,5 @@
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings;
 using CraneOptimizer.Application.Optimization.Utilities;
 using CraneOptimizer.Domain.Common;
@@ -12,6 +13,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
 {
     public class ConstraintEngine : IConstraintEngine
     {
+        private const double GeometryTolerance = 1e-6;
         private readonly IZoneGeometryService _geometryService;
 
         public ConstraintEngine(IZoneGeometryService? geometryService = null)
@@ -27,47 +29,120 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
         {
             using (new GAProfiler.ProfileScope("ConstraintEngine.IsValidSetupPoint"))
             {
-                if (allowedZones == null || allowedZones.Count == 0)
-                    return false;
+                return ValidateSetupPointDetailed(point, allowedZones, forbiddenZones, settings).IsValid;
+            }
+        }
 
-                // Validate and filter zones, exposing warnings for invalid ones
-                var validAllowedZones = new List<GreenAreaZone>();
-                foreach (var zone in allowedZones)
+        public SetupPointValidationResult ValidateSetupPointDetailed(
+            DomainPoint3D point,
+            IReadOnlyList<GreenAreaZone> allowedZones,
+            IReadOnlyList<GreenAreaZone> forbiddenZones,
+            GASettings settings)
+        {
+            if (allowedZones == null || allowedZones.Count == 0)
+                return CreateValidationResult(false, false, false, null, settings, double.PositiveInfinity);
+
+            double footprintRadius = Math.Max(0, settings.CraneFootprintRadius);
+            double requiredContainmentRadius =
+                CraneEnvelopeContainmentRadiusResolver.ResolveRequiredZoneContainmentRadius(settings);
+
+            if (!IsFinite(point.X)
+                || !IsFinite(point.Y)
+                || !IsFinite(point.Z)
+                || !IsFinite(footprintRadius)
+                || !IsFinite(requiredContainmentRadius))
+            {
+                return CreateValidationResult(false, false, false, null, settings, double.PositiveInfinity);
+            }
+
+            var validAllowedZones = new List<GreenAreaZone>();
+            foreach (var zone in allowedZones)
+            {
+                if (_geometryService.ValidatePolygon(zone.Vertices, out var warning))
                 {
-                    if (_geometryService.ValidatePolygon(zone.Vertices, out var warning))
+                    validAllowedZones.Add(zone);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"[GA Warning] Allowed zone '{zone.Name}' is invalid: {warning}");
+                }
+            }
+
+            Guid? containingAllowedZoneId = null;
+            double minimumAllowedBoundaryDistance = double.PositiveInfinity;
+            double bestRejectedCenterInsideBoundaryDistance = double.NegativeInfinity;
+            double nearestAllowedBoundaryDistance = double.PositiveInfinity;
+            foreach (var zone in validAllowedZones)
+            {
+                var vertices = _geometryService.NormalizeVertices(zone.Vertices);
+                bool centerInsideAllowed = IsPointInsideOrOnPolygon(point, vertices);
+                double boundaryDistance = MinimumDistanceToPolygonBoundary(point, vertices);
+                nearestAllowedBoundaryDistance = Math.Min(nearestAllowedBoundaryDistance, boundaryDistance);
+                if (centerInsideAllowed)
+                {
+                    if (boundaryDistance > bestRejectedCenterInsideBoundaryDistance)
+                        bestRejectedCenterInsideBoundaryDistance = boundaryDistance;
+
+                    if (boundaryDistance + GeometryTolerance >= requiredContainmentRadius)
                     {
-                        validAllowedZones.Add(zone);
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[GA Warning] Allowed zone '{zone.Name}' is invalid: {warning}");
+                        containingAllowedZoneId = zone.ZoneId;
+                        minimumAllowedBoundaryDistance = boundaryDistance;
+                        break;
                     }
                 }
+            }
 
-                if (validAllowedZones.Count == 0)
-                    return false;
+            if (!containingAllowedZoneId.HasValue && bestRejectedCenterInsideBoundaryDistance > double.NegativeInfinity)
+            {
+                minimumAllowedBoundaryDistance = bestRejectedCenterInsideBoundaryDistance;
+            }
+            else if (!containingAllowedZoneId.HasValue)
+            {
+                minimumAllowedBoundaryDistance = nearestAllowedBoundaryDistance;
+            }
 
-                double footprintRadius = Math.Max(0, settings.CraneFootprintRadius);
-                bool fitsAllowed = validAllowedZones.Any(zone => IsCircleInsidePolygon(point, footprintRadius, _geometryService.NormalizeVertices(zone.Vertices)));
+            bool insideAllowed = containingAllowedZoneId.HasValue;
+            if (!insideAllowed)
+            {
+                var rejected = CreateValidationResult(
+                    false,
+                    false,
+                    false,
+                    null,
+                    settings,
+                    minimumAllowedBoundaryDistance);
+                WriteZoneCheckDiagnostics(point, rejected);
+                return rejected;
+            }
 
-                if (!fitsAllowed)
-                    return false;
-
-                var validForbiddenZones = new List<GreenAreaZone>();
+            bool forbiddenOverlap = false;
+            if (forbiddenZones != null)
+            {
                 foreach (var zone in forbiddenZones)
                 {
-                    if (_geometryService.ValidatePolygon(zone.Vertices, out var warning))
-                    {
-                        validForbiddenZones.Add(zone);
-                    }
-                    else
+                    if (!_geometryService.ValidatePolygon(zone.Vertices, out var warning))
                     {
                         System.Diagnostics.Debug.WriteLine($"[GA Warning] Forbidden zone '{zone.Name}' is invalid: {warning}");
+                        continue;
+                    }
+
+                    if (DoesCircleOverlapPolygon(point, requiredContainmentRadius, _geometryService.NormalizeVertices(zone.Vertices)))
+                    {
+                        forbiddenOverlap = true;
+                        break;
                     }
                 }
-
-                return !validForbiddenZones.Any(zone => DoesCircleOverlapPolygon(point, footprintRadius, _geometryService.NormalizeVertices(zone.Vertices)));
             }
+
+            var result = CreateValidationResult(
+                insideAllowed && !forbiddenOverlap,
+                insideAllowed,
+                forbiddenOverlap,
+                containingAllowedZoneId,
+                settings,
+                minimumAllowedBoundaryDistance);
+            WriteZoneCheckDiagnostics(point, result);
+            return result;
         }
 
         public bool IsMeaningfullySeparated(
@@ -163,29 +238,6 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
             }
         }
 
-        private bool IsCircleInsidePolygon(
-            DomainPoint3D center,
-            double radius,
-            IReadOnlyList<DomainPoint3D> polygon)
-        {
-            if (polygon == null || polygon.Count < 3 || !_geometryService.PointInPolygon(center, polygon))
-                return false;
-
-            if (radius <= 0)
-                return true;
-
-            for (int i = 0; i < polygon.Count; i++)
-            {
-                var a = polygon[i];
-                var b = polygon[(i + 1) % polygon.Count];
-
-                if (SpatialMath.PointToSegmentDistance(center, a, b) < radius)
-                    return false;
-            }
-
-            return true;
-        }
-
         private bool DoesCircleOverlapPolygon(
             DomainPoint3D center,
             double radius,
@@ -194,7 +246,7 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
             if (polygon == null || polygon.Count < 3)
                 return false;
 
-            if (_geometryService.PointInPolygon(center, polygon))
+            if (IsPointInsideOrOnPolygon(center, polygon))
                 return true;
 
             if (radius <= 0)
@@ -205,11 +257,114 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Engines.Cons
                 var a = polygon[i];
                 var b = polygon[(i + 1) % polygon.Count];
 
-                if (SpatialMath.PointToSegmentDistance(center, a, b) < radius)
+                if (SpatialMath.PointToSegmentDistance(center, a, b) <= radius + GeometryTolerance)
                     return true;
             }
 
             return false;
         }
+
+        private bool IsPointInsideOrOnPolygon(DomainPoint3D point, IReadOnlyList<DomainPoint3D> polygon)
+        {
+            return MinimumDistanceToPolygonBoundary(point, polygon) <= GeometryTolerance
+                || _geometryService.PointInPolygon(point, polygon);
+        }
+
+        private static double MinimumDistanceToPolygonBoundary(DomainPoint3D point, IReadOnlyList<DomainPoint3D> polygon)
+        {
+            if (polygon == null || polygon.Count < 2)
+                return double.PositiveInfinity;
+
+            double minDistance = double.PositiveInfinity;
+            for (int i = 0; i < polygon.Count; i++)
+            {
+                var a = polygon[i];
+                var b = polygon[(i + 1) % polygon.Count];
+                minDistance = Math.Min(minDistance, SpatialMath.PointToSegmentDistance(point, a, b));
+            }
+
+            return minDistance;
+        }
+
+        private static bool IsFinite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
+
+        private static SetupPointValidationResult CreateValidationResult(
+            bool isValid,
+            bool insideAllowed,
+            bool forbiddenOverlap,
+            Guid? allowedZoneId,
+            GASettings settings,
+            double minimumAllowedBoundaryDistance)
+        {
+            double groundFootprintRadius = Math.Max(0, settings.CraneFootprintRadius);
+            double requiredContainmentRadius =
+                CraneEnvelopeContainmentRadiusResolver.ResolveRequiredZoneContainmentRadius(settings);
+
+            return new SetupPointValidationResult(
+                isValid,
+                insideAllowed,
+                forbiddenOverlap,
+                allowedZoneId,
+                groundFootprintRadius,
+                requiredContainmentRadius,
+                minimumAllowedBoundaryDistance);
+        }
+
+        private static void WriteZoneCheckDiagnostics(
+            DomainPoint3D point,
+            SetupPointValidationResult validation)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                "[GA_ZONE_CHECK] " +
+                $"Position=({point.X:F4},{point.Y:F4},{point.Z:F4}) " +
+                $"AllowedZoneId={(validation.AllowedZoneId.HasValue ? validation.AllowedZoneId.Value.ToString() : string.Empty)} " +
+                $"GroundFootprintRadius={validation.GroundFootprintRadius:F4} " +
+                $"RequiredContainmentRadius={validation.RequiredContainmentRadius:F4} " +
+                $"MinimumAllowedBoundaryDistance={FormatDistance(validation.MinimumAllowedBoundaryDistance)} " +
+                $"InsideAllowed={validation.InsideAllowed} " +
+                $"ForbiddenOverlap={validation.ForbiddenOverlap} " +
+                $"Valid={validation.IsValid}");
+        }
+
+        private static string FormatDistance(double distance) =>
+            double.IsInfinity(distance) ? "Infinity" : distance.ToString("F4");
+    }
+
+    public sealed class SetupPointValidationResult
+    {
+        public SetupPointValidationResult(
+            bool isValid,
+            bool insideAllowed,
+            bool forbiddenOverlap,
+            Guid? allowedZoneId)
+            : this(isValid, insideAllowed, forbiddenOverlap, allowedZoneId, 0, 0, double.PositiveInfinity)
+        {
+        }
+
+        public SetupPointValidationResult(
+            bool isValid,
+            bool insideAllowed,
+            bool forbiddenOverlap,
+            Guid? allowedZoneId,
+            double groundFootprintRadius,
+            double requiredContainmentRadius,
+            double minimumAllowedBoundaryDistance)
+        {
+            IsValid = isValid;
+            InsideAllowed = insideAllowed;
+            ForbiddenOverlap = forbiddenOverlap;
+            AllowedZoneId = allowedZoneId;
+            GroundFootprintRadius = groundFootprintRadius;
+            RequiredContainmentRadius = requiredContainmentRadius;
+            MinimumAllowedBoundaryDistance = minimumAllowedBoundaryDistance;
+        }
+
+        public bool IsValid { get; }
+        public bool InsideAllowed { get; }
+        public bool ForbiddenOverlap { get; }
+        public Guid? AllowedZoneId { get; }
+        public double GroundFootprintRadius { get; }
+        public double RequiredContainmentRadius { get; }
+        public double MinimumAllowedBoundaryDistance { get; }
     }
 }

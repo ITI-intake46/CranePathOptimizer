@@ -18,6 +18,8 @@ public static class ReportWeightMapper
         {
             IfcWeightTrustLevel.ExplicitQuantity or IfcWeightTrustLevel.ExplicitProperty
                 when ResolveWeight(element) > 0 => new WeightReportMapping("Yes", "OK", WeightWarningCode.None),
+            IfcWeightTrustLevel.ValidatedCalculated_ApprovedForGA
+                when ResolveWeight(element) > 0 => new WeightReportMapping("Yes", "Calculated Approved", WeightWarningCode.None),
             IfcWeightTrustLevel.ExplicitZeroFromIFC => new WeightReportMapping("No", "Invalid", WeightWarningCode.ZeroWeightFromIFC),
             IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA => new WeightReportMapping("No", "Estimated", WeightWarningCode.EstimatedFromVolumeDensity),
             IfcWeightTrustLevel.AmbiguousUnit => new WeightReportMapping("No", "Needs Review", WeightWarningCode.AmbiguousUnit),

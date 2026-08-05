@@ -568,6 +568,22 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 ExporterApplication = string.IsNullOrWhiteSpace(app) ? "Unknown Exporter" : app
             };
 
+            if (!string.IsNullOrWhiteSpace(ifcPath) && File.Exists(ifcPath))
+            {
+                try
+                {
+                    var fileInfo = new FileInfo(ifcPath);
+                    meta.FileSizeBytes = fileInfo.Length;
+                    using var stream = new FileStream(ifcPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    var sha = System.Security.Cryptography.SHA256.HashData(stream);
+                    meta.Sha256 = Convert.ToHexString(sha).ToLowerInvariant();
+                }
+                catch
+                {
+                    // fallback if file stream access fails
+                }
+            }
+
             // Detect Project Units
             var project = model.Instances.OfType<IIfcProject>().FirstOrDefault();
             var units = project?.UnitsInContext?.Units;

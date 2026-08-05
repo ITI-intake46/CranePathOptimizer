@@ -424,7 +424,7 @@ public sealed class GaLiftAnalysisDependencyGraphTests
         {
             ModelFingerprint = new string('a', 64),
             OptimizationInputFingerprint = new string('b', 64),
-            OptimizationInputFingerprintVersion = 2,
+            OptimizationInputFingerprintVersion = 3,
             OptimizationInputFingerprintComponents =
                 new Dictionary<string, string>(StringComparer.Ordinal)
         },

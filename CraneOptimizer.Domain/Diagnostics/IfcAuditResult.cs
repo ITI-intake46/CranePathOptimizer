@@ -30,6 +30,8 @@ namespace CraneOptimizer.Domain.Diagnostics
         public double VolumeConversionFactor { get; set; } = 1.0;
         public string MassUnit { get; set; } = "kg";
         public double? MassConversionFactor { get; set; } = 1.0;
+        public string Sha256 { get; set; } = string.Empty;
+        public long FileSizeBytes { get; set; }
         public List<string> Warnings { get; set; } = new();
     }
 

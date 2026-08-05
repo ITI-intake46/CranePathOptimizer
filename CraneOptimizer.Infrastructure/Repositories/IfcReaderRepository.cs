@@ -1895,8 +1895,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 }
 
                 // 2. MissingTrustedWeight
-                var isWeightTrusted = pe.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
-                                      pe.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+                var isWeightTrusted = CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(pe.WeightTrustLevel);
                 if (!isWeightTrusted)
                 {
                     pe.ValidationWarnings.Add("MissingTrustedWeight: Element weight is not from an explicit trusted source.");
@@ -2516,6 +2515,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     pe.WeightTons = preview.WeightStandardValueTons;
                     pe.WeightSource = preview.WeightSource;
                     pe.WeightTrustLevel = preview.WeightTrustLevel;
+                    pe.VolumeEvidence = preview.VolumeEvidence;
                     // For ElementWT, set to WeightStandardValueTons to align with UI expectations
                     pe.ElementWT = preview.WeightStandardValueTons;
 
@@ -2582,6 +2582,11 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         {
                             pe.ElementVolume = preview.VolumeStandardValueM3 ?? sourceSnapshot.Volume;
                             pe.VolumeM3 = preview.VolumeStandardValueM3 ?? sourceSnapshot.Volume;
+
+                            if (pe.VolumeM3 is > 0 && pe.VolumeEvidence is IfcVolumeEvidenceKind.Missing or IfcVolumeEvidenceKind.Unknown && (sourceSnapshot.Geometry != null || sourceSnapshot.Volume > 0))
+                            {
+                                pe.VolumeEvidence = IfcVolumeEvidenceKind.MeshGeometry;
+                            }
 
                             if (sourceSnapshot.Geometry != null)
                             {
@@ -2667,6 +2672,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                 {
                                     pe.VolumeM3 = volumeFromOwners;
                                     pe.ElementVolume = volumeFromOwners;
+                                    if (pe.VolumeEvidence is IfcVolumeEvidenceKind.Missing or IfcVolumeEvidenceKind.Unknown)
+                                    {
+                                        pe.VolumeEvidence = IfcVolumeEvidenceKind.MeshGeometry;
+                                    }
 
                                     pe.ExtractionWarnings.Add(
                                         $"Volume recovered from visible geometry owners. OwnerCount={ownerSnapshots.Count}, VolumeM3={volumeFromOwners:F3}");
@@ -2752,6 +2761,10 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     {
                         pe.VolumeM3 = parentSnapshot.Volume;
                         pe.ElementVolume = parentSnapshot.Volume;
+                        if (pe.VolumeEvidence is IfcVolumeEvidenceKind.Missing or IfcVolumeEvidenceKind.Unknown)
+                        {
+                            pe.VolumeEvidence = IfcVolumeEvidenceKind.MeshGeometry;
+                        }
 
                         pe.ExtractionWarnings.Add(
                             $"Volume inherited from Revit single-child parent assembly. ParentGlobalId={preview.ParentGlobalId}, VolumeM3={pe.VolumeM3:F3}");
@@ -2776,14 +2789,26 @@ namespace CraneOptimizer.Infrastructure.Repositories
 
                             pe.ExtractionWarnings.Add(
                                 $"Weight estimated from volume × material density. Material='{pe.ElementMaterial}', VolumeM3={pe.VolumeM3:F3}, WeightTons={estimatedWeightTons:F3}");
+
+                            if (CraneOptimizer.Domain.Policy.IfcCalculatedWeightPromotionPolicy.CanPromote(
+                                    _auditMetadata.Sha256,
+                                    pe.WeightTrustLevel,
+                                    pe.VolumeM3,
+                                    pe.VolumeEvidence,
+                                    pe.ElementMaterial,
+                                    pe.WeightTons))
+                            {
+                                pe.WeightTrustLevel = IfcWeightTrustLevel.ValidatedCalculated_ApprovedForGA;
+                                pe.WeightSource = "ValidatedCalculatedFromIfcGeometryAndMaterialDensity";
+                            }
                         }
                     }
                     // Re-enable valid Revit liftable children after inheritance/fallback repair
                     if (pe.Role == IfcElementRole.LiftableElement
-    && pe.WeightTons is > 0
-    && pe.ElementWT is > 0
-    && pe.VolumeM3 is > 0
-    && IsValidMaterialName(pe.ElementMaterial))
+                        && pe.WeightTons is > 0
+                        && pe.ElementWT is > 0
+                        && pe.VolumeM3 is > 0
+                        && IsValidMaterialName(pe.ElementMaterial))
                     {
                         if (pe.WeightTrustLevel == IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA)
                         {
@@ -2794,7 +2819,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                     " | Repaired with estimated fallback weight (requires user approval for GA).";
                             }
                         }
-                        else
+                        else if (CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(pe.WeightTrustLevel))
                         {
                             pe.IncludeInGa = true;
                             pe.NormalizationDecisionReason +=
@@ -2879,8 +2904,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         if (parentElement.IncludeInGa && pe.IncludeInGa &&
                             (parentElement.Role == IfcElementRole.LiftAssembly || parentElement.Role == IfcElementRole.LiftableElement))
                         {
-                            var parentWeightTrusted = parentElement.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
-                                                      parentElement.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+                            var parentWeightTrusted = CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(parentElement.WeightTrustLevel);
                             if (parentWeightTrusted)
                             {
                                 pe.ValidationWarnings.Add($"ParentChildDoubleCountRisk: Both parent assembly '{pe.ParentGlobalId}' and child part '{pe.ElementID}' are marked for GA. Child will be dynamically excluded to prevent double-counting.");
@@ -3048,6 +3072,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         {
                             pe.VolumeM3 = estimatedVolume;
                             pe.ElementVolume = estimatedVolume;
+                            pe.VolumeEvidence = IfcVolumeEvidenceKind.DerivedFromWeight;
 
                             pe.ExtractionWarnings.Add(
                                 $"Volume estimated from weight ÷ material density. " +
@@ -3071,6 +3096,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         {
                             pe.VolumeM3 = bboxVolume;
                             pe.ElementVolume = bboxVolume;
+                            pe.VolumeEvidence = IfcVolumeEvidenceKind.BoundingBox;
 
                             pe.ExtractionWarnings.Add(
                                 $"Volume repaired from PrecastElement bounding box. BBoxVolumeM3={bboxVolume:F3}");
@@ -3098,6 +3124,22 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         }
                     }
 
+                    // 6.5) Unconditional promotion evaluation after all material, volume, density, and weight repairs
+                    if (pe.WeightTrustLevel is IfcWeightTrustLevel.Missing or IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA)
+                    {
+                        if (CraneOptimizer.Domain.Policy.IfcCalculatedWeightPromotionPolicy.CanPromote(
+                                _auditMetadata?.Sha256,
+                                pe.WeightTrustLevel,
+                                pe.VolumeM3,
+                                pe.VolumeEvidence,
+                                pe.ElementMaterial,
+                                pe.WeightTons))
+                        {
+                            pe.WeightTrustLevel = IfcWeightTrustLevel.ValidatedCalculated_ApprovedForGA;
+                            pe.WeightSource = "ValidatedCalculatedFromIfcGeometryAndMaterialDensity";
+                        }
+                    }
+
                     // 7) Final field sync for UI + GA.
                     if (pe.WeightTons is > 0)
                         pe.ElementWT = pe.WeightTons;
@@ -3121,7 +3163,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                     " | Estimated weight (requires user approval for GA).";
                             }
                         }
-                        else
+                        else if (CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(pe.WeightTrustLevel))
                         {
                             pe.IncludeInGa = true;
 

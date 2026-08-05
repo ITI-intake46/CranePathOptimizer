@@ -140,6 +140,7 @@ public sealed class GaSettingsSnapshotDto
     public int MaxCranePositions { get; init; }
     public double GridStep { get; init; }
     public double CraneFootprintRadius { get; init; }
+    public double RenderedOperatingEnvelopeRadius { get; init; }
     public double MinimumRelocationDistance { get; init; }
     public double DuplicatePositionDistance { get; init; }
     public double MutationExplorationMultiplier { get; init; }
@@ -205,6 +206,7 @@ public sealed class GaSettingsSnapshotDto
         MaxCranePositions = settings.MaxCranePositions,
         GridStep = settings.GridStep,
         CraneFootprintRadius = settings.CraneFootprintRadius,
+        RenderedOperatingEnvelopeRadius = settings.RenderedOperatingEnvelopeRadius,
         MinimumRelocationDistance = settings.MinimumRelocationDistance,
         DuplicatePositionDistance = settings.DuplicatePositionDistance,
         MutationExplorationMultiplier = settings.MutationExplorationMultiplier,

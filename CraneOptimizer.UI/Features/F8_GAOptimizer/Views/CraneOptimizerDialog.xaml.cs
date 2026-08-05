@@ -3,6 +3,8 @@ using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.Domain.Entities;
 using CraneOptimizer.Domain.Interfaces;
 using CraneOptimizer.Domain.Schemas;
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Interfaces;
+using OptimizationScopeFilter = CraneOptimizer.Application.Optimization.GeneticAlgorithms.DTOs.OptimizationScopeFilter;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F3_CraneSetup.ViewModels;
@@ -35,6 +37,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
         private readonly CraneSetupViewModel _craneSetup;
         private readonly ISceneRenderingManager _sceneRenderingManager;
         private readonly IImportReadinessService _readinessService;
+        private readonly IOptimizationScopeEngine _scopeEngine;
+        private readonly ICraneValidationService _craneValidation;
         private readonly CraneOptimizerDialogWorkflow _workflow;
 
         private CranePlacementResult? _currentResult;
@@ -63,7 +67,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             ISceneService sceneService,
             CraneSetupViewModel craneSetup,
             ISceneRenderingManager sceneRenderingManager,
-            IImportReadinessService readinessService)
+            IImportReadinessService readinessService,
+            IOptimizationScopeEngine scopeEngine,
+            ICraneValidationService craneValidation)
         {
             InitializeComponent();
 
@@ -73,6 +79,8 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             _craneSetup = craneSetup;
             _sceneRenderingManager = sceneRenderingManager;
             _readinessService = readinessService;
+            _scopeEngine = scopeEngine;
+            _craneValidation = craneValidation;
             _workflow = new CraneOptimizerDialogWorkflow(placementService, craneRepository);
 
             var vm = new CraneOptimizerDialogViewModel();
@@ -147,7 +155,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                     ProgBar.Value = 0;
 
                     var explanation = new StringBuilder();
-                    explanation.AppendLine("Optimization blocked: Zero valid grouped assembly lift units.");
+                    explanation.AppendLine("Optimization blocked: Zero valid GA lift units.");
                     explanation.AppendLine();
                     explanation.AppendLine("Details:");
                     foreach (var msg in vm.ReadinessSummary.Messages)
@@ -161,15 +169,6 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                     }
 
                     _dialogService.ShowMessage(explanation.ToString());
-                    return;
-                }
-
-                if (options.TargetElementTypes.Count == 0)
-                {
-                    TxtStatus.Text = "Select at least one target type.";
-                    ProgBar.IsIndeterminate = false;
-                    ProgBar.Value = 0;
-                    _dialogService.ShowMessage("Please select at least one target element type for GA.");
                     return;
                 }
 
@@ -308,6 +307,9 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 _previewSceneCrane.PivotOffset         = pivotOffset;
                 _previewSceneCrane.BoomLength          = boomLength;
                 _previewSceneCrane.BoomAngle           = 45;
+                _previewSceneCrane.IsValidPlacement    = _craneValidation.ValidatePlacement(
+                    _previewSceneCrane,
+                    _sceneService.GetZones());
                 _sceneService.UpdateCrane(_previewSceneCrane);
             }
             else
@@ -325,8 +327,11 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                     PivotOffset        = pivotOffset,
                     BoomLength         = boomLength,
                     BoomAngle          = 45,
-                    IsValidPlacement   = true
                 };
+
+                _previewSceneCrane.IsValidPlacement = _craneValidation.ValidatePlacement(
+                    _previewSceneCrane,
+                    _sceneService.GetZones());
 
                 _sceneService.AddCrane(_previewSceneCrane);
                 _sceneService.SetSelectedCrane(_previewSceneCrane);
@@ -583,8 +588,19 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
                 return;
             }
 
+            var selectedCrane = CboCrane.SelectedItem as Crane;
+
+            if (selectedCrane != null)
+                MoveOrCreateSceneCrane(selectedCrane, item.Point);
+
+            if (_previewSceneCrane?.IsValidPlacement == false)
+            {
+                _dialogService.ShowMessage("Selected point is invalid: the physical crane footprint violates zone constraints.");
+                return;
+            }
+
             AppliedPosition = item.Point;
-            AppliedCrane   = CboCrane.SelectedItem as Crane;
+            AppliedCrane   = selectedCrane;
 
             // Sync position into CraneSetupViewModel (for compatibility with F3 UI)
             // Guard against null in case the service was not fully injected.
@@ -625,34 +641,22 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             }
         }
 
-        private List<PrecastElement> GetScopedElements()
+        private List<PrecastElement> GetScopedElements(IReadOnlyList<PrecastElement> allElements)
         {
-            var sceneElements = _sceneService.GetElements() ?? new List<PrecastElement>();
-
-            // 1. Filter by selection
             var selectedElements = _sceneService.GetSelectedElements();
-            if (selectedElements != null && selectedElements.Count > 0)
-            {
-                var selectedIds = selectedElements.Select(e => e.ElementID).Where(id => !string.IsNullOrEmpty(id)).ToHashSet();
-                sceneElements = sceneElements.Where(e => selectedIds.Contains(e.ElementID)).ToList();
-            }
+            var selectedIds = selectedElements != null && selectedElements.Count > 0
+                ? selectedElements
+                    .Select(e => e.ElementID)
+                    .Where(id => !string.IsNullOrEmpty(id))
+                    .ToHashSet()
+                : null;
 
-            // 2. Filter by target element types
-            var selectedTypes = GetSelectedTargetElementTypes();
-            if (selectedTypes != null && selectedTypes.Count > 0)
+            var filter = new OptimizationScopeFilter
             {
-                var typeSet = selectedTypes.ToHashSet(StringComparer.OrdinalIgnoreCase);
-                sceneElements = sceneElements
-                    .Where(e => !string.IsNullOrWhiteSpace(e.ElementType)
-                                && typeSet.Contains(e.ElementType.Trim()))
-                    .ToList();
-            }
-            else
-            {
-                sceneElements = new List<PrecastElement>();
-            }
+                SelectedElementIds = selectedIds
+            };
 
-            return sceneElements;
+            return _scopeEngine.FilterElements(allElements.ToList(), filter);
         }
 
         private void RefreshReadinessSummary()
@@ -661,37 +665,24 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Views
             if (vm == null) return;
 
             var allElements = _cachedElements;
-            var scopedElements = GetScopedElements();
+            var scopedElements = GetScopedElements(allElements);
+            var selectedTargetElementTypes = GetSelectedTargetElementTypes();
 
             // Always use the original single-arg BuildSummary — no service overload needed.
             var summary = _readinessService.BuildSummary(scopedElements);
+            var counts = GaLiftUnitInputPreparation.CountLiftUnits(
+                allElements,
+                scopedElements,
+                selectedTargetElementTypes);
 
-            if (vm.EnableGroupedLifts)
-            {
-                // In grouped-lifts mode, patch GaCandidateElements with the actual lift-unit
-                // count.  This is a pure UI-layer patch — the service is not changed.
-                var expandedScope = GaLiftUnitInputPreparation.ExpandAssemblyScope(allElements, scopedElements);
-                var eligibleParentIds = GaLiftUnitInputPreparation.GetEligibleAssemblyParentIds(
-                    expandedScope, GetSelectedTargetElementTypes());
+            summary.GaCandidateElements = counts.FinalCandidateCount;
 
-                int liftUnitCount = 0;
-                foreach (var parent in expandedScope
-                    .Where(e => e.Role == IfcElementRole.LiftAssembly && eligibleParentIds.Contains(e.ElementID)))
-                {
-                    if (GaLiftUnitInputPreparation.TryPrepareAssemblyParent(
-                            parent, expandedScope, out _, out _))
-                        liftUnitCount++;
-                }
-
-                // Overwrite with the assembly-level count so the badge and run guard
-                // both see the correct grouped lift-unit number.
-                summary.GaCandidateElements = liftUnitCount;
-
-                System.Diagnostics.Debug.WriteLine(
-                    $"[GA_READINESS] GroupedLifts=true, LiftUnits={liftUnitCount}, " +
-                    $"GaCandidateElements={summary.GaCandidateElements}");
-            }
-
+            System.Diagnostics.Debug.WriteLine(
+                $"[GA_READINESS] ScopedCount={scopedElements.Count}, " +
+                $"TargetTypes=[{string.Join(", ", selectedTargetElementTypes)}], " +
+                $"GroupedCount={counts.GroupedAssemblyCount}, " +
+                $"StandaloneCount={counts.StandaloneCount}, " +
+                $"FinalCount={counts.FinalCandidateCount}");
             vm.ReadinessSummary = summary;
         }
 

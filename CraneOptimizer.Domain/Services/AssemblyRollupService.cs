@@ -198,8 +198,7 @@ namespace CraneOptimizer.Domain.Services
                 // Compute rollup values for the parent
                 double totalWeight = 0.0;
                 double parentWeight = parent.WeightTons ?? parent.ElementWT ?? 0.0;
-                bool hasParentExplicitWeight = parent.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
-                                               parent.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+                bool hasParentExplicitWeight = CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(parent.WeightTrustLevel);
 
                 var eligibleContributors = children.Where(c => c.ChildClassification != AssemblyChildClassification.IgnoredReference).ToList();
                 double childWeightSum = eligibleContributors.Sum(c => c.WeightTons ?? c.ElementWT ?? 0.0);
@@ -336,8 +335,7 @@ namespace CraneOptimizer.Domain.Services
             IfcWeightTrustLevel trustLevel = IfcWeightTrustLevel.Missing;
 
             double parentWeight = parent.WeightTons ?? parent.ElementWT ?? 0.0;
-            bool hasParentExplicitWeight = parent.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
-                                           parent.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+            bool hasParentExplicitWeight = CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(parent.WeightTrustLevel);
 
             // Filter contributors: MainPart, VisibleSecondaryPart, HiddenWeightContributor, AccessoryWeightContributor
             var eligibleContributors = children.Where(c => {
@@ -378,9 +376,7 @@ namespace CraneOptimizer.Domain.Services
             {
                 totalWeight = childWeightSum;
                 weightSource = "ChildSumRollup";
-                trustLevel = eligibleContributors.Count > 0
-                    ? eligibleContributors.Min(c => c.WeightTrustLevel)
-                    : IfcWeightTrustLevel.Missing;
+                trustLevel = CalculateRollupTrustLevel(eligibleContributors);
             }
 
             // 3. COG Rollup Calculation (Weighted Centroid)
@@ -514,5 +510,42 @@ namespace CraneOptimizer.Domain.Services
             => string.IsNullOrWhiteSpace(category)
                || string.Equals(category, "Assembly", StringComparison.OrdinalIgnoreCase)
                || string.Equals(category, "Unknown", StringComparison.OrdinalIgnoreCase);
+
+        private static IfcWeightTrustLevel CalculateRollupTrustLevel(IReadOnlyCollection<PrecastElement> contributors)
+        {
+            if (contributors == null || contributors.Count == 0)
+                return IfcWeightTrustLevel.Missing;
+
+            bool allApproved = true;
+            bool hasCalculatedApproved = false;
+            bool hasExplicitQuantity = false;
+
+            foreach (var c in contributors)
+            {
+                double weight = c.WeightTons ?? c.ElementWT ?? 0.0;
+                if (weight <= 0.0 || !CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(c.WeightTrustLevel))
+                {
+                    allApproved = false;
+                    break;
+                }
+
+                if (c.WeightTrustLevel == IfcWeightTrustLevel.ValidatedCalculated_ApprovedForGA)
+                {
+                    hasCalculatedApproved = true;
+                }
+                else if (c.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity)
+                {
+                    hasExplicitQuantity = true;
+                }
+            }
+
+            if (!allApproved)
+                return IfcWeightTrustLevel.EstimatedFallback_NotAllowedForGA;
+
+            if (hasCalculatedApproved)
+                return IfcWeightTrustLevel.ValidatedCalculated_ApprovedForGA;
+
+            return hasExplicitQuantity ? IfcWeightTrustLevel.ExplicitQuantity : IfcWeightTrustLevel.ExplicitProperty;
+        }
     }
 }

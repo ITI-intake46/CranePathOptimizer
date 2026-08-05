@@ -242,8 +242,7 @@ namespace CraneOptimizer.UI.Features.F8_GAOptimizer.Services
                         (parentElement.Role == CraneOptimizer.Domain.Diagnostics.IfcElementRole.LiftAssembly ||
                          parentElement.Role == CraneOptimizer.Domain.Diagnostics.IfcElementRole.LiftableElement))
                     {
-                        var parentWeightTrusted = parentElement.WeightTrustLevel == CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.ExplicitQuantity ||
-                                                  parentElement.WeightTrustLevel == CraneOptimizer.Domain.Diagnostics.IfcWeightTrustLevel.ExplicitProperty;
+                        var parentWeightTrusted = CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(parentElement.WeightTrustLevel);
                         if (parentWeightTrusted)
                         {
                             blockedElements.Add((element, $"Child element excluded to prevent double-counting because its parent assembly '{element.ParentGlobalId}' is also a GA target unit."));

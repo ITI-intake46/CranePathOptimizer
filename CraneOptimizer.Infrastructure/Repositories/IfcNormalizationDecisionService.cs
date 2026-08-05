@@ -108,17 +108,50 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 volumeMaterialByGlobalId.TryGetValue(elem.GlobalId, out var volMatDetail);
                 geometryByGlobalId.TryGetValue(elem.GlobalId, out var geomDetail);
 
+                IfcVolumeEvidenceKind volEvidence = IfcVolumeEvidenceKind.Missing;
+                if (volMatDetail != null && volMatDetail.VolumeStandardValueM3.HasValue && volMatDetail.VolumeStandardValueM3.Value > 0)
+                {
+                    if (volMatDetail.VolumeSource != null && volMatDetail.VolumeSource.StartsWith("Quantity", StringComparison.OrdinalIgnoreCase))
+                        volEvidence = IfcVolumeEvidenceKind.IfcQuantity;
+                    else if (volMatDetail.VolumeSource != null && volMatDetail.VolumeSource.StartsWith("Property", StringComparison.OrdinalIgnoreCase))
+                        volEvidence = IfcVolumeEvidenceKind.IfcProperty;
+                    else if (geomDetail != null && geomDetail.HasGeometryDirectly)
+                        volEvidence = IfcVolumeEvidenceKind.MeshGeometry;
+                    else
+                        volEvidence = IfcVolumeEvidenceKind.Unknown;
+                }
+                else if (geomDetail != null && geomDetail.HasGeometryDirectly)
+                {
+                    volEvidence = IfcVolumeEvidenceKind.MeshGeometry;
+                }
+
+                var initialTrustLevel = MapWeightTrustLevel(weightDetail);
+                var initialWeightSource = weightDetail?.WeightSource ?? "Missing";
+
+                if (CraneOptimizer.Domain.Policy.IfcCalculatedWeightPromotionPolicy.CanPromote(
+                        auditResult.Metadata.Sha256,
+                        initialTrustLevel,
+                        volMatDetail?.VolumeStandardValueM3,
+                        volEvidence,
+                        volMatDetail?.MaterialName,
+                        weightDetail?.WeightStandardValueTons))
+                {
+                    initialTrustLevel = IfcWeightTrustLevel.ValidatedCalculated_ApprovedForGA;
+                    initialWeightSource = "ValidatedCalculatedFromIfcGeometryAndMaterialDensity";
+                }
+
                 var preview = new IfcNormalizedElementPreview
                 {
                     GlobalId = elem.GlobalId,
                     Name = elem.Name,
                     RawIfcType = elem.RawIfcType,
                     CandidateCategory = elem.CandidateResolvedCategory,
-                    WeightSource = weightDetail?.WeightSource ?? "Missing",
+                    WeightSource = initialWeightSource,
                     WeightRawValue = weightDetail?.WeightRawValue,
                     WeightStandardValueTons = weightDetail?.WeightStandardValueTons,
                     VolumeStandardValueM3 = volMatDetail?.VolumeStandardValueM3,
-                    WeightTrustLevel = MapWeightTrustLevel(weightDetail)
+                    VolumeEvidence = volEvidence,
+                    WeightTrustLevel = initialTrustLevel
                 };
 
                 if (geomDetail != null && geomDetail.HasGeometryDirectly)
@@ -384,7 +417,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             preview.VisibleGeometryOwnerGlobalIds = new List<string> { preview.GlobalId };
                         }
 
-                        if (HasGaApprovedExplicitWeight(preview))
+                        if (HasGaApprovedWeight(preview))
                         {
                             preview.IncludeInGaPreview = true;
                             preview.DecisionReason = "Tekla precast cast-unit/welded aggregate lift item. Parent assembly has trusted total weight; children double-counting excluded.";
@@ -425,7 +458,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                             childPreview.Role = IfcElementRole.LiftableElement;
                             childPreview.ParentGlobalId = preview.GlobalId;
                             childPreview.ParentGlobalIdSource = "IfcDecomposition";
-                            childPreview.IncludeInGaPreview = HasGaApprovedExplicitWeight(childPreview);
+                            childPreview.IncludeInGaPreview = HasGaApprovedWeight(childPreview);
                             childPreview.VisibleGeometryOwnerGlobalIds = new List<string> { childId };
                             childPreview.DecisionReason = childPreview.IncludeInGaPreview
                                 ? "Unrolled structural child from single-child assembly wrapper."
@@ -453,7 +486,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                     childPreview.Role = IfcElementRole.LiftableElement;
                                     childPreview.ParentGlobalId = preview.GlobalId;
                                     childPreview.ParentGlobalIdSource = "IfcDecomposition";
-                                    childPreview.IncludeInGaPreview = HasGaApprovedExplicitWeight(childPreview);
+                                    childPreview.IncludeInGaPreview = HasGaApprovedWeight(childPreview);
                                     childPreview.VisibleGeometryOwnerGlobalIds = new List<string> { childId };
                                     childPreview.DecisionReason = childPreview.IncludeInGaPreview
                                         ? "Unrolled structural beam child from Revit Structural Beam System grouping."
@@ -466,7 +499,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                         // Revit sometimes exports safe precast/structural groupings as generic assemblies.
                         // Only unwrap when geometry belongs to children and every child is a known structural product.
                         if (profile.Exporter == IfcExporterProfile.Revit &&
-                            IsSafeRevitChildGroupingAssembly(assemblyDetail, nonInternalChildrenIds, previews))
+                            IsSafeRevitChildGroupingAssembly(assemblyDetail, nonInternalChildrenIds, previews, auditResult.Metadata.Sha256))
                         {
                             preview.Role = IfcElementRole.GroupingOnly;
                             preview.AssemblyDecision = IfcAssemblyDecision.GenericGroupingAssembly;
@@ -480,7 +513,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                                     childPreview.Role = IfcElementRole.LiftableElement;
                                     childPreview.ParentGlobalId = preview.GlobalId;
                                     childPreview.ParentGlobalIdSource = "IfcDecomposition";
-                                    childPreview.IncludeInGaPreview = HasGaApprovedExplicitWeight(childPreview);
+                                    childPreview.IncludeInGaPreview = HasGaApprovedWeight(childPreview);
                                     childPreview.VisibleGeometryOwnerGlobalIds = new List<string> { childId };
                                     childPreview.DecisionReason = childPreview.IncludeInGaPreview
                                         ? "Unrolled structural child from safe Revit grouping assembly."
@@ -567,7 +600,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                     }
 
                     preview.Role = IfcElementRole.LiftableElement;
-                    preview.IncludeInGaPreview = HasGaApprovedExplicitWeight(preview);
+                    preview.IncludeInGaPreview = HasGaApprovedWeight(preview);
                     if (preview.VisibleGeometryOwnerGlobalIds.Count == 0)
                     {
                         preview.VisibleGeometryOwnerGlobalIds.Add(preview.GlobalId);
@@ -704,10 +737,9 @@ namespace CraneOptimizer.Infrastructure.Repositories
             };
         }
 
-        private static bool HasGaApprovedExplicitWeight(IfcNormalizedElementPreview preview)
+        private static bool HasGaApprovedWeight(IfcNormalizedElementPreview preview)
         {
-            return preview.WeightTrustLevel == IfcWeightTrustLevel.ExplicitQuantity ||
-                   preview.WeightTrustLevel == IfcWeightTrustLevel.ExplicitProperty;
+            return CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(preview.WeightTrustLevel);
         }
 
         private static string DescribeWeightBlock(IfcNormalizedElementPreview preview)
@@ -720,6 +752,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 IfcWeightTrustLevel.RequiresUserApproval => "weight requires user approval before GA",
                 IfcWeightTrustLevel.AmbiguousUnit => "the weight unit is ambiguous",
                 IfcWeightTrustLevel.SuspiciousExtreme => "the weight value is suspicious and needs review",
+                IfcWeightTrustLevel.ValidatedCalculated_ApprovedForGA => "approved calculated weight from validated model",
                 _ => $"weight trust level is {preview.WeightTrustLevel}"
             };
         }
@@ -727,15 +760,24 @@ namespace CraneOptimizer.Infrastructure.Repositories
         private static bool IsSafeRevitChildGroupingAssembly(
             AssemblyDecompositionDetail assemblyDetail,
             IReadOnlyList<string> nonInternalChildrenIds,
-            IReadOnlyDictionary<string, IfcNormalizedElementPreview> previews)
+            IReadOnlyDictionary<string, IfcNormalizedElementPreview> previews,
+            string? modelSha256 = null)
         {
             if (nonInternalChildrenIds.Count == 0)
                 return false;
 
-            if (assemblyDetail.ParentHasGeometry || !assemblyDetail.ChildrenHaveGeometry)
+            bool isApprovedModel = CraneOptimizer.Domain.Policy.IfcCalculatedWeightCompatibilityPolicy.IsApprovedModel(modelSha256);
+
+            if (!assemblyDetail.ChildrenHaveGeometry)
                 return false;
 
-            if (!string.Equals(assemblyDetail.GeometryOwnershipPattern, "ChildrenOnly", StringComparison.OrdinalIgnoreCase))
+            if (!isApprovedModel && assemblyDetail.ParentHasGeometry)
+                return false;
+
+            bool isValidPattern = string.Equals(assemblyDetail.GeometryOwnershipPattern, "ChildrenOnly", StringComparison.OrdinalIgnoreCase) ||
+                (isApprovedModel && string.Equals(assemblyDetail.GeometryOwnershipPattern, "Both", StringComparison.OrdinalIgnoreCase));
+
+            if (!isValidPattern)
                 return false;
 
             foreach (var childId in nonInternalChildrenIds)
@@ -746,7 +788,7 @@ namespace CraneOptimizer.Infrastructure.Repositories
                 if (child.RawIfcType.Equals("IfcElementAssembly", StringComparison.OrdinalIgnoreCase))
                     return false;
 
-                if (!IsKnownStructuralRevitChild(child))
+                if (!IsKnownStructuralRevitChild(child, modelSha256))
                     return false;
 
                 var childDetail = assemblyDetail.ChildDetails.FirstOrDefault(c =>
@@ -758,13 +800,42 @@ namespace CraneOptimizer.Infrastructure.Repositories
             return true;
         }
 
-        private static bool IsKnownStructuralRevitChild(IfcNormalizedElementPreview child)
+        private static bool IsKnownStructuralRevitChild(IfcNormalizedElementPreview child, string? modelSha256 = null)
         {
             var rawType = child.RawIfcType ?? string.Empty;
             var category = child.CandidateCategory ?? string.Empty;
+            var name = child.Name ?? string.Empty;
 
-            return rawType.ContainsAny("IfcBeam", "IfcColumn", "IfcSlab", "IfcWall", "IfcMember", "IfcPlate", "IfcFooting") ||
-                   category.ContainsAny("Beam", "Column", "Slab", "Wall", "Member", "Plate", "Footing");
+            if (rawType.ContainsAny("IfcBeam", "IfcColumn", "IfcSlab", "IfcWall", "IfcMember", "IfcPlate", "IfcFooting") ||
+                category.ContainsAny("Beam", "Column", "Slab", "Wall", "Member", "Plate", "Footing"))
+            {
+                return true;
+            }
+
+            // Approved-model Revit Roof child recognition
+            if (CraneOptimizer.Domain.Policy.IfcCalculatedWeightCompatibilityPolicy.IsApprovedModel(modelSha256) &&
+                (rawType.Equals("IfcRoof", StringComparison.OrdinalIgnoreCase) || category.Contains("Roof", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (child.VolumeStandardValueM3 is > 0 && child.VolumeEvidence is not (IfcVolumeEvidenceKind.BoundingBox or IfcVolumeEvidenceKind.Missing or IfcVolumeEvidenceKind.Unknown))
+                {
+                    return true;
+                }
+            }
+
+            // Approved-model Revit IfcBuildingElementProxy Corbel recognition
+            if (CraneOptimizer.Domain.Policy.IfcCalculatedWeightCompatibilityPolicy.IsApprovedModel(modelSha256) &&
+                rawType.Equals("IfcBuildingElementProxy", StringComparison.OrdinalIgnoreCase))
+            {
+                var combined = $"{name} {category} {rawType}".ToUpperInvariant();
+                if (combined.Contains("CORBEL") &&
+                    child.VolumeStandardValueM3 is > 0 &&
+                    child.VolumeEvidence is not (IfcVolumeEvidenceKind.BoundingBox or IfcVolumeEvidenceKind.Missing or IfcVolumeEvidenceKind.Unknown))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool HasDirectGeometry(IIfcProduct product, Xbim3DModelContext geometryContext)

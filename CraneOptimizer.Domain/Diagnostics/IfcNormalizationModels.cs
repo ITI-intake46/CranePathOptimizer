@@ -32,7 +32,8 @@ namespace CraneOptimizer.Domain.Diagnostics
         EstimatedFallback_NotAllowedForGA,
         AmbiguousUnit,
         SuspiciousExtreme,
-        RequiresUserApproval
+        RequiresUserApproval,
+        ValidatedCalculated_ApprovedForGA
     }
 
     public enum IfcExporterProfile
@@ -61,6 +62,7 @@ namespace CraneOptimizer.Domain.Diagnostics
         public double? WeightRawValue { get; set; }
         public double? WeightStandardValueTons { get; set; }
         public double? VolumeStandardValueM3 { get; set; }
+        public IfcVolumeEvidenceKind VolumeEvidence { get; set; } = IfcVolumeEvidenceKind.Missing;
         public IfcWeightTrustLevel WeightTrustLevel { get; set; } = IfcWeightTrustLevel.Missing;
         public string DecisionReason { get; set; } = string.Empty;
         public List<string> Warnings { get; set; } = new();

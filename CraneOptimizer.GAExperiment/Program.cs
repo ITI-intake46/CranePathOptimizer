@@ -644,8 +644,7 @@ namespace CraneOptimizer.GAExperiment
                     if (domainElement.Role == IfcElementRole.InternalAuxiliary) continue;
                     if (domainElement.Role == IfcElementRole.Excluded) continue;
                     if (!domainElement.WeightTons.HasValue || domainElement.WeightTons.Value <= 0) continue;
-                    if (domainElement.WeightTrustLevel != IfcWeightTrustLevel.ExplicitQuantity &&
-                        domainElement.WeightTrustLevel != IfcWeightTrustLevel.ExplicitProperty) continue;
+                    if (!CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(domainElement.WeightTrustLevel)) continue;
                     if (domainElement.ElementCOG == null || 
                         double.IsNaN(domainElement.ElementCOG.X) || double.IsInfinity(domainElement.ElementCOG.X) ||
                         double.IsNaN(domainElement.ElementCOG.Y) || double.IsInfinity(domainElement.ElementCOG.Y) ||
@@ -864,6 +863,8 @@ namespace CraneOptimizer.GAExperiment
                 MinimumRelocationDistance = src.MinimumRelocationDistance,
                 MutationSigma = src.MutationSigma,
                 GridStep = src.GridStep,
+                CraneFootprintRadius = src.CraneFootprintRadius,
+                RenderedOperatingEnvelopeRadius = src.RenderedOperatingEnvelopeRadius,
                 WireLength = src.WireLength,
                 AdditionalWt = src.AdditionalWt,
                 SafetyFactor = src.SafetyFactor,

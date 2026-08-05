@@ -22,7 +22,9 @@ namespace CraneOptimizer.UI.Shell.ViewModels
                 Scene,
                 CraneSetup,
                 _sceneRendering,
-                _readinessService);
+                _readinessService,
+                _scopeEngine,
+                _craneValidation);
 
             if (System.Windows.Application.Current?.MainWindow != null)
                 dialog.Owner = System.Windows.Application.Current.MainWindow;

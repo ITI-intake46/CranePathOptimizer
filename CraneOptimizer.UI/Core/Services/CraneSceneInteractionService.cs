@@ -84,13 +84,13 @@ namespace CraneOptimizer.UI.Core.Services
                 _status.SetStatus(
                     sceneCrane.IsValidPlacement
                         ? $"Crane placed at ({point.X:F2}, {point.Y:F2}) with default boom values (no load chart found)."
-                        : "Crane placed with default boom values, but invalid: footprint/radius violate zone constraints.");
+                        : "Crane placed with default boom values, but invalid: footprint violates zone constraints.");
             }
             else
             {
                 _status.SetStatus(sceneCrane.IsValidPlacement
                     ? $"Crane placed at ({point.X:F2}, {point.Y:F2})."
-                    : "Crane placed, but invalid: footprint/radius violate zone constraints.");
+                    : "Crane placed, but invalid: footprint violates zone constraints.");
             }
         }
 

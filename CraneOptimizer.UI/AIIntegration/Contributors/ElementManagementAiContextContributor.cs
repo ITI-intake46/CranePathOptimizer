@@ -20,8 +20,7 @@ namespace CraneOptimizer.UI.AIIntegration.Contributors
             var selected = selectedElements.FirstOrDefault() ?? shell.ElementManagement.SelectedElement;
 
             var lowConfidence = elements.Count(IsLowConfidenceIdentity);
-            var missingTrustedWeight = elements.Count(element => element.WeightTrustLevel != IfcWeightTrustLevel.ExplicitQuantity
-                && element.WeightTrustLevel != IfcWeightTrustLevel.ExplicitProperty);
+            var missingTrustedWeight = elements.Count(element => !CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(element.WeightTrustLevel));
             var missingCog = elements.Count(HasMissingCog);
             var hiddenContributors = elements.Count(element => element.HasHiddenContributors || element.HiddenWeightContributorCount > 0);
             var validationWarnings = elements.Sum(element => element.ValidationWarnings?.Count ?? 0);
@@ -122,8 +121,7 @@ namespace CraneOptimizer.UI.AIIntegration.Contributors
                     element.ValidationWarnings.Count);
             }
 
-            if (element.WeightTrustLevel != IfcWeightTrustLevel.ExplicitQuantity
-                && element.WeightTrustLevel != IfcWeightTrustLevel.ExplicitProperty)
+            if (!CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(element.WeightTrustLevel))
             {
                 yield return AiContextContributorHelpers.Issue(
                     "SelectedElementWeightNotTrusted",

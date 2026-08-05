@@ -1,3 +1,4 @@
+using CraneOptimizer.Application.Optimization.GeneticAlgorithms.Services;
 using CraneOptimizer.UI.Core.Interfaces;
 using CraneOptimizer.UI.Core.Models;
 using HelixToolkit.Wpf;
@@ -10,9 +11,8 @@ namespace CraneOptimizer.UI.Features.F3_CraneSetup
     {
         public Visual3D Build(SceneCrane item)
         {
-            var radius = item.ActiveSpecification?.MaxRadius ?? 0;
-            if (radius <= 0)
-                radius = 1.0;
+            var radius = CraneEnvelopeContainmentRadiusResolver.ResolveRenderedOperatingEnvelopeRadius(
+                item.ActiveSpecification?.MaxRadius ?? 0);
 
             var center = new Point3D(item.Position.X, item.Position.Y, item.Position.Z + 0.02);
 

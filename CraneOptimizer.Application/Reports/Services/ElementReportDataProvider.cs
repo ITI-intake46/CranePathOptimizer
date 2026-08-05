@@ -453,7 +453,7 @@ public sealed class ElementReportDataProvider : IElementReportDataProvider
 
     private static bool HasTrustedPositiveWeight(PrecastElement element) =>
         element.WeightTons is > 0
-        && element.WeightTrustLevel is IfcWeightTrustLevel.ExplicitQuantity or IfcWeightTrustLevel.ExplicitProperty;
+        && CraneOptimizer.Domain.Policy.IfcWeightTrustPolicy.IsGaApproved(element.WeightTrustLevel);
 
     private static Domain.Common.DomainPoint3D? FirstValidPoint(params Domain.Common.DomainPoint3D?[] points) =>
         points.FirstOrDefault(IsValidPoint);

@@ -216,6 +216,13 @@ namespace CraneOptimizer.Application.Optimization.GeneticAlgorithms.Settings
         public double CraneFootprintRadius { get; set; }
 
         /// <summary>
+        /// Radius in meters of the operating/reach envelope rendered in the viewport.
+        /// This is visual/reporting metadata only; zone containment uses
+        /// CraneFootprintRadius.
+        /// </summary>
+        public double RenderedOperatingEnvelopeRadius { get; set; }
+
+        /// <summary>
         /// Optional element type allow-list. When populated, only matching IFC element
         /// types are included in the optimization target set.
         /// </summary>
