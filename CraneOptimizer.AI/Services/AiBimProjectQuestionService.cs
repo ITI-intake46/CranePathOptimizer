@@ -327,7 +327,7 @@ namespace CraneOptimizer.AI.Services
 
             if (asksForRecommendedCount && hostPlanningCount.HasValue)
             {
-                builder.AppendLine($"Use the planning/filterable count for lift planning and engineering filtering: **{hostPlanningCount.Value:N0} {categoryPhrase}**. Use the complete-scene count for classification and hierarchy review.");
+                builder.AppendLine($"Use the planning/filterable count for lift planning: **{hostPlanningCount.Value:N0} {categoryPhrase}**. Use the same planning/filterable scope for engineering filtering. Use the complete-scene count for classification and hierarchy review.");
             }
 
             builder.AppendLine("The values use different count scopes and must not be treated as interchangeable.");

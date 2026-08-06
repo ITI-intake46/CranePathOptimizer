@@ -332,7 +332,8 @@ namespace CraneOptimizer.Application.Tests.AI
                 out _);
 
             Assert.True(handled);
-            Assert.Contains("Use the planning/filterable count for lift planning and engineering filtering: **50 Slab elements**", answer);
+            Assert.Contains("Use the planning/filterable count for lift planning: **50 Slab elements**", answer);
+            Assert.Contains("Use the same planning/filterable scope for engineering filtering", answer, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Planning/filterable Slab elements: **50**", answer);
             Assert.Contains("Complete IFC scene Slab elements: **116**", answer);
             Assert.Contains("no model provider was invoked", answer, StringComparison.OrdinalIgnoreCase);
