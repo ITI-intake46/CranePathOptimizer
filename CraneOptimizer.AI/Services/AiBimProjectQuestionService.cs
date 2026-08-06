@@ -54,8 +54,28 @@ namespace CraneOptimizer.AI.Services
 
             var categoryTargets = FindCategoryTargets(normalized);
             var numericCount = Regex.Matches(normalized, @"\b\d[\d,]*\b").Count;
+            var hasExplicitCountScope = ContainsAny(
+                normalized,
+                "ifc element filter",
+                "filter dialog",
+                "the filter",
+                "filter says",
+                "filter shows",
+                "filter reports",
+                "filter count",
+                "planning count",
+                "planning/filterable",
+                "filterable planning",
+                "complete-scene",
+                "complete scene",
+                "ifc scene",
+                "bim context",
+                "bim contains",
+                "bim says",
+                "bim reports");
             if (categoryTargets.Count > 0
                 && (numericCount >= 2
+                    || (numericCount >= 1 && hasExplicitCountScope)
                     || ContainsAny(
                         normalized,
                         "which count",
@@ -267,6 +287,12 @@ namespace CraneOptimizer.AI.Services
             var builder = new StringBuilder();
             builder.AppendLine("## Answer");
 
+            var asksForRecommendedCount = IsPlanningRecommendationQuestion(text)
+                || Regex.IsMatch(
+                    text,
+                    @"\b(which|what)\b.*\bcount\b.*\b(correct|right|authoritative|use)\b",
+                    RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
             var hasReportedMismatch = false;
             if (hostPlanningCount.HasValue
                 && reportedPlanning != null
@@ -297,6 +323,11 @@ namespace CraneOptimizer.AI.Services
                 {
                     builder.AppendLine($"The supplied alternatives conflict with the live project facts. The host-confirmed values are {hostPlanningCount.Value:N0} planning/filterable {categoryPhrase} and {hostSceneCount.Value:N0} complete-scene {categoryPhrase}.");
                 }
+            }
+
+            if (asksForRecommendedCount && hostPlanningCount.HasValue)
+            {
+                builder.AppendLine($"Use the planning/filterable count for lift planning and engineering filtering: **{hostPlanningCount.Value:N0} {categoryPhrase}**. Use the complete-scene count for classification and hierarchy review.");
             }
 
             builder.AppendLine("The values use different count scopes and must not be treated as interchangeable.");
@@ -1353,10 +1384,10 @@ namespace CraneOptimizer.AI.Services
 
             var hasPlanningScope = ContainsAny(
                 normalizedQuestion,
-                "ifc element filter", "filter dialog", "filterable", "planning", "planning count", "filter count", "the filter", "filter shows", "filter show");
+                "ifc element filter", "filter dialog", "filterable", "planning", "planning count", "filter count", "the filter", "filter says", "filter shows", "filter show", "filter reports");
             var hasSceneScope = ContainsAny(
                 normalizedQuestion,
-                "complete-scene", "complete scene", "ifc-scene", "ifc scene", "bim context", "scene count", "scene counts", "scene object", "scene objects");
+                "complete-scene", "complete scene", "ifc-scene", "ifc scene", "bim context", "scene count", "scene counts", "scene object", "scene objects", "bim contains", "bim says", "bim reports");
             var hasComparisonLanguage = ContainsAny(
                 normalizedQuestion,
                 "compare", "comparison", "difference", "different", "differ", "discrepancy", "mismatch", "versus", " vs ", "while", "why does", "why do", "why is", "why are", "twice as many", "more than", "less than");
@@ -1373,6 +1404,24 @@ namespace CraneOptimizer.AI.Services
                     "is it");
 
             if (hasAlternativeValues)
+                return true;
+
+            var hasSingleReportedScopeValue = target != null
+                && numericCount >= 1
+                && (hasPlanningScope || hasSceneScope)
+                && Regex.IsMatch(
+                    normalizedQuestion,
+                    @"\b(says?|shows?|reports?|contains?|has|is)\b",
+                    RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+            if (hasSingleReportedScopeValue)
+                return true;
+
+            var asksWhichCountIsCorrect = target != null
+                && Regex.IsMatch(
+                    normalizedQuestion,
+                    @"\b(which|what)\b.*\bcount\b.*\b(correct|right|authoritative|use)\b",
+                    RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+            if (asksWhichCountIsCorrect)
                 return true;
 
             // Mentioning both scopes is not by itself a discrepancy request. A scoped

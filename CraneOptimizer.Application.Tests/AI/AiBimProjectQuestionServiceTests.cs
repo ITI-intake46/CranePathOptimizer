@@ -300,6 +300,45 @@ namespace CraneOptimizer.Application.Tests.AI
         }
 
         [Fact]
+        public void SingleReportedFilterCountIsCorrectedWithoutProviderFallback()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "The Filter says 999 slabs.",
+                "IFC MODEL",
+                out var answer,
+                out var source);
+
+            Assert.True(handled);
+            Assert.Contains("planning/filter value of 999 conflicts", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("host-confirmed value of 50", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Planning/filterable Slab elements: **50**", answer);
+            Assert.Contains("Complete IFC scene Slab elements: **116**", answer);
+            Assert.Contains("count-scope comparison", source, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void WhichCategoryCountIsCorrectRecommendsPlanningAndExplainsBothScopes()
+        {
+            var context = BuildEndToEndCountContext();
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "Which slab count is correct?",
+                "IFC MODEL",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("Use the planning/filterable count for lift planning and engineering filtering: **50 Slab elements**", answer);
+            Assert.Contains("Planning/filterable Slab elements: **50**", answer);
+            Assert.Contains("Complete IFC scene Slab elements: **116**", answer);
+            Assert.Contains("no model provider was invoked", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public void LiftPlanningQuestionDirectlyRecommendsPlanningScope()
         {
             var context = BuildEndToEndCountContext();
@@ -388,6 +427,8 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("Are there 50 or 116 slabs?"));
             Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("Which slab count should I use for lift planning?"));
             Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("Compare the slab and beam counts in both scopes."));
+            Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("The Filter says 999 slabs."));
+            Assert.True(AiBimProjectQuestionService.IsLiveBimDataQuestion("Which slab count is correct?"));
             Assert.False(AiBimProjectQuestionService.IsLiveBimDataQuestion("Are you able to extract the type of building or usage of the building?"));
         }
 

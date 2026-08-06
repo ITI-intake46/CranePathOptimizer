@@ -46,6 +46,8 @@ namespace CraneOptimizer.Application.Tests.AI
         [InlineData("Which slab count should I use for lift planning?")]
         [InlineData("Compare the slab and beam counts in both scopes.")]
         [InlineData("Why does the Filter show 999 slabs while BIM contains 116?")]
+        [InlineData("The Filter says 999 slabs.")]
+        [InlineData("Which slab count is correct?")]
         public void BimCategoryCountBoundaryNeverRequestsModelProvider(string question)
         {
             var decision = AiIntentOrchestrator.Classify(BuildContext(), question, "IFC MODEL");
