@@ -30,7 +30,7 @@ namespace CraneOptimizer.AI.Services
             new("Column", new[] { "column", "columns", "ifccolumn", "pillar", "pillars" }, false, "columns"),
             new("Wall", new[] { "wall", "walls", "ifcwall", "ifcwallstandardcase" }, false, "walls"),
             new("Roof", new[] { "roof", "roofs", "ifcroof" }, false, "roofs"),
-            new("Unknown", new[] { "unknown", "unclassified", "uncategorized", "uncategorised", "not categorized", "not categorised" }, false, "unknown/unclassified elements"),
+            new("Unknown", new[] { "unknown", "unknown type", "unknown types", "unclassified", "uncategorized", "uncategorised", "not categorized", "not categorised" }, false, "unknown/unclassified elements"),
             new("Assembly", new[] { "assembly", "assemblies", "element assembly", "element assemblies", "lift unit", "lift units", "grouped lift", "grouped lifts" }, false, "assemblies or lift units"),
             new("Reinforcement", new[] { "reinforcement", "reinforcing", "rebar", "rebars", "reinforcing bar", "reinforcing bars", "ifcreinforcingbar" }, false, "reinforcement/rebar elements"),
             new("Grid", new[] { "grid", "grids", "ifcgrid" }, false, "grid elements"),
@@ -287,7 +287,19 @@ namespace CraneOptimizer.AI.Services
             var builder = new StringBuilder();
             builder.AppendLine("## Answer");
 
+            var questionNumbers = ExtractQuestionNumbers(text);
+            var asksForAlternativeCountChoice = target != null
+                && questionNumbers.Count >= 2
+                && ContainsAny(
+                    text,
+                    " or ",
+                    "are there",
+                    "do we have",
+                    "which is correct",
+                    "which count is correct",
+                    "is it");
             var asksForRecommendedCount = IsPlanningRecommendationQuestion(text)
+                || asksForAlternativeCountChoice
                 || Regex.IsMatch(
                     text,
                     @"\b(which|what)\b.*\bcount\b.*\b(correct|right|authoritative|use)\b",
@@ -312,7 +324,6 @@ namespace CraneOptimizer.AI.Services
 
             if (!hasReportedMismatch && hostPlanningCount.HasValue && hostSceneCount.HasValue)
             {
-                var questionNumbers = ExtractQuestionNumbers(text);
                 if (questionNumbers.Contains(hostPlanningCount.Value)
                     && questionNumbers.Contains(hostSceneCount.Value))
                 {
@@ -444,8 +455,10 @@ namespace CraneOptimizer.AI.Services
                 AiWorkflowFactKeys.RawIfcTypeCounts,
                 AiWorkflowFactKeys.TopRawIfcTypes);
 
-            sceneCounts.TryGetValue("Unknown", out var sceneUnknown);
-            planningCounts.TryGetValue("Unknown", out var planningUnknown);
+            var unknownTarget = CategoryTargets.First(target =>
+                target.CanonicalLabel.Equals("Unknown", StringComparison.OrdinalIgnoreCase));
+            var sceneUnknown = FindCount(sceneCounts, unknownTarget)?.Count ?? 0;
+            var planningUnknown = FindCount(planningCounts, unknownTarget)?.Count ?? 0;
 
             var builder = new StringBuilder();
             builder.AppendLine("## Answer");

@@ -274,6 +274,7 @@ namespace CraneOptimizer.Application.Tests.AI
 
             Assert.True(handled);
             Assert.Contains("Both numbers are correct for different scopes", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Use the planning/filterable count for lift planning: **50 Slab elements**", answer);
             Assert.Contains("Planning/filterable Slab elements: **50**", answer);
             Assert.Contains("Complete IFC scene Slab elements: **116**", answer);
             Assert.DoesNotContain("2,383 slabs", answer, StringComparison.OrdinalIgnoreCase);
@@ -374,6 +375,63 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("Beam: **40 planning/filterable**; **80 complete scene**", answer);
             Assert.Contains("Use planning/filterable counts for engineering filtering and lift-planning quantities", answer, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("no model provider was invoked", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void UnknownTypePlanningBucketIsRecognizedAsTheUnknownCategory()
+        {
+            var context = BuildModelContext(new Dictionary<string, string>
+            {
+                [AiWorkflowFactKeys.ResolvedCategoryCounts] = "Unknown=1950; Slab=116",
+                [AiWorkflowFactKeys.TopResolvedCategories] = "Unknown (1,950), Slab (116)",
+                [AiWorkflowFactKeys.PlanningCategoryCounts] = "Slab=50; Unknown type=1",
+                [AiWorkflowFactKeys.TopPlanningCategories] = "Slab (50), Unknown type (1)",
+                [AiWorkflowFactKeys.FilterableCategoryCounts] = "Slab=50; Unknown type=1",
+                [AiWorkflowFactKeys.TopFilterableCategories] = "Slab (50), Unknown type (1)",
+                [AiWorkflowFactKeys.FilterableElementCount] = "51",
+                [AiWorkflowFactKeys.VisibleFilterableElementCount] = "51",
+                [AiWorkflowFactKeys.SceneBimObjectCount] = "2066",
+                [AiWorkflowFactKeys.TotalElements] = "2066"
+            }, elementCount: 2066, modelRevision: 11, tableTotalCount: 2000, visibleTableCount: 2000);
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "How many unknown elements are there?",
+                "IFC MODEL",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("1 filterable planning elements classified as Unknown", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("1,950 objects classified as Unknown", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("planning count for Unknown is not available", answer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void UnknownExplanationUsesThePublishedUnknownTypePlanningBucket()
+        {
+            var context = BuildModelContext(new Dictionary<string, string>
+            {
+                [AiWorkflowFactKeys.ResolvedCategoryCounts] = "Unknown=1950; Slab=116",
+                [AiWorkflowFactKeys.TopResolvedCategories] = "Unknown (1,950), Slab (116)",
+                [AiWorkflowFactKeys.PlanningCategoryCounts] = "Slab=50; Unknown type=1",
+                [AiWorkflowFactKeys.TopPlanningCategories] = "Slab (50), Unknown type (1)",
+                [AiWorkflowFactKeys.FilterableElementCount] = "51",
+                [AiWorkflowFactKeys.VisibleFilterableElementCount] = "51",
+                [AiWorkflowFactKeys.SceneBimObjectCount] = "2066",
+                [AiWorkflowFactKeys.TotalElements] = "2066"
+            }, elementCount: 2066, modelRevision: 12, tableTotalCount: 2000, visibleTableCount: 2000);
+
+            var handled = AiBimProjectQuestionService.TryBuildAnswer(
+                context,
+                "What does Unknown mean?",
+                "IFC MODEL",
+                out var answer,
+                out _);
+
+            Assert.True(handled);
+            Assert.Contains("Planning/filterable Unknown elements: 1", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Complete-scene Unknown objects: 1,950", answer, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
