@@ -8,6 +8,7 @@ using CraneOptimizer.Domain.Schemas.Enums;
 using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs;
 using CraneOptimizer.UI.Features.F8_GAOptimizer.ViewModels;
+using CraneOptimizer.UI.Features.F16_Filter.Services;
 using CraneOptimizer.UI.Shell.ViewModels;
 
 namespace CraneOptimizer.UI.AIIntegration
@@ -19,19 +20,30 @@ namespace CraneOptimizer.UI.AIIntegration
     public sealed class AiHostContextBridge : IAiOptimizationContextProvider, IAiWorkflowContextProvider, IDisposable
     {
         private readonly IReadOnlyList<IAiScreenContextContributor> _contributors;
+        private readonly IElementVisibilityFilterService? _visibilityFilter;
         private MainViewModel? _shell;
         private bool _disposed;
         private long _modelRevision;
         private DateTimeOffset? _modelLoadedAtUtc;
 
         public AiHostContextBridge()
-            : this(Array.Empty<IAiScreenContextContributor>())
+            : this(Array.Empty<IAiScreenContextContributor>(), null)
         {
         }
 
         public AiHostContextBridge(IEnumerable<IAiScreenContextContributor> contributors)
+            : this(contributors, null)
+        {
+        }
+
+        public AiHostContextBridge(
+            IEnumerable<IAiScreenContextContributor> contributors,
+            IElementVisibilityFilterService? visibilityFilter)
         {
             _contributors = contributors?.ToList() ?? new List<IAiScreenContextContributor>();
+            _visibilityFilter = visibilityFilter;
+            if (_visibilityFilter != null)
+                _visibilityFilter.StateChanged += OnFilterStateChanged;
         }
 
         public event EventHandler? ContextChanged;
@@ -401,6 +413,7 @@ namespace CraneOptimizer.UI.AIIntegration
 
         private void OnSceneSelectionChanged(List<PrecastElement> _) => RaiseContextChanged();
         private void OnSceneCraneChanged(SceneCrane _) => RaiseContextChanged();
+        private void OnFilterStateChanged() => RaiseContextChanged();
 
         private void RaiseContextChanged() => ContextChanged?.Invoke(this, EventArgs.Empty);
 
@@ -408,6 +421,8 @@ namespace CraneOptimizer.UI.AIIntegration
         {
             if (_disposed) return;
             _disposed = true;
+            if (_visibilityFilter != null)
+                _visibilityFilter.StateChanged -= OnFilterStateChanged;
             Detach();
         }
     }

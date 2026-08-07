@@ -160,7 +160,7 @@ namespace CraneOptimizer.AI.Services
                 new AiFeatureTabDto
                 {
                     TabName = "ANALYZE",
-                    Purpose = "Run GA optimization and inspect result/diagnostic commands.",
+                    Purpose = "Internal AI workflow key for the visible ANALYSIS ribbon area. Run GA optimization and inspect Lift Summary, saved runs, results, and reporting commands.",
                     PrimaryView = "Features/F8_GAOptimizer/Views/AnalyzeTabView.xaml",
                     PrimaryViewModel = "CranePlacementViewModel",
                     Actions = new[]
@@ -180,25 +180,22 @@ namespace CraneOptimizer.AI.Services
                 },
                 new AiFeatureTabDto
                 {
-                    TabName = "REPORTS",
-                    Purpose = "Generate user-facing project, element, lifting, crane, and diagnostic reports.",
-                    PrimaryView = "Features/F12_Reports/Views/ReportsTabView.xaml",
+                    TabName = "ANALYSIS — REPORTING",
+                    Purpose = "Current user-facing report commands live under the visible ANALYSIS ribbon area; there is no separate REPORTS ribbon tab.",
+                    PrimaryView = "Features/F8_GAOptimizer/Views/AnalyzeTabView.xaml",
                     PrimaryViewModel = "CranePlacementViewModel and report dialog services",
                     Actions = new[]
                     {
-                        Action("All Elements List", "OpenAllElementsReportCommand", "Build/export a report of elements.", "Use after IFC import and filtering.", "Confirm whether weights are imported, estimated, or missing."),
-                        Action("Lifting Summary Report", "OpenLiftingSummaryReportCommand", "Build/export lifting result summary.", "Use after optimization.", "Report is advisory and must be checked by qualified personnel."),
-                        Action("Project Overview", "ProjectOverview_Click", "Report project metadata and imported IFC files.", "Use for documentation.", "Check project paths before sharing."),
-                        Action("Site Zones Report", "SiteZonesReport_Click", "Report site zones and vertex coordinates.", "Use for QA and audit.", "Coordinates depend on project coordinate setup."),
-                        Action("GA Diagnostics", "ShowDiagnosticsCommand", "Open GA convergence graph and generation statistics.", "Use after optimization.", "Diagnostics are advisory."),
-                        Action("View Results", "ShowResultsCommand", "Open optimization results from the report tab.", "Use after optimization.", "Do not report stale results after changing inputs.")
+                        Action("All Elements List Report", "OpenAllElementsReportCommand", "Build/export a report of elements.", "Visible under ANALYSIS after IFC import and filtering.", "Confirm whether weights are imported, estimated, or missing."),
+                        Action("Lifting Summary Report", "OpenLiftingSummaryReportCommand", "Build/export the lifting result summary.", "Visible under ANALYSIS after optimization.", "Report is advisory and must be checked by qualified personnel."),
+                        Action("View Results", "ShowResultsCommand", "Open the optimization results window.", "Visible under ANALYSIS after optimization.", "Do not report stale results after changing inputs.")
                     },
                     TypicalQuestions = new[]
                     {
                         "Which report should I generate for my supervisor?",
-                        "Where is the lifting summary report?",
-                        "How do I document site zones?",
-                        "How do I compare crane alternatives?"
+                        "Where is the Lifting Summary Report?",
+                        "Where is the All Elements List Report?",
+                        "Where can I view optimization results?"
                     }
                 },
                 new AiFeatureTabDto
@@ -209,7 +206,7 @@ namespace CraneOptimizer.AI.Services
                     PrimaryViewModel = "AiCompanionViewModel and AiAdvisorViewModel",
                     Actions = new[]
                     {
-                        Action("AI Assist / Mission Control", "AiCompanionPanel", "Use the docked AI Assist panel as a slim, evidence-first sidecar with a 30 px rotated vertical section rail for Chat, Mission, BIM, GA, Report, and AI Studio. The minimal surface keeps a concise verified state, one short next-step recommendation, the active section, a private-context composer, and governed action status clearly separated. Chat uses reading-aware scrolling: a submitted answer opens at its beginning, manual reading position is preserved, and a Latest control is offered instead of forcing the view to the response tail. Long agent reports are summarized first with full details available on demand. AI Assist shares the same 330 to 380 px right dock as Crane Properties so tab changes do not resize the 3D viewport.", "Always available from the main project window; opened by explicit user action. The concise state header, recommendation, composer, context inspector, and footer remain fixed while the active section scrolls independently.", "The companion explains, copies evidence, and proposes safe text/navigation actions but never changes crane data automatically."),
+                        Action("AI Assist / Mission Control", "AiCompanionPanel", "Use the docked AI Assist panel as a slim, evidence-first sidecar with a 30 px rotated vertical section rail for Chat, Mission, BIM, GA, Report, and AI Studio. The minimal surface keeps a concise verified state, one short next-step recommendation, the active section, a private-context composer, and governed action status clearly separated. Chat uses reading-aware scrolling: a submitted answer opens at its beginning, manual reading position is preserved, and a Latest control is offered instead of forcing the view to the response tail. Long agent reports are summarized first with full details available on demand. AI Assist shares the same fixed-width right dock as Crane Properties so tab changes do not resize the 3D viewport.", "Always available from the main project window; opened by explicit user action. The concise state header, recommendation, composer, context inspector, and footer remain fixed while the active section scrolls independently.", "The companion explains, copies evidence, and proposes safe text/navigation actions but never changes crane data automatically."),
                         Action("AI Studio Showcase", "AiShowcaseService / AiCompanionPanel", "Visible AI surface showing the agent stack, live capabilities, demo prompt chips, explainable decision trace, and a copyable presentation brief.", "Available in AI Assist → Studio when live workflow context is available.", "Showcase text is generated from deterministic context and remains advisory; it does not mutate project or optimizer state."),
                         Action("Open Full Studio", "OpenFullStudioCommand", "Open the complete AI Optimization Studio window.", "Available in AI Assist → Studio.", "AI output is advisory only."),
                         Action("Analyze Current Result", "AnalyzeHereCommand / AnalyzeCurrentResultCommand", "Run deterministic advisor rules against the current optimization result.", "Available in AI Assist → Studio and works even without Ollama.", "Deterministic analysis explains app metrics but does not certify crane plans."),
@@ -270,7 +267,7 @@ namespace CraneOptimizer.AI.Services
                 {
                     Name = "Normal optimization workflow",
                     Goal = "Move from raw IFC/site data to a reviewed crane placement result.",
-                    RelatedTabs = new[] { "HOME", "IFC MODEL", "DXF", "ZONES", "CRANES", "ANALYZE", "AI ASSIST", "REPORTS" },
+                    RelatedTabs = new[] { "HOME", "IFC MODEL", "DXF", "ZONES", "CRANES", "ANALYSIS", "AI ASSIST" },
                     Steps = new[]
                     {
                         "HOME → New or Open project.",
@@ -278,21 +275,21 @@ namespace CraneOptimizer.AI.Services
                         "DXF → Upload and Align DXF if a CAD/site overlay is available.",
                         "ZONES → Draw allowed and forbidden zones or import zones from DXF layers.",
                         "CRANES → Add/select mobile crane, import/check load chart, and review crane catalog data.",
-                        "ANALYZE → Run Optimizer.",
-                        "ANALYZE → Open Lift Summary and View Results.",
-                        "AI ASSIST → STUDIO → Analyze Current Result, then optionally use Ask Local Ollama to explain recommended next actions.",
-                        "REPORTS → Generate lifting summary, elements list, project overview, site zones, or crane comparison reports."
+                        "ANALYSIS → Run Optimizer.",
+                        "ANALYSIS → Open Lift Summary and View Results.",
+                        "AI ASSIST → STUDIO → Analyze Current Result, then optionally use Ask AI Model to explain recommended next actions.",
+                        "ANALYSIS → Generate Lifting Summary Report or All Elements List Report."
                     }
                 },
                 new AiWorkflowDto
                 {
                     Name = "Low coverage troubleshooting workflow",
                     Goal = "Diagnose why many elements are not liftable.",
-                    RelatedTabs = new[] { "ANALYZE", "AI ASSIST", "ZONES", "CRANES", "IFC MODEL", "REPORTS" },
+                    RelatedTabs = new[] { "ANALYSIS", "AI ASSIST", "ZONES", "CRANES", "IFC MODEL" },
                     Steps = new[]
                     {
                         "AI ASSIST → STUDIO → Analyze Current Result to identify dominant failure categories.",
-                        "ANALYZE → Open Lift Summary to review utilization, failures, and meaningful alternatives.",
+                        "ANALYSIS → Open Lift Summary to review utilization, failures, and meaningful alternatives.",
                         "If failures are OutOfRadius, inspect ZONES and CRANES setup radius/allowed positions.",
                         "If failures are Overweight, inspect IFC element weights, rigging additional weight, derating, safety factor, and crane capacity.",
                         "If failures are NotCharted, inspect load chart import, boom/radius rows, operating condition, and number of lines.",
@@ -304,13 +301,13 @@ namespace CraneOptimizer.AI.Services
                 {
                     Name = "Report generation workflow",
                     Goal = "Create defensible project documentation after reviewing optimization results.",
-                    RelatedTabs = new[] { "ANALYZE", "AI ASSIST", "REPORTS" },
+                    RelatedTabs = new[] { "ANALYSIS", "AI ASSIST" },
                     Steps = new[]
                     {
-                        "ANALYZE → View Results and Lift Summary.",
+                        "ANALYSIS → View Results and Lift Summary.",
                         "AI ASSIST → STUDIO or CHAT → Generate or request a natural-language explanation using the current structured context.",
-                        "REPORTS → Generate Lifting Summary Report for optimization outcome.",
-                        "REPORTS → Generate All Elements List, Project Overview, and Site Zones Report as needed.",
+                        "ANALYSIS → Generate Lifting Summary Report for the optimization outcome.",
+                        "ANALYSIS → Generate All Elements List Report when an element-level deliverable is needed.",
                         "Attach or archive diagnostics CSVs when available."
                     }
                 }

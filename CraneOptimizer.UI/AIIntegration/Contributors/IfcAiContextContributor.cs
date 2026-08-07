@@ -2,6 +2,7 @@ using CraneOptimizer.AI.Host;
 using CraneOptimizer.Application.Services;
 using CraneOptimizer.Domain.Diagnostics;
 using CraneOptimizer.UI.Shell.ViewModels;
+using CraneOptimizer.UI.Features.F16_Filter.Services;
 
 namespace CraneOptimizer.UI.AIIntegration.Contributors
 {
@@ -11,10 +12,14 @@ namespace CraneOptimizer.UI.AIIntegration.Contributors
     public sealed class IfcAiContextContributor : IAiScreenContextContributor
     {
         private readonly IImportReadinessService _readinessService;
+        private readonly IElementVisibilityFilterService _visibilityFilter;
 
-        public IfcAiContextContributor(IImportReadinessService readinessService)
+        public IfcAiContextContributor(
+            IImportReadinessService readinessService,
+            IElementVisibilityFilterService visibilityFilter)
         {
             _readinessService = readinessService ?? throw new ArgumentNullException(nameof(readinessService));
+            _visibilityFilter = visibilityFilter ?? throw new ArgumentNullException(nameof(visibilityFilter));
         }
 
         public string ScreenName => "IFC import readiness";
@@ -22,6 +27,13 @@ namespace CraneOptimizer.UI.AIIntegration.Contributors
         public AiScreenContextSnapshot BuildSnapshot(MainViewModel shell)
         {
             var elements = shell.Scene.GetElements();
+            var visibilitySnapshotIsCurrent = _visibilityFilter.TotalCount == elements.Count;
+            IReadOnlyList<CraneOptimizer.Domain.Schemas.PrecastElement>? visibleSceneElements = visibilitySnapshotIsCurrent
+                ? _visibilityFilter.VisibleElements
+                : null;
+            var planningFilterFacts = PlanningFilterAiFactBuilder.Build(elements, visibleSceneElements);
+            var filterableElementCount = elements.Count(ElementFilterScopeRules.IsPlanningFilterable);
+            var visibleFilterableElementCount = visibleSceneElements?.Count(ElementFilterScopeRules.IsPlanningFilterable);
             var zones = shell.Scene.GetZones();
             var cranes = shell.Scene.GetCranes();
             var summary = _readinessService.BuildSummary(elements);
@@ -84,6 +96,9 @@ namespace CraneOptimizer.UI.AIIntegration.Contributors
                 Metrics = new[]
                 {
                     AiContextContributorHelpers.Metric("Planning/readiness elements", readinessElementCount.ToString("N0"), $"Scene BIM objects: {sceneBimObjectCount:N0}; reference geometry excluded: {excludedReferenceGeometryCount:N0}; renderable: {summary.RenderableElements:N0}"),
+                    AiContextContributorHelpers.Metric("Filterable planning elements", filterableElementCount.ToString("N0"), visibleFilterableElementCount.HasValue
+                        ? $"Currently visible: {visibleFilterableElementCount.Value:N0}; same authoritative scope as HOME → Filter"
+                        : "Same authoritative scope as HOME → Filter; live visibility state was not yet synchronized"),
                     AiContextContributorHelpers.Metric("Trusted GA-ready lift units", summary.GaCandidateElements.ToString("N0"), $"Deterministically blocked: {summary.GaBlockedElements:N0}"),
                     AiContextContributorHelpers.Metric("Trusted weight gaps", summary.MissingTrustedWeightCount.ToString("N0"), $"Estimated fallback blocked: {summary.EstimatedWeightBlockedCount:N0}"),
                     AiContextContributorHelpers.Metric("Identity review", summary.NeedsReviewCount.ToString("N0"), $"Missing marks: {summary.MissingAssemblyMarkCount:N0}; low confidence: {summary.LowConfidenceMappingCount:N0}"),
@@ -91,7 +106,9 @@ namespace CraneOptimizer.UI.AIIntegration.Contributors
                 },
                 Issues = issues,
                 ActionHints = BuildActionHints(summary),
-                Facts = metadataFacts.Concat(new Dictionary<string, string>
+                Facts = metadataFacts
+                    .Concat(planningFilterFacts)
+                    .Concat(new Dictionary<string, string>
                 {
                     ["OverallStatus"] = summary.OverallStatus.ToString(),
                     ["OptimizerPrecheckStatus"] = summary.TotalElements > 0 && summary.GaCandidateElements == 0 ? "BlockedNoGaCandidates" : "CandidateCheckPassedOrNoModel",

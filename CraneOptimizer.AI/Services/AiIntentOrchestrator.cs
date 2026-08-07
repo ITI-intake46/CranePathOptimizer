@@ -89,6 +89,20 @@ namespace CraneOptimizer.AI.Services
                     reason: "Empty prompt defaults to current workflow status.");
             }
 
+            if (AiBimProjectQuestionService.IsLiveBimDataQuestion(question))
+            {
+                return Decision(
+                    AiIntentFamily.ProjectFact,
+                    "current_project_bim",
+                    needsProjectFacts: true,
+                    needsRagDocs: false,
+                    needsOllama: false,
+                    preferredSection: "BIM",
+                    answerStyle: "deterministic_bim_fact_with_scope_provenance",
+                    factKeys: ExtractFactKeys(normalized),
+                    reason: "Question asks for BIM quantities, count-scope comparison, classification coverage, or a Filter-versus-scene discrepancy that must be answered deterministically without a model provider.");
+            }
+
             if (IsModelOpsQuestion(normalized))
             {
                 return Decision(
@@ -289,11 +303,31 @@ namespace CraneOptimizer.AI.Services
 
             var visibleQuestion = string.IsNullOrWhiteSpace(question) ? "How are things?" : question!.Trim();
 
+            // BIM quantity and count-scope semantics are internal application facts.
+            // Route them deterministically before any broader intent can reach an
+            // Ollama/cloud provider, including natural discrepancy questions such as
+            // "Why does Filter show 50 slabs while BIM contains 116?".
+            if (AiBimProjectQuestionService.TryBuildAnswer(context, visibleQuestion, activeScreen, out answer, out source))
+            {
+                if (decision.Intent != AiIntentFamily.ProjectFact)
+                {
+                    decision = Decision(
+                        AiIntentFamily.ProjectFact,
+                        "current_project_bim",
+                        needsProjectFacts: true,
+                        needsRagDocs: false,
+                        needsOllama: false,
+                        preferredSection: "BIM",
+                        answerStyle: "deterministic_bim_fact_with_scope_provenance",
+                        factKeys: ExtractFactKeys(Normalize(visibleQuestion)),
+                        reason: "BIM fact service accepted the question; provider fallback is prohibited for internal count semantics.");
+                }
+
+                return true;
+            }
+
             if (decision.Intent == AiIntentFamily.ProjectFact)
             {
-                if (AiBimProjectQuestionService.TryBuildAnswer(context, visibleQuestion, activeScreen, out answer, out source))
-                    return true;
-
                 if (TryBuildProjectFactAnswer(context, visibleQuestion, activeScreen, out answer, out source))
                     return true;
             }
@@ -1331,7 +1365,11 @@ namespace CraneOptimizer.AI.Services
                 ThresholdMassUnit = "kg",
                 DensityUnit = "kg/m³",
                 HasOptimizationResult = context.OptimizationResult.HasResult,
-                TopCategories = GetFact(facts, "TopResolvedCategories"),
+                TopCategories = GetFirstFact(
+                    facts,
+                    AiWorkflowFactKeys.TopPlanningCategories,
+                    AiWorkflowFactKeys.TopFilterableCategories,
+                    AiWorkflowFactKeys.TopResolvedCategories),
                 TopRawIfcTypes = GetFact(facts, "TopRawIfcTypes")
             };
         }
@@ -1500,6 +1538,17 @@ namespace CraneOptimizer.AI.Services
         private static string GetFact(IReadOnlyDictionary<string, string> facts, string key)
         {
             return facts.TryGetValue(key, out var value) ? value : string.Empty;
+        }
+
+        private static string GetFirstFact(IReadOnlyDictionary<string, string> facts, params string[] keys)
+        {
+            foreach (var key in keys)
+            {
+                if (facts.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                    return value;
+            }
+
+            return string.Empty;
         }
 
         private static int? GetInt(IReadOnlyDictionary<string, string> facts, string key)

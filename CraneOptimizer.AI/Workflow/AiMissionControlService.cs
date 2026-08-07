@@ -243,7 +243,12 @@ namespace CraneOptimizer.AI.Workflow
             var parts = new List<string>();
             AddFact(parts, ifc.Facts, "BuildingName", "building name");
             AddFact(parts, ifc.Facts, AiWorkflowFactKeys.TopRawIfcTypes, "top IFC classes");
-            AddFact(parts, ifc.Facts, AiWorkflowFactKeys.TopResolvedCategories, "top categories");
+            if (ifc.Facts.ContainsKey(AiWorkflowFactKeys.TopPlanningCategories))
+                AddFact(parts, ifc.Facts, AiWorkflowFactKeys.TopPlanningCategories, "top planning categories");
+            else if (ifc.Facts.ContainsKey(AiWorkflowFactKeys.TopFilterableCategories))
+                AddFact(parts, ifc.Facts, AiWorkflowFactKeys.TopFilterableCategories, "top filterable categories");
+            else
+                AddFact(parts, ifc.Facts, AiWorkflowFactKeys.TopResolvedCategories, "top complete-scene categories");
             AddFact(parts, ifc.Facts, "BuildingUsage", "building usage");
             AddFact(parts, ifc.Facts, "BuildingType", "building type");
 
