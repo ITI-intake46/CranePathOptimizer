@@ -65,6 +65,7 @@ namespace CraneOptimizer.UI.Features.F2_IfcViewer
                 ElementVisualizationStatus.SpecialCase => Color.FromRgb(139, 139, 139),          // Neutral Gray #8B8B8B
                 ElementVisualizationStatus.ChartDataIssue => Color.FromRgb(100, 116, 139),       // Muted Gray-Blue #64748B
                 ElementVisualizationStatus.AssignedToOtherPoint => Color.FromRgb(156, 163, 175), // Dimmed Gray #9CA3AF
+                ElementVisualizationStatus.NotLiftable => Color.FromRgb(213, 94, 0),             // Result Red #D55E00
                 _ => Color.FromRgb(184, 184, 184)
             };
         }

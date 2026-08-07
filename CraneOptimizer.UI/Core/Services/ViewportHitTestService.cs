@@ -7,6 +7,7 @@ using System.Linq;
 using System;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.Domain.Schemas;
+using System.Windows.Media;
 
 namespace CraneOptimizer.UI.Core.Services
 {
@@ -53,6 +54,60 @@ namespace CraneOptimizer.UI.Core.Services
         {
             return TryGetWorldPoint(viewport, screenPt, out worldPoint);
         }
+
+        public bool TryGetIfcHitPoint(HelixViewport3D viewport, Point screenPt, out Point3D worldPoint)
+        {
+            worldPoint = default;
+
+            try
+            {
+                var innerPoint = ToInnerViewportPoint(viewport, screenPt);
+                foreach (PointHitResult hit in viewport.Viewport.FindHits(innerPoint))
+                {
+                    if (hit.Visual == null ||
+                        hit.Mesh == null ||
+                        hit.RayHit is not RayMeshGeometry3DHitTestResult ||
+                        !IsIfcVisual(hit.Visual) ||
+                        !IsFinite(hit.Position))
+                    {
+                        continue;
+                    }
+
+                    worldPoint = hit.Position;
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[ViewportHitTestService] IFC point hit test failed: {ex.Message}");
+            }
+
+            return false;
+        }
+
+        private static bool IsIfcVisual(Visual3D visual)
+        {
+            DependencyObject? current = visual;
+            while (current != null)
+            {
+                object? tag = current.GetValue(FrameworkElement.TagProperty);
+                if (tag is PrecastElement)
+                    return true;
+
+                if (tag is string || tag is SceneCrane || tag is GreenAreaZone)
+                    return false;
+
+                current = VisualTreeHelper.GetParent(current);
+            }
+
+            return false;
+        }
+
+        private static bool IsFinite(Point3D point) =>
+            double.IsFinite(point.X) &&
+            double.IsFinite(point.Y) &&
+            double.IsFinite(point.Z);
 
         public bool TryGetHitCrane(HelixViewport3D viewport, Point screenPt, out SceneCrane crane)
         {

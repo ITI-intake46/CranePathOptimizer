@@ -6,6 +6,7 @@ using CraneOptimizer.UI.Core.Models;
 using CraneOptimizer.UI.Features.F2_IfcViewer;
 using CraneOptimizer.UI.Features.F3_CraneSetup;
 using CraneOptimizer.UI.Features.F16_Filter.Services;
+using CraneOptimizer.UI.Features.F8_GAOptimizer.Rendering;
 using System.Diagnostics;
 
 
@@ -20,6 +21,7 @@ namespace CraneOptimizer.UI.Core.Services
         private readonly ICraneValidationService _craneValidation;
         private readonly IElementVisibilityFilterService _filterService;
         private readonly IRenderDiagnosticsStore _diagnosticsStore;
+        private readonly OptimizationResultViewportState _optimizationResultViewportState = new();
         private readonly List<PrecastElement> _sceneElements = new();
         private Dictionary<string, List<System.Windows.Media.Media3D.GeometryModel3D>> _renderedElementModels = new(StringComparer.Ordinal);
         // Persistent builder so per-crane MobileCraneVisual3D and the
@@ -190,7 +192,10 @@ namespace CraneOptimizer.UI.Core.Services
             _renderedElementModels = builder.ElementModelRegistry;
 
             // Apply exact visual states (including AssignedToOtherPoint) immediately after rendering
-            UpdateElementMaterials(liftResults);
+            UpdateElementMaterialsCore(
+                liftResults,
+                releaseOptimizationHighlight: false,
+                reRenderIfMissing: false);
 
             sw?.Stop();
             var memAfter = AppFeatureFlags.EnableProjectPerformanceCapture ? GetPrivateMemoryMB() : 0.0;
@@ -252,12 +257,53 @@ namespace CraneOptimizer.UI.Core.Services
         }
         public void UpdateElementMaterials(System.Collections.Generic.IReadOnlyList<CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs.ElementLiftResult>? results = null)
         {
+            UpdateElementMaterialsCore(
+                results,
+                releaseOptimizationHighlight: results != null,
+                reRenderIfMissing: true);
+        }
+
+        public void ApplyOptimizationResultHighlight(
+            IEnumerable<string> liftableElementIds,
+            IEnumerable<string> notLiftableElementIds)
+        {
+            ArgumentNullException.ThrowIfNull(liftableElementIds);
+            ArgumentNullException.ThrowIfNull(notLiftableElementIds);
+
+            string[] liftable = liftableElementIds.ToArray();
+            string[] notLiftable = notLiftableElementIds.ToArray();
+            _optimizationResultViewportState.Apply(liftable, notLiftable);
+            LogMissingOptimizationResultIds(liftable.Concat(notLiftable));
+            UpdateElementMaterialsCore(
+                null,
+                releaseOptimizationHighlight: false,
+                reRenderIfMissing: false);
+        }
+
+        public void ClearOptimizationResultHighlight()
+        {
+            _optimizationResultViewportState.Clear();
+            UpdateElementMaterialsCore(
+                null,
+                releaseOptimizationHighlight: false,
+                reRenderIfMissing: false);
+        }
+
+        private void UpdateElementMaterialsCore(
+            System.Collections.Generic.IReadOnlyList<CraneOptimizer.UI.Features.F8_GAOptimizer.DTOs.ElementLiftResult>? results,
+            bool releaseOptimizationHighlight,
+            bool reRenderIfMissing)
+        {
             if (_context == null)
                 return;
 
+            if (releaseOptimizationHighlight)
+                _optimizationResultViewportState.Release();
+
             if (_renderedElementModels.Count == 0 || _sceneElements.Count == 0)
             {
-                ReRenderElements();
+                if (reRenderIfMissing)
+                    ReRenderElements();
                 return;
             }
 
@@ -378,6 +424,11 @@ namespace CraneOptimizer.UI.Core.Services
                     visualStatus = ElementMaterialProvider.GetStatus(element, null, isSelected);
                 }
 
+                visualStatus = _optimizationResultViewportState.Resolve(
+                    element.ElementID,
+                    isSelected,
+                    visualStatus);
+
                 var material = ElementMaterialProvider.GetMaterial(visualStatus, ElementVisualBuilder.CurrentQuality);
 
                 foreach (var model in models)
@@ -385,6 +436,26 @@ namespace CraneOptimizer.UI.Core.Services
                     model.Material = material;
                     model.BackMaterial = material;
                 }
+            }
+        }
+
+        private void LogMissingOptimizationResultIds(IEnumerable<string> requestedIds)
+        {
+            HashSet<string> sceneIds = _sceneElements
+                .Select(element => element.ElementID)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .ToHashSet(StringComparer.Ordinal);
+            string[] missingIds = requestedIds
+                .Where(id => !string.IsNullOrWhiteSpace(id) && !sceneIds.Contains(id))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            if (missingIds.Length > 0)
+            {
+                string sample = string.Join(", ", missingIds.Take(10));
+                string suffix = missingIds.Length > 10 ? ", ..." : string.Empty;
+                Debug.WriteLine(
+                    $"[GA Result Viewport] Skipped {missingIds.Length} result element ID(s) not present in the current scene: {sample}{suffix}");
             }
         }
 

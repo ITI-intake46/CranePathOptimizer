@@ -24,51 +24,90 @@
 
             <!-- ── MODEL MANAGEMENT ──────────────────────────────────── -->
             <ContentControl Style="{StaticResource RibbonCommandGroup}" Tag="MODEL MANAGEMENT">
-                <StackPanel Orientation="Horizontal">
-                    <Button Command="{Binding IfcViewer.MoveIfcCommand}"
-                            Content="Move IFC"
+                <Grid>
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="MoveIfcButton"
+                                Click="MoveIfcButton_Click"
+                                Command="{Binding IfcViewer.MoveIfcCommand}"
+                                Content="Move IFC"
+                                FontSize="{StaticResource FontSizeXS}"
+                                Style="{StaticResource RibbonMajorLeadingCommandTile}"
+                                ToolTip="Choose how to move the loaded IFC model in the 3D view.">
+                            <Button.Tag>
+                                <Viewbox Width="30" Height="30" Stretch="Uniform">
+                                    <Canvas Width="32" Height="32">
+                                        <Path
+                                            Data="M16,3 L16,29 M16,3 L9,10 M16,3 L23,10 M16,29 L9,22 M16,29 L23,22 M3,16 L29,16 M3,16 L10,9 M3,16 L10,23 M29,16 L22,9 M29,16 L22,23"
+                                            Stroke="{StaticResource PrimaryBrush}"
+                                            StrokeEndLineCap="Round"
+                                            StrokeLineJoin="Round"
+                                            StrokeStartLineCap="Round"
+                                            StrokeThickness="3.4" />
+                                    </Canvas>
+                                </Viewbox>
+                            </Button.Tag>
+                        </Button>
+                        <Button Command="{Binding IfcViewer.DeleteIfcCommand}"
+                                Content="Delete IFC"
+                                FontSize="{StaticResource FontSizeXS}"
+                                Style="{StaticResource RibbonMajorMiddleCommandTile}"
+                                ToolTip="Remove the loaded IFC model from the 3D view.">
+                            <Button.Tag>
+                                <TextBlock FontSize="26" Text="🗑" />
+                            </Button.Tag>
+                        </Button>
+                        <Button
+                            Command="{Binding IfcViewer.ShowIfcDisplayOptionsCommand}"
+                            ContentTemplate="{x:Null}"
                             FontSize="{StaticResource FontSizeXS}"
-                            Style="{StaticResource RibbonMajorLeadingCommandTile}"
-                            ToolTip="Move the loaded IFC model to a new origin location in the 3D view.">
-                        <Button.Tag>
-                            <Viewbox Width="30" Height="30" Stretch="Uniform">
-                                <Canvas Width="32" Height="32">
-                                    <Path
-                                        Data="M16,3 L16,29 M16,3 L9,10 M16,3 L23,10 M16,29 L9,22 M16,29 L23,22 M3,16 L29,16 M3,16 L10,9 M3,16 L10,23 M29,16 L22,9 M29,16 L22,23"
-                                        Stroke="{StaticResource PrimaryBrush}"
-                                        StrokeEndLineCap="Round"
-                                        StrokeLineJoin="Round"
-                                        StrokeStartLineCap="Round"
-                                        StrokeThickness="3.4" />
-                                </Canvas>
-                            </Viewbox>
-                        </Button.Tag>
-                    </Button>
-                    <Button Command="{Binding IfcViewer.DeleteIfcCommand}"
-                            Content="Delete IFC"
-                            FontSize="{StaticResource FontSizeXS}"
-                            Style="{StaticResource RibbonMajorMiddleCommandTile}"
-                            ToolTip="Remove the loaded IFC model from the 3D view.">
-                        <Button.Tag>
-                            <TextBlock FontSize="26" Text="🗑" />
-                        </Button.Tag>
-                    </Button>
-                    <Button
-                        Command="{Binding IfcViewer.ShowIfcDisplayOptionsCommand}"
-                        ContentTemplate="{x:Null}"
-                        FontSize="{StaticResource FontSizeXS}"
-                        IsEnabled="{Binding IfcViewer.HasIfcModel}"
-                        Style="{StaticResource RibbonMajorTrailingCommandTile}"
-                        ToolTip="Choose which IFC reference and spatial objects are hidden in the 3D view.">
-                        <Button.Tag>
-                            <TextBlock FontSize="26" Text="⚙" />
-                        </Button.Tag>
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock HorizontalAlignment="Center" Text="IFC Display" />
-                            <TextBlock HorizontalAlignment="Center" Text="Options" />
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
+                            IsEnabled="{Binding IfcViewer.HasIfcModel}"
+                            Style="{StaticResource RibbonMajorTrailingCommandTile}"
+                            ToolTip="Choose which IFC reference and spatial objects are hidden in the 3D view.">
+                            <Button.Tag>
+                                <TextBlock FontSize="26" Text="⚙" />
+                            </Button.Tag>
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock HorizontalAlignment="Center" Text="IFC Display" />
+                                <TextBlock HorizontalAlignment="Center" Text="Options" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <Popup x:Name="MoveIfcPopup"
+                           Width="190"
+                           AllowsTransparency="True"
+                           DataContext="{Binding DataContext, ElementName=MoveIfcButton}"
+                           Placement="Bottom"
+                           PlacementTarget="{Binding ElementName=MoveIfcButton}"
+                           StaysOpen="False">
+                        <Border Margin="0,4,0,0"
+                                Padding="4"
+                                Background="{DynamicResource SurfaceBrush}"
+                                BorderBrush="{DynamicResource PrimaryBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4">
+                            <StackPanel>
+                                <Button Margin="0,0,0,2"
+                                        Padding="10,6"
+                                        HorizontalContentAlignment="Left"
+                                        Click="MoveIfcOption_Click"
+                                        Command="{Binding IfcViewer.MoveIfcByOriginCommand}"
+                                        Content="Move by Origin"
+                                        FontFamily="{StaticResource FontPrimary}"
+                                        FontSize="{StaticResource FontSizeSM}"
+                                        Style="{StaticResource ButtonSecondary}" />
+                                <Button Padding="10,6"
+                                        HorizontalContentAlignment="Left"
+                                        Click="MoveIfcOption_Click"
+                                        Command="{Binding IfcViewer.MoveIfcByPickedPointCommand}"
+                                        Content="Move by Picked Point"
+                                        FontFamily="{StaticResource FontPrimary}"
+                                        FontSize="{StaticResource FontSizeSM}"
+                                        Style="{StaticResource ButtonSecondary}" />
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </Grid>
             </ContentControl>
 
             <Rectangle Style="{StaticResource RibbonSep}" />
