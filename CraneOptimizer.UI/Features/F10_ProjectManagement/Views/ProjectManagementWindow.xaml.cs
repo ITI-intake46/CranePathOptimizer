@@ -156,7 +156,7 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
             HideAllContent();
             ContentHelp.Visibility = Visibility.Visible;
 
-            TxtHelpTitle.Text    = "HELP";
+            TxtHelpTitle.Text    = "Help";
             TxtHelpSubtitle.Text = "Frequently asked questions and support resources.";
             CardHelp.Visibility  = Visibility.Visible;
             CardAbout.Visibility = Visibility.Collapsed;
@@ -170,7 +170,7 @@ namespace CraneOptimizer.UI.F10_ProjectManagement.Views
             HideAllContent();
             ContentHelp.Visibility = Visibility.Visible;
 
-            TxtHelpTitle.Text    = "ABOUT";
+            TxtHelpTitle.Text    = "About";
             TxtHelpSubtitle.Text = "Information about this application.";
             CardHelp.Visibility  = Visibility.Collapsed;
             CardAbout.Visibility = Visibility.Visible;

@@ -1,245 +1,354 @@
 <UserControl x:Class="CraneOptimizer.UI.F10_ProjectManagement.Views.CreateProjectPanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              Background="{DynamicResource BackgroundBrush}"
              FontFamily="{StaticResource FontPrimary}"
              Foreground="{DynamicResource TextPrimaryBrush}">
 
+    <UserControl.Resources>
+
+        <!-- ── Startup-window font scale ────────────────────────────────
+             This panel is hosted inside ProjectManagementWindow, which shadows
+             the global font tokens in its own Window.Resources. A UserControl
+             resolves StaticResource against itself then App, never the hosting
+             window, so the same scale is repeated here to keep this page's
+             type sizes identical to Project List / Recent Projects. -->
+        <sys:Double x:Key="FontSizeXS">12</sys:Double>
+        <sys:Double x:Key="FontSizeSM">13</sys:Double>
+        <sys:Double x:Key="FontSizeMD">14</sys:Double>
+        <sys:Double x:Key="FontSizeBase">14</sys:Double>
+        <sys:Double x:Key="FontSizeLG">16</sys:Double>
+        <sys:Double x:Key="FontSizeXL">18</sys:Double>
+
+        <!-- ── Field label — local so it uses the scale above ──────────
+             (the shared PropertyLabel style is defined in another dictionary
+             and is locked to the small global scale) -->
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontFamily"        Value="{StaticResource FontPrimary}"/>
+            <Setter Property="FontSize"          Value="{StaticResource FontSizeSM}"/>
+            <Setter Property="FontWeight"        Value="Normal"/>
+            <Setter Property="Foreground"        Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+    </UserControl.Resources>
+
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <Grid Margin="32,28,32,28">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="24"/>
-                <ColumnDefinition Width="220"/>
-            </Grid.ColumnDefinitions>
+        <Grid Margin="32,28,32,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-            <!-- ── LEFT: Form ─────────────────────────────────────────────── -->
-            <StackPanel Grid.Column="0">
-
-                <!-- Header -->
-                <StackPanel Margin="0,0,0,24">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                        <Border Width="4" Height="16" Background="{StaticResource PrimaryBrush}"
-                                Margin="0,0,10,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="CREATE NEW PROJECT"
-                                   FontSize="{StaticResource FontSizeSM}"
-                                   FontWeight="Bold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                    <TextBlock Text="Fill in the details below to create a new project workspace."
-                               FontSize="{StaticResource FontSizeXS}"
-                               Foreground="{DynamicResource TextSecondaryBrush}"
-                               Margin="14,0,0,0"
-                               TextWrapping="Wrap"/>
+            <!-- Page header -->
+            <StackPanel Margin="0,0,0,20">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                    <Border Width="4" Height="22" Background="{StaticResource PrimaryBrush}"
+                            Margin="0,0,12,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="Create New Project"
+                               FontSize="{StaticResource FontSizeXL}"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               VerticalAlignment="Center"/>
                 </StackPanel>
-
-                <!-- Project Name -->
-                <TextBlock Text="PROJECT NAME *" Style="{StaticResource PropertyLabel}"
-                           Margin="0,0,0,6"/>
-                <TextBox Text="{Binding ProjectName, UpdateSourceTrigger=PropertyChanged}"
-                         x:Name="txtProjectName"
-                         Height="36" Padding="10,4"
-                         Margin="0,0,0,16"/>
-
-                <!-- Country -->
-                <TextBlock Text="COUNTRY" Style="{StaticResource PropertyLabel}"
-                           Margin="0,0,0,6"/>
-                <ComboBox SelectedValue="{Binding Country, Mode=TwoWay}"
-                          SelectedValuePath="Content"
-                          Height="36"
-                          Margin="0,0,0,16"
-                          Style="{StaticResource DarkComboBox}"
-                          ItemContainerStyle="{StaticResource DarkComboBoxItem}">
-                    <ComboBoxItem Content="Egypt"/>
-                    <ComboBoxItem Content="UAE"/>
-                    <ComboBoxItem Content="Saudi Arabia"/>
-                    <ComboBoxItem Content="Kuwait"/>
-                    <ComboBoxItem Content="Qatar"/>
-                    <ComboBoxItem Content="Jordan"/>
-                    <ComboBoxItem Content="Libya"/>
-                    <ComboBoxItem Content="Morocco"/>
-                    <ComboBoxItem Content="Other"/>
-                </ComboBox>
-
-                <!-- Company Name -->
-                <TextBlock Text="COMPANY NAME" Style="{StaticResource PropertyLabel}"
-                           Margin="0,0,0,6"/>
-                <TextBox Text="{Binding CompanyName, UpdateSourceTrigger=PropertyChanged}"
-                         Height="36" Padding="10,4"
-                         Margin="0,0,0,16"/>
-
-                <!-- Site Location -->
-                <TextBlock Text="SITE LOCATION" Style="{StaticResource PropertyLabel}"
-                           Margin="0,0,0,6"/>
-                <TextBox Text="{Binding SiteLocation, UpdateSourceTrigger=PropertyChanged}"
-                         Height="36" Padding="10,4"
-                         Margin="0,0,0,16"/>
-
-                <!-- Project Location (folder) -->
-                <TextBlock Text="PROJECT FOLDER *" Style="{StaticResource PropertyLabel}"
-                           Margin="0,0,0,6"/>
-                <Grid Margin="0,0,0,16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="8"/>
-                        <ColumnDefinition Width="90"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBox Text="{Binding ParentFolderPath, UpdateSourceTrigger=PropertyChanged}"
-                             Height="36" Padding="10,4"/>
-                    <Button Grid.Column="2" Content="Browse" Height="36"
-                            Style="{StaticResource ButtonSecondary}"
-                            Command="{Binding BrowseLocationCommand}"/>
-                </Grid>
-
-                <!-- Separator -->
-                <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="0,4,0,16"/>
-
-                <!-- Units -->
-                <TextBlock Text="DEFAULT UNITS" Style="{StaticResource PanelSectionHeader}"
-                           Margin="0,0,0,12"/>
-
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                    <TextBlock Text="Length:" Style="{StaticResource PropertyLabel}" Width="100" VerticalAlignment="Center"/>
-                    <ComboBox Width="180" SelectedIndex="{Binding SelectedLengthIndex, Mode=TwoWay}"
-                              Style="{StaticResource DarkComboBox}"
-                              ItemContainerStyle="{StaticResource DarkComboBoxItem}">
-                        <ComboBoxItem Content="Millimetres (mm)"/>
-                        <ComboBoxItem Content="Metres (m)"/>
-                    </ComboBox>
-                </StackPanel>
-
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                    <TextBlock Text="Area:" Style="{StaticResource PropertyLabel}" Width="100" VerticalAlignment="Center"/>
-                    <ComboBox Width="180" SelectedIndex="{Binding SelectedAreaIndex, Mode=TwoWay}"
-                              Style="{StaticResource DarkComboBox}"
-                              ItemContainerStyle="{StaticResource DarkComboBoxItem}">
-                        <ComboBoxItem Content="m²"/>
-                        <ComboBoxItem Content="ft²"/>
-                    </ComboBox>
-                </StackPanel>
-
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                    <TextBlock Text="Weight:" Style="{StaticResource PropertyLabel}" Width="100" VerticalAlignment="Center"/>
-                    <ComboBox Width="180" SelectedIndex="{Binding SelectedMassIndex, Mode=TwoWay}"
-                              Style="{StaticResource DarkComboBox}"
-                              ItemContainerStyle="{StaticResource DarkComboBoxItem}">
-                        <ComboBoxItem Content="Kilograms (kg)"/>
-                        <ComboBoxItem Content="Tons (t)"/>
-                    </ComboBox>
-                </StackPanel>
-
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
-                    <TextBlock Text="Decimals:" Style="{StaticResource PropertyLabel}" Width="100" VerticalAlignment="Center"/>
-                    <ComboBox Width="180" SelectedIndex="{Binding SelectedPrecisionIndex, Mode=TwoWay}"
-                              Style="{StaticResource DarkComboBox}"
-                              ItemContainerStyle="{StaticResource DarkComboBoxItem}">
-                        <ComboBoxItem Content="0"/>
-                        <ComboBoxItem Content="1"/>
-                        <ComboBoxItem Content="2"/>
-                        <ComboBoxItem Content="3"/>
-                    </ComboBox>
-                </StackPanel>
-
-                <!-- Action buttons -->
-                <StackPanel Orientation="Horizontal">
-                    <Button Content="CREATE PROJECT"
-                            Width="180" Height="40"
-                            Style="{StaticResource ButtonPrimary}"
-                            Command="{Binding CreateCommand}"
-                            Margin="0,0,12,0"/>
-                    <Button Content="Cancel"
-                            Width="90" Height="40"
-                            Style="{StaticResource ButtonSecondary}"
-                            Command="{Binding CancelCommand}"/>
-                </StackPanel>
-
+                <TextBlock Text="Fill in the details below to create a new project workspace."
+                           FontSize="{StaticResource FontSizeSM}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Margin="16,0,0,0"
+                           TextWrapping="Wrap"/>
             </StackPanel>
 
-            <!-- ── RIGHT: Image preview ───────────────────────────────────── -->
-            <StackPanel Grid.Column="2" VerticalAlignment="Top">
+            <!-- Form + side panel -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="300"/>
+                </Grid.ColumnDefinitions>
 
-                <TextBlock Text="PROJECT IMAGE" Style="{StaticResource PropertyLabel}"
-                           Margin="0,0,0,10"/>
+                <!-- ── LEFT: Form ─────────────────────────────────────────────── -->
+                <StackPanel Grid.Column="0">
 
-                <!-- Thumbnail / placeholder -->
-                <Border Width="220" Height="160" CornerRadius="6"
-                        Background="{DynamicResource SurfaceElevatedBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                        Margin="0,0,0,12" ClipToBounds="True">
-                    <Grid>
-                        <!-- No-image placeholder -->
-                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <StackPanel.Style>
-                                <Style TargetType="StackPanel">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HasImage}" Value="True">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </StackPanel.Style>
-                            <TextBlock Text="🖼" FontSize="28"
-                                       HorizontalAlignment="Center"
-                                       Foreground="{DynamicResource TextDisabledBrush}"
-                                       Margin="0,0,0,8"/>
-                            <TextBlock Text="No image selected"
-                                       FontSize="{StaticResource FontSizeXS}"
-                                       Foreground="{DynamicResource TextDisabledBrush}"
-                                       HorizontalAlignment="Center"/>
+                    <!-- ── PROJECT DETAILS card ── -->
+                    <Border Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="{StaticResource CardCornerRadius}" Padding="24,20"
+                            Margin="0,0,0,16">
+                        <StackPanel>
+
+                            <!-- Section label -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                                <Border Width="3" Height="14" Background="{StaticResource PrimaryBrush}"
+                                        Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Project Details"
+                                           FontSize="{StaticResource FontSizeSM}" FontWeight="Bold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <!-- Project Name -->
+                            <TextBlock Text="Project Name *" Style="{StaticResource FieldLabel}"
+                                       Margin="0,0,0,6"/>
+                            <TextBox Text="{Binding ProjectName, UpdateSourceTrigger=PropertyChanged}"
+                                     x:Name="txtProjectName"
+                                     Height="34" Padding="10,4"
+                                     VerticalContentAlignment="Center"
+                                     FontSize="{StaticResource FontSizeSM}"
+                                     Margin="0,0,0,16"/>
+
+                            <!-- Country -->
+                            <TextBlock Text="Country" Style="{StaticResource FieldLabel}"
+                                       Margin="0,0,0,6"/>
+                            <ComboBox SelectedValue="{Binding Country, Mode=TwoWay}"
+                                      SelectedValuePath="Content"
+                                      Height="34"
+                                      FontSize="{StaticResource FontSizeSM}"
+                                      Margin="0,0,0,16"
+                                      Style="{StaticResource DarkComboBox}"
+                                      ItemContainerStyle="{StaticResource DarkComboBoxItem}">
+                                <ComboBoxItem Content="Egypt"/>
+                                <ComboBoxItem Content="UAE"/>
+                                <ComboBoxItem Content="Saudi Arabia"/>
+                                <ComboBoxItem Content="Kuwait"/>
+                                <ComboBoxItem Content="Qatar"/>
+                                <ComboBoxItem Content="Jordan"/>
+                                <ComboBoxItem Content="Libya"/>
+                                <ComboBoxItem Content="Morocco"/>
+                                <ComboBoxItem Content="Other"/>
+                            </ComboBox>
+
+                            <!-- Company Name -->
+                            <TextBlock Text="Company Name" Style="{StaticResource FieldLabel}"
+                                       Margin="0,0,0,6"/>
+                            <TextBox Text="{Binding CompanyName, UpdateSourceTrigger=PropertyChanged}"
+                                     Height="34" Padding="10,4"
+                                     VerticalContentAlignment="Center"
+                                     FontSize="{StaticResource FontSizeSM}"
+                                     Margin="0,0,0,16"/>
+
+                            <!-- Site Location -->
+                            <TextBlock Text="Site Location" Style="{StaticResource FieldLabel}"
+                                       Margin="0,0,0,6"/>
+                            <TextBox Text="{Binding SiteLocation, UpdateSourceTrigger=PropertyChanged}"
+                                     Height="34" Padding="10,4"
+                                     VerticalContentAlignment="Center"
+                                     FontSize="{StaticResource FontSizeSM}"
+                                     Margin="0,0,0,16"/>
+
+                            <!-- Project Folder -->
+                            <TextBlock Text="Project Folder *" Style="{StaticResource FieldLabel}"
+                                       Margin="0,0,0,6"/>
+                            <DockPanel LastChildFill="True">
+                                <Button DockPanel.Dock="Right" Content="Browse"
+                                        Height="34" Padding="16,0" Margin="8,0,0,0"
+                                        FontSize="{StaticResource FontSizeSM}"
+                                        Style="{StaticResource ButtonSecondary}"
+                                        Command="{Binding BrowseLocationCommand}"/>
+                                <TextBox Text="{Binding ParentFolderPath, UpdateSourceTrigger=PropertyChanged}"
+                                         Height="34" Padding="10,4"
+                                         VerticalContentAlignment="Center"
+                                         FontSize="{StaticResource FontSizeSM}"/>
+                            </DockPanel>
+
                         </StackPanel>
-                        <!-- Preview image -->
-                        <Image Source="{Binding ProjectImagePreview}"
-                               Stretch="UniformToFill"
-                               RenderOptions.BitmapScalingMode="HighQuality">
-                            <Image.Style>
-                                <Style TargetType="Image">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HasImage}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Image.Style>
-                        </Image>
-                    </Grid>
-                </Border>
+                    </Border>
 
-                <Button Content="Browse Image"
-                        Height="34" Width="220"
-                        Style="{StaticResource ButtonSecondary}"
-                        Command="{Binding BrowseImageCommand}"
-                        Margin="0,0,0,8"/>
+                    <!-- ── DEFAULT UNITS card ── -->
+                    <Border Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="{StaticResource CardCornerRadius}" Padding="24,20"
+                            Margin="0,0,0,16">
+                        <StackPanel>
 
-                <Button Content="Clear Image"
-                        Height="34" Width="220"
-                        Style="{StaticResource ButtonSecondary}"
-                        Command="{Binding ClearImageCommand}"/>
+                            <!-- Section label -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                                <Border Width="3" Height="14" Background="{StaticResource PrimaryBrush}"
+                                        Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Default Units"
+                                           FontSize="{StaticResource FontSizeSM}" FontWeight="Bold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
 
-                <!-- Info card -->
-                <Border Margin="0,24,0,0"
-                        Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                        CornerRadius="6" Padding="14,12">
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                            <Border Width="3" Height="12" Background="{StaticResource PrimaryBrush}"
-                                    Margin="0,0,8,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="PROJECT STRUCTURE"
-                                       FontSize="{StaticResource FontSizeXS}"
-                                       FontWeight="Bold"
-                                       Foreground="{StaticResource PrimaryBrush}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110"/>
+                                    <ColumnDefinition Width="220"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Length"
+                                           Style="{StaticResource FieldLabel}" Margin="0,0,0,10"/>
+                                <ComboBox Grid.Row="0" Grid.Column="1" Height="34" Margin="0,0,0,10"
+                                          FontSize="{StaticResource FontSizeSM}"
+                                          SelectedIndex="{Binding SelectedLengthIndex, Mode=TwoWay}"
+                                          Style="{StaticResource DarkComboBox}"
+                                          ItemContainerStyle="{StaticResource DarkComboBoxItem}">
+                                    <ComboBoxItem Content="Millimetres (mm)"/>
+                                    <ComboBoxItem Content="Metres (m)"/>
+                                </ComboBox>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Area"
+                                           Style="{StaticResource FieldLabel}" Margin="0,0,0,10"/>
+                                <ComboBox Grid.Row="1" Grid.Column="1" Height="34" Margin="0,0,0,10"
+                                          FontSize="{StaticResource FontSizeSM}"
+                                          SelectedIndex="{Binding SelectedAreaIndex, Mode=TwoWay}"
+                                          Style="{StaticResource DarkComboBox}"
+                                          ItemContainerStyle="{StaticResource DarkComboBoxItem}">
+                                    <ComboBoxItem Content="m²"/>
+                                    <ComboBoxItem Content="ft²"/>
+                                </ComboBox>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Weight"
+                                           Style="{StaticResource FieldLabel}" Margin="0,0,0,10"/>
+                                <ComboBox Grid.Row="2" Grid.Column="1" Height="34" Margin="0,0,0,10"
+                                          FontSize="{StaticResource FontSizeSM}"
+                                          SelectedIndex="{Binding SelectedMassIndex, Mode=TwoWay}"
+                                          Style="{StaticResource DarkComboBox}"
+                                          ItemContainerStyle="{StaticResource DarkComboBoxItem}">
+                                    <ComboBoxItem Content="Kilograms (kg)"/>
+                                    <ComboBoxItem Content="Tons (t)"/>
+                                </ComboBox>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Decimals"
+                                           Style="{StaticResource FieldLabel}"/>
+                                <ComboBox Grid.Row="3" Grid.Column="1" Height="34"
+                                          FontSize="{StaticResource FontSizeSM}"
+                                          SelectedIndex="{Binding SelectedPrecisionIndex, Mode=TwoWay}"
+                                          Style="{StaticResource DarkComboBox}"
+                                          ItemContainerStyle="{StaticResource DarkComboBoxItem}">
+                                    <ComboBoxItem Content="0"/>
+                                    <ComboBoxItem Content="1"/>
+                                    <ComboBoxItem Content="2"/>
+                                    <ComboBoxItem Content="3"/>
+                                </ComboBox>
+                            </Grid>
+
                         </StackPanel>
-                        <TextBlock FontSize="{StaticResource FontSizeXS}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   TextWrapping="Wrap"
-                                   Text="A project folder will be created with sub-folders: Models/IFC, Models/DXF, Reports, Exports, Logs."/>
+                    </Border>
+
+                    <!-- Action buttons -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="Create Project"
+                                Height="34" Padding="20,0" Margin="0,0,8,0"
+                                FontSize="{StaticResource FontSizeSM}"
+                                FontWeight="Bold"
+                                Style="{StaticResource ButtonPrimary}"
+                                Command="{Binding CreateCommand}"/>
+                        <Button Content="Cancel"
+                                Height="34" Padding="20,0"
+                                FontSize="{StaticResource FontSizeSM}"
+                                Style="{StaticResource ButtonSecondary}"
+                                Command="{Binding CancelCommand}"/>
                     </StackPanel>
-                </Border>
 
-            </StackPanel>
+                </StackPanel>
+
+                <!-- ── RIGHT: Image + info ────────────────────────────────────── -->
+                <StackPanel Grid.Column="2" VerticalAlignment="Top">
+
+                    <!-- ── PROJECT IMAGE card ── -->
+                    <Border Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="{StaticResource CardCornerRadius}" Padding="16,16"
+                            Margin="0,0,0,16">
+                        <StackPanel>
+
+                            <!-- Section label -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                <Border Width="3" Height="14" Background="{StaticResource PrimaryBrush}"
+                                        Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Project Image"
+                                           FontSize="{StaticResource FontSizeSM}" FontWeight="Bold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <!-- Thumbnail / placeholder -->
+                            <Border Height="160" CornerRadius="{StaticResource CardCornerRadius}"
+                                    Background="{DynamicResource SurfaceElevatedBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                    Margin="0,0,0,12" ClipToBounds="True">
+                                <Grid>
+                                    <!-- No-image placeholder -->
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasImage}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Text="🖼" FontSize="28"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextDisabledBrush}"
+                                                   Margin="0,0,0,8"/>
+                                        <TextBlock Text="No image selected"
+                                                   FontSize="{StaticResource FontSizeXS}"
+                                                   Foreground="{DynamicResource TextDisabledBrush}"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                    <!-- Preview image -->
+                                    <Image Source="{Binding ProjectImagePreview}"
+                                           Stretch="UniformToFill"
+                                           RenderOptions.BitmapScalingMode="HighQuality">
+                                        <Image.Style>
+                                            <Style TargetType="Image">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasImage}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
+                                </Grid>
+                            </Border>
+
+                            <Button Content="Browse Image"
+                                    Height="34"
+                                    FontSize="{StaticResource FontSizeSM}"
+                                    Style="{StaticResource ButtonSecondary}"
+                                    Command="{Binding BrowseImageCommand}"
+                                    Margin="0,0,0,8"/>
+
+                            <Button Content="Clear Image"
+                                    Height="34"
+                                    FontSize="{StaticResource FontSizeSM}"
+                                    Style="{StaticResource ButtonSecondary}"
+                                    Command="{Binding ClearImageCommand}"/>
+
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ── PROJECT STRUCTURE info card ── -->
+                    <Border Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="{StaticResource CardCornerRadius}" Padding="16,16">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <Border Width="3" Height="14" Background="{StaticResource PrimaryBrush}"
+                                        Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Project Structure"
+                                           FontSize="{StaticResource FontSizeSM}" FontWeight="Bold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <TextBlock FontSize="{StaticResource FontSizeXS}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Text="A project folder will be created with sub-folders: Models/IFC, Models/DXF, Reports, Exports, Logs."/>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </Grid>
         </Grid>
     </ScrollViewer>
 </UserControl>
