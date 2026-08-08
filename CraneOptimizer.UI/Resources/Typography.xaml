@@ -5,12 +5,12 @@
     <!--
         Typography.xaml — CraneOptimizer Design System
         Font family: Exo 2 (embedded in /Fonts/)
-        Scale: compact for dense engineering UI (restored)
+        Scale: compact for dense engineering UI
     -->
 
     <FontFamily x:Key="FontPrimary">/CraneOptimizer.UI;component/Resources/Fonts/#Exo 2</FontFamily>
 
-    <!-- ── Font sizes (compact scale — restored) ─────────────────── -->
+    <!-- ── Font sizes (compact scale) ────────────────────────────── -->
     <sys:Double x:Key="FontSizeXS">9</sys:Double>
     <sys:Double x:Key="FontSizeSM">10</sys:Double>
     <sys:Double x:Key="FontSizeMD">11</sys:Double>
@@ -22,8 +22,9 @@
 
     <!-- ── Startup-specific overrides (local use only) ─────────────── -->
     <sys:Double x:Key="FontSizeHeroTitle">38</sys:Double>
-    <sys:Double x:Key="FontSizeProjectCardName">16</sys:Double>
+    <sys:Double x:Key="FontSizeProjectCardName">20</sys:Double>
     <sys:Double x:Key="FontSizeTableHeader">10</sys:Double>
+    <sys:Double x:Key="FontSizeNavStartup">17</sys:Double>
 
     <!-- ── Headline — section / dialog titles ───────────────────── -->
     <Style x:Key="TextHeadline" TargetType="TextBlock">

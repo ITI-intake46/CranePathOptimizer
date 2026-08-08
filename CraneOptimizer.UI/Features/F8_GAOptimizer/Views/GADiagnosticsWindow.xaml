@@ -207,7 +207,7 @@
                         Text="MOST COMMON FAILURE" />
                     <TextBlock
                         Margin="0,6,0,0"
-                        FontSize="14"
+                        FontSize="11"
                         FontWeight="SemiBold"
                         Foreground="{StaticResource WarningBrush}"
                         Text="{Binding MostCommonFailureReason}"
@@ -231,7 +231,7 @@
                         Text="TIMESTAMP" />
                     <TextBlock
                         Margin="0,6,0,0"
-                        FontSize="13"
+                        FontSize="10"
                         FontWeight="SemiBold"
                         Text="{Binding SelectedRun.Timestamp, TargetNullValue='N/A'}"
                         TextTrimming="CharacterEllipsis"
@@ -463,7 +463,7 @@
                         <TextBlock
                             Margin="0,6,0,0"
                             HorizontalAlignment="Center"
-                            FontSize="12"
+                            FontSize="11"
                             Foreground="{DynamicResource TextSecondaryBrush}"
                             Text="The CSV data files for this history run are no longer available under:" />
                         <TextBlock
@@ -541,7 +541,7 @@
                                                     <TextBlock
                                                         HorizontalAlignment="Center"
                                                         VerticalAlignment="Center"
-                                                        FontSize="9"
+                                                        FontSize="11"
                                                         FontWeight="Bold"
                                                         Foreground="#FFFFFFFF"
                                                         Text="{Binding PercentageOfFailedElements}" />
@@ -996,7 +996,7 @@
                                     <DataGridTemplateColumn Header="Exact Match">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <TextBlock HorizontalAlignment="Center" FontSize="12">
+                                                <TextBlock HorizontalAlignment="Center" FontSize="11">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Style.Triggers>
@@ -1020,7 +1020,7 @@
                                     <DataGridTemplateColumn Header="Stepped Rad">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <TextBlock HorizontalAlignment="Center" FontSize="12">
+                                                <TextBlock HorizontalAlignment="Center" FontSize="11">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Style.Triggers>
@@ -1044,7 +1044,7 @@
                                     <DataGridTemplateColumn Header="Blank Cell">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <TextBlock HorizontalAlignment="Center" FontSize="12">
+                                                <TextBlock HorizontalAlignment="Center" FontSize="11">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Style.Triggers>
@@ -1068,7 +1068,7 @@
                                     <DataGridTemplateColumn Header="Zero Cell">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <TextBlock HorizontalAlignment="Center" FontSize="12">
+                                                <TextBlock HorizontalAlignment="Center" FontSize="11">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Style.Triggers>
@@ -1095,7 +1095,7 @@
                                                 <TextBlock
                                                     HorizontalAlignment="Center"
                                                     FontWeight="Bold"
-                                                    FontSize="14">
+                                                    FontSize="11">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Style.Triggers>

@@ -176,7 +176,7 @@
 
                                         <TextBlock Text="PDF metadata"
                                                    FontFamily="{StaticResource FontPrimary}"
-                                                   FontSize="13"
+                                                   FontSize="10"
                                                    FontWeight="SemiBold"
                                                    Foreground="{StaticResource PrimaryBrush}"
                                                    TextTrimming="CharacterEllipsis"
@@ -255,7 +255,7 @@
                                     <TextBlock x:Name="TxtEnvelopePreviewTitle"
                                                Text="Exact PDF visual load chart"
                                                FontFamily="{StaticResource FontPrimary}"
-                                               FontSize="14"
+                                               FontSize="11"
                                                FontWeight="SemiBold"
                                                Foreground="{StaticResource PrimaryBrush}"/>
                                     <TextBlock x:Name="TxtEnvelopePreviewDescription"

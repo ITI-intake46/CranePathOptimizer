@@ -169,7 +169,7 @@
                                     </Border.ToolTip>
                                     <TextBlock Text="i"
                                                FontFamily="{StaticResource FontPrimary}"
-                                               FontSize="9"
+                                               FontSize="11"
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                HorizontalAlignment="Center"

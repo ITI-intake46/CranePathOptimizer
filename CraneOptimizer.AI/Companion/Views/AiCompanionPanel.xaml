@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Name="Root"
     x:Class="CraneOptimizer.AI.Companion.Views.AiCompanionPanel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -354,7 +354,7 @@
                 <StackPanel Grid.Column="1" Margin="10,0,10,0" ToolTip="{Binding NextActionToolTip}">
                     <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="NEXT STEP" />
                     <TextBlock Margin="0,3,0,0"
-                               FontSize="13"
+                               FontSize="10"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextPrimaryBrush}"
                                Text="{Binding NextActionTitle}"
@@ -464,7 +464,7 @@
                             <Border Margin="0,0,0,8" Style="{StaticResource AiAssistSurface}">
                                 <StackPanel>
                                     <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="READ-ONLY AGENT" />
-                                    <TextBlock Margin="0,5,0,0" FontSize="12" FontWeight="SemiBold" Text="{Binding Advisor.AgentConclusion}" TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,5,0,0" FontSize="11" FontWeight="SemiBold" Text="{Binding Advisor.AgentConclusion}" TextWrapping="Wrap" />
                                     <TextBlock Margin="0,5,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding Advisor.AgentGovernanceSummary}" />
                                 </StackPanel>
                             </Border>
@@ -478,13 +478,13 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <Border Width="22" Height="22" Background="{DynamicResource SurfaceElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="11">
-                                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="9" FontWeight="SemiBold" Text="{Binding Sequence}" />
+                                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Text="{Binding Sequence}" />
                                             </Border>
                                             <StackPanel Grid.Column="1" Margin="8,0,8,0">
                                                 <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding ToolName}" TextWrapping="Wrap" />
                                                 <TextBlock Margin="0,2,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding Summary}" TextWrapping="Wrap" />
                                             </StackPanel>
-                                            <TextBlock Grid.Column="2" FontSize="9" Foreground="{StaticResource PrimaryBrush}" Text="{Binding StatusLabel}" />
+                                            <TextBlock Grid.Column="2" FontSize="11" Foreground="{StaticResource PrimaryBrush}" Text="{Binding StatusLabel}" />
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -502,7 +502,7 @@
                                     <DataTemplate>
                                         <Border Margin="0,0,0,8" Style="{StaticResource AiAssistSurface}">
                                             <StackPanel>
-                                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                                                <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
                                                 <TextBlock Margin="0,3,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding Description}" />
                                                 <TextBlock Margin="0,4,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding EvidenceLabel}" TextWrapping="Wrap" />
                                                 <Expander Margin="0,5,0,0"
@@ -557,7 +557,7 @@
                                             <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding Id}" />
                                             <TextBlock Margin="0,3,0,0" FontSize="11" FontWeight="SemiBold" Text="{Binding SourceLabel}" TextWrapping="Wrap" />
                                             <TextBlock Margin="0,4,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding Snippet}" />
-                                            <TextBlock Margin="0,4,0,0" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ScoreLabel}" TextWrapping="Wrap" />
+                                            <TextBlock Margin="0,4,0,0" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="{Binding ScoreLabel}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -629,7 +629,7 @@
                                 <DataTemplate>
                                     <Border Margin="0,0,0,8" Style="{StaticResource AiAssistSurface}">
                                         <StackPanel>
-                                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
                                             <TextBlock Margin="0,4,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding Evidence}" />
                                             <TextBlock Margin="0,5,0,0" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}" Text="{Binding NextClick}" TextWrapping="Wrap" />
                                         </StackPanel>
@@ -644,7 +644,7 @@
                 <StackPanel Visibility="{Binding OptimizeTabVisibility}">
                     <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="GA READINESS" />
                     <TextBlock Margin="0,4,0,0" Style="{StaticResource AiAssistSectionTitle}" Text="Optimization blockers and scenario order" />
-                    <TextBlock Margin="0,12,0,0" FontSize="12" FontWeight="SemiBold" Text="{Binding MissionDiagnosisTitle}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,12,0,0" FontSize="11" FontWeight="SemiBold" Text="{Binding MissionDiagnosisTitle}" TextWrapping="Wrap" />
                     <TextBlock Margin="0,7,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding MissionRisk}" />
                     <TextBlock Margin="0,9,0,0" Style="{StaticResource AiAssistBodyText}" Text="{Binding WhatIfAdvisorPreview}" />
                     <WrapPanel Margin="0,12,0,0">
@@ -663,7 +663,7 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel>
-                                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                                                <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
                                                 <TextBlock Margin="0,4,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding Description}" />
                                             </StackPanel>
                                             <Button Grid.Column="1" Margin="10,0,0,0" Padding="8,4" VerticalAlignment="Center" Command="{Binding ConfirmCommand}" CommandParameter="{Binding}" Content="{Binding ConfirmLabel}" Style="{StaticResource ButtonSecondary}" />
@@ -722,7 +722,7 @@
                                 <TextBlock Style="{StaticResource AiAssistSectionLabel}" Text="LIVE AI STACK" />
                                 <Button Grid.Column="1" Margin="10,0,0,0" Style="{StaticResource AiAssistFlatButton}" Command="{Binding CopyAiShowcaseBriefCommand}" Content="Copy brief" />
                             </Grid>
-                            <TextBlock Margin="0,6,0,0" FontSize="12" FontWeight="SemiBold" Text="{Binding ShowcasePowerScoreLabel}" TextWrapping="Wrap" />
+                            <TextBlock Margin="0,6,0,0" FontSize="11" FontWeight="SemiBold" Text="{Binding ShowcasePowerScoreLabel}" TextWrapping="Wrap" />
                             <TextBlock Margin="0,6,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding ShowcaseAgentStackSummary}" />
                         </StackPanel>
                     </Border>
@@ -732,7 +732,7 @@
                                 <DataTemplate>
                                     <Border Margin="0,0,0,8" Style="{StaticResource AiAssistSurface}">
                                         <StackPanel>
-                                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
                                             <TextBlock Margin="0,5,0,0" Style="{StaticResource AiAssistSecondaryText}" Text="{Binding Purpose}" />
                                             <Button Margin="0,8,0,0" HorizontalAlignment="Left" Padding="8,4" Command="{Binding DataContext.SetQuestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding DemoPrompt}" Content="Try prompt" Style="{StaticResource AiAssistMicroButton}" />
                                         </StackPanel>
@@ -956,7 +956,7 @@
                                  AcceptsReturn="True"
                                  Background="Transparent"
                                  BorderThickness="0"
-                                 FontSize="12"
+                                 FontSize="11"
                                  Foreground="{DynamicResource TextPrimaryBrush}"
                                  PreviewKeyDown="QuestionTextBox_PreviewKeyDown"
                                  Text="{Binding QuestionText, UpdateSourceTrigger=PropertyChanged}"
@@ -982,10 +982,10 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="Enter to send · Shift+Enter for a new line" />
+                    <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="Enter to send · Shift+Enter for a new line" />
                     <TextBlock Grid.Column="1"
                                Margin="10,0,0,0"
-                               FontSize="9"
+                               FontSize="11"
                                FontWeight="SemiBold"
                                Foreground="{StaticResource PrimaryBrush}"
                                Text="Read-only tools · approval gated"
@@ -1012,8 +1012,8 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="Live context" />
-                                <TextBlock Grid.Column="1" FontSize="9" Foreground="{StaticResource PrimaryBrush}" Text="PRIVATE CONTEXT" />
+                                <TextBlock FontSize="11" FontWeight="SemiBold" Text="Live context" />
+                                <TextBlock Grid.Column="1" FontSize="11" Foreground="{StaticResource PrimaryBrush}" Text="PRIVATE CONTEXT" />
                             </Grid>
                             <TextBlock Margin="0,7,0,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Text="Project and screen facts are captured when you send. The summary below is the current payload." TextWrapping="Wrap" />
                             <ScrollViewer Margin="0,9,0,0" MaxHeight="260" VerticalScrollBarVisibility="Auto">

@@ -206,7 +206,7 @@
                     <TextBlock Grid.Row="0"
                                Text="{Binding RightPanelHeader}"
                                FontWeight="Bold"
-                               FontSize="14"
+                               FontSize="11"
                                Foreground="{StaticResource PrimaryBrush}" />
 
                     <!-- Assigned Elements DataGrid -->
@@ -339,7 +339,7 @@
 
                             <!-- Crane Name -->
                             <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                                <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="CRANE" HorizontalAlignment="Center" />
+                                <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="CRANE" HorizontalAlignment="Center" />
                                 <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
                                            Text="{Binding CraneNameDisplay, Mode=OneWay}"
                                            HorizontalAlignment="Center" Margin="0,2,0,0" />
@@ -347,7 +347,7 @@
 
                             <!-- Wire Length -->
                             <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="WIRE LENGTH" HorizontalAlignment="Center" />
+                                <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="WIRE LENGTH" HorizontalAlignment="Center" />
                                 <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
                                            Text="{Binding WireLengthDisplay, Mode=OneWay}"
                                            HorizontalAlignment="Center" Margin="0,2,0,0" />
@@ -355,7 +355,7 @@
 
                             <!-- Derating Ratio -->
                             <StackPanel Grid.Column="2" HorizontalAlignment="Center">
-                                <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="DERATING" HorizontalAlignment="Center" />
+                                <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="DERATING" HorizontalAlignment="Center" />
                                 <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
                                            Text="{Binding DeratingRatioDisplay, Mode=OneWay}"
                                            HorizontalAlignment="Center" Margin="0,2,0,0" />
@@ -363,7 +363,7 @@
 
                             <!-- Counterweight -->
                             <StackPanel Grid.Column="3" HorizontalAlignment="Center">
-                                <TextBlock FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Text="COUNTERWEIGHT" HorizontalAlignment="Center" />
+                                <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Text="COUNTERWEIGHT" HorizontalAlignment="Center" />
                                 <TextBlock FontSize="11" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
                                            Text="{Binding CounterWeightDisplay, Mode=OneWay}"
                                            HorizontalAlignment="Center" Margin="0,2,0,0" />

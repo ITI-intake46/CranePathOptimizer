@@ -1,4 +1,4 @@
-<Window
+﻿<Window
     x:Class="CraneOptimizer.UI.Features.F16_Filter.Views.ElementFilterDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -80,24 +80,24 @@
                                 TextTrimming="CharacterEllipsis" />
                             <WrapPanel Visibility="{Binding SubtitleRowVisibility}" Margin="0,1,0,0">
                                 <TextBlock
-                                    FontSize="9"
+                                    FontSize="11"
                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                     Text="Material: "
                                     Visibility="{Binding MaterialVisibility}" />
                                 <TextBlock
-                                    FontSize="9"
+                                    FontSize="11"
                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                     FontWeight="SemiBold"
                                     Text="{Binding MaterialLabel}"
                                     Visibility="{Binding MaterialVisibility}"
                                     Margin="0,0,8,0" />
                                 <TextBlock
-                                    FontSize="9"
+                                    FontSize="11"
                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                     Text="Weight: "
                                     Visibility="{Binding WeightLabelVisibility}" />
                                 <TextBlock
-                                    FontSize="9"
+                                    FontSize="11"
                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                     FontWeight="SemiBold"
                                     Text="{Binding WeightLabel}"
