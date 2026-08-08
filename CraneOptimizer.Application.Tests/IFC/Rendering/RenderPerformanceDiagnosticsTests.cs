@@ -1230,5 +1230,132 @@ namespace CraneOptimizer.Application.Tests
         }
 
         #endregion
+
+        #region Steel Bar / Reinforcement Visibility Tests
+
+        [Fact]
+        public void SteelBars_HiddenInMediumAndLowMode_ShownInHighMode()
+        {
+            RunOnSta(() =>
+            {
+                var rebarElement = new PrecastElement
+                {
+                    ElementID = "REBAR-101",
+                    ElementName = "Reinforcing Bar #5",
+                    ElementType = "IfcReinforcingBar",
+                    ElementMark = "RB-01",
+                    AssemblyMark = "WALL-01",
+                    IncludeInRender = false,
+                    ElementCOG = new DomainPoint3D(1, 2, 3),
+                    ElementLength = 2.0,
+                    ElementWidth = 0.05,
+                    ElementHeight = 0.05
+                };
+
+                var beamElement = new PrecastElement
+                {
+                    ElementID = "BEAM-201",
+                    ElementName = "Precast Concrete Beam",
+                    ElementType = "IfcBeam",
+                    ElementMark = "BM-01",
+                    AssemblyMark = "FRAME-01",
+                    IncludeInRender = true,
+                    ElementCOG = new DomainPoint3D(10, 20, 30),
+                    ElementLength = 6.0,
+                    ElementWidth = 0.4,
+                    ElementHeight = 0.6
+                };
+
+                var items = new List<PrecastElement> { rebarElement, beamElement };
+                var origin = new DomainPoint3D(0, 0, 0);
+                var placementOffset = new DomainPoint3D(0, 0, 0);
+
+                var previousQuality = ElementVisualBuilder.CurrentQuality;
+                try
+                {
+                    // 1. Medium Quality Mode: Steel bar MUST be hidden
+                    ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.Medium;
+                    var mediumBuilder = new ElementVisualBuilder(null, origin, placementOffset);
+                    mediumBuilder.ResetCounters();
+                    mediumBuilder.BuildBatch(items.Select(e => (e, (LiftStatus?)null, false)));
+
+                    Assert.Equal(1, mediumBuilder.DiagVisibleElements); // Only Beam
+                    Assert.Equal(1, mediumBuilder.DiagIncludeInRenderSkipped); // Rebar skipped
+
+                    // 2. Low Quality Mode: Steel bar MUST be hidden
+                    ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.Low;
+                    var lowBuilder = new ElementVisualBuilder(null, origin, placementOffset);
+                    lowBuilder.ResetCounters();
+                    lowBuilder.BuildBatch(items.Select(e => (e, (LiftStatus?)null, false)));
+
+                    Assert.Equal(1, lowBuilder.DiagVisibleElements); // Only Beam
+                    Assert.Equal(1, lowBuilder.DiagIncludeInRenderSkipped); // Rebar skipped
+
+                    // 3. High Quality Mode: Steel bar MUST be shown
+                    ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.High;
+                    var highBuilder = new ElementVisualBuilder(null, origin, placementOffset);
+                    highBuilder.ResetCounters();
+                    highBuilder.BuildBatch(items.Select(e => (e, (LiftStatus?)null, false)));
+
+                    Assert.Equal(2, highBuilder.DiagVisibleElements); // Both Beam and Rebar shown!
+                    Assert.Equal(0, highBuilder.DiagIncludeInRenderSkipped); // None skipped
+                }
+                finally
+                {
+                    ElementVisualBuilder.CurrentQuality = previousQuality;
+                }
+            });
+        }
+
+        [Theory]
+        [InlineData("IfcReinforcingBar", "T-Rebar")]
+        [InlineData("IfcReinforcingMesh", "Mesh-Top")]
+        [InlineData("IfcReinforcingElement", "Reo-Anchor")]
+        [InlineData("IfcTendon", "Strand-PostTension")]
+        [InlineData("IfcTendonAnchor", "Anchor-Head")]
+        [InlineData("IfcBuildingElementPart", "Stirrup-10mm")]
+        public void VariousReinforcementTypes_RenderOnlyInHighQuality(string elementType, string elementName)
+        {
+            RunOnSta(() =>
+            {
+                var rebar = new PrecastElement
+                {
+                    ElementID = $"TEST-{elementName}",
+                    ElementName = elementName,
+                    ElementType = elementType,
+                    IncludeInRender = false,
+                    ElementCOG = new DomainPoint3D(0, 0, 0)
+                };
+
+                var items = new List<PrecastElement> { rebar };
+                var origin = new DomainPoint3D(0, 0, 0);
+
+                var prevQuality = ElementVisualBuilder.CurrentQuality;
+                try
+                {
+                    // Medium quality -> hidden
+                    ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.Medium;
+                    var bMed = new ElementVisualBuilder(null, origin);
+                    bMed.ResetCounters();
+                    bMed.BuildBatch(items.Select(e => (e, (LiftStatus?)null, false)));
+                    Assert.Equal(0, bMed.DiagVisibleElements);
+                    Assert.Equal(1, bMed.DiagIncludeInRenderSkipped);
+
+                    // High quality -> shown
+                    ElementVisualBuilder.CurrentQuality = ElementVisualBuilder.MeshQuality.High;
+                    var bHigh = new ElementVisualBuilder(null, origin);
+                    bHigh.ResetCounters();
+                    bHigh.BuildBatch(items.Select(e => (e, (LiftStatus?)null, false)));
+                    Assert.Equal(1, bHigh.DiagVisibleElements);
+                    Assert.Equal(0, bHigh.DiagIncludeInRenderSkipped);
+                }
+                finally
+                {
+                    ElementVisualBuilder.CurrentQuality = prevQuality;
+                }
+            });
+        }
+
+        #endregion
     }
 }

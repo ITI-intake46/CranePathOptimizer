@@ -389,7 +389,7 @@ public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } =
                 var labelToGid = new Dictionary<int, string>();
                 foreach (var p in model.Instances.OfType<IIfcProduct>())
                 {
-                    if (IsReinforcementIfcProduct(p))
+                    if (CurrentQuality != MeshQuality.High && IsReinforcementIfcProduct(p))
                         continue;
 
                     var gid = p.GlobalId.ToString();
@@ -760,15 +760,22 @@ public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } =
 
         private static bool ShouldRenderElement(PrecastElement? element)
         {
-            if (element == null || !element.IncludeInRender)
+            if (element == null)
                 return false;
 
-            return !ContainsReinforcementRenderToken(
+            bool isReinforcement = ContainsReinforcementRenderToken(
                 element.ElementID,
                 element.ElementName,
                 element.ElementType,
                 element.ElementMark,
                 element.AssemblyMark);
+
+            if (isReinforcement)
+            {
+                return CurrentQuality == MeshQuality.High;
+            }
+
+            return element.IncludeInRender;
         }
 
 
@@ -777,12 +784,19 @@ public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } =
             if (product == null)
                 return false;
 
-            return !ContainsReinforcementRenderToken(
+            bool isReinforcement = ContainsReinforcementRenderToken(
                 product.ExpressType?.Name,
                 product.GetType().Name,
                 product.Name?.ToString(),
                 product.ObjectType?.ToString(),
                 (product as IIfcElement)?.Tag?.ToString());
+
+            if (isReinforcement)
+            {
+                return CurrentQuality == MeshQuality.High;
+            }
+
+            return true;
         }
 
         private static double GetBoxDimension(double? value)
@@ -805,7 +819,7 @@ public static bool UseSpatialHitTestingInsteadOfTransparentBoxes { get; set; } =
             var children = product.IsDecomposedBy?.SelectMany(rel => rel.RelatedObjects).OfType<IIfcProduct>() ?? Enumerable.Empty<IIfcProduct>();
             foreach (var child in children)
             {
-                if (IsReinforcementIfcProduct(child))
+                if (CurrentQuality != MeshQuality.High && IsReinforcementIfcProduct(child))
                     continue;
 
                 if (!labelToGid.ContainsKey(child.EntityLabel)) labelToGid[child.EntityLabel] = owningGlobalId;
@@ -1367,7 +1381,7 @@ var ev = new ModelVisual3D { Content = group };
             var labelToGid = new Dictionary<int, string>();
             foreach (var p in model.Instances.OfType<IIfcProduct>())
             {
-                if (IsReinforcementIfcProduct(p))
+                if (CurrentQuality != MeshQuality.High && IsReinforcementIfcProduct(p))
                     continue;
 
                 var gid = p.GlobalId.ToString();
