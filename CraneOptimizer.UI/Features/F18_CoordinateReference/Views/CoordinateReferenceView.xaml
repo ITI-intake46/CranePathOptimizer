@@ -1,4 +1,4 @@
-<UserControl x:Class="CraneOptimizer.UI.Features.F18_CoordinateReference.Views.CoordinateReferenceView"
+﻿<UserControl x:Class="CraneOptimizer.UI.Features.F18_CoordinateReference.Views.CoordinateReferenceView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
@@ -74,15 +74,15 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Easting (m)" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2"/>
+                                    <TextBlock Text="Easting (m)" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2"/>
                                     <TextBox Text="{Binding SurveyEasting, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsManualMode}" FontSize="11" Padding="2" Height="22" Background="#1E1E1E" Foreground="White" BorderBrush="{DynamicResource BorderBrush}"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
-                                    <TextBlock Text="Northing (m)" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2"/>
+                                    <TextBlock Text="Northing (m)" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2"/>
                                     <TextBox Text="{Binding SurveyNorthing, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsManualMode}" FontSize="11" Padding="2" Height="22" Background="#1E1E1E" Foreground="White" BorderBrush="{DynamicResource BorderBrush}"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="4">
-                                    <TextBlock Text="Elevation (m)" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2"/>
+                                    <TextBlock Text="Elevation (m)" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2"/>
                                     <TextBox Text="{Binding SurveyElevation, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsManualMode}" FontSize="11" Padding="2" Height="22" Background="#1E1E1E" Foreground="White" BorderBrush="{DynamicResource BorderBrush}"/>
                                 </StackPanel>
                             </Grid>
@@ -108,7 +108,7 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,0,3">
-                                <TextBlock Text="Rotation to North (°)" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2"/>
+                                <TextBlock Text="Rotation to North (°)" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,2"/>
                                 <TextBox Text="{Binding RotationToNorthDegrees, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsManualMode}" FontSize="11" Padding="2" Height="22" Background="#1E1E1E" Foreground="White" BorderBrush="{DynamicResource BorderBrush}"
                                          ToolTip="Angle in degrees from local Y to site North."/>
                             </StackPanel>
@@ -120,10 +120,10 @@
                                 <Grid Width="42" Height="42">
                                     <Ellipse Stroke="#444444" StrokeThickness="1.5" Fill="#151515"/>
                                     <Ellipse Stroke="#222222" StrokeThickness="1" Margin="3"/>
-                                    <TextBlock Text="N" FontSize="7" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,2,0,0"/>
-                                    <TextBlock Text="S" FontSize="6" Foreground="#555555" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,2"/>
-                                    <TextBlock Text="W" FontSize="6" Foreground="#555555" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="3,0,0,0"/>
-                                    <TextBlock Text="E" FontSize="6" Foreground="#555555" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                                    <TextBlock Text="N" FontSize="7" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,2,0,0"/>
+                                    <TextBlock Text="S" FontSize="6" Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,2"/>
+                                    <TextBlock Text="W" FontSize="6" Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="3,0,0,0"/>
+                                    <TextBlock Text="E" FontSize="6" Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,3,0"/>
                                     
                                     <Grid Width="20" Height="26" RenderTransformOrigin="0.5,0.5">
                                         <Grid.RenderTransform>
@@ -155,22 +155,22 @@
                             </Grid.RowDefinitions>
                             
                             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,3">
-                                <TextBlock Text="System: " FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="System: " FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Text="{Binding CoordinateSystemName}" FontSize="9.5" FontWeight="SemiBold" Foreground="White" Margin="4,0,0,0" Width="170" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                             
                             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,3">
-                                <TextBlock Text="EPSG: " FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="EPSG: " FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Text="{Binding EPSGCode}" FontSize="9.5" FontWeight="SemiBold" Foreground="White" Margin="4,0,0,0" Width="170" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                             
                             <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,3">
-                                <TextBlock Text="Source: " FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="Source: " FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Text="{Binding SourceDescription}" FontSize="9.5" FontWeight="SemiBold" Foreground="White" Margin="4,0,0,0" Width="170" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                             
                             <StackPanel Grid.Row="3" Orientation="Horizontal" Visibility="{Binding LatLonVisibility}">
-                                <TextBlock Text="Lat/Lon: " FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="Lat/Lon: " FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Text="{Binding LatLonText}" FontSize="9.5" FontWeight="SemiBold" Foreground="White" Margin="4,0,0,0" Width="170" TextTrimming="CharacterEllipsis"
                                            ToolTip="Informational only. Decimal latitude and longitude coordinates extracted from IFC Site."/>
                             </StackPanel>
@@ -206,11 +206,11 @@
                                 <StackPanel Orientation="Vertical">
                                     <TextBlock Text="Local Origin (0,0,0) ➜ Survey:" FontSize="9.5" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,1,0,0">
-                                        <TextBlock Text="Easting: " FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                        <TextBlock Text="Easting: " FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                         <TextBlock Text="{Binding AppliedSurveyEasting, StringFormat={}{0:F3}}" FontSize="9.5" FontWeight="SemiBold" Foreground="White" Margin="2,0,8,0"/>
-                                        <TextBlock Text="Northing: " FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                        <TextBlock Text="Northing: " FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                         <TextBlock Text="{Binding AppliedSurveyNorthing, StringFormat={}{0:F3}}" FontSize="9.5" FontWeight="SemiBold" Foreground="White" Margin="2,0,8,0"/>
-                                        <TextBlock Text="Elevation: " FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                        <TextBlock Text="Elevation: " FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                         <TextBlock Text="{Binding AppliedSurveyElevation, StringFormat={}{0:F3}}" FontSize="9.5" FontWeight="SemiBold" Foreground="White" Margin="2,0,0,0"/>
                                     </StackPanel>
                                 </StackPanel>
@@ -247,9 +247,9 @@
                                             <ColumnDefinition Width="2"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0" Text="{Binding PreviewLocalX, UpdateSourceTrigger=PropertyChanged}" FontSize="9" Padding="1" Height="18" Background="#252525" Foreground="White" BorderBrush="{DynamicResource BorderBrush}" ToolTip="Local X"/>
-                                        <TextBox Grid.Column="2" Text="{Binding PreviewLocalY, UpdateSourceTrigger=PropertyChanged}" FontSize="9" Padding="1" Height="18" Background="#252525" Foreground="White" BorderBrush="{DynamicResource BorderBrush}" ToolTip="Local Y"/>
-                                        <TextBox Grid.Column="4" Text="{Binding PreviewLocalZ, UpdateSourceTrigger=PropertyChanged}" FontSize="9" Padding="1" Height="18" Background="#252525" Foreground="White" BorderBrush="{DynamicResource BorderBrush}" ToolTip="Local Z"/>
+                                        <TextBox Grid.Column="0" Text="{Binding PreviewLocalX, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="1" Height="18" Background="#252525" Foreground="White" BorderBrush="{DynamicResource BorderBrush}" ToolTip="Local X"/>
+                                        <TextBox Grid.Column="2" Text="{Binding PreviewLocalY, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="1" Height="18" Background="#252525" Foreground="White" BorderBrush="{DynamicResource BorderBrush}" ToolTip="Local Y"/>
+                                        <TextBox Grid.Column="4" Text="{Binding PreviewLocalZ, UpdateSourceTrigger=PropertyChanged}" FontSize="11" Padding="1" Height="18" Background="#252525" Foreground="White" BorderBrush="{DynamicResource BorderBrush}" ToolTip="Local Z"/>
                                     </Grid>
                                 </StackPanel>
                                 
@@ -262,7 +262,7 @@
                             </Grid>
                             
                             <!-- Helper text -->
-                            <TextBlock Grid.Row="2" Text="Preview only. Does not move the model." FontSize="8" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                            <TextBlock Grid.Row="2" Text="Preview only. Does not move the model." FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center" Margin="0,1,0,0"/>
                         </Grid>
                     </DockPanel>
                 </Border>

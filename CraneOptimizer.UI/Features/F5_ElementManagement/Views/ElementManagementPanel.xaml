@@ -3,12 +3,46 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              Background="{DynamicResource SurfaceBrush}"
              mc:Ignorable="d">
 
     <UserControl.Resources>
+
+        <!-- Local type size for this panel only. The shared Inspector styles are
+             locked to the compact global FontSizeXS, so they are re-based here
+             instead of being edited globally. -->
+        <sys:Double x:Key="FontSizeXS">12</sys:Double>
+
+        <Style x:Key="InspectorPropertyLabelStyle"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource InspectorPropertyLabelStyle}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,4" />
+        </Style>
+
+        <Style x:Key="InspectorPropertyValueStyle"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource InspectorPropertyValueStyle}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,4" />
+        </Style>
+
+        <Style x:Key="InspectorSummaryBorderStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource InspectorSummaryBorderStyle}">
+            <Setter Property="Padding" Value="12,10" />
+        </Style>
+
+        <Style x:Key="InspectorSelectedItemTitleStyle"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource InspectorSelectedItemTitleStyle}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Normal" />
+        </Style>
+
         <DataTemplate x:Key="PropertyRowTemplate">
-            <Grid MinHeight="22">
+            <Grid MinHeight="30">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="104" />
                     <ColumnDefinition Width="*" />
@@ -43,21 +77,31 @@
                                 IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
                                 <ToggleButton.Template>
                                     <ControlTemplate TargetType="ToggleButton">
-                                        <Grid Margin="0,14,0,8" Background="Transparent">
+                                        <Grid Margin="0,22,0,12" Background="Transparent">
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
+                                            <!--  Orange section accent, matching the rest of the app  -->
+                                            <Border
+                                                Grid.Column="0"
+                                                Width="3"
+                                                Height="13"
+                                                Margin="0,0,8,0"
+                                                VerticalAlignment="Center"
+                                                Background="{StaticResource PrimaryBrush}" />
                                             <ContentPresenter
+                                                Grid.Column="1"
                                                 VerticalAlignment="Center"
                                                 ContentSource="Content"
                                                 RecognizesAccessKey="True"
                                                 TextElement.FontFamily="{StaticResource FontPrimary}"
                                                 TextElement.FontSize="{StaticResource FontSizeXS}"
-                                                TextElement.FontWeight="SemiBold" />
+                                                TextElement.FontWeight="Normal" />
                                             <Path
                                                 x:Name="Chevron"
-                                                Grid.Column="1"
+                                                Grid.Column="2"
                                                 Width="8"
                                                 Height="4"
                                                 Margin="8,0,1,0"
@@ -182,7 +226,7 @@
                             HorizontalAlignment="Center"
                             FontFamily="{StaticResource FontPrimary}"
                             FontSize="{StaticResource FontSizeXS}"
-                            FontWeight="SemiBold"
+                            FontWeight="Normal"
                             Foreground="{DynamicResource TextPrimaryBrush}"
                             Text="No element selected" />
                         <TextBlock

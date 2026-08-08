@@ -698,6 +698,7 @@ namespace CraneOptimizer.Application.Tests
             public bool IsMaterialEnabled(string material) => true;
             public bool IsStoreyEnabled(string storey) => true;
             public bool IsElementHidden(PrecastElement element) => false;
+            public bool IsElementExplicitlyHidden(PrecastElement element) => false;
         }
 
         private class MockOriginService : IOriginService

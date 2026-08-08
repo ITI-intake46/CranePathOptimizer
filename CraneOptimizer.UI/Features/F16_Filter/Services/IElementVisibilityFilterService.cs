@@ -41,5 +41,11 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Services
         bool IsStoreyEnabled(string storey);
         bool IsElementIncluded(PrecastElement element);
         bool IsElementHidden(PrecastElement element);
+
+        /// <summary>
+        /// True only when the element was explicitly hidden via <see cref="HideElements"/>,
+        /// as opposed to being filtered out by the active criteria.
+        /// </summary>
+        bool IsElementExplicitlyHidden(PrecastElement element);
     }
 }
