@@ -131,7 +131,7 @@
 
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
                     <TextBlock Text="Decimals:" Style="{StaticResource PropertyLabel}" Width="100" VerticalAlignment="Center"/>
-                    <ComboBox Width="100" SelectedIndex="{Binding SelectedPrecisionIndex, Mode=TwoWay}"
+                    <ComboBox Width="180" SelectedIndex="{Binding SelectedPrecisionIndex, Mode=TwoWay}"
                               Style="{StaticResource DarkComboBox}"
                               ItemContainerStyle="{StaticResource DarkComboBoxItem}">
                         <ComboBoxItem Content="0"/>

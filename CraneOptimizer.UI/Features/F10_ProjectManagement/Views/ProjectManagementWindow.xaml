@@ -167,7 +167,7 @@
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
                     <Image Source="pack://application:,,,/CraneOptimizer.UI;component/Resources/Images/CraneIcon.png"
                            Width="20" Height="20" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="CRANE OPTIMIZATION"
+                    <TextBlock Text="Crane Optimization"
                                FontSize="{StaticResource FontSizeSM}"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextPrimaryBrush}"
@@ -223,11 +223,11 @@
                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                             <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="USER"
+                                <TextBlock Text="User"
                                            FontSize="{StaticResource FontSizeMD}"
                                            FontWeight="Bold"
                                            Foreground="#FFFFFF"/>
-                                <TextBlock Text="SYSTEM ADMIN"
+                                <TextBlock Text="System Admin"
                                            FontSize="{StaticResource FontSizeSM}"
                                            Foreground="#FFFFFF"
                                            Margin="0,2,0,0"/>
@@ -389,7 +389,7 @@
                                         Margin="48,0,48,40" MaxWidth="580">
 
                                 <!-- Hero labels -->
-                                <TextBlock Text="SMART LIFT OPTIMIZER"
+                                <TextBlock Text="Smart Lift Optimizer"
                                            FontSize="{StaticResource FontSizeHeroTitle}"
                                            FontWeight="Bold"
                                            Foreground="White"
@@ -413,7 +413,7 @@
                                         </Style>
                                     </Border.Style>
                                     <StackPanel>
-                                        <TextBlock Text="LATEST OPENED PROJECT"
+                                        <TextBlock Text="Latest Opened Project"
                                                    FontSize="{StaticResource FontSizeLG}"
                                                    FontWeight="Bold"
                                                    Foreground="{StaticResource PrimaryBrush}"
@@ -592,7 +592,7 @@
                             </Border>
 
                             <!-- Rows -->
-                            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Visible"
                                           HorizontalScrollBarVisibility="Disabled">
                                 <ItemsControl ItemsSource="{Binding Projects}">
                                     <ItemsControl.ItemsPanel>
@@ -870,7 +870,7 @@
                             </Border>
 
                             <!-- Rows -->
-                            <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto"
+                            <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Visible"
                                           HorizontalScrollBarVisibility="Disabled">
                                 <ItemsControl ItemsSource="{Binding Projects}">
                                     <ItemsControl.ItemsPanel>
