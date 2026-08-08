@@ -49,6 +49,7 @@ namespace CraneOptimizer.UI.Core.Services
             _filterService = filterService;
             _diagnosticsStore = diagnosticsStore;
 
+
             _scene.ElementsChanged += OnElementsChanged;
             _scene.ElementsSelectionChanged += OnElementsSelectionChanged;
             _filterService.StateChanged += OnFilterStateChanged;
@@ -89,6 +90,7 @@ namespace CraneOptimizer.UI.Core.Services
             _rendering.ClearLayer("Elements");
 
             var visibleElements = _filterService.VisibleElements;
+
 
             if (_sceneElements.Count == 0 || visibleElements.Count == 0)
             {
@@ -524,6 +526,7 @@ namespace CraneOptimizer.UI.Core.Services
 
         private void OnFilterStateChanged()
         {
+
             if (!_isSyncingSceneElements)
                 ReRenderElements();
         }

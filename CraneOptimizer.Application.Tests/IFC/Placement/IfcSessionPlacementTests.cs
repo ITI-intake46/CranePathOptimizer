@@ -967,6 +967,7 @@ namespace CraneOptimizer.Application.Tests
             public bool IsStoreyEnabled(string storey) => true;
             public bool IsElementIncluded(PrecastElement element) => true;
             public bool IsElementHidden(PrecastElement element) => false;
+            public bool IsElementExplicitlyHidden(PrecastElement element) => false;
         }
     }
 }

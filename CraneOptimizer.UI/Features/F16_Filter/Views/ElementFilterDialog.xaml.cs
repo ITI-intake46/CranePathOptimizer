@@ -89,6 +89,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
 
         private void HookSelectionEvents()
         {
+
             if (_selectionService != null)
                 _selectionService.SelectionChanged += OnSelectionChanged;
 
@@ -280,7 +281,7 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             // Hide / Show Checked toggle
             // Rule: all checked hidden → "Show Checked" (active/terracotta); otherwise → "Hide Checked" (secondary)
             var allCheckedHidden = hasCheckedElements
-                && checkedElements.All(e => _visibilityFilter?.IsElementHidden(e) == true);
+                && checkedElements.All(e => _visibilityFilter?.IsElementExplicitlyHidden(e) == true);
 
             if (BtnHideChecked != null)
             {
@@ -507,8 +508,11 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
         private void BtnHideChecked_Click(object sender, RoutedEventArgs e)
         {
             var elements = GetCheckedElements();
+
             if (elements.Count == 0)
+            {
                 return;
+            }
 
             // Exit isolation cleanly before applying hide/show
             if (_isIsolated)
@@ -517,15 +521,21 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                 _visibilityFilter?.ShowAll();
             }
 
-            // Toggle: all checked already hidden → show them; otherwise → hide them
-            var allCheckedHidden = elements.All(e => _visibilityFilter?.IsElementHidden(e) == true);
+            // Toggle: all checked already hidden → show them; otherwise → hide them.
+            // Uses the explicit-hide set, not general visibility: an element filtered out
+            // by search/weight/type is not "hidden by the user", and treating it as such
+            // made Hide Checked silently perform a Show instead.
+            var allCheckedHidden = elements.All(e => _visibilityFilter?.IsElementExplicitlyHidden(e) == true);
+
             if (allCheckedHidden)
                 _visibilityFilter?.ShowElements(elements);
             else
                 _visibilityFilter?.HideElements(elements);
 
+
             ApplyHierarchyFilters();
             UpdateVisibilityActionButtons();
+
         }
 
         private void BtnIsolateChecked_Click(object sender, RoutedEventArgs e)
@@ -778,7 +788,10 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
                                 element.ElementMaterial,
                                 !string.IsNullOrWhiteSpace(element.ElementID)
                                     && _checkedElementIds.Contains(element.ElementID),
-                                _visibilityFilter?.IsElementHidden(element) ?? false,
+                                // Explicit-hide only: the loose check reports "Hidden" for
+                                // anything merely filtered out, so the badge claimed elements
+                                // were hidden that the viewport was still (correctly) drawing.
+                                _visibilityFilter?.IsElementExplicitlyHidden(element) ?? false,
                                 parent));
                         }
 
@@ -942,6 +955,23 @@ namespace CraneOptimizer.UI.Features.F16_Filter.Views
             var total = _allElements.Count;
             var label = _filterScope == FilterScope.Selected ? "selected" : "elements";
             TxtPreviewCount.Text = $"Showing {CalculatePreviewCount()} of {total} {label}";
+
+            // Model-wide visibility. The line above is scoped to the current filter, so
+            // hiding a handful of elements out of a few thousand looks like nothing
+            // happened in the 3D view. This reports what the viewport is actually drawing.
+            if (TxtHiddenCount != null && _visibilityFilter != null)
+            {
+                var hidden = _visibilityFilter.TotalCount - _visibilityFilter.ShowingCount;
+                TxtHiddenCount.Text = hidden == 0
+                    ? $"All {_visibilityFilter.TotalCount:N0} elements visible in 3D"
+                    : $"{hidden:N0} hidden · {_visibilityFilter.ShowingCount:N0} of {_visibilityFilter.TotalCount:N0} visible in 3D";
+                // TryFindResource, not FindResource: this runs on every hierarchy
+                // rebuild (including straight after a hide) and a missing theme key
+                // must not throw out of the click handler.
+                var brushKey = hidden == 0 ? "TextSecondaryBrush" : "PrimaryBrush";
+                if (TryFindResource(brushKey) is System.Windows.Media.Brush brush)
+                    TxtHiddenCount.Foreground = brush;
+            }
         }
 
         private int CalculatePreviewCount()

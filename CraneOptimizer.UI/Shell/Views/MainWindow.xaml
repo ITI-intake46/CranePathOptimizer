@@ -54,7 +54,7 @@
             <!--  Row 2: Main ribbon (bottom border = orange accent line)  -->
             <RowDefinition Height="*" />
             <!--  Row 3: Main content area  -->
-            <RowDefinition Height="22" />
+            <RowDefinition Height="26" />
             <!--  Row 4: Status bar  -->
         </Grid.RowDefinitions>
 
@@ -220,18 +220,19 @@
 
                 </Grid>
 
-                <!--  Centre: application title  -->
+                <!--  Centre: current project name  -->
                 <TextBlock
                     Grid.Column="1"
                     Margin="12,0"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     FontFamily="{StaticResource FontPrimary}"
-                    FontSize="{StaticResource FontSizeXS}"
+                    FontSize="12"
                     FontWeight="SemiBold"
                     TextTrimming="CharacterEllipsis"
                     Foreground="{DynamicResource TextPrimaryBrush}"
-                    Text="IFC Building Analyzer &#x2014; Crane Planner Edition" />
+                    ToolTip="{Binding CurrentProjectName}"
+                    Text="{Binding CurrentProjectName, TargetNullValue='No Project Open', FallbackValue='No Project Open'}" />
 
                 <!--  Right: window caption buttons  -->
                 <StackPanel
@@ -487,20 +488,19 @@
             BorderThickness="0,1,0,0">
             <Grid ClipToBounds="True">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="390" />
+                    <ColumnDefinition Width="500" />
                     <!--  Col 0: Fixed X / Y / Z coordinates  -->
                     <ColumnDefinition Width="*" />
-                    <!--  Col 1: Centered viewport settings  -->
-                    <ColumnDefinition Width="360" />
-                    <!--  Col 2: AI companion notification  -->
+                    <!--  Col 1: Viewport settings, right-aligned  -->
                 </Grid.ColumnDefinitions>
 
                 <!--  Col 0: X / Y / Z coordinates  -->
-                <Grid Grid.Column="0" Width="390" Margin="10,0" ClipToBounds="True">
+                <Grid Grid.Column="0" Width="500" Margin="10,0" ClipToBounds="True">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="130" />
                         <ColumnDefinition Width="130" />
-                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="240" />
+                        <!--  Z is wider: it also carries the "[Default Local Z]" suffix  -->
                     </Grid.ColumnDefinitions>
 
                     <Grid Grid.Column="0" Margin="0,0,8,0" ClipToBounds="True">
@@ -512,12 +512,12 @@
                             Grid.Column="0"
                             Margin="0,0,3,0"
                             Foreground="{DynamicResource TextPrimaryBrush}"
-                            Style="{StaticResource CoordLabel}"
+                            FontSize="11" Style="{StaticResource CoordLabel}"
                             Text="X:" />
                         <TextBlock
                             x:Name="TxtCoordX"
                             Grid.Column="1"
-                            Style="{StaticResource CoordLabel}"
+                            FontSize="11" Style="{StaticResource CoordLabel}"
                             Text="{Binding CoordX, FallbackValue='0.00M'}"
                             TextTrimming="CharacterEllipsis"
                             TextWrapping="NoWrap"
@@ -533,12 +533,12 @@
                             Grid.Column="0"
                             Margin="0,0,3,0"
                             Foreground="{DynamicResource TextPrimaryBrush}"
-                            Style="{StaticResource CoordLabel}"
+                            FontSize="11" Style="{StaticResource CoordLabel}"
                             Text="Y:" />
                         <TextBlock
                             x:Name="TxtCoordY"
                             Grid.Column="1"
-                            Style="{StaticResource CoordLabel}"
+                            FontSize="11" Style="{StaticResource CoordLabel}"
                             Text="{Binding CoordY, FallbackValue='0.00M'}"
                             TextTrimming="CharacterEllipsis"
                             TextWrapping="NoWrap"
@@ -554,12 +554,12 @@
                             Grid.Column="0"
                             Margin="0,0,3,0"
                             Foreground="{DynamicResource TextPrimaryBrush}"
-                            Style="{StaticResource CoordLabel}"
+                            FontSize="11" Style="{StaticResource CoordLabel}"
                             Text="Z:" />
                         <TextBlock
                             x:Name="TxtCoordZ"
                             Grid.Column="1"
-                            Style="{StaticResource CoordLabel}"
+                            FontSize="11" Style="{StaticResource CoordLabel}"
                             Text="{Binding CoordZ, FallbackValue='0.00M'}"
                             TextTrimming="CharacterEllipsis"
                             TextWrapping="NoWrap"
@@ -570,7 +570,8 @@
                 <!--  Col 1: Render Quality and Object Snap  -->
                 <Grid
                     Grid.Column="1"
-                    HorizontalAlignment="Center"
+                    Margin="0,0,4,0"
+                    HorizontalAlignment="Right"
                     VerticalAlignment="Center"
                     ClipToBounds="True">
                     <Grid.ColumnDefinitions>
@@ -585,7 +586,7 @@
                         Margin="0,0,6,0"
                         VerticalAlignment="Center"
                         FontFamily="{StaticResource FontPrimary}"
-                        FontSize="{StaticResource FontSizeXS}"
+                        FontSize="11"
                         FontWeight="SemiBold"
                         Foreground="{DynamicResource TextSecondaryBrush}"
                         Text="Render Quality" />
@@ -593,7 +594,8 @@
                         x:Name="ShellRenderQualityCombo"
                         Grid.Column="1"
                         Width="112"
-                        Height="20"
+                        Height="22"
+                        FontSize="11"
                         VerticalAlignment="Center"
                         ItemContainerStyle="{StaticResource DarkComboBoxItem}"
                         SelectedIndex="1"
@@ -617,35 +619,6 @@
                         Grid.Column="3"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center" />
-                </Grid>
-
-                <!--  Col 2: AI companion notification  -->
-                <Grid
-                    Grid.Column="2"
-                    Width="360"
-                    ClipToBounds="True">
-                    <aiCompanion:AiCompanionStatusStrip
-                        x:Name="AiCompanionStrip"
-                        Width="360"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Center"
-                        ClipToBounds="True"
-                        AssistRequested="AiCompanionStatusStrip_AssistRequested"
-                        HideRequested="AiCompanionStatusStrip_HideRequested" />
-
-                    <Button
-                        x:Name="ShowAiCompanionButton"
-                        MinWidth="70"
-                        Height="18"
-                        Padding="7,0"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Center"
-                        Click="ShowAiCompanionButton_Click"
-                        Content="AI Assist"
-                        FontSize="{StaticResource FontSizeXS}"
-                        Style="{StaticResource ToolbarButton}"
-                        ToolTip="Show AI Companion in the status bar"
-                        Visibility="Collapsed" />
                 </Grid>
             </Grid>
         </Border>

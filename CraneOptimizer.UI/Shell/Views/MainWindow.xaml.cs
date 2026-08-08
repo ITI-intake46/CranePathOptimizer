@@ -87,6 +87,12 @@ namespace CraneOptimizer.UI.Shell.Views
                 || normalized.Equals("STUDIO", StringComparison.Ordinal);
         }
 
+        private void OpenAiAssistTab()
+        {
+            if (DataContext is MainViewModel viewModel)
+                viewModel.SelectedRightWorkspaceTab = RightWorkspaceTab.AiAssistant;
+        }
+
         private void OpenAiAssistStudio()
         {
             OpenAiAssistTab();
@@ -220,29 +226,5 @@ namespace CraneOptimizer.UI.Shell.Views
                 IfcViewerHost.ApplyRenderQualitySelection(item.Tag?.ToString());
         }
 
-        private void OpenAiAssistTab()
-        {
-            if (DataContext is MainViewModel viewModel)
-                viewModel.SelectedRightWorkspaceTab = RightWorkspaceTab.AiAssistant;
-
-            ShowAiCompanionButton.Visibility = Visibility.Collapsed;
-        }
-
-        private void AiCompanionStatusStrip_AssistRequested(object sender, RoutedEventArgs e)
-        {
-            OpenAiAssistTab();
-        }
-
-        private void AiCompanionStatusStrip_HideRequested(object sender, RoutedEventArgs e)
-        {
-            AiCompanionStrip.Visibility = Visibility.Collapsed;
-            ShowAiCompanionButton.Visibility = Visibility.Visible;
-        }
-
-        private void ShowAiCompanionButton_Click(object sender, RoutedEventArgs e)
-        {
-            AiCompanionStrip.Visibility = Visibility.Visible;
-            OpenAiAssistTab();
-        }
     }
 }

@@ -223,11 +223,11 @@
                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                             <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="User"
+                                <TextBlock x:Name="TxtSidebarUser"
                                            FontSize="{StaticResource FontSizeMD}"
                                            FontWeight="Bold"
                                            Foreground="#FFFFFF"/>
-                                <TextBlock Text="System Admin"
+                                <TextBlock x:Name="TxtSidebarRole"
                                            FontSize="{StaticResource FontSizeSM}"
                                            Foreground="#FFFFFF"
                                            Margin="0,2,0,0"/>
@@ -1140,13 +1140,17 @@
                         </Grid>
                     </Grid>
                     <Grid x:Name="ContentSettings" Visibility="Collapsed" Background="{DynamicResource BackgroundBrush}">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="40,30">
-                            <StackPanel MaxWidth="620" HorizontalAlignment="Left">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <Grid Margin="32,28,32,16">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
 
-                                <!-- Header -->
-                                <StackPanel Margin="0,0,0,28">
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                        <Border Width="4" Height="18" Background="{StaticResource PrimaryBrush}"
+                                <!-- Page header -->
+                                <StackPanel Margin="0,0,0,20">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <Border Width="4" Height="22" Background="{StaticResource PrimaryBrush}"
                                                 Margin="0,0,12,0" VerticalAlignment="Center"/>
                                         <TextBlock Text="Application Settings"
                                                    FontSize="{StaticResource FontSizeXL}" FontWeight="Bold"
@@ -1157,100 +1161,199 @@
                                                Foreground="{DynamicResource TextSecondaryBrush}" Margin="16,0,0,0"/>
                                 </StackPanel>
 
-                                <!-- ── APPEARANCE ── -->
-                                <Border Background="{DynamicResource SurfaceBrush}"
-                                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                                        CornerRadius="{StaticResource CardCornerRadius}" Padding="24,20"
-                                        Margin="0,0,0,16">
-                                    <StackPanel>
+                                <StackPanel Grid.Row="1" MaxWidth="760" HorizontalAlignment="Left">
 
-                                        <!-- Section label -->
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
-                                            <Border Width="3" Height="14" Background="{StaticResource PrimaryBrush}"
-                                                    Margin="0,0,10,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Appearance"
-                                                       FontSize="{StaticResource FontSizeSM}" FontWeight="Bold"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                                        </StackPanel>
+                                    <!-- ── APPEARANCE card ── -->
+                                    <Border Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                            CornerRadius="{StaticResource CardCornerRadius}" Padding="24,20"
+                                            Margin="0,0,0,16">
+                                        <StackPanel>
 
-                                        <!-- Theme toggle row -->
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-
-                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                <TextBlock Text="Color Theme"
-                                                           FontSize="{StaticResource FontSizeSM}" FontWeight="SemiBold"
-                                                           Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
-                                                <TextBlock Text="Choose between Dark and Light interface."
-                                                           FontSize="{StaticResource FontSizeXS}"
-                                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <!-- Section label -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                                                <Border Width="3" Height="14" Background="{StaticResource PrimaryBrush}"
+                                                        Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Appearance"
+                                                           FontSize="{StaticResource FontSizeSM}" FontWeight="Bold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                                             </StackPanel>
 
-                                            <!-- Dark / Light pill buttons -->
-                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                                <Button x:Name="BtnThemeDark"
-                                                        Content="🌙  Dark"
-                                                        Width="90" Height="34"
-                                                        Style="{StaticResource ButtonPrimary}"
-                                                        Margin="0,0,8,0"
-                                                        Click="BtnThemeDark_Click"/>
-                                                <Button x:Name="BtnThemeLight"
-                                                        Content="☀  Light"
-                                                        Width="90" Height="34"
+                                            <!-- Theme toggle row -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel Grid.Column="0" VerticalAlignment="Center"
+                                                            Margin="0,0,24,0">
+                                                    <TextBlock Text="Color Theme"
+                                                               FontSize="{StaticResource FontSizeSM}" FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"
+                                                               TextWrapping="Wrap"/>
+                                                    <TextBlock Text="Choose between a dark or light interface."
+                                                               FontSize="{StaticResource FontSizeXS}"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+
+                                                <!-- Dark / Light pill buttons -->
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Button x:Name="BtnThemeDark"
+                                                            Content="Dark"
+                                                            MinWidth="96" Height="34" Padding="20,0"
+                                                            FontSize="{StaticResource FontSizeSM}"
+                                                            FontWeight="Bold"
+                                                            Style="{StaticResource ButtonPrimary}"
+                                                            Margin="0,0,8,0"
+                                                            Click="BtnThemeDark_Click"/>
+                                                    <Button x:Name="BtnThemeLight"
+                                                            Content="Light"
+                                                            MinWidth="96" Height="34" Padding="20,0"
+                                                            FontSize="{StaticResource FontSizeSM}"
+                                                            FontWeight="Bold"
+                                                            Style="{StaticResource ButtonSecondary}"
+                                                            Click="BtnThemeLight_Click"/>
+                                                </StackPanel>
+                                            </Grid>
+
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- ── SESSION INFORMATION card ── -->
+                                    <Border Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                            CornerRadius="{StaticResource CardCornerRadius}" Padding="24,20">
+                                        <StackPanel>
+
+                                            <!-- Section label -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,18">
+                                                <Border Width="3" Height="14" Background="{StaticResource PrimaryBrush}"
+                                                        Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Session Information"
+                                                           FontSize="{StaticResource FontSizeSM}" FontWeight="Bold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <!-- Signed-in account -->
+                                            <Grid Margin="0,0,0,18">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <Border Grid.Column="0" Width="44" Height="44" CornerRadius="4"
+                                                        Background="{StaticResource PrimaryBrush}"
+                                                        Margin="0,0,14,0" VerticalAlignment="Center">
+                                                    <TextBlock Text="👤" FontSize="22"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtSessionUser"
+                                                               FontSize="{StaticResource FontSizeMD}" FontWeight="Bold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock x:Name="TxtSessionEmail"
+                                                               FontSize="{StaticResource FontSizeSM}"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Margin="0,2,0,0"/>
+                                                </StackPanel>
+
+                                                <Button Grid.Column="2" x:Name="BtnSignOut"
+                                                        Content="Sign Out"
+                                                        Height="34" Padding="20,0" Margin="16,0,0,0"
+                                                        FontSize="{StaticResource FontSizeSM}"
+                                                        VerticalAlignment="Center"
                                                         Style="{StaticResource ButtonSecondary}"
-                                                        Click="BtnThemeLight_Click"/>
-                                            </StackPanel>
-                                        </Grid>
+                                                        ToolTip="End the current session and close the application"
+                                                        Click="BtnSignOut_Click"/>
+                                            </Grid>
 
-                                    </StackPanel>
-                                </Border>
+                                            <Rectangle Height="1" Fill="{DynamicResource BorderBrush}" Margin="0,0,0,16"/>
 
-                                <!-- ── INFORMATION card ── -->
-                                <Border Background="{DynamicResource SurfaceBrush}"
-                                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                                        CornerRadius="{StaticResource CardCornerRadius}" Padding="24,20">
-                                    <StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
-                                            <Border Width="3" Height="14" Background="{StaticResource PrimaryBrush}"
-                                                    Margin="0,0,10,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Session Information"
-                                                       FontSize="{StaticResource FontSizeSM}" FontWeight="Bold"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                            <!-- Detail rows -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="200"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Role"
+                                                           FontSize="{StaticResource FontSizeSM}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           VerticalAlignment="Center" Margin="0,0,0,10"/>
+                                                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="TxtSessionRole"
+                                                           FontSize="{StaticResource FontSizeSM}" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           VerticalAlignment="Center" Margin="0,0,0,10"/>
+
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Logged In"
+                                                           FontSize="{StaticResource FontSizeSM}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           VerticalAlignment="Center" Margin="0,0,0,10"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="TxtSessionLogin"
+                                                           FontSize="{StaticResource FontSizeSM}" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           VerticalAlignment="Center" Margin="0,0,0,10"/>
+
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Active Theme"
+                                                           FontSize="{StaticResource FontSizeSM}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="2" Grid.Column="1" x:Name="TxtCurrentTheme"
+                                                           FontSize="{StaticResource FontSizeSM}" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           VerticalAlignment="Center"/>
+                                            </Grid>
+
                                         </StackPanel>
+                                    </Border>
 
-                                        <Grid Margin="0,0,0,10">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="180"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="Application Version"
-                                                       FontSize="{StaticResource FontSizeXS}"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1" x:Name="TxtAppVersion"
-                                                       FontSize="{StaticResource FontSizeXS}"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                        </Grid>
+                                    <!-- ── APPLICATION card ── -->
+                                    <Border Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                            CornerRadius="{StaticResource CardCornerRadius}" Padding="24,20"
+                                            Margin="0,16,0,0">
+                                        <StackPanel>
 
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="180"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="Active Theme"
-                                                       FontSize="{StaticResource FontSizeXS}"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1" x:Name="TxtCurrentTheme"
-                                                       FontSize="{StaticResource FontSizeXS}"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                        </Grid>
+                                            <!-- Section label -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,18">
+                                                <Border Width="3" Height="14" Background="{StaticResource PrimaryBrush}"
+                                                        Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Application"
+                                                           FontSize="{StaticResource FontSizeSM}" FontWeight="Bold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                            </StackPanel>
 
-                                    </StackPanel>
-                                </Border>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="200"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="Application Version"
+                                                           FontSize="{StaticResource FontSizeSM}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1" x:Name="TxtAppVersion"
+                                                           FontSize="{StaticResource FontSizeSM}" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           VerticalAlignment="Center"/>
+                                            </Grid>
 
-                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                </StackPanel>
+                            </Grid>
                         </ScrollViewer>
                     </Grid>
 

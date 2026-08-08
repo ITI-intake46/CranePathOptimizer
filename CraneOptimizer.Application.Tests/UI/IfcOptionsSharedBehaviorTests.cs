@@ -628,6 +628,7 @@ namespace CraneOptimizer.Application.Tests.UI
             public bool IsStoreyEnabled(string storey) => true;
             public bool IsElementIncluded(PrecastElement element) => !IsElementHidden(element);
             public bool IsElementHidden(PrecastElement element) => !_visibleElements.Contains(element);
+            public bool IsElementExplicitlyHidden(PrecastElement element) => !_visibleElements.Contains(element);
 
             private IReadOnlyList<string> BuildElementTypes()
             {

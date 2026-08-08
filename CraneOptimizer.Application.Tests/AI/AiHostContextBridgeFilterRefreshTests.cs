@@ -159,6 +159,7 @@ namespace CraneOptimizer.Application.Tests.AI
             public bool IsStoreyEnabled(string storey) => true;
             public bool IsElementIncluded(PrecastElement element) => _visibleElements.Contains(element);
             public bool IsElementHidden(PrecastElement element) => !_visibleElements.Contains(element);
+            public bool IsElementExplicitlyHidden(PrecastElement element) => !_visibleElements.Contains(element);
         }
     }
 }
