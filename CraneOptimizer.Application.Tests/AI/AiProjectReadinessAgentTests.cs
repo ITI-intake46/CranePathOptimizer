@@ -48,7 +48,7 @@ namespace CraneOptimizer.Application.Tests.AI
         }
 
         [Fact]
-        public async Task RunAsync_ExecutesGovernedPlanAndExplainsTheBlocker()
+        public async Task RunAsync_ExecutesGovernedPlanAndPrioritizesVisibleCorePrerequisite()
         {
             var service = CreateService(out _);
 
@@ -62,12 +62,12 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.InRange(run.Plan.Count, 6, 7);
             Assert.Equal(run.Plan.Count, run.Trace.Count);
             Assert.All(run.Trace, entry => Assert.Equal(AiAgentStepStatus.Succeeded, entry.Status));
-            Assert.Contains("zero trusted GA-ready", run.Conclusion, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("add or select a crane", run.Conclusion, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("get_bim_readiness", run.VisibleAnswer, StringComparison.Ordinal);
             Assert.Contains("get_ga_readiness", run.VisibleAnswer, StringComparison.Ordinal);
             Assert.Contains("No IFC, crane, zone, GA, report, or project state was modified", run.VisibleAnswer, StringComparison.Ordinal);
             Assert.Contains(run.RecommendedActions, action => action.Contains("CRANES", StringComparison.OrdinalIgnoreCase));
-            Assert.Contains(run.RecommendedActions, action => action.Contains("trusted", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(run.RecommendedActions, action => action.Contains("troubleshooting", StringComparison.OrdinalIgnoreCase));
         }
 
         [Fact]
@@ -149,6 +149,104 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("no active project", run.Conclusion, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(run.RecommendedActions, action => action.Contains("Open or create a project", StringComparison.OrdinalIgnoreCase));
             Assert.DoesNotContain(run.Trace, entry => entry.Status == AiAgentStepStatus.ApprovalRequired);
+        }
+
+        [Fact]
+        public async Task RunAsync_CoreCompleteZeroCandidateSignal_DefersRunDecisionToOptimizer()
+        {
+            var service = CreateService(out _);
+            var context = BuildCoreCompleteAdvisoryContext(hasResult: false);
+
+            var run = await service.RunAsync(context, "Can I run the optimizer now?", "ANALYSIS", string.Empty);
+
+            Assert.Contains("cannot certify", run.Conclusion, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Current Run Readiness", run.Conclusion, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("troubleshooting evidence", run.Conclusion, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("optimization is blocked", run.Conclusion, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(run.RecommendedActions, action => action.Contains("Run Optimizer", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public async Task RunAsync_LowCoverageResult_NextStepIsResultReviewWhileRerunRemainsOptimizerOwned()
+        {
+            var service = CreateService(out _);
+            var context = BuildCoreCompleteAdvisoryContext(hasResult: true);
+
+            var run = await service.RunAsync(context, "What should I do next from this screen?", "ANALYSIS", string.Empty);
+
+            Assert.Contains("Lift Summary", run.Conclusion, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("3.92", run.Conclusion, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("optimizer", run.Conclusion, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(run.RecommendedActions, action => action.Contains("Lift Summary", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static AiWorkflowContextSnapshot BuildCoreCompleteAdvisoryContext(bool hasResult)
+        {
+            return new AiWorkflowContextSnapshot
+            {
+                ProjectKey = "project:strict",
+                ProjectDisplayName = "Strict",
+                HasProject = true,
+                CurrentProjectName = "Strict",
+                ModelDisplayName = "Strict IFC",
+                ModelRevision = 11,
+                ModelFingerprint = "model:strict:11",
+                ElementCount = 362,
+                ZoneCount = 2,
+                AllowedZoneCount = 2,
+                CraneCount = 1,
+                HasLoadChartEvidence = true,
+                LoadChartEvidenceCount = 1,
+                OptimizationResult = hasResult
+                    ? new AiOptimizationResultSnapshot
+                    {
+                        HasResult = true,
+                        TotalElementCount = 357,
+                        LiftedElementCount = 14,
+                        CoverageRatio = 0.0392,
+                        PositionCount = 1
+                    }
+                    : new AiOptimizationResultSnapshot { HasResult = false },
+                ScreenContexts = new[]
+                {
+                    new AiScreenContextSnapshot
+                    {
+                        ScreenName = "Crane and load chart",
+                        Stage = "Current crane",
+                        Summary = "Current crane specification is visible.",
+                        Facts = new Dictionary<string, string>
+                        {
+                            ["SelectedHasSpecification"] = "True",
+                            ["SelectedCurrentRadius"] = "24.0",
+                            ["SelectedCurrentCapacity"] = "3.3"
+                        }
+                    },
+                    new AiScreenContextSnapshot
+                    {
+                        ScreenName = "IFC import readiness",
+                        Stage = "Import/readiness review",
+                        Summary = "AI-visible import/readiness signal reports zero candidates.",
+                        Facts = new Dictionary<string, string>
+                        {
+                            [AiWorkflowFactKeys.TrustedGaLiftUnits] = "0",
+                            [AiWorkflowFactKeys.TrustedGroupedLiftUnits] = "0"
+                        },
+                        Issues = new[]
+                        {
+                            new AiContextIssueSnapshot
+                            {
+                                Code = "GaCannotStartNoCandidates",
+                                Severity = "Error",
+                                Area = "Import/readiness",
+                                Evidence = "Host import/readiness signal=0.",
+                                Recommendation = "Review as troubleshooting evidence.",
+                                NextClick = "IFC MODEL",
+                                AffectedCount = 362
+                            }
+                        }
+                    }
+                }
+            };
         }
 
         private static ProjectReadinessAgentService CreateService(out InMemoryAiAgentAuditStore auditStore)

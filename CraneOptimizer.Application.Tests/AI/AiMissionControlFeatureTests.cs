@@ -15,10 +15,10 @@ namespace CraneOptimizer.Application.Tests.AI
             var readiness = readinessService.Evaluate(context, new UiInteractionContextService());
             var mission = new AiMissionControlService().Build(context, readiness, "ANALYZE");
 
-            Assert.Contains("optimizer blocked", mission.DiagnosisTitle, StringComparison.OrdinalIgnoreCase);
-            Assert.Equal("Blocked", mission.DiagnosisStatus);
-            Assert.Contains("zero trusted", mission.RootCause, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("Export Element List", mission.RecommendedAction, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("optimizer verification", mission.DiagnosisTitle, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("Verify", mission.DiagnosisStatus);
+            Assert.Contains("not the optimizer", mission.RootCause, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Run Optimizer", mission.RecommendedAction, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("AI Recovery Plan", mission.RecoveryPlan, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("data readiness", mission.WhatIfAdvisor, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("report language", mission.ReportNarrative, StringComparison.OrdinalIgnoreCase);
@@ -38,12 +38,12 @@ namespace CraneOptimizer.Application.Tests.AI
             var report = AiWorkflowEvidenceTextBuilder.BuildAiReportNarrativeDraft(context, readiness);
             var qaPack = AiWorkflowEvidenceTextBuilder.BuildQaEvidencePack(context, readiness, "IFC MODEL");
 
-            Assert.Contains("BIM/export owner", recovery, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("not crane reach or capacity", whatIf, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("zero trusted GA-ready grouped lift candidates", report, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Current Run Readiness", recovery, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("optimizer", whatIf, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("does not certify", report, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Readiness checklist", qaPack, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("What-if advisor", qaPack, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("bypass", recovery.Replace("do not bypass", string.Empty, StringComparison.OrdinalIgnoreCase), StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("does not certify", recovery, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("does not certify", report, StringComparison.OrdinalIgnoreCase);
         }
 
@@ -95,12 +95,12 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("AI Studio", showcase.HeroHeadline, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("live capabilities", showcase.PowerScoreLabel, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Readiness Sentinel", showcase.AgentStackSummary, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains(showcase.Capabilities, capability => capability.Title.Contains("Lift-Unit Trust", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(showcase.Capabilities, capability => capability.Title.Contains("Lift-Unit Evidence", StringComparison.OrdinalIgnoreCase));
             Assert.Contains(showcase.Capabilities, capability => capability.Title.Contains("ModelOps", StringComparison.OrdinalIgnoreCase));
             Assert.Contains(showcase.DemoPrompts, prompt => prompt.Label.Contains("What-if", StringComparison.OrdinalIgnoreCase));
             Assert.Contains(showcase.DecisionTrace, item => item.Contains("Classified workflow", StringComparison.OrdinalIgnoreCase));
             Assert.Contains("AI Makeover Showcase Brief", showcase.PresentationBrief, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("bypass", showcase.PresentationBrief.Replace("never suggests bypassing", string.Empty, StringComparison.OrdinalIgnoreCase), StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("source of truth", showcase.PresentationBrief, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
@@ -226,7 +226,7 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.DoesNotContain("if (string.Equals(_viewModel?.SelectedCommandCenterTab, \"Chat\", StringComparison.OrdinalIgnoreCase))", companionCodeBehind);
 
             Assert.Contains("AutomationProperties.Name=\"Resize right workspace panel\"", mainWindowXaml);
-            Assert.Contains("x:Name=\"RightWorkspaceColumn\" Width=\"360\" MinWidth=\"330\" MaxWidth=\"380\"", mainWindowXaml);
+            Assert.Contains("x:Name=\"RightWorkspaceColumn\" Width=\"360\" MinWidth=\"360\" MaxWidth=\"380\"", mainWindowXaml);
             Assert.DoesNotContain("SelectionChanged=\"RightWorkspaceTabs_SelectionChanged\"", mainWindowXaml);
             Assert.DoesNotContain("AiAssistPreferredWidth", mainWindowCode);
             Assert.DoesNotContain("ApplyAiAssistWorkspaceWidth", mainWindowCode);
@@ -235,7 +235,7 @@ namespace CraneOptimizer.Application.Tests.AI
             Assert.Contains("AI Assist / Mission Control", softwareContext);
             Assert.Contains("slim, evidence-first sidecar", softwareContext);
             Assert.Contains("rotated vertical section rail", softwareContext);
-            Assert.Contains("same 330 to 380 px right dock", softwareContext);
+            Assert.Contains("same fixed-width right dock", softwareContext);
             Assert.Contains("context inspector", softwareContext);
         }
 

@@ -472,10 +472,10 @@ namespace CraneOptimizer.Application.Tests.AI
             var handled = AiBimProjectQuestionService.TryBuildAnswer(context, "How many trusted lift units are there?", "IFC MODEL", out var answer, out _);
 
             Assert.True(handled);
-            Assert.Contains("0 trusted GA-ready lift unit", answer, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("reports 0 candidate-like/trusted-unit signal", answer, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Raw/import-screen candidate-like elements: 232", answer);
-            Assert.Contains("Estimated/fallback-weight elements blocked from GA: 2,016", answer);
-            Assert.Contains("Raw candidate-like element counts are not the same", answer);
+            Assert.Contains("Estimated/fallback-weight advisory count: 2,016", answer);
+            Assert.Contains("Current Run Readiness", answer, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
