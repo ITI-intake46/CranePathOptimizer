@@ -340,7 +340,7 @@ namespace CraneOptimizer.AI.Agents.Readiness
             if (context.OptimizationResult.HasResult)
             {
                 return "Core project prerequisites are visible and AI-captured optimization result evidence exists. " +
-                       "The strict host contract does not bind that evidence to the saved Analysis result currently selected on screen, so the AI does not present its captured percentage as the selected result. " +
+                       "The strict host contract does not bind that evidence to the current Analysis UI selection, so the AI does not attribute its captured percentage to that UI selection. " +
                        "Result review and current rerun eligibility are separate; the AI does not certify the optimizer's current preflight.";
             }
 

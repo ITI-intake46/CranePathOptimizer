@@ -107,7 +107,7 @@ namespace CraneOptimizer.AI.Workflow
                     false,
                     false,
                     "Warning",
-                    "AI-captured result evidence exists, but the strict host contract does not expose which saved Analysis result is currently selected. Review the application-selected result directly before relying on any captured percentage.",
+                    "AI-captured result evidence exists, but the strict host contract does not expose the current Analysis UI selection. Review Lift Summary in the application directly before relying on any captured percentage.",
                     "Inspect Lift Summary and unresolved failure modes before deciding whether to change inputs, report, or rerun.",
                     "ANALYSIS → Lift Summary"));
 
@@ -220,7 +220,7 @@ namespace CraneOptimizer.AI.Workflow
             if (hasResult)
             {
                 return "Core project prerequisites are visible and AI-captured optimization result evidence exists. " +
-                       "Because the strict host contract does not identify which saved Analysis result is selected, review Lift Summary in the application rather than treating the AI-captured percentage as the selected result. " +
+                       "Because the strict host contract does not identify the current Analysis UI selection, review Lift Summary in the application rather than attributing the AI-captured percentage to that UI selection. " +
                        "Result quality does not establish current rerun eligibility; use the optimizer's built-in readiness check.";
             }
 
